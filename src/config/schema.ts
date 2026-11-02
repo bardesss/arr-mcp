@@ -16,7 +16,8 @@ export const ServiceIdSchema = z.enum([
     'qbittorrent',
     'plex',
     'profilarr',
-    'cleanuparr'
+    'cleanuparr',
+    'reclaimerr'
 ]);
 export type ServiceId = z.infer<typeof ServiceIdSchema>;
 
@@ -53,7 +54,7 @@ const ApiKeyShape = { api_key: z.string().min(1, 'api_key must not be empty') };
 const KeyedServiceSchema = z.strictObject({ ...BaseServiceShape, ...ApiKeyShape });
 
 /** Services arr-mcp never writes to. */
-export const READ_ONLY_SERVICES: ReadonlySet<string> = new Set(['cleanuparr']);
+export const READ_ONLY_SERVICES: ReadonlySet<string> = new Set(['cleanuparr', 'reclaimerr']);
 
 /**
  * Write flags on a service nothing writes to would be reported as granted
@@ -258,6 +259,7 @@ export type ConfigByService = {
     qbittorrent: For<'qbittorrent', Instanced<CredentialServiceConfig>>;
     profilarr: For<'profilarr', KeyedServiceConfig>;
     cleanuparr: For<'cleanuparr', KeyedServiceConfig>;
+    reclaimerr: For<'reclaimerr', KeyedServiceConfig>;
 };
 
 /**
@@ -308,7 +310,9 @@ const ServicesSchema = z
         // so two of them would mean two sources of truth.
         profilarr: singleOnly(KeyedServiceSchema).optional(),
         // Single only: one Cleanuparr cleans one stack.
-        cleanuparr: singleOnly(ReadOnlyKeyedServiceSchema).optional()
+        cleanuparr: singleOnly(ReadOnlyKeyedServiceSchema).optional(),
+        // Single only: one Reclaimerr owns one library's cleanup rules.
+        reclaimerr: singleOnly(ReadOnlyKeyedServiceSchema).optional()
     })
     .superRefine((services, ctx) => {
         /**

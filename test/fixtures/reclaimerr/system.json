@@ -1,0 +1,20 @@
+{
+  "status": "ok",
+  "program": "Reclaimerr",
+  "version": "0.6.5",
+  "project_url": "https://github.com/jessielw/reclaimerr",
+  "api_version": "v1",
+  "server_time": "2026-10-30T20:14:23.650432Z",
+  "has_main_media_server": true,
+  "last_media_sync_at": "2026-10-30T03:00:10.492691",
+  "last_candidate_scan_at": "2026-10-30T20:07:02.806821",
+  "capabilities": [
+    "candidate-lifecycle",
+    "event-feed",
+    "media-catalog",
+    "protections",
+    "task-observability",
+    "task-triggering",
+    "durable-webhooks"
+  ]
+}

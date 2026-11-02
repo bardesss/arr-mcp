@@ -13,7 +13,7 @@ off until you turn them on — see [writes](writes.md).
 | `get_library` | What's in my library — joined across Radarr, Sonarr, Lidarr and your media server, and where they disagree; Lidarr artists are their own kind, joined by MusicBrainz id |
 | `get_profile_issues` | Which quality profiles and custom formats are misconfigured, and where Profilarr has drifted from Radarr/Sonarr |
 | `get_queue` | What is downloading, across the *arr queues and every download client |
-| `get_history` | Why did last night's download fail — grabbed, imported, failed, deleted, and what SABnzbd, NZBGet, Bazarr and Cleanuparr did |
+| `get_history` | Why did last night's download fail — grabbed, imported, failed, deleted, and what SABnzbd, NZBGet, Bazarr, Cleanuparr and Reclaimerr did |
 | `get_wanted` | Which episodes of a show are missing, and what has a file below cutoff |
 | `get_releases` | What an interactive search actually found, rejects included |
 | `get_calendar` | What is due, and what just aired |
@@ -205,6 +205,16 @@ after 3 strikes." `history` holds the row behind each one. Nothing matching
 leaves today's answer, and a history source that could not be read sets
 `certain: false`. A query that resolves never triggers this read.
 
+With Reclaimerr configured, `diagnose` looks the title up there by its TMDB id.
+When the managing *arr has no file and Reclaimerr deleted or moved the whole
+title in the last year, the file stage says so, with the date and the rule, and
+`remedy` says to protect it in Reclaimerr before searching again, since the same
+rule would otherwise delete it again. A removal of one season or episode leaves
+the rest on disk, so it is only mentioned in the summary. When a rule has the
+title scheduled for deletion, or eligible at the next deletion run, the summary
+says so with the date and the rule. Neither blocks a playable verdict, and a
+Reclaimerr that cannot be read only adds it to `degraded`.
+
 ## `stack_health`
 
 With more than one instance of a service, each is reported separately. With
@@ -392,6 +402,28 @@ neither can, Cleanuparr is named in `degraded` instead.
 One thing it cannot see: each *arr can override the failed-import strike count
 in Cleanuparr, including turning failed imports on when the global count is 0,
 and that setting is served together with the *arr's API key, so it is not read.
+
+### Reclaimerr
+
+With Reclaimerr configured, its health findings join the failing checks: a
+status other than `ok`, no main media server (rules based on watch history
+cannot match), a candidate whose deletion failed (with the attempt count and
+Reclaimerr's error), an API token missing one of the read scopes arr-mcp uses or
+carrying a write scope it does not need, and a Reclaimerr minor newer than 0.6
+(flagged as untested).
+
+At `full`, `cleanup` says what its rules will do: `candidates`, soonest first
+(`eligible` goes at the next run of the deletion task, then `scheduled` by
+`eligibleAt`, then `postponed`, `disabled` and `canceled`), each with its
+scope, the rules that matched it, `operation` (`delete` or `move`), `blockers`
+and any failed deletion. `rules` lists every rule with its outcome
+(`candidate`, `protect` or `match`), `protections` counts the active
+protections, `totals` gives the reclaimable and reclaimed bytes, and
+`autoDelete.enabled` says whether the deletion task runs at all: when it is
+off, nothing is deleted on its own whatever the dates say. The candidate list
+takes the call's `limit`; `total` is always the full count. `going` counts the
+`eligible` and `scheduled` ones over every candidate, not only the ones
+returned, with `firstAt` the soonest date; the summary line quotes it.
 
 ### Did that command finish?
 
@@ -646,6 +678,29 @@ Unlike the free text beside it, the value is not fenced. It exists to be matched
 against, and a boundary marker wrapped around `jpn/eng` would make its one job
 harder; the code points `fenceText` strips are removed from it all the same.
 
+### What a cleanup service is about to do to it
+
+With Reclaimerr configured, a record carries `cleanup`, on both the title and
+the `service` plus `id` forms:
+
+- `candidates`, soonest first: what its rules matched on this title, with the
+  scope (the whole title, one movie version, a season or an episode), the rules,
+  `operation` (`delete` or `move`), `state` and `eligibleAt`.
+- `protections`: the active protections on it, with `permanent` or `expiresAt`.
+- `removals`, newest first: what it deleted or moved of this title in the last
+  year.
+
+The title is found by its TMDB id, the one id Reclaimerr's candidates,
+protections and events all carry. `cleanup` is **absent** when Reclaimerr has
+nothing on the title, when the title has no TMDB id, and when Reclaimerr could
+not be read.
+
+`diagnose` reads the same thing. A removal of the film (or its version, since
+Radarr keeps one file per movie) or of the whole series explains a missing file
+only when the managing *arr imported nothing after it. A season or episode
+removal is mentioned beside the verdict instead, since the rest may still be on
+disk, and so is a version removal on a film that still has a file.
+
 ## `get_playback`
 
 `scope` picks which of three Jellyfin reads answers the call, and defaults to
@@ -672,6 +727,29 @@ tonight," one row per series. `kind: "next_up"`; `title` is the episode, and
 a sort-by-`DatePlayed` read over played items. `kind: "watched"`; `lastPlayed`
 carries the timestamp and survives even at `detail: "standard"`, since it is
 the one field this scope exists to answer.
+
+That read alone misses plays that never set the played flag. An offline client
+such as AFinity syncs its plays back when it reconnects, and Jellyfin logs them
+as `VideoPlaybackStopped` in the activity log without ever marking the item
+played. So history also reads `/System/ActivityLog/Entries?type=VideoPlaybackStopped`
+(newest 500 for the whole household, narrowed to the user by `UserId`), keeps the
+newest stop per item, drops anything already in the played list, and looks the
+rest up with `/Items?ids=…&Fields=UserData`. Every Jellyfin history row says
+where it came from in `source`: `marked_played` or `activity_log`.
+
+A logged play counts as `kind: "watched"` unless Jellyfin still holds a resume
+position for it, which means the viewer stopped partway: that row is
+`kind: "partially_watched"` with `percentComplete`. Logged items that are not
+movies or episodes (live TV) are dropped. An item deleted since keeps its row,
+titled with the log entry's own sentence, which Jellyfin localises, and
+`removedFromLibrary: true`: whether it was ever marked played cannot be told
+any more, and a cleanup tool deleting played items is the usual reason it is
+gone.
+
+Two limits. The log reaches back only `ActivityLogRetentionDays` (30 by
+default). And a play that left nothing in the log is invisible here. If the
+log read fails, history answers from the played list alone and logs a warning;
+the played list stays a correct answer to most questions.
 
 Every scope sends an explicit `Limit=500` (`next_up` gets whatever Jellyfin
 reports, which does not grow unbounded), so truncation is decided by `limit`
@@ -889,6 +967,20 @@ Radarr, Sonarr and Lidarr rows now carry the same `downloadId`, also lowercased.
 case-insensitively. Passing `id` with
 `service: cleanuparr` is refused, because Cleanuparr does not keep history per
 movie or series.
+
+### Reclaimerr
+
+Reclaimerr contributes its cleanup lifecycle, read from its event feed:
+`scheduled` (a rule matched and a deletion date was set), `deleted` (deleted or
+moved; `rawEvent` says which), `protected` (a candidate protected, or a
+protection created through its API) and `unknown` for a cancel, a postpone or a
+timer reset. `reason` carries the rule names and Reclaimerr's own reason,
+fenced. Its feed is oldest first, so without `since` arr-mcp reads the last 7
+days and widens to 30, 180 and 730 until it holds the rows asked for. A window holding more than 5000 events
+would keep its oldest and drop its newest, so arr-mcp halves it towards now
+until it fits; what falls before the narrowed start is left out. Passing
+`id` with `service: reclaimerr` is refused: its events are per candidate, not
+per movie or series, and `get_media_details` shows one title's cleanup state.
 
 ### The services below the *arrs
 

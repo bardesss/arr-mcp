@@ -565,6 +565,16 @@ const CONTRACTS: Record<string, ServiceContract> = {
                 ]
             },
             {
+                // get_playback history's second source: plays an offline
+                // client synced back without the item ever getting Played.
+                // `ItemId` joins a stop to its item and `UserId` narrows the
+                // household-wide log; `Name` titles a row whose item is gone.
+                path: '/System/ActivityLog/Entries',
+                method: 'get',
+                fixture: 'test/fixtures/jellyfin/activity-log.json',
+                fields: ['Items.Type', 'Items.ItemId', 'Items.Date', 'Items.UserId', 'Items.Name']
+            },
+            {
                 path: '/Shows/{seriesId}/Episodes',
                 method: 'get',
                 fixture: 'test/fixtures/jellyfin/show-episodes.json',
@@ -865,6 +875,53 @@ const CONTRACTS: Record<string, ServiceContract> = {
                     'MediaContainer.Metadata.Media.Part.size',
                     'MediaContainer.Metadata.librarySectionID'
                 ]
+            }
+        ]
+    },
+    // Reclaimerr publishes /api/v1/openapi.json; these fixtures are its live 0.6.5 answers.
+    reclaimerr: {
+        dependencies: [
+            { path: '/api/v1', fixture: 'test/fixtures/reclaimerr/discovery.json', fields: ['granted_scopes'] },
+            { path: '/api/v1/system', fixture: 'test/fixtures/reclaimerr/system.json', fields: ['status', 'version', 'has_main_media_server'] },
+            {
+                path: '/api/v1/stats',
+                fixture: 'test/fixtures/reclaimerr/stats.json',
+                fields: ['candidates_total', 'reclaimable_bytes', 'reclaimed_bytes_total', 'reclaimed_items_total', 'next_auto_delete_at', 'auto_delete_task_enabled']
+            },
+            { path: '/api/v1/rules', fixture: 'test/fixtures/reclaimerr/rules.json', fields: ['items.id', 'items.name', 'items.media_type', 'items.outcome', 'items.enabled'] },
+            {
+                path: '/api/v1/candidates',
+                fixture: 'test/fixtures/reclaimerr/candidates.json',
+                fields: [
+                    'total_pages',
+                    'items.id',
+                    'items.media_type',
+                    'items.scope',
+                    'items.season_number',
+                    'items.episode_number',
+                    'items.title',
+                    'items.year',
+                    'items.tmdb_id',
+                    'items.matched_rule_ids',
+                    'items.reason',
+                    'items.delete_operation',
+                    'items.auto_delete_state',
+                    'items.auto_delete_eligible_at',
+                    'items.auto_delete_postponed_until',
+                    'items.blockers',
+                    'items.delete_attempts',
+                    'items.last_delete_error'
+                ]
+            },
+            {
+                path: '/api/v1/protections',
+                fixture: 'test/fixtures/reclaimerr/protections.json',
+                fields: ['total_pages', 'items.media_type', 'items.scope', 'items.title', 'items.tmdb_id', 'items.permanent', 'items.expires_at', 'items.reason', 'items.active']
+            },
+            {
+                path: '/api/v1/events',
+                fixture: 'test/fixtures/reclaimerr/events.json',
+                fields: ['has_more', 'next_cursor', 'items.id', 'items.type', 'items.occurred_at', 'items.payload.candidate.title', 'items.payload.candidate.tmdb_id', 'items.payload.candidate.media_type']
             }
         ]
     }

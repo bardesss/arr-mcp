@@ -508,6 +508,25 @@ describe('cleanuparr', () => {
     });
 });
 
+describe('reclaimerr', () => {
+    it('reads write permissions on reclaimerr as off, since nothing writes to it', () => {
+        const parsed = ConfigSchema.parse({
+            auth: AUTH,
+            services: { reclaimerr: { url: 'http://reclaimerr:8000', api_key: 'rcl_a_b', permissions: { safe_write: true, destructive: true } } }
+        });
+        expect(parsed.services.reclaimerr?.permissions).toEqual({ safe_write: false, destructive: false });
+    });
+
+    it('refuses a list of reclaimerr instances', () => {
+        expect(() =>
+            ConfigSchema.parse({
+                auth: AUTH,
+                services: { reclaimerr: [{ url: 'http://a:8000', api_key: 'k' }] }
+            })
+        ).toThrow(/single block/);
+    });
+});
+
 describe('per-service config shapes', () => {
     it('accepts transmission with username and password and no api_key', () => {
         const parsed = ConfigSchema.parse({
