@@ -1,0 +1,61 @@
+{
+  "items": [
+    {
+      "id": "7657e036-cd56-470b-b91b-094027b9e6ed",
+      "type": "candidate.scheduled",
+      "occurred_at": "2026-10-30T20:07:02",
+      "candidate_id": 1,
+      "actor": {
+        "type": "system",
+        "id": null
+      },
+      "payload": {
+        "schema_version": 1,
+        "id": "7657e036-cd56-470b-b91b-094027b9e6ed",
+        "type": "candidate.scheduled",
+        "occurred_at": "2026-10-30T20:07:02.671749+00:00",
+        "candidate": {
+          "id": 1,
+          "media_type": "movie",
+          "scope": "version",
+          "media_id": 28,
+          "movie_version_id": 28,
+          "series_id": null,
+          "season_id": null,
+          "season_number": null,
+          "episode_id": null,
+          "episode_number": null,
+          "title": "Example Movie 1",
+          "year": 2021,
+          "tmdb_id": 900001,
+          "matched_rule_ids": [
+            7
+          ],
+          "reason": "Example reason",
+          "delete_operation": "delete",
+          "created_at": "2026-10-30T19:56:35+00:00",
+          "auto_delete_state": "scheduled",
+          "auto_delete_delay_days": 365,
+          "auto_delete_eligible_at": "2027-10-30T19:56:35+00:00",
+          "auto_delete_is_active": true,
+          "auto_delete_is_eligible": false,
+          "auto_delete_cancelled_at": null,
+          "auto_delete_postponed_until": null,
+          "auto_delete_timer_started_at": null,
+          "lifecycle_reason": null,
+          "lifecycle_updated_at": null,
+          "delete_attempts": 0,
+          "last_delete_attempt_at": null,
+          "last_delete_error": null,
+          "playback_deferral": null,
+          "blockers": []
+        },
+        "links": {
+          "self": "/api/v1/candidates/1"
+        }
+      }
+    }
+  ],
+  "next_cursor": "7657e036-cd56-470b-b91b-094027b9e6ed",
+  "has_more": false
+}

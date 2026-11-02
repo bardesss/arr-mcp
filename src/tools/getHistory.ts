@@ -78,7 +78,7 @@ export function historyLine(entry: HistoryEntry): string {
     if (entry.indexer !== undefined && entry.indexer !== '') facts.push(entry.indexer);
 
     if (entry.strikeCount !== undefined) facts.push(`${entry.strikeCount} strike${entry.strikeCount === 1 ? '' : 's'}`);
-    if (entry.reason !== undefined && entry.service === 'cleanuparr') facts.push(entry.reason);
+    if (entry.reason !== undefined && (entry.service === 'cleanuparr' || entry.service === 'reclaimerr')) facts.push(entry.reason);
     if (entry.oldCategory !== undefined || entry.newCategory !== undefined) facts.push(`${entry.oldCategory ?? '(none)'} → ${entry.newCategory ?? '(none)'}`);
     if (entry.downloadClient !== undefined) facts.push(`on ${entry.downloadClient}`);
     if (entry.clientRemoved === true) facts.push('on a client since deleted from Cleanuparr');
@@ -119,7 +119,7 @@ export async function buildGetHistory(
         // and more misleading claim than "this service cannot answer that".
         if (!hasHistory(adapter)) {
             throw new ServiceError('NotFound', adapter.id, `${adapter.id} has no history to return`, {
-                remedy: 'radarr, sonarr, sabnzbd, nzbget, bazarr and cleanuparr can answer get_history. A media server has no download history.'
+                remedy: 'radarr, sonarr, sabnzbd, nzbget, bazarr, cleanuparr and reclaimerr can answer get_history. A media server has no download history.'
             });
         }
         scoped = [adapter];
@@ -170,7 +170,7 @@ export function registerGetHistory(server: McpServer, adapters: readonly Service
             title: 'Download history',
             annotations: READ_ONLY,
             description:
-                'What happened to a grab after it left the queue: grabbed, imported, failed or deleted, merged across Radarr, Sonarr, SABnzbd, NZBGet and Bazarr and normalised to one vocabulary — the upstream spelling survives as `rawEvent`. SABnzbd\'s and NZBGet\'s own rows are the layer below the *arrs: when Radarr says it grabbed something and nothing arrived, the download client\'s failure message is here. Bazarr contributes `subtitle` rows — a downloaded subtitle is not an import, and calling it one would put it in the answer to "what did Radarr import last night". `trigger_search` only ever hands back a command handle with no way to follow up, and `get_queue` cannot see anything that has already failed or finished; this is how you answer "why did last night\'s download fail". A failure carries the download client\'s own message, fenced and in whatever language it runs in. Cleanuparr contributes what it did to downloads: `strike` (stalled, slow, failed import), `recovered` (strikes reset), `recategorised` (with `oldCategory` and `newCategory`), `stopped` and `deleted` rows, with its reason, strike count and `downloadClient` (or `clientRemoved` when that client was since deleted); `dryRun` marks what it only logged. `downloadId` links a row to the *arr grab it belongs to. An NZBGet row carries `downloadId`, the id `trigger_scan`\'s `postprocess` takes to rerun its post-processing. Pass `service` and `id` to scope to one movie or series.',
+                'What happened to a grab after it left the queue: grabbed, imported, failed or deleted, merged across Radarr, Sonarr, SABnzbd, NZBGet and Bazarr and normalised to one vocabulary — the upstream spelling survives as `rawEvent`. SABnzbd\'s and NZBGet\'s own rows are the layer below the *arrs: when Radarr says it grabbed something and nothing arrived, the download client\'s failure message is here. Bazarr contributes `subtitle` rows — a downloaded subtitle is not an import, and calling it one would put it in the answer to "what did Radarr import last night". `trigger_search` only ever hands back a command handle with no way to follow up, and `get_queue` cannot see anything that has already failed or finished; this is how you answer "why did last night\'s download fail". A failure carries the download client\'s own message, fenced and in whatever language it runs in. Cleanuparr contributes what it did to downloads: `strike` (stalled, slow, failed import), `recovered` (strikes reset), `recategorised` (with `oldCategory` and `newCategory`), `stopped` and `deleted` rows, with its reason, strike count and `downloadClient` (or `clientRemoved` when that client was since deleted); `dryRun` marks what it only logged. `downloadId` links a row to the *arr grab it belongs to. Reclaimerr contributes its cleanup lifecycle: `scheduled` (a rule matched and a deletion date was set), `deleted` (deleted or moved; `rawEvent` says which), `protected`, and `unknown` for a cancel, postpone or timer reset, each with the rule and reason in `reason`; its rows cannot be scoped by `id`. An NZBGet row carries `downloadId`, the id `trigger_scan`\'s `postprocess` takes to rerun its post-processing. Pass `service` and `id` to scope to one movie or series.',
             outputSchema: PagedOutputSchema,
             inputSchema: toolInput({
                 service: ServiceIdSchema.optional().describe('Scope to one service. Required alongside `id`.'),

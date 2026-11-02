@@ -6,12 +6,14 @@ import { ServiceError } from '../core/errors.ts';
 import { logger } from '../core/logger.ts';
 import { DetailSchema, LimitSchema, READ_ONLY, TruncationSchema, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
 import {
+    hasCleanup,
     hasCleanuparrRemovals,
     hasCommandStatus,
     hasDiskSpace,
     hasHealthChecks,
     hasMediaAdd,
     hasScanState,
+    type CleanupOverview,
     type CleanuparrRemovals,
     type CommandStatus,
     type ConnectionDiagnosis,
@@ -70,6 +72,11 @@ export type StackHealthResult = {
      * disagree. Only at `detail: "full"`, and absent when nothing seeds.
      */
     seedingRules?: SeedingRules;
+    /**
+     * What a cleanup service (Reclaimerr) is set to delete, soonest first, with
+     * its rules and whether its deletion task runs. Only at `detail: "full"`.
+     */
+    cleanup?: CleanupOverview;
     /**
      * When Cleanuparr's Queue Cleaner and Malware Blocker remove a download, and
      * what each removal does. Only at `detail: "full"`, and only with Cleanuparr
@@ -315,23 +322,32 @@ export async function buildStackHealth(
                   .flat()
                   .sort((a, b) => a.instance.localeCompare(b.instance));
 
-    const seedingRules = opts.detail === 'full' ? await buildSeedingRules(adapters, markDegraded) : undefined;
-    const hasSeedingRules =
-        seedingRules !== undefined &&
-        (seedingRules.clients.length > 0 || seedingRules.indexers.length > 0 || (seedingRules.cleanuparr?.length ?? 0) > 0);
-
+    const cleanupAdapter = opts.detail === 'full' ? adapters.find(hasCleanup) : undefined;
     const removalSource = opts.detail === 'full' ? adapters.find(hasCleanuparrRemovals) : undefined;
-    const cleanuparrRemovals =
+    // Independent reads: none waits on another.
+    const [seedingRules, cleanup, cleanuparrRemovals] = await Promise.all([
+        opts.detail === 'full' ? buildSeedingRules(adapters, markDegraded) : undefined,
+        cleanupAdapter === undefined || degraded.includes(cleanupAdapter.id)
+            ? undefined
+            : cleanupAdapter.readCleanupOverview(opts.limit).catch((err: unknown) => {
+                  logger.warn({ service: cleanupAdapter.id, err }, 'cleanup overview read failed; omitting');
+                  markDegraded(cleanupAdapter.id);
+                  return undefined;
+              }),
         removalSource === undefined
             ? undefined
-            : await removalSource.getRemovalRules().then(
+            : removalSource.getRemovalRules().then(
                   r => ({ service: removalSource.id, ...r }),
                   (err: unknown) => {
                       logger.warn({ service: removalSource.id, err }, 'Cleanuparr removal rules unavailable; omitting');
                       markDegraded(removalSource.id);
                       return undefined;
                   }
-              );
+              )
+    ]);
+    const hasSeedingRules =
+        seedingRules !== undefined &&
+        (seedingRules.clients.length > 0 || seedingRules.indexers.length > 0 || (seedingRules.cleanuparr?.length ?? 0) > 0);
 
     // Promise.all resolves in input order but the pushes above race, so sort to
     // make the response stable across calls and diffable in tests.
@@ -399,6 +415,7 @@ export async function buildStackHealth(
             ...(endpoints === undefined ? {} : { endpoints }),
             ...(options === undefined ? {} : { options }),
             ...(hasSeedingRules ? { seedingRules } : {}),
+            ...(cleanup === undefined ? {} : { cleanup }),
             ...(cleanuparrRemovals === undefined ? {} : { cleanuparrRemovals }),
             ...(opts.detail === 'minimal' ? {} : { commands }),
             ...(primaryMediaServer === undefined ? {} : { primaryMediaServer }),
@@ -406,6 +423,17 @@ export async function buildStackHealth(
         },
         opts.detail
     );
+}
+
+/** One sentence on what is about to go, because that is the question a cleanup service raises. */
+export function cleanupLine(cleanup: CleanupOverview | undefined): string {
+    const candidates = cleanup?.candidates;
+    if (cleanup === undefined || candidates === undefined) return '';
+    const off = cleanup.autoDelete?.enabled === false ? ' Its automatic deletion is off, so nothing goes on its own.' : '';
+    if (candidates.total === 0) return ` ${cleanup.service} has nothing set to be deleted.${off}`;
+    // Counted by the adapter before `limit` cut the list.
+    const going = cleanup.going ?? { count: 0 };
+    return ` ${cleanup.service}: ${candidates.total} cleanup candidate(s), ${going.count} set to go${going.firstAt === undefined ? '' : `, the first on ${going.firstAt.slice(0, 10)}`}.${off}`;
 }
 
 export function registerStackHealth(
@@ -420,7 +448,7 @@ export function registerStackHealth(
             title: 'Stack health',
             annotations: READ_ONLY,
             description:
-                'Health of every configured service: version, disk space, failing health checks, when each library was last scanned, and what each instance is permitted to do. Returns partial results with a `degraded` list rather than failing when a service is down. `commands` is how you follow up a `trigger_search` or `trigger_scan`: it lists the searches, scans, refreshes, renames and imports each service has queued or running, plus any it finished in the last fifteen minutes — so a command that is not there has finished. A service\'s own per-minute housekeeping is left out. The `permissions` list is also the set of ids you may pass as `instance` to other tools. `endpoints` gives each instance\'s base URL, for scripts that need to reach a service directly. At `detail: "full"`, `options` lists the quality profiles, root folders and tags each Radarr/Sonarr instance actually has — the values `add_media` and `update_media` refuse to guess, so read them here rather than inventing a profile name. Also at `detail: "full"`, `seedingRules` gives each torrent client\'s default seed limits and what it does on reaching them, each torrent indexer\'s seed ratio and time (an *arr hands those to the client with every grab, overriding its default), and `notes` where they disagree. Which torrents are past their limit is in `get_queue`. With Cleanuparr configured, `seedingRules.cleanuparr` lists its rules per client, matched to the arr-mcp client they act on, `seedingRules.coverage` counts the torrents on each client that no rule covers, and `notes` says why, which rule categories no torrent is in, and which torrent client Cleanuparr does not know about. Each set also carries its Unlinked, Dead Torrents and Orphaned Files modules, and `notes` says where they leave a gap: a target category no rule covers, an orphaned directory that is never purged, or a save directory the orphan scan misses or would move whole, and `cleanuparrRemovals` answers "why did my download disappear": each Queue Cleaner strike limit (failed import, stuck metadata, errored download, every stall and slow rule) with what happens at the limit and to private torrents, whether a removal searches again, the Malware Blocker blocklists and when it removes a download, and `notes` on settings that delete the files of private torrents. API keys are never returned by any tool in this server — a script that needs one runs beside the config and reads it there.',
+                'Health of every configured service: version, disk space, failing health checks, when each library was last scanned, and what each instance is permitted to do. Returns partial results with a `degraded` list rather than failing when a service is down. `commands` is how you follow up a `trigger_search` or `trigger_scan`: it lists the searches, scans, refreshes, renames and imports each service has queued or running, plus any it finished in the last fifteen minutes — so a command that is not there has finished. A service\'s own per-minute housekeeping is left out. The `permissions` list is also the set of ids you may pass as `instance` to other tools. `endpoints` gives each instance\'s base URL, for scripts that need to reach a service directly. At `detail: "full"`, `options` lists the quality profiles, root folders and tags each Radarr/Sonarr instance actually has — the values `add_media` and `update_media` refuse to guess, so read them here rather than inventing a profile name. Also at `detail: "full"`, `seedingRules` gives each torrent client\'s default seed limits and what it does on reaching them, each torrent indexer\'s seed ratio and time (an *arr hands those to the client with every grab, overriding its default), and `notes` where they disagree. Which torrents are past their limit is in `get_queue`. With Cleanuparr configured, `seedingRules.cleanuparr` lists its rules per client, matched to the arr-mcp client they act on, `seedingRules.coverage` counts the torrents on each client that no rule covers, and `notes` says why, which rule categories no torrent is in, and which torrent client Cleanuparr does not know about. Each set also carries its Unlinked, Dead Torrents and Orphaned Files modules, and `notes` says where they leave a gap: a target category no rule covers, an orphaned directory that is never purged, or a save directory the orphan scan misses or would move whole, and `cleanuparrRemovals` answers "why did my download disappear": each Queue Cleaner strike limit (failed import, stuck metadata, errored download, every stall and slow rule) with what happens at the limit and to private torrents, whether a removal searches again, the Malware Blocker blocklists and when it removes a download, and `notes` on settings that delete the files of private torrents. With Reclaimerr configured, `cleanup` (also at `detail: "full"`) says what its rules will delete or move and when, soonest first (`eligible` goes at the next run of its deletion task, `scheduled` on `eligibleAt`, `postponed`, `canceled` and `disabled` are held back), the rules themselves, the number of active protections, and whether automatic deletion runs at all. API keys are never returned by any tool in this server — a script that needs one runs beside the config and reads it there.',
             inputSchema: toolInput({ detail: DetailSchema, limit: LimitSchema }),
             // The one read tool whose answer is not a list, so it declares its
             // own shape rather than the paged envelope. `disks` and `failures`
@@ -451,6 +479,10 @@ export function registerStackHealth(
                     })
                     .optional()
                     .describe('Client seed limits, indexer seed criteria, and where they disagree. Only at `detail: "full"`.'),
+                cleanup: z
+                    .looseObject({ service: z.string() })
+                    .optional()
+                    .describe('What Reclaimerr is set to delete, soonest first, its rules and whether auto-delete runs. Only at `detail: "full"`.'),
                 cleanuparrRemovals: z
                     .object({ service: z.string(), queueCleaner: z.unknown().optional(), malwareBlocker: z.unknown().optional(), notes: z.array(z.string()) })
                     .optional()
@@ -469,7 +501,8 @@ export function registerStackHealth(
                     ? `All ${result.services.length} configured service(s) healthy.` +
                       (neverScanned > 0 ? ` ${neverScanned} report no completed library scan.` : '')
                     : `${result.degraded.length} of ${result.services.length} service(s) degraded: ${result.degraded.join(', ')}.`) +
-                (primaryMediaServer === undefined ? '' : ` ${primaryMediaServer} is the primary media server.`);
+                (primaryMediaServer === undefined ? '' : ` ${primaryMediaServer} is the primary media server.`) +
+                cleanupLine(result.cleanup);
 
             return {
                 content: [{ type: 'text', text: summary }],
