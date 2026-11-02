@@ -9,6 +9,8 @@ import {
     type ConnectionDiagnosis,
     type DiskSpace,
     type DiskSpaceCapable,
+    type HealthCheck,
+    type HealthCheckCapable,
     type HistoryCapable,
     type HistoryEntry,
     type PauseCapable,
@@ -49,6 +51,9 @@ type RawQueue = {
     };
 };
 type RawHistory = { history?: { slots?: RawHistorySlot[] } };
+/** SABnzbd 4.x and 5.x send objects; `time` is unix seconds. */
+type RawWarning = { type?: unknown; text?: unknown; time?: unknown; origin?: unknown };
+type RawWarnings = { warnings?: unknown };
 type RawHistorySlot = {
     nzo_id?: string;
     name?: string;
@@ -133,6 +138,14 @@ const plainName = (filename: string | undefined): string =>
 /** Queue statuses SABnzbd shows while post-processing rather than downloading. */
 const PROCESSING_STATUSES = new Set(['verifying', 'repairing', 'extracting', 'moving', 'running']);
 
+/**
+ * How far back a warning still counts as failing. `mode=warnings` is a log
+ * kept until restart or until someone clears it, not a current state: a live
+ * capture held week-old "connection refused" rows for a provider that had long
+ * since recovered. A day keeps what is plausibly still true.
+ */
+const WARNING_WINDOW_MS = 24 * 60 * 60 * 1000;
+
 const MISSING_REMEDY =
     'Take a current id from get_history or get_queue. If Radarr or Sonarr grabbed it, its "Remove Failed" setting (Settings → Download Clients) deletes failed downloads from SABnzbd; turn it off to keep them retryable.';
 
@@ -140,6 +153,7 @@ export class SabnzbdAdapter
     implements
         ServiceAdapter,
         DiskSpaceCapable,
+        HealthCheckCapable,
         QueueCapable,
         QueueRemoveCapable,
         PauseCapable,
@@ -195,6 +209,51 @@ export class SabnzbdAdapter
                 }
             ];
         });
+    }
+
+    /**
+     * SABnzbd's warnings from the last day, one row per source and severity.
+     * `origin` is the code line that logged it (`newswrapper.py705`), so one
+     * flaky provider fills the log with near-identical rows that differ only
+     * in a connection number; the newest text stands for the rest, with a
+     * count. Info rows are not failures, and the text is in SABnzbd's UI
+     * language, so nothing here matches on it.
+     */
+    async getFailedHealthChecks(): Promise<HealthCheck[]> {
+        const body = await this.#http.get<RawWarnings>('/api?mode=warnings&output=json');
+        if (!Array.isArray(body.warnings)) {
+            throw new ServiceError('UpstreamError', this.id, 'mode=warnings returned no warnings list');
+        }
+
+        const since = Date.now() - WARNING_WINDOW_MS;
+        const groups = new Map<string, { type: string; origin: string; text: string; time: number; count: number }>();
+        for (const raw of body.warnings as unknown[]) {
+            if (typeof raw !== 'object' || raw === null) continue;
+            const w = raw as RawWarning;
+            const type = typeof w.type === 'string' ? w.type.toLowerCase() : '';
+            if (type !== 'warning' && type !== 'error') continue;
+            if (typeof w.time !== 'number' || w.time * 1000 < since) continue;
+            const origin = typeof w.origin === 'string' && w.origin.length > 0 ? w.origin : 'unknown';
+            const text = typeof w.text === 'string' ? w.text : '';
+            const key = `${type} ${origin}`;
+            const seen = groups.get(key);
+            if (seen === undefined) groups.set(key, { type, origin, text, time: w.time, count: 1 });
+            else {
+                seen.count += 1;
+                if (w.time >= seen.time) Object.assign(seen, { text, time: w.time });
+            }
+        }
+
+        return [...groups.values()]
+            .sort((a, b) => b.time - a.time)
+            .map(g => ({
+                service: this.id,
+                source: this.#fence(g.origin, 'origin'),
+                type: g.type,
+                message:
+                    this.#fence(g.text, 'text') +
+                    (g.count > 1 ? ` (and ${g.count - 1} more like it in the last day)` : '')
+            }));
     }
 
     async getQueue(): Promise<QueueItem[]> {

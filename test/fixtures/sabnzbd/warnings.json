@@ -1,0 +1,124 @@
+{
+  "warnings": [
+    {
+      "type": "WARNING",
+      "text": "Importeren van 1 bestanden van Scooby-Doo.Where.Are.You.S01E12.Scooby-Doo.and.a.Mummy.Too.1080p.MAX.WEB-DL.DDP2.0.H.264.DUAL-UPD.mkv.nzb mislukt",
+      "time": 1793035792,
+      "origin": "nzbparser.py501"
+    },
+    {
+      "type": "WARNING",
+      "text": "Importeren van 1 bestanden van Scooby-Doo.Where.Are.You.S01E13.Which.Witch.Is.Which.1080p.MAX.WEB-DL.DDP2.0.H.264.DUAL-UPD.mkv.nzb mislukt",
+      "time": 1793035794,
+      "origin": "nzbparser.py501"
+    },
+    {
+      "type": "WARNING",
+      "text": "Importeren van 1 bestanden van Scooby-Doo.Where.Are.You.S01E14.Go.Away.Ghost.Ship.1080p.MAX.WEB-DL.DDP2.0.H.264.DUAL-UPD.nzb mislukt",
+      "time": 1793035796,
+      "origin": "nzbparser.py501"
+    },
+    {
+      "type": "WARNING",
+      "text": "Importeren van 1 bestanden van Scooby-Doo.Where.Are.You.S01E15.Spooky.Space.Kook.1080p.MAX.WEB-DL.DDP2.0.H.264.DUAL-UPD.nzb mislukt",
+      "time": 1793035798,
+      "origin": "nzbparser.py501"
+    },
+    {
+      "type": "WARNING",
+      "text": "Importeren van 1 bestanden van Scooby-Doo.Where.Are.You.S01E16.A.Night.of.Fright.Is.No.Delight.1080p.MAX.WEB-DL.DDP2.0.H.264.DUAL-UPD.mkv.nzb mislukt",
+      "time": 1793035800,
+      "origin": "nzbparser.py501"
+    },
+    {
+      "type": "WARNING",
+      "text": "Importeren van 1 bestanden van Scooby-Doo.Where.Are.You.S01E17.Thats.Snow.Ghost.1080p.MAX.WEB-DL.DDP2.0.H.264.DUAL-UPD.mkv.nzb mislukt",
+      "time": 1793035806,
+      "origin": "nzbparser.py501"
+    },
+    {
+      "type": "WARNING",
+      "text": "Importeren van 1 bestanden van Scooby-Doo.Where.Are.You.S02E01.Nowhere.to.Hyde.1080p.MAX.WEB-DL.DDP2.0.H.264.DUAL-UPD.nzb mislukt",
+      "time": 1793035811,
+      "origin": "nzbparser.py501"
+    },
+    {
+      "type": "WARNING",
+      "text": "Importeren van 1 bestanden van Scooby-Doo.Where.Are.You.S02E02.Mystery.Mask.Mix-Up.1080p.MAX.WEB-DL.DDP2.0.H.264.DUAL-UPD.nzb mislukt",
+      "time": 1793035816,
+      "origin": "nzbparser.py501"
+    },
+    {
+      "type": "WARNING",
+      "text": "Importeren van 1 bestanden van Scooby-Doo.Where.Are.You.S02E03.Jeepers.Its.the.Creeper.1080p.MAX.WEB-DL.DDP2.0.H.264.DUAL-UPD.nzb mislukt",
+      "time": 1793035818,
+      "origin": "nzbparser.py501"
+    },
+    {
+      "type": "WARNING",
+      "text": "Importeren van 1 bestanden van Scooby-Doo.Where.Are.You.S02E04.Scoobys.Night.with.a.Frozen.Fright.1080p.MAX.WEB-DL.DDP2.0.H.264.DUAL-UPD.mkv.nzb mislukt",
+      "time": 1793035819,
+      "origin": "nzbparser.py501"
+    },
+    {
+      "type": "WARNING",
+      "text": "Importeren van 1 bestanden van Scooby-Doo.Where.Are.You.S02E05.Haunted.House.Hang-Up.1080p.MAX.WEB-DL.DDP2.0.H.264.DUAL-UPD.mkv.nzb mislukt",
+      "time": 1793035824,
+      "origin": "nzbparser.py501"
+    },
+    {
+      "type": "WARNING",
+      "text": "Importeren van 1 bestanden van Scooby-Doo.Where.Are.You.S02E06.A.Tiki.Scare.Is.No.Fair.1080p.MAX.WEB-DL.DDP2.0.H.264.DUAL-UPD.nzb mislukt",
+      "time": 1793035824,
+      "origin": "nzbparser.py501"
+    },
+    {
+      "type": "WARNING",
+      "text": "Importeren van 1 bestanden van Scooby-Doo.Where.Are.You.S02E07.Whos.Afraid.of.the.Big.Bad.Werewolf.1080p.MAX.WEB-DL.DDP2.0.H.264.DUAL-UPD.mkv.nzb mislukt",
+      "time": 1793035826,
+      "origin": "nzbparser.py501"
+    },
+    {
+      "type": "WARNING",
+      "text": "Importeren van 1 bestanden van Scooby-Doo.Where.Are.You.S02E08.Dont.Fool.with.a.Phantom.1080p.MAX.WEB-DL.DDP2.0.H.264.DUAL-UPD.mkv.nzb mislukt",
+      "time": 1793035829,
+      "origin": "nzbparser.py501"
+    },
+    {
+      "type": "WARNING",
+      "text": "Kon geen verbinding maken: [Errno 111] Connection refused 22@news.sunnyusenet.com:563 (news.sunnyusenet.com)",
+      "time": 1793036187,
+      "origin": "newswrapper.py705"
+    },
+    {
+      "type": "WARNING",
+      "text": "Kon geen verbinding maken: [Errno 111] Connection refused 6@news.sunnyusenet.com:563 (news.sunnyusenet.com)",
+      "time": 1793036187,
+      "origin": "newswrapper.py705"
+    },
+    {
+      "type": "WARNING",
+      "text": "Kon geen verbinding maken: [Errno 111] Connection refused 24@news.sunnyusenet.com:563 (news.sunnyusenet.com)",
+      "time": 1793036187,
+      "origin": "newswrapper.py705"
+    },
+    {
+      "type": "WARNING",
+      "text": "Kon geen verbinding maken: [Errno 111] Connection refused 2@news.sunnyusenet.com:563 (news.sunnyusenet.com)",
+      "time": 1793036277,
+      "origin": "newswrapper.py705"
+    },
+    {
+      "type": "WARNING",
+      "text": "Kon geen verbinding maken: [Errno 111] Connection refused 33@news.sunnyusenet.com:563 (news.sunnyusenet.com)",
+      "time": 1793036278,
+      "origin": "newswrapper.py705"
+    },
+    {
+      "type": "WARNING",
+      "text": "Kon geen verbinding maken: [Errno 111] Connection refused 7@news.sunnyusenet.com:563 (news.sunnyusenet.com)",
+      "time": 1793036278,
+      "origin": "newswrapper.py705"
+    }
+  ]
+}
