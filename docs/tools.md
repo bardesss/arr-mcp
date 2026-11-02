@@ -240,6 +240,26 @@ beside `config.yaml` and imports `loadConfig`.
 `endpoints` is absent at `detail: "minimal"`, alongside `permissions` — a URL is
 no more a fault than a grant is.
 
+### Which services report health checks
+
+`failures` carries what each service says is wrong with itself. Radarr,
+Sonarr, Whisparr, Prowlarr and Bazarr report their own health checks, NZBGet
+its `systemhealth` alerts (v26 and later), and Cleanuparr and Reclaimerr their
+own status. Lidarr does not report health checks yet.
+
+SABnzbd reports the warnings and errors from its log, and only those from the
+last 24 hours. Its warnings list is a log rather than a state: it keeps every
+row until a restart or until someone clears it, so a provider that refused
+connections a week ago would otherwise still read as failing. Rows from the
+same source are collapsed into one, with the newest text and a count of the
+rest, because one flaky provider can log dozens of near-identical lines. The
+text is in SABnzbd's own UI language.
+
+qBittorrent, Transmission, Plex, Jellyfin, Seerr and Profilarr have no health
+report this server reads. They appear in `services` with their version and
+connection state, and a fault in one of them shows up as a failed connection
+in `degraded` rather than in `failures`.
+
 ### What each instance will accept, at `detail: "full"`
 
 `options` lists, per Radarr/Sonarr instance, the `qualityProfiles`,
@@ -1078,7 +1098,7 @@ appear in this list.
 only a queued command — it cannot show what was found, so nothing can
 actually be picked. `get_releases` runs the same interactive search Radarr
 and Sonarr's own web UI does and returns every candidate, so a model can
-compare them and — once a grab tool exists — choose one.
+compare them and pick one for `grab_release`.
 
 `service` and `id` are both required: this searches one movie or series,
 never merges across services the way `get_history` and `get_wanted` do.
@@ -1095,8 +1115,8 @@ hid rejects would have answered empty both times. Each row carries
 `rejected` and the `rejections` upstream gave, fenced like every other
 release-supplied string.
 
-`guid` and `indexerId` travel together — that pair is what a future grab
-tool will bind a chosen release to. `seeders` is torrent-only and is absent,
+`guid` and `indexerId` travel together — that pair is what `grab_release`
+binds a chosen release to. `seeders` is torrent-only and is absent,
 not zero, on a usenet result, which has no seeder count to report.
 
 `detail: "full"` keeps `guid`, `indexerId` and `rejections`. `standard` (the
@@ -1127,8 +1147,8 @@ out of time, not two.
 ## `grab_release`
 
 The write half of `get_releases`. Takes `guid` and `indexer_id` from a
-`get_releases` row verbatim and tells Radarr or Sonarr to grab that one
-release — "not that one, the 1080p remux".
+`get_releases` row verbatim and tells Radarr, Sonarr or Whisparr to grab that
+one release — "not that one, the 1080p remux".
 
 Safe tier, not destructive: a grab starts a download, and a download comes
 back off with `remove_queue_item`. Nothing on disk is lost.
@@ -1143,7 +1163,7 @@ preview: "grab release abc" is not something a person can approve.
 
 Pass the same `season` or `episode` `get_releases` was called with, so that
 re-search covers the scope you actually searched rather than the whole series.
-Both are refused alongside `magnet`, which never goes through Radarr or Sonarr
+Both are refused alongside `magnet`, which never goes through an *arr
 and so has no scope to narrow.
 
 The confirmation token binds to **both** `guid` and `indexer_id`. That pair
@@ -1152,7 +1172,7 @@ so a search running between the preview and the confirmation must not be able
 to swap which release the confirmation applies to. A token issued for one
 guid is refused for another, and the same for the indexer.
 
-A release Radarr or Sonarr rejected on its own criteria can still be grabbed
+A release the *arr rejected on its own criteria can still be grabbed
 — that is most of what this tool is for — but the preview says which
 rejections are being overridden before you confirm.
 
@@ -1167,7 +1187,7 @@ download, so the link is validated here rather than passed on — a magnet must
 start `magnet:?` and carry `xt=urn:btih:<hash>`. The preview names the hash,
 because the rest of a magnet is tracker parameters nobody can weigh.
 
-It skips Radarr and Sonarr entirely, and the preview says what that means:
+It skips the *arrs entirely, and the preview says what that means:
 nothing vetted the release — no indexer, no quality profile — and nothing will
 import it into your library afterwards, because no *arr knows it exists. A
 torrent the client already has is reported as a duplicate rather than an error;
@@ -1231,8 +1251,8 @@ and `id` for `remove_blocklist_item`, and are newest first, because a blocklist
 is read to explain something that has just gone wrong.
 
 `remove_blocklist_item` withdraws one refusal, so the release can be grabbed
-again. Safe tier: nothing on disk changes, and on Radarr and Sonarr the
-inverse already exists — `remove_queue_item`'s `blocklist: true` puts a
+again. Safe tier: nothing on disk changes, and on Radarr, Sonarr and Whisparr
+the inverse already exists — `remove_queue_item`'s `blocklist: true` puts a
 release back on the list. The preview names it only where that works.
 
 Its preview reads the live blocklist first, and that is not a courtesy. Both
@@ -1337,6 +1357,10 @@ position. That history is not recoverable.
 
 `user` names whose watch state changes; anyone but `default_user` needs
 `services.jellyfin.allow_other_users`.
+
+**Plex is read-only here, by design.** `get_playback` reads Plex watch state,
+but `set_watched` never writes it. With only Plex configured the tool refuses
+and says to add Jellyfin alongside Plex; it does not suggest replacing Plex.
 
 ## `get_metadata_issues`
 
