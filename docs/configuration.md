@@ -28,9 +28,9 @@ services:
     password: "…"
 ```
 
-All fifteen service ids: `radarr`, `sonarr`, `whisparr`, `lidarr`, `prowlarr`, `bazarr`,
+All sixteen service ids: `radarr`, `sonarr`, `whisparr`, `lidarr`, `prowlarr`, `bazarr`,
 `jellyfin`, `seerr`, `sabnzbd`, `nzbget`, `transmission`, `qbittorrent`, `plex`,
-`profilarr`, `cleanuparr`. Configure only what you run —
+`profilarr`, `cleanuparr`, `reclaimerr`. Configure only what you run —
 anything you leave out is simply absent, not broken. Running both torrent
 clients at once is supported; their queues merge, each item labelled with the
 client it came from.
@@ -303,6 +303,32 @@ in Cleanuparr must equal the host and port in the matching arr-mcp client's
 or that two Cleanuparr clients both point at, is left out of `get_queue` and
 named in `stack_health`'s `seedingRules.notes`.
 
+## Reclaimerr
+
+```yaml
+services:
+  reclaimerr:
+    url: http://192.168.1.20:8000
+    api_key: "rcl_…"
+```
+
+`api_key` is an API token from Settings > Integrations in Reclaimerr, created
+with the read scopes `system:read`, `candidates:read`, `rules:read`,
+`events:read` and `protections:read`. Give it nothing else: arr-mcp only sends
+GET requests to Reclaimerr's versioned `/api/v1`, and `stack_health` warns when
+the token also carries `candidates:manage`, `protections:manage` or
+`tasks:run`. A token without one of the five still works for what it can read,
+and `stack_health` names the scopes it is missing. `permissions` are read as off
+whatever the file says. Single instance only, because one Reclaimerr owns one
+library's cleanup rules. Written against Reclaimerr 0.6.x, with 0.6.0 as the
+floor because that is where `rules:read` arrived. A newer minor is untested,
+and `stack_health` flags it.
+
+Its findings and what its rules will delete appear in `stack_health`, a title's
+cleanup state in `get_media_details`, its lifecycle events in `get_history`,
+and `diagnose` uses them to say a file was deleted by a cleanup rule, or is
+about to be. Titles are matched on their TMDB id.
+
 ## Several instances of one service
 
 Running an HD and a 4K Radarr side by side is a common setup, and arr-mcp reads
@@ -354,7 +380,8 @@ request carries the identity of the person who made it, and a second Seerr makes
 because the one deployment that wants two is V2 beside V3 (Eros), and Eros is a
 different API with no adapter. Profilarr because it is the one place that owns
 profile config, so two of them would mean two sources of truth. Cleanuparr
-because one instance cleans one stack.
+because one instance cleans one stack, and Reclaimerr because one instance owns
+one library's cleanup rules.
 
 Everything else takes a list: Radarr, Sonarr, Bazarr, Prowlarr, SABnzbd,
 NZBGet, Transmission and qBittorrent.
