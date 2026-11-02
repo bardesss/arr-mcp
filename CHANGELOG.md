@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.52.0](https://github.com/bardesss/arr-mcp/compare/v1.51.0...v1.52.0) (2026-11-02)
+
+
+### Features
+
+* add a read-only Reclaimerr adapter ([#414](https://github.com/bardesss/arr-mcp/issues/414)) ([1769ffa](https://github.com/bardesss/arr-mcp/commit/1769ffa5805dd49d076f1808c54cbca9111a0713))
+* **lidarr:** read the queue, history and blocklist ([#416](https://github.com/bardesss/arr-mcp/issues/416)) ([da37fa7](https://github.com/bardesss/arr-mcp/commit/da37fa747e30f4ee98c9ecbd7543a945862fa261))
+
 ## [1.51.0](https://github.com/bardesss/arr-mcp/compare/v1.50.1...v1.51.0) (2026-11-01)
 
 
