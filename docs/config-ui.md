@@ -46,8 +46,8 @@ holds.
 
 ## Secrets
 
-**They never come back out.** API keys, the torrent-client passwords and the UI
-password all render as empty fields meaning *unchanged*, so a saved page or a
+**They never come back out.** API keys, the NZBGet and torrent-client passwords
+and the UI password all render as empty fields meaning *unchanged*, so a saved page or a
 screenshot cannot carry them. That is also why an empty field can never mean
 "clear this" — clearing is expressed by removing the instance.
 
@@ -65,7 +65,7 @@ sign-in page is untouched — that one *should* be filled.
 <img src="../screenshots/config-dark.png" alt="The configuration page: one card per configured instance, with its URL, credentials and per-instance write permissions" width="880">
 
 **The page starts empty.** It shows a card per instance you have actually
-configured, in alphabetical order, and an **Add a service** button — not nine
+configured, in alphabetical order, and an **Add a service** button — not sixteen
 blank fieldsets for services you do not run. Each card saves on its own, so
 editing your 4K Radarr cannot disturb the HD one. A card saves its whole form,
 so if the config changed after the page loaded (through the management API,
@@ -75,8 +75,8 @@ your edit again on the fresh copy.
 **Add a service** opens a dialog that only asks what the service needs: pick
 Transmission or qBittorrent and it wants a username and password, pick NZBGet and
 it wants the control username and password (left blank when NZBGet has none), pick
-anything else and it wants an API key. Cleanuparr's card has no write checkboxes,
-only a note that arr-mcp never writes to it. Services that can only have one instance drop out of the list
+anything else and it wants an API key. Cleanuparr's and Reclaimerr's cards have no write
+checkboxes, only a note that arr-mcp never writes to them. Services that can only have one instance drop out of the list
 once you have that one, so the picker never offers a choice that ends in
 "already configured". With scripting off the dialog is the plain form it used to
 be, every field showing, and the server still refuses what does not make sense.

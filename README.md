@@ -135,7 +135,7 @@ back with a `Content-Length`, rather than a refusal for not also naming
 refusal is JSON. So a plain `curl` works as-is, and so does a full MCP client.
 
 Image tags are `X.Y.Z`, `X.Y`, `X` and `latest`, plus `main` for bleeding edge.
-Pin a minor — `:1.6` — if you would rather approve each new tool surface
+Pin a minor — `:1.51` — if you would rather approve each new tool surface
 yourself. Images are published for **amd64 and arm64**, so a Raspberry Pi or an
 ARM NAS runs the same build as everything else.
 
@@ -176,7 +176,7 @@ Forty tools, but you never name them — you ask, and the model picks:
 ## Requirements
 
 - At least one supported service, LAN-reachable: Radarr 4.0+, Sonarr 4.0+,
-  Whisparr 2.x (V2 only, not Eros), Prowlarr 1.0+, Bazarr 1.4+, Jellyfin 10.9+, Plex Media Server 1.32+,
+  Whisparr 2.x (V2 only, not Eros), Prowlarr 1.0+, Bazarr 1.4+, Jellyfin 10.9+, Plex Media Server (no minimum enforced; verified on 1.43),
   Seerr 1.0+, SABnzbd 3.0+, NZBGet 21.0+, Transmission 3.0+, qBittorrent 4.1+, Profilarr 2.2.0+, Cleanuparr 2.10.0+, Reclaimerr 0.6.0+
 - Lidarr 2.1.3+ for reading and for monitoring: `get_library` lists its artists
   with their album count, monitoring and file state, `get_media_details` lists an
@@ -185,7 +185,8 @@ Forty tools, but you never name them — you ask, and the model picks:
   `get_queue`, `get_history` and `get_blocklist` include Lidarr. No wanted list
   or release search yet.
 - Docker, or Node 24+ to run from source
-- An MCP client speaking protocol revision `2026-07-28`
+- An MCP client. Protocol revision `2026-07-28` is the native one; clients on a
+  2025-era revision are still served
 
 Since 1.0 the tool surface is the public API: renaming or removing a tool, a
 parameter or a response field is a **major**, because that break is silent — a

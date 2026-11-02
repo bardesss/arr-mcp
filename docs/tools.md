@@ -16,6 +16,7 @@ off until you turn them on — see [writes](writes.md).
 | `get_history` | Why did last night's download fail — grabbed, imported, failed, deleted, and what SABnzbd, NZBGet, Bazarr, Cleanuparr and Reclaimerr did |
 | `get_wanted` | Which episodes of a show are missing, and what has a file below cutoff |
 | `get_releases` | What an interactive search actually found, rejects included |
+| `get_blocklist` | Why does it keep finding the same release and never downloading it |
 | `get_calendar` | What is due, and what just aired |
 | `get_subtitles` | What is missing subtitles, and which providers are throttled |
 | `get_playback` | What am I watching, and what can I continue |
@@ -26,17 +27,23 @@ off until you turn them on — see [writes](writes.md).
 | `trigger_search` | Go look for this again — the whole thing, one season, or specific episodes |
 | `trigger_scan` | Rescan a library, refresh or rename one item, import a download that never landed, put a mislabeled Sonarr file on the right episode, or rerun NZBGet's post-processing |
 | `trigger_subtitle_search` | Go and find the subtitles this is missing, now |
+| `grab_release` | Not that one — grab this release from `get_releases` instead |
 | `set_monitoring` | Turn monitoring on or off: a whole series, one season, specific episodes; on Lidarr, `level: "album"` for one album or `level: "artist"` with `artists` and `monitor_new_items` for a policy over the set |
 | `retry_download` | Try this failed usenet download again, with its password if it needs one |
+| `pause_downloads` | Pause, resume or throttle a download client, or one item in its queue |
 | `remove_queue_item` | Get rid of this stuck or wrong download |
+| `remove_blocklist_item` | Let this blocklisted release be grabbed again |
 | `clean_queue` | Clear out completed downloads whose film or series no longer exists |
 | `delete_media` | Remove this film or series, optionally from disk |
 | `delete_episode_files` | Free disk from one season or a handful of episodes, without touching the series |
 | `respond_to_request` | Approve or decline what someone asked for |
 | `delete_request` | Drop a request record entirely |
+| `request_media` | Ask Seerr for this, through its approval queue and quotas |
 | `add_media` | Add this film or series and start looking for it |
 | `update_media` | Change the profile, folder, monitoring or tags of something already there |
 | `fix_metadata` | Repair one item whose metadata does not describe its files |
+| `set_watched` | Mark this watched or unwatched in Jellyfin |
+| `sync_database` | Have Profilarr pull its database from git again |
 | `manage_indexer` | Add a public indexer, change its priority, profile, tags or seeding, stop grabbing from it, or delete it |
 
 The rest of this page is the shape of the answers: the fields whose meaning is
@@ -47,7 +54,8 @@ not obvious, and the places where a value is deliberately absent rather than
 difference: a site has no seasons, so **a season is a release year**, `2019`
 rather than `1`. A year the site does not have is refused, and the refusal
 lists the years it does. It does not answer `get_history`, `get_wanted`,
-`update_media` or `fix_metadata`. `add_media` works as it does on Sonarr,
+`update_media` or `fix_metadata`, nor `trigger_scan`'s `import` and `remap`
+actions, and its commands do not appear in `stack_health`'s `commands` list. `add_media` works as it does on Sonarr,
 by TVDB id — Whisparr reuses that field for its own scene-database id, not
 TheTVDB — except `series_type`, which is Sonarr only, and `monitor: "pilot"`,
 which a site has no equivalent of. Only Whisparr V2 is supported;
@@ -55,7 +63,7 @@ which a site has no equivalent of. Only Whisparr V2 is supported;
 
 ## Every tool answers the same way
 
-Every tool but `diagnose` takes `detail` (`minimal`/`standard`/`full`) and
+Every read tool but `diagnose` takes `detail` (`minimal`/`standard`/`full`) and
 `limit`, and reports `{ total, returned, offset, truncated }` — a truncated
 answer always says so.
 
@@ -69,7 +77,9 @@ whatever the services returned, and an item can move between pages.
 
 `stack_health` is the exception and takes no `offset`. One `limit` budget spans
 its two lists, spent on failures before disks, so a single number could not say
-which list it meant to skip into — and neither is one you page through.
+which list it meant to skip into — and neither is one you page through. The
+Reclaimerr candidates under `cleanup`, at `detail: "full"`, take their own
+`limit` rather than sharing that budget.
 
 Both halves of that contract are enforced against the services themselves, not
 only in this server: `get_queue` asks Radarr and Sonarr for the whole queue
@@ -707,7 +717,7 @@ disk, and so is a version removal on a film that still has a file.
 `active` — every existing caller sees the same output it always has.
 
 `scope: "active"` (the default): what can be continued comes from
-`/Users/{id}/Items/Resume`, Jellyfin's own answer to the question.
+`/UserItems/Resume`, Jellyfin's own answer to the question.
 `/Items?IsResumable=true` looks like the right query, but Jellyfin 10.11
 silently ignores it and returns the whole library rather than the resumable
 set. Each entry carries `percentComplete`, `positionSeconds` and
@@ -923,8 +933,8 @@ later.
 imports, or its file gets deleted, it leaves the queue and `get_queue` has
 nothing to say about it. `trigger_search` cannot fill that gap either: it hands
 back a command handle, and Radarr and Sonarr do not report a search's outcome
-through it. `get_history` merges Radarr's and Sonarr's own history logs with SABnzbd's,
-NZBGet's, Bazarr's and Cleanuparr's, and is the only tool that can answer "why did last
+through it. `get_history` merges Radarr's, Sonarr's and Lidarr's own history logs with SABnzbd's,
+NZBGet's, Bazarr's, Cleanuparr's and Reclaimerr's, and is the only tool that can answer "why did last
 night's download fail".
 
 Both services' events are normalised to one vocabulary — `grabbed`,
@@ -935,6 +945,10 @@ already agree: both spell a grab `grabbed` and an import
 Upstream's own spelling survives as `rawEvent`, and an event this server does
 not yet recognise becomes `unknown` rather than being dropped.
 
+`event_type` filters on one normalised type — any of the above, or the ones
+the services below add (`subtitle`, `strike`, `protected` and the rest) — and
+`since` drops anything older.
+
 A failure's `reason` comes straight from the download client and is fenced
 like any other untrusted string — it is not translated, and on a non-English
 setup it will not read as English.
@@ -944,8 +958,8 @@ same vocabulary. It has three imports — `artistFolderImported`,
 `trackFileImported` and `downloadImported` — and `albumImportIncomplete`
 counts as `failed` beside `downloadFailed`: a download that arrived but could
 not all be imported. `trackFileRetagged` has no counterpart and reads
-`unknown`, with `rawEvent` saying what it was. A filter on `imported` or
-`failed` sends Lidarr every code for that type, so one album's
+`unknown`, with `rawEvent` saying what it was. An `event_type` filter on
+`imported` or `failed` sends Lidarr every code for that type, so one album's
 `downloadImported` row is not dropped behind its tracks' `trackFileImported`
 rows. `id` with `service: "lidarr"` is an artist id, scoped through Lidarr's
 `artistIds`, which Lidarr 2.1.3 (the version floor) applies server-side.
@@ -1209,7 +1223,7 @@ not report itself degraded for it.
 The question that sends people here is "it keeps finding the same release and
 never downloading it". `get_history` shows that as a grab followed by a
 failure, over and over, and explains none of it. The blocklist does: Radarr,
-Sonarr and Lidarr record what they will not grab again, and why — usually in
+Sonarr, Whisparr and Lidarr record what they will not grab again, and why — usually in
 the download client's own words.
 
 Rows carry `mediaId` for `get_media_details` (on a Lidarr row, the artist id)
@@ -1338,7 +1352,7 @@ it. A real library of 101 series and 118 films sweeps in seconds.
 
 It works on Jellyfin and Plex. The detector was tuned on Jellyfin libraries,
 101 real series of them, then on a sweep of a real Plex library of 5,988 items
-in [#312](../../issues/312). That sweep moved four rules: a film's year may
+in [#312](../../../issues/312). That sweep moved four rules: a film's year may
 drift by two, a matched film whose year agrees is not flagged on its title
 alone (Mad Max 2 shown as The Road Warrior), an episode title is compared
 against every field in the filename including parentheses (`Chapter One - The
@@ -1644,7 +1658,7 @@ With no provider id it skips steps 1 to 3 and only refreshes, on any agent.
 - Every call goes to the server at `url`. Nothing goes near plex.tv.
 
 **What is verified.** The match flow (`/matches`, `match`, `refresh`) ran
-against a real Plex 1.43.4 in [#312](../../issues/312). A film whose year was
+against a real Plex 1.43.4 in [#312](../../../issues/312). A film whose year was
 wrong was repaired once its locked date was unlocked. Two series rematched
 cleanly and kept their wrong episode titles, so a rematch does not fix every
 series finding yet, and the default stays off until it does. Reports on #312
@@ -1689,7 +1703,7 @@ says so and the rest of the findings still run.
 
 ## `sync_database`
 
-The only write in this plan, and it reaches Profilarr alone — never Radarr or
+The only write on Profilarr, and it reaches Profilarr alone — never Radarr or
 Sonarr. Asks Profilarr to pull one of its databases (custom formats, quality
 profiles, delay profiles) from its configured git source. `database` names
 one by name or id; required only when Profilarr has more than one.
@@ -2043,7 +2057,7 @@ renames to whatever the naming format produces. So a rotation is renamed by
 length of two rename commands** — once into names nothing holds, then back, then
 into the real ones. The preview says so before you confirm.
 
-Four things bound it:
+Five things bound it:
 
 - **It will not start behind a queue.** Anything running or queued beyond
   Sonarr's own per-minute housekeeping and the remap refuses the rename,
