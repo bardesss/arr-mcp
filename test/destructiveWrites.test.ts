@@ -6,6 +6,7 @@ import { WriteAudit } from '../src/core/audit.ts';
 import { ConfirmTokens } from '../src/core/confirm.ts';
 import { ServiceError } from '../src/core/errors.ts';
 import { permissionSourceFrom } from '../src/core/permissions.ts';
+import { LidarrAdapter } from '../src/services/lidarr.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import { QbittorrentAdapter } from '../src/services/qbittorrent.ts';
 import { SabnzbdAdapter } from '../src/services/sabnzbd.ts';
@@ -452,11 +453,13 @@ function harness(
     const radarr = recordingFetch({ '/api/v3/movie/412': MOVIE, '/api/v3/queue': ARR_QUEUE });
     const sonarr = recordingFetch({ '/api/v3/series/7': SERIES, '/api/v3/queue': ARR_QUEUE });
     const whisparr = recordingFetch({ '/api/v3/series/7': SERIES, '/api/v3/queue': ARR_QUEUE });
+    const lidarr = recordingFetch({ '/api/v1/queue': ARR_QUEUE });
 
     const adapters = opts.adapters ?? [
         new RadarrAdapter(keyed(7878), radarr.impl),
         new SonarrAdapter(keyed(8989), sonarr.impl),
-        new WhisparrAdapter(keyed(6969), whisparr.impl)
+        new WhisparrAdapter(keyed(6969), whisparr.impl),
+        new LidarrAdapter(keyed(8686), lidarr.impl)
     ];
 
     let call: Call = () => Promise.reject(new Error('not registered'));
@@ -476,7 +479,8 @@ function harness(
                     opts.permissions ?? {
                         radarr: tiered(false, true),
                         sonarr: tiered(false, true),
-                        whisparr: tiered(false, true)
+                        whisparr: tiered(false, true),
+                        lidarr: tiered(false, true)
                     }
                 )
             ),
@@ -487,7 +491,7 @@ function harness(
         adapters
     );
 
-    return { call: (a: Record<string, unknown>) => call(a), radarr, sonarr, whisparr, audit, invalidate };
+    return { call: (a: Record<string, unknown>) => call(a), radarr, sonarr, whisparr, lidarr, audit, invalidate };
 }
 
 describe('delete_media', () => {
@@ -613,6 +617,23 @@ describe('remove_queue_item', () => {
         const del = h.radarr.sent.find(s => s.method === 'DELETE');
         expect(del?.path).toBe('/api/v3/queue/91');
         expect(del?.search).toContain('removeFromClient=true');
+    });
+
+    it('removes a Lidarr download on /api/v1, blocklisting it when asked', async () => {
+        const h = harness(registerRemoveQueueItem);
+        const first = await h.call({ service: 'lidarr', id: '91', blocklist: true });
+
+        expect(first.structuredContent.summary).toContain('Alien.1979.2160p-GROUP');
+        expect(first.structuredContent.effects.join(' ')).toContain('Blocklists this release');
+        expect(first.structuredContent.effects.join(' ')).not.toContain('has no blocklist');
+        expect(h.lidarr.sent.filter(s => s.method === 'DELETE')).toEqual([]);
+
+        await h.call({ service: 'lidarr', id: '91', blocklist: true, confirm: first.structuredContent.confirm_token });
+
+        const del = h.lidarr.sent.find(s => s.method === 'DELETE');
+        expect(del?.path).toBe('/api/v1/queue/91');
+        expect(del?.search).toContain('removeFromClient=true');
+        expect(del?.search).toContain('blocklist=true');
     });
 
     it('says the blocklist flag is ignored on a service that has none', async () => {

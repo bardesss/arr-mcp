@@ -60,11 +60,12 @@ anything already downloaded stays on disk, and the preview says so before you
 confirm rather than after.
 
 `remove_queue_item` is destructive rather than safe because it deletes partial
-data, and because `blocklist: true` durably teaches Radarr or Sonarr to refuse a
-release — which is hard to notice and hard to undo months later, when the same
-film mysteriously never grabs. SABnzbd, NZBGet and the torrent clients have no blocklist of
-their own; ask for one there and the preview tells you it is being ignored
-rather than silently accepting a flag that does nothing.
+data, and because `blocklist: true` durably teaches Radarr, Sonarr, Whisparr or
+Lidarr to refuse a release — which is hard to notice and hard to undo months
+later, when the same film mysteriously never grabs. SABnzbd, NZBGet and the
+torrent clients have no blocklist of their own; ask for one there and the
+preview tells you it is being ignored rather than silently accepting a flag that
+does nothing.
 
 `fix_metadata` is destructive without deleting a single byte, which is the
 clearest statement of where the line actually is: it replaces every metadata

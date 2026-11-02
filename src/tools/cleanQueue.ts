@@ -11,7 +11,7 @@ const findAdapter = (adapters: readonly ServiceAdapter[], service: ServiceId, in
     const adapter = resolveInstance(adapters, service, instance);
     if (!hasQueueRemove(adapter) || !hasQueue(adapter)) {
         throw new ServiceError('NotFound', service, `${service} has no download queue`, {
-            remedy: 'Only radarr and sonarr report the orphaned items this cleans up.'
+            remedy: 'Only radarr, sonarr, whisparr and lidarr report the orphaned items this cleans up.'
         });
     }
     return adapter;
@@ -30,9 +30,9 @@ export function registerCleanQueue(
         name: 'clean_queue',
         title: 'Clean up orphaned queue items',
         description:
-            'Removes every completed download stuck in a Radarr or Sonarr queue because the film or series it belongs to no longer exists — the ones that pile up at "importBlocked" for years. Also drops them from the download client. Only touches items that are both orphaned and import-blocked, so a download still in progress is never affected, and it never blocklists: the release was fine, the media was deleted. Previews the exact list by default — call again with the returned `confirm` token to remove them.',
+            'Removes every completed download stuck in a Radarr, Sonarr, Whisparr or Lidarr queue because the film, series or artist it belongs to no longer exists — the ones that pile up at "importBlocked" for years. Also drops them from the download client. Only touches items that are both orphaned and import-blocked, so a download still in progress is never affected, and it never blocklists: the release was fine, the media was deleted. On Lidarr before 2.10.1 nothing is ever marked `importBlocked` — a deleted artist\'s finished download stays `completed` with a warning — so this finds nothing there; remove such a row with remove_queue_item. Previews the exact list by default — call again with the returned `confirm` token to remove them.',
         inputSchema: z.object({
-            service: ServiceIdSchema.describe('radarr or sonarr.'),
+            service: ServiceIdSchema.describe('radarr, sonarr, whisparr or lidarr.'),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION)
         }),
         service: ({ service, instance }) => findAdapter(adapters, service, instance).id,
@@ -47,7 +47,13 @@ export function registerCleanQueue(
             if (litter.length === 0) {
                 return {
                     target,
-                    summary: `${adapter.id} has no orphaned queue items stuck at importBlocked.`,
+                    // Read as "all clean" on an older Lidarr, it would hide the
+                    // stuck downloads that release never marks importBlocked.
+                    summary:
+                        `${adapter.id} has no orphaned queue items stuck at importBlocked.` +
+                        (adapter.queueKind === 'artist'
+                            ? ' Lidarr before 2.10.1 never marks one importBlocked: there, a deleted artist\'s finished download stays `completed` with a warning in get_queue, and remove_queue_item removes it.'
+                            : ''),
                     effects: [],
                     noop: true
                 };

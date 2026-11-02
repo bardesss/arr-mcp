@@ -10,9 +10,10 @@ import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts
  * Un-blocklisting one release, so it can be grabbed again.
  *
  * `safe` tier: nothing is destroyed — the entry is a refusal, and removing it
- * withdraws the refusal. On Radarr, Sonarr and Whisparr the counterpart is already
- * there: `remove_queue_item`'s `blocklist: true` puts a release back on the
- * list. The preview offers that only where `remove_queue_item` can do it.
+ * withdraws the refusal. On Radarr, Sonarr, Whisparr and Lidarr the
+ * counterpart is already there: `remove_queue_item`'s `blocklist: true` puts
+ * a release back on the list. The preview offers that only where
+ * `remove_queue_item` can do it.
  */
 
 const findAdapter = (adapters: readonly ServiceAdapter[], service: ServiceId, instance?: string) => {
@@ -34,9 +35,9 @@ export function registerRemoveBlocklistItem(
         name: 'remove_blocklist_item',
         title: 'Un-blocklist a release',
         description:
-            'Removes one entry from Radarr, Sonarr, Whisparr or Lidarr\'s blocklist, so that release can be grabbed again. The fix for "this never downloads and I do not know why" once get_blocklist has said why. Take `service` and `id` from a get_blocklist row. Safe tier: the entry is a refusal to grab, and removing it only withdraws that refusal — nothing on disk changes, and on Radarr, Sonarr and Whisparr the release can be blocklisted again through remove_queue_item\'s `blocklist` flag. Previews by default — call again with the returned `confirm` token to remove it.',
+            'Removes one entry from Radarr, Sonarr, Whisparr or Lidarr\'s blocklist, so that release can be grabbed again. The fix for "this never downloads and I do not know why" once get_blocklist has said why. Take `service` and `id` from a get_blocklist row. Safe tier: the entry is a refusal to grab, and removing it only withdraws that refusal — nothing on disk changes, and on Radarr, Sonarr, Whisparr and Lidarr the release can be blocklisted again through remove_queue_item\'s `blocklist` flag. Previews by default — call again with the returned `confirm` token to remove it.',
         inputSchema: z.object({
-            service: ServiceIdSchema.describe('radarr, sonarr or lidarr.'),
+            service: ServiceIdSchema.describe('radarr, sonarr, whisparr or lidarr.'),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             id: z.string().min(1).describe('The blocklist entry id, exactly as get_blocklist reported it.')
         }),
@@ -64,6 +65,9 @@ export function registerRemoveBlocklistItem(
                 effects: [
                     `${service} may grab this release again the next time it searches.`,
                     `It was blocklisted ${entry.at || 'at an unrecorded time'}${entry.reason === undefined ? '' : `: ${entry.reason}`}`,
+                    // Every service with a blocklist can blocklist again from its
+                    // queue today; the check keeps a future one from being sent
+                    // to a tool that would refuse it.
                     hasQueueRemove(adapter) && adapter.supportsBlocklist
                         ? 'Nothing on disk changes. To blocklist it again, remove it from the queue with remove_queue_item and `blocklist: true`.'
                         : 'Nothing on disk changes.'
