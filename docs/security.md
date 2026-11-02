@@ -22,15 +22,16 @@ Within that, two questions are separate and both matter:
 
 | Question | Answered by |
 | --- | --- |
-| Who may reach this server at all? | Bearer token, config UI password, `allowed_hosts` |
+| Who may reach this server at all? | MCP tokens or OAuth access tokens, config UI password, `allowed_hosts` |
 | What may a caller do once it is in? | Permission tiers, the confirm handshake, the audit trail |
 
 Most published MCP security work stops at the first question. Recent scanning
 research is a good example: ["Exposed by Design"](https://arxiv.org/abs/2608.00150)
 (July 2026) audited 640 production servers and found 91.8% without OAuth and 687
 instances with unrestricted shell tool access — entirely a statement about the
-first row. arr-mcp answers the first row with a mandatory bearer token rather
-than OAuth, and spends most of its design effort on the second.
+first row. arr-mcp answers the first row with a mandatory token — its own MCP
+tokens, or OAuth 2.1 access tokens from an identity provider you already run —
+and spends most of its design effort on the second.
 
 The second row is where the interesting failure is. An authenticated caller is
 not automatically a trustworthy one, because the caller is a language model
@@ -49,7 +50,7 @@ MCP tokens, so it is a concentrated target.
 - Upstream errors carry the **origin and path only**, never the full URL
   (`src/core/http.ts`). SABnzbd authenticates by query parameter, so a logged
   full URL would be a logged API key.
-- `get_stack_health`, the management API and the config page all show service
+- `stack_health`, the management API and the config page all show service
   URLs with any `user:pass@` userinfo stripped (`withoutCredentials` in
   `src/tools/stackHealth.ts`).
 - Audit arguments pass through a key-name redactor before they are written, even
@@ -175,7 +176,7 @@ server does without any change to its source.
 
 **What arr-mcp does.**
 
-- Eight runtime dependencies. Every addition is a deliberate decision, and the
+- Nine runtime dependencies. Every addition is a deliberate decision, and the
   audit database reuses the SQLite driver the log buffer already needed rather
   than adding a second one.
 - Dependabot groups non-major updates into one monthly PR per ecosystem,
@@ -218,7 +219,7 @@ The one path-shaped argument is `add_media`'s `root_folder`, and it is a
 **selection, not a value**: the string is matched against the root folders that
 service already has configured, and anything matching none of them is refused
 with the available list rather than passed through — `chooseOne` in
-`src/tools/addMedia.ts`. The same is true of quality profiles. A model cannot
+`src/tools/chooseOne.ts`. The same is true of quality profiles. A model cannot
 name a directory into existence.
 
 **What it does not solve.** Nothing structural outstanding here. This is the one

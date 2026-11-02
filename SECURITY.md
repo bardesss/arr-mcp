@@ -13,7 +13,7 @@ and I will open one.
 
 Please include, as far as you have it: the arr-mcp version, how it is deployed
 (Docker image or from source), which services are configured, and the smallest
-sequence of calls that shows the problem. A confirm token or bearer token from
+sequence of calls that shows the problem. A confirm token, MCP token or OAuth token from
 your own instance is not useful to me and should stay yours; redact them.
 
 ## What to expect
@@ -34,7 +34,7 @@ Things worth reporting:
 
 - Reaching `/mcp` or the config UI without valid credentials, or any bypass of
   `allowed_hosts`.
-- Any way to read a service API key, the bearer token, or the config UI
+- Any way to read a service API key, an MCP token, or the config UI
   password hash out of a tool response, a log line, an error message or the
   audit trail.
 - Any way to make a write happen without passing the permission tier, or with a

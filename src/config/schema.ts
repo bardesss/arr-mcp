@@ -37,7 +37,7 @@ const UrlSchema = z.url().refine(u => u.startsWith('http://') || u.startsWith('h
 });
 
 /**
- * Shared by all nine. Every concrete schema below is a *strict* object, so a
+ * Shared by every service. Every concrete schema below is a *strict* object, so a
  * misspelled key fails at startup instead of being silently dropped — which is
  * the difference between "my timeout setting does nothing" taking a minute to
  * diagnose or an afternoon.
@@ -50,7 +50,7 @@ const BaseServiceShape = {
 
 const ApiKeyShape = { api_key: z.string().min(1, 'api_key must not be empty') };
 
-/** Radarr, Sonarr, Prowlarr, Bazarr, SABnzbd — an API key and nothing more. */
+/** Every service that takes an API key and nothing more, the *arrs and SABnzbd among them. */
 const KeyedServiceSchema = z.strictObject({ ...BaseServiceShape, ...ApiKeyShape });
 
 /** Services arr-mcp never writes to. */
@@ -290,8 +290,8 @@ const ServicesSchema = z
     .strictObject({
         radarr: MultiInstanceServiceSchema.optional(),
         sonarr: MultiInstanceServiceSchema.optional(),
-        // Single only: V2 and Eros are separate service ids, so the one
-        // deployment that would want two Whisparrs is already two keys.
+        // Single only: the one deployment that wants two Whisparrs is V2
+        // beside V3 (Eros), and Eros is a different API with no adapter.
         whisparr: singleOnly(KeyedServiceSchema).optional(),
         // Single only: a second Radarr is a quality tier, and music libraries
         // are rarely split that way. Refusing it fails closed rather than

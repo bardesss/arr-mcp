@@ -15,7 +15,9 @@ tag                →  buildx multi-arch → ghcr.io/bardesss/arr-mcp
 ```
 
 Image tags are `X.Y.Z`, `X.Y`, `X` and `latest` for releases, plus `main` for
-bleeding edge. Nothing else. The release workflow fails the job when a release
+bleeding edge. Nothing else from this pipeline: the separate **Preview image**
+workflow pushes `preview-<name>` for a branch someone is testing, and never
+touches the release tags. The release workflow fails the job when a release
 computes no version tag — a release that publishes only `latest` is a silent
 policy violation, and it has happened once.
 
@@ -58,18 +60,18 @@ label — that only fails during a real publish.
 
 ## Forcing a version, and the three ways it has gone wrong
 
-`CONTRIBUTING.md` reserves minors for roadmap phases. **The `Release-As` footer
-goes on the phase's last commit, in the phase PR itself** — not in a follow-up,
-and not conditional on anything.
+Since 1.0 the bump follows the commit type and nothing needs forcing
+day to day. A `Release-As:` footer is for the rare release whose number
+release-please would get wrong. When one is used, **it goes on the last commit,
+in the PR itself** — not in a follow-up, and not conditional on anything.
 
-The temptation is to withhold it when a phase ends with verification that needs
-a live stack. That reasoning is wrong here: phase features are off by default or
-additive, pre-1.0 patches are cheap, and the README has *already published* what
-the number means — so shipping a phase under a patch number leaves the tags and
-the docs permanently disagreeing. **Cut the version, then run the gate.**
-Anything it finds is a patch.
+Before 1.0, `CONTRIBUTING.md` reserved minors for roadmap phases, so every
+phase needed this footer. That scheme is gone, but how it failed still applies
+to any forced version. The lesson then was not to withhold the footer pending a
+live-stack check: **cut the version, then run the gate**, and anything it finds
+is a patch.
 
-It has still gone wrong three times, in three different ways:
+It went wrong three times, in three different ways:
 
 | What happened | Result |
 | --- | --- |
@@ -217,16 +219,15 @@ was no published image for two releases after there was.
 Before merging the release PR, check every one of these and fix what has
 drifted:
 
-- [ ] **Status callout** — names the version being cut and describes what it
-      actually does, not what the previous one did
-- [ ] **Quick start** — the pinned image tag exists, and the instructions work
-      start to finish for someone who has never run it
-- [ ] **Roadmap table** — versions match reality, including any that shifted
-- [ ] **Tool list** — every tool the release exposes, and nothing it does not
-- [ ] **Forward references** — "lands in 0.x" claims still point at the right
-      version
+- [ ] **Service line, requirements and thanks** — every service the release
+      supports, with the minimum version `src/services/versions.ts` enforces
+- [ ] **Quick start** — the pinned image tag in the example exists, and the
+      instructions work start to finish for someone who has never run it
+- [ ] **Tool count and example questions** — match the tools the release
+      exposes, and nothing it does not
+- [ ] **Contributing** — the testing status of each adapter is still true
 
-A phase that ships without its README change is not finished.
+A release that ships without its README change is not finished.
 
 ## Verify before announcing
 

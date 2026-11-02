@@ -129,7 +129,7 @@ curl -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/system/status
 ```json
 {
   "appName": "arr-mcp",
-  "version": "1.38.1",
+  "version": "1.51.0",
   "mcpUrl": "http://arr-mcp:6060/mcp"
 }
 ```
@@ -248,7 +248,7 @@ curl -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/app
 Fields depend on the type. Transmission, qBittorrent and NZBGet have `username`
 and `passwordSet`. Everything else has `apiKeySet`. Jellyfin, Plex and Seerr add
 `defaultUser` and `allowOtherUsers`, and Plex alone adds `allowMetadataRepair`.
-Cleanuparr is read-only, so its `safeWrite` and `destructive` are always `false`,
+Cleanuparr and Reclaimerr are read-only, so their `safeWrite` and `destructive` are always `false`,
 whatever was sent. Any credentials in the URL are stripped.
 
 ### `GET /app/{type}` and `GET /app/{type}/{name}`

@@ -11,8 +11,9 @@ npm test
 ```
 
 Maintainers with a real stack refresh the recorded fixtures with
-`npm run capture` — see below. An integration script that *exercises* a live
-stack rather than recording it is planned for 0.4.
+`npm run capture` — see below. `npm run integration` goes the other way: it
+*exercises* a live stack, calling every tool and reporting pass or fail per
+tool, without recording anything.
 
 ## The three gates
 
@@ -111,8 +112,9 @@ old name as an alias for one full minor, with the deprecation stated in the
 tool's own description text.
 
 Tool count is a hard constraint, not a preference: model accuracy degrades
-measurably past roughly 40 tools. New capability should extend an existing tool
-before it adds one.
+measurably past roughly 40 tools. There are 40 now, so the ceiling is reached
+and `test/app.test.ts` fails on a forty-first. New capability extends an
+existing tool.
 
 **Prompt names are public surface too.** A client that has surfaced
 `whats_wrong` as a slash command breaks when it is renamed, exactly as a saved
@@ -128,7 +130,7 @@ why `stack_health` reports per-instance permissions.
 
 ## Adding a service adapter
 
-The highest-value contribution, and deliberately self-contained. Eight steps,
+The highest-value contribution, and deliberately self-contained. Ten steps,
 each with a worked example already in the tree.
 
 ### Which services qualify
@@ -167,8 +169,8 @@ things it is trying to establish, and the checks that stand in for them:
   policy. A pre-1.0 API is free to move, and an adapter pinned to one breaks on
   the service's schedule rather than ours.
 - **Published API documentation.** OpenAPI is preferred and earns code
-  generation for free, but three adapters here are hand-written against a plain
-  written reference, and that is enough.
+  generation for free, but several adapters here are hand-written against a
+  plain written reference, and that is enough.
 
 **Demand — does anyone want it?**
 
@@ -185,10 +187,10 @@ things it is trying to establish, and the checks that stand in for them:
 - **It sits on the chain `diagnose` walks** — requested, managed, monitored,
   downloaded, indexed, imported, scanned. arr-mcp exists because the interesting
   questions live between services. A service that cannot make `diagnose` smarter
-  is a second product, not a ninth adapter.
+  is a second product, not a seventeenth adapter.
 - **It adds no new tool**, or the pull request argues explicitly for the one it
-  adds. The forty-tool ceiling above is a hard constraint, and a new service
-  does not get to spend it quietly.
+  adds. The forty-tool ceiling above is a hard constraint, it is already
+  reached, and a new service does not get to spend it quietly.
 - **It introduces no new risk class.** Code execution, credential brokering, or
   outbound requests to hosts the operator never configured are changes to the
   security model. Those get decided on their own terms, never as a side effect
@@ -203,14 +205,13 @@ weekend: the answer to that one is a date, not a no.
 ### What would be accepted today
 
 The bar above is abstract, so here is the concrete answer, current as of
-2026-08-16. Grouped by slot on the chain rather than alphabetically, because
+2026-11-02. Grouped by slot on the chain rather than alphabetically, because
 that is the real question: a second service in a slot that already exists is a
 small, shaped change, and a service in no slot at all is a different product.
 
 **Managed — what decides something should exist**
 
-- **Lidarr.** An adapter exists: the service id, the config block, the icon, the
-  vendored spec, and nine capabilities. `LibraryCapable` and `SearchCapable`, so
+- **Lidarr — the rest of it.** The adapter has shipped, with nine capabilities. `LibraryCapable` and `SearchCapable`, so
   `get_library` lists artists and `search_media` finds them.
   `MediaDetailCapable`, so `get_media_details` lists an artist's albums and the
   album ids a write needs. `MonitoringCapable`, so `set_monitoring` writes an
@@ -220,7 +221,9 @@ small, shaped change, and a service in no slot at all is a different product.
   `BlocklistCapable` are the shared `arr*` helpers with `kind: 'artist'`, so
   `get_queue`, `get_history` and `get_blocklist` include Lidarr; their fixtures
   were captured from Lidarr 3.1.0.4875 with download activity, and the reads
-  were exercised against 2.1.3.3927 and 3.1.6.5079. All 21 capture endpoints
+  were exercised against 2.1.3.3927 and 3.1.6.5079. What it still lacks is a
+  wanted list and a release search, and that is the work accepted today. All
+  21 capture endpoints
   were exercised against a
   live Lidarr 3.1.6.5079 and the fixtures are committed, but four still have no
   rows: wanted cutoff, release, tag and indexer are empty on a fresh instance.
@@ -258,7 +261,8 @@ small, shaped change, and a service in no slot at all is a different product.
 **Downloaded — where a grab actually lands**
 
 - **Deluge.** The last mainstream client this server cannot talk to. Same slot
-  as SABnzbd, Transmission and qBittorrent, documented JSON-RPC, no new tool.
+  as SABnzbd, NZBGet, Transmission and qBittorrent, documented JSON-RPC, no new
+  tool.
   Its one wrinkle is that the Web UI talks to a separate daemon, so a reachable
   Web UI with a disconnected daemon is a failure mode `testConnection` has to
   report as itself rather than as a generic upstream error.
@@ -268,7 +272,7 @@ small, shaped change, and a service in no slot at all is a different product.
 - **Emby.** Jellyfin's ancestor, near-identical API, and therefore the cheapest
   adapter on this list — plausibly a variant of the Jellyfin one rather than a
   new file.
-- **Plex.** An adapter exists and has been verified against a live Plex Media
+- **Plex — more testers.** The adapter has shipped and has been verified against a live Plex Media
   Server 1.43.3.10896 by a volunteer tester (issue #180): all nine endpoints
   it reads were captured from that server and are contracted in
   `test/contract.test.ts`. It reads, and writes with `trigger_scan`, verified
@@ -338,26 +342,38 @@ reporting gigabytes as a string, Sonarr's rating arriving unlabelled, Jellyfin
 localising its task names. Those notes have prevented more bugs than the code
 around them.
 
-1. **Add the service id** to `ServiceIdSchema` in `src/config/schema.ts`, and a
-   schema for it in `ServicesSchema`. Reuse `KeyedServiceSchema` unless the
-   service authenticates differently.
-2. **Pick or write an auth strategy** in `src/core/auth.ts`. The existing shapes
+1. **Add the service id** to `ServiceIdSchema` in `src/config/schema.ts`, a
+   schema for it in `ServicesSchema`, and its entry in `ConfigByService`. Reuse
+   `KeyedServiceSchema` unless the service authenticates differently. A
+   single-instance service is wrapped in `singleOnly(...)`; a read-only one uses
+   `ReadOnlyKeyedServiceSchema` and joins `READ_ONLY_SERVICES`, which forces its
+   write permissions off, as Cleanuparr and Reclaimerr do. `test/config.test.ts`
+   is where the config cases go.
+2. **Set its minimum version** in `MINIMUM_VERSIONS` in
+   `src/services/versions.ts`, with a comment saying what the floor rests on.
+   It is a `Record<ServiceId, …>`, so a missing entry is a compile error rather
+   than a silent gap; `test/versions.test.ts` covers it.
+3. **Pick or write an auth strategy** in `src/core/auth.ts`. The existing shapes
    cover most services; write a new one only if the service does something
    genuinely different, as Transmission's session handshake and qBittorrent's
    cookie login do.
-3. **Add its endpoints** to `ENDPOINTS` in `scripts/capture-fixtures.ts` and run
+4. **Add its endpoints** to `ENDPOINTS` in `scripts/capture-fixtures.ts` and run
    `npm run capture -- <your-service>` against a live instance. Name the service:
    the bare command rewrites every fixture your config can reach. Review the diff.
-4. **Write the adapter** in `src/services/<id>.ts`, implementing `ServiceAdapter`
-   plus whichever capability interfaces the service actually supports.
+5. **Write the adapter** in `src/services/<id>.ts`, implementing `ServiceAdapter`
+   plus whichever capability interfaces the service actually supports. A
+   capability no existing service has gets its interface and type guard in
+   `src/services/types.ts`, and the tools that should use it — usually
+   `stack_health` and `diagnose`'s `chain.ts` and `evidence.ts` — read it
+   through that guard.
    `src/services/sonarr.ts` is the simplest example; `src/services/transmission.ts`
    and `src/services/qbittorrent.ts` are the most unusual.
    A media server implements `PlaybackCapable`, `UserLibraryCapable` and
    `UserDirectoryCapable` — together `MediaServerAdapter` — and exactly one may
    be configured, because `get_library`'s `presence` join needs a single
    counterparty.
-5. **Decide whether it can be configured twice**, and say so in the adapter.
-   Eight of the fourteen services can be, so this is the common case rather than the
+6. **Decide whether it can be configured twice**, and say so in the adapter.
+   Eight of the sixteen services can be, so this is the common case rather than the
    exotic one — but copying `jellyfin.ts` gets you `readonly id: string =
    '<type>'`, which is the *single*-instance shape. That is the safe default
    (a service that simply cannot be configured twice, rather than two adapters
@@ -379,14 +395,18 @@ around them.
    path. qBittorrent does exactly that, and its login errors had to be fixed
    separately from the rest of the adapter for precisely this reason.
 
-6. **Declare its contract** in `test/contract.test.ts` — the response fields your
+7. **Declare its contract** in `test/contract.test.ts` — the response fields your
    adapter reads. Omit the `spec` when the service publishes no OpenAPI document.
-7. **Register it** in `src/services/registry.ts`.
-8. **Draw it an icon** in `src/web/icons.ts` — stroke-only, `currentColor`, on
+8. **Register it** in `src/services/registry.ts`, and add cases for what it
+   serves to `scripts/integration.ts` so a live run exercises it.
+9. **Draw it an icon** in `src/web/icons.ts` — stroke-only, `currentColor`, on
    the same 24×24 grid as the rest, saying what kind of thing the service is
    rather than which one. The UI uses one drawn set rather than per-service
    artwork, so a new icon is drawn to match the others instead of sourced. A
    test fails if a service id has no icon.
+10. **Document it** in `docs/configuration.md` (its config block) and
+    `docs/tools.md` (what each tool now says about it), and add it to the
+    service line, requirements and thanks in the README.
 
 An adapter must:
 
@@ -415,7 +435,8 @@ implementations learned this the hard way: Radarr runs three tasks whose names
 contain "Refresh", only one of which is the library scan, and Jellyfin's task
 names are localised — a Dutch server returns "Mediabibliotheek scannen".
 
-Six of the fourteen services publish no usable OpenAPI spec, so the adapter
+Seven of the sixteen services publish no usable OpenAPI spec, and an eighth's
+adapter is hand-written anyway, so the adapter
 interface is defined by us and must stay hand-writable. Code generation is an
 implementation detail inside an adapter, never the shape of the contract.
 
@@ -424,7 +445,7 @@ re-fetches the eight published specs and regenerates types from them, so it
 catches an upstream change before a user does. A spec-less service has nothing
 to fetch: its contract is the fields declared in `test/contract.test.ts`,
 checked against committed fixtures. That catches us breaking our own adapter,
-and it cannot catch the service changing underneath it. For those six, the
+and it cannot catch the service changing underneath it. For those eight, the
 only real drift detector is somebody recapturing fixtures against a live
 instance.
 
@@ -483,8 +504,8 @@ loud:
   server-rendered through the escaping template, which is sound — but that one
   surface carries indexer text on a timer, and building nodes makes an XSS
   impossible rather than merely unlikely.
-- **A secret is never rendered back.** API keys, the torrent-client passwords and
-  the UI password all render as empty fields meaning *unchanged*. That is also
+- **A secret is never rendered back.** API keys, the NZBGet and torrent-client
+  passwords and the UI password all render as empty fields meaning *unchanged*. That is also
   why an empty field can never mean "clear this" — clearing is expressed by
   switching the service off.
 
@@ -509,7 +530,7 @@ does both and opens a PR when either changes, so **review `specs/` in that
 diff** — the generated files are output, not source, and are not meant to be
 read by hand.
 
-Radarr, Sonarr, Whisparr, Prowlarr, Jellyfin, Seerr and Profilarr are generated.
+Radarr, Sonarr, Whisparr, Lidarr, Prowlarr, Jellyfin, Seerr and Profilarr are generated.
 Bazarr, SABnzbd, NZBGet, Transmission, qBittorrent, Plex and Cleanuparr publish no usable spec
 and are hand-written against recorded fixtures. Reclaimerr publishes OpenAPI at
 `/api/v1/openapi.json`, but its adapter reads seven endpoints and is
@@ -526,7 +547,7 @@ mapper. A red run means either; the PR body names the failing entries.
 
 The PR is opened with the default `GITHUB_TOKEN`, which GitHub refuses to let
 trigger other workflows, so it arrives with no status checks. Close and reopen
-it to run CI. The six spec-less services are invisible to this check — only a
+it to run CI. The eight hand-written services are invisible to this check — only a
 live call catches their drift.
 
 Two things worth knowing before you touch this:
