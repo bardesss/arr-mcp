@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.54.0](https://github.com/bardesss/arr-mcp/compare/v1.53.0...v1.54.0) (2026-11-02)
+
+
+### Features
+
+* **lidarr:** remove queue items and clean up orphaned downloads ([#430](https://github.com/bardesss/arr-mcp/issues/430)) ([2654ca0](https://github.com/bardesss/arr-mcp/commit/2654ca050218e0ee3c94c1f4a6adc941fc4fc921))
+
 ## [1.53.0](https://github.com/bardesss/arr-mcp/compare/v1.52.0...v1.53.0) (2026-11-02)
 
 
