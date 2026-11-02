@@ -4,6 +4,7 @@ import type { AnyServiceConfig, KeyedServiceConfig, ServiceId } from '../src/con
 import { WriteAudit } from '../src/core/audit.ts';
 import { ConfirmTokens } from '../src/core/confirm.ts';
 import { permissionSourceFrom } from '../src/core/permissions.ts';
+import { LidarrAdapter } from '../src/services/lidarr.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
 import { registerCleanQueue } from '../src/tools/cleanQueue.ts';
@@ -153,6 +154,8 @@ describe('clean_queue', () => {
     it('is a no-op when there is nothing orphaned to clean', async () => {
         const { structuredContent } = await harness([HEALTHY]).call({ ...args, dry_run: true });
         expect(structuredContent.noop).toBe(true);
+        // The Lidarr version note is Lidarr's alone.
+        expect(structuredContent.summary).not.toContain('2.10.1');
         expect(structuredContent.confirm_token).toBeUndefined();
     });
 
@@ -223,5 +226,68 @@ describe('partial removal', () => {
         await expect(h.call({ ...args, confirm: first.structuredContent.confirm_token })).rejects.toThrow(
             /none of the 2/i
         );
+    });
+});
+
+/** Lidarr marks a row orphaned when its artist is gone, as Radarr and Sonarr do for a film or series. */
+describe('clean_queue on lidarr', () => {
+    const ALBUM_BLOCKED = { id: 211, title: 'Deleted.Artist-Album-FLAC', status: 'completed', trackedDownloadState: 'importBlocked' };
+    const ALBUM_DOWNLOADING = { id: 212, title: 'Gone.Artist-Live-MP3', status: 'downloading', trackedDownloadState: 'downloading' };
+    const ALBUM_LINKED = { id: 213, title: 'Kept.Artist-Album-FLAC', status: 'completed', artistId: 12, trackedDownloadState: 'importBlocked' };
+    /** Orphaned but already imported, the shape a deleted artist's finished downloads took live on 2.1.3. */
+    const ALBUM_IMPORTED = { id: 214, title: 'Done.Artist-Album-FLAC', status: 'completed', trackedDownloadState: 'imported' };
+    /**
+     * Finished, orphaned and stuck, but on Lidarr before 2.10.1, which never
+     * sets `importBlocked`: seen live on 2.1.3. The rule does not stretch to
+     * cover it; `remove_queue_item` is the route, and the tool says so.
+     */
+    const ALBUM_PRE_2_10_1 = { id: 215, title: 'Older.Artist-Album-FLAC', status: 'completed', trackedDownloadState: 'downloading', trackedDownloadStatus: 'warning' };
+
+    const lidarrHarness = () => {
+        const fetch = recordingFetch([ALBUM_BLOCKED, ALBUM_DOWNLOADING, ALBUM_LINKED, ALBUM_IMPORTED, ALBUM_PRE_2_10_1]);
+        const h = harness([], {
+            adapters: [new LidarrAdapter(keyed(8686) as never, fetch.impl)],
+            permissions: { lidarr: permissive(true, true) }
+        });
+        return { call: h.call, fetch };
+    };
+
+    it('asks Lidarr for the unknown-artist items it hides by default', async () => {
+        const h = lidarrHarness();
+        await h.call({ service: 'lidarr', dry_run: true });
+
+        const read = h.fetch.sent.find(s => s.method === 'GET' && s.path === '/api/v1/queue');
+        expect(read?.query).toMatchObject({ includeUnknownArtistItems: 'true' });
+    });
+
+    it('removes only the import-blocked album whose artist is gone, from the client, without blocklisting', async () => {
+        const h = lidarrHarness();
+        const first = await h.call({ service: 'lidarr' });
+        const effects = first.structuredContent.effects.join(' ');
+
+        expect(effects).toContain('Deleted.Artist');
+        expect(effects).not.toContain('Gone.Artist');
+        expect(effects).not.toContain('Kept.Artist');
+        expect(effects).not.toContain('Done.Artist');
+        expect(effects).not.toContain('Older.Artist');
+        expect(h.fetch.deletes()).toHaveLength(0);
+
+        await h.call({ service: 'lidarr', confirm: first.structuredContent.confirm_token });
+
+        expect(h.fetch.deletes().map(d => d.path)).toEqual(['/api/v1/queue/211']);
+        expect(h.fetch.deletes()[0]?.query).toMatchObject({ removeFromClient: 'true', blocklist: 'false' });
+    });
+
+    it('says, when there is nothing to clean, that Lidarr before 2.10.1 never marks a download importBlocked', async () => {
+        const fetch = recordingFetch([ALBUM_PRE_2_10_1]);
+        const h = harness([], {
+            adapters: [new LidarrAdapter(keyed(8686) as never, fetch.impl)],
+            permissions: { lidarr: permissive(true, true) }
+        });
+        const { structuredContent, content } = await h.call({ service: 'lidarr', dry_run: true });
+
+        expect(structuredContent.noop).toBe(true);
+        expect(structuredContent.summary).toMatch(/before 2\.10\.1 never marks one importBlocked/);
+        expect(content[0]?.text).toContain('remove_queue_item removes it');
     });
 });

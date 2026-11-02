@@ -211,7 +211,7 @@ small, shaped change, and a service in no slot at all is a different product.
 
 **Managed — what decides something should exist**
 
-- **Lidarr — the rest of it.** The adapter has shipped, with nine capabilities. `LibraryCapable` and `SearchCapable`, so
+- **Lidarr — the rest of it.** The adapter has shipped, with ten capabilities. `LibraryCapable` and `SearchCapable`, so
   `get_library` lists artists and `search_media` finds them.
   `MediaDetailCapable`, so `get_media_details` lists an artist's albums and the
   album ids a write needs. `MonitoringCapable`, so `set_monitoring` writes an
@@ -221,17 +221,16 @@ small, shaped change, and a service in no slot at all is a different product.
   `BlocklistCapable` are the shared `arr*` helpers with `kind: 'artist'`, so
   `get_queue`, `get_history` and `get_blocklist` include Lidarr; their fixtures
   were captured from Lidarr 3.1.0.4875 with download activity, and the reads
-  were exercised against 2.1.3.3927 and 3.1.6.5079. What it still lacks is a
-  wanted list and a release search, and that is the work accepted today. All
-  21 capture endpoints
-  were exercised against a
+  were exercised against 2.1.3.3927 and 3.1.6.5079. `QueueRemoveCapable` is the
+  shared `removeArrQueueItem`, so `remove_queue_item` and `clean_queue` take
+  Lidarr. What it still lacks is a wanted list and a release search, and that is
+  the work accepted today. All 21 capture endpoints were exercised against a
   live Lidarr 3.1.6.5079 and the fixtures are committed, but four still have no
   rows: wanted cutoff, release, tag and indexer are empty on a fresh instance.
   Those row shapes need a capture against a library with real activity before a
-  read adapter can claim them, and
-  `/wanted/missing` is the one populated paged route if one is wanted next. The
-  two write responses were captured separately, on a throwaway 2.1.3.3927
-  instance.
+  read adapter can claim them, and `/wanted/missing` is the one populated paged
+  route if one is wanted next. The two write responses were captured separately,
+  on a throwaway 2.1.3.3927 instance.
 
   **The design constraint.** Music sits in the merged index as its own `kind`,
   `artist`, and joins because its identity is a MusicBrainz MBID: a GUID, where

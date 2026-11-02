@@ -151,12 +151,17 @@ type Call = (args: Record<string, unknown>) => Promise<{
 }>;
 
 function harness(
-    opts: { rows?: Record<string, unknown>[]; permissions?: Partial<Record<ServiceId, AnyServiceConfig>>; lidarr?: boolean } = {}
+    opts: {
+        rows?: Record<string, unknown>[];
+        permissions?: Partial<Record<ServiceId, AnyServiceConfig>>;
+        lidarr?: boolean;
+        ignoresBlocklist?: boolean;
+    } = {}
 ) {
     const { impl, deleted } = serving(opts.rows ?? [radarrRow()]);
-    const adapters: ServiceAdapter[] = [
-        opts.lidarr === true ? new LidarrAdapter(keyed(8686), impl) : new RadarrAdapter(keyed(7878), impl)
-    ];
+    const adapter = opts.lidarr === true ? new LidarrAdapter(keyed(8686), impl) : new RadarrAdapter(keyed(7878), impl);
+    if (opts.ignoresBlocklist === true) Object.defineProperty(adapter, 'supportsBlocklist', { value: false });
+    const adapters: ServiceAdapter[] = [adapter];
 
     let call: Call = () => Promise.reject(new Error('not registered'));
     const server = {
@@ -231,9 +236,7 @@ describe('remove_blocklist_item', () => {
     });
 
     it('offers remove_queue_item to blocklist it again only where remove_queue_item can', async () => {
-        // Radarr's queue removal takes `blocklist`; Lidarr's queue has no
-        // remove_queue_item yet, so pointing there would send a person to a
-        // refusal.
+        // Radarr's and Lidarr's queue removals take `blocklist`.
         const radarr = await harness().call(ARGS);
         expect(radarr.structuredContent.effects.join(' ')).toContain('remove_queue_item and `blocklist: true`');
 
@@ -243,8 +246,12 @@ describe('remove_blocklist_item', () => {
             lidarr: true,
             permissions: { lidarr: keyed(8686) as unknown as AnyServiceConfig }
         }).call({ service: 'lidarr', id: '201' });
-        expect(lidarr.structuredContent.effects).toContain('Nothing on disk changes.');
-        expect(lidarr.structuredContent.effects.join(' ')).not.toContain('remove_queue_item');
+        expect(lidarr.structuredContent.effects.join(' ')).toContain('remove_queue_item and `blocklist: true`');
+
+        // A service whose queue removal ignores `blocklist` is not sent there.
+        const ignores = await harness({ ignoresBlocklist: true }).call(ARGS);
+        expect(ignores.structuredContent.effects).toContain('Nothing on disk changes.');
+        expect(ignores.structuredContent.effects.join(' ')).not.toContain('remove_queue_item');
     });
 
     it('names the config key when the permission is off', async () => {
