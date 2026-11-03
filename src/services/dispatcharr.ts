@@ -68,8 +68,23 @@ function sourceOf(raw: Raw): Source {
 }
 
 const STATUS = /HTTP (\d{3})\b|\((\d{3})\)|status (\d{3})\b/;
-const TIMED_OUT = /timed out|timeout/i;
-const UNREACHABLE = /Failed to establish|Name or service not known|Connection refused|Max retries exceeded/i;
+const TIMED_OUT = /timed out|timeout|took too long/i;
+const UNREACHABLE = /Failed to establish|Name or service not known|Connection refused|Max retries exceeded|Connection error|Network error|Unable to connect/i;
+
+/**
+ * Dispatcharr's fixed messages (apps/m3u/tasks.py, apps/epg/tasks.py at
+ * v0.33.0), checked before the status: several also carry a number in
+ * brackets, such as a profile id, that is not an HTTP status.
+ */
+const FIXED: [RegExp, string][] = [
+    [/No M3U source available|Missing server URL/i, 'no playlist URL or file is set'],
+    [/Missing username or password/i, 'the account has no username or password set'],
+    [/empty M3U file|No streams found|No streams returned|completely empty response|missing or empty/i, 'the provider sent an empty playlist'],
+    [/HTML page instead|invalid M3U content|non-text content|error message instead of M3U/i, 'the provider sent something that is not a playlist'],
+    [/EPG file appears incomplete|Error parsing XML/i, 'the guide file was incomplete or malformed'],
+    [/rate limited/i, 'the provider is rate limiting requests (HTTP 429)'],
+    [/Failed to authenticate|Authentication failed for profile/i, 'the provider refused the login']
+];
 
 /**
  * Why a refresh failed, in a fixed vocabulary. Dispatcharr writes the
@@ -79,7 +94,7 @@ const UNREACHABLE = /Failed to establish|Name or service not known|Connection re
  */
 export function refreshReason(message: string | null | undefined): string {
     if (!message) return 'refresh failed';
-    if (/empty M3U file/i.test(message)) return 'the provider sent an empty playlist';
+    for (const [pattern, reason] of FIXED) if (pattern.test(message)) return reason;
     const match = STATUS.exec(message);
     const status = match === null ? undefined : Number(match[1] ?? match[2] ?? match[3]);
     if (status !== undefined) {

@@ -20,6 +20,28 @@ const REASONS: [string | null, string][] = [
     ['Error refreshing EPG data: [Errno -2] Name or service not known', 'could not reach the provider'],
     ['Error refreshing EPG data: [Errno 111] Connection refused', 'could not reach the provider'],
     ['Traceback (most recent call last): fetching http://bob:s3cret@h/x', 'refresh failed'],
+    // Seen live on 0.33.0.
+    ['No M3U source available (missing URL and file)', 'no playlist URL or file is set'],
+    ['EPG file appears incomplete (missing closing </tv>). Keeping previous data when available; will retry on next refresh.', 'the guide file was incomplete or malformed'],
+    // The rest of the fixed messages in apps/m3u/tasks.py and apps/epg/tasks.py.
+    ['Missing server URL for Xtream Codes account', 'no playlist URL or file is set'],
+    ['Missing username or password for Xtream Codes account', 'the account has no username or password set'],
+    ['No streams found in M3U source', 'the provider sent an empty playlist'],
+    ['No streams returned from Xtream Codes provider', 'the provider sent an empty playlist'],
+    [`Server returned completely empty response from URL: ${URL_}`, 'the provider sent an empty playlist'],
+    [`Server returned HTML page instead of M3U file from URL: ${URL_}. This usually indicates an error`, 'the provider sent something that is not a playlist'],
+    [`Server provided invalid M3U content from URL: ${URL_}. Content does not appear to be a valid M3U`, 'the provider sent something that is not a playlist'],
+    [`Server returned an error message instead of M3U file from URL: ${URL_}. Content: bob`, 'the provider sent something that is not a playlist'],
+    ['Error parsing XML file: not well-formed (invalid token): line 1, column 0', 'the guide file was incomplete or malformed'],
+    ["EPG source 'bob' rate limited (429) - try again later", 'the provider is rate limiting requests (HTTP 429)'],
+    ["EPG source 'bob' access denied (HTTP 403) - check credentials", 'the provider refused access (HTTP 403)'],
+    ['Failed to authenticate with XC server: bob s3cret', 'the provider refused the login'],
+    ['Authentication failed for profile bob (3)', 'the provider refused the login'],
+    ["Timeout error: EPG source 'bob' took too long to respond", 'the request timed out'],
+    [`Timeout while fetching M3U file from URL: ${URL_}`, 'the request timed out'],
+    [`Connection error while fetching M3U file from URL: ${URL_}`, 'could not reach the provider'],
+    [`Network error while fetching M3U file from URL: ${URL_} - bob`, 'could not reach the provider'],
+    ["Connection error: Unable to connect to EPG source 'bob'", 'could not reach the provider'],
     [null, 'refresh failed'],
     ['', 'refresh failed']
 ];

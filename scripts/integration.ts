@@ -41,6 +41,7 @@ import { TOOL_NAMES } from '../src/tools/register.ts';
 import { ProfilarrAdapter } from '../src/services/profilarr.ts';
 import { CleanuparrAdapter } from '../src/services/cleanuparr.ts';
 import { ReclaimerrAdapter } from '../src/services/reclaimerr.ts';
+import { DispatcharrAdapter } from '../src/services/dispatcharr.ts';
 import { hostsOf, redactHosts, secretsOf } from './lib/redact.ts';
 import { callTool as rpcCallTool, type ToolCallResult } from './lib/rpc.ts';
 
@@ -956,6 +957,31 @@ if (config.services?.reclaimerr !== undefined) {
     }
 } else {
     console.log('SKIP reclaimerr — not configured.');
+}
+
+/**
+ * Dispatcharr, read only: the connection test (which also proves the key can
+ * read M3U accounts) and its health findings. The findings are printed too,
+ * because they are the one place a provider credential could leak, and a
+ * human reading this output is the last check that none does.
+ */
+if (config.services?.dispatcharr !== undefined) {
+    const started = performance.now();
+    try {
+        const dispatcharr = new DispatcharrAdapter(config.services.dispatcharr);
+        const connection = await dispatcharr.testConnection();
+        if (!connection.ok) throw new Error(`${connection.error?.detail ?? 'connection failed'} — ${connection.error?.remedy ?? ''}`);
+        const findings = await dispatcharr.getFailedHealthChecks();
+        const ms = Math.round(performance.now() - started);
+        console.log(`PASS dispatcharr ${connection.version ?? '?'}: ${findings.length} finding(s) (${ms}ms)`);
+        for (const f of findings) console.log(`     ${f.type} ${f.source}: ${redactHosts(f.message, hosts)}`);
+        passes += 1;
+    } catch (err) {
+        console.error(`FAIL dispatcharr — ${redactHosts((err as Error).message, hosts)}`);
+        failures += 1;
+    }
+} else {
+    console.log('SKIP dispatcharr — not configured.');
 }
 
 /**

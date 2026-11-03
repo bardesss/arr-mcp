@@ -924,6 +924,30 @@ const CONTRACTS: Record<string, ServiceContract> = {
                 fields: ['has_more', 'next_cursor', 'items.id', 'items.type', 'items.occurred_at', 'items.payload.candidate.title', 'items.payload.candidate.tmdb_id', 'items.payload.candidate.media_type']
             }
         ]
+    },
+    // No vendored spec: Dispatcharr serves its OpenAPI at runtime only. These fixtures are its live 0.33.0 answers.
+    dispatcharr: {
+        dependencies: [
+            { path: '/api/core/version/', fixture: 'test/fixtures/dispatcharr/version.json', fields: ['version'] },
+            {
+                path: '/api/m3u/accounts/',
+                fixture: 'test/fixtures/dispatcharr/m3u-accounts.json',
+                fields: [
+                    'id',
+                    'name',
+                    'is_active',
+                    'status',
+                    'last_message',
+                    'updated_at',
+                    'refresh_interval',
+                    'cron_expression',
+                    'profiles.name',
+                    'profiles.is_active',
+                    'profiles.exp_date'
+                ]
+            },
+            { path: '/api/epg/sources/', fixture: 'test/fixtures/dispatcharr/epg-sources.json', fields: ['id', 'name', 'is_active', 'status', 'last_message'] }
+        ]
     }
 };
 
