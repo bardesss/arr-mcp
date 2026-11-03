@@ -1,0 +1,21 @@
+[
+  {
+    "id": 3,
+    "name": "Example EPG 1",
+    "source_type": "xmltv",
+    "url": "",
+    "username": "",
+    "is_active": true,
+    "file_path": "",
+    "refresh_interval": 24,
+    "cron_expression": "",
+    "priority": 0,
+    "status": "error",
+    "last_message": "EPG file appears incomplete (missing closing </tv>). Keeping previous data when available; will retry on next refresh.",
+    "created_at": "2025-10-27T09:22:18.695430Z",
+    "updated_at": "2026-10-23T13:45:42.171431Z",
+    "custom_properties": {},
+    "epg_data_count": 2687,
+    "has_channels": true
+  }
+]

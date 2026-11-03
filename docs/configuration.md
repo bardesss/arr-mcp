@@ -28,9 +28,9 @@ services:
     password: "…"
 ```
 
-All sixteen service ids: `radarr`, `sonarr`, `whisparr`, `lidarr`, `prowlarr`, `bazarr`,
+All seventeen service ids: `radarr`, `sonarr`, `whisparr`, `lidarr`, `prowlarr`, `bazarr`,
 `jellyfin`, `seerr`, `sabnzbd`, `nzbget`, `transmission`, `qbittorrent`, `plex`,
-`profilarr`, `cleanuparr`, `reclaimerr`. Configure only what you run —
+`profilarr`, `cleanuparr`, `reclaimerr`, `dispatcharr`. Configure only what you run —
 anything you leave out is simply absent, not broken. Running both torrent
 clients at once is supported; their queues merge, each item labelled with the
 client it came from.
@@ -346,6 +346,31 @@ cleanup state in `get_media_details`, its lifecycle events in `get_history`,
 and `diagnose` uses them to say a file was deleted by a cleanup rule, or is
 about to be. Titles are matched on their TMDB id.
 
+## Dispatcharr
+
+```yaml
+services:
+  dispatcharr:
+    url: http://192.168.1.20:9191
+    api_key: "…"
+```
+
+Create the key in Dispatcharr under Users: edit the user, open the API & XC
+tab and generate one. A user at the Standard level is enough, and better than
+an admin: Dispatcharr returns provider passwords to admin keys, and arr-mcp
+needs none of them. It reads M3U accounts, EPG sources and the version, with GET
+requests only, and drops every provider username, password and URL when it
+parses them, so none reaches a tool result or a log line. `permissions` are
+read as off whatever the file says. Single instance only, because one
+Dispatcharr serves one set of playlists. If the connection test says the key
+cannot read M3U accounts, check the user's level and Dispatcharr's Settings →
+Network Access. Written against Dispatcharr 0.33.x, which is pre-1.0 and ships a
+minor about every three weeks; a newer minor is untested, and `stack_health`
+flags it.
+
+Its findings appear in `stack_health`: failing or overdue playlists, provider
+accounts about to expire, and failing EPG sources.
+
 ## Several instances of one service
 
 Running an HD and a 4K Radarr side by side is a common setup, and arr-mcp reads
@@ -397,8 +422,9 @@ request carries the identity of the person who made it, and a second Seerr makes
 because the one deployment that wants two is V2 beside V3 (Eros), and Eros is a
 different API with no adapter. Profilarr because it is the one place that owns
 profile config, so two of them would mean two sources of truth. Cleanuparr
-because one instance cleans one stack, and Reclaimerr because one instance owns
-one library's cleanup rules.
+because one instance cleans one stack, Reclaimerr because one instance owns
+one library's cleanup rules, and Dispatcharr because one instance serves one
+set of playlists.
 
 Everything else takes a list: Radarr, Sonarr, Bazarr, Prowlarr, SABnzbd,
 NZBGet, Transmission and qBittorrent.
