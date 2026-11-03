@@ -1170,7 +1170,8 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
             path: () => `/api/v1/events?limit=200&occurred_after=${encodeURIComponent(new Date(Date.now() - 365 * 86_400_000).toISOString())}`,
             anonymise: anonymiseReclaimerr
         }
-    ]
+    ],
+    dispatcharr: [{ name: 'version', path: '/api/core/version/' }]
 };
 
 /**
@@ -1305,6 +1306,7 @@ function strategyFor(id: ServiceId, service: NonNullable<Config['services'][Serv
     if (id === 'sabnzbd') return queryParamKey('apikey', key);
     if (id === 'bazarr') return apiKeyHeader('X-API-KEY', key);
     if (id === 'reclaimerr') return apiKeyHeader('Authorization', `Bearer ${key}`);
+    if (id === 'dispatcharr') return apiKeyHeader('X-API-Key', key);
     return apiKeyHeader('X-Api-Key', key);
 }
 
