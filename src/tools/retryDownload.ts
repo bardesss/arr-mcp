@@ -231,7 +231,7 @@ export function registerRetryDownload(server: McpServer, context: WriteContext, 
             lines.push(describeOutcome(r, r.service));
             if (view !== undefined) lines.push(...arrLines(view, r.previous_id !== undefined));
             if (importable(r)) {
-                lines.push(`If Radarr or Sonarr does not import it, trigger_scan with action: "import" and download_id: "${r.download_id}" does.`);
+                lines.push(`If Radarr, Sonarr or Lidarr does not import it, trigger_scan with action: "import" and download_id: "${r.download_id}" does.`);
             }
             return lines.join(' ');
         }

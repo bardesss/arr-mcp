@@ -256,12 +256,15 @@ discovers later, and `none` is the only value that stops the wanted list growing
 by itself. Both levels are written with Lidarr's bulk endpoints, which queued no
 `MoveArtist` job in the runs that were captured.
 
-Its queue, history and blocklist read the way Radarr's and Sonarr's do, in
-`get_queue`, `get_history` and `get_blocklist`, and `remove_blocklist_item`
-takes a Lidarr entry. `get_history` with `service: "lidarr"` and `id` scopes to
-one artist. Those three fixtures were captured from Lidarr 3.1.0.4875 with
-real download activity (the history one merged from the newest rows of each
-event type), and the reads were exercised against 2.1.3.3927 and 3.1.6.5079.
+`trigger_scan` rescans the library or one artist, renames an artist's files, and
+imports a finished download by its id; see `docs/tools.md`. Its queue, history
+and blocklist read the way Radarr's and Sonarr's do, in `get_queue`,
+`get_history` and `get_blocklist`, and `remove_blocklist_item` takes a Lidarr
+entry, as `remove_queue_item` and `clean_queue` take a Lidarr download.
+`get_history` with `service: "lidarr"` and `id` scopes to one artist. Those
+three fixtures were captured from Lidarr 3.1.0.4875 with real download activity
+(the history one merged from the newest rows of each event type), and the reads
+were exercised against 2.1.3.3927 and 3.1.6.5079.
 
 Everything else is still out of reach: no calendar, no wanted list, no release
 search, no delete. Of the 21 capture endpoints exercised against a live Lidarr
