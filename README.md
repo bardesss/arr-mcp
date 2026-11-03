@@ -156,6 +156,7 @@ Forty tools, but you never name them — you ask, and the model picks:
 > *"Put this series on the 4K profile and only monitor future seasons."*
 > *"This profile says it wants Dutch but keeps grabbing English — why?"*
 > *"Has anything in Radarr drifted from what Profilarr set?"*
+> *"Why is the TV guide empty, and is my IPTV subscription about to run out?"*
 > *"Which of my shows have metadata that does not match the files?"*
 > *"These episode titles are wrong for the files — fix them."*
 > *"Unmonitor season 5 and delete its files."* — previewed first, always.

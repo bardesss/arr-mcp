@@ -245,18 +245,8 @@ no more a fault than a grant is.
 `failures` carries what each service says is wrong with itself. Radarr,
 Sonarr, Whisparr, Prowlarr and Bazarr report their own health checks, NZBGet
 its `systemhealth` alerts (v26 and later), and Cleanuparr, Reclaimerr and Dispatcharr their
-own status. Lidarr does not report health checks yet.
-
-Dispatcharr's findings cover live TV: an active M3U account that failed to
-refresh, is still pending setup, or has not refreshed in three of its refresh
-intervals (skipped when it runs on a cron schedule); a provider account whose
-expiry date has passed (an error) or falls within 14 days (a warning); an active
-EPG source that failed to refresh; and a Dispatcharr newer than the 0.33.x this
-adapter was written against. Accounts and sources switched off in Dispatcharr
-are ignored. A failed refresh is summarised, for example "the provider refused
-the login (HTTP 884)" or "the request timed out", and Dispatcharr's own error
-text is never quoted, because it contains the provider URL and with it the
-subscription's username and password.
+own status (see [Dispatcharr](#dispatcharr) below). Lidarr does not report
+health checks yet.
 
 SABnzbd reports the warnings and errors from its log, and only those from the
 last 24 hours. Its warnings list is a log rather than a state: it keeps every
@@ -465,6 +455,33 @@ off, nothing is deleted on its own whatever the dates say. The candidate list
 takes the call's `limit`; `total` is always the full count. `going` counts the
 `eligible` and `scheduled` ones over every candidate, not only the ones
 returned, with `firstAt` the soonest date; the summary line quotes it.
+
+### Dispatcharr
+
+With Dispatcharr configured, its findings cover the live TV that Plex and
+Jellyfin play from it:
+
+| Finding | Level |
+|---|---|
+| An M3U account failed to refresh | error |
+| An M3U account is still pending setup | warning |
+| An M3U account has not refreshed in three of its refresh intervals (skipped on a cron schedule or an interval of 0) | warning |
+| A provider account's expiry date has passed | error |
+| A provider account expires within 14 days | warning |
+| An EPG source failed to refresh | error |
+| Dispatcharr is newer than 0.33.x, the minor this adapter was written against | warning |
+
+Accounts, profiles and sources switched off in Dispatcharr are ignored.
+
+A failed refresh says why in a fixed set of words, such as "no playlist URL or
+file is set", "the provider refused the login (HTTP 884)", "the guide file was
+incomplete or malformed" or "the request timed out", and "refresh failed" when
+the cause is not one it knows. Dispatcharr's own error text is never quoted:
+it carries the provider URL, and with it the subscription's username and
+password, along with whatever the provider sent back.
+
+Dispatcharr is read, never written: there is no tool for its channels or
+playlists, and its findings appear only here.
 
 ### Did that command finish?
 

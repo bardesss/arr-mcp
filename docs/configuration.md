@@ -419,8 +419,9 @@ request carries the identity of the person who made it, and a second Seerr makes
 because the one deployment that wants two is V2 beside V3 (Eros), and Eros is a
 different API with no adapter. Profilarr because it is the one place that owns
 profile config, so two of them would mean two sources of truth. Cleanuparr
-because one instance cleans one stack, and Reclaimerr because one instance owns
-one library's cleanup rules.
+because one instance cleans one stack, Reclaimerr because one instance owns
+one library's cleanup rules, and Dispatcharr because one instance serves one
+set of playlists.
 
 Everything else takes a list: Radarr, Sonarr, Bazarr, Prowlarr, SABnzbd,
 NZBGet, Transmission and qBittorrent.
