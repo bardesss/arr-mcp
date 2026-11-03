@@ -2,7 +2,7 @@ import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
 import { postArrCommand } from './arrCommands.ts';
-import type { CommandHandle, DiskSpace, HealthCheck, ScanState } from './types.ts';
+import type { CommandHandle, DiskSpace, HealthCheck, LogEntry, ScanState } from './types.ts';
 
 /**
  * Radarr and Sonarr share a framework, so their system endpoints are identical
@@ -53,6 +53,48 @@ export async function arrFailedHealthChecks(http: ServiceHttp, id: string): Prom
             // Health text quotes indexer, list and client names, and their errors.
             message: fenceText(c.message ?? '', { service: id, field: 'message' })
         }));
+}
+
+type RawLogPage = {
+    records?: { time?: string; level?: string | null; logger?: string | null; message?: string | null; exception?: string | null }[] | null;
+};
+
+/** Raw lines read before folding. Enough to span a retry storm and still reach what came before it. */
+const LOG_LINES = 50;
+
+/** Warnings and errors, newest first, identical lines folded into one with a count. */
+export async function arrRecentLogs(http: ServiceHttp, id: string): Promise<LogEntry[]> {
+    const page = await http.get<RawLogPage>(
+        `${http.apiRoot}/log?page=1&pageSize=${LOG_LINES}&sortKey=time&sortDirection=descending&level=warn`
+    );
+    const folded = new Map<string, LogEntry>();
+    for (const r of page.records ?? []) {
+        if (typeof r.time !== 'string') continue;
+        const level = r.level ?? 'warn';
+        const logger = r.logger ?? 'unknown';
+        const message = r.message ?? '';
+        const key = `${level}\u0000${logger}\u0000${message}`;
+        const seen = folded.get(key);
+        if (seen !== undefined) {
+            // Rows arrive newest first, so a later row only moves firstSeen back.
+            seen.count++;
+            seen.firstSeen = r.time;
+            continue;
+        }
+        const exception = r.exception?.split('\n')[0]?.trim();
+        folded.set(key, {
+            service: id,
+            level,
+            logger,
+            // Log lines quote hosts, paths, release names and indexer errors.
+            message: fenceText(message, { service: id, field: 'message' }),
+            ...(exception ? { exception: fenceText(exception, { service: id, field: 'exception' }) } : {}),
+            count: 1,
+            firstSeen: r.time,
+            lastSeen: r.time
+        });
+    }
+    return [...folded.values()];
 }
 
 /**

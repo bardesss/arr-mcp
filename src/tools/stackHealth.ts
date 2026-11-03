@@ -11,6 +11,7 @@ import {
     hasCommandStatus,
     hasDiskSpace,
     hasHealthChecks,
+    hasLogs,
     hasMediaAdd,
     hasScanState,
     type CleanupOverview,
@@ -19,6 +20,7 @@ import {
     type ConnectionDiagnosis,
     type DiskSpace,
     type HealthCheck,
+    type LogEntry,
     type ScanState,
     type ServiceAdapter
 } from '../services/types.ts';
@@ -83,6 +85,12 @@ export type StackHealthResult = {
      * configured: it answers "why did my download disappear", not "is anything broken".
      */
     cleanuparrRemovals?: CleanuparrRemovals & { service: string };
+    /**
+     * Recent warnings and errors from each service's own log, identical lines
+     * folded, newest first. Only at `detail: "full"`: a health check says what
+     * is failing, the log says why, and that is a question about fixing it.
+     */
+    logs?: Shaped<LogEntry>;
     degraded: string[];
 };
 
@@ -209,6 +217,7 @@ export async function buildStackHealth(
     const failures: HealthCheck[] = [];
     const scans: ScanState[] = [];
     const commands: CommandStatus[] = [];
+    const logs: LogEntry[] = [];
 
     const markDegraded = (id: string) => {
         if (!degraded.includes(id)) degraded.push(id);
@@ -242,7 +251,7 @@ export async function buildStackHealth(
 
             // A service with neither capability contributes its diagnosis and
             // no rows, rather than being special-cased out of the loop.
-            const [diskResult, healthResult, scanResult, commandResult] = await Promise.allSettled([
+            const [diskResult, healthResult, scanResult, commandResult, logResult] = await Promise.allSettled([
                 hasDiskSpace(adapter) ? adapter.getDiskSpace() : Promise.resolve([]),
                 hasHealthChecks(adapter) ? adapter.getFailedHealthChecks() : Promise.resolve([]),
                 hasScanState(adapter) ? adapter.getScanState() : Promise.resolve(undefined),
@@ -251,7 +260,8 @@ export async function buildStackHealth(
                 // service that nobody asked for at that level.
                 hasCommandStatus(adapter) && opts.detail !== 'minimal'
                     ? adapter.listCommands()
-                    : Promise.resolve([])
+                    : Promise.resolve([]),
+                hasLogs(adapter) && opts.detail === 'full' ? adapter.getRecentLogs() : Promise.resolve([])
             ]);
 
             if (diskResult.status === 'fulfilled') {
@@ -279,6 +289,13 @@ export async function buildStackHealth(
                 commands.push(...commandResult.value);
             } else {
                 logger.warn({ service: adapter.id }, 'command list read failed');
+                markDegraded(adapter.id);
+            }
+
+            if (logResult.status === 'fulfilled') {
+                logs.push(...logResult.value);
+            } else {
+                logger.warn({ service: adapter.id }, 'log read failed');
                 markDegraded(adapter.id);
             }
         })
@@ -356,6 +373,7 @@ export async function buildStackHealth(
     // Newest first across services: "did the thing I just started finish" is
     // a question about the most recent rows.
     commands.sort((a, b) => (b.queuedAt ?? '').localeCompare(a.queuedAt ?? ''));
+    logs.sort((a, b) => b.lastSeen.localeCompare(a.lastSeen));
     degraded.sort();
 
     // One budget across both lists, spent on failures first: a failing health
@@ -417,6 +435,9 @@ export async function buildStackHealth(
             ...(hasSeedingRules ? { seedingRules } : {}),
             ...(cleanup === undefined ? {} : { cleanup }),
             ...(cleanuparrRemovals === undefined ? {} : { cleanuparrRemovals }),
+            // Its own `limit` budget, like `options`: a log line is not
+            // competing with a failing health check for the same rows.
+            ...(opts.detail === 'full' ? { logs: applyLimit(logs, opts.limit) } : {}),
             ...(opts.detail === 'minimal' ? {} : { commands }),
             ...(primaryMediaServer === undefined ? {} : { primaryMediaServer }),
             degraded
@@ -448,7 +469,7 @@ export function registerStackHealth(
             title: 'Stack health',
             annotations: READ_ONLY,
             description:
-                'Health of every configured service: version, disk space, failing health checks, when each library was last scanned, and what each instance is permitted to do. Returns partial results with a `degraded` list rather than failing when a service is down. `commands` is how you follow up a `trigger_search` or `trigger_scan`: it lists the searches, scans, refreshes, renames and imports each service has queued or running, plus any it finished in the last fifteen minutes — so a command that is not there has finished. A service\'s own per-minute housekeeping is left out. The `permissions` list is also the set of ids you may pass as `instance` to other tools. `endpoints` gives each instance\'s base URL, for scripts that need to reach a service directly. At `detail: "full"`, `options` lists the quality profiles, root folders and tags each Radarr/Sonarr instance actually has — the values `add_media` and `update_media` refuse to guess, so read them here rather than inventing a profile name. Also at `detail: "full"`, `seedingRules` gives each torrent client\'s default seed limits and what it does on reaching them, each torrent indexer\'s seed ratio and time (an *arr hands those to the client with every grab, overriding its default), and `notes` where they disagree. Which torrents are past their limit is in `get_queue`. With Cleanuparr configured, `seedingRules.cleanuparr` lists its rules per client, matched to the arr-mcp client they act on, `seedingRules.coverage` counts the torrents on each client that no rule covers, and `notes` says why, which rule categories no torrent is in, and which torrent client Cleanuparr does not know about. Each set also carries its Unlinked, Dead Torrents and Orphaned Files modules, and `notes` says where they leave a gap: a target category no rule covers, an orphaned directory that is never purged, or a save directory the orphan scan misses or would move whole, and `cleanuparrRemovals` answers "why did my download disappear": each Queue Cleaner strike limit (failed import, stuck metadata, errored download, every stall and slow rule) with what happens at the limit and to private torrents, whether a removal searches again, the Malware Blocker blocklists and when it removes a download, and `notes` on settings that delete the files of private torrents. With Reclaimerr configured, `cleanup` (also at `detail: "full"`) says what its rules will delete or move and when, soonest first (`eligible` goes at the next run of its deletion task, `scheduled` on `eligibleAt`, `postponed`, `canceled` and `disabled` are held back), the rules themselves, the number of active protections, and whether automatic deletion runs at all. API keys are never returned by any tool in this server — a script that needs one runs beside the config and reads it there.',
+                'Health of every configured service: version, disk space, failing health checks, when each library was last scanned, and what each instance is permitted to do. Returns partial results with a `degraded` list rather than failing when a service is down. `commands` is how you follow up a `trigger_search` or `trigger_scan`: it lists the searches, scans, refreshes, renames and imports each service has queued or running, plus any it finished in the last fifteen minutes — so a command that is not there has finished. A service\'s own per-minute housekeeping is left out. The `permissions` list is also the set of ids you may pass as `instance` to other tools. `endpoints` gives each instance\'s base URL, for scripts that need to reach a service directly. At `detail: "full"`, `options` lists the quality profiles, root folders and tags each Radarr/Sonarr instance actually has — the values `add_media` and `update_media` refuse to guess, so read them here rather than inventing a profile name. Also at `detail: "full"`, `seedingRules` gives each torrent client\'s default seed limits and what it does on reaching them, each torrent indexer\'s seed ratio and time (an *arr hands those to the client with every grab, overriding its default), and `notes` where they disagree. Which torrents are past their limit is in `get_queue`. With Cleanuparr configured, `seedingRules.cleanuparr` lists its rules per client, matched to the arr-mcp client they act on, `seedingRules.coverage` counts the torrents on each client that no rule covers, and `notes` says why, which rule categories no torrent is in, and which torrent client Cleanuparr does not know about. Each set also carries its Unlinked, Dead Torrents and Orphaned Files modules, and `notes` says where they leave a gap: a target category no rule covers, an orphaned directory that is never purged, or a save directory the orphan scan misses or would move whole, and `cleanuparrRemovals` answers "why did my download disappear": each Queue Cleaner strike limit (failed import, stuck metadata, errored download, every stall and slow rule) with what happens at the limit and to private torrents, whether a removal searches again, the Malware Blocker blocklists and when it removes a download, and `notes` on settings that delete the files of private torrents. With Reclaimerr configured, `cleanup` (also at `detail: "full"`) says what its rules will delete or move and when, soonest first (`eligible` goes at the next run of its deletion task, `scheduled` on `eligibleAt`, `postponed`, `canceled` and `disabled` are held back), the rules themselves, the number of active protections, and whether automatic deletion runs at all. Also at `detail: "full"`, `logs` lists the recent warnings and errors each Radarr and Sonarr wrote to its own log, newest first, with identical lines folded into one row carrying `count`, `firstSeen` and `lastSeen` and the first line of any exception: a failing health check says what is broken, the log line says why (a host that does not resolve, a path it cannot write). API keys are never returned by any tool in this server — a script that needs one runs beside the config and reads it there.',
             inputSchema: toolInput({ detail: DetailSchema, limit: LimitSchema }),
             // The one read tool whose answer is not a list, so it declares its
             // own shape rather than the paged envelope. `disks` and `failures`
@@ -487,6 +508,9 @@ export function registerStackHealth(
                     .object({ service: z.string(), queueCleaner: z.unknown().optional(), malwareBlocker: z.unknown().optional(), notes: z.array(z.string()) })
                     .optional()
                     .describe('When Cleanuparr removes a download and what the removal does. Only at `detail: "full"`, with Cleanuparr configured.'),
+                logs: TruncationSchema.optional().describe(
+                    'Recent warnings and errors from each Radarr/Sonarr log, identical lines folded with a count. Only at `detail: "full"`.'
+                ),
                 ...(primaryMediaServer === undefined
                     ? {}
                     : { primaryMediaServer: z.string().describe('The media server tools default to when `service` is not given.') }),

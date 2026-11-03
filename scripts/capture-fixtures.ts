@@ -517,6 +517,8 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         { name: 'diskspace', path: '/api/v3/diskspace' },
         { name: 'health', path: '/api/v3/health' },
         { name: 'system-task', path: '/api/v3/system/task' },
+        // What `stack_health` reports as recent warnings and errors.
+        { name: 'log', path: '/api/v3/log?page=1&pageSize=20&sortKey=time&sortDirection=descending&level=warn' },
         { name: 'queue', path: '/api/v3/queue' },
         { name: 'blocklist', path: '/api/v3/blocklist?page=1&pageSize=10' },
         { name: 'calendar', path: '/api/v3/calendar' },
@@ -541,6 +543,8 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         { name: 'diskspace', path: '/api/v3/diskspace' },
         { name: 'health', path: '/api/v3/health' },
         { name: 'system-task', path: '/api/v3/system/task' },
+        // What `stack_health` reports as recent warnings and errors.
+        { name: 'log', path: '/api/v3/log?page=1&pageSize=20&sortKey=time&sortDirection=descending&level=warn' },
         { name: 'queue', path: '/api/v3/queue' },
         { name: 'blocklist', path: '/api/v3/blocklist?page=1&pageSize=10' },
         { name: 'calendar', path: '/api/v3/calendar' },

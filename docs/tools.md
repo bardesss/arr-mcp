@@ -508,6 +508,20 @@ minute ago is still there with its outcome. Older than that is history, which
 `get_history` answers. Absent at `detail: "minimal"` — a running command is
 not a fault — and bounded like `scans` rather than sharing the `limit` budget.
 
+### Why is it failing?
+
+At `detail: "full"`, `logs` lists the recent warnings and errors each Radarr and
+Sonarr wrote to its own log, newest first. A health check says *what* is broken
+("download client unavailable"); the log line says *why* ("Name does not
+resolve (qbittorrent:8080)", a path it cannot write).
+
+The last 50 warning-or-worse lines are read per instance, and identical lines
+are folded into one row: `level`, `logger`, `message`, `exception` (its first
+line only), `count`, `firstSeen` and `lastSeen`. A client test that fails every
+two seconds writes the same pair of lines dozens of times; on the recorded
+fixture, 20 lines fold into 4. `logs` is an envelope with its own `limit`
+budget. A log that cannot be read marks the instance `degraded`.
+
 ## `get_library`
 
 ### The ids a write needs

@@ -85,6 +85,30 @@ export const hasHealthChecks = (a: ServiceAdapter): a is ServiceAdapter & Health
 export const hasScanState = (a: ServiceAdapter): a is ServiceAdapter & ScanStateCapable =>
     typeof (a as Partial<ScanStateCapable>).getScanState === 'function';
 
+/**
+ * A recent warning or error from a service's own log, with identical lines
+ * folded into one: a client that fails every two seconds writes the same
+ * message hundreds of times, and the count is the fact, not the repetition.
+ */
+export type LogEntry = {
+    service: string;
+    level: string;
+    logger: string;
+    message: string;
+    /** First line of the exception only — the stack trace is the service's, not the reader's. */
+    exception?: string;
+    count: number;
+    firstSeen: string;
+    lastSeen: string;
+};
+
+export interface LogCapable {
+    getRecentLogs(): Promise<LogEntry[]>;
+}
+
+export const hasLogs = (a: ServiceAdapter): a is ServiceAdapter & LogCapable =>
+    typeof (a as Partial<LogCapable>).getRecentLogs === 'function';
+
 // --- read-tool capabilities ---
 
 export type IndexerSummary = {
