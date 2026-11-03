@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.55.0](https://github.com/bardesss/arr-mcp/compare/v1.54.0...v1.55.0) (2026-11-03)
+
+
+### Features
+
+* **lidarr:** rescan, rename and import downloads through trigger_scan ([#435](https://github.com/bardesss/arr-mcp/issues/435)) ([2af1713](https://github.com/bardesss/arr-mcp/commit/2af17137e81812be242df5f5158f335becb94ab1))
+
 ## [1.54.0](https://github.com/bardesss/arr-mcp/compare/v1.53.0...v1.54.0) (2026-11-02)
 
 

@@ -1251,7 +1251,7 @@ export type ImportCandidate = {
     sizeBytes?: number;
     /** What the service matched it to, when it matched anything. */
     matchedTitle?: string;
-    /** The movie or series id it matched. Absent means nothing to import into. */
+    /** The movie, series or artist id it matched. Absent means nothing to import into. */
     matchedId?: number;
     /** Sonarr only: the episodes this file was placed in. */
     episodeIds?: number[];
