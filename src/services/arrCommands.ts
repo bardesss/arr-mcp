@@ -1,13 +1,15 @@
 import { ServiceError } from '../core/errors.ts';
 import type { ServiceHttp } from '../core/http.ts';
+import type { LibraryKind } from '../core/resolver.ts';
+import { mediaIdsParam } from './arrRecord.ts';
 import type { CommandHandle, CommandStatus } from './types.ts';
 
 /**
- * The command endpoint Radarr and Sonarr share. Every queued task in this
- * codebase goes through `postArrCommand`, so the handle a caller gets back is
- * built one way rather than three.
+ * The command endpoint the *arrs share. Every queued task in this codebase
+ * goes through `postArrCommand`, so the handle a caller gets back is built one
+ * way rather than three.
  *
- * The payload shapes are **not** symmetric between the two services and
+ * The payload shapes are **not** symmetric between Radarr and Sonarr and
  * cannot be guessed: Sonarr's refresh takes a bare `seriesId` where Radarr's
  * takes `movieIds: []`, exactly as `SeriesSearch` and `MoviesSearch` differ.
  * Sending the other one's shape is accepted and runs against nothing.
@@ -44,8 +46,8 @@ const RECENT_MS = 15 * 60 * 1000;
 
 /**
  * The tasks this server can start, and therefore the only ones a caller can
- * be following up. Everything else on `/api/v3/command` is the scheduler's
- * own housekeeping.
+ * be following up. Everything else on the command endpoint is the
+ * scheduler's own housekeeping.
  *
  * An allowlist rather than a denylist, and **not** a filter on `trigger`,
  * because a live probe killed that idea: Radarr reports its own per-minute
@@ -63,6 +65,8 @@ const FOLLOWABLE = new Set([
     'RefreshSeries',
     'RenameMovie',
     'RenameSeries',
+    'RefreshArtist',
+    'RenameArtist',
     'ManualImport',
     'ApplicationIndexerSync'
 ]);
@@ -119,9 +123,9 @@ export async function readArrCommands(
         .slice(0, MAX_COMMANDS);
 }
 
-/** Refused before the POST: both services accept an id they cannot resolve
- *  and report a queued command that runs against nothing. */
-export function arrItemId(service: string, resource: 'movie' | 'series', value: string): number {
+/** Refused before the POST: Radarr and Sonarr accept an id they cannot
+ *  resolve and report a queued command that runs against nothing. */
+export function arrItemId(service: string, resource: LibraryKind, value: string): number {
     const id = Number(value);
     if (!Number.isInteger(id) || id <= 0) {
         throw new ServiceError('NotFound', service, `"${value}" is not a ${service} ${resource} id`, {
@@ -131,32 +135,39 @@ export function arrItemId(service: string, resource: 'movie' | 'series', value: 
     return id;
 }
 
+/** Sonarr's refresh takes a bare `seriesId` (above); Lidarr's takes `artistIds` (`RefreshArtistCommand`, Lidarr 3.1.0). */
+const REFRESH = {
+    movie: (id: number) => ({ name: 'RefreshMovie', movieIds: [id] }),
+    series: (id: number) => ({ name: 'RefreshSeries', seriesId: id }),
+    artist: (id: number) => ({ name: 'RefreshArtist', artistIds: [id] })
+} as const;
+
+/** Every rename takes the kind's plural ids field (`RenameArtistCommand`, Lidarr 3.1.0, for Lidarr's). */
+const RENAME = {
+    movie: 'RenameMovie',
+    series: 'RenameSeries',
+    artist: 'RenameArtist'
+} as const satisfies Record<LibraryKind, string>;
+
 export async function refreshArrItem(
     http: ServiceHttp,
     service: string,
-    resource: 'movie' | 'series',
+    resource: LibraryKind,
     id: string
 ): Promise<CommandHandle> {
-    const numeric = arrItemId(service, resource, id);
-    return postArrCommand(
-        http,
-        service,
-        resource === 'movie' ? { name: 'RefreshMovie', movieIds: [numeric] } : { name: 'RefreshSeries', seriesId: numeric }
-    );
+    return postArrCommand(http, service, REFRESH[resource](arrItemId(service, resource, id)));
 }
 
 export async function renameArrItem(
     http: ServiceHttp,
     service: string,
-    resource: 'movie' | 'series',
+    resource: LibraryKind,
     id: string
 ): Promise<CommandHandle> {
-    const numeric = arrItemId(service, resource, id);
-    return postArrCommand(
-        http,
-        service,
-        resource === 'movie' ? { name: 'RenameMovie', movieIds: [numeric] } : { name: 'RenameSeries', seriesIds: [numeric] }
-    );
+    return postArrCommand(http, service, {
+        name: RENAME[resource],
+        [mediaIdsParam(resource)]: [arrItemId(service, resource, id)]
+    });
 }
 
 /**

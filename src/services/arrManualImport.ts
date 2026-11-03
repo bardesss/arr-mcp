@@ -1,6 +1,7 @@
 import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
+import type { LibraryKind } from '../core/resolver.ts';
 import { awaitArrCommand, postArrCommand, renamedCount } from './arrCommands.ts';
 import { renameThroughTemporaryFormat } from './arrRename.ts';
 import { readArrQueue } from './arrQueue.ts';
@@ -10,7 +11,8 @@ import type {
     EpisodeRemapOutcome,
     EpisodeRemapPlan,
     ImportCandidate,
-    ImportMapping
+    ImportMapping,
+    QueueItem
 } from './types.ts';
 
 /**
@@ -39,6 +41,12 @@ type RawCandidate = {
     series?: { id?: number; title?: string };
     seasonNumber?: number | null;
     episodes?: { id?: number; seasonNumber?: number; episodeNumber?: number }[] | null;
+    /** Lidarr only (`ManualLibraryKind`, Lidarr 3.1.0): a file belongs to an artist, an album and its tracks. */
+    artist?: { id?: number; artistName?: string };
+    album?: { id?: number; title?: string };
+    albumReleaseId?: number;
+    tracks?: { id?: number }[] | null;
+    disableReleaseSwitching?: boolean;
     rejections?: RawRejection[] | null;
     /** Set here, never upstream: the file was placed by a caller's mapping. */
     mapped?: true;
@@ -49,13 +57,37 @@ type RawEpisodeRow = { id?: number; seasonNumber?: number; episodeNumber?: numbe
 const sxe = (season: number, episode: number): string =>
     `S${String(season).padStart(2, '0')}E${String(episode).padStart(2, '0')}`;
 
-const matchedIdOf = (raw: RawCandidate, resource: 'movie' | 'series'): number | undefined =>
-    resource === 'movie' ? raw.movie?.id : raw.series?.id;
+/** The film, series or artist the file matched: Radarr, Sonarr and Lidarr name its field after the kind. */
+const matchedIdOf = (raw: RawCandidate, resource: LibraryKind): number | undefined => raw[resource]?.id;
 
-function toCandidate(service: string, resource: 'movie' | 'series', raw: RawCandidate): ImportCandidate | undefined {
+const trackIdsOf = (raw: RawCandidate): number[] =>
+    (raw.tracks ?? []).map(t => t.id).filter((id): id is number => typeof id === 'number');
+
+/** A Lidarr file is named by its artist and album, the way a Sonarr file is by its series and episode labels. */
+function musicTitleOf(raw: RawCandidate): string | undefined {
+    const artist = raw.artist?.artistName;
+    if (artist === undefined) return undefined;
+    return raw.album?.title === undefined ? artist : `${artist} — ${raw.album.title}`;
+}
+
+/**
+ * A Lidarr file with no album, no release or no tracks cannot be imported:
+ * `ManualImport` looks up the album, the release and the tracks by id for every
+ * file it is given, and the read reports a missing release as
+ * `albumReleaseId: 0` (`ManualImportResource`, Lidarr 3.1.0). Like a Sonarr
+ * file with no episode, it is reported as not importable however healthy it
+ * looks.
+ */
+const unplacedMusic = (raw: RawCandidate): string[] => [
+    ...(typeof raw.album?.id === 'number' ? [] : ['no album matched']),
+    ...(Number.isInteger(raw.albumReleaseId) && (raw.albumReleaseId as number) > 0 ? [] : ['no release matched']),
+    ...(trackIdsOf(raw).length > 0 ? [] : ['no track matched'])
+];
+
+function toCandidate(service: string, resource: LibraryKind, raw: RawCandidate): ImportCandidate | undefined {
     if (typeof raw.path !== 'string' || raw.path === '') return undefined;
 
-    const title = resource === 'movie' ? raw.movie?.title : raw.series?.title;
+    const title = resource === 'artist' ? musicTitleOf(raw) : raw[resource]?.title;
     const episodes = (raw.episodes ?? []).map(e => e.id).filter((id): id is number => typeof id === 'number');
     const labels = (raw.episodes ?? [])
         .filter(e => typeof e.seasonNumber === 'number' && typeof e.episodeNumber === 'number')
@@ -76,7 +108,8 @@ function toCandidate(service: string, resource: 'movie' | 'series', raw: RawCand
                 .map(r => r.reason)
                 .filter((r): r is string => typeof r === 'string' && r !== '')
                 .map(r => fenceText(r, { service, field: 'rejection' })),
-            ...unplaced
+            ...unplaced,
+            ...(resource === 'artist' ? unplacedMusic(raw) : [])
         ],
         ...(matchedIdOf(raw, resource) === undefined ? {} : { matchedId: matchedIdOf(raw, resource) as number }),
         ...(episodes.length === 0 ? {} : { episodeIds: episodes }),
@@ -85,12 +118,34 @@ function toCandidate(service: string, resource: 'movie' | 'series', raw: RawCand
     };
 }
 
+/** The queue row for `downloadId` while that download has not finished, or `undefined`. */
+async function unfinishedRow(
+    http: ServiceHttp,
+    service: string,
+    resource: LibraryKind,
+    downloadId: string
+): Promise<QueueItem | undefined> {
+    const row = (await readArrQueue(http, service, resource)).find(
+        q => q.downloadId?.toLowerCase() === downloadId.toLowerCase()
+    );
+    return row === undefined || row.status.toLowerCase() === 'completed' ? undefined : row;
+}
+
+function notFinished(service: string, downloadId: string, row: QueueItem, why: string, cause?: unknown): ServiceError {
+    const state = row.importState === undefined ? row.status : `${row.status}/${row.importState}`;
+    return new ServiceError('UpstreamError', service, `download ${downloadId} has not finished downloading`, {
+        remedy: `get_queue reports it as ${state}. There is nothing to import until the download client says the item is complete — ${why}. Wait for it to finish, then try again.`,
+        ...(cause === undefined ? {} : { cause })
+    });
+}
+
 /**
- * Both services read `trackedDownload.ImportItem.OutputPath` with no null check
- * (`ManualImportService.GetMediaFiles`), and `ImportItem` is set only once the
- * download client reports the item complete — so a download that is still
- * running answers HTTP 500 where a 4xx belongs. Confirmed against a live Radarr
- * 6.3.0.10514; Sonarr's copy of the method is identical.
+ * Radarr and Sonarr read `trackedDownload.ImportItem.OutputPath` with no null
+ * check (`ManualImportService.GetMediaFiles`), and `ImportItem` is set only
+ * once the download client reports the item complete — so a download that is
+ * still running answers HTTP 500 where a 4xx belongs. Confirmed against a live
+ * Radarr 6.3.0.10514; Sonarr's copy of the method is identical. Lidarr is
+ * refused before its read instead (`refuseUnfinishedMusic`).
  *
  * An id the service never tracked is not this case — that answers 200 and an
  * empty list — so the queue is read to confirm the state, and a 500 it cannot
@@ -100,7 +155,7 @@ function toCandidate(service: string, resource: 'movie' | 'series', raw: RawCand
 async function explainUnfinishedDownload(
     http: ServiceHttp,
     service: string,
-    resource: 'movie' | 'series',
+    resource: LibraryKind,
     downloadId: string,
     err: unknown
 ): Promise<unknown> {
@@ -108,22 +163,36 @@ async function explainUnfinishedDownload(
 
     let row;
     try {
-        row = (await readArrQueue(http, service, resource)).find(
-            q => q.downloadId?.toLowerCase() === downloadId.toLowerCase()
-        );
+        row = await unfinishedRow(http, service, resource, downloadId);
     } catch {
         // The queue is only here to explain. Failing to read it leaves the
         // original error, which is still the truthful one.
         return err;
     }
 
-    if (row === undefined || row.status.toLowerCase() === 'completed') return err;
+    return row === undefined
+        ? err
+        : notFinished(service, downloadId, row, `${service} answers HTTP 500 rather than a clean refusal until then`, err);
+}
 
-    const state = row.importState === undefined ? row.status : `${row.status}/${row.importState}`;
-    return new ServiceError('UpstreamError', service, `download ${downloadId} has not finished downloading`, {
-        remedy: `get_queue reports it as ${state}. There is nothing to import until the download client says the item is complete — ${service} answers HTTP 500 rather than a clean refusal until then. Wait for it to finish, then try again.`,
-        cause: err
-    });
+/**
+ * Lidarr cannot be left to fail the candidate read for a download still in
+ * progress. It asks the download client for the item when it has none yet
+ * (`ManualImportService.GetMediaFiles`, Lidarr 3.1.0). NZBGet reports no
+ * folder until it finishes, so that read still answers HTTP 500 (seen on
+ * 3.1.6.5079). A torrent client reports the folder while it fills, so the read
+ * lists the partial files and judges them as they stand: seen on 2.1.3.3927
+ * with qBittorrent, every file rejected as "Has missing tracks" or with no
+ * album matched. Its queue is read first, and an unfinished download is
+ * refused the way Radarr and Sonarr refuse it. A queue that cannot be read
+ * fails the import too, since without it an unfinished download cannot be
+ * told apart.
+ */
+async function refuseUnfinishedMusic(http: ServiceHttp, service: string, downloadId: string): Promise<void> {
+    const row = await unfinishedRow(http, service, 'artist', downloadId);
+    if (row !== undefined) {
+        throw notFinished(service, downloadId, row, `until then ${service} either fails the read or lists a torrent's partial files`);
+    }
 }
 
 const UNKNOWN_QUALITY = { quality: { id: 0, name: 'Unknown' }, revision: { version: 1, real: 0, isRepack: false } };
@@ -260,22 +329,48 @@ async function applyMapping(
     return merged;
 }
 
+/**
+ * A mapping answers "which movie, or which season and episodes", and a Lidarr
+ * file is neither. Refused before anything is sent, never ignored: an ignored
+ * one would import on Lidarr's own match while the caller believed theirs had
+ * been applied.
+ */
+function refuseMusicMapping(service: string, mapping: readonly ImportMapping[]): void {
+    if (mapping.length === 0) return;
+    throw new Error(
+        `${service} does not take a \`mapping\`: it names a movie or episodes, and a Lidarr file belongs to an album and its tracks. ` +
+            'Drop it. If Lidarr matched a file to the wrong album, fix the match in Lidarr itself.'
+    );
+}
+
+/**
+ * Lidarr's read defaults `replaceExistingFiles` to true (`ManualImportController`,
+ * Lidarr 3.1.0), which judges every file as if it may overwrite the library's
+ * copy. This tool never asks for that, so it says so on the read as on the
+ * import.
+ */
+const candidateQuery = (resource: LibraryKind, downloadId: string): string =>
+    `downloadId=${encodeURIComponent(downloadId)}&filterExistingFiles=true` +
+    (resource === 'artist' ? '&replaceExistingFiles=false' : '');
+
 async function readCandidates(
     http: ServiceHttp,
     service: string,
-    resource: 'movie' | 'series',
+    resource: LibraryKind,
     downloadId: string,
     mapping: ImportMapping[] = []
 ): Promise<{ raw: RawCandidate[]; judged: (ImportCandidate | undefined)[]; candidates: ImportCandidate[] }> {
+    if (resource === 'artist') {
+        refuseMusicMapping(service, mapping);
+        await refuseUnfinishedMusic(http, service, downloadId);
+    }
     let raw: RawCandidate[];
     try {
-        raw = await http.get<RawCandidate[]>(
-            `${http.apiRoot}/manualimport?downloadId=${encodeURIComponent(downloadId)}&filterExistingFiles=true`
-        );
+        raw = await http.get<RawCandidate[]>(`${http.apiRoot}/manualimport?${candidateQuery(resource, downloadId)}`);
     } catch (err) {
         throw await explainUnfinishedDownload(http, service, resource, downloadId, err);
     }
-    if (mapping.length > 0) raw = await applyMapping(http, service, resource, downloadId, raw, mapping);
+    if (mapping.length > 0 && resource !== 'artist') raw = await applyMapping(http, service, resource, downloadId, raw, mapping);
 
     // `judged` keeps one slot per raw row, `undefined` where a row has no
     // path, so `judged[i]` is always `raw[i]`'s own verdict. `candidates`
@@ -287,7 +382,7 @@ async function readCandidates(
 export async function listArrImportCandidates(
     http: ServiceHttp,
     service: string,
-    resource: 'movie' | 'series',
+    resource: LibraryKind,
     downloadId: string,
     mapping?: ImportMapping[]
 ): Promise<ImportCandidate[]> {
@@ -302,7 +397,7 @@ export async function listArrImportCandidates(
 export async function runArrManualImport(
     http: ServiceHttp,
     service: string,
-    resource: 'movie' | 'series',
+    resource: LibraryKind,
     downloadId: string,
     mapping?: ImportMapping[]
 ): Promise<CommandHandle> {
@@ -319,12 +414,33 @@ export async function runArrManualImport(
 
     if (importable.length === 0) {
         const reasons = [...new Set(candidates.flatMap(c => c.rejections))].join('; ');
+        const fix =
+            resource === 'artist'
+                ? `Fix the match in ${service} itself: \`mapping\` names movies and episodes, and this tool imports what the service is willing to take, never forcing a rejected file.`
+                : `If ${service} matched a file to the wrong movie or episodes, or to none, pass \`mapping\` to say what it is and ${service} judges it again. Anything it still rejects has to be fixed in ${service}: this tool imports what the service is willing to take, and forcing a rejected file is not something it will do on your behalf.`;
         throw new ServiceError('UpstreamError', service, `${service} will not import anything from ${downloadId}`, {
             remedy:
                 reasons === ''
                     ? `${service} reported no importable files for that download id. Check it is still in get_queue — ids do not survive an item leaving the queue.`
-                    : `It rejected every file: ${reasons}. If ${service} matched a file to the wrong movie or episodes, or to none, pass \`mapping\` to say what it is and ${service} judges it again. Anything it still rejects has to be fixed in ${service}: this tool imports what the service is willing to take, and forcing a rejected file is not something it will do on your behalf.`
+                    : `It rejected every file: ${reasons}. ${fix}`
         });
+    }
+
+    if (resource === 'artist') {
+        // Lidarr's `ManualImportFile`: artist, album, the release the matcher
+        // chose and its tracks, echoed as Lidarr reported them.
+        const music = importable.map(r => ({
+            path: r.path,
+            artistId: r.artist?.id,
+            albumId: r.album?.id,
+            albumReleaseId: r.albumReleaseId,
+            trackIds: trackIdsOf(r),
+            ...(r.quality === undefined ? {} : { quality: r.quality }),
+            ...(r.indexerFlags === undefined ? {} : { indexerFlags: r.indexerFlags }),
+            downloadId,
+            disableReleaseSwitching: r.disableReleaseSwitching ?? false
+        }));
+        return postArrCommand(http, service, { name: 'ManualImport', importMode: 'auto', replaceExistingFiles: false, files: music });
     }
 
     const files = importable.map(r => ({

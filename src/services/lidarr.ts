@@ -7,9 +7,11 @@ import { ServiceHttp } from '../core/http.ts';
 import type { IndexInput } from '../core/resolver.ts';
 import { readProfileNames } from './arrAdd.ts';
 import { readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
+import { readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
 import { readArrHistory } from './arrHistory.ts';
+import { listArrImportCandidates, runArrManualImport } from './arrManualImport.ts';
 import { readArrQueue, removeArrQueueItem } from './arrQueue.ts';
-import { arrVersion } from './arrSystem.ts';
+import { arrStartLibraryScan, arrVersion } from './arrSystem.ts';
 import {
     diagnoseConnection,
     type ArtistMonitorCapable,
@@ -17,11 +19,20 @@ import {
     type ArtistMonitorPolicy,
     type BlocklistCapable,
     type BlocklistEntry,
+    type CommandHandle,
+    type CommandStatus,
+    type CommandStatusCapable,
     type ConnectionDiagnosis,
     type HistoryCapable,
     type HistoryEntry,
     type HistoryQuery,
+    type ImportCandidate,
+    type ImportMapping,
     type LibraryCapable,
+    type LibraryMaintenanceCapable,
+    type LibraryScanCapable,
+    type ManualImportCapable,
+    type MediaDetailCapable,
     type MediaDetails,
     type MonitoringCapable,
     type MonitoringTarget,
@@ -111,14 +122,21 @@ const albumMbId = (album: RawAlbum): { mbid?: string } =>
 const hasAnyTrack = (album: RawAlbum): boolean => (album.statistics?.trackFileCount ?? 0) > 0;
 
 /**
- * Lidarr. It claims `LibraryCapable`, `SearchCapable`, `MonitoringCapable`,
- * `MonitorStateCapable`, `ArtistMonitorCapable`, `QueueCapable`,
- * `QueueRemoveCapable`, `HistoryCapable` and `BlocklistCapable`. The last
- * four are the shared `arr*` helpers with `kind: 'artist'`, so Lidarr's
- * queue, history and blocklist read and write the way Radarr's and Sonarr's
- * do.
+ * Lidarr. It claims `LibraryCapable`, `SearchCapable`, `MediaDetailCapable`,
+ * `MonitoringCapable`, `MonitorStateCapable`, `ArtistMonitorCapable`,
+ * `QueueCapable`, `QueueRemoveCapable`, `HistoryCapable` and
+ * `BlocklistCapable`. The last four are the shared `arr*` helpers with
+ * `kind: 'artist'`, so Lidarr's queue, history and blocklist read and write
+ * the way Radarr's and Sonarr's do.
  * `CONTRIBUTING.md` lists the API traps for the adapter that adds the next
  * write, and the endpoints still waiting on a library with real activity.
+ *
+ * `LibraryScanCapable`, `LibraryMaintenanceCapable`, `ManualImportCapable` and
+ * `CommandStatusCapable` are `trigger_scan`'s: rescan the library or one
+ * artist, rename an artist's files, import a finished download by its id, and
+ * follow the command in `stack_health`. All four are the shared helpers, with
+ * `resource: 'artist'` where they take one; an import `mapping` is refused,
+ * because it names movies and episodes.
  *
  * An artist is the row rather than a track or an album, for the reason Radarr
  * and Sonarr row on a film and a series: it is the level a person asks about,
@@ -132,13 +150,18 @@ export class LidarrAdapter
         ServiceAdapter,
         LibraryCapable,
         SearchCapable,
+        MediaDetailCapable,
         MonitoringCapable,
         MonitorStateCapable,
         ArtistMonitorCapable,
         QueueCapable,
         QueueRemoveCapable,
         HistoryCapable,
-        BlocklistCapable
+        BlocklistCapable,
+        LibraryScanCapable,
+        LibraryMaintenanceCapable,
+        ManualImportCapable,
+        CommandStatusCapable
 {
     readonly type: ServiceId = 'lidarr';
     readonly instance: string | undefined = undefined;
@@ -436,6 +459,36 @@ export class LidarrAdapter
 
     async removeBlocklistItem(id: string): Promise<void> {
         return removeArrBlocklistItem(this.#http, id);
+    }
+
+    /**
+     * `RefreshArtist` with no ids refreshes every artist. Sent through the API
+     * it runs as a manual command, so Lidarr then rescans their folders unless
+     * "rescan artist folder after refresh" is set to Never (`RefreshArtistService`).
+     */
+    async startLibraryScan(): Promise<CommandHandle> {
+        return arrStartLibraryScan(this.#http, this.id, 'RefreshArtist');
+    }
+
+    async refreshItem(id: string): Promise<CommandHandle> {
+        return refreshArrItem(this.#http, this.id, 'artist', id);
+    }
+
+    /** Renames every file of the artist to Lidarr's own naming scheme. */
+    async renameItem(id: string): Promise<CommandHandle> {
+        return renameArrItem(this.#http, this.id, 'artist', id);
+    }
+
+    async listImportCandidates(downloadId: string, mapping?: ImportMapping[]): Promise<ImportCandidate[]> {
+        return listArrImportCandidates(this.#http, this.id, 'artist', downloadId, mapping);
+    }
+
+    async runManualImport(downloadId: string, mapping?: ImportMapping[]): Promise<CommandHandle> {
+        return runArrManualImport(this.#http, this.id, 'artist', downloadId, mapping);
+    }
+
+    async listCommands(): Promise<CommandStatus[]> {
+        return readArrCommands(this.#http, this.id);
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {
