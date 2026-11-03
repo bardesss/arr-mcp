@@ -15,6 +15,33 @@ const REMEDY_401 = 'Dispatcharr rejected the API key. Create one under Users →
 
 type RawVersion = { version?: string };
 
+const STATUS = /HTTP (\d{3})\b|\((\d{3})\)|status (\d{3})\b/;
+const TIMED_OUT = /timed out|timeout/i;
+const UNREACHABLE = /Failed to establish|Name or service not known|Connection refused|Max retries exceeded/i;
+
+/**
+ * Why a refresh failed, in a fixed vocabulary. Dispatcharr writes the
+ * provider URL (credentials in its query string) and the provider's own
+ * reply into `last_message`, so nothing from the input is ever copied out
+ * except a three-digit status.
+ */
+export function refreshReason(message: string | null | undefined): string {
+    if (!message) return 'refresh failed';
+    if (/empty M3U file/i.test(message)) return 'the provider sent an empty playlist';
+    const match = STATUS.exec(message);
+    const status = match === null ? undefined : Number(match[1] ?? match[2] ?? match[3]);
+    if (status !== undefined) {
+        if (status === 401 || status === 884) return `the provider refused the login (HTTP ${status})`;
+        if (status === 403) return 'the provider refused access (HTTP 403)';
+        if (status === 404) return 'the provider has no playlist at that URL (HTTP 404)';
+        if (status === 500) return 'the provider failed (HTTP 500)';
+        return `the provider answered HTTP ${status}`;
+    }
+    if (TIMED_OUT.test(message)) return 'the request timed out';
+    if (UNREACHABLE.test(message)) return 'could not reach the provider';
+    return 'refresh failed';
+}
+
 /**
  * Dispatcharr's REST API, written against tag v0.33.0. Read only, and it
  * never keeps a provider credential: see the allowlist below.
