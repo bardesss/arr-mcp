@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.56.0](https://github.com/bardesss/arr-mcp/compare/v1.55.0...v1.56.0) (2026-11-03)
+
+
+### Features
+
+* add a read-only Dispatcharr adapter ([#438](https://github.com/bardesss/arr-mcp/issues/438)) ([87380b1](https://github.com/bardesss/arr-mcp/commit/87380b149054e43650c70095050c2057473daceb))
+
 ## [1.55.0](https://github.com/bardesss/arr-mcp/compare/v1.54.0...v1.55.0) (2026-11-03)
 
 
