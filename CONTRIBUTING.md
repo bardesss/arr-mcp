@@ -288,6 +288,20 @@ small, shaped change, and a service in no slot at all is a different product.
   configured local server, never plex.tv. That constraint holds for any future
   change here, not just this one.
 
+**Beside the chain — the live TV the same media servers play**
+
+- **Dispatcharr — writes.** The adapter has shipped, read-only, by maintainer
+  waiver on 2026-11-03. It missed three checks above: it is pre-1.0, only the
+  maintainer asked for it, and live TV never passes through the chain `diagnose`
+  walks. The waiver rests on one thing: Dispatcharr is where the Plex and
+  Jellyfin servers arr-mcp already watches get their live TV, so a failing
+  playlist or guide is a fault in the stack `stack_health` is asked about. That
+  is the whole precedent. It does not extend to analytics or other services that
+  merely sit near a media server, which is why Tautulli stays below. Building
+  playlists, that is channel profiles, needs its own case: it spends at least
+  one new tool against the ceiling, and its writes change what every client of
+  that playlist sees.
+
 Named and **not** accepted, so nobody spends a weekend finding out:
 
 - **Readarr.** Archived upstream. Nothing to track.

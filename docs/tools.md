@@ -244,8 +244,19 @@ no more a fault than a grant is.
 
 `failures` carries what each service says is wrong with itself. Radarr,
 Sonarr, Whisparr, Prowlarr and Bazarr report their own health checks, NZBGet
-its `systemhealth` alerts (v26 and later), and Cleanuparr and Reclaimerr their
+its `systemhealth` alerts (v26 and later), and Cleanuparr, Reclaimerr and Dispatcharr their
 own status. Lidarr does not report health checks yet.
+
+Dispatcharr's findings cover live TV: an active M3U account that failed to
+refresh, is still pending setup, or has not refreshed in three of its refresh
+intervals (skipped when it runs on a cron schedule); a provider account whose
+expiry date has passed (an error) or falls within 14 days (a warning); an active
+EPG source that failed to refresh; and a Dispatcharr newer than the 0.33.x this
+adapter was written against. Accounts and sources switched off in Dispatcharr
+are ignored. A failed refresh is summarised, for example "the provider refused
+the login (HTTP 884)" or "the request timed out", and Dispatcharr's own error
+text is never quoted, because it contains the provider URL and with it the
+subscription's username and password.
 
 SABnzbd reports the warnings and errors from its log, and only those from the
 last 24 hours. Its warnings list is a log rather than a state: it keeps every
