@@ -471,7 +471,10 @@ Jellyfin play from it:
 | An EPG source failed to refresh | error |
 | Dispatcharr is newer than 0.33.x, the minor this adapter was written against | warning |
 
-Accounts, profiles and sources switched off in Dispatcharr are ignored.
+Accounts, profiles and sources switched off in Dispatcharr are ignored, and so
+is the locked built-in `custom` account every install has: it has no URL or
+file, so each of its refreshes fails, and Dispatcharr hides it and will not let
+it be changed.
 
 A failed refresh says why in a fixed set of words, such as "no playlist URL or
 file is set", "the provider refused the login (HTTP 884)", "the guide file was

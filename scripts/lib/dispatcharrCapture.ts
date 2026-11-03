@@ -5,26 +5,18 @@
  * Fixture policy is stricter than for the *arr blocks: an M3U account's
  * `server_url`, `username` and `password` are an IPTV subscription's
  * credentials, and Dispatcharr returns the password to admins. They are
- * blanked, never replaced with a plausible stand-in, and `last_message`
- * (which embeds the provider URL and reply) is rewritten in the same shape.
+ * blanked, never replaced with a plausible stand-in. `last_message` (which
+ * embeds the provider URL and reply, and sometimes a source or profile name)
+ * is replaced whole by a message of the same kind the adapter reads the same
+ * way, so no part of the original survives.
  */
+import { sampleRefreshMessage } from '../../src/services/dispatcharr.ts';
 import { isRow, type Row } from './redact.ts';
 
 /** Never kept with a value: credentials, hosts and paths. */
 const SECRET_KEYS = ['password', 'username', 'server_url', 'url', 'file_path', 'search_pattern', 'replace_pattern'] as const;
-const STAND_IN_URL = 'http://provider.example/get.php?username=u&password=p';
 
-function scrubMessage(message: string): string {
-    const at = message.indexOf('URL:');
-    if (at >= 0) return `${message.slice(0, at)}URL: ${STAND_IN_URL}. Server message: example`;
-    const forUrl = message.indexOf('for url:');
-    if (forUrl >= 0) return `${message.slice(0, forUrl)}for url: ${STAND_IN_URL}`;
-    // Keep the phrases the adapter's classifier keys on; drop everything else.
-    for (const phrase of ['Read timed out', 'Failed to establish a new connection', 'Name or service not known', 'Connection refused']) {
-        if (message.includes(phrase)) return `Example message: ${phrase}`;
-    }
-    return 'Example message';
-}
+const scrubMessage = sampleRefreshMessage;
 
 /** Large, never read by the adapter, and partly user-written (filter regexes). */
 const DROPPED_KEYS = ['channel_groups', 'filters'];

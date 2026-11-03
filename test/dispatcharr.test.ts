@@ -10,7 +10,7 @@ const REASONS: [string | null, string][] = [
     [`Server returned HTTP 884 (authentication/authorization failure) from URL: ${URL_}. Server message: bob s3cret`, 'the provider refused the login (HTTP 884)'],
     [`Authentication required (401) for M3U file at URL: ${URL_}. Server message: bob`, 'the provider refused the login (HTTP 401)'],
     [`Access forbidden (403) to M3U file at URL: ${URL_}. Server message: s3cret`, 'the provider refused access (HTTP 403)'],
-    [`M3U file not found (404) at URL: ${URL_}. Server message: nope`, 'the provider has no playlist at that URL (HTTP 404)'],
+    [`M3U file not found (404) at URL: ${URL_}. Server message: nope`, 'the provider has nothing at that URL (HTTP 404)'],
     [`Server error (500) while fetching M3U file from URL: ${URL_}. Server message: oops`, 'the provider failed (HTTP 500)'],
     [`Server returned non-standard HTTP status 512 from URL: ${URL_}. Server message: x`, 'the provider answered HTTP 512'],
     [`HTTP error (502) while fetching M3U file from URL: ${URL_}. Server message: x`, 'the provider answered HTTP 502'],
@@ -42,6 +42,15 @@ const REASONS: [string | null, string][] = [
     [`Connection error while fetching M3U file from URL: ${URL_}`, 'could not reach the provider'],
     [`Network error while fetching M3U file from URL: ${URL_} - bob`, 'could not reach the provider'],
     ["Connection error: Unable to connect to EPG source 'bob'", 'could not reach the provider'],
+    // Only Dispatcharr's own words are read: not the provider's reply, the URL, a path or a quoted name.
+    [`Server error (500) while fetching M3U file from URL: ${URL_}. Server message: you are rate limited`, 'the provider failed (HTTP 500)'],
+    [`Access forbidden (403) to M3U file at URL: ${URL_}. Server message: No streams found`, 'the provider refused access (HTTP 403)'],
+    ['Unexpected error while fetching M3U file from URL: http://h/x/(401)/ - boom', 'refresh failed'],
+    ['Error opening file /data/m3u/uk (123).m3u: [Errno 2] No such file or directory', 'could not read the playlist file'],
+    ["EPG source 'Timeout TV' encountered HTTP error 502", 'the provider answered HTTP 502'],
+    // apps/epg/tasks.py:717 and :753.
+    ["EPG source 'x' returned 404 error - will retry on next scheduled run", 'the provider has nothing at that URL (HTTP 404)'],
+    ["EPG source 'x' encountered HTTP error 502", 'the provider answered HTTP 502'],
     [null, 'refresh failed'],
     ['', 'refresh failed']
 ];
@@ -220,6 +229,12 @@ describe('DispatcharrAdapter health findings', () => {
         expect(await findings([account({ is_active: false, status: 'error', updated_at: hoursAgo(500) })], [source({ is_active: false, status: 'error' })])).toEqual([]);
     });
 
+    it('ignores the locked built-in "custom" account, which has no source and errors on every refresh', async () => {
+        // Migration 0003 creates it active and locked on every install; the UI hides it and the API refuses to change it.
+        const custom = account({ name: 'custom', locked: true, status: 'error', last_message: 'No M3U source available (missing URL and file)', updated_at: hoursAgo(9000) });
+        expect(await findings([custom])).toEqual([]);
+    });
+
     it('warns when Dispatcharr is newer than the tested minor', async () => {
         expect(await findings([], [], { version: '0.34.0', timestamp: null })).toEqual([
             {
@@ -277,17 +292,13 @@ describe('DispatcharrAdapter against the live 0.33.0 capture', () => {
             config,
             stub({ '/api/core/version/': captured('version'), '/api/m3u/accounts/': captured('m3u-accounts'), '/api/epg/sources/': captured('epg-sources') })
         );
-        // Provider 1 is in error and last refreshed a year before the capture; the
-        // EPG source is in error; Provider 2 is healthy and expires in 2027.
+        // Provider 1 is the locked built-in "custom" account, in error since install:
+        // not a finding. Provider 2 is healthy and expires in 2027. The EPG source
+        // was in error when captured.
+        const accounts = captured('m3u-accounts') as { locked: boolean; status: string }[];
+        expect(accounts.some(a => a.locked && a.status === 'error')).toBe(true);
         expect(await adapter.getFailedHealthChecks()).toEqual([
-            { service: 'dispatcharr', source: 'm3u', type: 'error', message: `M3U account ${f('Example Provider 1')} failed to refresh: refresh failed` },
-            {
-                service: 'dispatcharr',
-                source: 'm3u',
-                type: 'warning',
-                message: `M3U account ${f('Example Provider 1')} has not refreshed since 2025-10-23T14:03:13.450541Z; it is set to refresh every 24h`
-            },
-            { service: 'dispatcharr', source: 'epg', type: 'error', message: `EPG source ${f('Example EPG 1')} failed to refresh: refresh failed` }
+            { service: 'dispatcharr', source: 'epg', type: 'error', message: `EPG source ${f('Example EPG 1')} failed to refresh: the guide file was incomplete or malformed` }
         ]);
     });
 });

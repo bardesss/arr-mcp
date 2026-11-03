@@ -76,6 +76,22 @@ describe('anonymiseDispatcharr', () => {
         expect(refreshReason(epg?.last_message)).toBe(refreshReason(adminSources[0]?.last_message));
     });
 
+    it("keeps Dispatcharr's fixed messages classifiable, without the names some of them carry", () => {
+        const messages = [
+            'No M3U source available (missing URL and file)',
+            'EPG file appears incomplete (missing closing </tv>). Keeping previous data when available; will retry on next refresh.',
+            "EPG source 'Bob TV' rate limited (429) - try again later",
+            'Authentication failed for profile Bob main line (3)',
+            "EPG source 'Bob TV' encountered HTTP error 502",
+            "Timeout error: EPG source 'Bob TV' took too long to respond"
+        ];
+        for (const message of messages) {
+            const [row] = anonymiseDispatcharr([{ id: 1, name: 'x', url: '', status: 'error', last_message: message }]) as { last_message: string }[];
+            expect(refreshReason(row?.last_message)).toBe(refreshReason(message));
+            expect(row?.last_message).not.toContain('Bob');
+        }
+    });
+
     it('leaves a non-list body alone', () => {
         expect(anonymiseDispatcharr({ version: '0.33.0' })).toEqual({ version: '0.33.0' });
     });
