@@ -1,12 +1,12 @@
 /**
  * Captures real API responses into test/fixtures/ so CI needs no live media
- * stack (design spec §17). Run by the maintainer, never in CI.
+ * stack (design spec Â§17). Run by the maintainer, never in CI.
  *
  *   npm run capture                        # reads ./config/config.yaml
  *   ARR_MCP_CAPTURE_CONFIG=/path npm run capture
  *
  * Credentials are read from the config file and never printed. Redaction is
- * secrets-only by decision (Phase 2 design §7): real titles, usernames, LAN
+ * secrets-only by decision (Phase 2 design Â§7): real titles, usernames, LAN
  * addresses and mount paths are published.
  */
 import { listInstances } from '../src/config/instances.ts';
@@ -38,6 +38,7 @@ import {
     lidarrReleasePath,
     LIDARR_STATIC_PATHS
 } from './lib/lidarrCapture.ts';
+import { anonymiseDispatcharr } from './lib/dispatcharrCapture.ts';
 import {
     anonymiseImages,
     anonymisePlexAccounts,
@@ -77,7 +78,7 @@ import {
 
 /**
  * `path` may be a function when the endpoint needs an id from something
- * captured earlier — Sonarr's episode list needs a series id, and inventing
+ * captured earlier â€” Sonarr's episode list needs a series id, and inventing
  * one would capture a 404 rather than a shape. It receives the fixtures
  * captured so far for the same service, keyed by endpoint name, and returning
  * undefined skips the endpoint with a reason rather than guessing.
@@ -86,13 +87,13 @@ type Endpoint = {
     name: string;
     path?: string | ((captured: Map<string, unknown>) => string | undefined);
     body?: unknown;
-    /** The response is a bare string rather than JSON — qBittorrent only.
+    /** The response is a bare string rather than JSON â€” qBittorrent only.
      *  `anonymise` is what shapes it into something writable as a fixture. */
     text?: boolean;
     anonymise?: (body: unknown) => unknown;
     /**
      * An override for endpoints that need more than one request to decide
-     * what to capture — `plex/section-all` walks sections looking for a
+     * what to capture â€” `plex/section-all` walks sections looking for a
      * Part-bearing one (see N5) rather than fetching a single fixed path.
      * Takes over the request entirely: `path`/`body`/`text` are ignored when
      * this is set, and it returns undefined to skip the endpoint the same
@@ -113,7 +114,7 @@ const firstId = (body: unknown): number | undefined => {
  *
  * Deliberately not `firstId`: `/episodefile?seriesId=` for a series with
  * nothing downloaded answers `[]`, and an empty array is a fixture that guards
- * nothing — the contract test would pass forever whatever upstream renamed.
+ * nothing â€” the contract test would pass forever whatever upstream renamed.
  * Undefined when no captured series has a file, like every other helper here,
  * so the endpoint is skipped with a reason rather than capturing a shape that
  * does not exist.
@@ -132,7 +133,7 @@ const firstSeriesWithFiles = (body: unknown): number | undefined => {
  *
  * Deliberately not the *first* series: a Jellyfin `Series` row exists whether
  * or not any episode of it is present, and `/Shows/{id}/Episodes` for one with
- * none answers `TotalRecordCount: 0` — a fixture that guards nothing, for the
+ * none answers `TotalRecordCount: 0` â€” a fixture that guards nothing, for the
  * same reason `test/contract.test.ts` refuses to contract an empty queue.
  * `UnplayedItemCount` is the only episode count `items-library` already asks
  * for, so the row with the most unwatched episodes is the one picked.
@@ -166,7 +167,7 @@ const richestSeriesId = (body: unknown): string | undefined => {
 const scrubUrls = (value: string): string => value.replace(/https?:\/\/[^\s"',\]]+/gi, ANONYMOUS_URL);
 
 /**
- * Watch history is the one genuinely personal thing in the fixture set — the
+ * Watch history is the one genuinely personal thing in the fixture set â€” the
  * library titles are already public in radarr/movie.json, but who has watched
  * what is not. Keys and types are preserved, which is all the contract test
  * reads; the values are synthetic.
@@ -210,7 +211,7 @@ const neutraliseWatchState = (body: unknown): unknown => {
  * Resume rows, neutralised without contradicting the endpoint.
  *
  * `neutraliseWatchState` zeroes `PlaybackPositionTicks` and drops
- * `LastPlayedDate` — on a resumable set that would produce a fixture no
+ * `LastPlayedDate` â€” on a resumable set that would produce a fixture no
  * `/UserItems/Resume` could ever return, and drop the two fields
  * `getPlayback` reads for `percentComplete` and `lastPlayed`. A fixed
  * position and date keep the shape honest while carrying no real watch
@@ -260,7 +261,7 @@ function anonymiseIndexer(row: Row, index: number): Row {
 
 /**
  * An episode file names where the user keeps their media and who they take it
- * from — the same class of thing as an indexer name, and permanent once it is
+ * from â€” the same class of thing as an indexer name, and permanent once it is
  * in a public repository.
  *
  * The scrubbed list is every string-valued path- or release-shaped property on
@@ -294,7 +295,7 @@ function anonymiseEpisodeFile(row: Row, index: number): Row {
 }
 
 /** A torrent name is a release name, and an info hash identifies the release
- *  exactly — both say what the user is downloading. `infohash_v1`/`_v2` repeat
+ *  exactly â€” both say what the user is downloading. `infohash_v1`/`_v2` repeat
  *  `hash`, `root_path` repeats the name, and `comment` is whatever the uploader
  *  wrote: on a private tracker, a URL with the account's ids in it. */
 function anonymiseTorrent(row: Row, index: number): Row {
@@ -357,12 +358,12 @@ function anonymiseSeerrUser(row: Row, index: number): Row {
  *
  * External ids go with the titles. A real `tvdbId` resolves to a real TPDB
  * site, so it still names the content by reference once the title is gone.
- * Internal `id`s and their types stay — the id type is precisely what these
+ * Internal `id`s and their types stay â€” the id type is precisely what these
  * fixtures exist to prove.
  */
 
 /** Maps the `records` array of a paged *arr response, leaving the page counters
- *  alone — they are shape the adapter reads and say nothing about the library. */
+ *  alone â€” they are shape the adapter reads and say nothing about the library. */
 const mapRecords = (fn: (row: Row, index: number) => Row) => (body: unknown) =>
     isRow(body) && Array.isArray(body.records)
         ? { ...body, records: (body.records as Row[]).map(fn) }
@@ -375,7 +376,7 @@ const mapRows = (fn: (row: Row, index: number) => Row) => (body: unknown) =>
  * `actors` names real people.
  *
  * It is the only place in any fixture here that does, and it arrives nested
- * two levels down — an episode's `actors[]`, each with its own `images[]` —
+ * two levels down â€” an episode's `actors[]`, each with its own `images[]` â€”
  * which is why the first pass over these hooks missed it entirely. The
  * performer's name, the character, the TPDB id that resolves to their profile
  * and the poster URL that embeds their slug all go.
@@ -396,7 +397,7 @@ const anonymiseWhisparrActors = (actors: unknown): unknown =>
 
 /**
  * `statistics.releaseGroups` is a list of release-group names the app parsed
- * out of the filenames on disk — which for this service means fragments of
+ * out of the filenames on disk â€” which for this service means fragments of
  * real scene titles and performer names, not group tags.
  *
  * It appears twice per series, once at the top level and once inside every
@@ -462,7 +463,7 @@ function anonymiseWhisparrQueueItem(row: Row, index: number): Row {
         indexer: replaceIfString(row.indexer, `Indexer ${n}`),
         outputPath: replaceIfString(row.outputPath, `/downloads/scene-${n}`),
         // A download id is the client's handle on the release, and for a
-        // torrent it is the info hash — which identifies the content exactly.
+        // torrent it is the info hash â€” which identifies the content exactly.
         downloadId: replaceIfString(row.downloadId, String(n).repeat(32).slice(0, 32)),
         errorMessage: replaceIfString(row.errorMessage, ''),
         series: isRow(row.series) ? anonymiseWhisparrSeries(row.series, index) : row.series,
@@ -483,7 +484,7 @@ function anonymiseWhisparrBlocklistItem(row: Row, index: number): Row {
 }
 
 /** `unmappedFolders` is the point of this fixture (#214), and every entry in it
- *  is a folder name the operator chose — which is a title by another route. */
+ *  is a folder name the operator chose â€” which is a title by another route. */
 function anonymiseWhisparrRootFolder(row: Row, index: number): Row {
     const unmapped = Array.isArray(row.unmappedFolders)
         ? (row.unmappedFolders as Row[]).map((folder, i) => ({
@@ -503,9 +504,9 @@ function anonymiseWhisparrRootFolder(row: Row, index: number): Row {
 
 /**
  * What each adapter needs to see. Extend this when an adapter starts reading a
- * new endpoint — a fixture that does not exist cannot be tested against.
+ * new endpoint â€” a fixture that does not exist cannot be tested against.
  */
-// One mapper for the whole run, shared by accounts/sessions/history below —
+// One mapper for the whole run, shared by accounts/sessions/history below â€”
 // the same real account id must produce the same synthetic id in all three,
 // or the joins the adapter's tests rely on break. See G2.
 const mapPlexAccountId = createAccountIdMapper();
@@ -521,7 +522,7 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         { name: 'calendar', path: '/api/v3/calendar' },
         { name: 'movie', path: '/api/v3/movie' },
         // The detail endpoint returns the same shape as a list element, so the
-        // list is what the contract test needs — but capturing one detail
+        // list is what the contract test needs â€” but capturing one detail
         // response proves the path and the id type.
         {
             name: 'movie-detail',
@@ -555,7 +556,7 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         },
         {
             // delete_episode_files resolves its whole delete set from this
-            // payload — `id`, `seasonNumber` and `size` — and none of the three
+            // payload â€” `id`, `seasonNumber` and `size` â€” and none of the three
             // is contracted, because until now no fixture existed to contract
             // them against. A rename of `seasonNumber` would put every file in
             // season 0, so `delete_episode_files { season: 1 }` would delete
@@ -569,7 +570,7 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         },
         { name: 'series-lookup', path: '/api/v3/series/lookup?term=breaking%20bad' }
     ],
-    // Whisparr V2 only — a Sonarr fork, so `/series` and `/episode` throughout.
+    // Whisparr V2 only â€” a Sonarr fork, so `/series` and `/episode` throughout.
     // Eros answers on the same path with `/movie` and is a separate service id,
     // which is what keeps this list static instead of probed for at runtime.
     //
@@ -605,7 +606,7 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
             anonymise: mapRecords(anonymiseWhisparrBlocklistItem)
         },
         {
-            // An explicit range, because a bare `/calendar` answers `[]` here —
+            // An explicit range, because a bare `/calendar` answers `[]` here â€”
             // Whisparr's default window is anchored on air dates its scenes do
             // not have, so the fixture it produces contracts nothing. The dates
             // are fixed rather than relative to keep the capture reproducible;
@@ -638,7 +639,7 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         {
             // Same reasoning as Sonarr's: `id`, `seasonNumber` and `size` are
             // what a delete resolves against, and an empty array contracts
-            // nothing. Sonarr's own hook applies unchanged — the resource is
+            // nothing. Sonarr's own hook applies unchanged â€” the resource is
             // the same one, and its synthetic values are already generic.
             name: 'episodefile',
             path: captured => {
@@ -649,14 +650,14 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         },
         {
             // A neutral term, because the query string is captured alongside
-            // the results — searching for something real would put it in the
+            // the results â€” searching for something real would put it in the
             // fixture's own filename path.
             name: 'series-lookup',
             path: '/api/v3/series/lookup?term=studio',
             anonymise: mapRows(anonymiseWhisparrSeries)
         }
     ],
-    // Lidarr answers on `/api/v1`, not `/api/v3` — the one *arr here that does.
+    // Lidarr answers on `/api/v1`, not `/api/v3` â€” the one *arr here that does.
     //
     // The scrubbing hooks and the path list live in `lib/lidarrCapture.ts`,
     // because `test/scriptsLidarrCapture.test.ts` checks both against the
@@ -787,13 +788,13 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         {
             name: 'items-search',
             // Must match what JellyfinAdapter.search actually requests. Without
-            // Fields, Jellyfin returns no ProviderIds at all — which is exactly
+            // Fields, Jellyfin returns no ProviderIds at all â€” which is exactly
             // what the resolver joins on.
             path: '/Items?searchTerm=a&Recursive=true&IncludeItemTypes=Movie,Series&Limit=5&Fields=ProviderIds'
         },
         {
             name: 'items-library',
-            // Per-user, because UserData — the watched state — only comes back
+            // Per-user, because UserData â€” the watched state â€” only comes back
             // when Jellyfin knows who is asking. The id is read from the users
             // fixture captured a moment earlier.
             path: captured => {
@@ -802,7 +803,7 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
                 // EnableImages=false is capture-only trim: the adapter reads
                 // none of ImageTags/BackdropImageTags/ImageBlurHashes, and a
                 // flat-colour blurhash is long, alphanumeric-only, and
-                // undelimited — exactly the shape the fixture secret guard in
+                // undelimited â€” exactly the shape the fixture secret guard in
                 // test/fixtures.test.ts treats as a possible credential.
                 return id === undefined
                     ? undefined
@@ -835,14 +836,14 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         {
             name: 'resume',
             // getPlayback's resumable half. Per-user like items-library, and
-            // from the same users[0] — if that user happens to have nothing in
+            // from the same users[0] â€” if that user happens to have nothing in
             // progress the fixture comes back empty and the contract entry for
             // it goes red, which is the honest outcome: there is nothing to
             // contract against.
             //
             // EnableImages=false is the same capture-only trim items-library
             // uses. A live resume row carries four blurhashes, and a blurhash
-            // is long, alphanumeric and undelimited — the exact shape the
+            // is long, alphanumeric and undelimited â€” the exact shape the
             // fixture secret guard flags as a possible credential.
             path: captured => {
                 const users = captured.get('users');
@@ -968,51 +969,51 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         }
     ],
     plex: [
-        // machineIdentifier is the server's own real, stable 40-hex id —
+        // machineIdentifier is the server's own real, stable 40-hex id â€”
         // getVersion reads only `version` from this endpoint.
         { name: 'identity', path: '/identity', anonymise: anonymisePlexIdentity },
-        // The tester's own account name — anonymised like Jellyfin's `users`.
+        // The tester's own account name â€” anonymised like Jellyfin's `users`.
         // Capped the same way `history` is: a local token's owner lookup
         // only needs the owner row, and the tester's server answers ~103
         // accounts uncapped, most of it other households' names. `id` is
-        // remapped through the shared mapper below, not just `name` — three
+        // remapped through the shared mapper below, not just `name` â€” three
         // rows on his server carried a real plex.tv account id next to a
         // name this already scrubbed. See G2.
         { name: 'accounts', path: plexAccountsPath(0, 5), anonymise: body => anonymisePlexAccounts(body, mapPlexAccountId) },
         // Real library names/types/paths are published by design (see the
         // top-of-file comment), but `uuid` and `Location[].path` name a
-        // specific library and the tester's mount layout — #sections never
+        // specific library and the tester's mount layout â€” #sections never
         // reads either.
         { name: 'sections', path: '/library/sections', anonymise: anonymisePlexSections },
         // Carries Player.remotePublicAddress (the viewer's public IP) and
         // User.title/User.thumb (a username and an avatar URL that can embed
         // an account id). User.id is kept but remapped, same reasoning as
-        // `accounts` above — it joins to the same account there. See G2.
+        // `accounts` above â€” it joins to the same account there. See G2.
         //
         // excludeFields=summary only, not excludeElements: verified on the
         // tester's server that /status/sessions silently ignores
-        // excludeElements (onDeck, queried the same way, honours it — that's
+        // excludeElements (onDeck, queried the same way, honours it â€” that's
         // the control) rather than erroring or trimming anything, so it would
         // look like a working trim in code while doing nothing to the
         // response. excludeFields IS honoured here, so it's kept as a free
         // second layer on top of the row-level scrub, which is what's
         // actually doing the work. Do not "simplify" this to match onDeck's
-        // excludeElements — that would silently stop trimming anything.
+        // excludeElements â€” that would silently stop trimming anything.
         { name: 'sessions', path: '/status/sessions?excludeFields=summary', anonymise: body => redactPlexSessions(body, mapPlexAccountId) },
-        // The tester's resume list — his most recent watch state, per item.
+        // The tester's resume list â€” his most recent watch state, per item.
         // A row exists only because he watched or is watching it, so titles
         // are scrubbed too, not just the watch-state numbers. See I1.
         // Shares the same account-id mapper as accounts/sessions/history
-        // (N6) — no accountID was seen on an onDeck row on the tester's
+        // (N6) â€” no accountID was seen on an onDeck row on the tester's
         // server, but onDeck is server-side scoped to one account the same
         // as history, so nothing rules one out on another server.
         // excludeElements/excludeFields (plexOnDeckPath) ask the server not
-        // to send Media/Part/Role/Writer/Director/Producer/summary at all —
+        // to send Media/Part/Role/Writer/Director/Producer/summary at all â€”
         // #commonPlayback never reads them, so not fetching beats fetching
         // and scrubbing. See B3.
         { name: 'ondeck', path: plexOnDeckPath(), anonymise: body => anonymisePlexHistory(body, mapPlexAccountId) },
         // His complete watch history. Mirrors PlexAdapter#getWatchHistory's
-        // exact query form, including the sort — everything but
+        // exact query form, including the sort â€” everything but
         // X-Plex-Container-Size, deliberately smaller here: a handful of rows
         // proves the shape without pulling his whole server-wide history. See
         // I1, G1. accountID is remapped through the same shared mapper as
@@ -1023,12 +1024,12 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         // Same MediaContainer.Metadata shape as onDeck/history: Plex scopes a
         // library response to the requesting account, so a search result can
         // carry that account's viewCount/lastViewedAt same as any other listing.
-        // includeGuids=1 matches what PlexAdapter#search actually sends —
+        // includeGuids=1 matches what PlexAdapter#search actually sends â€”
         // without it Plex returns Guid-less rows. See F3. title/summary/studio
         // stay real (a library listing, published by design), but
         // sourceTitle (the server's own friendlyName) and librarySectionUUID
         // are not media data, and Media[].Part[].file is the tester's real
-        // path, not a title — see redactPlexLibraryListing/synthesisePlexFilePaths.
+        // path, not a title â€” see redactPlexLibraryListing/synthesisePlexFilePaths.
         {
             name: 'search',
             path: plexSearchPath('a'),
@@ -1036,13 +1037,13 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         },
         // A short page: the tester's library may hold thousands of items, and
         // the fixture only needs the shape. includeGuids=1 matches what
-        // PlexAdapter#paged actually sends (see src/services/plex.ts) — the
+        // PlexAdapter#paged actually sends (see src/services/plex.ts) â€” the
         // same per-account listing that feeds `#toIndexItem`'s viewCount and
         // lastViewedAt reads, so it carries the same watch state as history.
         {
             name: 'section-all',
             // Walks sections looking for one whose page has a Part-bearing
-            // row, rather than just fetching the first section's key — a
+            // row, rather than just fetching the first section's key â€” a
             // server whose first section is TV-only can hold thousands of
             // Part-less show/season rows before any episode, and `metadata-detail`
             // below picks its ratingKey out of *this* fixture. See N5.
@@ -1052,13 +1053,13 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
             // Media[0].Part[0].file/.size, and excluding Media from this raw
             // capture would also starve the N5 walk above of the very field
             // it's searching for. Real titles/studio are published here
-            // regardless — section-all is a library listing, not a watch
-            // record (design §7; see neutralisePlexWatchState's own comment
-            // in redact.ts) — but Media[].Part[].file is a real on-disk path,
+            // regardless â€” section-all is a library listing, not a watch
+            // record (design Â§7; see neutralisePlexWatchState's own comment
+            // in redact.ts) â€” but Media[].Part[].file is a real on-disk path,
             // not a title, so it is synthesised rather than published; See
             // B3 and synthesisePlexFilePaths's own doc. section-all's
             // MediaContainer itself also carries the real librarySectionUUID
-            // (this listing is scoped to one library) — redactPlexLibraryListing
+            // (this listing is scoped to one library) â€” redactPlexLibraryListing
             // handles that, same as it does for search/metadata-detail.
             fetch: async (http, captured) => {
                 const keys = sectionKeys(captured.get('sections'));
@@ -1089,7 +1090,7 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
              *
              * Captured by @ghostintherack from Plex Media Server 1.43.5 and
              * anonymised by hand, like Jellyfin's `album-artists`. Five rows, and
-             * the last has no `mbid://` guid — real, and worth keeping: not every
+             * the last has no `mbid://` guid â€” real, and worth keeping: not every
              * artist carries one.
              */
             fetch: async http => {
@@ -1171,7 +1172,12 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
             anonymise: anonymiseReclaimerr
         }
     ],
-    dispatcharr: [{ name: 'version', path: '/api/core/version/' }]
+    dispatcharr: [
+        { name: 'version', path: '/api/core/version/' },
+        // Scrubbed in lib/dispatcharrCapture.ts: these bodies hold IPTV provider credentials.
+        { name: 'm3u-accounts', path: '/api/m3u/accounts/', anonymise: anonymiseDispatcharr },
+        { name: 'epg-sources', path: '/api/epg/sources/', anonymise: anonymiseDispatcharr }
+    ]
 };
 
 /**
@@ -1311,12 +1317,12 @@ function strategyFor(id: ServiceId, service: NonNullable<Config['services'][Serv
 }
 
 // `hostsOf`, `secretsOf`, `redact` and `hostsInAuthorityPosition` live in
-// `scripts/lib/redact.ts`, shared with `integration.ts` — all three scripts
+// `scripts/lib/redact.ts`, shared with `integration.ts` â€” all three scripts
 // need the same "every host the user configured" and "every credential"
 // lists, and a second hand-written copy is exactly the kind of drift this
 // phase exists to eliminate. They are also the only code standing between a
 // live credential and a public repository, which is why they are tested
-// (`test/scriptsRedact.test.ts`) rather than inlined — including the gate's
+// (`test/scriptsRedact.test.ts`) rather than inlined â€” including the gate's
 // own predicate above, which this script itself (top-level `loadConfig()` on
 // import) is too awkward to unit test directly.
 
@@ -1325,14 +1331,14 @@ function strategyFor(id: ServiceId, service: NonNullable<Config['services'][Serv
 const only = parseServiceFilter(process.argv.slice(2));
 
 const configDir = process.env.ARR_MCP_CAPTURE_CONFIG ?? './config';
-// `persist: false` — capturing fixtures reads the user's config; it must never
+// `persist: false` â€” capturing fixtures reads the user's config; it must never
 // write to the file holding their credentials.
 const { config } = await loadConfig(configDir, { persist: false });
 const secrets = secretsOf(config);
 const hosts = hostsOf(config);
 
 if (secrets.length === 0) {
-    console.error(`No credentials found in ${configDir}/config.yaml — nothing to capture.`);
+    console.error(`No credentials found in ${configDir}/config.yaml â€” nothing to capture.`);
     process.exit(1);
 }
 
@@ -1340,8 +1346,8 @@ let captured = 0;
 let skipped = 0;
 
 // One instance per service type. Fixtures are recorded per service, not per
-// instance — `test/fixtures/radarr` describes what a Radarr says, and an HD and
-// a 4K instance answer the same shapes — so capturing both would mean the
+// instance â€” `test/fixtures/radarr` describes what a Radarr says, and an HD and
+// a 4K instance answer the same shapes â€” so capturing both would mean the
 // second silently overwrote the first.
 const capturedTypes = new Set<ServiceId>();
 
@@ -1395,7 +1401,7 @@ for (const instance of listInstances(config)) {
             }
             soFar.set(endpoint.name, raw);
 
-            // Anonymise identity first, then redact credentials — so a value
+            // Anonymise identity first, then redact credentials â€” so a value
             // the anonymiser rewrites is still checked for leaked secrets.
             const identified = endpoint.anonymise === undefined ? raw : endpoint.anonymise(raw);
             const serialised = JSON.stringify(redact(identified, secrets, hosts), null, 2);
@@ -1425,7 +1431,7 @@ for (const instance of listInstances(config)) {
             // service does not have that capability. Record and continue.
             //
             // `classifyFetchError` (src/core/errors.ts) deliberately embeds the
-            // host in a Timeout/Unreachable ServiceError's own `.message` — the
+            // host in a Timeout/Unreachable ServiceError's own `.message` â€” the
             // fixture-writing path below never sees that (it redacts hosts out
             // of *captured response bodies*), but this line prints the error
             // itself, straight to the terminal, unredacted otherwise.
@@ -1436,4 +1442,4 @@ for (const instance of listInstances(config)) {
 }
 
 console.log(`\n${captured} captured, ${skipped} skipped.`);
-console.log('Review `git diff test/fixtures/` before committing — redaction is secrets-only by design.');
+console.log('Review `git diff test/fixtures/` before committing â€” redaction is secrets-only by design.');
