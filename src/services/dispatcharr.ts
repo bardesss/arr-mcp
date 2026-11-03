@@ -1,19 +1,71 @@
 import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import { apiKeyHeader } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
+import { fenceText } from '../core/fence.ts';
 import { ServiceHttp } from '../core/http.ts';
-import { diagnoseConnection, type ConnectionDiagnosis, type ServiceAdapter } from './types.ts';
+import { diagnoseConnection, type ConnectionDiagnosis, type HealthCheck, type HealthCheckCapable, type ServiceAdapter } from './types.ts';
+import { compareVersions, parseVersion } from './versions.ts';
 
 export const TESTED_MINOR = '0.33';
 
 const VERSION_PATH = '/api/core/version/';
 const ACCOUNTS_PATH = '/api/m3u/accounts/';
+const SOURCES_PATH = '/api/epg/sources/';
+
+const HOUR_MS = 3_600_000;
+const DAY_MS = 86_400_000;
+/** A provider account this close to its expiry date is worth a warning. */
+const EXPIRY_WARNING_DAYS = 14;
+/** An account is stale once this many of its refresh intervals have passed with no successful refresh. */
+const STALE_INTERVALS = 3;
 
 const REMEDY_403 =
-    'The key works but cannot read M3U accounts: give its Dispatcharr user the Standard level or higher, and check Settings → Network Access allows this host for the UI/API.';
-const REMEDY_401 = 'Dispatcharr rejected the API key. Create one under Users → API & XC.';
+    'The key works but cannot read M3U accounts: give its Dispatcharr user the Standard level or higher, and check Settings â†’ Network Access allows this host for the UI/API.';
+const REMEDY_401 = 'Dispatcharr rejected the API key. Create one under Users â†’ API & XC.';
 
 type RawVersion = { version?: string };
+
+/**
+ * What arr-mcp keeps of an M3U account or EPG source. Built field by field
+ * from the raw JSON, so the provider `username`, `password` (returned to
+ * admins), `server_url`, `url`, `custom_properties` and profile patterns never
+ * survive the parse. `last_message` is reduced to a reason here and dropped.
+ */
+type Profile = { name: string; active: boolean; expiresAt?: string };
+type Account = { name: string; active: boolean; status: string; reason?: string; refreshedAt?: string; intervalHours: number; cron: boolean; profiles: Profile[] };
+type Source = { name: string; active: boolean; status: string; reason?: string };
+
+type Raw = Record<string, unknown>;
+const str = (v: unknown): string | undefined => (typeof v === 'string' && v !== '' ? v : undefined);
+const rows = (v: unknown): Raw[] => (Array.isArray(v) ? v.filter((r): r is Raw => typeof r === 'object' && r !== null) : []);
+
+function accountOf(raw: Raw): Account {
+    const status = str(raw.status) ?? 'unknown';
+    const refreshedAt = str(raw.updated_at);
+    return {
+        name: str(raw.name) ?? 'unnamed',
+        active: raw.is_active === true,
+        status,
+        ...(status === 'error' ? { reason: refreshReason(str(raw.last_message)) } : {}),
+        ...(refreshedAt === undefined ? {} : { refreshedAt }),
+        intervalHours: typeof raw.refresh_interval === 'number' ? raw.refresh_interval : 0,
+        cron: str(raw.cron_expression) !== undefined,
+        profiles: rows(raw.profiles).map(p => {
+            const expiresAt = str(p.exp_date);
+            return { name: str(p.name) ?? 'unnamed', active: p.is_active === true, ...(expiresAt === undefined ? {} : { expiresAt }) };
+        })
+    };
+}
+
+function sourceOf(raw: Raw): Source {
+    const status = str(raw.status) ?? 'unknown';
+    return {
+        name: str(raw.name) ?? 'unnamed',
+        active: raw.is_active === true,
+        status,
+        ...(status === 'error' ? { reason: refreshReason(str(raw.last_message)) } : {})
+    };
+}
 
 const STATUS = /HTTP (\d{3})\b|\((\d{3})\)|status (\d{3})\b/;
 const TIMED_OUT = /timed out|timeout/i;
@@ -46,7 +98,7 @@ export function refreshReason(message: string | null | undefined): string {
  * Dispatcharr's REST API, written against tag v0.33.0. Read only, and it
  * never keeps a provider credential: see the allowlist below.
  */
-export class DispatcharrAdapter implements ServiceAdapter {
+export class DispatcharrAdapter implements ServiceAdapter, HealthCheckCapable {
     readonly type: ServiceId = 'dispatcharr';
     readonly id = 'dispatcharr';
     readonly #http: ServiceHttp;
@@ -76,5 +128,49 @@ export class DispatcharrAdapter implements ServiceAdapter {
             }
             return version;
         });
+    }
+
+    async getFailedHealthChecks(): Promise<HealthCheck[]> {
+        const [version, accounts, sources] = await Promise.all([this.getVersion(), this.#accounts(), this.#sources()]);
+        const check = (source: string, type: string, message: string): HealthCheck => ({ service: this.id, source, type, message });
+        const name = (value: string) => fenceText(value, { service: this.id, field: 'name' });
+        const now = Date.now();
+        const out: HealthCheck[] = [];
+
+        for (const a of accounts.filter(a => a.active)) {
+            if (a.status === 'error') out.push(check('m3u', 'error', `M3U account ${name(a.name)} failed to refresh: ${a.reason ?? 'refresh failed'}`));
+            if (a.status === 'pending_setup') out.push(check('m3u', 'warning', `M3U account ${name(a.name)} is still pending setup`));
+            const refreshed = a.refreshedAt === undefined ? NaN : Date.parse(a.refreshedAt);
+            if (!a.cron && a.intervalHours > 0 && now - refreshed > STALE_INTERVALS * a.intervalHours * HOUR_MS) {
+                out.push(check('m3u', 'warning', `M3U account ${name(a.name)} has not refreshed since ${a.refreshedAt}; it is set to refresh every ${a.intervalHours}h`));
+            }
+            for (const p of a.profiles.filter(p => p.active && p.expiresAt !== undefined)) {
+                const at = Date.parse(p.expiresAt as string);
+                if (Number.isNaN(at)) continue;
+                const day = new Date(at).toISOString().slice(0, 10);
+                const label = `Provider account ${name(a.name)} / ${name(p.name)}`;
+                if (at <= now) out.push(check('m3u', 'error', `${label} expired on ${day}`));
+                else if (at - now <= EXPIRY_WARNING_DAYS * DAY_MS) out.push(check('m3u', 'warning', `${label} expires on ${day}`));
+            }
+        }
+
+        for (const s of sources.filter(s => s.active && s.status === 'error')) {
+            out.push(check('epg', 'error', `EPG source ${name(s.name)} failed to refresh: ${s.reason ?? 'refresh failed'}`));
+        }
+
+        const actual = parseVersion(version);
+        const tested = parseVersion(TESTED_MINOR);
+        if (actual !== undefined && tested !== undefined && compareVersions(actual.slice(0, 2), tested) > 0) {
+            out.push(check('version', 'warning', `Dispatcharr ${version} is newer than ${TESTED_MINOR}.x, which this adapter was written against; untested, results may be wrong`));
+        }
+        return out;
+    }
+
+    async #accounts(): Promise<Account[]> {
+        return rows(await this.#http.get<unknown>(ACCOUNTS_PATH)).map(accountOf);
+    }
+
+    async #sources(): Promise<Source[]> {
+        return rows(await this.#http.get<unknown>(SOURCES_PATH)).map(sourceOf);
     }
 }

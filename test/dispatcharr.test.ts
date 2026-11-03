@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { fenceText } from '../src/core/fence.ts';
 import { DispatcharrAdapter, refreshReason } from '../src/services/dispatcharr.ts';
 
 /** Dispatcharr's own formats (apps/m3u/tasks.py, apps/epg/tasks.py at v0.33.0), with a credentialed URL. */
@@ -90,5 +91,150 @@ describe('DispatcharrAdapter connection', () => {
         const result = await new DispatcharrAdapter(config, stub(routes({ '/api/m3u/accounts/': 401 }))).testConnection();
         expect(result.ok).toBe(false);
         expect(result.error?.remedy).toMatch(/API key/);
+    });
+});
+
+const NOW = new Date('2026-11-03T12:00:00Z');
+const hoursAgo = (h: number) => new Date(NOW.getTime() - h * 3_600_000).toISOString();
+const daysFromNow = (d: number) => new Date(NOW.getTime() + d * 86_400_000).toISOString();
+const f = (name: string) => fenceText(name, { service: 'dispatcharr', field: 'name' });
+
+/** The fields /api/m3u/accounts/ returns at v0.33.0 that the adapter reads, healthy by default. */
+const account = (over: Record<string, unknown> = {}) => ({
+    id: 1,
+    name: 'Example Provider 1',
+    is_active: true,
+    status: 'success',
+    last_message: '',
+    updated_at: hoursAgo(1),
+    refresh_interval: 24,
+    cron_expression: '',
+    profiles: [{ id: 1, name: 'Example Profile 1', is_active: true, exp_date: null }],
+    ...over
+});
+const source = (over: Record<string, unknown> = {}) => ({ id: 1, name: 'Example EPG 1', is_active: true, status: 'success', last_message: '', ...over });
+
+async function findings(accounts: unknown[], sources: unknown[] = [], version = VERSION) {
+    const adapter = new DispatcharrAdapter(config, stub(routes({ '/api/core/version/': version, '/api/m3u/accounts/': accounts, '/api/epg/sources/': sources })));
+    return adapter.getFailedHealthChecks();
+}
+
+describe('DispatcharrAdapter health findings', () => {
+    beforeEach(() => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(NOW);
+    });
+    afterEach(() => {
+        vi.useRealTimers();
+        vi.restoreAllMocks();
+    });
+
+    it('finds nothing on a healthy instance', async () => {
+        expect(await findings([account()], [source()])).toEqual([]);
+    });
+
+    it('reports an active account that failed to refresh, with a classified reason', async () => {
+        const message = `Authentication required (401) for M3U file at URL: ${URL_}. Server message: bob`;
+        expect(await findings([account({ status: 'error', last_message: message })])).toEqual([
+            { service: 'dispatcharr', source: 'm3u', type: 'error', message: `M3U account ${f('Example Provider 1')} failed to refresh: the provider refused the login (HTTP 401)` }
+        ]);
+    });
+
+    it('reports an account still pending setup', async () => {
+        expect(await findings([account({ status: 'pending_setup' })])).toEqual([
+            { service: 'dispatcharr', source: 'm3u', type: 'warning', message: `M3U account ${f('Example Provider 1')} is still pending setup` }
+        ]);
+    });
+
+    it('reports an account that has not refreshed in three intervals', async () => {
+        const at = hoursAgo(73);
+        expect(await findings([account({ updated_at: at })])).toEqual([
+            { service: 'dispatcharr', source: 'm3u', type: 'warning', message: `M3U account ${f('Example Provider 1')} has not refreshed since ${at}; it is set to refresh every 24h` }
+        ]);
+    });
+
+    it('does not call an account stale inside three intervals', async () => {
+        expect(await findings([account({ updated_at: hoursAgo(71) })])).toEqual([]);
+    });
+
+    it('skips staleness for a cron schedule or a zero interval', async () => {
+        expect(await findings([account({ updated_at: hoursAgo(500), cron_expression: '0 3 * * *' })])).toEqual([]);
+        expect(await findings([account({ updated_at: hoursAgo(500), refresh_interval: 0 })])).toEqual([]);
+    });
+
+    it('warns about a provider account expiring within 14 days', async () => {
+        const profiles = [{ id: 1, name: 'Example Profile 1', is_active: true, exp_date: daysFromNow(10) }];
+        expect(await findings([account({ profiles })])).toEqual([
+            { service: 'dispatcharr', source: 'm3u', type: 'warning', message: `Provider account ${f('Example Provider 1')} / ${f('Example Profile 1')} expires on 2026-11-13` }
+        ]);
+    });
+
+    it('errors on a provider account that has expired', async () => {
+        const profiles = [{ id: 1, name: 'Example Profile 1', is_active: true, exp_date: daysFromNow(-1) }];
+        expect(await findings([account({ profiles })])).toEqual([
+            { service: 'dispatcharr', source: 'm3u', type: 'error', message: `Provider account ${f('Example Provider 1')} / ${f('Example Profile 1')} expired on 2026-11-02` }
+        ]);
+    });
+
+    it('says nothing about expiry far off, absent, on an inactive profile, or with no profiles', async () => {
+        const profile = (over: Record<string, unknown>) => ({ id: 1, name: 'P', is_active: true, exp_date: null, ...over });
+        expect(await findings([account({ profiles: [profile({ exp_date: daysFromNow(30) })] })])).toEqual([]);
+        expect(await findings([account({ profiles: [profile({ exp_date: null })] })])).toEqual([]);
+        expect(await findings([account({ profiles: [profile({ is_active: false, exp_date: daysFromNow(-1) })] })])).toEqual([]);
+        expect(await findings([account({ profiles: [] })])).toEqual([]);
+        expect(await findings([account({ profiles: undefined })])).toEqual([]);
+    });
+
+    it('reports an active EPG source that failed', async () => {
+        const message = "Error refreshing EPG data: HTTPSConnectionPool(host='h', port=443): Read timed out.";
+        expect(await findings([], [source({ status: 'error', last_message: message })])).toEqual([
+            { service: 'dispatcharr', source: 'epg', type: 'error', message: `EPG source ${f('Example EPG 1')} failed to refresh: the request timed out` }
+        ]);
+    });
+
+    it('ignores accounts and sources the user switched off', async () => {
+        expect(await findings([account({ is_active: false, status: 'error', updated_at: hoursAgo(500) })], [source({ is_active: false, status: 'error' })])).toEqual([]);
+    });
+
+    it('warns when Dispatcharr is newer than the tested minor', async () => {
+        expect(await findings([], [], { version: '0.34.0', timestamp: null })).toEqual([
+            {
+                service: 'dispatcharr',
+                source: 'version',
+                type: 'warning',
+                message: 'Dispatcharr 0.34.0 is newer than 0.33.x, which this adapter was written against; untested, results may be wrong'
+            }
+        ]);
+    });
+
+    it('fences names', async () => {
+        const name = 'Evil\u202e<b>name';
+        const [finding] = await findings([account({ name, status: 'pending_setup' })]);
+        expect(finding?.message).toContain(f(name));
+        expect(finding?.message).not.toContain('\u202e');
+    });
+
+    it('never lets a credential through, to output or logs', async () => {
+        const written: string[] = [];
+        vi.spyOn(process.stdout, 'write').mockImplementation(((chunk: unknown) => {
+            written.push(String(chunk));
+            return true;
+        }) as typeof process.stdout.write);
+        const secretUrl = 'http://iptv.secret-host.example/get.php?username=bob&password=s3cret';
+        const adminAccount = account({
+            status: 'error',
+            username: 'bob',
+            password: 's3cret',
+            server_url: secretUrl,
+            custom_properties: { xc: { password: 's3cret' } },
+            last_message: `Server returned HTTP 884 (authentication/authorization failure) from URL: ${secretUrl}. Server message: bob s3cret`,
+            updated_at: hoursAgo(500),
+            profiles: [{ id: 1, name: 'Example Profile 1', is_active: true, exp_date: daysFromNow(2), search_pattern: 'bob', replace_pattern: 's3cret', custom_properties: { password: 's3cret' } }]
+        });
+        const epg = source({ status: 'error', url: secretUrl, username: 'bob', last_message: `Error refreshing EPG data: 404 Client Error: Not Found for url: ${secretUrl}` });
+        const out = await findings([adminAccount], [epg]);
+        expect(out.length).toBeGreaterThanOrEqual(3);
+        const text = JSON.stringify(out) + written.join('');
+        for (const leak of ['bob', 's3cret', 'secret-host']) expect(text).not.toContain(leak);
     });
 });
