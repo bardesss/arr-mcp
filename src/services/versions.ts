@@ -64,7 +64,10 @@ export const MINIMUM_VERSIONS: Record<ServiceId, string> = {
     cleanuparr: '2.10.0',
     // 0.6.0 added `rules:read` and GET /api/v1/rules; candidates, events and
     // protections are older. Checked live on 0.6.5.
-    reclaimerr: '0.6.0'
+    reclaimerr: '0.6.0',
+    // Written against tag v0.33.0 and checked live on 0.33.0. Pre-1.0, a
+    // minor about every three weeks: minors may break the API.
+    dispatcharr: '0.33.0'
 };
 
 /** Digits only; a build suffix such as Transmission's "(838877323f)" is dropped. */

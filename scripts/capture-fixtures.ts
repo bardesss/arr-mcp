@@ -38,6 +38,7 @@ import {
     lidarrReleasePath,
     LIDARR_STATIC_PATHS
 } from './lib/lidarrCapture.ts';
+import { anonymiseDispatcharr } from './lib/dispatcharrCapture.ts';
 import {
     anonymiseImages,
     anonymisePlexAccounts,
@@ -1170,6 +1171,12 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
             path: () => `/api/v1/events?limit=200&occurred_after=${encodeURIComponent(new Date(Date.now() - 365 * 86_400_000).toISOString())}`,
             anonymise: anonymiseReclaimerr
         }
+    ],
+    dispatcharr: [
+        { name: 'version', path: '/api/core/version/' },
+        // Scrubbed in lib/dispatcharrCapture.ts: these bodies hold IPTV provider credentials.
+        { name: 'm3u-accounts', path: '/api/m3u/accounts/', anonymise: anonymiseDispatcharr },
+        { name: 'epg-sources', path: '/api/epg/sources/', anonymise: anonymiseDispatcharr }
     ]
 };
 
@@ -1305,6 +1312,7 @@ function strategyFor(id: ServiceId, service: NonNullable<Config['services'][Serv
     if (id === 'sabnzbd') return queryParamKey('apikey', key);
     if (id === 'bazarr') return apiKeyHeader('X-API-KEY', key);
     if (id === 'reclaimerr') return apiKeyHeader('Authorization', `Bearer ${key}`);
+    if (id === 'dispatcharr') return apiKeyHeader('X-API-Key', key);
     return apiKeyHeader('X-Api-Key', key);
 }
 
