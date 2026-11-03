@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fenceText } from '../src/core/fence.ts';
 import { DispatcharrAdapter, refreshReason } from '../src/services/dispatcharr.ts';
@@ -236,5 +238,34 @@ describe('DispatcharrAdapter health findings', () => {
         expect(out.length).toBeGreaterThanOrEqual(3);
         const text = JSON.stringify(out) + written.join('');
         for (const leak of ['bob', 's3cret', 'secret-host']) expect(text).not.toContain(leak);
+    });
+});
+
+const captured = (name: string): unknown => JSON.parse(readFileSync(join(import.meta.dirname, 'fixtures', 'dispatcharr', `${name}.json`), 'utf8'));
+
+describe('DispatcharrAdapter against the live 0.33.0 capture', () => {
+    beforeEach(() => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date('2026-11-03T12:00:00Z'));
+    });
+    afterEach(() => vi.useRealTimers());
+
+    it('reads the captured accounts and sources into the findings their state implies', async () => {
+        const adapter = new DispatcharrAdapter(
+            config,
+            stub({ '/api/core/version/': captured('version'), '/api/m3u/accounts/': captured('m3u-accounts'), '/api/epg/sources/': captured('epg-sources') })
+        );
+        // Provider 1 is in error and last refreshed a year before the capture; the
+        // EPG source is in error; Provider 2 is healthy and expires in 2027.
+        expect(await adapter.getFailedHealthChecks()).toEqual([
+            { service: 'dispatcharr', source: 'm3u', type: 'error', message: `M3U account ${f('Example Provider 1')} failed to refresh: refresh failed` },
+            {
+                service: 'dispatcharr',
+                source: 'm3u',
+                type: 'warning',
+                message: `M3U account ${f('Example Provider 1')} has not refreshed since 2025-10-23T14:03:13.450541Z; it is set to refresh every 24h`
+            },
+            { service: 'dispatcharr', source: 'epg', type: 'error', message: `EPG source ${f('Example EPG 1')} failed to refresh: refresh failed` }
+        ]);
     });
 });

@@ -21,30 +21,62 @@ function scrubMessage(message: string): string {
     if (forUrl >= 0) return `${message.slice(0, forUrl)}for url: ${STAND_IN_URL}`;
     // Keep the phrases the adapter's classifier keys on; drop everything else.
     for (const phrase of ['Read timed out', 'Failed to establish a new connection', 'Name or service not known', 'Connection refused']) {
-        if (message.includes(phrase)) return `Error refreshing EPG data: example: ${phrase}`;
+        if (message.includes(phrase)) return `Example message: ${phrase}`;
     }
-    return 'Error refreshing EPG data: example';
+    return 'Example message';
 }
 
-function scrubRow(row: Row, label: string, n: number): Row {
-    const out: Row = { ...row };
-    for (const key of SECRET_KEYS) if (key in out) out[key] = '';
-    if ('custom_properties' in out) out.custom_properties = {};
-    if (typeof out.name === 'string') out.name = `${label} ${n}`;
-    if (typeof out.last_message === 'string' && out.last_message !== '') out.last_message = scrubMessage(out.last_message);
-    if (Array.isArray(out.profiles)) {
-        out.profiles = (out.profiles as unknown[]).map((p, i) => (isRow(p) ? scrubRow(p, 'Example Profile', i + 1) : p));
+/** Large, never read by the adapter, and partly user-written (filter regexes). */
+const DROPPED_KEYS = ['channel_groups', 'filters'];
+
+/** Blanks secrets and empties `custom_properties` at every depth, so a nested copy cannot slip through. */
+function scrubDeep(value: unknown): unknown {
+    if (Array.isArray(value)) return (value as unknown[]).map(scrubDeep);
+    if (!isRow(value)) return value;
+    const out: Row = {};
+    for (const [key, v] of Object.entries(value)) {
+        if (DROPPED_KEYS.includes(key)) continue;
+        if ((SECRET_KEYS as readonly string[]).includes(key)) out[key] = '';
+        else if (key === 'custom_properties') out[key] = {};
+        else if (key === 'last_message' && typeof v === 'string' && v !== '') out[key] = scrubMessage(v);
+        else out[key] = scrubDeep(v);
     }
     return out;
 }
 
-/** Accounts and sources share the shape; a row with `profiles` or `account_type` is an M3U account. */
+const rowsOf = (value: unknown): Row[] => (Array.isArray(value) ? (value as unknown[]).filter(isRow) : []);
+
+/**
+ * An M3U account names its provider three times (the account, each profile's
+ * `account`, and `all_expirations`), so the stand-ins are assigned once and
+ * reused: profile names map by profile id.
+ */
+function renameAccount(row: Row, n: number): Row {
+    const provider = `Example Provider ${n}`;
+    const profileNames = new Map<unknown, string>();
+    const profiles = rowsOf(row.profiles).map((p, i) => {
+        const name = `Example Profile ${i + 1}`;
+        profileNames.set(p.id, name);
+        return { ...p, name, ...(isRow(p.account) ? { account: { ...p.account, name: provider } } : {}) };
+    });
+    return {
+        ...row,
+        name: provider,
+        ...('profiles' in row ? { profiles } : {}),
+        ...('all_expirations' in row
+            ? { all_expirations: rowsOf(row.all_expirations).map((e, i) => ({ ...e, profile_name: profileNames.get(e.profile_id) ?? `Example Profile ${i + 1}` })) }
+            : {})
+    };
+}
+
+/** Accounts and sources share the shape; a row with `profiles`, `account_type` or `server_url` is an M3U account. */
 export function anonymiseDispatcharr(body: unknown): unknown {
     if (!Array.isArray(body)) return body;
-    return (body as unknown[]).map((row, i) => {
-        if (!isRow(row)) return row;
-        const label = 'profiles' in row || 'account_type' in row || 'server_url' in row ? 'Example Provider' : 'Example EPG';
-        return scrubRow(row, label, i + 1);
+    return (body as unknown[]).map((raw, i) => {
+        if (!isRow(raw)) return raw;
+        const row = scrubDeep(raw) as Row;
+        const isAccount = 'profiles' in raw || 'account_type' in raw || 'server_url' in raw;
+        return isAccount ? renameAccount(row, i + 1) : { ...row, ...(typeof row.name === 'string' ? { name: `Example EPG ${i + 1}` } : {}) };
     });
 }
 

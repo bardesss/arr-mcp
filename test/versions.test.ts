@@ -160,8 +160,7 @@ describe('assertVersionSupported against captured evidence', () => {
         profilarr: (read('test/fixtures/profilarr/status.json') as { version: string }).version,
         cleanuparr: (read('test/fixtures/cleanuparr/status.json') as { application: { version: string } }).application.version,
         reclaimerr: (read('test/fixtures/reclaimerr/system.json') as { version: string }).version,
-        // Replaced by the captured fixture once it exists.
-        dispatcharr: '0.33.0'
+        dispatcharr: (read('test/fixtures/dispatcharr/version.json') as { version: string }).version
     };
 
     for (const [service, version] of Object.entries(captured)) {

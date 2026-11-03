@@ -65,7 +65,8 @@ export const MINIMUM_VERSIONS: Record<ServiceId, string> = {
     // 0.6.0 added `rules:read` and GET /api/v1/rules; candidates, events and
     // protections are older. Checked live on 0.6.5.
     reclaimerr: '0.6.0',
-    // Placeholder until the live capture sets it.
+    // Written against tag v0.33.0 and checked live on 0.33.0. Pre-1.0, a
+    // minor about every three weeks: minors may break the API.
     dispatcharr: '0.33.0'
 };
 

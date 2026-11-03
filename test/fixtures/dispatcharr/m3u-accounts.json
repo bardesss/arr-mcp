@@ -1,0 +1,111 @@
+[
+  {
+    "id": 1,
+    "name": "Example Provider 1",
+    "server_url": "",
+    "file_path": "",
+    "server_group": null,
+    "max_streams": 0,
+    "is_active": true,
+    "created_at": "2025-10-23T14:03:13.450525Z",
+    "updated_at": "2025-10-23T14:03:13.450541Z",
+    "user_agent": 1,
+    "profiles": [
+      {
+        "id": 1,
+        "name": "Example Profile 1",
+        "max_streams": 0,
+        "is_active": true,
+        "is_default": true,
+        "current_viewers": 0,
+        "search_pattern": "",
+        "replace_pattern": "",
+        "custom_properties": {},
+        "exp_date": null,
+        "account": {
+          "id": 1,
+          "name": "Example Provider 1",
+          "account_type": "STD",
+          "is_xtream_codes": false
+        }
+      }
+    ],
+    "locked": true,
+    "refresh_interval": 24,
+    "cron_expression": "",
+    "custom_properties": {},
+    "account_type": "STD",
+    "username": "",
+    "stale_stream_days": 7,
+    "priority": 0,
+    "status": "error",
+    "last_message": "Example message",
+    "earliest_expiration": null,
+    "all_expirations": [],
+    "password": "",
+    "enable_vod": false,
+    "auto_enable_new_groups_live": true,
+    "auto_enable_new_groups_vod": true,
+    "auto_enable_new_groups_series": true,
+    "hash_key": null,
+    "exp_date": null
+  },
+  {
+    "id": 2,
+    "name": "Example Provider 2",
+    "server_url": "",
+    "file_path": "",
+    "server_group": null,
+    "max_streams": 1,
+    "is_active": true,
+    "created_at": "2025-10-23T14:05:39.372406Z",
+    "updated_at": "2026-11-02T13:44:23.720721Z",
+    "user_agent": null,
+    "profiles": [
+      {
+        "id": 2,
+        "name": "Example Profile 1",
+        "max_streams": 1,
+        "is_active": true,
+        "is_default": true,
+        "current_viewers": 0,
+        "search_pattern": "",
+        "replace_pattern": "",
+        "custom_properties": {},
+        "exp_date": "2027-04-12T14:27:02Z",
+        "account": {
+          "id": 2,
+          "name": "Example Provider 2",
+          "account_type": "XC",
+          "is_xtream_codes": true
+        }
+      }
+    ],
+    "locked": false,
+    "refresh_interval": 24,
+    "cron_expression": "",
+    "custom_properties": {},
+    "account_type": "XC",
+    "username": "",
+    "stale_stream_days": 7,
+    "priority": 0,
+    "status": "success",
+    "last_message": "Example message",
+    "earliest_expiration": "2027-04-12T14:27:02Z",
+    "all_expirations": [
+      {
+        "profile_id": 2,
+        "profile_name": "Example Profile 1",
+        "exp_date": "2027-04-12T14:27:02Z",
+        "is_active": true
+      }
+    ],
+    "password": "",
+    "enable_vod": true,
+    "auto_enable_new_groups_live": true,
+    "auto_enable_new_groups_vod": true,
+    "auto_enable_new_groups_series": true,
+    "hash_key": null,
+    "exp_date": "2027-04-12T14:27:02Z"
+  }
+]

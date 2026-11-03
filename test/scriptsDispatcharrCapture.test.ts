@@ -19,8 +19,20 @@ const adminAccounts = [
         status: 'error',
         last_message: `Server returned HTTP 884 (authentication/authorization failure) from URL: ${SECRET_URL}. Server message: bob s3cret`,
         profiles: [
-            { id: 3, name: 'Bob main line', search_pattern: 'bob', replace_pattern: 's3cret', custom_properties: { password: 's3cret' }, exp_date: '2027-01-01T00:00:00Z' }
-        ]
+            {
+                id: 3,
+                name: 'Bob main line',
+                search_pattern: 'bob',
+                replace_pattern: 's3cret',
+                custom_properties: { password: 's3cret' },
+                exp_date: '2027-01-01T00:00:00Z',
+                account: { id: 7, name: 'My Real Provider', account_type: 'XC' }
+            }
+        ],
+        // Seen live on 0.33.0: the provider and profile names are repeated here.
+        all_expirations: [{ profile_id: 3, profile_name: 'Bob main line', exp_date: '2027-01-01T00:00:00Z' }],
+        channel_groups: [{ channel_group: 1, custom_properties: { xc_id: '42' } }],
+        filters: [{ regex_pattern: 'bob.*' }]
     }
 ];
 const adminSources = [
@@ -31,6 +43,18 @@ describe('anonymiseDispatcharr', () => {
     it('removes every credential from M3U accounts and their profiles', () => {
         const out = JSON.stringify(anonymiseDispatcharr(adminAccounts));
         for (const leak of ['bob', 's3cret', 'real-provider', 'My Real Provider', '/data/m3u']) expect(out).not.toContain(leak);
+    });
+
+    it('drops channel groups and filters, which the adapter never reads', () => {
+        const [row] = anonymiseDispatcharr(adminAccounts) as Record<string, unknown>[];
+        expect(row).not.toHaveProperty('channel_groups');
+        expect(row).not.toHaveProperty('filters');
+    });
+
+    it('renames the provider and profile names wherever they repeat', () => {
+        const [row] = anonymiseDispatcharr(adminAccounts) as { profiles: { account: { name: string } }[]; all_expirations: { profile_name: string }[] }[];
+        expect(row?.profiles[0]?.account.name).toBe('Example Provider 1');
+        expect(row?.all_expirations[0]?.profile_name).toBe('Example Profile 1');
     });
 
     it('removes every credential from EPG sources', () => {
