@@ -95,15 +95,24 @@ export type LogEntry = {
     level: string;
     logger: string;
     message: string;
-    /** First line of the exception only — the stack trace is the service's, not the reader's. */
-    exception?: string;
+    /** The type only: the service already appends the exception's message to `message`. */
+    exceptionType?: string;
+    /** Within the lines read, not the whole log. */
     count: number;
+    /** Within the lines read, not the whole log. */
     firstSeen: string;
     lastSeen: string;
 };
 
+/** The folded rows, and how much of the log they were folded from. */
+export type RecentLogs = {
+    entries: LogEntry[];
+    read: number;
+    total: number;
+};
+
 export interface LogCapable {
-    getRecentLogs(): Promise<LogEntry[]>;
+    getRecentLogs(): Promise<RecentLogs>;
 }
 
 export const hasLogs = (a: ServiceAdapter): a is ServiceAdapter & LogCapable =>

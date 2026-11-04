@@ -516,11 +516,16 @@ Sonarr wrote to its own log, newest first. A health check says *what* is broken
 resolve (qbittorrent:8080)", a path it cannot write).
 
 The last 50 warning-or-worse lines are read per instance, and identical lines
-are folded into one row: `level`, `logger`, `message`, `exception` (its first
-line only), `count`, `firstSeen` and `lastSeen`. A client test that fails every
-two seconds writes the same pair of lines dozens of times; on the recorded
-fixture, 20 lines fold into 4. `logs` is an envelope with its own `limit`
-budget. A log that cannot be read marks the instance `degraded`.
+are folded into one row: `level`, `logger`, `message`, `exceptionType`, `count`,
+`firstSeen` and `lastSeen`. A client test that fails every two seconds writes the
+same pair of lines dozens of times; on the recorded fixture, 20 lines fold into
+3. `logs` is an envelope with its own `limit` budget. A log that cannot be read
+marks the instance `degraded`.
+
+Those lines are not the whole log. `logs.lines` gives each instance's `read` and
+`total`; `count` and `firstSeen` stop at what was read, and a retry storm can push
+the line that explains it out of the window. There is no time limit either, so an
+old line may no longer apply: `lastSeen` says how old it is.
 
 ## `get_library`
 

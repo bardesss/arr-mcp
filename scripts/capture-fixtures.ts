@@ -40,6 +40,7 @@ import {
 } from './lib/lidarrCapture.ts';
 import { anonymiseDispatcharr } from './lib/dispatcharrCapture.ts';
 import {
+    anonymiseArrLog,
     anonymiseImages,
     anonymisePlexAccounts,
     anonymisePlexHistory,
@@ -518,7 +519,11 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         { name: 'health', path: '/api/v3/health' },
         { name: 'system-task', path: '/api/v3/system/task' },
         // What `stack_health` reports as recent warnings and errors.
-        { name: 'log', path: '/api/v3/log?page=1&pageSize=20&sortKey=time&sortDirection=descending&level=warn' },
+        {
+            name: 'log',
+            path: '/api/v3/log?page=1&pageSize=20&sortKey=time&sortDirection=descending&level=warn',
+            anonymise: anonymiseArrLog
+        },
         { name: 'queue', path: '/api/v3/queue' },
         { name: 'blocklist', path: '/api/v3/blocklist?page=1&pageSize=10' },
         { name: 'calendar', path: '/api/v3/calendar' },
@@ -544,7 +549,11 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         { name: 'health', path: '/api/v3/health' },
         { name: 'system-task', path: '/api/v3/system/task' },
         // What `stack_health` reports as recent warnings and errors.
-        { name: 'log', path: '/api/v3/log?page=1&pageSize=20&sortKey=time&sortDirection=descending&level=warn' },
+        {
+            name: 'log',
+            path: '/api/v3/log?page=1&pageSize=20&sortKey=time&sortDirection=descending&level=warn',
+            anonymise: anonymiseArrLog
+        },
         { name: 'queue', path: '/api/v3/queue' },
         { name: 'blocklist', path: '/api/v3/blocklist?page=1&pageSize=10' },
         { name: 'calendar', path: '/api/v3/calendar' },

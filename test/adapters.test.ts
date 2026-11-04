@@ -124,23 +124,31 @@ describe('SonarrAdapter', () => {
 });
 
 describe('arr recent logs', () => {
-    const page = fixture('radarr/log.json') as { records: { time: string; message: string }[] };
+    const page = fixture('radarr/log.json') as { totalRecords: number; records: { time: string; message: string }[] };
     const adapter = new RadarrAdapter(keyed(7878), serving({ '/api/v3/log': page }));
 
     it('folds identical lines into one row that counts them', async () => {
-        const logs = await adapter.getRecentLogs();
+        const { entries: logs } = await adapter.getRecentLogs();
         expect(logs.reduce((n, l) => n + l.count, 0)).toBe(page.records.length);
         expect(logs.length).toBeLessThan(page.records.length);
         expect(logs.some(l => l.count > 1)).toBe(true);
         expect(logs.every(l => l.service === 'radarr' && l.firstSeen <= l.lastSeen)).toBe(true);
     });
 
-    it('fences the message and keeps only the first line of an exception', async () => {
-        const logs = await adapter.getRecentLogs();
+    it('fences the message and the exception type, and drops the stack trace', async () => {
+        const { entries: logs } = await adapter.getRecentLogs();
         expect(logs.every(l => l.message === '' || l.message.startsWith('<<'))).toBe(true);
-        const withException = logs.filter(l => l.exception !== undefined);
+        const withException = logs.filter(l => l.exceptionType !== undefined);
         expect(withException.length).toBeGreaterThan(0);
-        expect(withException.every(l => !l.exception!.includes('\n'))).toBe(true);
+        expect(withException.every(l => l.exceptionType!.startsWith('<<'))).toBe(true);
+        expect(JSON.stringify(logs)).not.toContain('   at ');
+    });
+
+    it('says how much of the log it read', async () => {
+        const { read, total } = await adapter.getRecentLogs();
+        expect(read).toBe(page.records.length);
+        expect(total).toBe(page.totalRecords);
+        expect(read).toBeLessThan(total);
     });
 
     it('asks for warnings and above, newest first', async () => {
@@ -149,7 +157,7 @@ describe('arr recent logs', () => {
             asked = String(input);
             return jsonResponse({ records: [] });
         }) as unknown as typeof fetch;
-        expect(await new SonarrAdapter(keyed(8989), spy).getRecentLogs()).toEqual([]);
+        expect(await new SonarrAdapter(keyed(8989), spy).getRecentLogs()).toEqual({ entries: [], read: 0, total: 0 });
         const q = new URL(asked).searchParams;
         expect([q.get('level'), q.get('sortKey'), q.get('sortDirection')]).toEqual(['warn', 'time', 'descending']);
     });

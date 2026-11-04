@@ -190,7 +190,7 @@ const CONTRACTS: Record<string, ServiceContract> = {
                 path: '/api/v3/log',
                 method: 'get',
                 fixture: 'test/fixtures/radarr/log.json',
-                fields: ['records.time', 'records.level', 'records.logger', 'records.message', 'records.exception']
+                fields: ['records.time', 'records.level', 'records.logger', 'records.message', 'records.exceptionType']
             }
             // No `queue` entry: the queue was empty at capture time, and an
             // empty array confirms nothing. Add it when something is downloading.

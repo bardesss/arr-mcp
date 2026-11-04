@@ -6,7 +6,7 @@ import type {
     DiskSpaceCapable,
     HealthCheck,
     HealthCheckCapable,
-    LogEntry,
+    RecentLogs,
     ScanState,
     ServiceAdapter
 } from '../src/services/types.ts';
@@ -98,20 +98,22 @@ describe('stack_health primary media server', () => {
 
 describe('stack_health logs', () => {
     const line = { service: 'radarr', level: 'error', logger: 'Transmission', message: 'm', count: 3, firstSeen: '2026-11-01T00:00:00Z', lastSeen: '2026-11-02T00:00:00Z' };
-    const withLogs = (getRecentLogs: () => Promise<LogEntry[]>) => ({ ...fakeArr({ diagnosis: healthy }), getRecentLogs });
+    const withLogs = (getRecentLogs: () => Promise<RecentLogs>) => ({ ...fakeArr({ diagnosis: healthy }), getRecentLogs });
 
     it('reads logs only at full', async () => {
         let calls = 0;
-        const adapter = withLogs(async () => (calls++, [line]));
+        const adapter = withLogs(async () => (calls++, { entries: [line], read: 50, total: 125 }));
         expect('logs' in (await buildStackHealth([adapter], std))).toBe(false);
         expect(calls).toBe(0);
         const full = await buildStackHealth([adapter], { detail: 'full', limit: 50 });
         expect(full.logs?.items).toEqual([line]);
+        expect(full.logs?.lines).toEqual([{ service: 'radarr', read: 50, total: 125 }]);
     });
 
     it('marks a service degraded when its log cannot be read', async () => {
         const full = await buildStackHealth([withLogs(async () => Promise.reject(new Error('boom')))], { detail: 'full', limit: 50 });
         expect(full.logs?.total).toBe(0);
+        expect(full.logs?.lines).toEqual([]);
         expect(full.degraded).toEqual(['radarr']);
     });
 });

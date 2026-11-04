@@ -51,7 +51,7 @@ import {
     type HealthCheck,
     type HealthCheckCapable,
     type LogCapable,
-    type LogEntry,
+    type RecentLogs,
     type HistoryCapable,
     type HistoryEntry,
     type HistoryQuery,
@@ -220,7 +220,7 @@ export class SonarrAdapter
         return arrFailedHealthChecks(this.#http, this.id);
     }
 
-    async getRecentLogs(): Promise<LogEntry[]> {
+    async getRecentLogs(): Promise<RecentLogs> {
         return arrRecentLogs(this.#http, this.id);
     }
 
