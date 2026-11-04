@@ -34,7 +34,7 @@ import { findArrReleases, grabArrRelease } from './arrRelease.ts';
 import { readArrWanted } from './arrWanted.ts';
 import { audioLanguagesByFileId } from './arrMediaInfo.ts';
 import { flattenSeriesRating, type RawRating } from './arrRatings.ts';
-import { arrDiskSpace, arrFailedHealthChecks, arrScanState, arrStartLibraryScan, arrVersion } from './arrSystem.ts';
+import { arrDiskSpace, arrFailedHealthChecks, arrRecentLogs, arrScanState, arrStartLibraryScan, arrVersion } from './arrSystem.ts';
 import type { components } from './generated/sonarr.ts';
 import {
     diagnoseConnection,
@@ -50,6 +50,8 @@ import {
     type DownloadTraceCapable,
     type HealthCheck,
     type HealthCheckCapable,
+    type LogCapable,
+    type RecentLogs,
     type HistoryCapable,
     type HistoryEntry,
     type HistoryQuery,
@@ -167,6 +169,7 @@ export class SonarrAdapter
         ServiceAdapter,
         DiskSpaceCapable,
         HealthCheckCapable,
+        LogCapable,
         ScanStateCapable,
         QueueCapable,
         CalendarCapable,
@@ -217,6 +220,10 @@ export class SonarrAdapter
 
     async getFailedHealthChecks(): Promise<HealthCheck[]> {
         return arrFailedHealthChecks(this.#http, this.id);
+    }
+
+    async getRecentLogs(): Promise<RecentLogs> {
+        return arrRecentLogs(this.#http, this.id);
     }
 
     async startLibraryScan(): Promise<CommandHandle> {
