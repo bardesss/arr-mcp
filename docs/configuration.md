@@ -235,21 +235,19 @@ album id, type, year, monitoring and file state. That is where the id for
 **An artist joins to a media server.** Lidarr's `foreignArtistId`, Jellyfin's
 `ProviderIds.MusicBrainzArtist` on an album artist, and Plex's `mbid://` guid on
 an artist in a music section are the same value, matched case-insensitively, so
-an artist reports a real `presence`. A media server with no music library, or a
-music read that failed, reports `unknown`, never `arr_only`, which would claim
-the server looked and found nothing.
+an artist reports a real `presence`. A music read that failed reports `unknown`,
+never `arr_only`, which would claim the server looked and found nothing. A server
+whose music library is empty, or lacks the artist, was read and reports `arr_only`.
 
 The media server's music read runs only when a Lidarr is configured. With no
 Lidarr there is no artist row to join to, so the read would add every artist the
 server holds as `jellyfin_only` and answer "what does no *arr manage?" with the
 whole music collection.
 
-`diagnose` does not follow music: it reads the film and series chain, and refuses
-an artist rather than reporting it absent. The refusal names `get_media_details`
-with `service: "lidarr"`, the artist id and `detail: "full"`, which is the route
-that holds the albums, and `get_library` with `kind: "artist"` for the artist
-list. Both a query that matches an artist and a Lidarr artist id are refused
-the same way.
+`diagnose` walks a Lidarr artist too, by name or by Lidarr artist id; see "Lidarr
+artists" under `diagnose` in [tools.md](tools.md). `get_media_details` and
+`fix_metadata` still refuse an artist, naming `get_media_details` with
+`service: "lidarr"` and `detail: "full"` as the route that holds the albums.
 
 **It is not read-only.** `set_monitoring` writes two different things, and
 `level` says which one:

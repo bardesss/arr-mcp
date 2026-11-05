@@ -6,7 +6,7 @@ import { fenceText } from '../src/core/fence.ts';
 import { nextStepLine } from '../src/core/nextStep.ts';
 import { permissionSourceFrom } from '../src/core/permissions.ts';
 import type { IdentityResolver } from '../src/core/identity.ts';
-import type { FilmOrSeries, IndexInput } from '../src/core/resolver.ts';
+import type { FilmOrSeries, IndexInput, MergedItem } from '../src/core/resolver.ts';
 import type { CleanupStatus, QueueItem, ServiceAdapter, SubtitleGap } from '../src/services/types.ts';
 import { buildChain as chain, type Diagnosis, type Evidence } from '../src/tools/diagnose/chain.ts';
 import { registerDiagnose } from '../src/tools/diagnose/index.ts';
@@ -53,6 +53,16 @@ const item = (over: ItemOverride = {}): FilmOrSeries => {
     drop(merged);
     return merged as FilmOrSeries;
 };
+
+const artist = (over: { [K in keyof MergedItem]?: MergedItem[K] | undefined } = {}): MergedItem =>
+    ({
+        kind: 'artist',
+        title: fenceText('Daft Punk', { service: 'lidarr', field: 'title' }),
+        ids: { mbid: '056e4f3e-d505-4dad-8ec1-d04f521cbb56' },
+        acquisition: { service: 'lidarr', id: '7', monitored: true, hasFile: false },
+        presence: 'arr_only',
+        ...over
+    }) as MergedItem;
 
 const healthy = (over: EvidenceOverride = {}): Evidence => {
     const merged: Record<string, unknown> = {
@@ -258,6 +268,34 @@ const CASES: Case[] = [
                 })
             ),
         expected: { tool: 'trigger_subtitle_search', arguments: { service: 'bazarr', kind: 'movie', id: '5', language: 'nl' } }
+    },
+    {
+        name: 'managed, an artist',
+        diagnosis: () => buildChain(QUERY, healthy({ item: artist({ acquisition: { service: 'lidarr', id: '7', monitored: false, hasFile: false } }) })),
+        // plan refuses an `id` at the artist level, which takes a list
+        expected: { tool: 'set_monitoring', arguments: { service: 'lidarr', level: 'artist', artists: ['7'], monitored: true } }
+    },
+    {
+        name: 'file, an artist',
+        // Lidarr has no search trigger here: trigger_search refuses it
+        diagnosis: () => buildChain(QUERY, healthy({ item: artist() })),
+        expected: undefined
+    },
+    {
+        name: 'queue, import pending on an artist',
+        diagnosis: () => buildChain(QUERY, healthy({ item: artist(), ...withRows(row({ service: 'lidarr', mediaId: '7', downloadId: 'LDR1' })) })),
+        expected: { tool: 'trigger_scan', arguments: { service: 'lidarr', action: 'import', download_id: 'LDR1' } }
+    },
+    {
+        name: 'queue, fault on an artist',
+        diagnosis: () => buildChain(QUERY, healthy({ item: artist(), ...withRows(row({ service: 'lidarr', mediaId: '7', status: 'failed' })) })),
+        expected: { tool: 'remove_queue_item', arguments: { service: 'lidarr', id: 'q1' } }
+    },
+    {
+        name: 'library, an artist',
+        diagnosis: () =>
+            buildChain(QUERY, healthy({ item: artist({ acquisition: { service: 'lidarr', id: '7', monitored: true, hasFile: true } }) })),
+        expected: { tool: 'trigger_scan', arguments: { service: 'jellyfin', action: 'scan' } }
     },
     {
         name: 'still downloading',
@@ -486,6 +524,23 @@ const radarrStub = (id: string) =>
         startLibraryScan: async () => ({ commandId: 1 })
     });
 
+/** Lidarr as the real adapter has it: an artist policy and an importer, and no `triggerSearch`. */
+const lidarrStub = () =>
+    stub('lidarr', {
+        listArtistMonitorPolicies: async () => [{ artistId: '7', artistName: 'Daft Punk', monitored: false, monitorNewItems: 'all' }],
+        setArtistMonitorPolicy: async () => undefined,
+        setMonitoring: async () => undefined,
+        getQueue: async () => [
+            { service: 'lidarr', id: 'q1', title: 'Some.Release', status: 'failed', mediaId: '7', downloadId: 'LDR1' }
+        ],
+        removeQueueItem: async () => undefined,
+        supportsBlocklist: true,
+        listImportCandidates: async () => [
+            { path: '/d/01.flac', display: '01.flac', matchedId: 7, matchedTitle: 'Daft Punk', rejections: [] }
+        ],
+        runManualImport: async () => ({ name: 'ManualImport' })
+    });
+
 const jellyfinStub = () => stub('jellyfin', { listUserLibrary: async () => [], startLibraryScan: async () => ({ commandId: 0 }) });
 
 const world = (): ServiceAdapter[] => [
@@ -502,6 +557,7 @@ const world = (): ServiceAdapter[] => [
         deleteRequest: async () => undefined
     }),
     jellyfinStub(),
+    lidarrStub(),
     stub('bazarr', { getMissingSubtitles: async () => [MISSING_DUTCH], getProviders: async () => [], triggerSubtitleSearch: async () => undefined })
 ];
 
@@ -569,6 +625,13 @@ describe('the real tool accepts every suggested call', () => {
         await expect(gated.get('respond_to_request')?.call({ id: '12', verdict: 'approve', dry_run: true })).rejects.toThrow(
             /belongs to another user/
         );
+    });
+
+    it('refuses what the artist rows leave out: a search on Lidarr, and an id at the artist level', async () => {
+        await expect(tools.get('trigger_search')?.call({ service: 'lidarr', id: '7', dry_run: true })).rejects.toThrow();
+        await expect(
+            tools.get('set_monitoring')?.call({ service: 'lidarr', level: 'artist', id: '7', artists: ['7'], monitored: true, dry_run: true })
+        ).rejects.toThrow(/takes `artists`, not `id`/);
     });
 
     // Proves the loop above bites: this is the mistake the table's film row avoids.
