@@ -98,18 +98,19 @@ Release-As: 1.0.0')"
 If it is missed anyway, the repair is a follow-up commit carrying the footer,
 which makes the open release PR re-cut itself.
 
-**The squash subject decides the bump.** A branch holding both a `feat:` and a
-`fix:` squashes to whichever commit's subject GitHub picks — usually the first —
-and release-please reads only that. A feature merged behind a fix ships as a
-patch, silently. Set `--subject` when a branch mixes types:
+**The squash subject decides the bump.** A one-commit PR squashes to that
+commit's subject, and anything longer to the PR title (the repo's
+`COMMIT_OR_PR_TITLE` setting), and release-please reads only that. A feature in
+a PR titled `fix:` ships as a patch, silently. Title a PR that mixes types for
+the biggest change in it, or set `--subject` when merging:
 
 ```bash
 gh pr merge <n> --squash --subject 'feat: what it adds (#83)'
 ```
 
 Both traps are the same shape: **squashing flattens the message, and only the
-flattened message is read.** Footers stop being footers; subjects other than the
-first stop existing.
+flattened message is read.** Footers stop being footers; every other commit's
+subject stops existing.
 
 **Read the version on the release PR title before merging it**, every time. It
 is far cheaper to notice there than after the tag exists.
