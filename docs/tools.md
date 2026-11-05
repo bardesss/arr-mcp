@@ -225,6 +225,18 @@ title scheduled for deletion, or eligible at the next deletion run, the summary
 says so with the date and the rule. Neither blocks a playable verdict, and a
 Reclaimerr that cannot be read only adds it to `degraded`.
 
+With Bazarr configured, `diagnose` ends with a `subtitles` step for a title that
+has a file. It lists the languages Bazarr is missing for it and is `warning`, not
+`blocked`: the verdict stays where the other stages put it, a playable title is
+still `playable`, and `certain` does not depend on it. The summary of a playable
+title carries the sentence. A gap matches by id and by title, because nothing
+says which Radarr or Sonarr a Bazarr is paired with, and a series matches by
+series id. The step is `unknown` when Bazarr cannot be read, and `skipped` when
+there is no file or no Bazarr. Bazarr's wanted list is read whole, with no
+paging, so it is the one read that grows with the size of the library, and it
+adds Bazarr to `degraded` when it fails. Only the first Bazarr is read, as with
+Cleanuparr. An item with no id to match gaps by is `unknown`, not `ok`.
+
 **Next steps.** Beside the prose `remedy`, `verdict.next_steps` holds the tool
 call that does it, as `{ tool, arguments, why }`, and the text block ends with
 the same call as a `Next:` line. The server never runs it: a client offers it to
@@ -245,7 +257,8 @@ hold ids, `download_id`, and, for a lookup, the words you gave as `query`.
 | `queue`, fault | `remove_queue_item` with the row's service and id; it deletes partial data and does not blocklist |
 | `queue`, a stopped or paused download, or a fault whose import is pending on another row of the same grab | the import above, never the removal |
 | `library` | `trigger_scan` with `action: "scan"` on the media server |
-| `scan`, `indexers`, playable, still downloading | none |
+| playable, one film or episode missing a subtitle | `trigger_subtitle_search` with the first missing language, only when Bazarr gave it a code |
+| `scan`, `indexers`, playable otherwise, still downloading | none |
 
 A step is left out when its tool would refuse it or when it cannot be built:
 no id to search for, a Whisparr download (which has no manual import), or an

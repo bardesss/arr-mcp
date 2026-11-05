@@ -4,11 +4,12 @@ import type { NextStep } from '../../core/nextStep.ts';
 import { unfenced } from '../../core/titleMatch.ts';
 import { currentStrikes } from '../cleanuparrQueue.ts';
 import type { FilmOrSeries, MergedItem } from '../../core/resolver.ts';
-import type { CleanupRemoval, CleanupStatus, HistoryEntry, IndexerRejection, QueueItem, RequestStatus, ScanState } from '../../services/types.ts';
+import { fenceText } from '../../core/fence.ts';
+import type { CleanupRemoval, CleanupStatus, HistoryEntry, IndexerRejection, QueueItem, RequestStatus, ScanState, SubtitleGap } from '../../services/types.ts';
 import { removalSentence, upcomingSentence } from '../cleanupStatus.ts';
 import { instanceArgs } from '../resolveInstance.ts';
 
-export type Stage = 'resolve' | 'request' | 'managed' | 'file' | 'queue' | 'indexers' | 'library' | 'scan';
+export type Stage = 'resolve' | 'request' | 'managed' | 'file' | 'queue' | 'indexers' | 'library' | 'scan' | 'subtitles';
 /** `warning` is worth a look but blocks nothing. */
 export type StepStatus = 'ok' | 'warning' | 'blocked' | 'unknown' | 'skipped';
 
@@ -58,6 +59,12 @@ export type Evidence = {
     scanCapable: boolean;
     /** Cleanuparr events for this item's downloads, newest first. null: not configured. */
     cleanuparr: HistoryEntry[] | null | undefined;
+    /**
+     * Every gap Bazarr lists, not yet narrowed to this item: nothing maps a
+     * Bazarr to its *arr, so the match (id and title) is the chain's. Read only
+     * for an item with a file. null: not configured. undefined: could not look.
+     */
+    subtitles?: { gaps: SubtitleGap[]; service: string } | null | undefined;
     /** Reclaimerr's view of this title: candidates, protections, removals. null: not configured. */
     cleanup?: CleanupStatus | null | undefined;
     /** The cleanup service that was configured but could not be read, so a missing file's cause is unknown. */
@@ -106,7 +113,9 @@ const DISPLAY_ORDER: readonly Stage[] = [
     'queue',
     'indexers',
     'library',
-    'scan'
+    'scan',
+    // Last because it never changes the verdict: a title plays without subtitles.
+    'subtitles'
 ];
 
 const SKIPPED = (stage: Stage, detail: string): Step => ({ stage, status: 'skipped', detail });
@@ -658,6 +667,73 @@ function scanStep(ev: Evidence): Step {
     return { stage: 'scan', service: server, status: 'ok', detail: `Last library scan completed ${ev.scan.lastCompleted}.` };
 }
 
+const LANGUAGE_CODE = /^[a-z]{2,3}(-[A-Za-z]{2,4})?$/;
+
+/**
+ * Whether Bazarr is missing subtitles for this item, and the call that would
+ * fetch them. Never `blocked`: a film plays without subtitles, so this notes a
+ * gap and leaves the verdict where the other stages put it.
+ */
+function subtitleStep(ev: Evidence, item: FilmOrSeries): { step: Step; sentence: string; next: NextStep[] } {
+    const none = (step: Step) => ({ step, sentence: '', next: [] as NextStep[] });
+    const acquisition = item.acquisition;
+    if (acquisition?.hasFile !== true) return none(SKIPPED('subtitles', 'No file on disk, so there is nothing to subtitle yet.'));
+    const read = ev.subtitles;
+    if (read === null) return none(SKIPPED('subtitles', 'No subtitle service is configured.'));
+    if (read === undefined) {
+        return none({ stage: 'subtitles', status: 'unknown', detail: 'The subtitle service could not be read, so missing subtitles were not checked.' });
+    }
+
+    const service = read.service;
+    // Without an id no gap can be matched, which is not the same as none being missing.
+    if (acquisition.id === undefined) {
+        return none({ stage: 'subtitles', service, status: 'unknown', detail: `${service} was read, but its gaps could not be matched to this item, so missing subtitles were not checked.` });
+    }
+    // Bazarr pairs with one *arr, and nothing says which, so an id can collide
+    // with another instance's: the title has to agree too. A series' gaps are
+    // its episodes, matched by series id.
+    const mine = read.gaps.filter(
+        g =>
+            (item.kind === 'series'
+                ? g.kind === 'episode' && String(g.seriesId) === acquisition.id
+                : g.kind === 'movie' && String(g.id) === acquisition.id) && mentions(g.title, item)
+    );
+    if (mine.length === 0) return none({ stage: 'subtitles', service, status: 'ok', detail: `${service} lists no missing subtitles for it.` });
+
+    // The language names are Bazarr's own words, so they are fenced here; the gap's title was fenced by its adapter.
+    const wanted = (m: SubtitleGap['missing'][number]): string =>
+        `${fenceText(m.name, { service, field: 'language' })}${m.forced ? ' (forced)' : ''}${m.hearingImpaired ? ' (hearing impaired)' : ''}`;
+    const languages = [...new Set(mine.flatMap(g => g.missing.map(wanted)))];
+    const first = mine[0] as SubtitleGap;
+    const target = first.missing[0];
+    const single = mine.length === 1;
+    const where = !single ? `${mine.length} episodes` : first.kind === 'episode' ? `episode ${first.season ?? '?'}x${first.episode ?? '?'}` : 'it';
+    // One call covers one item, so several episodes are for get_subtitles to
+    // list. The code is Bazarr's raw text and reaches the `Next:` line unfenced,
+    // so only a language-code shape passes; that also drops the '??' the adapter
+    // reports for a language it gave no code for.
+    const next: NextStep[] =
+        single && target !== undefined && LANGUAGE_CODE.test(target.code2)
+            ? [
+                  {
+                      tool: 'trigger_subtitle_search',
+                      arguments: {
+                          ...instanceArgs(first.service),
+                          kind: first.kind,
+                          id: String(first.id),
+                          language: target.code2,
+                          ...(target.forced ? { forced: true } : {}),
+                          ...(target.hearingImpaired ? { hearing_impaired: true } : {})
+                      },
+                      why: `Asks ${service} to search for the first of the missing subtitles. It queues the search and returns; finding one is not guaranteed.`
+                  }
+              ]
+            : [];
+    const pointer = next.length > 0 ? '' : ' get_subtitles lists what to search for.';
+    const sentence = `${service} is missing subtitles for ${where}: ${languages.join(', ')}.${pointer}`;
+    return { step: { stage: 'subtitles', service, status: 'warning', detail: sentence }, sentence, next };
+}
+
 const REMEDIES: Partial<Record<Stage, string>> = {
     resolve: 'Try search_media — it also looks at what you do not have yet — or request it through Seerr.',
     request: 'Approve or re-submit the request in Seerr.',
@@ -876,6 +952,8 @@ export function buildChain(query: string, ev: Evidence, byWords: boolean): Diagn
     steps.push(indexerStep(ev, item));
     steps.push(libraryStep(ev, item));
     steps.push(scanStep(ev));
+    const subtitles = subtitleStep(ev, item);
+    steps.push(subtitles.step);
 
     const byStage = new Map(steps.map(s => [s.stage, s]));
     const isBlocked = (s: Stage): boolean => byStage.get(s)?.status === 'blocked';
@@ -978,7 +1056,14 @@ export function buildChain(query: string, ev: Evidence, byWords: boolean): Diagn
             query,
             resolved: resolvedOf(item),
             steps,
-            verdict: { stage: 'playable', summary, certain },
+            // The one playable verdict with a next step, and not a fix: it
+            // stands, and the call only fetches the subtitles it notes.
+            verdict: {
+                stage: 'playable',
+                summary: `${summary}${subtitles.sentence === '' ? '' : ` ${subtitles.sentence}`}`,
+                ...withSteps(subtitles.next),
+                certain
+            },
             degraded: allDegraded(ev)
         };
     }
