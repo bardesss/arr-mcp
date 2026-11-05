@@ -187,11 +187,13 @@ nothing was found only for the services not named there. The checks run on a
 
 | Write | Asks | About |
 |---|---|---|
-| `delete_media` | whether something still depends on the title | Seerr requests, Reclaimerr protections, downloads and seeding, watch state |
+| `delete_media` | whether something still depends on the title | Seerr requests, Reclaimerr protections, downloads, seeding (only when `delete_files` is true, since otherwise the files stay and nothing is freed), watch state |
 | `delete_episode_files` | the same, for the series | the same, plus whether the season being deleted was watched. Named episodes do not check watch state: the series flag says nothing about one episode |
 | `trigger_search` | whether something is working against getting it | Reclaimerr removals, a Seerr request waiting or declined, an existing download |
 | `add_media` | the same as `trigger_search` | the title, by every id its lookup reported (a series also by TMDB, when the lookup carries one); not yet in the library, so no existing download is matched by id |
 | `grab_release` | the same as `trigger_search` | the item the release is for, which a preview reads once to name it (same five seconds, ahead of the checks, so a hung service can make this preview wait up to twice the budget; a confirm never reads it). If that read fails or runs out, the release name stands in and the id-based checks are listed under **Could not check** |
+
+A series is matched on the TMDB id Sonarr itself holds, so Reclaimerr is asked without a media server in the stack; when Sonarr has none, the library is used to find one, and the preview says if that fails.
 
 Whisparr is never checked, on any of these. It keeps its own scene id in the TVDB
 field, so a Seerr match on it would be a different title that shares a number. A

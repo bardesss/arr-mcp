@@ -185,6 +185,17 @@ describe('cross-checks — delete', () => {
         expect(advice.warnings[0]).toContain('hardlinked');
     });
 
+    // delete_media without delete_files leaves the files where they are, so nothing is freed or not freed.
+    it('leaves out the seeding warning when the files stay, and keeps the rest', async () => {
+        const staying: CrossCheckSubject = { ...subject, filesStay: true };
+        const seeding = { service: 'qbittorrent', id: 'abc', title: 'Alien 1979 1080p', status: 'seeding' };
+
+        expect((await check(staying, 'delete', { queues: { qbittorrent: [seeding] } })).warnings).toEqual([]);
+        expect((await check(staying, 'delete', { queues: { radarr: [row()] } })).warnings).toEqual([
+            'Alien (1979) is still downloading in radarr.'
+        ]);
+    });
+
     it('ignores a queue row that belongs to another title', async () => {
         const advice = await check(subject, 'delete', { queues: { radarr: [row({ mediaId: '77', title: 'Aliens.1986.1080p' })] } });
         expect(advice.warnings).toEqual([]);

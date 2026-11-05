@@ -898,6 +898,20 @@ describe('the status word the managing service reports', () => {
         expect((await sonarr.getMediaDetails('15', { includeEpisodes: false, episodeLimit: 5 })).status).toBe('ended');
     });
 
+    // `tmdbId` is how a series reaches Reclaimerr without a media server's help; 0 is Sonarr's "none".
+    it('carries a series TMDB id into its ids, and leaves out a 0', async () => {
+        const all = fixture('sonarr/series.json') as { id: number; tvdbId: number; tmdbId: number }[];
+        const [taboo, outerBanks] = [all[0], all[1]];
+        const sonarr = new SonarrAdapter(
+            keyed(8989),
+            serving({ '/api/v3/series/15': taboo, '/api/v3/series/26': outerBanks })
+        );
+        const opts = { includeEpisodes: false, episodeLimit: 0 };
+
+        expect((await sonarr.getMediaDetails('26', opts)).ids).toMatchObject({ tvdb: outerBanks?.tvdbId, tmdb: outerBanks?.tmdbId });
+        expect((await sonarr.getMediaDetails('15', opts)).ids).not.toHaveProperty('tmdb');
+    });
+
     it('reaches the merged row and the raw view from Radarr', async () => {
         const radarr = new RadarrAdapter(
             keyed(7878),

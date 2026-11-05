@@ -124,7 +124,9 @@ export function registerDeleteMedia(
                 ...arrSubject(adapter, {
                     label,
                     ids: details.ids,
-                    acquisition: { service: adapter.id, id }
+                    acquisition: { service: adapter.id, id },
+                    // Bound to the token already as `deleteFiles`; this only tells the checks.
+                    ...(delete_files ? {} : { filesStay: true })
                 })
             };
         },

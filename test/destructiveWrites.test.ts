@@ -632,6 +632,17 @@ describe('delete_media cross-checks', () => {
         expect(subject?.seasons).toBeUndefined();
     });
 
+    it('says the files stay unless delete_files is true', async () => {
+        const crossChecks = quiet();
+        const h = harness(registerDeleteMedia, { crossChecks });
+
+        await h.call({ service: 'radarr', id: '412', dry_run: true });
+        await h.call({ service: 'radarr', id: '412', delete_files: false, dry_run: true });
+        await h.call({ service: 'radarr', id: '412', delete_files: true, dry_run: true });
+
+        expect(crossChecks.mock.calls.map(c => c[0].filesStay)).toEqual([true, true, undefined]);
+    });
+
     it('asks as a series for Sonarr', async () => {
         const crossChecks = quiet();
         const sonarr = recordingFetch({ '/api/v3/series/7': { ...SERIES, tvdbId: 424207 } });
@@ -1340,6 +1351,13 @@ describe('delete_episode_files cross-checks', () => {
             adapters: [new SonarrAdapter(keyed(8989), recordingFetch(routes).impl)],
             crossChecks
         });
+
+    it('never says the files stay, since it always deletes them', async () => {
+        const crossChecks = quiet();
+        await sonarrHarness(crossChecks).call({ service: 'sonarr', id: '7', season: 2, dry_run: true });
+
+        expect(crossChecks.mock.calls[0]?.[0].filesStay).toBeUndefined();
+    });
 
     it('names the season being deleted', async () => {
         const crossChecks = quiet();

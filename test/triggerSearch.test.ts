@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { instancesOf } from './helpers/instances.ts';
 import { describe, expect, it, vi } from 'vitest';
 import * as z from 'zod/v4';
@@ -10,7 +11,7 @@ import { RadarrAdapter } from '../src/services/radarr.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
 import { WhisparrAdapter } from '../src/services/whisparr.ts';
-import type { CrossChecker } from '../src/tools/crossChecks.ts';
+import { buildCrossChecker, type CrossChecker } from '../src/tools/crossChecks.ts';
 import type { LibraryLoader } from '../src/tools/library.ts';
 import { registerTriggerSearch } from '../src/tools/triggerSearch.ts';
 import type { WriteToolResult } from '../src/tools/write.ts';
@@ -469,5 +470,34 @@ describe('trigger_search cross-checks', () => {
 
         expect(second.structuredContent.applied).toBe(true);
         expect(crossChecks).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('trigger_search reaching Reclaimerr for a series', () => {
+    // A recorded Sonarr series that carries a TMDB id; no media server is configured.
+    const recorded = JSON.parse(readFileSync('test/fixtures/sonarr/series.json', 'utf8')) as {
+        id: number;
+        tvdbId: number;
+        tmdbId: number;
+    }[];
+    const series = recorded[1];
+
+    it('asks Reclaimerr by the TMDB id Sonarr holds, without loading the library', async () => {
+        const readCleanupStatus = vi.fn(async () => ({ service: 'reclaimerr', candidates: [], protections: [], removals: [] }));
+        const reclaimerr = { id: 'reclaimerr', type: 'reclaimerr', readCleanupStatus } as unknown as ServiceAdapter;
+        const load = vi.fn();
+        const crossChecks = buildCrossChecker([reclaimerr], { load } as unknown as LibraryLoader);
+        const sonarr = recordingFetch({ [`/api/v3/series/${series?.id}`]: series });
+        const h = harness({
+            adapters: [new SonarrAdapter(keyed(8989), sonarr.impl)],
+            permissions: { sonarr: permissive(true) },
+            crossChecks
+        });
+
+        const { structuredContent } = await h.call({ service: 'sonarr', id: String(series?.id), dry_run: true });
+
+        expect(readCleanupStatus).toHaveBeenCalledWith('series', series?.tmdbId);
+        expect(load).not.toHaveBeenCalled();
+        expect(structuredContent.unchecked ?? []).toEqual([]);
     });
 });

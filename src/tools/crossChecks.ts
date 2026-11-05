@@ -33,6 +33,8 @@ export type CrossCheckSubject = {
      * the whole title.
      */
     seasons?: number[];
+    /** delete_media only: it leaves the files on disk, so a seeding row frees nothing either way. */
+    filesStay?: boolean;
 };
 
 /**
@@ -219,7 +221,7 @@ export function buildCrossChecker(adapters: readonly ServiceAdapter[], library: 
                 }
                 const downloading = mine.filter(r => classifyQueueStatus(r) === 'active');
                 if (downloading.length > 0) warnings.push(`${label} is still downloading in ${where(downloading)}.`);
-                const seeding = mine.filter(r => SEEDING.has(r.status.toLowerCase()));
+                const seeding = subject.filesStay === true ? [] : mine.filter(r => SEEDING.has(r.status.toLowerCase()));
                 if (seeding.length > 0) {
                     warnings.push(
                         `${label} is still seeding in ${where(seeding)}, so deleting it may not free the disk space if the files are hardlinked.`
