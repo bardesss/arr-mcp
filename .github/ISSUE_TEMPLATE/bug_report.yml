@@ -40,13 +40,21 @@ body:
       options:
         - label: Radarr
         - label: Sonarr
+        - label: Lidarr
+        - label: Whisparr
         - label: Prowlarr
         - label: Bazarr
+        - label: Profilarr
         - label: Jellyfin
+        - label: Plex
         - label: Seerr
         - label: SABnzbd
+        - label: NZBGet
         - label: Transmission
         - label: qBittorrent
+        - label: Cleanuparr
+        - label: Reclaimerr
+        - label: Dispatcharr
 
   - type: input
     id: service-versions
