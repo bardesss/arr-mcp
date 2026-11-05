@@ -415,6 +415,46 @@ describe('the webhook route', () => {
             expect(page).toContain('arr-mcp');
         });
 
+        it('masks the password, with a button to show it that does not submit the form', async () => {
+            await save({ 'webhooks.enabled': 'on', 'webhooks.retention_days': '30' });
+            const page = await (await call('/ui/config')).text();
+            expect(page).toMatch(/<input id="webhooks\.secret" class="secret"/);
+            const button = /<button[^>]*data-reveal="webhooks\.secret"[^>]*>/.exec(page)?.[0] ?? '';
+            expect(button).toContain('type="button"');
+            expect(button).toContain('aria-label="Show password"');
+        });
+
+        // Inside the card's form it would be the button Enter presses.
+        it('generates a new password from a form of its own, leaving the card form to Save', async () => {
+            await save({ 'webhooks.enabled': 'on', 'webhooks.retention_days': '45' });
+            const secret = /secret: (\S+)/.exec(await saved())?.[1] ?? '';
+            const page = await (await call('/ui/config')).text();
+
+            const card = /<form[^>]*action="\/ui\/config\/webhooks" class="panel"[\s\S]*?<\/form>/.exec(page)?.[0] ?? '';
+            expect(card).toContain('form="webhooks-new-secret"');
+            expect(card).not.toContain('name="webhooks.new_secret"');
+            expect(card.match(/<button[^>]*type="submit"(?![^>]*form=)/g)).toHaveLength(1);
+
+            const fieldsOf = (html: string) =>
+                Object.fromEntries(
+                    [...(/<form id="webhooks-new-secret"[\s\S]*?<\/form>/.exec(html)?.[0] ?? '').matchAll(/name="([^"]+)" value="([^"]*)"/g)].map(m => [
+                        m[1] as string,
+                        (m[2] as string).replaceAll('&quot;', '"')
+                    ])
+                );
+
+            // The first press only asks, and the second carries the answer.
+            const asked = await (await call('/ui/config/webhooks', form(fieldsOf(page)))).text();
+            expect(asked).toMatch(/<button[^>]*form="webhooks-new-secret"[^>]*name="confirm"[^>]*value="yes"/);
+            expect(/secret: (\S+)/.exec(await saved())?.[1]).toBe(secret);
+
+            expect((await call('/ui/config/webhooks', form({ ...fieldsOf(asked), confirm: 'yes' }))).status).toBe(200);
+            const after = await saved();
+            expect(/secret: (\S+)/.exec(after)?.[1]).not.toBe(secret);
+            expect(after).toContain('enabled: true');
+            expect(after).toContain('retention_days: 45');
+        });
+
         it('keeps the secret through an unrelated save and through off and on again', async () => {
             await save({ 'webhooks.enabled': 'on', 'webhooks.retention_days': '30' });
             const secret = /secret: (\S+)/.exec(await saved())?.[1];
@@ -433,7 +473,7 @@ describe('the webhook route', () => {
         it('replaces the secret when asked, and the old one stops working', async () => {
             await save({ 'webhooks.enabled': 'on', 'webhooks.retention_days': '30' });
             const secret = /secret: (\S+)/.exec(await saved())?.[1] ?? '';
-            await save({ 'webhooks.enabled': 'on', 'webhooks.retention_days': '30', 'webhooks.new_secret': '1' });
+            await save({ 'webhooks.enabled': 'on', 'webhooks.retention_days': '30', 'webhooks.new_secret': '1', confirm: 'yes' });
             const next = /secret: (\S+)/.exec(await saved())?.[1] ?? '';
             expect(next).not.toBe(secret);
             expect((await post('/webhooks/radarr', {}, basic(secret))).status).toBe(401);

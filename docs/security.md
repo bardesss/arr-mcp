@@ -124,8 +124,8 @@ to guess, so the block mostly keeps the log quiet.
 
 **The secret is the exception to two rules.** It's stored in plain text like a
 service `api_key` rather than hashed like an MCP token, and the config page renders
-it back, masked with CSS, to a signed-in user, because it has to be pasted into each
-service. The management API doesn't return it. All it can do is add rows to the
+it back, masked with CSS and with a button to show it, to a signed-in user, because
+it has to be pasted into each service. The management API doesn't return it. All it can do is add rows to the
 event log.
 
 **What's stored.** Only named fields: the event, title, internal and external ids,
