@@ -548,6 +548,22 @@ export const AuthSchema = z.strictObject({
 export const MediaServerIdSchema = z.enum(['jellyfin', 'plex']);
 export type MediaServerId = z.infer<typeof MediaServerIdSchema>;
 
+/**
+ * The library event log. A plain secret, like a service's `api_key` and unlike an
+ * MCP token, because it has to be pasted into every *arr and can only write event
+ * rows. The API never returns it, and the config page shows it masked.
+ */
+const WebhooksSchema = z
+    .strictObject({
+        enabled: z.boolean().default(false),
+        secret: z.string().min(32).optional(),
+        retention_days: z.number().int().min(1).max(3650).default(30)
+    })
+    .refine(value => !value.enabled || value.secret !== undefined, {
+        message: 'needs a secret of at least 32 characters while enabled',
+        path: ['secret']
+    });
+
 export const ConfigSchema = z.object({
     // Parsing normalises tokens, so two parses of one file always agree.
     auth: AuthSchema.refine(value => !(value.oauth !== undefined && value.allow_token_in_url), {
@@ -602,7 +618,9 @@ export const ConfigSchema = z.object({
     metadata: MetadataSchema.optional(),
     /** Absent means `system`, so a config nobody touched stays as clean as it
      *  started — the same reasoning as `metadata`. */
-    ui: UiSchema.optional()
+    ui: UiSchema.optional(),
+    /** Absent means off, and the route answers 404. */
+    webhooks: WebhooksSchema.optional()
 }).superRefine((config, ctx) => {
     // `jellyfin` and `plex` are distinct, individually valid keys, so the two
     // together are admitted, and this rule says which one the tools default to.

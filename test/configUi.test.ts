@@ -1437,7 +1437,8 @@ describe('a page left open while the config changed', () => {
             '/ui/config/mcp',
             '/ui/config/save',
             '/ui/config/tokens/add',
-            '/ui/config/tokens/revoke'
+            '/ui/config/tokens/revoke',
+            '/ui/config/webhooks'
         ]);
         for (const f of forms) expect(f.body, f.action).toMatch(/name="etag" value="&quot;[0-9a-f]{16}&quot;"/);
         expect(/<form id="oauth"[\s\S]*?<\/form>/.exec(page)?.[0]).toMatch(/name="etag"/);
