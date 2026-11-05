@@ -162,10 +162,12 @@ legend { padding: 0 .4rem; color: var(--dim); font-size: .85rem; }
 /* What type=password used to do, minus the part that made every password
    manager fill the card as a login form. Chrome, Edge and Safari have had the
    prefixed property for years; Firefox since 116. Where it is unsupported the
-   field is a plain text input, which is the honest failure — the server never
-   renders a secret into it, so nothing is ever on screen that was not just
-   typed. */
+   field is a plain text input, which is the honest failure — the server renders
+   only one secret into it, the event log's password, which you open that card
+   to read, and everything else on screen was just typed. */
 .secret { -webkit-text-security: disc; }
+[data-icon] { padding: .35rem .5rem; line-height: 0; }
+[data-reveal][aria-pressed="false"] .eye-slash { display: none; }
 dialog {
   background: var(--panel); color: var(--text); border: 1px solid var(--line);
   border-radius: 10px; padding: 0; max-width: 560px; width: calc(100% - 2rem);
@@ -361,9 +363,12 @@ document.addEventListener('click', (e) => {
   if (!btn) return;
   const input = document.getElementById(btn.dataset.reveal);
   if (!input) return;
-  const hidden = input.type === 'password';
-  input.type = hidden ? 'text' : 'password';
-  btn.textContent = hidden ? 'Hide' : 'Show';
+  // Masked by the class, not the type: see .secret in the stylesheet.
+  const shown = !input.classList.toggle('secret');
+  const label = (shown ? 'Hide ' : 'Show ') + btn.dataset.what;
+  btn.setAttribute('aria-pressed', String(shown));
+  btn.setAttribute('aria-label', label);
+  btn.title = label;
 });
 
 // The add form: a dialog opened by a button, with fields that follow the
