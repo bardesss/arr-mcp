@@ -1,0 +1,44 @@
+{
+  "series": {
+    "id": 547,
+    "title": "American Murder: Laci Peterson",
+    "titleSlug": "american-murder-laci-peterson",
+    "path": "/media/library/item",
+    "tvdbId": 452965,
+    "tvMazeId": 78816,
+    "tmdbId": 261034,
+    "imdbId": "tt33079160",
+    "type": "standard",
+    "year": 2024,
+    "genres": [
+      "Crime",
+      "Documentary"
+    ],
+    "images": [
+      {
+        "coverType": "banner",
+        "url": "/media/library/item",
+        "remoteUrl": "https://indexer.example.test/"
+      },
+      {
+        "coverType": "poster",
+        "url": "/media/library/item",
+        "remoteUrl": "https://indexer.example.test/"
+      },
+      {
+        "coverType": "fanart",
+        "url": "/media/library/item",
+        "remoteUrl": "https://indexer.example.test/"
+      }
+    ],
+    "tags": [],
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    }
+  },
+  "deletedFiles": false,
+  "eventType": "SeriesDelete",
+  "instanceName": "Instance",
+  "applicationUrl": ""
+}

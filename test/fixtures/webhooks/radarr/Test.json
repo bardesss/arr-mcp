@@ -1,0 +1,31 @@
+{
+  "movie": {
+    "id": 1,
+    "title": "Test Title",
+    "year": 1970,
+    "releaseDate": "1970-01-01",
+    "folderPath": "/media/library/item",
+    "tmdbId": 0,
+    "tags": [
+      "test-tag"
+    ]
+  },
+  "remoteMovie": {
+    "tmdbId": 1234,
+    "imdbId": "5678",
+    "title": "Test title",
+    "year": 1970
+  },
+  "release": {
+    "quality": "Test Quality",
+    "qualityVersion": 1,
+    "releaseGroup": "GROUP",
+    "releaseTitle": "Release.Name.1080p.WEB-DL.x264-GROUP",
+    "indexer": "Indexer",
+    "size": 9999999,
+    "customFormatScore": 0
+  },
+  "eventType": "Test",
+  "instanceName": "Instance",
+  "applicationUrl": ""
+}

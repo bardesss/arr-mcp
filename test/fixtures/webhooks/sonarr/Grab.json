@@ -1,0 +1,126 @@
+{
+  "series": {
+    "id": 663,
+    "title": "American Murder: Laci Peterson",
+    "titleSlug": "american-murder-laci-peterson",
+    "path": "/media/library/item",
+    "tvdbId": 452965,
+    "tvMazeId": 78816,
+    "tmdbId": 261034,
+    "imdbId": "tt33079160",
+    "type": "standard",
+    "year": 2024,
+    "genres": [
+      "Crime",
+      "Documentary"
+    ],
+    "images": [
+      {
+        "coverType": "banner",
+        "url": "/media/library/item",
+        "remoteUrl": "https://indexer.example.test/"
+      },
+      {
+        "coverType": "poster",
+        "url": "/media/library/item",
+        "remoteUrl": "https://indexer.example.test/"
+      },
+      {
+        "coverType": "fanart",
+        "url": "/media/library/item",
+        "remoteUrl": "https://indexer.example.test/"
+      }
+    ],
+    "tags": [],
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    }
+  },
+  "episodes": [
+    {
+      "id": 20560,
+      "episodeNumber": 3,
+      "seasonNumber": 1,
+      "title": "Nothing Can Change the Truth",
+      "overview": "Police arrest Scott after a major breakthrough, and the case heads to trial. With no physical evidence, the testimony of a key witness becomes pivotal.",
+      "airDate": "2024-08-14",
+      "airDateUtc": "2024-08-14T08:46:00Z",
+      "seriesId": 663,
+      "tvdbId": 10623932
+    }
+  ],
+  "release": {
+    "quality": "WEBDL-2160p",
+    "qualityVersion": 1,
+    "releaseGroup": "GROUP",
+    "releaseTitle": "Release.Name.1080p.WEB-DL.x264-GROUP",
+    "indexer": "Indexer",
+    "size": 8065528090,
+    "customFormatScore": 924660,
+    "customFormats": [
+      "2160p WEB-DL",
+      "2160p WEB-DL (Efficient)",
+      "5.1 Surround",
+      "Dolby Digital +",
+      "HDR",
+      "HDR10",
+      "NF",
+      "UHD Streaming Boost",
+      "WEB-DL Tier 3"
+    ],
+    "languages": [
+      {
+        "id": 1,
+        "name": "English"
+      }
+    ]
+  },
+  "downloadClient": "Download Client",
+  "downloadClientType": "SABnzbd",
+  "downloadId": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA6",
+  "customFormatInfo": {
+    "customFormats": [
+      {
+        "id": 93,
+        "name": "2160p WEB-DL"
+      },
+      {
+        "id": 197,
+        "name": "2160p WEB-DL (Efficient)"
+      },
+      {
+        "id": 8,
+        "name": "5.1 Surround"
+      },
+      {
+        "id": 45,
+        "name": "Dolby Digital +"
+      },
+      {
+        "id": 78,
+        "name": "HDR"
+      },
+      {
+        "id": 90,
+        "name": "HDR10"
+      },
+      {
+        "id": 60,
+        "name": "NF"
+      },
+      {
+        "id": 222,
+        "name": "UHD Streaming Boost"
+      },
+      {
+        "id": 133,
+        "name": "WEB-DL Tier 3"
+      }
+    ],
+    "customFormatScore": 924660
+  },
+  "eventType": "Grab",
+  "instanceName": "Instance",
+  "applicationUrl": ""
+}
