@@ -73,6 +73,20 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     // Unauthenticated on purpose: they are constants compiled into the binary
     // and reveal nothing. Requiring a session for the stylesheet would make
     // the login page render unstyled, which looks broken.
+    // First, because Hono runs middleware in the order it is registered.
+    //
+    // Pages only, by what was actually sent: an open Logs tab polls JSON every few
+    // seconds, and counting that as coming back would keep a forgotten browser
+    // signed in for good. A response that set the cookie itself (sign-out, a
+    // password change) has already decided, and this must not overwrite it.
+    app.use('/ui/*', async (c, next) => {
+        await next();
+        if (c.req.method !== 'GET' || runtime.config.auth.password_hash === undefined) return;
+        if (c.res.headers.has('set-cookie') || !c.res.headers.get('content-type')?.startsWith('text/html')) return;
+        const renewed = runtime.sessions.renew(readCookie(c.req.header('cookie'), SESSION_COOKIE));
+        if (renewed !== undefined) c.header('set-cookie', sessionCookie(renewed, Math.floor(SESSION_TTL_MS / 1000)));
+    });
+
     app.get('/ui/app.css', c => c.body(CSS, 200, { 'content-type': 'text/css; charset=utf-8', ...CACHE }));
     app.get('/ui/app.js', c => c.body(JS, 200, { 'content-type': 'text/javascript; charset=utf-8', ...CACHE }));
     app.get('/ui/icon.svg', c => c.body(MARK_SVG, 200, { 'content-type': 'image/svg+xml; charset=utf-8', ...CACHE }));

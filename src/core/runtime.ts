@@ -130,6 +130,7 @@ export class Runtime {
         this.#oauthKeys = oauthKeys;
         this.confirm = new ConfirmTokens();
         this.sessions = sessions;
+        sessions.bindCredentials(config.auth.password_hash);
         // Before the snapshot, not after: the tool context closes over the
         // dataset, so it has to exist by the time it is built.
         this.#syncDataset(config);
@@ -282,6 +283,7 @@ export class Runtime {
         // Never seeds: a file deleted under a running server must not turn it unclaimed.
         const { config, plaintextOnDisk } = await loadConfig(this.#configDir, { create: false });
         this.#plaintextOnDisk = plaintextOnDisk;
+        this.sessions.bindCredentials(config.auth.password_hash);
         this.#syncDataset(config);
         this.#snapshot = buildSnapshot(config, this.#audit, this.confirm, this.#dataset, this.#oauthKeys);
         logger.info({ services: this.#snapshot.adapters.map(a => a.id) }, 'configuration reloaded');

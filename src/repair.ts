@@ -148,7 +148,12 @@ export function buildRepairApp(deps: RepairDeps): Hono {
         return sessions.verify(token).valid ? token : undefined;
     };
 
+    // The same hash the runtime will bind on promotion, so a cookie issued here
+    // survives the swap unless a save really did change the password.
+    sessions.bindCredentials(auth.password_hash);
+
     const signIn = (c: Context): string => {
+        sessions.bindCredentials(auth.password_hash);
         const token = sessions.issue();
         c.header('set-cookie', sessionCookie(token, Math.floor(SESSION_TTL_MS / 1000)));
         return token;

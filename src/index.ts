@@ -23,7 +23,7 @@ const audit = WriteAudit.open(CONFIG_DIR);
 
 // One instance, shared by both apps: a cookie issued by the repair page has to
 // still be valid after a successful save swaps the app underneath it.
-const sessions = new Sessions();
+const sessions = Sessions.open(CONFIG_DIR);
 
 const app = await bootstrap({ configDir: CONFIG_DIR, audit, logs, sessions, version: VERSION, port: PORT });
 
