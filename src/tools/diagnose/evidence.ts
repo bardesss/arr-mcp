@@ -23,7 +23,7 @@ import {
 } from '../../services/types.ts';
 import type { LibraryLoader } from '../library.ts';
 import { resolveInstance } from '../resolveInstance.ts';
-import { mentions, releaseMentions, type Evidence } from './chain.ts';
+import { queueRowsFor, releaseMentions, type Evidence } from './chain.ts';
 
 export type DiagnoseTarget = { query?: string; service?: ServiceId; id?: string; instance?: string; user?: string };
 
@@ -184,6 +184,7 @@ async function resolveItem(
                 : {
                       acquisition: {
                           service: adapter.id,
+                          id: target.id,
                           monitored: details.monitored ?? false,
                           hasFile: details.hasFile ?? false,
                           ...(details.quality === undefined ? {} : { quality: details.quality }),
@@ -359,8 +360,9 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
     };
     if (cleanuparrAdapter !== undefined && hasHistory(cleanuparrAdapter)) {
         const ids = new Set<string>();
-        for (const q of queue?.items ?? []) {
-            if (q.downloadId !== undefined && item !== undefined && mentions(q.title, item)) ids.add(q.downloadId.toLowerCase());
+        const mine = item === undefined ? [] : queueRowsFor(queue?.items ?? [], item);
+        for (const q of mine) {
+            if (q.downloadId !== undefined) ids.add(q.downloadId.toLowerCase());
         }
         for (const r of await readArrHistory()) {
             if (r.downloadId !== undefined) ids.add(r.downloadId.toLowerCase());
