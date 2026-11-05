@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.62.0](https://github.com/bardesss/arr-mcp/compare/v1.61.0...v1.62.0) (2026-11-05)
+
+
+### Features
+
+* add Shelfmark for finding and downloading books ([#469](https://github.com/bardesss/arr-mcp/issues/469)) ([afd7bba](https://github.com/bardesss/arr-mcp/commit/afd7bba9fec2031b6a96211374bebac04740bacc))
+* diagnose Lidarr artists ([#467](https://github.com/bardesss/arr-mcp/issues/467)) ([4f8cb91](https://github.com/bardesss/arr-mcp/commit/4f8cb911e7cd9d50afd9e055b28ff6c39d6cd9fa))
+
+
+### Bug Fixes
+
+* stop false watch warnings and wrong-title next steps ([#470](https://github.com/bardesss/arr-mcp/issues/470)) ([b062fdf](https://github.com/bardesss/arr-mcp/commit/b062fdf7809b73ef70de5d56f195e81e23b55378))
+
 ## [1.61.0](https://github.com/bardesss/arr-mcp/compare/v1.60.0...v1.61.0) (2026-11-05)
 
 
