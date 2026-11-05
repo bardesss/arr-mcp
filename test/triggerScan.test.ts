@@ -589,6 +589,23 @@ describe('trigger_scan on Prowlarr', () => {
         expect(prowlarr.sent.filter(x => x.method === 'POST').map(x => x.url)).toEqual(['/api/v1/command']);
     });
 
+    it('describes a sync rather than a library scan, in the preview and the result', async () => {
+        const prowlarr = recordingFetch({ '/api/v1/command': { id: 3, name: 'ApplicationIndexerSync' } });
+        const h = harness({
+            adapters: [new ProwlarrAdapter(keyed(9696), prowlarr.impl)],
+            permissions: { prowlarr: permissive(true) }
+        });
+
+        const first = await h.call({ service: 'prowlarr' });
+        expect(first.structuredContent.summary).toMatch(/sync its indexers/i);
+        expect(first.structuredContent.summary).not.toMatch(/rescan/i);
+        expect(first.structuredContent.effects.join(' ')).not.toMatch(/on disk|large library/i);
+
+        const done = await h.call({ service: 'prowlarr', confirm: first.structuredContent.confirm_token });
+        expect(JSON.stringify(done)).toMatch(/syncing its indexers/i);
+        expect(JSON.stringify(done)).not.toMatch(/rescanning/i);
+    });
+
     it('does not offer per-item actions there', async () => {
         const prowlarr = recordingFetch({});
         const h = harness({
