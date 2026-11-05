@@ -283,9 +283,12 @@ so far.
 - The tokens are read from the runtime on **every request**, so revoking or
   creating one takes effect immediately rather than at the next restart.
 - The config UI has its own scrypt-hashed password with a 12 character minimum
-  and a signed, expiring session cookie (12 hours). It is a bigger target than
-  the MCP endpoint, because it displays every service's API key and can change
-  them.
+  and a signed session cookie. The session lasts 30 days from the last page you
+  opened and renews itself as you use the UI, while background polling such as
+  the Logs auto-refresh does not count. It survives restarts and updates, because
+  the signing key is kept in `sessions.json` beside `config.yaml`, with owner-only
+  permissions. It is a bigger target than the MCP endpoint, because it displays
+  every service's API key and can change them, so sign out on a shared machine.
 - `/ui/login` throttles itself after 5 free failed attempts, then delays each
   further one with a growing backoff capped at 5 minutes. The counter is
   global rather than per-IP — deliberate, since nothing validates the client's
@@ -296,9 +299,12 @@ so far.
   header is caller-supplied, so a client inventing one cannot overwrite the
   only identifying field on a refused sign-in. There is no trusted-proxy list;
   treat `forwardedFor` as a claim.
-- Sessions end when you end them: signing out revokes that token, and changing
-  the password revokes every session issued before it. Neither waits for the
-  cookie to expire or for a restart.
+- Sessions end when you end them: signing out revokes that session, and changing
+  the password revokes every session issued before it, whether it was changed in
+  the UI or by hand in `config.yaml`. Neither waits for the cookie to expire, and
+  a restart does not undo them. Deleting `sessions.json` and restarting signs
+  everyone out. Anyone who can read that file could forge a session, the same
+  people who can already read `config.yaml` and every API key in it.
 - `allowed_hosts` is validated per request rather than frozen at startup, for
   the same reason: a security setting that appears to have applied when it has
   not is the worst kind.

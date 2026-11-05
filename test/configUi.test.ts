@@ -133,6 +133,102 @@ const keysFrom = (page: string): { csrf: string; etag: string } => ({
     etag: (/name="etag" value="([^"]+)"/.exec(page)?.[1] ?? '').replaceAll('&quot;', '"')
 });
 
+describe('staying signed in', () => {
+    const HOUR = 60 * 60 * 1000;
+    let time = 0;
+
+    /** The same fixture, with a clock the test can move. */
+    const seedWithClock = async () => {
+        const { config } = await loadConfig(dir);
+        time = 1_000_000;
+        runtime = Runtime.fromConfig(config, audit, {
+            configDir: dir,
+            sessions: new session.Sessions({ now: () => time })
+        });
+        app = buildApp({ runtime, audit, logs });
+        await signIn();
+    };
+
+    const bare = (path: string, sessionCookie: string) =>
+        app.request(`http://localhost:6060${path}`, { headers: { cookie: sessionCookie } });
+
+    it('renews the cookie on a page load once it is over an hour old, for the full window', async () => {
+        await seedWithClock();
+        time += 2 * HOUR;
+        const res = await bare('/ui/config', cookie);
+        expect(res.status).toBe(200);
+        const set = res.headers.get('set-cookie') ?? '';
+        expect(set).toContain(`Max-Age=${Math.floor(session.SESSION_TTL_MS / 1000)}`);
+        expect(set).toContain('HttpOnly');
+        expect(set).toContain('SameSite=Strict');
+    });
+
+    it('sets nothing on a page load inside the hour', async () => {
+        await seedWithClock();
+        time += HOUR - 1;
+        expect((await bare('/ui/config', cookie)).headers.get('set-cookie')).toBeNull();
+    });
+
+    // An open Logs tab polls every four seconds, and would otherwise keep a
+    // forgotten browser signed in for good.
+    it('does not count background polling or assets as coming back', async () => {
+        await seedWithClock();
+        time += 2 * HOUR;
+        expect((await bare('/ui/logs.json', cookie)).headers.get('set-cookie')).toBeNull();
+        expect((await bare('/ui/app.css', cookie)).headers.get('set-cookie')).toBeNull();
+    });
+
+    it('lets someone who keeps visiting stay signed in past the window', async () => {
+        await seedWithClock();
+        for (let visit = 0; visit < 4; visit++) {
+            time += session.SESSION_TTL_MS - HOUR;
+            expect((await call('/ui/config')).status).toBe(200);
+        }
+    });
+
+    it('signs out someone who stays away for the whole window', async () => {
+        await seedWithClock();
+        time += session.SESSION_TTL_MS;
+        const res = await call('/ui/config');
+        expect(res.status).toBe(302);
+        expect(res.headers.get('location')).toBe('/ui/login');
+    });
+
+    it('accepts a form from before the renewal', async () => {
+        await seedWithClock();
+        const csrf = await csrfFrom();
+        time += 2 * HOUR;
+        await call('/ui/config');
+        const res = await call('/ui/logout', form({ csrf }));
+        expect(res.headers.get('location')).toBe('/ui/login');
+        expect(res.headers.get('set-cookie')).toContain('Max-Age=0');
+    });
+
+    it('does not let a renewal bring back the cookie sign-out just cleared', async () => {
+        await seedWithClock();
+        const csrf = await csrfFrom();
+        const before = cookie;
+        time += 2 * HOUR;
+        await call('/ui/logout', form({ csrf }));
+        expect((await bare('/ui/config', before)).headers.get('location')).toBe('/ui/login');
+    });
+
+    it('does not renew on an instance with no password, whatever cookie it is sent', async () => {
+        await seedWithClock();
+        const before = cookie;
+        await seedUnclaimed();
+        expect((await bare('/ui/setup', before)).headers.get('set-cookie')).toBeNull();
+    });
+
+    it('ends the session when config.yaml changes the password by hand and is reloaded', async () => {
+        await seedWithClock();
+        const text = await readFile(join(dir, 'config.yaml'), 'utf8');
+        await writeFile(join(dir, 'config.yaml'), text.replace(PASSWORD_HASH, await hashPassword('another-password-1')), 'utf8');
+        await runtime.reload();
+        expect((await call('/ui/config')).headers.get('location')).toBe('/ui/login');
+    });
+});
+
 describe('access control', () => {
     it('sends an anonymous visitor to the login page', async () => {
         cookie = '';
