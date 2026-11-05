@@ -29,7 +29,9 @@ import type { WriteTier } from './core/permissions.ts';
 import { registerAllTools, type ToolContext } from './tools/register.ts';
 import { apiJsonBody } from './api/body.ts';
 import { registerApiRoutes } from './api/index.ts';
+import { WebhookEvents } from './core/webhookEvents.ts';
 import { originOf, registerWebRoutes } from './web/routes.ts';
+import { registerWebhookRoutes } from './web/webhooks.ts';
 
 const NAME = 'arr-mcp';
 const VERSION = process.env.ARR_MCP_VERSION ?? '0.0.0-dev';
@@ -40,6 +42,9 @@ const VERSION = process.env.ARR_MCP_VERSION ?? '0.0.0-dev';
  * a problem that is never actually this.
  */
 export const MAX_BODY_BYTES = 4 * 1024 * 1024;
+
+/** The largest captured payload is under 5 KiB. */
+export const MAX_WEBHOOK_BODY_BYTES = 256 * 1024;
 
 /**
  * An hour, for every list the SDK builds itself.
@@ -140,7 +145,7 @@ function cappedTools(tools: ToolContext, oauth: OAuthConfig | undefined, authInf
     };
 }
 
-export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogStore }) {
+export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogStore; events?: WebhookEvents }) {
     const { runtime, audit, logs } = opts;
 
     // The factory runs once per request, so every call gets a fresh McpServer.
@@ -249,9 +254,19 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
                 )
         })
     );
-    // The API answers its own malformed bodies in its own `{message}` shape.
+    // A webhook is a few kilobytes and has a secret instead of a session, so it gets
+    // less room than a config form. Nested inside the limit above.
+    app.use(
+        '/webhooks/*',
+        bodyLimit({ maxSize: MAX_WEBHOOK_BODY_BYTES, onError: c => c.text('the body is too large', 413) })
+    );
+    // The API answers its own malformed bodies in its own `{message}` shape, and a
+    // webhook in plain text, since an *arr is not speaking JSON-RPC.
     app.use('/api/*', apiJsonBody);
-    app.use('*', (c: Context, next: Next) => (c.req.path.startsWith('/api/') ? next() : claimJsonBody(c, next)));
+    app.use('/webhooks/*', apiJsonBody);
+    app.use('*', (c: Context, next: Next) =>
+        c.req.path.startsWith('/api/') || c.req.path.startsWith('/webhooks/') ? next() : claimJsonBody(c, next)
+    );
     app.route('/', transport);
 
     // Ahead of the Host allowlist on purpose: the container probes
@@ -346,6 +361,8 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
         });
     }
 
+    // After the Host allowlist, like everything else but /healthz.
+    registerWebhookRoutes(app, { runtime, events: opts.events ?? WebhookEvents.ephemeral() });
     registerWebRoutes(app, { runtime, audit, logs, version: VERSION });
     registerApiRoutes(app, { runtime, logs, version: VERSION });
 

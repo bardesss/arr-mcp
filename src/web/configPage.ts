@@ -11,6 +11,7 @@ import {
 } from '../config/schema.ts';
 import type { StoredManagementKey } from '../core/managementKey.ts';
 import { fingerprint, isExpired, type StoredToken } from '../core/mcpTokens.ts';
+import { WEBHOOK_SERVICES, WEBHOOK_USERNAME } from '../services/arrWebhook.ts';
 import type { ConnectionDiagnosis } from '../services/types.ts';
 import { withoutCredentials } from '../tools/stackHealth.ts';
 import { html, raw, type SafeHtml } from './html.ts';
@@ -688,6 +689,56 @@ function oauthCard(config: Config, keys: SafeHtml, state: OAuthCardState): SafeH
     </form>`;
 }
 
+/**
+ * The opt-in for the event log, and what to paste into each service once it is on.
+ *
+ * Paths rather than full addresses: what an *arr has to use is however it reaches
+ * this server, which in Docker is usually not the host name in this browser.
+ */
+function webhooksCard(config: Config, keys: SafeHtml): SafeHtml {
+    const webhooks = config.webhooks;
+    const targets = listInstances(config).filter(i => Object.hasOwn(WEBHOOK_SERVICES, i.type));
+
+    return html`<form method="post" action="/ui/config/webhooks" class="panel" ${IGNORE_FORM}>
+        ${keys}
+        <h3 style="margin:0 0 .75rem">Library event log</h3>
+        ${checkbox('webhooks.enabled', 'webhooks.enabled', 'Keep a log of library events', webhooks?.enabled === true)}
+        <p class="note">
+            Keeps a log of what Radarr and Sonarr report: grabs, imports, renames and deletes. The services
+            lose a title's history when it's deleted, so this is how arr-mcp can still tell you
+            what happened to it. Off by default, and it needs a webhook connection in each service.
+        </p>
+        ${field({
+            id: 'webhooks.retention_days',
+            name: 'webhooks.retention_days',
+            label: 'Keep events for (days)',
+            type: 'number',
+            value: webhooks?.retention_days ?? 30
+        })}
+        ${webhooks?.enabled === true && webhooks.secret !== undefined
+            ? html`<p class="note">
+                      In each service, go to Settings, Connect, and add a Webhook using the POST method, with
+                      the address arr-mcp has on that service's network followed by the path below.
+                  </p>
+                  ${targets.length === 0
+                      ? html`<p class="note">Add a Radarr or Sonarr instance first.</p>`
+                      : html`<ul class="note">
+                            ${targets.map(i => html`<li>${i.id}: <span class="mono">/webhooks/${i.id}</span></li>`)}
+                        </ul>`}
+                  <p class="note">Username: <span class="mono">${WEBHOOK_USERNAME}</span></p>
+                  <div class="field">
+                      <label for="webhooks.secret">Password</label>
+                      <input id="webhooks.secret" class="secret" type="text" readonly value="${webhooks.secret}" ${IGNORE}>
+                  </div>
+                  ${checkbox('webhooks.new_secret', 'webhooks.new_secret', 'Replace this password on save', false)}
+                  <p class="note">The old one stops working at once, so every service needs the new one.</p>`
+            : raw('')}
+        <div class="row" style="margin-top:1rem">
+            <button type="submit">Save event log settings</button>
+        </div>
+    </form>`;
+}
+
 export function configPage(opts: {
     version: string;
     config: Config;
@@ -855,6 +906,8 @@ export function configPage(opts: {
                 <button type="submit">Save IMDb settings</button>
             </div>
         </form>
+
+        ${webhooksCard(opts.config, keys)}
 
         <div class="panel">
             <h3 id="tokens" style="margin:0 0 .75rem">MCP tokens</h3>

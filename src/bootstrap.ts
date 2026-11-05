@@ -6,6 +6,7 @@ import { logger } from './core/logger.ts';
 import type { LogStore } from './core/logs.ts';
 import { Runtime } from './core/runtime.ts';
 import type { Sessions } from './core/session.ts';
+import type { WebhookEvents } from './core/webhookEvents.ts';
 import { startRefresh } from './metadata/refresh.ts';
 import { buildRepairApp } from './repair.ts';
 import type { PromoteResult } from './repair.ts';
@@ -14,6 +15,7 @@ export type BootstrapDeps = {
     configDir: string;
     audit: WriteAudit;
     logs: LogStore;
+    events?: WebhookEvents;
     sessions: Sessions;
     version: string;
     port: number;
@@ -34,7 +36,7 @@ export type Booted = {
  * a repaired instance goes on serving the repair page forever.
  */
 export async function bootstrap(deps: BootstrapDeps): Promise<Booted> {
-    const { configDir, audit, logs, sessions, version, port } = deps;
+    const { configDir, audit, logs, events, sessions, version, port } = deps;
     let app: Hono;
 
     const startNormally = async (): Promise<Hono> => {
@@ -63,7 +65,7 @@ export async function bootstrap(deps: BootstrapDeps): Promise<Booted> {
             );
         }
 
-        return buildApp({ runtime, audit, logs });
+        return buildApp({ runtime, audit, logs, ...(events === undefined ? {} : { events }) });
     };
 
     const doPromote = async (): Promise<PromoteResult> => {

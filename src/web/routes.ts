@@ -22,6 +22,7 @@ import {
     SESSION_TTL_MS,
     verifyPassword
 } from '../core/session.ts';
+import { randomBytes } from 'node:crypto';
 import { buildAdapters } from '../services/registry.ts';
 import { hasUserDirectory } from '../services/types.ts';
 import { buildStackHealth } from '../tools/stackHealth.ts';
@@ -615,6 +616,11 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     );
 
     app.post(
+        '/ui/config/webhooks',
+        configMutation('Library event log settings saved.', form => buildWebhooksConfig(runtime.config, form))
+    );
+
+    app.post(
         '/ui/config/mcp',
         configMutation('MCP endpoint settings saved.', form => buildMcpConfig(runtime.config, form))
     );
@@ -1015,6 +1021,30 @@ export async function buildAccountConfig(current: Config, form: Record<string, u
  */
 export function buildImdbConfig(current: Config, form: Record<string, unknown>): Config {
     return setImdb(current, on(form['metadata.imdb']));
+}
+
+/**
+ * The library event log. Owns `webhooks` and nothing else.
+ *
+ * Turning it off keeps the secret, so turning it back on does not mean pasting a
+ * new one into every service. Off on an instance that never used it writes
+ * nothing, the same rule the IMDb card follows.
+ */
+export function buildWebhooksConfig(current: Config, form: Record<string, unknown>): Config {
+    const { webhooks: existing, ...rest } = current;
+    const enabled = on(form['webhooks.enabled']);
+    if (!enabled && existing === undefined) return rest;
+
+    const retention = Number(str(form['webhooks.retention_days']));
+    if (!Number.isInteger(retention) || retention < 1 || retention > 3650) {
+        throw new Error('Keep events for must be a whole number of days, from 1 to 3650.');
+    }
+
+    const replace = str(form['webhooks.new_secret']) !== '';
+    const secret =
+        replace || (enabled && existing?.secret === undefined) ? randomBytes(32).toString('base64url') : existing?.secret;
+
+    return { ...rest, webhooks: { enabled, retention_days: retention, ...(secret === undefined ? {} : { secret }) } };
 }
 
 /**
