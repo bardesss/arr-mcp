@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.57.2](https://github.com/bardesss/arr-mcp/compare/v1.57.1...v1.57.2) (2026-11-05)
+
+
+### Bug Fixes
+
+* say that trigger_scan syncs indexers on Prowlarr ([#456](https://github.com/bardesss/arr-mcp/issues/456)) ([3f7ddfe](https://github.com/bardesss/arr-mcp/commit/3f7ddfe269e18b89f3de4e2193e911131d8818d2))
+
 ## [1.57.1](https://github.com/bardesss/arr-mcp/compare/v1.57.0...v1.57.1) (2026-11-05)
 
 
