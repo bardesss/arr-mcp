@@ -526,6 +526,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                 if ('askRevoke' in result) return render(undefined, 200, { confirmingRevoke: result.askRevoke });
                 if ('askOAuthRemoval' in result) return render(undefined, 200, { oauth: { confirmingRemoval: true } });
                 if ('askKeyRevoke' in result) return render(undefined, 200, { confirmingKeyRevoke: result.askKeyRevoke });
+                if ('askNewSecret' in result) return render(undefined, 200, { confirmingNewSecret: true });
                 if ('revealKey' in result) {
                     updated = result.config;
                     revealKey = result.revealKey;
@@ -642,7 +643,11 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
 
     app.post(
         '/ui/config/webhooks',
-        configMutation('Library event log settings saved.', form => buildWebhooksConfig(runtime.config, form))
+        configMutation('Library event log settings saved.', form => {
+            // A new password cuts off every connected service, so it asks like a removal does.
+            if (str(form['webhooks.new_secret']) !== '' && str(form.confirm) !== 'yes') return { askNewSecret: true };
+            return buildWebhooksConfig(runtime.config, form);
+        })
     );
 
     app.post(
@@ -854,7 +859,8 @@ type MutationResult =
     | { askOAuthRemoval: true }
     | { config: Config; reveal: string; revealName: string }
     | { config: Config; revealKey: string }
-    | { askKeyRevoke: string };
+    | { askKeyRevoke: string }
+    | { askNewSecret: true };
 
 const CACHE = { 'cache-control': 'public, max-age=3600' };
 const NO_STORE = { 'cache-control': 'no-store' };

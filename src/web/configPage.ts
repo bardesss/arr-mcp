@@ -689,13 +689,25 @@ function oauthCard(config: Config, keys: SafeHtml, state: OAuthCardState): SafeH
     </form>`;
 }
 
+/** The slash appears while the secret is showing. See `[data-reveal]` in the stylesheet. */
+const EYE = raw(
+    '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+        '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>' +
+        '<line class="eye-slash" x1="3" y1="3" x2="21" y2="21"/></svg>'
+);
+
+const REGENERATE = raw(
+    '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+        '<path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg>'
+);
+
 /**
  * The opt-in for the event log, and what to paste into each service once it is on.
  *
  * Paths rather than full addresses: what an *arr has to use is however it reaches
  * this server, which in Docker is usually not the host name in this browser.
  */
-function webhooksCard(config: Config, keys: SafeHtml): SafeHtml {
+function webhooksCard(config: Config, keys: SafeHtml, confirmingNewSecret: boolean): SafeHtml {
     const webhooks = config.webhooks;
     const targets = listInstances(config).filter(i => Object.hasOwn(WEBHOOK_SERVICES, i.type));
 
@@ -728,15 +740,53 @@ function webhooksCard(config: Config, keys: SafeHtml): SafeHtml {
                   <p class="note">Username: <span class="mono">${WEBHOOK_USERNAME}</span></p>
                   <div class="field">
                       <label for="webhooks.secret">Password</label>
-                      <input id="webhooks.secret" class="secret" type="text" readonly value="${webhooks.secret}" ${IGNORE}>
-                  </div>
-                  ${checkbox('webhooks.new_secret', 'webhooks.new_secret', 'Replace this password on save', false)}
-                  <p class="note">The old one stops working at once, so every service needs the new one.</p>`
+                      <div class="token">
+                          <input id="webhooks.secret" class="secret" type="text" readonly value="${webhooks.secret}" ${IGNORE}>
+                          <button
+                              class="ghost"
+                              type="button"
+                              data-icon
+                              data-reveal="webhooks.secret"
+                              data-what="password"
+                              aria-pressed="false"
+                              aria-label="Show password"
+                              title="Show password"
+                          >${EYE}</button>
+                          <button
+                              class="ghost"
+                              type="submit"
+                              form="webhooks-new-secret"
+                              data-icon
+                              aria-label="Generate a new password"
+                              title="Generate a new password"
+                          >${REGENERATE}</button>
+                      </div>
+                      ${confirmingNewSecret
+                          ? html`<button type="submit" form="webhooks-new-secret" name="confirm" value="yes" class="ghost">
+                                    Yes, replace the password
+                                </button>
+                                <p class="note" style="margin-top:.5rem">
+                                    The old one stops working at once, so every service will need the new one.
+                                    Save or reload to cancel.
+                                </p>`
+                          : raw('')}
+                  </div>`
             : raw('')}
         <div class="row" style="margin-top:1rem">
             <button type="submit">Save event log settings</button>
         </div>
-    </form>`;
+    </form>
+    ${webhooks?.enabled === true && webhooks.secret !== undefined
+        ? // A form of its own, reached through the button's `form` attribute. Inside the
+          // card's form it would be that form's first submit button, which is the one
+          // Enter presses, so Enter in the days field would replace the password.
+          html`<form id="webhooks-new-secret" method="post" action="/ui/config/webhooks#webhooks" hidden ${IGNORE_FORM}>
+              ${keys}
+              <input type="hidden" name="webhooks.enabled" value="on">
+              <input type="hidden" name="webhooks.retention_days" value="${webhooks.retention_days}">
+              <input type="hidden" name="webhooks.new_secret" value="1">
+          </form>`
+        : raw('')}`;
 }
 
 export function configPage(opts: {
@@ -768,6 +818,8 @@ export function configPage(opts: {
     /** A key just generated: shown in this one response only. */
     revealedKey?: { key: string; apiUrl: string | undefined } | undefined;
     confirmingKeyRevoke?: string | undefined;
+    /** The event log's new-password button was pressed but not yet confirmed. */
+    confirmingNewSecret?: boolean;
     plaintextOnDisk?: readonly string[];
     now?: Date;
     /** What the last OAuth post left for its card: a result, a pending
@@ -907,7 +959,7 @@ export function configPage(opts: {
             </div>
         </form>
 
-        ${webhooksCard(opts.config, keys)}
+        ${webhooksCard(opts.config, keys, opts.confirmingNewSecret === true)}
 
         <div class="panel">
             <h3 id="tokens" style="margin:0 0 .75rem">MCP tokens</h3>
