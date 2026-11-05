@@ -870,6 +870,11 @@ own id for that grab. It is what `trigger_scan`'s `import` action takes, and
 it is the link between "this is stuck at `importBlocked`" and doing something
 about it.
 
+Radarr, Sonarr and Lidarr rows also carry `mediaId`, the *arr's own id for the
+movie, series or artist the grab is for, and an orphaned row has none. `diagnose`
+matches a row to a title by that id first, and falls back to the release name
+only when a row has none or comes from another instance.
+
 Lidarr rows carry `statusMessages` the same way, and `orphaned` when the
 artist they were grabbed for has been deleted.
 

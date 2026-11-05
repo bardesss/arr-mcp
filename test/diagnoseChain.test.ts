@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { fenceText } from '../src/core/fence.ts';
 import type { FilmOrSeries, MergedItem } from '../src/core/resolver.ts';
 import { NzbgetAdapter } from '../src/services/nzbget.ts';
-import type { HistoryEntry } from '../src/services/types.ts';
-import { buildChain, releaseMentions, type Evidence } from '../src/tools/diagnose/chain.ts';
+import type { HistoryEntry, QueueItem } from '../src/services/types.ts';
+import { buildChain, queueRowsFor, releaseMentions, type Evidence } from '../src/tools/diagnose/chain.ts';
 
 /**
  * Unlike `Partial<MergedItem>`, this lets a caller override a field to
@@ -1666,5 +1666,37 @@ describe('buildChain — Reclaimerr', () => {
     it('warns before a search when Reclaimerr could not be read', () => {
         const step = stepFor(buildChain('some film', healthy({ item: noFile, cleanup: undefined, cleanupUnread: 'reclaimerr' })), 'file');
         expect(step?.detail).toContain('reclaimerr could not be read');
+    });
+});
+
+describe('queueRowsFor', () => {
+    const film = item({ title: fence('Alien'), year: 1979, acquisition: { service: 'radarr', id: '5', monitored: true, hasFile: false } });
+    const row = (over: Partial<QueueItem>): QueueItem => ({ service: 'radarr', id: '1', title: queueTitle('radarr', 'Alien.1979.1080p'), status: 'downloading', ...over });
+
+    it('takes a row whose id matches, whatever the release is called', () => {
+        const renamed = row({ mediaId: '5', title: queueTitle('radarr', 'Le.Huitieme.Passager.1979') });
+        expect(queueRowsFor([renamed], film)).toEqual([renamed]);
+    });
+    it('rejects a row claimed by another film, even when the title matches', () => {
+        expect(queueRowsFor([row({ mediaId: '7' })], film)).toEqual([]);
+    });
+    it('follows a client row to the *arr row sharing its download id', () => {
+        const arr = row({ mediaId: '5', downloadId: 'ABC', title: queueTitle('radarr', 'Le.Huitieme.Passager.1979') });
+        const client = row({ service: 'sabnzbd', id: '9', downloadId: 'abc', title: queueTitle('sabnzbd', 'Le.Huitieme.Passager.1979') });
+        expect(queueRowsFor([arr, client], film)).toEqual([arr, client]);
+    });
+    it('drops a client row whose *arr row belongs to another film', () => {
+        const arr = row({ mediaId: '7', downloadId: 'abc' });
+        const client = row({ service: 'sabnzbd', id: '9', downloadId: 'ABC' });
+        expect(queueRowsFor([arr, client], film)).toEqual([]);
+    });
+    it('compares ids only within one instance, and uses the title across instances', () => {
+        const other = row({ service: 'radarr/4k', mediaId: '5', title: queueTitle('radarr', 'Unrelated.Film.2020') });
+        const same = row({ service: 'radarr/4k', mediaId: '99' });
+        expect(queueRowsFor([other, same], film)).toEqual([same]);
+    });
+    it('falls back to the title for a row with no id and for an orphan', () => {
+        const orphan = row({ orphaned: true });
+        expect(queueRowsFor([orphan], film)).toEqual([orphan]);
     });
 });
