@@ -252,7 +252,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
     // Lidarr cannot leave its queue "only partially known"; an artist is read
     // against Lidarr's alone, and `queueRowsFor` counts a client row for it only
     // through a Lidarr row's download id, so a film's grab is never its own.
-    const queueKinds: readonly LibraryKind[] = isArtist ? ['artist'] : ['movie', 'series'];
+    const queueKinds: readonly (LibraryKind | 'book')[] = isArtist ? ['artist'] : ['movie', 'series'];
     const queueAdapters = deps.adapters
         .filter(hasQueue)
         .filter(a => a.queueKind === undefined || queueKinds.includes(a.queueKind));
