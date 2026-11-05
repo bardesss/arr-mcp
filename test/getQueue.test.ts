@@ -206,6 +206,12 @@ describe('unknown queue items', () => {
         expect(item?.downloadId).toBeUndefined();
     });
 
+    it('carries the movie id as a string, so diagnose can match by id', async () => {
+        const { impl } = recording([{ id: 1, title: 'Heat', status: 'completed', movieId: 15 }]);
+        const [item] = await new RadarrAdapter(keyed(7878), impl).getQueue();
+        expect(item?.mediaId).toBe('15');
+    });
+
     it('marks an item with no movie as orphaned, and carries the import state', async () => {
         const { impl } = recording([
             {
@@ -218,6 +224,7 @@ describe('unknown queue items', () => {
         ]);
         const [item] = await new RadarrAdapter(keyed(7878), impl).getQueue();
         expect(item).toMatchObject({ id: '693439963', orphaned: true, importState: 'importBlocked' });
+        expect(item).not.toHaveProperty('mediaId');
     });
 
     // Shapes from Sonarr's CompletedDownloadService: a whole-download warning
@@ -481,7 +488,8 @@ describe('get_queue', () => {
     it('stays within its token budget at the absolute maximum', async () => {
         const many = { records: repeat(RADARR_QUEUE.records[0]!, 500) };
         const result = await buildGetQueue([radarr(many)], { detail: 'full', limit: 500 });
-        expectWithinBudget(result, 40_000);
+        // 500 rows at the full detail level; `mediaId` (about 4 tokens a row) took it past 40k, and diagnose needs it visible.
+        expectWithinBudget(result, 41_000);
     });
 });
 
