@@ -233,9 +233,18 @@ export const releaseMentions = (haystack: string, query: string): boolean => {
 /** Releases named in the summary; the rest are in `history`. */
 const HISTORY_RELEASES_SHOWN = 3;
 
+/** How a delete an *arr reported to the event log is worded, by its webhook event name. */
+const REPORTED_DELETE: Record<string, string> = {
+    MovieDelete: 'deleting',
+    SeriesDelete: 'deleting',
+    MovieFileDelete: 'deleting the file of',
+    EpisodeFileDelete: 'deleting the file of'
+};
+
 /**
  * One sentence per release for the history fallback. Cleanuparr removing or
- * stopping it is the answer when it did; a client's own outcome otherwise.
+ * stopping it is the answer when it did; a client's own outcome otherwise. A
+ * delete the *arr reported comes next, because that is why it has no record.
  */
 function releaseSentence(rows: readonly HistoryEntry[]): { row: HistoryEntry; said: string } {
     const removals = rows.filter(e => e.service === 'cleanuparr' && (e.event === 'deleted' || e.event === 'stopped'));
@@ -251,6 +260,11 @@ function releaseSentence(rows: readonly HistoryEntry[]): { row: HistoryEntry; sa
                 ? `Cleanuparr would have ${verb} ${acted.title} on ${acted.at.slice(0, 10)}${why} (dry run, nothing was done).`
                 : `Cleanuparr ${verb} ${acted.title} on ${acted.at.slice(0, 10)}${why}${strikes}.`;
         return { row: acted, said };
+    }
+    const reported = rows.find(e => e.rawEvent !== undefined && Object.hasOwn(REPORTED_DELETE, e.rawEvent));
+    if (reported !== undefined) {
+        const why = reported.reason === undefined ? '' : `: ${reported.reason}`;
+        return { row: reported, said: `${reported.service} reported ${REPORTED_DELETE[reported.rawEvent as string]} ${reported.title} on ${reported.at.slice(0, 10)}${why}.` };
     }
     const row = rows[0] as HistoryEntry;
     if (row.service === 'cleanuparr' && row.event === 'strike') {
@@ -951,7 +965,10 @@ export function buildChain(query: string, ev: Evidence, byWords: boolean): Diagn
                 remedy:
                     releases.length === 0
                         ? (REMEDIES.resolve as string)
-                        : 'Nothing manages it now, so nothing will grab it again. If you still want it, find it with lookup_media and add it with add_media; get_history shows the full trail.',
+                        : `Nothing manages it now, so nothing will grab it again. If you still want it, find it with lookup_media and add it with add_media; get_history${
+                              // Only a stored event has these, and the default source would not show it.
+                              (ev.history ?? []).some(r => r.externalIds !== undefined) ? ' with source: "webhooks"' : ''
+                          } shows the full trail.`,
                 // Not knowing about it and not being able to look are different
                 // answers, and a degraded library service means the second —
                 // whether the library read itself failed or a diagnose probe did.

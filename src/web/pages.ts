@@ -3,7 +3,8 @@ import { BEARER_CALLER, BEARER_CALLER_PREFIX, NO_CLIENT_ID, OAUTH_CALLER_PREFIX,
 import { logFields, type LogRow } from '../core/logs.ts';
 import { expiringSoon, isExpired, type StoredToken } from '../core/mcpTokens.ts';
 import type { DatasetStatus } from '../metadata/imdbDataset.ts';
-import type { ConnectionDiagnosis, DiskSpace, HealthCheck, ScanState } from '../services/types.ts';
+import { unfenced } from '../core/titleMatch.ts';
+import type { ConnectionDiagnosis, DiskSpace, HealthCheck, HistoryEntry, ScanState, Window } from '../services/types.ts';
 import { esc, html, humanBytes, raw, shortTime, type SafeHtml } from './html.ts';
 import { LOGO, serviceIcon } from './icons.ts';
 
@@ -510,6 +511,89 @@ export const LOG_STREAMS = [
 
 export type LogStreamKey = (typeof LOG_STREAMS)[number]['key'];
 
+/** The event log's tab is not in `LOG_STREAMS`, because those are filters over log lines. */
+const logTabs = (stream: LogStreamKey | 'events', selectedService: string): SafeHtml =>
+    html`<nav style="margin-bottom:.75rem">
+        ${LOG_STREAMS.map(
+            s =>
+                html`<a
+                    href="/ui/logs?stream=${s.key}${s.key === 'service' && selectedService !== ''
+                        ? raw(`&service=${encodeURIComponent(selectedService)}`)
+                        : raw('')}"
+                    class="${s.key === stream ? 'on' : ''}"
+                    >${s.label}</a
+                >`
+        )}
+        <a href="/ui/logs?stream=events" class="${stream === 'events' ? 'on' : ''}">Library events</a>
+    </nav>`;
+
+/**
+ * Stored events rather than log lines, so its own columns and none of the log
+ * tabs' ring-buffer note or auto-refresh. Rendered on the server: `html` escapes
+ * these titles, and they arrive rarely enough that a reload shows what's new.
+ */
+export function eventLogPage(opts: {
+    csrf: string;
+    version: string;
+    enabled: boolean;
+    retentionDays: number | undefined;
+    /** Undefined when the store could not be read. */
+    read: Window<HistoryEntry> | undefined;
+    theme?: Theme | undefined;
+}): string {
+    const rows = opts.read?.items ?? [];
+    const plain = (value: string | undefined): string => (value === undefined ? '' : unfenced(value));
+
+    const status =
+        opts.read === undefined
+            ? html`<div class="msg err">The event log could not be read. The Problems tab has the error.</div>`
+            : !opts.enabled
+              ? html`<p class="note">
+                    The library event log is off, so nothing new is being recorded. Turn it on under
+                    <a href="/ui/config#webhooks">Library event log</a> on the Configuration page.
+                </p>`
+              : rows.length === 0
+                ? html`<p class="note">
+                      Nothing has arrived yet. Each Radarr and Sonarr instance needs a webhook connection, and
+                      <a href="/ui/config#webhooks">the Configuration page</a> has the details.
+                  </p>`
+                : raw('');
+
+    const table =
+        rows.length === 0
+            ? raw('')
+            : html`<div class="scroll">
+                  <table class="stacked">
+                      <thead>
+                          <tr><th>Time</th><th>Event</th><th>Service</th><th>Title</th><th>Details</th></tr>
+                      </thead>
+                      <tbody>
+                          ${rows.map(
+                              r => html`<tr>
+                                  <td class="mono">${shortTime(r.at)}</td>
+                                  <td>${r.event === 'unknown' ? (r.rawEvent ?? r.event) : r.event}</td>
+                                  <td>${r.service}</td>
+                                  <td>${plain(r.title)}</td>
+                                  <td>${[r.quality, r.indexer, r.reason].map(plain).filter(v => v !== '').join(', ')}</td>
+                              </tr>`
+                          )}
+                      </tbody>
+                  </table>
+              </div>`;
+
+    const body = html`<h2>Logs</h2>
+        ${logTabs('events', '')}
+        <p class="note">
+            What Radarr and Sonarr reported${opts.retentionDays === undefined ? raw('') : html`, kept for ${opts.retentionDays} days`}.
+            A title's history goes from the service when the title is deleted, and this stays.
+            ${(opts.read?.total ?? 0) > rows.length ? html`Showing the latest ${rows.length} of ${opts.read?.total ?? 0}.` : raw('')}
+        </p>
+        ${status}
+        ${table}`;
+
+    return layout({ title: 'Logs', nav: 'logs', csrf: opts.csrf, version: opts.version, body, theme: opts.theme });
+}
+
 export function logsPage(opts: {
     csrf: string;
     version: string;
@@ -522,18 +606,7 @@ export function logsPage(opts: {
 }): string {
     const active = LOG_STREAMS.find(s => s.key === opts.stream) ?? LOG_STREAMS[0];
 
-    const tabs = html`<nav style="margin-bottom:.75rem">
-        ${LOG_STREAMS.map(
-            s =>
-                html`<a
-                    href="/ui/logs?stream=${s.key}${s.key === 'service' && opts.selectedService !== ''
-                        ? raw(`&service=${encodeURIComponent(opts.selectedService)}`)
-                        : raw('')}"
-                    class="${s.key === opts.stream ? 'on' : ''}"
-                    >${s.label}</a
-                >`
-        )}
-    </nav>`;
+    const tabs = logTabs(opts.stream, opts.selectedService);
 
     const picker =
         opts.stream !== 'service'

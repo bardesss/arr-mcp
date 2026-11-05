@@ -166,6 +166,32 @@ unpaginable, never having learned that `limit` was the parameter it wanted.
 
 [#103]: https://github.com/bardesss/arr-mcp/issues/103
 
+## `get_history` and the event log
+
+`delete_media` removes a title's history from Radarr or Sonarr along with the
+title. With `source: "webhooks"`, `get_history` reads the events those services
+reported to arr-mcp instead, so this is the only record that survives a delete.
+It needs the [library event log](configuration.md#the-library-event-log) turned
+on, and it holds nothing from before that.
+
+`service`, `instance`, `id`, `event_type`, `since` and paging work as they do
+for the default `source: "services"`, which never includes stored rows. A service
+other than Radarr or Sonarr is refused. `note` says when the log is off or when
+nothing has arrived, and an unreadable store is `event-log` in `degraded`.
+
+A stored row differs from a service's own row in a few ways:
+
+- `at` is when arr-mcp received the event, because the payload has no timestamp.
+- `id` is arr-mcp's own row number.
+- `externalIds` holds TMDB, TVDB and IMDb ids. A re-added title gets a new
+  `mediaId`, and these stay the same.
+- `added` is a new `event`, and events without a captured payload are `unknown`
+  with their name in `rawEvent`, at every detail level.
+- `reason` is why a file went (`manual`), or for a deleted title whether its files
+  went too (`files deleted`, `files kept`).
+
+The Logs page shows the same rows under **Library events**.
+
 ## `diagnose`
 
 It walks the whole chain — requested, managed, monitored, downloaded, indexed,
@@ -214,6 +240,13 @@ releases, for example "Cleanuparr removed … on 2026-10-27: MaxSeedTimeReached,
 after 3 strikes." `history` holds the row behind each one. Nothing matching
 leaves today's answer, and a history source that could not be read sets
 `certain: false`. A query that resolves never triggers this read.
+
+With the [library event log](configuration.md#the-library-event-log) on, that
+search covers its last 30 days too, which is how `diagnose` can explain a title
+deleted from Radarr or Sonarr, since deleting it removes its history from the
+service. The summary says, for example, "radarr reported deleting … on
+2026-11-05: files deleted." It doesn't say who deleted it, because the payload
+doesn't. The store can't be read: `event-log` in `degraded` and `certain: false`.
 
 With Reclaimerr configured, `diagnose` looks the title up there by its TMDB id.
 When the managing *arr has no file and Reclaimerr deleted or moved the whole

@@ -24,7 +24,7 @@ import { registerDiscoverMedia } from './discoverMedia.ts';
 import { registerFixMetadata } from './fixMetadata.ts';
 import { registerGetBlocklist } from './getBlocklist.ts';
 import { registerGetCalendar } from './getCalendar.ts';
-import { registerGetHistory } from './getHistory.ts';
+import { registerGetHistory, type EventLog } from './getHistory.ts';
 import { registerGetIndexers } from './getIndexers.ts';
 import { registerGetLibrary } from './getLibrary.ts';
 import { registerGetMediaDetails } from './getMediaDetails.ts';
@@ -80,6 +80,8 @@ export type ToolContext = {
      * rating is usually wanted before deciding to add something.
      */
     dataset: ImdbDataset | undefined;
+    /** Added per request by the app, which owns the store and reads the setting from the current config. */
+    eventLog?: EventLog;
     /** Every configured instance, as the config declares it — the source the
      *  write gate reads, so `stack_health` cannot report a different answer. */
     instances: readonly ServiceInstance[];
@@ -172,13 +174,14 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
         adapters,
         library,
         ...(seerrIdentity === undefined ? {} : { seerrIdentity }),
-        ...(primary === undefined ? {} : { primaryMediaServer: primary })
+        ...(primary === undefined ? {} : { primaryMediaServer: primary }),
+        ...(context.eventLog === undefined ? {} : { events: context.eventLog.store })
     });
     registerStackHealth(server, adapters, instances, primary);
     registerGetIndexers(server, adapters.filter(hasIndexers));
     registerGetSubtitles(server, adapters.filter(hasSubtitles));
     registerGetQueue(server, adapters);
-    registerGetHistory(server, adapters);
+    registerGetHistory(server, adapters, context.eventLog);
     registerGetWanted(server, adapters);
     registerGetReleases(server, adapters);
     registerGetBlocklist(server, adapters);

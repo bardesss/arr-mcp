@@ -42,9 +42,12 @@ import type { ExpiryChoice, TokenTier } from '../core/mcpTokens.ts';
 import { configPage, type OAuthDraft } from './configPage.ts';
 import { probeJwks } from './jwksProbe.ts';
 import { apiEndpoint, mcpEndpoint, sameOrigin } from './origin.ts';
+import type { WebhookEvents } from '../core/webhookEvents.ts';
+import type { HistoryEntry, Window } from '../services/types.ts';
 import {
     auditPage,
     dashboardPage,
+    eventLogPage,
     loginPage,
     logsPage,
     setupPage,
@@ -52,11 +55,14 @@ import {
     type LogStreamKey
 } from './pages.ts';
 
+/** Same as the log tabs. */
+const EVENT_ROWS_SHOWN = 300;
+
 /** Length only, no character-class rules: the classes push people towards
  *  `Password1!` and buy nothing a longer passphrase does not. */
 const MIN_PASSWORD = 12;
 
-export type WebDeps = { runtime: Runtime; audit: WriteAudit; logs: LogStore; version: string };
+export type WebDeps = { runtime: Runtime; audit: WriteAudit; logs: LogStore; events: WebhookEvents; version: string };
 
 /**
  * The config UI: a dashboard, connection tests that diagnose
@@ -67,7 +73,7 @@ export type WebDeps = { runtime: Runtime; audit: WriteAudit; logs: LogStore; ver
  * stream and copies a freshly created token.
  */
 export function registerWebRoutes(app: Hono, deps: WebDeps): void {
-    const { runtime, audit, logs, version } = deps;
+    const { runtime, audit, logs, events, version } = deps;
 
     // --- assets ---------------------------------------------------------
     //
@@ -290,6 +296,25 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         const session = guard(c);
         if (session === undefined) return c.redirect(entry(), 302);
         c.header('cache-control', 'no-store');
+
+        if (c.req.query('stream') === 'events') {
+            let read: Window<HistoryEntry> | undefined;
+            try {
+                read = events.read({ want: EVENT_ROWS_SHOWN });
+            } catch (err) {
+                logger.warn({ err }, 'could not read the library event log');
+            }
+            return c.html(
+                eventLogPage({
+                    csrf: runtime.sessions.csrfFor(session),
+                    theme: theme(),
+                    version,
+                    enabled: runtime.config.webhooks?.enabled === true,
+                    retentionDays: runtime.config.webhooks?.retention_days,
+                    read
+                })
+            );
+        }
 
         const { stream, minLevel, service } = logQuery(c, logs);
         const url = `/ui/logs.json?stream=${stream}&service=${encodeURIComponent(service ?? '')}`;
