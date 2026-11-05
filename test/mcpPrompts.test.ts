@@ -1,6 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/server';
 import { describe, expect, it } from 'vitest';
 import { registerAllPrompts } from '../src/mcp/prompts.ts';
+import { TOOL_NAMES } from '../src/tools/register.ts';
 
 /**
  * Prompts, read out of a real registration. What matters is not that the text
@@ -35,28 +36,9 @@ const MINIMUM_ARGS: Record<string, Record<string, unknown>> = { why_not_playable
 
 const allTexts = (): Promise<string[]> => Promise.all(ALL.map(name => textOf(name, MINIMUM_ARGS[name] ?? {})));
 
-/** Everything registerAllTools registers, as of 0.9. */
-const TOOLS = new Set([
-    'diagnose',
-    'stack_health',
-    'search_media',
-    'get_media_details',
-    'get_library',
-    'get_queue',
-    'get_calendar',
-    'get_subtitles',
-    'get_playback',
-    'get_indexers',
-    'get_requests',
-    'lookup_media',
-    'discover_media',
-    'trigger_search',
-    'remove_queue_item',
-    'delete_media',
-    'respond_to_request',
-    'delete_request',
-    'add_media'
-]);
+/** Everything registerAllTools registers. Read from the frozen list rather than
+ *  copied, so a tool added later does not make this test start failing. */
+const TOOLS = new Set<string>(TOOL_NAMES);
 
 /** Backticked identifiers in prompt text that are parameters, not tools. */
 const NOT_TOOLS = new Set([
@@ -130,15 +112,27 @@ describe('never instructing a write', () => {
 });
 
 /**
- * The two things this server genuinely cannot do. A prompt that stayed silent
- * about them invites the model to hallucinate a tool for each.
+ * The thing this server genuinely cannot do. A prompt that stayed silent about
+ * it invites the model to hallucinate a tool for it.
  */
 describe('being honest about what it cannot reach', () => {
     it('says the write audit is not a tool', async () => {
         expect(await textOf('whats_wrong')).toContain('/ui/audit');
     });
 
-    it('says nothing can trigger a library scan', async () => {
-        expect(await textOf('whats_wrong')).toMatch(/no tool that triggers a library scan/i);
+    it('offers trigger_scan for a stale scan rather than sending the user elsewhere', async () => {
+        const text = await textOf('whats_wrong');
+        expect(text).not.toMatch(/no tool that triggers a library scan/i);
+        expect(text).toMatch(/offer `trigger_scan`/i);
+    });
+
+    it('reads what finished from history, with a computed since', async () => {
+        const text = await textOf('whats_new', { days: '3' });
+        expect(text).toMatch(/`get_history`[^\n]*`since: "\d{4}-\d{2}-\d{2}T/);
+        expect(text).not.toMatch(/`get_queue`[^\n]*what finished/i);
+    });
+
+    it('falls back to seven days on a days value that is not a positive number', async () => {
+        expect(await textOf('whats_new', { days: 'soon' })).toContain('last 7 days');
     });
 });

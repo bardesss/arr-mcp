@@ -7,7 +7,7 @@ import * as z from 'zod/v4';
  * **A prompt orchestrates tools and adds no capability.** That is what makes
  * this phase safe on a client that does not surface prompts: every sequence
  * below is one the model could have assembled itself, so what is lost is
- * discoverability, never reach. Nineteen tool names and no indication of which
+ * discoverability, never reach. Forty tool names and no indication of which
  * question to ask is the problem this solves.
  *
  * **No prompt may instruct a write.** It may *offer* one. Write tools preview
@@ -60,7 +60,7 @@ Answer with the cause and the next action, not a transcript of the checks.`
                 `Sweep the stack and tell me what needs me. In order:
 
 1. \`stack_health\` — unreachable services, failing health checks, disks running out, libraries that have not been scanned recently.
-2. \`get_queue\` — anything stalled, failed, or sitting at 0% across all four download paths.
+2. \`get_queue\` — anything stalled, failed, or sitting at 0% across every download client.
 3. \`get_indexers\` — indexers that are unhealthy or recently rejecting.
 4. \`get_subtitles\` — what is missing subtitles, and which providers are throttled.
 
@@ -68,7 +68,7 @@ Then reconcile: a stalled download and an unhealthy indexer are usually one prob
 
 Report only what needs action, most urgent first, with what to do about each. If nothing does, say that in one line — do not pad it with everything that is fine.
 
-Two things you cannot see, so do not claim to: the write audit is not exposed as a tool and lives in the config UI at /ui/audit, and there is no tool that triggers a library scan. If a stale scan is the problem, say it has to be started in Jellyfin.`
+One thing you cannot see, so do not claim to: the write audit is not exposed as a tool and lives in the config UI at /ui/audit. If a stale scan is the problem, offer \`trigger_scan\` and say what it would do.`
             )
     );
 
@@ -124,15 +124,24 @@ For a series, \`rating_source: "imdb"\` is worth naming explicitly — the defau
                 days: z.string().optional().describe('How many days back. Defaults to 7.')
             })
         },
-        ({ days }) =>
-            user(
-                `Summarise the last ${days ?? 7} days.
+        ({ days }) => {
+            // A window the model cannot parse falls back to the default rather
+            // than reaching the text as "last soon days".
+            const parsed = Number(days);
+            const window = Number.isFinite(parsed) && parsed > 0 ? parsed : 7;
+            // get_history compares `since` as a plain string against each
+            // record's own date, so a full ISO timestamp is the right shape.
+            const since = new Date(Date.now() - window * 24 * 60 * 60 * 1000).toISOString();
+            return user(
+                `Summarise the last ${window} days.
 
 1. \`get_library\` with \`sort: "added"\` and a small \`limit\` — what arrived, newest first. Items no *arr manages carry no added date and are left out; that is expected, not an error.
 2. \`get_calendar\` — what aired or is due.
-3. \`get_queue\` — what finished, and what failed.
+3. \`get_history\` with \`since: "${since}"\` — what imported and what failed. A failure carries the download client's own message, so say what it was.
+4. \`get_queue\` — what is still in flight.
 
 Write it as a digest a person would read: counts first, then anything that went wrong. Do not list every episode.`
-            )
+            );
+        }
     );
 }
