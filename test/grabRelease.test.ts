@@ -10,6 +10,7 @@ import { RadarrAdapter } from '../src/services/radarr.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
 import { TransmissionAdapter } from '../src/services/transmission.ts';
 import { registerGrabRelease } from '../src/tools/grabRelease.ts';
+import type { CrossChecker } from '../src/tools/crossChecks.ts';
 import type { LibraryLoader } from '../src/tools/library.ts';
 import type { WriteToolResult } from '../src/tools/write.ts';
 import { jsonResponse } from './helpers/serve.ts';
@@ -50,7 +51,11 @@ type Call = (args: Record<string, unknown>) => Promise<{
 }>;
 
 function harness(
-    opts: { releases?: Record<string, unknown>[]; permissions?: Partial<Record<ServiceId, AnyServiceConfig>> } = {}
+    opts: {
+        releases?: Record<string, unknown>[];
+        permissions?: Partial<Record<ServiceId, AnyServiceConfig>>;
+        crossChecks?: CrossChecker;
+    } = {}
 ) {
     const grabbed: unknown[] = [];
     const searched: string[] = [];
@@ -82,7 +87,8 @@ function harness(
             ),
             confirm: new ConfirmTokens(),
             audit,
-            library: { invalidate: vi.fn() } as unknown as LibraryLoader
+            library: { invalidate: vi.fn() } as unknown as LibraryLoader,
+            ...(opts.crossChecks === undefined ? {} : { crossChecks: opts.crossChecks })
         },
         [new RadarrAdapter(keyed(7878), impl), new SonarrAdapter(keyed(8989), impl)]
     );
@@ -232,7 +238,7 @@ describe('grab_release', () => {
 describe('grab_release with a magnet', () => {
     const MAGNET = 'magnet:?xt=urn:btih:c12fe1c06bba254a9dc9f519b335aa7c1367a88a&dn=Some.Release';
 
-    function clientHarness(opts: { existing?: unknown[]; qbittorrent?: boolean } = {}) {
+    function clientHarness(opts: { existing?: unknown[]; qbittorrent?: boolean; crossChecks?: CrossChecker } = {}) {
         const sent: { path: string; method: string; body: string | undefined }[] = [];
 
         const impl = (async (input: string | URL | Request, init?: RequestInit) => {
@@ -283,7 +289,8 @@ describe('grab_release with a magnet', () => {
                 ),
                 confirm: new ConfirmTokens(),
                 audit: WriteAudit.ephemeral(),
-                library: { invalidate: vi.fn() } as unknown as LibraryLoader
+                library: { invalidate: vi.fn() } as unknown as LibraryLoader,
+                ...(opts.crossChecks === undefined ? {} : { crossChecks: opts.crossChecks })
             },
             [new TransmissionAdapter(clientConfig, impl), new QbittorrentAdapter(clientConfig, impl)]
         );
@@ -423,5 +430,31 @@ describe('grab_release with a magnet', () => {
 
     it('still requires id, guid and indexer_id for the release form', async () => {
         await expect(harness().call({ service: 'radarr', guid: 'abc', dry_run: true })).rejects.toThrow(/indexer_id/);
+    });
+
+    it('does not ask about a bare magnet, which is no film or series', async () => {
+        const crossChecks = vi.fn<CrossChecker>(async () => ({ warnings: [], unchecked: [] }));
+        const h = clientHarness({ crossChecks });
+
+        const { structuredContent } = await h.call({ service: 'transmission', magnet: MAGNET, dry_run: true });
+
+        expect(structuredContent.summary).toContain('c12fe1c06bba254a9dc9f519b335aa7c1367a88a');
+        expect(crossChecks).not.toHaveBeenCalled();
+    });
+});
+
+// The plan resolves a release name and no title or ids, and reading the item
+// just to name it would be a new upstream call on an already slow preview.
+describe('grab_release cross-checks', () => {
+    const quiet = () => vi.fn<CrossChecker>(async () => ({ warnings: [], unchecked: [] }));
+
+    it('does not ask about a release grab, which names no title', async () => {
+        const crossChecks = quiet();
+        const h = harness({ crossChecks });
+
+        const { structuredContent } = await h.call({ ...ARGS, dry_run: true });
+
+        expect(structuredContent.summary).toContain('Alien.1979');
+        expect(crossChecks).not.toHaveBeenCalled();
     });
 });

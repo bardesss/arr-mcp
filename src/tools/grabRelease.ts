@@ -194,6 +194,9 @@ export function registerGrabRelease(
                 );
             }
 
+            // No `subject`, so no cross-checks: the plan holds a release name
+            // and an id, not the title or its ids, and reading the item to get
+            // them would add a call to a preview that is already slow.
             return {
                 target: `${adapter.id}:${guid}`,
                 summary: `Grab ${match.title} from ${match.indexer} for ${service}.`,

@@ -9,6 +9,8 @@ import { permissionSourceFrom } from '../src/core/permissions.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
+import { WhisparrAdapter } from '../src/services/whisparr.ts';
+import type { CrossChecker } from '../src/tools/crossChecks.ts';
 import type { LibraryLoader } from '../src/tools/library.ts';
 import { registerTriggerSearch } from '../src/tools/triggerSearch.ts';
 import type { WriteToolResult } from '../src/tools/write.ts';
@@ -118,7 +120,13 @@ type Call = (args: Record<string, unknown>) => Promise<{
     structuredContent: WriteToolResult;
 }>;
 
-function harness(opts: { permissions?: Partial<Record<ServiceId, AnyServiceConfig>>; adapters?: ServiceAdapter[] } = {}) {
+function harness(
+    opts: {
+        permissions?: Partial<Record<ServiceId, AnyServiceConfig>>;
+        adapters?: ServiceAdapter[];
+        crossChecks?: CrossChecker;
+    } = {}
+) {
     const radarrFetch = recordingFetch({ '/api/v3/movie/5': MOVIE, '/api/v3/command': COMMAND });
     const sonarrFetch = recordingFetch({
         '/api/v3/series/7': SERIES,
@@ -144,7 +152,8 @@ function harness(opts: { permissions?: Partial<Record<ServiceId, AnyServiceConfi
             permissions: permissionSourceFrom(instancesOf(opts.permissions ?? { radarr: permissive(true), sonarr: permissive(true) })),
             confirm: new ConfirmTokens(),
             audit: WriteAudit.ephemeral(),
-            library: { invalidate } as unknown as LibraryLoader
+            library: { invalidate } as unknown as LibraryLoader,
+            ...(opts.crossChecks === undefined ? {} : { crossChecks: opts.crossChecks })
         },
         adapters
     );
@@ -398,5 +407,65 @@ describe('trigger_search scope', () => {
         expect(wholeSeriesAttempt.structuredContent.applied).toBe(false);
         expect(wholeSeriesAttempt.structuredContent.confirm_error).toBeDefined();
         expect(sonarrFetch.sent.filter(s => s.method === 'POST')).toHaveLength(0);
+    });
+});
+
+describe('trigger_search cross-checks', () => {
+    const quiet = () => vi.fn<CrossChecker>(async () => ({ warnings: [], unchecked: [] }));
+
+    it('asks the acquire checks about the title it resolved', async () => {
+        const crossChecks = quiet();
+        const radarr = recordingFetch({ '/api/v3/movie/5': { ...MOVIE, tmdbId: 348 } });
+        const h = harness({ adapters: [new RadarrAdapter(keyed(7878), radarr.impl)], crossChecks });
+
+        await h.call({ service: 'radarr', id: '5', dry_run: true });
+
+        expect(crossChecks).toHaveBeenCalledTimes(1);
+        const [subject, profile] = crossChecks.mock.calls[0] ?? [];
+        expect(profile).toBe('acquire');
+        expect(subject).toMatchObject({ kind: 'movie', ids: { tmdb: 348 }, acquisition: { service: 'radarr', id: '5' } });
+        expect(subject?.label).toContain('Alien');
+    });
+
+    it('asks as a series for Sonarr', async () => {
+        const crossChecks = quiet();
+        const sonarr = recordingFetch({ '/api/v3/series/7': { ...SERIES, tvdbId: 424207 } });
+        const h = harness({ adapters: [new SonarrAdapter(keyed(8989), sonarr.impl)], crossChecks });
+
+        await h.call({ service: 'sonarr', id: '7', dry_run: true });
+
+        expect(crossChecks.mock.calls[0]?.[0]).toMatchObject({
+            kind: 'series',
+            ids: { tvdb: 424207 },
+            acquisition: { service: 'sonarr', id: '7' }
+        });
+    });
+
+    // Whisparr keeps its own scene id in the TVDB field, so a Seerr match on it would be false.
+    it('does not ask about a Whisparr site', async () => {
+        const crossChecks = quiet();
+        const whisparr = recordingFetch({ '/api/v3/series/7': { ...SERIES, tvdbId: 1001 } });
+        const h = harness({
+            adapters: [new WhisparrAdapter(keyed(6969), whisparr.impl)],
+            permissions: { whisparr: permissive(true) },
+            crossChecks
+        });
+
+        const { structuredContent } = await h.call({ service: 'whisparr', id: '7', dry_run: true });
+
+        expect(structuredContent.summary).toContain('Alien');
+        expect(crossChecks).not.toHaveBeenCalled();
+    });
+
+    // The subject is not in `plan.args`, so what the checks found cannot change a token's validity.
+    it('accepts a token whatever the checks answered', async () => {
+        const answers = [{ warnings: ['one'], unchecked: [] }, { warnings: [], unchecked: ['seerr'] }];
+        const crossChecks = vi.fn<CrossChecker>(async () => answers.shift() ?? { warnings: [], unchecked: [] });
+        const h = harness({ crossChecks });
+
+        const first = await h.call({ service: 'radarr', id: '5' });
+        const second = await h.call({ service: 'radarr', id: '5', confirm: first.structuredContent.confirm_token });
+
+        expect(second.structuredContent.applied).toBe(true);
     });
 });

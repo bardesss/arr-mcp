@@ -16,6 +16,7 @@ import { WhisparrAdapter } from '../src/services/whisparr.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
 import { registerDeleteEpisodeFiles } from '../src/tools/deleteEpisodeFiles.ts';
 import { registerDeleteMedia } from '../src/tools/deleteMedia.ts';
+import type { CrossChecker } from '../src/tools/crossChecks.ts';
 import type { LibraryLoader } from '../src/tools/library.ts';
 import { registerRemoveQueueItem } from '../src/tools/removeQueueItem.ts';
 import { registerSetMonitoring } from '../src/tools/setMonitoring.ts';
@@ -463,7 +464,11 @@ type Call = (args: Record<string, unknown>) => Promise<{
 // shared helper to cover a case it was written to skip.
 function harness(
     register: typeof registerDeleteMedia,
-    opts: { permissions?: Partial<Record<ServiceId, AnyServiceConfig>>; adapters?: ServiceAdapter[] } = {}
+    opts: {
+        permissions?: Partial<Record<ServiceId, AnyServiceConfig>>;
+        adapters?: ServiceAdapter[];
+        crossChecks?: CrossChecker;
+    } = {}
 ) {
     const radarr = recordingFetch({ '/api/v3/movie/412': MOVIE, '/api/v3/queue': ARR_QUEUE });
     const sonarr = recordingFetch({ '/api/v3/series/7': SERIES, '/api/v3/queue': ARR_QUEUE });
@@ -501,7 +506,8 @@ function harness(
             ),
             confirm: new ConfirmTokens(),
             audit,
-            library: { invalidate } as unknown as LibraryLoader
+            library: { invalidate } as unknown as LibraryLoader,
+            ...(opts.crossChecks === undefined ? {} : { crossChecks: opts.crossChecks })
         },
         adapters
     );
@@ -605,6 +611,59 @@ describe('delete_media', () => {
         expect(rows[0]?.outcome).toBe('applied');
         expect(rows[0]?.target).toBe('radarr:412');
         expect(JSON.parse(rows[0]?.args ?? '{}')).toMatchObject({ deleteFiles: true });
+    });
+});
+
+describe('delete_media cross-checks', () => {
+    const quiet = () => vi.fn<CrossChecker>(async () => ({ warnings: [], unchecked: [] }));
+
+    it('asks the delete checks about the film it resolved', async () => {
+        const crossChecks = quiet();
+        const radarr = recordingFetch({ '/api/v3/movie/412': { ...MOVIE, tmdbId: 348 } });
+        const h = harness(registerDeleteMedia, { adapters: [new RadarrAdapter(keyed(7878), radarr.impl)], crossChecks });
+
+        await h.call({ service: 'radarr', id: '412', dry_run: true });
+
+        expect(crossChecks).toHaveBeenCalledTimes(1);
+        const [subject, profile] = crossChecks.mock.calls[0] ?? [];
+        expect(profile).toBe('delete');
+        expect(subject).toMatchObject({ kind: 'movie', ids: { tmdb: 348 }, acquisition: { service: 'radarr', id: '412' } });
+        expect(subject?.label).toContain('Alien');
+        expect(subject?.seasons).toBeUndefined();
+    });
+
+    it('asks as a series for Sonarr', async () => {
+        const crossChecks = quiet();
+        const sonarr = recordingFetch({ '/api/v3/series/7': { ...SERIES, tvdbId: 424207 } });
+        const h = harness(registerDeleteMedia, { adapters: [new SonarrAdapter(keyed(8989), sonarr.impl)], crossChecks });
+
+        await h.call({ service: 'sonarr', id: '7', dry_run: true });
+
+        expect(crossChecks.mock.calls[0]?.[0]).toMatchObject({ kind: 'series', ids: { tvdb: 424207 } });
+    });
+
+    // Whisparr keeps its own scene id in the TVDB field, so a Seerr match on it would be false.
+    it('does not ask about a Whisparr site', async () => {
+        const crossChecks = quiet();
+        const whisparr = recordingFetch({ '/api/v3/series/7': { ...SERIES, tvdbId: 1001 } });
+        const h = harness(registerDeleteMedia, { adapters: [new WhisparrAdapter(keyed(6969), whisparr.impl)], crossChecks });
+
+        const { structuredContent } = await h.call({ service: 'whisparr', id: '7', dry_run: true });
+
+        expect(structuredContent.summary).toContain('Alien');
+        expect(crossChecks).not.toHaveBeenCalled();
+    });
+
+    // The subject is not in `plan.args`, so what the checks found cannot change a token's validity.
+    it('accepts a token whatever the checks answered', async () => {
+        const answers = [{ warnings: ['one'], unchecked: [] }, { warnings: [], unchecked: ['seerr'] }];
+        const crossChecks = vi.fn<CrossChecker>(async () => answers.shift() ?? { warnings: [], unchecked: [] });
+        const h = harness(registerDeleteMedia, { crossChecks });
+
+        const first = await h.call({ service: 'radarr', id: '412' });
+        const second = await h.call({ service: 'radarr', id: '412', confirm: first.structuredContent.confirm_token });
+
+        expect(second.structuredContent.applied).toBe(true);
     });
 });
 
@@ -1260,6 +1319,80 @@ describe('delete_episode_files', () => {
         await call({ service: 'sonarr', id: '7', episodes: ['11', '12'], confirm: token });
         const del = recorder.sent.find(s => s.method === 'DELETE');
         expect(del?.body).toEqual({ episodeFileIds: [102] });
+    });
+});
+
+describe('delete_episode_files cross-checks', () => {
+    const quiet = () => vi.fn<CrossChecker>(async () => ({ warnings: [], unchecked: [] }));
+    const routes = {
+        '/api/v3/series/7': { ...SERIES_FULL, tvdbId: 424207 },
+        '/api/v3/episode?seriesId=7': EPISODES_S2,
+        '/api/v3/episodefile?seriesId=7': EPISODE_FILES
+    };
+    const sonarrHarness = (crossChecks: CrossChecker) =>
+        harness(registerDeleteEpisodeFiles, {
+            permissions: { sonarr: tiered(false, true) },
+            adapters: [new SonarrAdapter(keyed(8989), recordingFetch(routes).impl)],
+            crossChecks
+        });
+
+    it('names the season being deleted', async () => {
+        const crossChecks = quiet();
+        await sonarrHarness(crossChecks).call({ service: 'sonarr', id: '7', season: 2, dry_run: true });
+
+        const [subject, profile] = crossChecks.mock.calls[0] ?? [];
+        expect(profile).toBe('delete');
+        expect(subject).toMatchObject({
+            kind: 'series',
+            ids: { tvdb: 424207 },
+            acquisition: { service: 'sonarr', id: '7' },
+            seasons: [2]
+        });
+    });
+
+    it('asks about the series alone when episodes were named', async () => {
+        const crossChecks = quiet();
+        await sonarrHarness(crossChecks).call({ service: 'sonarr', id: '7', episodes: ['11'], dry_run: true });
+
+        expect(crossChecks.mock.calls[0]?.[0].seasons).toBeUndefined();
+    });
+
+    it('does not ask when there is nothing to delete', async () => {
+        const crossChecks = quiet();
+        const h = harness(registerDeleteEpisodeFiles, {
+            permissions: { sonarr: tiered(false, true) },
+            adapters: [
+                new SonarrAdapter(keyed(8989), recordingFetch({ ...routes, '/api/v3/episodefile?seriesId=7': [] }).impl)
+            ],
+            crossChecks
+        });
+        await h.call({ service: 'sonarr', id: '7', season: 2, dry_run: true });
+
+        expect(crossChecks).not.toHaveBeenCalled();
+    });
+
+    it('does not ask about a Whisparr site', async () => {
+        const crossChecks = quiet();
+        const h = harness(registerDeleteEpisodeFiles, {
+            permissions: { whisparr: tiered(false, true) },
+            adapters: [new WhisparrAdapter(keyed(6969), recordingFetch(routes).impl)],
+            crossChecks
+        });
+        const { structuredContent } = await h.call({ service: 'whisparr', id: '7', season: 2, dry_run: true });
+
+        expect(structuredContent.summary).toContain('episode file');
+        expect(crossChecks).not.toHaveBeenCalled();
+    });
+
+    it('accepts a token whatever the checks answered', async () => {
+        const answers = [{ warnings: ['one'], unchecked: [] }, { warnings: [], unchecked: ['seerr'] }];
+        const crossChecks = vi.fn<CrossChecker>(async () => answers.shift() ?? { warnings: [], unchecked: [] });
+        const h = sonarrHarness(crossChecks);
+
+        const first = await h.call({ service: 'sonarr', id: '7', season: 2 });
+        const second = await h.call({ service: 'sonarr', id: '7', season: 2, confirm: first.structuredContent.confirm_token });
+
+        expect(second.structuredContent.applied).toBe(true);
     });
 });
 

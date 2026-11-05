@@ -5,6 +5,7 @@ import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { hasMediaAdd, type MediaAddCapable, type ServiceAdapter } from '../services/types.ts';
 import { chooseOne, freeSpace, FOLDER_MATCH, PROFILE_MATCH, TAG_MATCH } from './chooseOne.ts';
+import { arrSubject } from './crossChecks.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 
 /**
@@ -93,6 +94,7 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
         service: ({ service, instance }) => findAdapter(adapters, service, instance).id,
         operation: 'add_media',
         tier: 'safe',
+        crossCheck: 'acquire',
 
         async plan({
             service,
@@ -237,7 +239,14 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
                     ...(minimum_availability === undefined ? {} : { minimumAvailability: minimum_availability }),
                     ...(series_type === undefined ? {} : { seriesType: series_type }),
                     ...(resolvedTags.length === 0 ? {} : { tagIds: resolvedTags.map(t => t.id) })
-                }
+                },
+                // The id the caller gave, in the namespace the service takes
+                // it in. Not in the library yet, so there is no *arr id to
+                // match a queue row on.
+                ...arrSubject(adapter, {
+                    label,
+                    ids: adapter.type === 'radarr' ? { tmdb: Number(external_id) } : { tvdb: Number(external_id) }
+                })
             };
         },
 

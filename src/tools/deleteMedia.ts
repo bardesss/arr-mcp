@@ -4,6 +4,7 @@ import * as z from 'zod/v4';
 import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { hasMediaDelete, hasMediaDetails, type ServiceAdapter } from '../services/types.ts';
+import { arrSubject } from './crossChecks.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 
 /**
@@ -68,6 +69,7 @@ export function registerDeleteMedia(
         service: ({ service, instance }) => findAdapter(adapters, service, instance).id,
         operation: 'delete_media',
         tier: 'destructive',
+        crossCheck: 'delete',
 
         async plan({ service, instance, id, delete_files, add_import_exclusion }): Promise<WritePlan> {
             const adapter = findAdapter(adapters, service, instance);
@@ -116,7 +118,14 @@ export function registerDeleteMedia(
                 // Both flags are effect-bearing, so the confirmation token
                 // commits to them: a token previewed for a database-only
                 // removal must not be usable to also wipe the disk.
-                args: { service, id, deleteFiles: delete_files, addImportExclusion: add_import_exclusion }
+                args: { service, id, deleteFiles: delete_files, addImportExclusion: add_import_exclusion },
+                // Not in `args`: what the checks find must not change which
+                // write a token commits to.
+                ...arrSubject(adapter, {
+                    label,
+                    ids: details.ids,
+                    acquisition: { service: adapter.id, id }
+                })
             };
         },
 

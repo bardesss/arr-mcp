@@ -38,6 +38,20 @@ export type CrossCheckSubject = {
  */
 export type Advice = { warnings: string[]; unchecked: string[] };
 
+/**
+ * The `subject` field of a plan for a write on an *arr item, spread in; empty
+ * for a service the checks cannot speak for. Whisparr reuses the TVDB field for
+ * its own scene id, so a Seerr match on it would be a different title that
+ * happens to share a number.
+ */
+export function arrSubject(
+    service: { type: string },
+    parts: Omit<CrossCheckSubject, 'kind'>
+): { subject?: CrossCheckSubject } {
+    if (service.type !== 'radarr' && service.type !== 'sonarr') return {};
+    return { subject: { kind: service.type === 'radarr' ? 'movie' : 'series', ...parts } };
+}
+
 /** Never rejects: advice is the extra, and the preview is the answer. */
 export type CrossChecker = (subject: CrossCheckSubject, profile: CrossCheckProfile) => Promise<Advice>;
 

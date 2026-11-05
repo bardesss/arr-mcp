@@ -176,6 +176,32 @@ delete_media { service: "radarr", id: "1535", delete_files: true }
 > - Removes They Will Kill You (2026) from radarr, along with its monitoring
 >   and history.
 
+## What a preview checks
+
+Five writes also ask the rest of your stack before you confirm, and put what they
+find under **Worth checking first** in the preview, in the text as well as in
+`structuredContent.warnings`. A service that could not be asked is named under
+**Could not check** and in `structuredContent.unchecked`; an empty list means
+nothing was found only for the services not named there. The checks run on a
+`dry_run` too.
+
+| Write | Asks | About |
+|---|---|---|
+| `delete_media` | whether something still depends on the title | Seerr requests, Reclaimerr protections, downloads and seeding, watch state |
+| `delete_episode_files` | the same, for the series | the same, plus whether the season being deleted was watched (a season delete only) |
+| `trigger_search` | whether something is working against getting it | Reclaimerr removals, a Seerr request waiting or declined, an existing download |
+| `add_media` | the same, by the id you gave | the same |
+| `grab_release` | nothing yet | the preview names a release, not the title, so there is nothing to look up |
+
+Whisparr is never checked, on any of these. It keeps its own scene id in the TVDB
+field, so a Seerr match on it would be a different title that shares a number. A
+magnet sent to a torrent client is not checked either.
+
+The checks share one five-second budget. A service that is slow or down is listed
+under **Could not check** and the preview comes back without it. Warnings never
+block a write: they are information for you to weigh, and the confirmation token
+is the same with or without them. Requester names are never shown.
+
 ## `dry_run`
 
 The separate, terminal form: it describes the effect and issues no token at all,
