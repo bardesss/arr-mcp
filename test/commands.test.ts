@@ -1,10 +1,14 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import type { KeyedServiceConfig } from '../src/config/schema.ts';
 import { apiKeyHeader } from '../src/core/auth.ts';
 import { ServiceHttp } from '../src/core/http.ts';
 import { COMMAND_WAIT_MS, awaitArrCommand, readArrCommands, renamedCount } from '../src/services/arrCommands.ts';
+import { ProwlarrAdapter } from '../src/services/prowlarr.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
+import { hasCommandStatus } from '../src/services/types.ts';
+import { WhisparrAdapter } from '../src/services/whisparr.ts';
 import { jsonResponse } from './helpers/serve.ts';
 
 /**
@@ -135,6 +139,36 @@ describe('what a service is running', () => {
         });
         const rows = await readArrCommands(reader(s.impl), 'radarr', now);
         expect(rows).toEqual([]);
+    });
+});
+
+describe('what Prowlarr is running', () => {
+    const captured = JSON.parse(readFileSync('test/fixtures/prowlarr/command.json', 'utf8')) as Record<string, unknown>[];
+
+    /** Prowlarr is on v1, and `ServiceHttp` defaults to v3, where it has no command list. */
+    it('reads the v1 command list', async () => {
+        const s = stack({ '/api/v1/command': captured });
+        await new ProwlarrAdapter(keyed(9696), s.impl).listCommands();
+        expect(s.sent.map(x => x.path)).toEqual(['/api/v1/command']);
+    });
+
+    it('leaves out the housekeeping in a real capture', async () => {
+        const s = stack({ '/api/v1/command': captured });
+        await expect(new ProwlarrAdapter(keyed(9696), s.impl).listCommands()).resolves.toEqual([]);
+    });
+
+    it('reports the indexer sync, in the shape of a captured row', async () => {
+        const row = { ...captured[0], name: 'ApplicationIndexerSync', status: 'started', id: 12 };
+        const s = stack({ '/api/v1/command': [row] });
+        const rows = await new ProwlarrAdapter(keyed(9696), s.impl).listCommands();
+        expect(rows).toMatchObject([{ service: 'prowlarr', commandId: 12, name: 'ApplicationIndexerSync', status: 'started' }]);
+    });
+});
+
+/** Its command list has no captured fixture, so it stays unclaimed; the tool text has to say so. */
+describe('what Whisparr is running', () => {
+    it('is not claimed', () => {
+        expect(hasCommandStatus(new WhisparrAdapter(keyed(6969)))).toBe(false);
     });
 });
 

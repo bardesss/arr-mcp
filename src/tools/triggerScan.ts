@@ -3,6 +3,7 @@ import * as z from 'zod/v4';
 import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import {
+    hasCommandStatus,
     hasEpisodeRemap,
     hasLibraryMaintenance,
     hasLibraryScan,
@@ -151,7 +152,7 @@ export function registerTriggerScan(
         name: 'trigger_scan',
         title: 'Refresh and scan a library',
         description:
-            'Asks a service to reconcile itself with what is on disk — the "it downloaded but still will not play" family of actions, and the usual fix for what `diagnose` reports as a stale scan. With no `id`, it rescans the whole library of Radarr, Sonarr, Whisparr, Lidarr, Jellyfin or Plex; the media server is the one that matters when something is missing from what you can actually watch. On Prowlarr there is no library, and this pushes its indexer list to Radarr and Sonarr instead — the fix for "the app is using an indexer Prowlarr no longer has". On Radarr, Sonarr, Whisparr and Lidarr a scan is the service\'s refresh command: it re-reads titles and air dates from the metadata provider, then rescans the folders. With an `id`, it does that for just that item or Lidarr artist, which is far cheaper on a big library, and it is the fix for an import refused over an episode title the service has not caught up with ("TBA"): scan the series, wait for `stack_health` to show it finished, then import again. On Jellyfin and Plex a scan only looks for changed files; `fix_metadata` is the repair for wrong metadata there. `action: "rename"` renames one item\'s files to the service\'s own naming scheme and needs an `id`. `action: "import"` takes a finished download stuck at importBlocked; when the service matched a file to the wrong movie or episodes, or to none, `mapping` says what each file is and the service judges it again (not on Lidarr, whose files belong to albums and tracks: fix a wrong album match in Lidarr itself). `action: "remap"` tells Sonarr which episode an already-imported file really is, for a mislabel every automatic signal agrees with; follow it with rename, then a media-server rescan. `action: "postprocess"` on NZBGet reruns its post-processing (repair, unpack and your own scripts) on a finished download, for one a broken script left unimportable: take `downloadId` from the stuck get_queue row; it works only while the download\'s folder still exists. Everything else here queues a command and returns immediately; `stack_health` lists what is still running under `commands`, so check there rather than assuming it is done. `remap` and `postprocess` wait for their own result instead, and a rerun still going shows in get_queue, not `commands`. Previews by default — call again with the returned `confirm` token to actually run it.',
+            'Asks a service to reconcile itself with what is on disk — the "it downloaded but still will not play" family of actions, and the usual fix for what `diagnose` reports as a stale scan. With no `id`, it rescans the whole library of Radarr, Sonarr, Whisparr, Lidarr, Jellyfin or Plex; the media server is the one that matters when something is missing from what you can actually watch. On Prowlarr there is no library, and this pushes its indexer list to Radarr and Sonarr instead — the fix for "the app is using an indexer Prowlarr no longer has". On Radarr, Sonarr, Whisparr and Lidarr a scan is the service\'s refresh command: it re-reads titles and air dates from the metadata provider, then rescans the folders. With an `id`, it does that for just that item or Lidarr artist, which is far cheaper on a big library, and it is the fix for an import refused over an episode title the service has not caught up with ("TBA"): scan the series, wait for `stack_health` to show it finished, then import again. On Jellyfin and Plex a scan only looks for changed files; `fix_metadata` is the repair for wrong metadata there. `action: "rename"` renames one item\'s files to the service\'s own naming scheme and needs an `id`. `action: "import"` takes a finished download stuck at importBlocked; when the service matched a file to the wrong movie or episodes, or to none, `mapping` says what each file is and the service judges it again (not on Lidarr, whose files belong to albums and tracks: fix a wrong album match in Lidarr itself). `action: "remap"` tells Sonarr which episode an already-imported file really is, for a mislabel every automatic signal agrees with; follow it with rename, then a media-server rescan. `action: "postprocess"` on NZBGet reruns its post-processing (repair, unpack and your own scripts) on a finished download, for one a broken script left unimportable: take `downloadId` from the stuck get_queue row; it works only while the download\'s folder still exists. Everything else here queues a command and returns immediately; `stack_health` lists what is still running under `commands`, so check there rather than assuming it is done; Whisparr is not reported there. `remap` and `postprocess` wait for their own result instead, and a rerun still going shows in get_queue, not `commands`. Previews by default — call again with the returned `confirm` token to actually run it.',
         inputSchema: z.object({
             service: ServiceIdSchema.describe(
                 'radarr, sonarr, whisparr, lidarr, jellyfin or plex — or prowlarr, to sync its indexers to the apps, or nzbget for action: "postprocess".'
@@ -498,14 +499,16 @@ export function registerTriggerScan(
             if (id !== undefined) {
                 const item = findItemAdapter(adapters, service, instance);
                 const queued = action === 'rename' ? await item.renameItem(id) : await item.refreshItem(id);
-                return `${item.id} queued ${queued.name} for item ${id}. It runs in the background — stack_health's \`commands\` list says whether it has finished.`;
+                return hasCommandStatus(item)
+                    ? `${item.id} queued ${queued.name} for item ${id}. It runs in the background — stack_health's \`commands\` list says whether it has finished.`
+                    : `${item.id} queued ${queued.name} for item ${id}. It runs in the background, and stack_health's \`commands\` list does not report ${item.id}, so its absence there says nothing.`;
             }
 
             const adapter = findAdapter(adapters, service, instance);
             const handle = await adapter.startLibraryScan();
 
             if (adapter.type === 'prowlarr') {
-                return `${adapter.id} is syncing its indexers to the apps connected to it. It runs in the background and is not reported under stack_health's \`commands\`.${
+                return `${adapter.id} is syncing its indexers to the apps connected to it. It runs in the background — stack_health's \`commands\` list says whether it has finished.${
                     handle.commandId === 0 ? '' : ` Command id ${handle.commandId}.`
                 }`;
             }
