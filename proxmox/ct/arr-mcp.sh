@@ -31,7 +31,7 @@ var_unprivileged="${var_unprivileged:-1}"
 # arr-mcp repository rather than the Community Scripts one, and will for a long
 # time yet, so pointing this at the Community Scripts tracker would send every
 # tester to a repository that does not carry the script they are reporting on.
-var_testurl="${var_testurl:-https://github.com/bardesss/arr-mcp/issues/265}"
+var_testurl="${var_testurl:-https://github.com/bardesss/arr-mcp/issues/new/choose}"
 
 header_info "$APP"
 variables
