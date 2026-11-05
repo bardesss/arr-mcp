@@ -1,0 +1,71 @@
+{
+  "status": {
+    "cancelled": {},
+    "complete": {
+      "14407d331d0344d7f2dba09e85ba0b10": {
+        "added_time": 1785691886,
+        "author": "Jeff VanderMeer",
+        "content_type": "ebook",
+        "download_path": null,
+        "downloads": null,
+        "format": "epub",
+        "id": "14407d331d0344d7f2dba09e85ba0b10",
+        "preview": "",
+        "request_id": null,
+        "retry_available": false,
+        "size": "0.3MB",
+        "source": "direct_download",
+        "source_display_name": "Direct Download",
+        "status_message": null,
+        "title": "Annihilation",
+        "user_id": null,
+        "username": null
+      },
+      "1ea89de26d977acac9dbd4e309e7d2a9": {
+        "added_time": 1781077099,
+        "author": "Karen Hao",
+        "content_type": "ebook",
+        "download_path": null,
+        "downloads": null,
+        "format": "pdf",
+        "id": "1ea89de26d977acac9dbd4e309e7d2a9",
+        "preview": "",
+        "request_id": null,
+        "retry_available": false,
+        "size": "4.7MB",
+        "source": "direct_download",
+        "source_display_name": "Direct Download",
+        "status_message": null,
+        "title": "Empire of AI: Dreams and Nightmares in Sam Altman's OpenAI",
+        "user_id": null,
+        "username": null
+      },
+      "202cdecd48f9328890a3d01f14a9ec8f": {
+        "added_time": 1793883305,
+        "author": "Max Brooks",
+        "content_type": "ebook",
+        "download_path": null,
+        "downloads": 642,
+        "format": "epub",
+        "id": "202cdecd48f9328890a3d01f14a9ec8f",
+        "preview": "",
+        "request_id": null,
+        "retry_available": false,
+        "size": "0.4MB",
+        "source": "direct_download",
+        "source_display_name": "Direct Download",
+        "status_message": null,
+        "title": "World War Z",
+        "user_id": null,
+        "username": null
+      }
+    },
+    "downloading": {},
+    "error": {},
+    "locating": {},
+    "queued": {},
+    "resolving": {}
+  },
+  "requests": [],
+  "dismissed": []
+}

@@ -67,7 +67,12 @@ export const MINIMUM_VERSIONS: Record<ServiceId, string> = {
     reclaimerr: '0.6.0',
     // Written against tag v0.33.0 and checked live on 0.33.0. Pre-1.0, a
     // minor about every three weeks: minors may break the API.
-    dispatcharr: '0.33.0'
+    dispatcharr: '0.33.0',
+    // 1.5.0 is the first release with GET /api/stats and the read-only key
+    // (upstream #1419, 2026-10-03). Only an admin key can read the version, so
+    // a read-only key connects with this floor unchecked; a server too old for
+    // /api/stats is refused on the 404 instead.
+    shelfmark: '1.5.0'
 };
 
 /** Digits only; a build suffix such as Transmission's "(838877323f)" is dropped. */

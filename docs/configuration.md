@@ -28,9 +28,9 @@ services:
     password: "…"
 ```
 
-All seventeen service ids: `radarr`, `sonarr`, `whisparr`, `lidarr`, `prowlarr`, `bazarr`,
+All eighteen service ids: `radarr`, `sonarr`, `whisparr`, `lidarr`, `prowlarr`, `bazarr`,
 `jellyfin`, `seerr`, `sabnzbd`, `nzbget`, `transmission`, `qbittorrent`, `plex`,
-`profilarr`, `cleanuparr`, `reclaimerr`, `dispatcharr`. Configure only what you run —
+`profilarr`, `cleanuparr`, `reclaimerr`, `dispatcharr`, `shelfmark`. Configure only what you run —
 anything you leave out is simply absent, not broken. Running both torrent
 clients at once is supported; their queues merge, each item labelled with the
 client it came from.
@@ -385,6 +385,35 @@ flags it.
 Its findings appear in `stack_health`: failing or overdue playlists, provider
 accounts about to expire, and failing EPG sources.
 
+## Shelfmark
+
+```yaml
+services:
+  shelfmark:
+    url: http://192.168.1.20:8084
+    # api_key: "…"   only once authentication is on in Shelfmark
+    # permissions:
+    #   safe_write: true   to let grab_release queue books and retry_download retry them
+    #   destructive: true  to let remove_queue_item cancel them
+```
+
+Shelfmark starts with no authentication, and then needs no key: every route is
+open to anything that can reach it. Once authentication is on, what arr-mcp can
+do depends on the key:
+
+| `api_key` | `stack_health` | `get_queue`, `get_history`, finding, grabbing, cancelling and retrying books | Version check |
+|---|---|---|---|
+| None, with no authentication set up | yes | yes | yes |
+| `SHELFMARK_API_KEY_READONLY` | yes | no | no |
+| `SHELFMARK_API_KEY` | yes | yes | yes |
+
+Shelfmark's docs treat `SHELFMARK_API_KEY` as a root password, because an admin
+can set a post-download script that the server runs, so storing it here gives
+arr-mcp's config file that reach. Use the read-only key if `stack_health` is all
+you want. arr-mcp writes three things: queueing a release and retrying a download
+with `safe_write` on, and cancelling a download with `destructive` on. Single instance only, because one Shelfmark holds one download
+queue. Needs Shelfmark 1.5.0 or newer, the first with `/api/stats`.
+
 ## Several instances of one service
 
 Running an HD and a 4K Radarr side by side is a common setup, and arr-mcp reads
@@ -437,8 +466,8 @@ because the one deployment that wants two is V2 beside V3 (Eros), and Eros is a
 different API with no adapter. Profilarr because it is the one place that owns
 profile config, so two of them would mean two sources of truth. Cleanuparr
 because one instance cleans one stack, Reclaimerr because one instance owns
-one library's cleanup rules, and Dispatcharr because one instance serves one
-set of playlists.
+one library's cleanup rules, Dispatcharr because one instance serves one
+set of playlists, and Shelfmark because one instance holds one download queue.
 
 Everything else takes a list: Radarr, Sonarr, Bazarr, Prowlarr, SABnzbd,
 NZBGet, Transmission and qBittorrent.

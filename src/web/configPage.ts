@@ -543,7 +543,7 @@ function addDialog(
                 label: 'API key',
                 secret: true,
                 only: keyed,
-                note: "From the service's Settings → General page."
+                note: "From the service's Settings → General page. Shelfmark sets its keys in the environment, and needs none until authentication is on."
             })}
             ${offerable.length === keyed.length
                 ? raw('')

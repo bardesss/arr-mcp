@@ -13,23 +13,23 @@ off until you turn them on — see [writes](writes.md).
 | `get_library` | What's in my library — joined across Radarr, Sonarr, Lidarr and your media server, and where they disagree; Lidarr artists are their own kind, joined by MusicBrainz id |
 | `get_profile_issues` | Which quality profiles and custom formats are misconfigured, and where Profilarr has drifted from Radarr/Sonarr |
 | `get_queue` | What is downloading, across the *arr queues and every download client |
-| `get_history` | Why did last night's download fail — grabbed, imported, failed, deleted, and what SABnzbd, NZBGet, Bazarr, Cleanuparr and Reclaimerr did |
+| `get_history` | Why did last night's download fail — grabbed, imported, failed, deleted, and what SABnzbd, NZBGet, Bazarr, Cleanuparr, Reclaimerr and Shelfmark did |
 | `get_wanted` | Which episodes of a show are missing, and what has a file below cutoff |
-| `get_releases` | What an interactive search actually found, rejects included |
+| `get_releases` | What an interactive search actually found, rejects included; on Shelfmark, the files on offer for a book |
 | `get_blocklist` | Why does it keep finding the same release and never downloading it |
 | `get_calendar` | What is due, and what just aired |
 | `get_subtitles` | What is missing subtitles, and which providers are throttled |
 | `get_playback` | What am I watching, and what can I continue |
 | `get_indexers` | Which indexers are healthy, and what they recently rejected |
 | `get_requests` | What has been requested, and what is still pending |
-| `lookup_media` | Tell me about this, without adding it |
+| `lookup_media` | Tell me about this, without adding it; books too, with Shelfmark |
 | `discover_media` | What exists in this genre, year, or rating band |
 | `trigger_search` | Go look for this again — the whole thing, one season, or specific episodes |
 | `trigger_scan` | Refresh and rescan a library or one item, rename one item, import a download that never landed, put a mislabeled Sonarr file on the right episode, or rerun NZBGet's post-processing |
 | `trigger_subtitle_search` | Go and find the subtitles this is missing, now |
-| `grab_release` | Not that one — grab this release from `get_releases` instead |
+| `grab_release` | Not that one — grab this release from `get_releases` instead; on Shelfmark, the most-downloaded file unless you name one |
 | `set_monitoring` | Turn monitoring on or off: a whole series, one season, specific episodes; on Lidarr, `level: "album"` for one album or `level: "artist"` with `artists` and `monitor_new_items` for a policy over the set |
-| `retry_download` | Try this failed usenet download again, with its password if it needs one |
+| `retry_download` | Try this failed usenet download again, with its password if it needs one, or a failed or cancelled Shelfmark book |
 | `pause_downloads` | Pause, resume or throttle a download client, or one item in its queue |
 | `remove_queue_item` | Get rid of this stuck or wrong download |
 | `remove_blocklist_item` | Let this blocklisted release be grabbed again |
@@ -321,8 +321,9 @@ no more a fault than a grant is.
 
 `failures` carries what each service says is wrong with itself. Radarr,
 Sonarr, Whisparr, Lidarr, Prowlarr and Bazarr report their own health checks,
-NZBGet its `systemhealth` alerts (v26 and later), and Cleanuparr, Reclaimerr and
-Dispatcharr their own status (see [Dispatcharr](#dispatcharr) below).
+NZBGet its `systemhealth` alerts (v26 and later), and Cleanuparr, Reclaimerr,
+Dispatcharr and Shelfmark their own status (see [Dispatcharr](#dispatcharr) and
+[Shelfmark](#shelfmark) below).
 
 SABnzbd reports the warnings and errors from its log, and only those from the
 last 24 hours. Its warnings list is a log rather than a state: it keeps every
@@ -561,6 +562,45 @@ password, along with whatever the provider sent back.
 
 Dispatcharr is read, never written: there is no tool for its channels or
 playlists, and its findings appear only here.
+
+### Shelfmark
+
+With Shelfmark configured, its findings cover book downloads:
+
+| Finding | Level |
+|---|---|
+| The download coordinator is stopped, so nothing downloads | error |
+| Downloads failed in the last 7 days, with the count | warning |
+
+`get_queue` lists books waiting, downloading or failed, as `<title> by <author>`,
+with Shelfmark's own reason on a failed one. Finished and cancelled books are left
+out. A read-only key cannot see the queue, so `get_queue` reports Shelfmark as
+degraded with that key rather than claiming the queue is empty.
+
+To get a book, `lookup_media` finds it (`kind: book`) and `grab_release` with
+`service: shelfmark` and that id queues the most-downloaded file, with `safe_write`
+on. The preview names the file first. To choose another, `get_releases` lists what
+is on offer, most-downloaded first, with rows from sources that count nothing last,
+and `grab_release` takes a row's `guid` and `indexer_id`. Shelfmark has no indexer
+ids, so `indexer_id` is always 0. Listing searches every source
+Shelfmark has and took 24s to 54s on a live server, so a listing is reused for five
+minutes. Ebooks only.
+
+`remove_queue_item` cancels a queued or running book, with `destructive` on. It
+refuses a failed one, which has nothing left to cancel, and
+`remove_from_client: false`, because Shelfmark has only the one way to cancel.
+
+`get_history` shows finished, failed and cancelled books as `imported`, `failed`
+and `stopped`, with Shelfmark's reason on a failure. It reads the latest 200 books
+in Shelfmark's activity list and up to 500 dismissed from it. `at` is when a
+dismissed book ended; on the others it is when the book was queued, the only time
+Shelfmark gives for them, so a `since` filter works from that. `retry_download`
+takes the `id` of a failed or cancelled row, with `safe_write` on, and refuses a
+row Shelfmark marks as not retryable. Shelfmark's history has no per-book scope, so
+`id` is refused on `get_history`.
+
+`diagnose` leaves Shelfmark out, because a book is not on the film and series
+chain it walks.
 
 ### Did that command finish?
 
@@ -1069,7 +1109,7 @@ imports, or its file gets deleted, it leaves the queue and `get_queue` has
 nothing to say about it. `trigger_search` cannot fill that gap either: it hands
 back a command handle, and Radarr and Sonarr do not report a search's outcome
 through it. `get_history` merges Radarr's, Sonarr's and Lidarr's own history logs with SABnzbd's,
-NZBGet's, Bazarr's, Cleanuparr's and Reclaimerr's, and is the only tool that can answer "why did last
+NZBGet's, Bazarr's, Cleanuparr's, Reclaimerr's and Shelfmark's, and is the only tool that can answer "why did last
 night's download fail".
 
 Both services' events are normalised to one vocabulary — `grabbed`,
@@ -1130,6 +1170,13 @@ would keep its oldest and drop its newest, so arr-mcp halves it towards now
 until it fits; what falls before the narrowed start is left out. Passing
 `id` with `service: reclaimerr` is refused: its events are per candidate, not
 per movie or series, and `get_media_details` shows one title's cleanup state.
+
+### Shelfmark
+
+Shelfmark contributes its book downloads: `imported` for a finished one, `failed`
+with its reason, and `stopped` for a cancelled one, with Shelfmark's own word in
+`rawEvent`. See [Shelfmark](#shelfmark) under `stack_health` for how much it reads
+and what `at` means on its rows. Passing `id` with `service: shelfmark` is refused.
 
 ### The services below the *arrs
 
@@ -1216,7 +1263,8 @@ and Sonarr's own web UI does and returns every candidate, so a model can
 compare them and pick one for `grab_release`.
 
 `service` and `id` are both required: this searches one movie or series,
-never merges across services the way `get_history` and `get_wanted` do.
+or on Shelfmark one book, with `id` from a `lookup_media` row. It never merges
+across services the way `get_history` and `get_wanted` do.
 `season` and `episode` are Sonarr-only, and passing either to a Radarr search
 is refused rather than silently dropped. They are mutually exclusive. `episode`
 takes one episode id, as `trigger_search`'s `episodes` does, and searches that
@@ -1262,8 +1310,9 @@ out of time, not two.
 ## `grab_release`
 
 The write half of `get_releases`. Takes `guid` and `indexer_id` from a
-`get_releases` row verbatim and tells Radarr, Sonarr or Whisparr to grab that
-one release — "not that one, the 1080p remux".
+`get_releases` row verbatim and tells Radarr, Sonarr, Whisparr or Shelfmark to grab
+that one release — "not that one, the 1080p remux". On Shelfmark both can be left
+out, and the most-downloaded file is taken, named in the preview first.
 
 Safe tier, not destructive: a grab starts a download, and a download comes
 back off with `remove_queue_item`. Nothing on disk is lost.
@@ -1909,10 +1958,12 @@ attempted — the new one first, the old one only if it 404s.
 
 ## `retry_download`
 
-"This download failed, try it again", on the usenet client that holds the files:
-SABnzbd or NZBGet. `id` is the one on that client's `get_history` or `get_queue`
-row. The preview picks what to send from the job itself and shows it:
+"This download failed, try it again", on the usenet client that holds the files,
+SABnzbd or NZBGet, or on Shelfmark. `id` is the one on that client's `get_history`
+or `get_queue` row. The preview picks what to send from the job itself and shows it:
 
+- **Shelfmark:** a failed or cancelled book goes back to the front of its queue,
+  under the same id, if Shelfmark marks the row as retryable. `password` is refused.
 - **SABnzbd, failed job in history:** retried with `mode=retry`. SABnzbd gives the
   retried job a **new id**, and the result says so (`previous_id`), so take the
   new one from there.

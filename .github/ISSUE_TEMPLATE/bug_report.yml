@@ -56,6 +56,7 @@ body:
         - label: Cleanuparr
         - label: Reclaimerr
         - label: Dispatcharr
+        - label: Shelfmark
 
   - type: input
     id: service-versions

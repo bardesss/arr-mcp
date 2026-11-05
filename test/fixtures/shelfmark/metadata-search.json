@@ -1,0 +1,97 @@
+{
+  "books": [
+    {
+      "authors": [
+        "Jonathan Irvine Israel"
+      ],
+      "cover_aspect": null,
+      "cover_url": "",
+      "description": "",
+      "display_fields": [],
+      "genres": [
+        "History"
+      ],
+      "isbn_10": "0198207344",
+      "isbn_13": "9780198207344",
+      "language": "en",
+      "provider": "googlebooks",
+      "provider_display_name": "Google Books",
+      "provider_id": "5neBQgAACAAJ",
+      "publish_year": 1998,
+      "publisher": "Oxford University Press",
+      "search_author": null,
+      "search_title": null,
+      "series_count": null,
+      "series_id": null,
+      "series_name": null,
+      "series_position": null,
+      "source_url": "",
+      "subtitle": null,
+      "title": "The Dutch Republic",
+      "titles_by_language": {}
+    },
+    {
+      "authors": [
+        "Jonathan Irvine Israel"
+      ],
+      "cover_aspect": null,
+      "cover_url": "",
+      "description": "",
+      "display_fields": [],
+      "genres": [],
+      "isbn_10": null,
+      "isbn_13": null,
+      "language": "en",
+      "provider": "googlebooks",
+      "provider_display_name": "Google Books",
+      "provider_id": "OjsYcAAACAAJ",
+      "publish_year": 1995,
+      "publisher": null,
+      "search_author": null,
+      "search_title": null,
+      "series_count": null,
+      "series_id": null,
+      "series_name": null,
+      "series_position": null,
+      "source_url": "",
+      "subtitle": null,
+      "title": "The Dutch Republic",
+      "titles_by_language": {}
+    },
+    {
+      "authors": [
+        "Oscar Gelderblom"
+      ],
+      "cover_aspect": null,
+      "cover_url": "",
+      "description": "",
+      "display_fields": [],
+      "genres": [
+        "History"
+      ],
+      "isbn_10": "1317020774",
+      "isbn_13": "9781317020776",
+      "language": "en",
+      "provider": "googlebooks",
+      "provider_display_name": "Google Books",
+      "provider_id": "1CCgCwAAQBAJ",
+      "publish_year": 2016,
+      "publisher": "Routledge",
+      "search_author": null,
+      "search_title": null,
+      "series_count": null,
+      "series_id": null,
+      "series_name": null,
+      "series_position": null,
+      "source_url": "",
+      "subtitle": null,
+      "title": "The Political Economy of the Dutch Republic",
+      "titles_by_language": {}
+    }
+  ],
+  "has_more": true,
+  "page": 1,
+  "provider": "googlebooks",
+  "query": "the dutch republic israel",
+  "total_found": 0
+}

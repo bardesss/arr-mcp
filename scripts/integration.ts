@@ -42,6 +42,7 @@ import { ProfilarrAdapter } from '../src/services/profilarr.ts';
 import { CleanuparrAdapter } from '../src/services/cleanuparr.ts';
 import { ReclaimerrAdapter } from '../src/services/reclaimerr.ts';
 import { DispatcharrAdapter } from '../src/services/dispatcharr.ts';
+import { ShelfmarkAdapter } from '../src/services/shelfmark.ts';
 import { hostsOf, redactHosts, secretsOf } from './lib/redact.ts';
 import { callTool as rpcCallTool, type ToolCallResult } from './lib/rpc.ts';
 
@@ -982,6 +983,32 @@ if (config.services?.dispatcharr !== undefined) {
     }
 } else {
     console.log('SKIP dispatcharr — not configured.');
+}
+
+/**
+ * Shelfmark: the connection test, its health findings, and its queue unless the
+ * key is the read-only one, which is told apart by having no version. It never
+ * grabs: that would download a real book on every run.
+ */
+if (config.services?.shelfmark !== undefined) {
+    const started = performance.now();
+    try {
+        const shelfmark = new ShelfmarkAdapter(config.services.shelfmark);
+        const connection = await shelfmark.testConnection();
+        if (!connection.ok) throw new Error(`${connection.error?.detail ?? 'connection failed'} — ${connection.error?.remedy ?? ''}`);
+        const findings = await shelfmark.getFailedHealthChecks();
+        const queue = connection.version === undefined ? 'not read' : String((await shelfmark.getQueue()).length);
+        const history = connection.version === undefined ? 'not read' : String((await shelfmark.readHistory({})).length);
+        const ms = Math.round(performance.now() - started);
+        console.log(`PASS shelfmark ${connection.version ?? '?'}: ${findings.length} finding(s), queue ${queue}, history ${history} (${ms}ms)`);
+        for (const f of findings) console.log(`     ${f.type} ${f.source}: ${redactHosts(f.message, hosts)}`);
+        passes += 1;
+    } catch (err) {
+        console.error(`FAIL shelfmark — ${redactHosts((err as Error).message, hosts)}`);
+        failures += 1;
+    }
+} else {
+    console.log('SKIP shelfmark — not configured.');
 }
 
 /**
