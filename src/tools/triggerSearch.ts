@@ -4,6 +4,7 @@ import * as z from 'zod/v4';
 import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { hasMediaDetails, hasSearchTrigger, type ServiceAdapter } from '../services/types.ts';
+import { arrSubject } from './crossChecks.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 
 /**
@@ -65,6 +66,7 @@ export function registerTriggerSearch(
         service: ({ service, instance }) => findAdapter(adapters, service, instance).id,
         operation: 'trigger_search',
         tier: 'safe',
+        crossCheck: 'acquire',
 
         async plan({ service, instance, id, season, episodes }): Promise<WritePlan> {
             if (season !== undefined && episodes !== undefined) {
@@ -157,7 +159,8 @@ export function registerTriggerSearch(
                     id,
                     ...(season === undefined ? {} : { season }),
                     ...(episodes === undefined ? {} : { episodes })
-                }
+                },
+                ...arrSubject(adapter, { label, ids: details.ids, acquisition: { service: adapter.id, id } })
             };
         },
 

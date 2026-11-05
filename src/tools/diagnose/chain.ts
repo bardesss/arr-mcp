@@ -309,7 +309,7 @@ const QUEUE_ACTIVE = new Set([
 ]);
 
 const QUEUE_IMPORT_PENDING = new Set(['completed', 'seeding', 'seeding (no peers)', 'queued to seed']);
-const SEEDING = new Set(['seeding', 'seeding (no peers)', 'queued to seed']);
+export const SEEDING = new Set(['seeding', 'seeding (no peers)', 'queued to seed']);
 
 type QueueClass = 'active' | 'importPending' | 'fault' | 'indeterminate';
 
@@ -322,7 +322,7 @@ type QueueClass = 'active' | 'importPending' | 'fault' | 'indeterminate';
  * map. That is the service saying something unclassifiable, so it is
  * `indeterminate` rather than a fault.
  */
-function classifyQueueStatus(item: QueueItem): QueueClass {
+export function classifyQueueStatus(item: QueueItem): QueueClass {
     if (item.errorMessage !== undefined) return 'fault';
     const status = item.status.toLowerCase();
     if (QUEUE_IMPORT_PENDING.has(status)) return 'importPending';
@@ -946,7 +946,7 @@ export function buildChain(query: string, ev: Evidence): Diagnosis {
  * per movie, so that version was it. Not one followed by an import either: the
  * title came back after it, so whatever took the file since was something else.
  */
-function wholeRemoval(cleanup: CleanupStatus | null | undefined, lastImportAt: string | undefined): CleanupRemoval | undefined {
+export function wholeRemoval(cleanup: CleanupStatus | null | undefined, lastImportAt: string | undefined): CleanupRemoval | undefined {
     const latest = cleanup?.removals.find(r => r.scope === 'movie' || r.scope === 'version' || r.scope === 'series');
     return latest === undefined || (lastImportAt !== undefined && lastImportAt > latest.at) ? undefined : latest;
 }

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { instancesOf } from './helpers/instances.ts';
 import { describe, expect, it, vi } from 'vitest';
 import * as z from 'zod/v4';
@@ -9,6 +10,8 @@ import { permissionSourceFrom } from '../src/core/permissions.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
+import { WhisparrAdapter } from '../src/services/whisparr.ts';
+import { buildCrossChecker, type CrossChecker } from '../src/tools/crossChecks.ts';
 import type { LibraryLoader } from '../src/tools/library.ts';
 import { registerTriggerSearch } from '../src/tools/triggerSearch.ts';
 import type { WriteToolResult } from '../src/tools/write.ts';
@@ -118,7 +121,13 @@ type Call = (args: Record<string, unknown>) => Promise<{
     structuredContent: WriteToolResult;
 }>;
 
-function harness(opts: { permissions?: Partial<Record<ServiceId, AnyServiceConfig>>; adapters?: ServiceAdapter[] } = {}) {
+function harness(
+    opts: {
+        permissions?: Partial<Record<ServiceId, AnyServiceConfig>>;
+        adapters?: ServiceAdapter[];
+        crossChecks?: CrossChecker;
+    } = {}
+) {
     const radarrFetch = recordingFetch({ '/api/v3/movie/5': MOVIE, '/api/v3/command': COMMAND });
     const sonarrFetch = recordingFetch({
         '/api/v3/series/7': SERIES,
@@ -144,7 +153,8 @@ function harness(opts: { permissions?: Partial<Record<ServiceId, AnyServiceConfi
             permissions: permissionSourceFrom(instancesOf(opts.permissions ?? { radarr: permissive(true), sonarr: permissive(true) })),
             confirm: new ConfirmTokens(),
             audit: WriteAudit.ephemeral(),
-            library: { invalidate } as unknown as LibraryLoader
+            library: { invalidate } as unknown as LibraryLoader,
+            ...(opts.crossChecks === undefined ? {} : { crossChecks: opts.crossChecks })
         },
         adapters
     );
@@ -398,5 +408,96 @@ describe('trigger_search scope', () => {
         expect(wholeSeriesAttempt.structuredContent.applied).toBe(false);
         expect(wholeSeriesAttempt.structuredContent.confirm_error).toBeDefined();
         expect(sonarrFetch.sent.filter(s => s.method === 'POST')).toHaveLength(0);
+    });
+});
+
+describe('trigger_search cross-checks', () => {
+    const quiet = () => vi.fn<CrossChecker>(async () => ({ warnings: [], unchecked: [] }));
+
+    it('asks the acquire checks about the title it resolved', async () => {
+        const crossChecks = quiet();
+        const radarr = recordingFetch({ '/api/v3/movie/5': { ...MOVIE, tmdbId: 348 } });
+        const h = harness({ adapters: [new RadarrAdapter(keyed(7878), radarr.impl)], crossChecks });
+
+        await h.call({ service: 'radarr', id: '5', dry_run: true });
+
+        expect(crossChecks).toHaveBeenCalledTimes(1);
+        const [subject, profile] = crossChecks.mock.calls[0] ?? [];
+        expect(profile).toBe('acquire');
+        expect(subject).toMatchObject({ kind: 'movie', ids: { tmdb: 348 }, acquisition: { service: 'radarr', id: '5' } });
+        expect(subject?.label).toContain('Alien');
+    });
+
+    it('asks as a series for Sonarr', async () => {
+        const crossChecks = quiet();
+        const sonarr = recordingFetch({ '/api/v3/series/7': { ...SERIES, tvdbId: 424207 } });
+        const h = harness({ adapters: [new SonarrAdapter(keyed(8989), sonarr.impl)], crossChecks });
+
+        await h.call({ service: 'sonarr', id: '7', dry_run: true });
+
+        expect(crossChecks.mock.calls[0]?.[0]).toMatchObject({
+            kind: 'series',
+            ids: { tvdb: 424207 },
+            acquisition: { service: 'sonarr', id: '7' }
+        });
+    });
+
+    // Whisparr keeps its own scene id in the TVDB field, so a Seerr match on it would be false.
+    it('does not ask about a Whisparr site', async () => {
+        const crossChecks = quiet();
+        const whisparr = recordingFetch({ '/api/v3/series/7': { ...SERIES, tvdbId: 1001 } });
+        const h = harness({
+            adapters: [new WhisparrAdapter(keyed(6969), whisparr.impl)],
+            permissions: { whisparr: permissive(true) },
+            crossChecks
+        });
+
+        const { structuredContent } = await h.call({ service: 'whisparr', id: '7', dry_run: true });
+
+        expect(structuredContent.summary).toContain('Alien');
+        expect(crossChecks).not.toHaveBeenCalled();
+    });
+
+    // A subject folded into the token would break it when the title changes in between.
+    it('asks only on the preview, and a title that changed does not void the token', async () => {
+        const crossChecks = quiet();
+        const routes: Record<string, unknown> = { '/api/v3/movie/5': { ...MOVIE, tmdbId: 348 }, '/api/v3/command': COMMAND };
+        const h = harness({ adapters: [new RadarrAdapter(keyed(7878), recordingFetch(routes).impl)], crossChecks });
+
+        const first = await h.call({ service: 'radarr', id: '5' });
+        routes['/api/v3/movie/5'] = { ...MOVIE, title: 'Renamed', tmdbId: 349 };
+        const second = await h.call({ service: 'radarr', id: '5', confirm: first.structuredContent.confirm_token });
+
+        expect(second.structuredContent.applied).toBe(true);
+        expect(crossChecks).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('trigger_search reaching Reclaimerr for a series', () => {
+    // A recorded Sonarr series that carries a TMDB id; no media server is configured.
+    const recorded = JSON.parse(readFileSync('test/fixtures/sonarr/series.json', 'utf8')) as {
+        id: number;
+        tvdbId: number;
+        tmdbId: number;
+    }[];
+    const series = recorded[1];
+
+    it('asks Reclaimerr by the TMDB id Sonarr holds, without loading the library', async () => {
+        const readCleanupStatus = vi.fn(async () => ({ service: 'reclaimerr', candidates: [], protections: [], removals: [] }));
+        const reclaimerr = { id: 'reclaimerr', type: 'reclaimerr', readCleanupStatus } as unknown as ServiceAdapter;
+        const load = vi.fn();
+        const crossChecks = buildCrossChecker([reclaimerr], { load } as unknown as LibraryLoader);
+        const sonarr = recordingFetch({ [`/api/v3/series/${series?.id}`]: series });
+        const h = harness({
+            adapters: [new SonarrAdapter(keyed(8989), sonarr.impl)],
+            permissions: { sonarr: permissive(true) },
+            crossChecks
+        });
+
+        const { structuredContent } = await h.call({ service: 'sonarr', id: String(series?.id), dry_run: true });
+
+        expect(readCleanupStatus).toHaveBeenCalledWith('series', series?.tmdbId);
+        expect(load).not.toHaveBeenCalled();
+        expect(structuredContent.unchecked ?? []).toEqual([]);
     });
 });

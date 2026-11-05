@@ -14,6 +14,7 @@ import {
     type ServiceAdapter
 } from '../services/types.ts';
 import { bothIds, selectMediaServers, type MediaServers } from './mediaServers.ts';
+import { buildCrossChecker } from './crossChecks.ts';
 import { registerAddMedia } from './addMedia.ts';
 import { registerDeleteEpisodeFiles } from './deleteEpisodeFiles.ts';
 import { registerCleanQueue } from './cleanQueue.ts';
@@ -147,7 +148,8 @@ export function buildToolContext(
             permissions: permissionSourceFrom(listInstances(config)),
             confirm,
             audit,
-            library
+            library,
+            crossChecks: buildCrossChecker(adapters, library)
         }
     };
 }
