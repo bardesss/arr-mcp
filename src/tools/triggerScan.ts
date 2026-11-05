@@ -417,6 +417,19 @@ export function registerTriggerScan(
 
             const adapter = findAdapter(adapters, service, instance);
 
+            if (adapter.type === 'prowlarr') {
+                return {
+                    target: adapter.id,
+                    summary: `Ask ${adapter.id} to sync its indexers to the apps connected to it.`,
+                    effects: [
+                        `Queues an indexer sync on ${adapter.id}, which pushes its indexer list to apps such as Radarr and Sonarr.`,
+                        'Scans nothing: Prowlarr has no library.',
+                        'Runs in the background.'
+                    ],
+                    args: { service, ...(instance === undefined ? {} : { instance }) }
+                };
+            }
+
             return {
                 target: adapter.id,
                 summary: `Ask ${adapter.id} to rescan its library.`,
@@ -490,6 +503,12 @@ export function registerTriggerScan(
 
             const adapter = findAdapter(adapters, service, instance);
             const handle = await adapter.startLibraryScan();
+
+            if (adapter.type === 'prowlarr') {
+                return `${adapter.id} is syncing its indexers to the apps connected to it. It runs in the background and is not reported under stack_health's \`commands\`.${
+                    handle.commandId === 0 ? '' : ` Command id ${handle.commandId}.`
+                }`;
+            }
 
             return `${adapter.id} is ${hasLibraryMaintenance(adapter) ? 'refreshing and rescanning' : 'rescanning'} its library. It runs in the background — check get_media_details or stack_health in a few minutes rather than expecting it to be finished now.${
                 handle.commandId === 0 ? '' : ` Command id ${handle.commandId}.`
