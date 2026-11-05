@@ -234,7 +234,8 @@ says which Radarr or Sonarr a Bazarr is paired with, and a series matches by
 series id. The step is `unknown` when Bazarr cannot be read, and `skipped` when
 there is no file or no Bazarr. Bazarr's wanted list is read whole, with no
 paging, so it is the one read that grows with the size of the library, and it
-adds Bazarr to `degraded` when it fails.
+adds Bazarr to `degraded` when it fails. Only the first Bazarr is read, as with
+Cleanuparr. An item with no id to match gaps by is `unknown`, not `ok`.
 
 **Next steps.** Beside the prose `remedy`, `verdict.next_steps` holds the tool
 call that does it, as `{ tool, arguments, why }`, and the text block ends with

@@ -667,6 +667,8 @@ function scanStep(ev: Evidence): Step {
     return { stage: 'scan', service: server, status: 'ok', detail: `Last library scan completed ${ev.scan.lastCompleted}.` };
 }
 
+const LANGUAGE_CODE = /^[a-z]{2,3}(-[A-Za-z]{2,4})?$/;
+
 /**
  * Whether Bazarr is missing subtitles for this item, and the call that would
  * fetch them. Never `blocked`: a film plays without subtitles, so this notes a
@@ -683,6 +685,10 @@ function subtitleStep(ev: Evidence, item: FilmOrSeries): { step: Step; sentence:
     }
 
     const service = read.service;
+    // Without an id no gap can be matched, which is not the same as none being missing.
+    if (acquisition.id === undefined) {
+        return none({ stage: 'subtitles', service, status: 'unknown', detail: `${service} was read, but its gaps could not be matched to this item, so missing subtitles were not checked.` });
+    }
     // Bazarr pairs with one *arr, and nothing says which, so an id can collide
     // with another instance's: the title has to agree too. A series' gaps are
     // its episodes, matched by series id.
@@ -703,9 +709,11 @@ function subtitleStep(ev: Evidence, item: FilmOrSeries): { step: Step; sentence:
     const single = mine.length === 1;
     const where = !single ? `${mine.length} episodes` : first.kind === 'episode' ? `episode ${first.season ?? '?'}x${first.episode ?? '?'}` : 'it';
     // One call covers one item, so several episodes are for get_subtitles to
-    // list. Bazarr's adapter reports '??' for a language it gave no code for.
+    // list. The code is Bazarr's raw text and reaches the `Next:` line unfenced,
+    // so only a language-code shape passes; that also drops the '??' the adapter
+    // reports for a language it gave no code for.
     const next: NextStep[] =
-        single && target !== undefined && target.code2 !== '??'
+        single && target !== undefined && LANGUAGE_CODE.test(target.code2)
             ? [
                   {
                       tool: 'trigger_subtitle_search',
