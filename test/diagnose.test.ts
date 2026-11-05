@@ -49,7 +49,7 @@ describe('diagnose', () => {
     it('resolves a title and returns the chain', async () => {
         const d = await buildDiagnose(deps(), { query: 'some film' });
         expect(d.resolved?.ids).toEqual({ tmdb: 550 });
-        expect(d.steps).toHaveLength(8);
+        expect(d.steps).toHaveLength(9);
     });
 
     it('reports the missing file when nothing else explains it', async () => {
@@ -898,5 +898,47 @@ describe('diagnose — download history for a title no library has', () => {
         const evidence = await collectEvidence(d, { query: 'some film' });
         expect(evidence.history).toBeUndefined();
         expect(evidence.degraded).not.toContain('cleanuparr');
+    });
+});
+
+describe('collectEvidence — Bazarr', () => {
+    const owned = { ...FILM, acquisition: { service: 'radarr', id: '5', monitored: true, hasFile: true } };
+    const gap = { service: 'bazarr', kind: 'movie', id: 5, title: 'Some Film', missing: [{ name: 'Dutch', code2: 'nl', forced: false, hearingImpaired: false }] };
+    const radarr = (film: IndexInput) => stub('radarr', { listLibrary: async () => [film], getQueue: async () => [] });
+    const bazarr = (read: () => Promise<unknown[]>) => stub('bazarr', { getMissingSubtitles: read, getProviders: async () => [] });
+    const run = (adapters: ServiceAdapter[]) => collectEvidence({ adapters, library: new LibraryLoader(adapters, undefined) }, { query: 'some film' });
+
+    it('reads what Bazarr is missing for an item with a file', async () => {
+        const evidence = await run([radarr(owned), bazarr(async () => [gap])]);
+        expect(evidence.subtitles).toEqual({ gaps: [gap], service: 'bazarr' });
+    });
+
+    it('is undefined, and degraded, when Bazarr cannot be read', async () => {
+        const evidence = await run([
+            radarr(owned),
+            bazarr(async () => {
+                throw new Error('down');
+            })
+        ]);
+        expect(evidence.subtitles).toBeUndefined();
+        expect(evidence.degraded).toContain('bazarr');
+        expect(buildChain('some film', evidence).steps.find(s => s.stage === 'subtitles')?.status).toBe('unknown');
+    });
+
+    it('is null when Bazarr is not configured', async () => {
+        expect((await run([radarr(owned)])).subtitles).toBeNull();
+    });
+
+    it('does not read Bazarr for an item with no file', async () => {
+        let calls = 0;
+        const evidence = await run([
+            radarr(FILM),
+            bazarr(async () => {
+                calls += 1;
+                return [gap];
+            })
+        ]);
+        expect(calls).toBe(0);
+        expect(evidence.degraded).not.toContain('bazarr');
     });
 });
