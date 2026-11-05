@@ -3,6 +3,7 @@ import * as z from 'zod/v4';
 import { BEARER_CALLER, type WriteAudit } from '../core/audit.ts';
 import { CONFIRM_REASON, type ConfirmTokens, type WriteIntent } from '../core/confirm.ts';
 import { ServiceError } from '../core/errors.ts';
+import { nextStepLine, type NextStep } from '../core/nextStep.ts';
 import { checkPermission, type PermissionSource, type WriteTier } from '../core/permissions.ts';
 import { toolInput } from '../core/shape.ts';
 import { logger } from '../core/logger.ts';
@@ -94,6 +95,12 @@ export type WriteToolSpec<Schema extends z.ZodObject> = {
      */
     applied?(outcome: unknown, plan: WritePlan): string | undefined;
     /**
+     * Calls worth offering now that the write has landed, as data for a client
+     * to put to the person. Never run here. Called after the write only: a
+     * throw is logged and the write is still reported, since it already happened.
+     */
+    followUps?(outcome: unknown, args: z.infer<Schema>, plan: WritePlan): NextStep[];
+    /**
      * Which questions to ask the rest of the stack when this write is
      * previewed. Run by the harness, not by `plan`: `plan` runs again on the
      * confirm call, and reads there would make an apply slow or fail on a
@@ -178,7 +185,11 @@ const WriteOutputSchema = z.looseObject({
     unchecked: z
         .array(z.string())
         .optional()
-        .describe('Present when a service could not be asked, so its absence from `warnings` means nothing.')
+        .describe('Present when a service could not be asked, so its absence from `warnings` means nothing.'),
+    next_steps: z
+        .array(z.looseObject({ tool: z.string(), arguments: z.looseObject({}), why: z.string() }))
+        .optional()
+        .describe('Present on an applied write when another call is worth offering. Offer it to the person; do not run it.')
 });
 
 export type WriteToolResult = {
@@ -203,6 +214,8 @@ export type WriteToolResult = {
     warnings?: string[];
     /** Services the cross-checks could not read. Omitted when there are none. */
     unchecked?: string[];
+    /** Calls worth offering after an applied write. Omitted when there are none. */
+    next_steps?: NextStep[];
 };
 
 /**
@@ -458,9 +471,24 @@ export function registerWriteTool<Schema extends z.ZodObject>(
             library.invalidate();
             audit.settle(id, 'applied');
 
+            // After the write, and guarded: the write has happened, so a follow-up
+            // that fails to build must not turn a landed change into an error.
+            let nextSteps: NextStep[] = [];
+            try {
+                nextSteps = spec.followUps?.(outcome, args, plan) ?? [];
+            } catch (err) {
+                logger.warn({ tool: spec.name, err }, 'followUps threw; reporting the write without next steps');
+            }
+
             return respond(
-                { ...preview({ audit_id: id }), applied: true, ...(outcome === undefined ? {} : { result: outcome }) },
-                spec.applied?.(outcome, plan) ?? `Applied. ${plan.summary}`
+                {
+                    ...preview({ audit_id: id }),
+                    applied: true,
+                    ...(outcome === undefined ? {} : { result: outcome }),
+                    ...(nextSteps.length === 0 ? {} : { next_steps: nextSteps })
+                },
+                // In the text as well as the field (#234).
+                (spec.applied?.(outcome, plan) ?? `Applied. ${plan.summary}`) + nextSteps.map(step => `\n${nextStepLine(step)}`).join('')
             );
         }
     );

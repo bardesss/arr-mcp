@@ -43,6 +43,7 @@ const TOOLS = new Set<string>(TOOL_NAMES);
 /** Backticked identifiers in prompt text that are parameters, not tools. */
 const NOT_TOOLS = new Set([
     'certain',
+    'next_steps',
     'has_file',
     'rating_source',
     'ratingCoverage',

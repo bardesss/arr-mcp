@@ -3,7 +3,7 @@ import { fenceText } from '../src/core/fence.ts';
 import type { FilmOrSeries, MergedItem } from '../src/core/resolver.ts';
 import { NzbgetAdapter } from '../src/services/nzbget.ts';
 import type { HistoryEntry, QueueItem } from '../src/services/types.ts';
-import { buildChain, queueRowsFor, releaseMentions, type Evidence } from '../src/tools/diagnose/chain.ts';
+import { buildChain as chain, queueRowsFor, releaseMentions, type Diagnosis, type Evidence } from '../src/tools/diagnose/chain.ts';
 
 /**
  * Unlike `Partial<MergedItem>`, this lets a caller override a field to
@@ -15,6 +15,9 @@ import { buildChain, queueRowsFor, releaseMentions, type Evidence } from '../src
 type ItemOverride = { [K in keyof MergedItem]?: MergedItem[K] | undefined };
 
 /** Same reasoning as `ItemOverride`, for `Evidence` — `healthy({ mediaServer: undefined, ... })` needs to type-check under `exactOptionalPropertyTypes`. */
+/** These tests diagnose by title, the form that takes a query. */
+const buildChain = (query: string, ev: Evidence): Diagnosis => chain(query, ev, true);
+
 type EvidenceOverride = { [K in keyof Evidence]?: Evidence[K] | undefined };
 
 const fence = (title: string): string => fenceText(title, { service: 'radarr', field: 'title' });
