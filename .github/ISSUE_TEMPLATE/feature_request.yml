@@ -1,5 +1,6 @@
 name: Feature request
 description: A question arr-mcp cannot answer, or a service it does not speak to
+title: '[FR] '
 labels: ['enhancement']
 body:
   - type: markdown

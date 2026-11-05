@@ -1,5 +1,6 @@
 name: Bug report
 description: Something in arr-mcp behaves incorrectly
+title: '[BUG] '
 labels: ['bug']
 body:
   - type: markdown
