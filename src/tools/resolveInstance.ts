@@ -79,6 +79,16 @@ export const instancesOfType = (adapters: readonly ServiceAdapter[], type: Servi
     adapters.filter(a => a.type === type);
 
 /**
+ * A configured instance's id as the `service` and `instance` arguments a tool
+ * takes: `radarr/hd` is `service: "radarr"` and `instance: "hd"`. Passing the
+ * qualified id as `service` is refused by the schema.
+ */
+export const instanceArgs = (instanceId: string): { service: string; instance?: string } => {
+    const slash = instanceId.indexOf('/');
+    return slash === -1 ? { service: instanceId } : { service: instanceId.slice(0, slash), instance: instanceId.slice(slash + 1) };
+};
+
+/**
  * The `instance` parameter's description, shared so every tool taking one words
  * it the same way. The model reads these, and three phrasings of one concept is
  * three chances to conclude they mean different things.

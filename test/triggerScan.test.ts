@@ -650,7 +650,9 @@ describe('trigger_scan remapping episodes', () => {
      * the reassignment landed, so a stub replaying the old association would
      * fail that check rather than exercise the tool (#264).
      */
-    const remapHarness = (over: { renames?: unknown[]; history?: unknown[]; commands?: unknown[] } = {}) => {
+    const remapHarness = (
+        over: { renames?: unknown[]; history?: unknown[]; commands?: unknown[]; mediaServer?: ServiceAdapter } = {}
+    ) => {
         const FILES = [1, 2].map(n => ({
             path: `/tv/Show/Season 01/Show - S01E0${n}.mkv`,
             relativePath: `Season 01/Show - S01E0${n}.mkv`,
@@ -722,7 +724,10 @@ describe('trigger_scan remapping episodes', () => {
 
         const sonarr = { impl, sent };
         return {
-            ...harness({ adapters: [new SonarrAdapter(keyed(8989), impl)], permissions: { sonarr: permissive(true) } }),
+            ...harness({
+                adapters: [new SonarrAdapter(keyed(8989), impl), ...(over.mediaServer === undefined ? [] : [over.mediaServer])],
+                permissions: { sonarr: permissive(true) }
+            }),
             sonarr
         };
     };
@@ -829,6 +834,36 @@ describe('trigger_scan remapping episodes', () => {
         // The token confirms what the preview described, so the preview is
         // where a server-wide setting change has to be named.
         expect(effects).toMatch(/naming format for this series type, server-wide/);
+    });
+
+    /** A media-server stand-in: the tool only asks it whether it can scan and read a user library. */
+    const jellyfinStub = {
+        id: 'jellyfin',
+        type: 'jellyfin',
+        listUserLibrary: async () => [],
+        startLibraryScan: async () => ({ commandId: 0 })
+    } as unknown as ServiceAdapter;
+
+    it('hands back a rescan of the media server once the files agree', async () => {
+        const h = remapHarness({ mediaServer: jellyfinStub });
+        const first = await h.call(SWAP);
+        const done = await h.call({ ...SWAP, confirm: first.structuredContent.confirm_token });
+
+        expect(done.structuredContent.next_steps).toEqual([
+            expect.objectContaining({ tool: 'trigger_scan', arguments: { service: 'jellyfin', action: 'scan' } })
+        ]);
+        expect(done.content[0]?.text).toContain('Next: trigger_scan {"service":"jellyfin","action":"scan"}');
+        // The step replaces the sentence that told a person to do it by hand.
+        expect(String(done.structuredContent.result)).not.toMatch(/rescan your media server/);
+    });
+
+    it('keeps telling a person to rescan when no media server is configured', async () => {
+        const h = remapHarness();
+        const first = await h.call(SWAP);
+        const done = await h.call({ ...SWAP, confirm: first.structuredContent.confirm_token });
+
+        expect(done.structuredContent.next_steps).toBeUndefined();
+        expect(String(done.structuredContent.result)).toMatch(/rescan your media server/);
     });
 
     it('is a no-op when every file is already where it was asked to go', async () => {

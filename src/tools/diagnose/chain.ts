@@ -1,10 +1,12 @@
 import type { ServiceId } from '../../config/schema.ts';
 import { servicesOnly } from '../../core/gather.ts';
+import type { NextStep } from '../../core/nextStep.ts';
 import { unfenced } from '../../core/titleMatch.ts';
 import { currentStrikes } from '../cleanuparrQueue.ts';
 import type { FilmOrSeries, MergedItem } from '../../core/resolver.ts';
 import type { CleanupRemoval, CleanupStatus, HistoryEntry, IndexerRejection, QueueItem, RequestStatus, ScanState } from '../../services/types.ts';
 import { removalSentence, upcomingSentence } from '../cleanupStatus.ts';
+import { instanceArgs } from '../resolveInstance.ts';
 
 export type Stage = 'resolve' | 'request' | 'managed' | 'file' | 'queue' | 'indexers' | 'library' | 'scan';
 /** `warning` is worth a look but blocks nothing. */
@@ -20,7 +22,8 @@ export type Step = { stage: Stage; service?: string; status: StepStatus; detail:
  */
 export type Evidence = {
     item: FilmOrSeries | undefined;
-    request: { status: RequestStatus | 'unknown' } | null | undefined;
+    /** `id` is Seerr's own request id, the one `respond_to_request` takes. */
+    request: { status: RequestStatus | 'unknown'; id?: number } | null | undefined;
     /**
      * `items` is what the collector actually read, `partial` names the clients
      * that did not answer. One unreachable client used to erase the whole stage,
@@ -79,7 +82,11 @@ export type Diagnosis = {
     query: string;
     resolved?: { title: string; year?: number; kind: 'movie' | 'series'; ids: MergedItem['ids'] };
     steps: Step[];
-    verdict: { stage: Stage | 'playable'; summary: string; remedy?: string; certain: boolean };
+    /**
+     * `next_steps` is the call that would act on `remedy`, as data. Offered, never
+     * run here; absent when the fix is not a call this server can make.
+     */
+    verdict: { stage: Stage | 'playable'; summary: string; remedy?: string; next_steps?: NextStep[]; certain: boolean };
     /** Unresolved queries only: the row that explains each matching release, newest first. */
     history?: HistoryEntry[];
     degraded: string[];
@@ -384,7 +391,7 @@ export function queueRowsFor(rows: readonly QueueItem[], item: MergedItem): Queu
     });
 }
 
-type QueueResult = { step: Step; remedy?: string };
+type QueueResult = { step: Step; remedy?: string; next?: NextStep };
 
 const STRIKE_KIND: Record<string, string> = {
     StalledStrike: ' for stalling',
@@ -403,6 +410,18 @@ function strikeNoteFor(row: QueueItem, events: Evidence['cleanuparr']): string {
     if (strikes === undefined) return '';
     const each = strikes.map(s => `${s.count} strikes${STRIKE_KIND[s.rawEvent] ?? ''}${s.dryRun === true ? ' (dry run)' : ''}`);
     return ` ${each.join(', ')} from Cleanuparr so far.`;
+}
+
+/** Radarr and Sonarr import a download by id. Whisparr has no manual import, so a call to it would be refused and is never offered. */
+const IMPORTERS: readonly string[] = ['radarr', 'sonarr'];
+
+/**
+ * The *arr that should import this row: its own service when it is one, since a
+ * title match can pick up another instance's grab, and the item's managing
+ * service when the row is a download client's.
+ */
+function importerFor(row: QueueItem, item: MergedItem): string | undefined {
+    return [row.service, item.acquisition?.service].find((s): s is string => s !== undefined && IMPORTERS.includes(instanceArgs(s).service));
 }
 
 function queueStep(ev: Evidence, item: MergedItem): QueueResult {
@@ -451,6 +470,11 @@ function queueStep(ev: Evidence, item: MergedItem): QueueResult {
 
     if (cls === 'fault') {
         return {
+            next: {
+                tool: 'remove_queue_item',
+                arguments: { ...instanceArgs(row.service), id: row.id },
+                why: `Removes the failed download from ${row.service}, so it can search for another release.`
+            },
             step: {
                 stage: 'queue',
                 service: row.service,
@@ -474,9 +498,19 @@ function queueStep(ev: Evidence, item: MergedItem): QueueResult {
     }
 
     if (cls === 'importPending') {
+        const importer = importerFor(row, item);
         return {
             step: { stage: 'queue', service: row.service, status: 'blocked', detail: `Downloaded, but not yet imported by ${row.service}.${strikeNote}` },
-            remedy: QUEUE_IMPORT_REMEDY
+            remedy: QUEUE_IMPORT_REMEDY,
+            ...(importer === undefined || row.downloadId === undefined
+                ? {}
+                : {
+                      next: {
+                          tool: 'trigger_scan',
+                          arguments: { ...instanceArgs(importer), action: 'import', download_id: row.downloadId },
+                          why: `Asks ${importer} to import the finished download.`
+                      }
+                  })
         };
     }
 
@@ -694,7 +728,29 @@ const allDegraded = (ev: Evidence): string[] => [...new Set([...ev.degraded, ...
  */
 const certaintyDegraded = (ev: Evidence): string[] => servicesOnly(allDegraded(ev));
 
-export function buildChain(query: string, ev: Evidence): Diagnosis {
+/**
+ * Only the caller's own words go into a lookup: when the target was an id, the
+ * only text to hand over is a service's title, which stays out of arguments.
+ */
+const withSteps = (next: NextStep[]): { next_steps?: NextStep[] } => (next.length === 0 ? {} : { next_steps: next });
+
+const lookupStep = (query: string, byWords: boolean): NextStep[] =>
+    byWords ? [{ tool: 'lookup_media', arguments: { query }, why: 'Checks whether it exists anywhere before adding it.' }] : [];
+
+/** The monitoring call for an item a service has but is not monitoring. Radarr has no `setMonitoring`, so it goes through `update_media`. */
+function monitorStep(acquisition: NonNullable<MergedItem['acquisition']>): NextStep[] {
+    if (acquisition.id === undefined) return [];
+    const target = instanceArgs(acquisition.service);
+    return [
+        {
+            tool: target.service === 'radarr' ? 'update_media' : 'set_monitoring',
+            arguments: { ...target, id: acquisition.id, monitored: true },
+            why: `Turns monitoring on in ${acquisition.service}, so it looks for what is missing.`
+        }
+    ];
+}
+
+export function buildChain(query: string, ev: Evidence, byWords = true): Diagnosis {
     const steps: Step[] = [];
 
     if (ev.item === undefined) {
@@ -730,6 +786,7 @@ export function buildChain(query: string, ev: Evidence): Diagnosis {
                 // Not knowing about it and not being able to look are different
                 // answers, and a degraded library service means the second —
                 // whether the library read itself failed or a diagnose probe did.
+                ...withSteps(lookupStep(query, byWords)),
                 certain: certaintyDegraded(ev).length === 0
             },
             ...(releases.length === 0 ? {} : { history: releases.map(r => r.row) }),
@@ -914,6 +971,7 @@ export function buildChain(query: string, ev: Evidence): Diagnosis {
     // headline), so `aside` only ever adds information here for a
     // non-queue verdict — same guard as the playable branch above.
     const summaryAside = blocking.stage === 'queue' ? '' : aside;
+    const next = nextStepsFor(blocking.stage, { ev, query, byWords, queueNext: queueResult.next });
     // Item 3's first symptom: a `request`/`managed` verdict outranking a
     // library that is genuinely, confirmedly fine (`libraryConfirmedOk`) used
     // to leave that fact sitting unmentioned in `steps`, nowhere in the
@@ -933,10 +991,61 @@ export function buildChain(query: string, ev: Evidence): Diagnosis {
             stage: blocking.stage,
             summary: `${blocking.detail}${caveat}${hedge}${summaryAside}`,
             ...(remedy === undefined ? {} : { remedy }),
+            ...withSteps(next),
             certain
         },
         degraded: allDegraded(ev)
     };
+}
+
+/**
+ * The call behind each stage's `remedy`, where one exists. `indexers`, `scan`
+ * and a download still in progress have nothing to call, and a file a cleanup
+ * rule removed is protected in that service, not searched for again.
+ */
+function nextStepsFor(
+    stage: Stage,
+    { ev, query, byWords, queueNext }: { ev: Evidence; query: string; byWords: boolean; queueNext: NextStep | undefined }
+): NextStep[] {
+    const acquisition = ev.item?.acquisition;
+
+    switch (stage) {
+        case 'request':
+            return ev.request?.status === 'pending' && ev.request.id !== undefined
+                ? [
+                      {
+                          tool: 'respond_to_request',
+                          arguments: { id: String(ev.request.id), verdict: 'approve' },
+                          why: 'Approving hands the request to Radarr or Sonarr to search for it.'
+                      }
+                  ]
+                : [];
+        case 'managed':
+            return acquisition === undefined ? lookupStep(query, byWords) : monitorStep(acquisition);
+        case 'file':
+            if (acquisition?.id === undefined || (!acquisition.hasFile && wholeRemoval(ev.cleanup, ev.lastImportAt) !== undefined)) return [];
+            return [
+                {
+                    tool: 'trigger_search',
+                    arguments: { ...instanceArgs(acquisition.service), id: acquisition.id },
+                    why: `Searches ${acquisition.service} for the missing file.`
+                }
+            ];
+        case 'queue':
+            return queueNext === undefined ? [] : [queueNext];
+        case 'library':
+            return ev.mediaServer === undefined
+                ? []
+                : [
+                      {
+                          tool: 'trigger_scan',
+                          arguments: { ...instanceArgs(ev.mediaServer), action: 'scan' },
+                          why: `${ev.mediaServer} has not picked up the file that is on disk.`
+                      }
+                  ];
+        default:
+            return [];
+    }
 }
 
 /**

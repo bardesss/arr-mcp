@@ -347,7 +347,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
         request = undefined;
     } else {
         const match = findRequest(requests, item.ids);
-        request = match === undefined ? null : { status: match.status };
+        request = match === undefined ? null : { status: match.status, id: match.id };
     }
 
     // null: not configured. undefined: could not look. Matched by download id,
