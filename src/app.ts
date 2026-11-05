@@ -84,6 +84,7 @@ Reading:
 Writing:
 - Writes happen in two calls. The first previews: read \`summary\` and \`effects\`, then call again passing the returned \`confirm\` token to apply it. \`applied\` says which of the two just happened. \`dry_run: true\` previews without ever issuing a token.
 - Writes take a service and an id, never a title. Get the id from \`get_library\` or \`get_media_details\` first.
+- Read \`warnings\` as well, and tell the user about them before confirming.
 - A write refused for permissions names the config key that would allow it. Report that key rather than retrying.
 
 Arguments are strict: an argument a tool does not have is refused rather than ignored, and the error lists what it does accept.`;

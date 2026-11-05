@@ -5,6 +5,8 @@ import { CONFIRM_REASON, type ConfirmTokens, type WriteIntent } from '../core/co
 import { ServiceError } from '../core/errors.ts';
 import { checkPermission, type PermissionSource, type WriteTier } from '../core/permissions.ts';
 import { toolInput } from '../core/shape.ts';
+import { logger } from '../core/logger.ts';
+import type { CrossCheckProfile, CrossCheckSubject, CrossChecker } from './crossChecks.ts';
 import type { LibraryLoader } from './library.ts';
 
 /**
@@ -42,6 +44,13 @@ export type WritePlan = {
      * model to confirm reflexively.
      */
     noop?: boolean;
+    /**
+     * The title this write touches, for the cross-checks. Only read when the
+     * tool sets `crossCheck`, so a plan can always fill it in. A function is
+     * for a subject that costs an upstream read to name: the harness calls it
+     * only when it asks for advice, so a confirm never pays for it.
+     */
+    subject?: CrossCheckSubject | (() => Promise<CrossCheckSubject>);
 };
 
 export type WriteToolSpec<Schema extends z.ZodObject> = {
@@ -84,6 +93,15 @@ export type WriteToolSpec<Schema extends z.ZodObject> = {
      * back to the default sentence.
      */
     applied?(outcome: unknown, plan: WritePlan): string | undefined;
+    /**
+     * Which questions to ask the rest of the stack when this write is
+     * previewed. Run by the harness, not by `plan`: `plan` runs again on the
+     * confirm call, and reads there would make an apply slow or fail on a
+     * service that is down. Previews only, so the invariant above holds: the
+     * preview path cannot mutate, and a valid token applies whatever the
+     * warnings say now.
+     */
+    crossCheck?: CrossCheckProfile;
 };
 
 export type WriteContext = {
@@ -99,6 +117,8 @@ export type WriteContext = {
      * `BEARER_CALLER` fallback only serves contexts built outside `/mcp`.
      */
     caller?: string;
+    /** Absent in a context built without one; a tool that sets `crossCheck` then previews as it always did. */
+    crossChecks?: CrossChecker;
 };
 
 const DryRunSchema = z
@@ -150,7 +170,15 @@ const WriteOutputSchema = z.looseObject({
     confirm_token: z.string().optional().describe('Present when a preview is awaiting confirmation. Single-use, expiring, bound to this exact operation and arguments.'),
     confirm_error: z.string().optional().describe('Why a presented token was rejected. Present only when one was presented.'),
     result: z.unknown().optional().describe('Whatever the service returned, on a write that landed.'),
-    audit_id: z.number().optional().describe('The audit row this call wrote. Every branch writes one, including previews and refusals.')
+    audit_id: z.number().optional().describe('The audit row this call wrote. Every branch writes one, including previews and refusals.'),
+    warnings: z
+        .array(z.string())
+        .optional()
+        .describe('Present on a preview when another service has something to say about this change. Tell the user before confirming.'),
+    unchecked: z
+        .array(z.string())
+        .optional()
+        .describe('Present when a service could not be asked, so its absence from `warnings` means nothing.')
 });
 
 export type WriteToolResult = {
@@ -171,6 +199,10 @@ export type WriteToolResult = {
     /** Whatever `apply` returned, on a real write. */
     result?: unknown;
     audit_id?: number;
+    /** Other services' findings, on a preview. Omitted when there are none. */
+    warnings?: string[];
+    /** Services the cross-checks could not read. Omitted when there are none. */
+    unchecked?: string[];
 };
 
 /**
@@ -274,6 +306,34 @@ export function registerWriteTool<Schema extends z.ZodObject>(
                 structuredContent: result
             });
 
+            // Asked on the preview paths only, never for a no-op, a refusal or
+            // an applied write. Reads are not permission-gated, for the reason
+            // resolving the plan is not (above), and they write no audit row.
+            const advise = async (): Promise<{ fields: Partial<WriteToolResult>; block: string }> => {
+                if (spec.crossCheck === undefined || plan.subject === undefined || context.crossChecks === undefined) {
+                    return { fields: {}, block: '' };
+                }
+                let advice: { warnings: string[]; unchecked: string[] };
+                try {
+                    const subject = typeof plan.subject === 'function' ? await plan.subject() : plan.subject;
+                    advice = await context.crossChecks(subject, spec.crossCheck);
+                } catch (err) {
+                    logger.warn({ tool: spec.name, err }, 'cross-checks threw; previewing without them');
+                    advice = { warnings: [], unchecked: ['cross-service checks'] };
+                }
+                const parts = [
+                    advice.warnings.length === 0 ? '' : `Worth checking first:\n${advice.warnings.map(w => `- ${w}`).join('\n')}`,
+                    advice.unchecked.length === 0 ? '' : `Could not check: ${advice.unchecked.join(', ')}.`
+                ].filter(p => p !== '');
+                return {
+                    fields: {
+                        ...(advice.warnings.length === 0 ? {} : { warnings: advice.warnings }),
+                        ...(advice.unchecked.length === 0 ? {} : { unchecked: advice.unchecked })
+                    },
+                    block: parts.join('\n\n')
+                };
+            };
+
             // --- 1. Nothing to do -------------------------------------------------
             if (plan.noop === true) {
                 const id = audit.begin(record);
@@ -295,12 +355,14 @@ export function registerWriteTool<Schema extends z.ZodObject>(
             if (dryRun) {
                 const id = audit.begin(record);
                 audit.settle(id, 'dry_run', verdict.allowed ? undefined : verdict.reason);
+                const advice = await advise();
                 return respond(
-                    preview({ audit_id: id }),
+                    preview({ audit_id: id, ...advice.fields }),
                     `Dry run — nothing was changed. ${plan.summary}` +
+                        (advice.block === '' ? ' ' : `\n\n${advice.block}\n\n`) +
                         (verdict.allowed
-                            ? ' Omit `dry_run` to preview it for real and receive a confirmation token.'
-                            : ` Note that this write would currently be refused: ${verdict.reason}. ${verdict.remedy}`)
+                            ? 'Omit `dry_run` to preview it for real and receive a confirmation token.'
+                            : `Note that this write would currently be refused: ${verdict.reason}. ${verdict.remedy}`)
                 );
             }
 
@@ -342,9 +404,11 @@ export function registerWriteTool<Schema extends z.ZodObject>(
                     const id = audit.begin(record);
                     audit.settle(id, 'unconfirmed', `confirmation ${check.failure}`);
                     const fresh = confirm.issue(intent);
+                    const advice = await advise();
                     return respond(
                         preview({
                             audit_id: id,
+                            ...advice.fields,
                             confirm_error: CONFIRM_REASON[check.failure],
                             confirm_token: fresh
                         }),
@@ -354,7 +418,8 @@ export function registerWriteTool<Schema extends z.ZodObject>(
                         // single next action, worded as the plain preview words it. The
                         // token goes last in both: a reader clipping the trailing word or
                         // the final backticked span gets it, and prose after it would not.
-                        `Not applied — the confirmation token was rejected. ${CONFIRM_REASON[check.failure]} ` +
+                        `Not applied — the confirmation token was rejected. ${CONFIRM_REASON[check.failure]}` +
+                            (advice.block === '' ? ' ' : `\n\n${advice.block}\n\n`) +
                             `Do not resend the rejected one. To apply this, call ${spec.name} again with ` +
                             `the same arguments plus \`confirm\` set to \`${fresh}\`.`
                     );
@@ -367,9 +432,11 @@ export function registerWriteTool<Schema extends z.ZodObject>(
                 // a preview whose text names a field the model cannot see is a
                 // handshake it can never complete.
                 const token = confirm.issue(intent);
+                const advice = await advise();
                 return respond(
-                    preview({ audit_id: id, confirm_token: token }),
+                    preview({ audit_id: id, confirm_token: token, ...advice.fields }),
                     `Not applied yet. ${plan.summary}\n\n` +
+                        (advice.block === '' ? '' : `${advice.block}\n\n`) +
                         `${plan.effects.map(e => `- ${e}`).join('\n')}\n\n` +
                         `To apply this, call ${spec.name} again with the same arguments plus \`confirm\` set to \`${token}\`.`
                 );

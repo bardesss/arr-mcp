@@ -4,6 +4,7 @@ import * as z from 'zod/v4';
 import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { hasEpisodeFiles, hasMediaDetails, type EpisodeSummary, type ServiceAdapter } from '../services/types.ts';
+import { arrSubject } from './crossChecks.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 
 const GIB = 1024 ** 3;
@@ -54,6 +55,7 @@ export function registerDeleteEpisodeFiles(
         service: ({ service, instance }) => findAdapter(adapters, service, instance).id,
         operation: 'delete_episode_files',
         tier: 'destructive',
+        crossCheck: 'delete',
 
         async plan({ service, instance, id, season, episodes }): Promise<WritePlan> {
             if (season !== undefined && episodes !== undefined) {
@@ -232,7 +234,15 @@ export function registerDeleteEpisodeFiles(
                 // resolution that has drifted from what was previewed fails to
                 // verify — the write is refused rather than applied against
                 // stale or changed ids.
-                args: { service, id, fileIds }
+                args: { service, id, fileIds },
+                // Empty for named episodes, not absent: they are part of the
+                // title, and the series' watched flag says nothing about them.
+                ...arrSubject(adapter, {
+                    label,
+                    ids: details.ids,
+                    acquisition: { service: adapter.id, id },
+                    seasons: season === undefined ? [] : [season]
+                })
             };
         },
 
