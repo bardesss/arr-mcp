@@ -289,10 +289,9 @@ no more a fault than a grant is.
 ### Which services report health checks
 
 `failures` carries what each service says is wrong with itself. Radarr,
-Sonarr, Whisparr, Prowlarr and Bazarr report their own health checks, NZBGet
-its `systemhealth` alerts (v26 and later), and Cleanuparr, Reclaimerr and Dispatcharr their
-own status (see [Dispatcharr](#dispatcharr) below). Lidarr does not report
-health checks yet.
+Sonarr, Whisparr, Lidarr, Prowlarr and Bazarr report their own health checks,
+NZBGet its `systemhealth` alerts (v26 and later), and Cleanuparr, Reclaimerr and
+Dispatcharr their own status (see [Dispatcharr](#dispatcharr) below).
 
 SABnzbd reports the warnings and errors from its log, and only those from the
 last 24 hours. Its warnings list is a log rather than a state: it keeps every
@@ -2007,7 +2006,7 @@ and, on the *arrs, with its metadata provider.
 | Call | What it does |
 | --- | --- |
 | `service` alone | Scans that service's whole library, refreshing metadata first on the *arrs. On Prowlarr, which has no library, it syncs the indexer list to Radarr and Sonarr instead. |
-| `service` + `id` | Refreshes and rescans just that Radarr/Sonarr/Whisparr item or Lidarr artist — far cheaper on a large library. |
+| `service` + `id` | Refreshes and rescans just that Radarr/Sonarr/Whisparr item — far cheaper on a large library. On Lidarr it refreshes one artist, but the rescan after it still reads every root folder. |
 | `action: "rename"` + `id` | Renames that item's files to the service's own naming scheme. |
 | `action: "import"` + `download_id` | Imports a finished download the service never picked up. |
 | `action: "remap"` + `id` + `reassignments` | Tells Sonarr which episode an already-imported file really is, and renames those files to match. |
@@ -2037,8 +2036,12 @@ what is already there, which is what `fix_metadata` is for.
 ### On Lidarr
 
 A scan is Lidarr's `RefreshArtist`, for the whole library or with `id` for one
-artist. `rename` is `RenameArtist`, every file of that artist. Both appear in
-`stack_health`'s `commands`.
+artist. The rescan after it is Lidarr's `RescanFolders`, the scan time
+`stack_health` reports under `scans`. With `id` only the refresh narrows: the
+rescan still reads every root folder unless the artist is new
+(`RefreshArtistService.RescanArtists`), so it reads the whole library from disk,
+as a full scan does. `rename` is `RenameArtist`, every file of that artist. Both
+appear in `stack_health`'s `commands`.
 
 `import` reads Lidarr's queue first and refuses a download that has not
 finished. Lidarr's candidate read for one fails, as Radarr's and Sonarr's does,
