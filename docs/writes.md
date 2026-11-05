@@ -189,11 +189,18 @@ find under **Worth checking first** in the preview, in the text as well as in
 `structuredContent.warnings`. A service that could not be asked is named under
 **Could not check** and in `structuredContent.unchecked`; an empty list means
 nothing was found only for the services not named there. The checks run on a
-`dry_run` too.
+`dry_run` too. Only the sources that bear on the title are named: a film delete
+does not list Lidarr or Sonarr, nor the media server's music or season reads.
+
+The watch warning depends on the kind of title. A film that the default user has
+not watched says so. A series only says so when none of its episodes were: the
+media server's flag for a series means "not all watched", so a show you are
+partway through reads "only partly watched", with the episodes counted so far,
+and a series whose seasons could not be read says it is not fully watched.
 
 | Write | Asks | About |
 |---|---|---|
-| `delete_media` | whether something still depends on the title | Seerr requests, Reclaimerr protections, downloads, seeding (only when `delete_files` is true, since otherwise the files stay and nothing is freed), watch state |
+| `delete_media` | whether something still depends on the title | Seerr requests, Reclaimerr protections, downloads, and, only when `delete_files` is true (otherwise the files stay, so nothing is freed and the title stays as playable as before), seeding and watch state |
 | `delete_episode_files` | the same, for the series | the same, plus whether the season being deleted was watched. Named episodes do not check watch state: the series flag says nothing about one episode |
 | `trigger_search` | whether something is working against getting it | Reclaimerr removals, a Seerr request waiting or declined, an existing download |
 | `add_media` | the same as `trigger_search` | the title, by every id its lookup reported (a series also by TMDB, when the lookup carries one); not yet in the library, so no existing download is matched by id |

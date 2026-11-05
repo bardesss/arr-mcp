@@ -10,7 +10,7 @@ import {
     type ServiceAdapter
 } from '../services/types.ts';
 import { classifyQueueStatus, queueRowsFor, SEEDING, wholeRemoval } from './diagnose/chain.ts';
-import { findRequest } from './diagnose/evidence.ts';
+import { requestsFor } from './diagnose/evidence.ts';
 import { removalSentence, upcomingSentence } from './cleanupStatus.ts';
 import type { LibraryLoader } from './library.ts';
 
@@ -75,6 +75,43 @@ const TIMED_OUT = Symbol('timed out');
 
 const NO_TMDB = (service: string): string => `${service} (no TMDB id)`;
 
+/** The kind of title each *arr holds. A media server is not in here: it holds all of them. */
+const ARR_KIND: Readonly<Record<string, 'movie' | 'series' | 'artist'>> = {
+    radarr: 'movie',
+    sonarr: 'series',
+    whisparr: 'series',
+    lidarr: 'artist'
+};
+
+/**
+ * Whether a degraded library source could have changed the answer for a title
+ * of this kind. A film delete that listed Lidarr and Jellyfin's music read as
+ * unchecked would claim a gap in something it never asked about.
+ */
+function bearsOn(source: string, kind: CrossCheckSubject['kind']): boolean {
+    if (source.endsWith(':music')) return false;
+    if (source.endsWith(':seasons')) return kind === 'series';
+    const holds = ARR_KIND[source.split('/')[0] ?? ''];
+    return holds === undefined || holds === kind;
+}
+
+/**
+ * What `playback.watched === false` can honestly be turned into. For a film it
+ * is "not watched". For a series it only means "not all watched" (a show you
+ * are current on goes false when a new episode lands), so the seasons say how
+ * much. A season with no `watched` is Sonarr's row for something the server
+ * holds nothing of: it is no evidence either way and is skipped. `total` is
+ * not a denominator, since it is TVDB's count and includes unaired episodes.
+ */
+function watchSentence(label: string, kind: CrossCheckSubject['kind'], found: MergedItem): string {
+    if (kind === 'movie') return `${label} has not been watched yet by the default user.`;
+    const counted = (found.seasons ?? []).filter(s => s.watched !== undefined);
+    if (counted.length === 0) return `${label} has not been fully watched yet by the default user.`;
+    const watched = counted.reduce((sum, s) => sum + (s.watched ?? 0), 0);
+    if (watched === 0) return `${label} has not been watched yet by the default user.`;
+    return `${label} is only partly watched by the default user: ${watched} ${watched === 1 ? 'episode' : 'episodes'} watched so far.`;
+}
+
 export function buildCrossChecker(adapters: readonly ServiceAdapter[], library: LibraryLoader): CrossChecker {
     // `find`, as `diagnose` does, so a second instance cannot make the two disagree.
     const seerr = adapters.find(hasRequests);
@@ -127,7 +164,7 @@ export function buildCrossChecker(adapters: readonly ServiceAdapter[], library: 
             const snapshotP = needsLibrary
                 ? read('library', () => library.load()).then(snap => {
                       for (const id of snap?.degraded ?? []) {
-                          if (id !== library.secondaryMediaServerId) unchecked.add(id.replace(/:.*$/, ''));
+                          if (id !== library.secondaryMediaServerId && bearsOn(id, subject.kind)) unchecked.add(id.replace(/:.*$/, ''));
                       }
                       return snap;
                   })
@@ -178,11 +215,7 @@ export function buildCrossChecker(adapters: readonly ServiceAdapter[], library: 
             // Same title, not just same number: TMDB's film and series ids are
             // separate namespaces. Every match is kept, so a pending request
             // is not hidden behind an approved one for the same series.
-            const matching = (requests ?? []).filter(
-                r =>
-                    (r.mediaType === 'unknown' || r.mediaType === (subject.kind === 'movie' ? 'movie' : 'tv')) &&
-                    findRequest([r], ids) !== undefined
-            );
+            const matching = requestsFor(requests ?? [], ids, subject.kind);
             const acquisition = subject.acquisition ?? found?.acquisition;
             // A title `mentions` can tokenise: the library's when there is one,
             // otherwise the label without its fence markers and trailing year.
@@ -228,8 +261,9 @@ export function buildCrossChecker(adapters: readonly ServiceAdapter[], library: 
                     );
                 }
                 // Not for a season delete: the series row's flag is false while any later season is unwatched.
-                if (subject.seasons === undefined && found?.playback?.watched === false) {
-                    warnings.push(`${label} has not been watched yet by the default user.`);
+                // Not when the files stay either: they are as playable after the delete as before it.
+                if (subject.seasons === undefined && subject.filesStay !== true && found?.playback?.watched === false) {
+                    warnings.push(watchSentence(label, subject.kind, found));
                 }
                 // `=== false`, not `!== true`: `complete` is absent when either
                 // half of the join is missing, and "unknown" is not "unwatched".

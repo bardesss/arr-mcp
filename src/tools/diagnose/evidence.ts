@@ -2,6 +2,7 @@ import type { ServiceId } from '../../config/schema.ts';
 import { ServiceError } from '../../core/errors.ts';
 import { gather, type Gathered } from '../../core/gather.ts';
 import { logger } from '../../core/logger.ts';
+import { rankTitle, RANK_NONE } from '../../core/titleMatch.ts';
 import { isFilmOrSeries, type ExternalIds, type LibraryKind, type MergedItem } from '../../core/resolver.ts';
 import {
     hasCleanup,
@@ -197,21 +198,45 @@ async function resolveItem(
     if (target.query === undefined) return undefined;
     // A film or series wins over an artist of the same name, which the ranking
     // alone cannot promise; the artist is diagnosed when nothing else matched.
-    const hits = snapshot.index.search(target.query);
+    // Only among the hits that rank best, though: a film that merely contains
+    // the name must not outrank the artist who is exactly it.
+    const query = target.query;
+    const hits = snapshot.index.search(query);
+    const rankOf = (h: MergedItem): number => rankTitle(h.title, query);
+    const best = hits.reduce((lowest, h) => Math.min(lowest, rankOf(h)), RANK_NONE);
+    const top = hits.filter(h => rankOf(h) === best);
     // Then one Lidarr knows: a server-only artist with no MusicBrainz id can rank
     // ahead of it when the names differ in case or article.
-    return hits.find(isFilmOrSeries) ?? hits.find(h => h.acquisition !== undefined) ?? hits[0];
+    return top.find(isFilmOrSeries) ?? hits.find(h => h.acquisition !== undefined) ?? hits[0];
 }
 
 /**
- * The request for a title, matched on tmdbId and then tvdbId, never on title.
- * Shared with the write cross-checks so a warning and `diagnose` cannot
- * disagree about whether a title was requested.
+ * Every request for a title, matched on tmdbId or tvdbId, never on title, and
+ * only among the requests for its kind: TMDB's film and series ids are separate
+ * namespaces, so a film and a series can share a number. Shared with the write
+ * cross-checks so a warning and `diagnose` cannot disagree about whether a
+ * title was requested.
  */
-export function findRequest(requests: readonly MediaRequest[], ids: ExternalIds): MediaRequest | undefined {
+export function requestsFor(requests: readonly MediaRequest[], ids: ExternalIds, kind: 'movie' | 'series'): MediaRequest[] {
+    const mediaType = kind === 'movie' ? 'movie' : 'tv';
+    return requests.filter(
+        r =>
+            (r.mediaType === 'unknown' || r.mediaType === mediaType) &&
+            ((ids.tmdb !== undefined && r.tmdbId === ids.tmdb) || (ids.tvdb !== undefined && r.tvdbId === ids.tvdb))
+    );
+}
+
+/**
+ * The one request that describes the title. A pending one wins over an approved
+ * one for the same series, since that is the one waiting on somebody; then a
+ * TMDB match before a TVDB one. The write cross-checks read every match instead.
+ */
+export function findRequest(requests: readonly MediaRequest[], ids: ExternalIds, kind: 'movie' | 'series'): MediaRequest | undefined {
+    const matching = requestsFor(requests, ids, kind);
     return (
-        (ids.tmdb === undefined ? undefined : requests.find(r => r.tmdbId === ids.tmdb)) ??
-        (ids.tvdb === undefined ? undefined : requests.find(r => r.tvdbId === ids.tvdb))
+        matching.find(r => r.status === 'pending') ??
+        (ids.tmdb === undefined ? undefined : matching.find(r => r.tmdbId === ids.tmdb)) ??
+        matching[0]
     );
 }
 
@@ -359,8 +384,8 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
         request = undefined; // could not ask
     } else if (requests === null) {
         request = null; // no Seerr configured
-    } else if (item === undefined) {
-        request = null; // nothing resolved to match against
+    } else if (item === undefined || item.kind === 'artist') {
+        request = null; // nothing resolved to match against, or music, which Seerr does not hold
     } else if (item.ids.tmdb === undefined && item.ids.tvdb === undefined) {
         // Seerr answered, but this item carries neither id to match on — e.g.
         // a Sonarr series whose Jellyfin counterpart is absent, unreachable,
@@ -370,7 +395,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
         // reported as no request at all just because the join has a gap.
         request = undefined;
     } else {
-        const match = findRequest(requests, item.ids);
+        const match = findRequest(requests, item.ids, item.kind);
         // Whose request it is stays here: only whether the caller may act on it
         // leaves, so the next step is withheld where the write would refuse.
         // Unknown (no identity, or it would not resolve) reads as "may not".

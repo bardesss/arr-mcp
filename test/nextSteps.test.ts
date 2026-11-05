@@ -7,8 +7,9 @@ import { nextStepLine } from '../src/core/nextStep.ts';
 import { permissionSourceFrom } from '../src/core/permissions.ts';
 import type { IdentityResolver } from '../src/core/identity.ts';
 import type { FilmOrSeries, IndexInput, MergedItem } from '../src/core/resolver.ts';
-import type { CleanupStatus, QueueItem, ServiceAdapter, SubtitleGap } from '../src/services/types.ts';
+import type { CleanupRemoval, CleanupStatus, QueueItem, ServiceAdapter, SubtitleGap } from '../src/services/types.ts';
 import { buildChain as chain, type Diagnosis, type Evidence } from '../src/tools/diagnose/chain.ts';
+import { removalSentence } from '../src/tools/cleanupStatus.ts';
 import { registerDiagnose } from '../src/tools/diagnose/index.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
 import { registerLookupMedia } from '../src/tools/lookupMedia.ts';
@@ -398,6 +399,43 @@ describe('next steps in a diagnosis', () => {
         const d = buildChain(QUERY, healthy({ cleanupUnread: 'reclaimerr' }));
         expect(d.verdict.next_steps?.[0]?.tool).toBe('trigger_search');
         expect(d.verdict.next_steps?.[0]?.why).toMatch(/reclaimerr could not be read/);
+    });
+
+    describe('a title a cleanup rule deleted', () => {
+        const unmonitored = item({ acquisition: { service: 'radarr', id: '5', monitored: false, hasFile: false } });
+        const sentence = removalSentence('reclaimerr', REMOVED.removals[0] as CleanupRemoval);
+
+        it('offers no monitoring step, and protects before monitoring', () => {
+            const d = buildChain(QUERY, healthy({ item: unmonitored, cleanup: REMOVED }));
+            expect(d.verdict.stage).toBe('managed');
+            expect(d.verdict.next_steps).toBeUndefined();
+            expect(d.verdict.remedy).toMatch(/Protect it in reclaimerr first/);
+        });
+
+        it('says in the verdict that the rule removed it', () => {
+            const d = buildChain(QUERY, healthy({ item: unmonitored, cleanup: REMOVED }));
+            expect(d.verdict.summary).toContain(sentence);
+        });
+
+        it('says it for a request verdict too', () => {
+            const d = buildChain(QUERY, healthy({ request: { status: 'pending', id: 12, mayRespond: true }, cleanup: REMOVED }));
+            expect(d.verdict.stage).toBe('request');
+            expect(d.verdict.summary).toContain(sentence);
+        });
+
+        it('says it once when the file step is the verdict', () => {
+            const d = buildChain(QUERY, healthy({ cleanup: REMOVED }));
+            expect(d.verdict.stage).toBe('file');
+            expect(d.verdict.summary.split(sentence)).toHaveLength(2);
+        });
+
+        it('still offers monitoring when the file is back on disk', () => {
+            // A series, because a film with a file on disk is never a `managed` verdict.
+            const back = item({ kind: 'series', acquisition: { service: 'sonarr', id: '7', monitored: false, hasFile: true } });
+            const d = buildChain(QUERY, healthy({ item: back, cleanup: REMOVED }));
+            expect(d.verdict.stage).toBe('managed');
+            expect(d.verdict.next_steps?.map(x => x.tool)).toEqual(['set_monitoring']);
+        });
     });
 
     it('offers no approval unless the caller may act on the request', () => {

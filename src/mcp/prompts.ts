@@ -21,6 +21,8 @@ import * as z from 'zod/v4';
  * 1.0 audit freezes them on the same terms.
  */
 
+const MAX_WINDOW_DAYS = 36_500;
+
 const user = (text: string) => ({
     messages: [{ role: 'user' as const, content: { type: 'text' as const, text } }]
 });
@@ -32,7 +34,7 @@ export function registerAllPrompts(server: McpServer): void {
             title: 'Why is this not playable?',
             description:
                 'Walk the whole chain for one title — requested, managed, monitored, downloaded, indexed, imported, scanned — and name the first thing that explains it.',
-            argsSchema: z.object({ title: z.string().min(1).describe('The film or series to explain.') })
+            argsSchema: z.object({ title: z.string().min(1).describe('The film, series or artist to explain.') })
         },
         ({ title }) =>
             user(
@@ -127,8 +129,9 @@ For a series, \`rating_source: "imdb"\` is worth naming explicitly — the defau
         ({ days }) => {
             // A window the model cannot parse falls back to the default rather
             // than reaching the text as "last soon days".
+            // Capped, because a date past about 1e8 days back is not a date and `toISOString` throws on it.
             const parsed = Number(days);
-            const window = Number.isFinite(parsed) && parsed > 0 ? parsed : 7;
+            const window = Number.isFinite(parsed) && parsed > 0 ? Math.min(parsed, MAX_WINDOW_DAYS) : 7;
             // get_history compares `since` as a plain string against each
             // record's own date, so a full ISO timestamp is the right shape.
             const since = new Date(Date.now() - window * 24 * 60 * 60 * 1000).toISOString();
