@@ -15,9 +15,11 @@ tag                →  buildx multi-arch → ghcr.io/bardesss/arr-mcp
 ```
 
 Image tags are `X.Y.Z`, `X.Y`, `X` and `latest` for releases, plus `main` for
-bleeding edge. Nothing else from this pipeline: the separate **Preview image**
-workflow pushes `preview-<name>` for a branch someone is testing, and never
-touches the release tags. The release workflow fails the job when a release
+bleeding edge. A push that only touches root Markdown files, `docs/` or the
+issue templates builds no `main` image, so `main` can sit behind the branch by
+docs commits. A release always builds. Nothing else from this pipeline: the
+separate **Preview image** workflow pushes `preview-<name>` for a branch someone
+is testing, and never touches the release tags. The release workflow fails the job when a release
 computes no version tag — a release that publishes only `latest` is a silent
 policy violation, and it has happened once.
 
