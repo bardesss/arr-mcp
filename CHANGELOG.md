@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.60.0](https://github.com/bardesss/arr-mcp/compare/v1.59.0...v1.60.0) (2026-11-05)
+
+
+### Features
+
+* return next steps as tool calls ([#463](https://github.com/bardesss/arr-mcp/issues/463)) ([57a8feb](https://github.com/bardesss/arr-mcp/commit/57a8feb90589bfea104a8216987f01b2f9d0b610))
+
 ## [1.59.0](https://github.com/bardesss/arr-mcp/compare/v1.58.0...v1.59.0) (2026-11-05)
 
 
