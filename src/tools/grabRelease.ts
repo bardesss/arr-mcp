@@ -13,7 +13,7 @@ import {
     type MagnetAddCapable,
     type ServiceAdapter
 } from '../services/types.ts';
-import { arrSubject } from './crossChecks.ts';
+import { arrSubject, CROSS_CHECK_BUDGET_MS } from './crossChecks.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 
 /**
@@ -198,21 +198,36 @@ export function registerGrabRelease(
                 );
             }
 
-            // Only to name the title for the cross-checks, so it must never block
-            // a grab. Without it the release name stands in, with no ids: the
-            // checker then lists what it could not look up rather than saying
-            // nothing was found.
-            let label = match.title;
-            let ids = {};
-            if (hasMediaDetails(adapter)) {
-                try {
-                    const details = await adapter.getMediaDetails(id, { includeEpisodes: false, episodeLimit: 0 });
-                    label = `${details.title}${details.year === undefined ? '' : ` (${details.year})`}`;
-                    ids = details.ids;
-                } catch (err) {
+            // Named lazily, because the title is only for the cross-checks: the
+            // harness calls this on a preview and never on a confirm, so the
+            // read cannot slow an apply. It gets the same budget the checks
+            // do and never fails the preview: the release name stands in, with
+            // no ids, and the checker then lists what it could not look up.
+            const name = async () => {
+                const fallback = { label: match.title, ids: {}, acquisition: { service: adapter.id, id } };
+                if (!hasMediaDetails(adapter)) return fallback;
+                let timer: ReturnType<typeof setTimeout> | undefined;
+                const expired = new Promise<undefined>(resolve => {
+                    timer = setTimeout(() => resolve(undefined), CROSS_CHECK_BUDGET_MS);
+                });
+                // Handled before the race: a read that fails after the timer
+                // won must not surface as an unhandled rejection.
+                const read = adapter.getMediaDetails(id, { includeEpisodes: false, episodeLimit: 0 }).catch((err: unknown) => {
                     logger.warn({ service: adapter.id, err }, 'could not read the item to name it for the cross-checks');
+                    return undefined;
+                });
+                try {
+                    const details = await Promise.race([read, expired]);
+                    if (details === undefined) return fallback;
+                    return {
+                        ...fallback,
+                        label: `${details.title}${details.year === undefined ? '' : ` (${details.year})`}`,
+                        ids: details.ids
+                    };
+                } finally {
+                    clearTimeout(timer);
                 }
-            }
+            };
 
             return {
                 target: `${adapter.id}:${guid}`,
@@ -221,7 +236,7 @@ export function registerGrabRelease(
                 // Both, because both decide what apply() sends. A token that
                 // bound only the guid would carry across a different indexer.
                 args: { guid, indexerId: indexer_id },
-                ...arrSubject(adapter, { label, ids, acquisition: { service: adapter.id, id } })
+                ...arrSubject(adapter, name)
             };
         },
 

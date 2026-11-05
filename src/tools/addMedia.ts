@@ -240,13 +240,10 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
                     ...(series_type === undefined ? {} : { seriesType: series_type }),
                     ...(resolvedTags.length === 0 ? {} : { tagIds: resolvedTags.map(t => t.id) })
                 },
-                // The id the caller gave, in the namespace the service takes
-                // it in. Not in the library yet, so there is no *arr id to
-                // match a queue row on.
-                ...arrSubject(adapter, {
-                    label,
-                    ids: adapter.type === 'radarr' ? { tmdb: Number(external_id) } : { tvdb: Number(external_id) }
-                })
+                // Every id the lookup reported, so a series can reach Reclaimerr
+                // by TMDB as well as Seerr by TVDB. Not in the library yet, so
+                // there is no *arr id to match a queue row on.
+                ...arrSubject(adapter, { label, ids: candidate.ids })
             };
         },
 

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import type { ServiceInstance } from '../src/config/instances.ts';
 import { instancesOf } from './helpers/instances.ts';
 import { describe, expect, it, vi } from 'vitest';
@@ -820,14 +821,46 @@ describe('add_media cross-checks', () => {
         expect(crossChecks).not.toHaveBeenCalled();
     });
 
-    it('accepts a token whatever the checks answered', async () => {
-        const answers = [{ warnings: ['one'], unchecked: [] }, { warnings: [], unchecked: ['seerr'] }];
-        const crossChecks = vi.fn<CrossChecker>(async () => answers.shift() ?? { warnings: [], unchecked: [] });
-        const h = harness({ crossChecks });
+    // The recorded Sonarr lookup: Breaking Bad carries a TMDB id, Breaking Band has none (0).
+    const SERIES_LOOKUP = JSON.parse(readFileSync('test/fixtures/sonarr/series-lookup.json', 'utf8')) as {
+        title: string;
+        tvdbId: number;
+        tmdbId: number;
+    }[];
+
+    it('gives a series the TMDB id its lookup carries, so Reclaimerr can be asked', async () => {
+        const crossChecks = quiet();
+        const bb = SERIES_LOOKUP[0];
+        const s = stack({ resource: 'series', lookup: [bb] });
+        const h = harness({ adapters: [new SonarrAdapter(keyed(8989), s.impl)], crossChecks });
+
+        await h.call({ service: 'sonarr', external_id: String(bb?.tvdbId), dry_run: true });
+
+        expect(crossChecks.mock.calls[0]?.[0].ids).toEqual({ tvdb: bb?.tvdbId, tmdb: bb?.tmdbId });
+    });
+
+    it('leaves out a TMDB id the lookup reports as 0', async () => {
+        const crossChecks = quiet();
+        const band = SERIES_LOOKUP[1];
+        const s = stack({ resource: 'series', lookup: [band] });
+        const h = harness({ adapters: [new SonarrAdapter(keyed(8989), s.impl)], crossChecks });
+
+        await h.call({ service: 'sonarr', external_id: String(band?.tvdbId), dry_run: true });
+
+        expect(crossChecks.mock.calls[0]?.[0].ids).toEqual({ tvdb: band?.tvdbId });
+    });
+
+    // A subject folded into the token would break it when the title changes in between.
+    it('asks only on the preview, and a title that changed does not void the token', async () => {
+        const crossChecks = quiet();
+        const lookup = [{ ...NEW_MOVIE[0] }];
+        const h = harness({ lookup, crossChecks });
 
         const first = await h.call({ service: 'radarr', external_id: '603' });
+        lookup[0] = { ...NEW_MOVIE[0], title: 'Renamed' } as (typeof lookup)[0];
         const second = await h.call({ service: 'radarr', external_id: '603', confirm: first.structuredContent.confirm_token });
 
         expect(second.structuredContent.applied).toBe(true);
+        expect(crossChecks).toHaveBeenCalledTimes(1);
     });
 });

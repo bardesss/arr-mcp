@@ -475,6 +475,32 @@ describe('write tool harness — cross-checks', () => {
         expect(h.apply).toHaveBeenCalledTimes(1);
     });
 
+    it('resolves a subject given as a function on the preview only', async () => {
+        const crossChecks = advised();
+        const subject = vi.fn(() => Promise.resolve(SUBJECT));
+        const h = buildHarness({ plan: { ...PLAN, subject }, crossChecks, crossCheck: 'delete' });
+
+        const first = await h.call('delete_media', { id: '5' });
+        await h.call('delete_media', { id: '5', confirm: first.structuredContent.confirm_token });
+
+        expect(subject).toHaveBeenCalledTimes(1);
+        expect(crossChecks).toHaveBeenCalledWith(SUBJECT, 'delete');
+    });
+
+    it('still previews when a subject function rejects', async () => {
+        const crossChecks = advised();
+        const h = buildHarness({
+            plan: { ...PLAN, subject: () => Promise.reject(new Error('boom')) },
+            crossChecks,
+            crossCheck: 'delete'
+        });
+        const { structuredContent } = await h.call('delete_media', { id: '5' });
+
+        expect(structuredContent.confirm_token).toBeTypeOf('string');
+        expect(structuredContent.unchecked).toEqual(['cross-service checks']);
+        expect(crossChecks).not.toHaveBeenCalled();
+    });
+
     it('still previews when the checker throws', async () => {
         const crossChecks = vi.fn<CrossChecker>(() => Promise.reject(new Error('boom')));
         const h = buildHarness({ plan: SUBJECT_PLAN, crossChecks, crossCheck: 'delete' });

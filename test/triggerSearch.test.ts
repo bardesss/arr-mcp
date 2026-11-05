@@ -457,15 +457,17 @@ describe('trigger_search cross-checks', () => {
         expect(crossChecks).not.toHaveBeenCalled();
     });
 
-    // The subject is not in `plan.args`, so what the checks found cannot change a token's validity.
-    it('accepts a token whatever the checks answered', async () => {
-        const answers = [{ warnings: ['one'], unchecked: [] }, { warnings: [], unchecked: ['seerr'] }];
-        const crossChecks = vi.fn<CrossChecker>(async () => answers.shift() ?? { warnings: [], unchecked: [] });
-        const h = harness({ crossChecks });
+    // A subject folded into the token would break it when the title changes in between.
+    it('asks only on the preview, and a title that changed does not void the token', async () => {
+        const crossChecks = quiet();
+        const routes: Record<string, unknown> = { '/api/v3/movie/5': { ...MOVIE, tmdbId: 348 }, '/api/v3/command': COMMAND };
+        const h = harness({ adapters: [new RadarrAdapter(keyed(7878), recordingFetch(routes).impl)], crossChecks });
 
         const first = await h.call({ service: 'radarr', id: '5' });
+        routes['/api/v3/movie/5'] = { ...MOVIE, title: 'Renamed', tmdbId: 349 };
         const second = await h.call({ service: 'radarr', id: '5', confirm: first.structuredContent.confirm_token });
 
         expect(second.structuredContent.applied).toBe(true);
+        expect(crossChecks).toHaveBeenCalledTimes(1);
     });
 });

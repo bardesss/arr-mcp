@@ -1,5 +1,6 @@
 import { instancesOf } from './helpers/instances.ts';
-import { describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type * as z from 'zod/v4';
 import type { AnyServiceConfig, KeyedServiceConfig, ServiceId } from '../src/config/schema.ts';
 import { WriteAudit } from '../src/core/audit.ts';
@@ -10,6 +11,7 @@ import { RadarrAdapter } from '../src/services/radarr.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
 import { WhisparrAdapter } from '../src/services/whisparr.ts';
 import { TransmissionAdapter } from '../src/services/transmission.ts';
+import { CROSS_CHECK_BUDGET_MS } from '../src/tools/crossChecks.ts';
 import { registerGrabRelease } from '../src/tools/grabRelease.ts';
 import type { CrossChecker } from '../src/tools/crossChecks.ts';
 import type { LibraryLoader } from '../src/tools/library.ts';
@@ -58,10 +60,13 @@ function harness(
         crossChecks?: CrossChecker;
         /** What the item read answers; absent means that read 404s. */
         item?: Record<string, unknown>;
+        /** An item read that never answers. */
+        itemHangs?: boolean;
     } = {}
 ) {
     const grabbed: unknown[] = [];
     const searched: string[] = [];
+    const reads = { item: 0 };
 
     const impl = (async (input: string | URL | Request, init?: RequestInit) => {
         const url = new URL(input instanceof Request ? input.url : String(input));
@@ -69,8 +74,10 @@ function harness(
             grabbed.push(typeof init?.body === 'string' ? JSON.parse(init.body) : undefined);
             return new Response('', { status: 200 });
         }
-        if (opts.item !== undefined && (url.pathname === '/api/v3/movie/1' || url.pathname === '/api/v3/series/1')) {
-            return jsonResponse(opts.item);
+        if (url.pathname === '/api/v3/movie/1' || url.pathname === '/api/v3/series/1') {
+            reads.item += 1;
+            if (opts.itemHangs === true) return new Promise<Response>(() => {});
+            if (opts.item !== undefined) return jsonResponse(opts.item);
         }
         if (url.pathname === '/api/v3/release') searched.push(url.search);
         if (url.pathname === '/api/v3/release') return jsonResponse(opts.releases ?? [release()]);
@@ -99,7 +106,7 @@ function harness(
         [new RadarrAdapter(keyed(7878), impl), new SonarrAdapter(keyed(8989), impl), new WhisparrAdapter(keyed(6969), impl)]
     );
 
-    return { call: (a: Record<string, unknown>) => call(a), grabbed, searched, audit };
+    return { call: (a: Record<string, unknown>) => call(a), grabbed, searched, audit, reads };
 }
 
 const ARGS = { service: 'radarr', id: '1', guid: 'abc', indexer_id: 3 };
@@ -450,8 +457,13 @@ describe('grab_release with a magnet', () => {
 });
 
 describe('grab_release cross-checks', () => {
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
     const quiet = () => vi.fn<CrossChecker>(async () => ({ warnings: [], unchecked: [] }));
-    const ITEM = { id: 1, title: 'Alien', year: 1979, tmdbId: 348, monitored: true, hasFile: false };
+    // Recorded Radarr response; the harness serves it at whatever id the test asks for.
+    const ITEM = JSON.parse(readFileSync('test/fixtures/radarr/movie-detail.json', 'utf8')) as Record<string, unknown>;
 
     it('asks the acquire checks about the item the release is for', async () => {
         const crossChecks = quiet();
@@ -462,8 +474,8 @@ describe('grab_release cross-checks', () => {
         expect(crossChecks).toHaveBeenCalledTimes(1);
         const [subject, profile] = crossChecks.mock.calls[0] ?? [];
         expect(profile).toBe('acquire');
-        expect(subject).toMatchObject({ kind: 'movie', ids: { tmdb: 348 }, acquisition: { service: 'radarr', id: '1' } });
-        expect(subject?.label).toContain('Alien');
+        expect(subject).toMatchObject({ kind: 'movie', ids: { tmdb: ITEM.tmdbId }, acquisition: { service: 'radarr', id: '1' } });
+        expect(subject?.label).toContain('Blade');
     });
 
     // The item read only names the title; failing it must not cost the grab.
@@ -481,24 +493,44 @@ describe('grab_release cross-checks', () => {
         expect(subject?.acquisition).toEqual({ service: 'radarr', id: '1' });
     });
 
-    it('does not ask about a Whisparr grab', async () => {
+    it('gives up on a hung item read after the cross-check budget and previews under the release name', async () => {
+        vi.useFakeTimers();
         const crossChecks = quiet();
-        const h = harness({ crossChecks, item: { ...ITEM, tvdbId: 1001 } });
+        const h = harness({ crossChecks, itemHangs: true });
 
-        const { structuredContent } = await h.call({ ...ARGS, service: 'whisparr', dry_run: true });
+        const preview = h.call({ ...ARGS, dry_run: true });
+        await vi.advanceTimersByTimeAsync(CROSS_CHECK_BUDGET_MS);
+        const { structuredContent } = await preview;
 
         expect(structuredContent.summary).toContain('Alien.1979');
+        expect(crossChecks.mock.calls[0]?.[0].label).toContain('Alien.1979.2160p.BluRay-GROUP');
+        expect(crossChecks.mock.calls[0]?.[0].ids).toEqual({});
+    });
+
+    it('does not read or ask about a Whisparr grab, on preview or confirm', async () => {
+        const crossChecks = quiet();
+        const h = harness({ crossChecks, item: ITEM });
+
+        const first = await h.call({ ...ARGS, service: 'whisparr' });
+        const second = await h.call({ ...ARGS, service: 'whisparr', confirm: first.structuredContent.confirm_token });
+
+        expect(second.structuredContent.applied).toBe(true);
+        expect(h.reads.item).toBe(0);
         expect(crossChecks).not.toHaveBeenCalled();
     });
 
-    it('accepts a token whatever the checks answered', async () => {
-        const answers = [{ warnings: ['one'], unchecked: [] }, { warnings: [], unchecked: ['seerr'] }];
-        const crossChecks = vi.fn<CrossChecker>(async () => answers.shift() ?? { warnings: [], unchecked: [] });
-        const h = harness({ crossChecks, item: ITEM });
+    // A subject folded into the token would break it when the title changes in between.
+    it('reads the item and asks only on the preview, and a title that changed does not void the token', async () => {
+        const crossChecks = quiet();
+        const item = { ...ITEM };
+        const h = harness({ crossChecks, item });
 
         const first = await h.call(ARGS);
+        item.title = 'Renamed';
         const second = await h.call({ ...ARGS, confirm: first.structuredContent.confirm_token });
 
         expect(second.structuredContent.applied).toBe(true);
+        expect(h.reads.item).toBe(1);
+        expect(crossChecks).toHaveBeenCalledTimes(1);
     });
 });

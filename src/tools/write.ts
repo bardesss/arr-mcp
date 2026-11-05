@@ -46,9 +46,11 @@ export type WritePlan = {
     noop?: boolean;
     /**
      * The title this write touches, for the cross-checks. Only read when the
-     * tool sets `crossCheck`, so a plan can always fill it in.
+     * tool sets `crossCheck`, so a plan can always fill it in. A function is
+     * for a subject that costs an upstream read to name: the harness calls it
+     * only when it asks for advice, so a confirm never pays for it.
      */
-    subject?: CrossCheckSubject;
+    subject?: CrossCheckSubject | (() => Promise<CrossCheckSubject>);
 };
 
 export type WriteToolSpec<Schema extends z.ZodObject> = {
@@ -313,7 +315,8 @@ export function registerWriteTool<Schema extends z.ZodObject>(
                 }
                 let advice: { warnings: string[]; unchecked: string[] };
                 try {
-                    advice = await context.crossChecks(plan.subject, spec.crossCheck);
+                    const subject = typeof plan.subject === 'function' ? await plan.subject() : plan.subject;
+                    advice = await context.crossChecks(subject, spec.crossCheck);
                 } catch (err) {
                     logger.warn({ tool: spec.name, err }, 'cross-checks threw; previewing without them');
                     advice = { warnings: [], unchecked: ['cross-service checks'] };

@@ -654,16 +654,21 @@ describe('delete_media cross-checks', () => {
         expect(crossChecks).not.toHaveBeenCalled();
     });
 
-    // The subject is not in `plan.args`, so what the checks found cannot change a token's validity.
-    it('accepts a token whatever the checks answered', async () => {
-        const answers = [{ warnings: ['one'], unchecked: [] }, { warnings: [], unchecked: ['seerr'] }];
-        const crossChecks = vi.fn<CrossChecker>(async () => answers.shift() ?? { warnings: [], unchecked: [] });
-        const h = harness(registerDeleteMedia, { crossChecks });
+    // A subject folded into the token would break it when the title changes in between.
+    it('asks only on the preview, and a title that changed does not void the token', async () => {
+        const crossChecks = quiet();
+        const routes: Record<string, unknown> = { '/api/v3/movie/412': { ...MOVIE, tmdbId: 348 } };
+        const h = harness(registerDeleteMedia, {
+            adapters: [new RadarrAdapter(keyed(7878), recordingFetch(routes).impl)],
+            crossChecks
+        });
 
         const first = await h.call({ service: 'radarr', id: '412' });
+        routes['/api/v3/movie/412'] = { ...MOVIE, title: 'Renamed', tmdbId: 349 };
         const second = await h.call({ service: 'radarr', id: '412', confirm: first.structuredContent.confirm_token });
 
         expect(second.structuredContent.applied).toBe(true);
+        expect(crossChecks).toHaveBeenCalledTimes(1);
     });
 });
 
@@ -1385,15 +1390,22 @@ describe('delete_episode_files cross-checks', () => {
         expect(crossChecks).not.toHaveBeenCalled();
     });
 
-    it('accepts a token whatever the checks answered', async () => {
-        const answers = [{ warnings: ['one'], unchecked: [] }, { warnings: [], unchecked: ['seerr'] }];
-        const crossChecks = vi.fn<CrossChecker>(async () => answers.shift() ?? { warnings: [], unchecked: [] });
-        const h = sonarrHarness(crossChecks);
+    // A subject folded into the token would break it when the title changes in between.
+    it('asks only on the preview, and a title that changed does not void the token', async () => {
+        const crossChecks = quiet();
+        const live: Record<string, unknown> = { ...routes };
+        const h = harness(registerDeleteEpisodeFiles, {
+            permissions: { sonarr: tiered(false, true) },
+            adapters: [new SonarrAdapter(keyed(8989), recordingFetch(live).impl)],
+            crossChecks
+        });
 
         const first = await h.call({ service: 'sonarr', id: '7', season: 2 });
+        live['/api/v3/series/7'] = { ...SERIES_FULL, title: 'Renamed', tvdbId: 1 };
         const second = await h.call({ service: 'sonarr', id: '7', season: 2, confirm: first.structuredContent.confirm_token });
 
         expect(second.structuredContent.applied).toBe(true);
+        expect(crossChecks).toHaveBeenCalledTimes(1);
     });
 });
 
