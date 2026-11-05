@@ -1,0 +1,69 @@
+{
+  "movie": {
+    "id": 1230,
+    "title": "The Apprentice",
+    "year": 2024,
+    "releaseDate": "2024-12-11",
+    "folderPath": "/media/library/item",
+    "tmdbId": 1182047,
+    "imdbId": "tt8368368",
+    "overview": "A young Donald Trump, eager to make his name as a hungry scion of a wealthy family in 1970s New York, comes under the spell of Roy Cohn, the cutthroat attorney who would help create the Donald Trump we know today. Cohn sees in Trump the perfect protégé—someone with raw ambition, a hunger for success, and a willingness to do whatever it takes to win.",
+    "genres": [
+      "Drama"
+    ],
+    "images": [
+      {
+        "coverType": "poster",
+        "url": "/media/library/item",
+        "remoteUrl": "https://indexer.example.test/"
+      },
+      {
+        "coverType": "fanart",
+        "url": "/media/library/item",
+        "remoteUrl": "https://indexer.example.test/"
+      }
+    ],
+    "tags": [],
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    }
+  },
+  "movieFile": {
+    "id": 1820,
+    "relativePath": "/media/library/item",
+    "path": "/media/library/item",
+    "quality": "WEBDL-2160p",
+    "qualityVersion": 1,
+    "releaseGroup": "GROUP",
+    "sceneName": "Release.Name.1080p.WEB-DL.x264-GROUP",
+    "indexerFlags": "0",
+    "size": 14090900954,
+    "dateAdded": "2025-08-27T12:48:00.8931674Z",
+    "languages": [
+      {
+        "id": 1,
+        "name": "English"
+      }
+    ],
+    "mediaInfo": {
+      "audioChannels": 5.1,
+      "audioCodec": "EAC3",
+      "audioLanguages": [
+        "eng"
+      ],
+      "height": 2160,
+      "width": 3840,
+      "subtitles": [
+        "eng"
+      ],
+      "videoCodec": "h265",
+      "videoDynamicRange": "HDR",
+      "videoDynamicRangeType": "HDR10Plus"
+    }
+  },
+  "deleteReason": "manual",
+  "eventType": "MovieFileDelete",
+  "instanceName": "Instance",
+  "applicationUrl": ""
+}

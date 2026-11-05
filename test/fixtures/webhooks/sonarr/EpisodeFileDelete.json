@@ -1,0 +1,94 @@
+{
+  "series": {
+    "id": 223,
+    "title": "1923",
+    "titleSlug": "1923",
+    "path": "/media/library/item",
+    "tvdbId": 416491,
+    "tvMazeId": 60550,
+    "tmdbId": 157744,
+    "imdbId": "tt18335752",
+    "type": "standard",
+    "year": 2022,
+    "genres": [
+      "Drama",
+      "Western"
+    ],
+    "images": [
+      {
+        "coverType": "banner",
+        "url": "/media/library/item",
+        "remoteUrl": "https://indexer.example.test/"
+      },
+      {
+        "coverType": "poster",
+        "url": "/media/library/item",
+        "remoteUrl": "https://indexer.example.test/"
+      },
+      {
+        "coverType": "fanart",
+        "url": "/media/library/item",
+        "remoteUrl": "https://indexer.example.test/"
+      },
+      {
+        "coverType": "clearlogo",
+        "url": "/media/library/item",
+        "remoteUrl": "https://indexer.example.test/"
+      }
+    ],
+    "tags": [],
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    }
+  },
+  "episodes": [
+    {
+      "id": 16326,
+      "episodeNumber": 7,
+      "seasonNumber": 2,
+      "title": "A Dream and a Memory",
+      "overview": "Jacob and his crew eagerly await Spencer's return at the train station. Teonna has a fateful run-in. Alexandra braves the cold.",
+      "airDate": "2025-04-06",
+      "airDateUtc": "2025-04-06T07:00:00Z",
+      "seriesId": 223,
+      "tvdbId": 10872205
+    }
+  ],
+  "episodeFile": {
+    "id": 12511,
+    "relativePath": "/media/library/item",
+    "path": "/media/library/item",
+    "quality": "WEBDL-2160p",
+    "qualityVersion": 1,
+    "releaseGroup": "GROUP",
+    "sceneName": "Release.Name.1080p.WEB-DL.x264-GROUP",
+    "size": 12991938205,
+    "dateAdded": "2026-01-29T07:30:43.1195939Z",
+    "languages": [
+      {
+        "id": 1,
+        "name": "English"
+      }
+    ],
+    "mediaInfo": {
+      "audioChannels": 5.1,
+      "audioCodec": "EAC3",
+      "audioLanguages": [
+        "eng"
+      ],
+      "height": 1920,
+      "width": 3840,
+      "subtitles": [
+        "eng"
+      ],
+      "videoCodec": "h265",
+      "videoDynamicRange": "",
+      "videoDynamicRangeType": ""
+    }
+  },
+  "deleteReason": "manual",
+  "eventType": "EpisodeFileDelete",
+  "instanceName": "Instance",
+  "applicationUrl": ""
+}
