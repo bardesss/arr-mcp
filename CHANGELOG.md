@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.61.0](https://github.com/bardesss/arr-mcp/compare/v1.60.0...v1.61.0) (2026-11-05)
+
+
+### Features
+
+* **lidarr:** report disks, health checks and the last library scan ([#446](https://github.com/bardesss/arr-mcp/issues/446)) ([eea97c8](https://github.com/bardesss/arr-mcp/commit/eea97c84d4531374ed3bb10675b1b40e965563b5))
+* mention missing subtitles in diagnose ([#465](https://github.com/bardesss/arr-mcp/issues/465)) ([c835fc1](https://github.com/bardesss/arr-mcp/commit/c835fc1dc9634408049e5be700fa67bd550117d3))
+
 ## [1.60.0](https://github.com/bardesss/arr-mcp/compare/v1.59.0...v1.60.0) (2026-11-05)
 
 
