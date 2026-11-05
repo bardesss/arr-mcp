@@ -544,20 +544,34 @@ instead of starting. The old token value cannot be recovered, since only its
 hash remains, so remove `tokens:` and write a new `bearer_token` of 64 hex
 characters.
 
-### `auth.management_key`
+### `auth.management_keys`
 
-The key for the [management API](api.md). Without it, `/api/v1` answers 404.
+The keys for the [management API](api.md). Without any, `/api/v1` answers 404.
 
 ```yaml
 auth:
-  management_key:
-    hash: sha256:9f2c…
-    created: 2026-09-29
+  management_keys:
+    - name: nzb360
+      tier: read
+      hash: sha256:9f2c…
+      created: 2026-09-29
 ```
 
-Only the hash is stored, and there is no plaintext form to write by hand. Create
-the key on the config page, where it is shown once. Deleting the block turns the
-API off.
+Each entry has a unique `name`, compared regardless of case. `tier` is `read`,
+which can only look, or `admin`, which can also change services, settings and MCP
+tokens. Only the hash is stored, and there is no plaintext form to write by hand.
+Create keys on the config page, where each is shown once. Deleting the block
+turns the API off.
+
+**Upgrading from `management_key`.** Your existing key becomes a key named
+`default` with the `admin` tier, so apps keep working. The file keeps the old
+block until the next save from the config page or the API, which rewrites it as
+`management_keys`. If `default` is only used by a dashboard, create a `read` key,
+move the app to it and revoke `default`.
+
+**Downgrading.** Older versions do not know `management_keys` and open the repair
+page instead of starting. Remove the block, start the old version and generate a
+new key.
 
 ### `allow_token_in_url`
 

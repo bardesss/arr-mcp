@@ -8,28 +8,46 @@ server, IMDb, the MCP endpoint's token setting and MCP tokens.
 ## Turning it on
 
 It is off until you turn it on. On the config page, under Access, the
-**Management API** card has a **Generate key** button. The key is shown once,
-with a copy button, and cannot be read back. Only its SHA-256 hash is stored.
+**Management API** card creates keys: pick a name and a tier. A key is shown
+once, with a copy button, and cannot be read back. Only its SHA-256 hash is
+stored.
 
-**Regenerate key** stops the old key at once. **Turn off** (it asks once)
-removes the key, and every `/api/v1` request answers 404 again.
+Give each app its own key, so you can revoke one without touching the others.
+**Revoke** (it asks once) stops a key at once. Revoking the last key turns the
+API off, and every `/api/v1` request answers 404 again.
 
 ## Authentication
 
-Send the key in an `X-Api-Key` header. It is not accepted as `?apikey=`, because
+Send a key in an `X-Api-Key` header. It is not accepted as `?apikey=`, because
 a key in a URL ends up in proxy logs and browser history.
 
 ```bash
 curl -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/app
 ```
 
-The key and the MCP tokens are separate. The key does not work on `/mcp`, and an
-MCP token does not work here. `allowed_hosts` applies to `/api/v1` like it does
-everywhere else.
+Keys and MCP tokens are separate. A key does not work on `/mcp`, and an MCP token
+does not work here. `allowed_hosts` applies to `/api/v1` like it does everywhere
+else.
 
-The key can write config, so treat it like an admin credential. It can never
-touch sign-in, OAuth, `allowed_hosts`, the key itself or appearance. Nothing in
-this API can change them.
+## Tiers
+
+| Tier | What it can do |
+| --- | --- |
+| `read` | `GET` and `HEAD` only. Any other method gets a 403, before the body is read. It is enough for a dashboard |
+| `admin` | Everything in this document |
+
+A read key sees everything the endpoints below return, including service URLs,
+MCP token names and the log. It still never sees a secret.
+
+An admin key can write config, so treat it like an admin credential. It can
+create MCP tokens, and it can send a service's stored credential to a new host
+(see [security](security.md)).
+
+No key can touch sign-in, OAuth, `allowed_hosts`, appearance or the management
+keys. Nothing in this API can change them.
+
+The server log names the key behind each saved change, connection test and
+refused request as `name#fingerprint`.
 
 ## Conventions
 
@@ -41,8 +59,8 @@ this API can change them.
 | --- | --- |
 | 400 | A bad parameter or body. The message names it. Malformed JSON gets `The request body is not valid JSON.` |
 | 401 | `Missing or wrong X-Api-Key.` |
-| 403 | `forbidden: Host not allowed`, as plain text. This comes from `auth.allowed_hosts`, before the API sees the request |
-| 404 | No key configured (`The management API is off. Generate a key on the config page to turn it on.`), `No such endpoint.`, `No such app.`, or `No such token.` |
+| 403 | A write with a read key, as `{"message": "Key 'nzb360' is read-only. ..."}`. Or `forbidden: Host not allowed`, as plain text, which comes from `auth.allowed_hosts` before the API sees the request |
+| 404 | No key configured (`The management API is off. Create a key on the config page to turn it on.`), `No such endpoint.`, `No such app.`, or `No such token.` |
 | 409 | `config.yaml was changed by hand and no longer loads. Fix the file, then retry.` Nothing was written |
 | 412 | The config changed since you read it. See [Concurrency](#concurrency) |
 | 415 | A write body that is not `application/json` |
@@ -54,7 +72,8 @@ this API can change them.
   part of it does.
 - The API's own answers have `cache-control: no-store`. The 403 above does
   not, and neither does the `413` for a body over 4 MB, which comes back in
-  JSON-RPC shape from the same guard that protects `/mcp`. A malformed JSON
+  JSON-RPC shape from the same guard that protects `/mcp`, before any key is
+  checked. A malformed JSON
   body is different: on `/api` it gets the `{message}` 400 above.
 - Secrets never come back. A service's API key or password appears only as
   `apiKeySet` or `passwordSet`, and the key hashes are not returned at all.

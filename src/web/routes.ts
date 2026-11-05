@@ -4,12 +4,13 @@ import { sameUrl } from '../api/bodies.ts';
 import { commitConfig } from '../config/commit.ts';
 import { configEtag } from '../config/etag.ts';
 import { listInstances } from '../config/instances.ts';
-import { clearManagementKey, setImdb, setManagementKey, setMcpEndpoint, setPrimaryMediaServer } from '../config/edits.ts';
+import { addManagementKey, revokeManagementKey, setImdb, setMcpEndpoint, setPrimaryMediaServer } from '../config/edits.ts';
 import { ConfigUnloadableError, saveConfig } from '../config/save.ts';
 import { OAuthSchema, ServiceIdSchema, ThemeSchema, type Config, type OAuthConfig, type Theme } from '../config/schema.ts';
 import type { WriteAudit } from '../core/audit.ts';
 import { logger } from '../core/logger.ts';
 import { LoginThrottle } from '../core/loginThrottle.ts';
+import { managementKeyField } from '../core/managementKey.ts';
 import { logFields, type LogStore } from '../core/logs.ts';
 import type { Runtime } from '../core/runtime.ts';
 import {
@@ -484,7 +485,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                 if ('ask' in result) return render(undefined, 200, { confirmingRemoval: result.ask });
                 if ('askRevoke' in result) return render(undefined, 200, { confirmingRevoke: result.askRevoke });
                 if ('askOAuthRemoval' in result) return render(undefined, 200, { oauth: { confirmingRemoval: true } });
-                if ('askKeyRemoval' in result) return render(undefined, 200, { confirmingKeyRemoval: true });
+                if ('askKeyRevoke' in result) return render(undefined, 200, { confirmingKeyRevoke: result.askKeyRevoke });
                 if ('revealKey' in result) {
                     updated = result.config;
                     revealKey = result.revealKey;
@@ -631,18 +632,22 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     );
 
     app.post(
-        '/ui/config/api-key',
-        configMutation('Management API key generated.', () => {
-            const { config, plaintext } = setManagementKey(runtime.config, new Date());
+        '/ui/config/api-keys/add',
+        configMutation('Management API key created.', form => {
+            const tier = str(form['api-key.tier']);
+            if (tier !== 'read' && tier !== 'admin') throw new ConfigEditError('Pick a tier.');
+            const name = str(form['api-key.name']).trim();
+            const { config, plaintext } = addManagementKey(runtime.config, { name, tier }, new Date());
             return { config, revealKey: plaintext };
         })
     );
 
     app.post(
-        '/ui/config/api-key/remove',
-        configMutation('Management API turned off.', form => {
-            if (str(form.confirm) !== 'yes') return { askKeyRemoval: true };
-            return clearManagementKey(runtime.config);
+        '/ui/config/api-keys/revoke',
+        configMutation('Management API key revoked.', form => {
+            const name = str(form.key);
+            if (str(form.confirm) !== 'yes') return { askKeyRevoke: name };
+            return revokeManagementKey(runtime.config, name);
         })
     );
 
@@ -804,7 +809,7 @@ type MutationResult =
     | { askOAuthRemoval: true }
     | { config: Config; reveal: string; revealName: string }
     | { config: Config; revealKey: string }
-    | { askKeyRemoval: true };
+    | { askKeyRevoke: string };
 
 const CACHE = { 'cache-control': 'public, max-age=3600' };
 const NO_STORE = { 'cache-control': 'no-store' };
@@ -835,7 +840,7 @@ export const originOf = (c: Context): { ip: string; forwardedFor?: string } => {
 
 export const warnIfCredentialMove = (c: Context, err: unknown): void => {
     if (err instanceof CredentialWouldMoveError) {
-        logger.warn({ ...originOf(c), target: err.target }, 'refused to send a stored credential to a new host');
+        logger.warn({ ...originOf(c), ...managementKeyField(c), target: err.target }, 'refused to send a stored credential to a new host');
     }
 };
 

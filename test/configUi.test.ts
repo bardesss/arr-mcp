@@ -1287,11 +1287,11 @@ describe('a page left open while the config changed', () => {
         expect(runtime.config.services.radarr).toBeUndefined();
     });
 
-    it('carries the etag through turning the management API off', async () => {
+    it('carries the etag through revoking a management key', async () => {
         await seedKeyed();
         await signIn();
-        expect((await confirmFlow('/ui/config/api-key/remove')).status).toBe(200);
-        expect(runtime.config.auth.management_key).toBeUndefined();
+        expect((await confirmFlow('/ui/config/api-keys/revoke', { key: 'default' })).status).toBe(200);
+        expect(runtime.config.auth.management_keys).toBeUndefined();
     });
 
     it('carries the etag through removing OAuth', async () => {
@@ -1334,8 +1334,8 @@ describe('a page left open while the config changed', () => {
         expect(forms.map(f => f.action).sort()).toEqual([
             '/ui/config/account',
             '/ui/config/add',
-            '/ui/config/api-key',
-            '/ui/config/api-key/remove',
+            '/ui/config/api-keys/add',
+            '/ui/config/api-keys/revoke',
             '/ui/config/appearance',
             '/ui/config/imdb',
             '/ui/config/mcp',
@@ -2693,63 +2693,92 @@ describe('the OAuth card', async () => {
     });
 });
 
-describe('management API key', () => {
+describe('management API keys', () => {
     const shownKey = (page: string) => /value="(amk_[0-9a-f]{64})"/.exec(page)?.[1];
+    const create = async (name: string, tier: string) =>
+        call('/ui/config/api-keys/add', form({ csrf: await csrfFrom(), 'api-key.name': name, 'api-key.tier': tier }));
+    const revoke = async (name: string, confirm?: string) =>
+        call('/ui/config/api-keys/revoke', form({ csrf: await csrfFrom(), key: name, ...(confirm === undefined ? {} : { confirm }) }));
+    const status = async (key: string, method = 'GET') =>
+        (await app.request('http://localhost:6060/api/v1/settings/imdb', {
+            method,
+            headers: { 'x-api-key': key, 'content-type': 'application/json' },
+            ...(method === 'GET' ? {} : { body: '{"enabled":false}' })
+        })).status;
 
-    it('is off until generated, then shows the key once', async () => {
+    it('is off until a key is created, then shows it once', async () => {
         await signIn();
-        expect(await (await call('/ui/config')).text()).toContain('Generate key');
+        expect(await (await call('/ui/config')).text()).toContain('until you create a key');
 
-        const res = await call('/ui/config/api-key', form({ csrf: await csrfFrom() }));
+        const res = await create('nzb360', 'read');
         expect(res.headers.get('cache-control')).toBe('no-store');
         const page = await res.text();
         const key = shownKey(page);
         expect(key).toBeDefined();
         expect(page).toContain('http://localhost:6060/api/v1');
-        expect(runtime.config.auth.management_key?.created).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+        expect(runtime.config.auth.management_keys).toEqual([
+            { name: 'nzb360', tier: 'read', hash: hashToken(key as string), created: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) as string }
+        ]);
 
         const later = await (await call('/ui/config')).text();
         expect(later).not.toContain(key as string);
-        expect(later).toContain('Regenerate key');
+        expect(later).toContain('nzb360');
+        expect(later).toContain(hashToken(key as string).slice(7, 15));
     });
 
-    it('regenerating replaces the stored hash', async () => {
+    it('offers read first, so a key is read-only unless you choose otherwise', async () => {
         await signIn();
-        await call('/ui/config/api-key', form({ csrf: await csrfFrom() }));
-        const first = runtime.config.auth.management_key?.hash;
-        await call('/ui/config/api-key', form({ csrf: await csrfFrom() }));
-        expect(runtime.config.auth.management_key?.hash).not.toBe(first);
+        expect(await (await call('/ui/config')).text()).toMatch(/<option value="read" selected>/);
     });
 
-    it('regenerating stops the old key on /api/v1 at once', async () => {
-        const status = async (key: string) =>
-            (await app.request('http://localhost:6060/api/v1/system/status', { headers: { 'x-api-key': key } })).status;
+    it('keeps each tier to what it may do', async () => {
         await signIn();
-        const old = shownKey(await (await call('/ui/config/api-key', form({ csrf: await csrfFrom() }))).text()) as string;
-        expect(await status(old)).toBe(200);
-
-        const next = shownKey(await (await call('/ui/config/api-key', form({ csrf: await csrfFrom() }))).text()) as string;
-        expect(next).not.toBe(old);
-        expect(await status(old)).toBe(401);
-        expect(await status(next)).toBe(200);
+        const reader = shownKey(await (await create('dash', 'read')).text()) as string;
+        const admin = shownKey(await (await create('ops', 'admin')).text()) as string;
+        expect(await status(reader)).toBe(200);
+        expect(await status(reader, 'PUT')).toBe(403);
+        expect(await status(admin)).toBe(200);
+        expect(await status(admin, 'PUT')).toBe(200);
     });
 
-    it('asks before turning the API off, then removes the key', async () => {
+    it('refuses a tier it does not offer and a name already taken', async () => {
         await signIn();
-        await call('/ui/config/api-key', form({ csrf: await csrfFrom() }));
+        expect((await create('dash', 'destructive')).status).toBe(400);
+        expect((await create('dash', 'read')).status).toBe(200);
+        const again = await create('DASH', 'admin');
+        expect(again.status).toBe(400);
+        expect(await again.text()).toContain('already a key named');
+        expect(runtime.config.auth.management_keys).toHaveLength(1);
+    });
 
-        const asked = await (await call('/ui/config/api-key/remove', form({ csrf: await csrfFrom() }))).text();
-        expect(asked).toContain('Yes, turn the API off');
-        expect(runtime.config.auth.management_key).toBeDefined();
+    it('revoking one key stops it at once and leaves the other working', async () => {
+        await signIn();
+        const one = shownKey(await (await create('one', 'read')).text()) as string;
+        const two = shownKey(await (await create('two', 'read')).text()) as string;
 
-        await call('/ui/config/api-key/remove', form({ csrf: await csrfFrom(), confirm: 'yes' }));
-        expect(runtime.config.auth.management_key).toBeUndefined();
+        const asked = await (await revoke('one')).text();
+        expect(asked).toContain('Yes, revoke one');
+        expect(asked).toContain('Apps using it are refused');
+        expect(await status(one)).toBe(200);
+
+        await revoke('one', 'yes');
+        expect(await status(one)).toBe(401);
+        expect(await status(two)).toBe(200);
+    });
+
+    it('warns that revoking the last key turns the API off, and then it is off', async () => {
+        await signIn();
+        const key = shownKey(await (await create('only', 'admin')).text()) as string;
+        expect(await (await revoke('only')).text()).toContain('the management API turns off');
+        await revoke('only', 'yes');
+        expect(runtime.config.auth.management_keys).toBeUndefined();
+        expect(await status(key)).toBe(404);
     });
 
     it('refuses a post without a valid CSRF token', async () => {
         await signIn();
-        const res = await call('/ui/config/api-key', form({ csrf: 'nope' }));
+        const res = await call('/ui/config/api-keys/add', form({ csrf: 'nope', 'api-key.name': 'dash', 'api-key.tier': 'read' }));
         expect(res.status).toBe(403);
-        expect(runtime.config.auth.management_key).toBeUndefined();
+        expect(runtime.config.auth.management_keys).toBeUndefined();
     });
 });

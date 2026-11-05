@@ -3,7 +3,7 @@ import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { LEVELS } from '../src/core/logs.ts';
 import { hashToken } from '../src/core/mcpTokens.ts';
-import { api, closeApi, json, KEY, MCP, mcp, RADARR_KEY, seedApi, stack, TX_PASSWORD } from './helpers/apiStack.ts';
+import { api, closeApi, json, KEY, MCP, mcp, RADARR_KEY, READ_KEY, seedApi, stack, TX_PASSWORD } from './helpers/apiStack.ts';
 
 beforeEach(async () => {
     await seedApi();
@@ -19,16 +19,64 @@ describe('the gate', () => {
         await seedApi({ keyed: false });
         const res = await api('/system/status');
         expect(res.status).toBe(404);
-        expect(((await res.json()) as { message: string }).message).toContain('Generate a key on the config page');
+        expect(((await res.json()) as { message: string }).message).toContain('Create a key on the config page');
     });
 
-    it('answers 401 without a key or with a wrong one', async () => {
-        expect((await api('/system/status', { key: null })).status).toBe(401);
-        expect((await api('/system/status', { key: `amk_${'9'.repeat(64)}` })).status).toBe(401);
+    it('accepts every key on the list', async () => {
+        expect((await api('/system/status')).status).toBe(200);
+        expect((await api('/system/status', { key: READ_KEY })).status).toBe(200);
     });
 
-    it('ignores a key in the query string', async () => {
-        expect((await api(`/system/status?apikey=${KEY}`, { key: null })).status).toBe(401);
+    it('lets a read key read every endpoint', async () => {
+        for (const path of ['/system/status', '/log', '/app', '/app/radarr/hd', '/settings/mcp', '/settings/imdb', '/settings/media-servers', '/token']) {
+            expect((await api(path, { key: READ_KEY })).status, path).toBe(200);
+        }
+        expect((await api('/app', { key: READ_KEY, method: 'HEAD' })).status).toBe(200);
+    });
+
+    it('refuses every write with a read key, and changes nothing', async () => {
+        const before = JSON.stringify(stack.runtime.config);
+        const writes: [string, string, unknown][] = [
+            ['PUT', '/settings/imdb', { enabled: true }],
+            ['PUT', '/settings/mcp', { allowTokenInUrl: true }],
+            ['PUT', '/settings/media-servers', { primary: 'plex' }],
+            ['POST', '/token', { name: 'sneaky', tier: 'destructive', expiry: 'never' }],
+            ['DELETE', '/token/phone', undefined],
+            ['POST', '/app/test', { id: 'radarr/hd', url: 'http://attacker.example' }],
+            ['POST', '/app', { type: 'sonarr', url: 'http://sonarr:8989', apiKey: 'x' }],
+            ['PUT', '/app/radarr/hd', { safeWrite: true }],
+            ['DELETE', '/app/radarr/hd', undefined]
+        ];
+        for (const [method, path, body] of writes) {
+            const res = await api(path, { key: READ_KEY, ...(body === undefined ? { method } : json(method, body)) });
+            expect(res.status, `${method} ${path}`).toBe(403);
+            expect(res.headers.get('cache-control')).toBe('no-store');
+            expect(((await res.json()) as { message: string }).message).toContain("Key 'dashboard' is read-only");
+        }
+        expect(JSON.stringify(stack.runtime.config)).toBe(before);
+    });
+
+    it('refuses a write from a read key before reading its body', async () => {
+        const res = await api('/settings/imdb', { key: READ_KEY, method: 'PUT', headers: { 'content-type': 'application/json' }, body: '{nope' });
+        expect(res.status).toBe(403);
+    });
+
+    it('still lets an admin key write', async () => {
+        expect((await api('/settings/imdb', json('PUT', { enabled: false }))).status).toBe(200);
+    });
+
+    it('names the key on a saved write and on a refused one', async () => {
+        const lines: string[] = [];
+        vi.spyOn(process.stdout, 'write').mockImplementation(chunk => {
+            lines.push(String(chunk));
+            return true;
+        });
+        await api('/settings/imdb', json('PUT', { enabled: false }));
+        await api('/settings/imdb', { key: READ_KEY, ...json('PUT', { enabled: false }) });
+
+        const logged = lines.map(l => JSON.parse(l) as { msg: string; key?: string });
+        expect(logged.find(l => l.msg === 'configuration saved from the management API')?.key).toBe(`ops#${hashToken(KEY).slice(7, 15)}`);
+        expect(logged.find(l => l.msg.startsWith('refused a management API request'))?.key).toBe(`dashboard#${hashToken(READ_KEY).slice(7, 15)}`);
     });
 
     it('keeps the management key and MCP tokens apart', async () => {
@@ -261,11 +309,14 @@ describe('GET /settings and /token', () => {
         expect(new Set(tags).size).toBe(1);
     });
 
-    it('never returns the management key or its hash', async () => {
+    it('never returns a management key, its hash or its name', async () => {
         for (const p of ['/app', '/settings/mcp', '/settings/imdb', '/token', '/system/status']) {
             const text = await (await api(p)).text();
-            expect(text, p).not.toContain(KEY);
-            expect(text, p).not.toContain(hashToken(KEY).slice(7));
+            for (const key of [KEY, READ_KEY]) {
+                expect(text, p).not.toContain(key);
+                expect(text, p).not.toContain(hashToken(key).slice(7));
+            }
+            expect(text, p).not.toContain('dashboard');
         }
     });
 });
