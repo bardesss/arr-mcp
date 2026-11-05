@@ -22,8 +22,13 @@ export type Step = { stage: Stage; service?: string; status: StepStatus; detail:
  */
 export type Evidence = {
     item: FilmOrSeries | undefined;
-    /** `id` is Seerr's own request id, the one `respond_to_request` takes. */
-    request: { status: RequestStatus | 'unknown'; id?: number } | null | undefined;
+    /**
+     * `id` is Seerr's own request id, the one `respond_to_request` takes.
+     * `mayRespond` is whether that tool's own check would let the caller act on
+     * it (their request, or `allow_other_users`); absent reads as no, so a
+     * request whose owner is unknown gets no approval offered.
+     */
+    request: { status: RequestStatus | 'unknown'; id?: number; mayRespond?: boolean } | null | undefined;
     /**
      * `items` is what the collector actually read, `partial` names the clients
      * that did not answer. One unreachable client used to erase the whole stage,
@@ -370,13 +375,16 @@ const QUEUE_SERVICES: readonly ServiceId[] = ['radarr', 'sonarr', 'whisparr', 's
  * independently. A client row has no media id of its own, so it takes the
  * verdict of the *arr row sharing its download id.
  */
+/** What ties a client's row to the *arr's row for the same grab. */
+const downloadKey = (row: QueueItem): string | undefined => (row.downloadId ?? row.torrent?.hash)?.toLowerCase();
+
 export function queueRowsFor(rows: readonly QueueItem[], item: MergedItem): QueueItem[] {
     const acquisition = item.acquisition;
     const byId = (row: QueueItem): boolean | undefined =>
         row.mediaId !== undefined && acquisition?.id !== undefined && row.service === acquisition.service
             ? row.mediaId === acquisition.id
             : undefined;
-    const keyOf = (row: QueueItem): string | undefined => (row.downloadId ?? row.torrent?.hash)?.toLowerCase();
+    const keyOf = downloadKey;
     const claimed = new Map<string, QueueItem>();
     for (const row of rows) {
         const key = keyOf(row);
@@ -417,11 +425,42 @@ const IMPORTERS: readonly string[] = ['radarr', 'sonarr'];
 
 /**
  * The *arr that should import this row: its own service when it is one, since a
- * title match can pick up another instance's grab, and the item's managing
- * service when the row is a download client's.
+ * title match can pick up another instance's grab. Only a download client's row
+ * (no media id) falls back to the item's managing service: an *arr row that
+ * cannot import is another service's grab, not this item's.
  */
 function importerFor(row: QueueItem, item: MergedItem): string | undefined {
-    return [row.service, item.acquisition?.service].find((s): s is string => s !== undefined && IMPORTERS.includes(instanceArgs(s).service));
+    return [row.service, row.mediaId === undefined ? item.acquisition?.service : undefined].find(
+        (s): s is string => s !== undefined && IMPORTERS.includes(instanceArgs(s).service)
+    );
+}
+
+/**
+ * The import to offer for a grab whose download has finished. Built from a row
+ * that carries a download id and not from the row that was picked: a torrent
+ * client's row has none, and sorts ahead of the *arr's.
+ */
+function importStep(mine: readonly QueueItem[], item: MergedItem): NextStep | undefined {
+    const pending = mine.filter(q => classifyQueueStatus(q) === 'importPending' && q.downloadId !== undefined);
+    const source = pending.find(q => q.mediaId !== undefined) ?? pending[0];
+    const importer = source === undefined ? undefined : importerFor(source, item);
+    if (source?.downloadId === undefined || importer === undefined) return undefined;
+    return {
+        tool: 'trigger_scan',
+        arguments: { ...instanceArgs(importer), action: 'import', download_id: source.downloadId },
+        why: `Asks ${importer} to import the finished download.`
+    };
+}
+
+/**
+ * A download that is stopped or paused, or whose import is pending on another
+ * row of the same grab, is finished rather than failed. Removing it deletes the
+ * only copy of the files, so the import is offered instead.
+ */
+function importIsBehind(row: QueueItem, mine: readonly QueueItem[]): boolean {
+    if (['stopped', 'paused'].includes(row.status.toLowerCase())) return true;
+    const key = downloadKey(row);
+    return key !== undefined && mine.some(q => q !== row && classifyQueueStatus(q) === 'importPending' && downloadKey(q) === key);
 }
 
 function queueStep(ev: Evidence, item: MergedItem): QueueResult {
@@ -469,12 +508,15 @@ function queueStep(ev: Evidence, item: MergedItem): QueueResult {
     const strikeNote = strikeNoteFor(row, ev.cleanuparr);
 
     if (cls === 'fault') {
+        const next: NextStep | undefined = importIsBehind(row, mine)
+            ? importStep(mine, item)
+            : {
+                  tool: 'remove_queue_item',
+                  arguments: { ...instanceArgs(row.service), id: row.id },
+                  why: `Removes the failed download from ${row.service} and deletes its partial data. It is not blocklisted.`
+              };
         return {
-            next: {
-                tool: 'remove_queue_item',
-                arguments: { ...instanceArgs(row.service), id: row.id },
-                why: `Removes the failed download from ${row.service}, so it can search for another release.`
-            },
+            ...(next === undefined ? {} : { next }),
             step: {
                 stage: 'queue',
                 service: row.service,
@@ -498,19 +540,11 @@ function queueStep(ev: Evidence, item: MergedItem): QueueResult {
     }
 
     if (cls === 'importPending') {
-        const importer = importerFor(row, item);
+        const next = importStep(mine, item);
         return {
             step: { stage: 'queue', service: row.service, status: 'blocked', detail: `Downloaded, but not yet imported by ${row.service}.${strikeNote}` },
             remedy: QUEUE_IMPORT_REMEDY,
-            ...(importer === undefined || row.downloadId === undefined
-                ? {}
-                : {
-                      next: {
-                          tool: 'trigger_scan',
-                          arguments: { ...instanceArgs(importer), action: 'import', download_id: row.downloadId },
-                          why: `Asks ${importer} to import the finished download.`
-                      }
-                  })
+            ...(next === undefined ? {} : { next })
         };
     }
 
@@ -728,12 +762,12 @@ const allDegraded = (ev: Evidence): string[] => [...new Set([...ev.degraded, ...
  */
 const certaintyDegraded = (ev: Evidence): string[] => servicesOnly(allDegraded(ev));
 
+const withSteps = (next: NextStep[]): { next_steps?: NextStep[] } => (next.length === 0 ? {} : { next_steps: next });
+
 /**
  * Only the caller's own words go into a lookup: when the target was an id, the
  * only text to hand over is a service's title, which stays out of arguments.
  */
-const withSteps = (next: NextStep[]): { next_steps?: NextStep[] } => (next.length === 0 ? {} : { next_steps: next });
-
 const lookupStep = (query: string, byWords: boolean): NextStep[] =>
     byWords ? [{ tool: 'lookup_media', arguments: { query }, why: 'Checks whether it exists anywhere before adding it.' }] : [];
 
@@ -750,7 +784,7 @@ function monitorStep(acquisition: NonNullable<MergedItem['acquisition']>): NextS
     ];
 }
 
-export function buildChain(query: string, ev: Evidence, byWords = true): Diagnosis {
+export function buildChain(query: string, ev: Evidence, byWords: boolean): Diagnosis {
     const steps: Step[] = [];
 
     if (ev.item === undefined) {
@@ -1011,7 +1045,7 @@ function nextStepsFor(
 
     switch (stage) {
         case 'request':
-            return ev.request?.status === 'pending' && ev.request.id !== undefined
+            return ev.request?.status === 'pending' && ev.request.id !== undefined && ev.request.mayRespond === true
                 ? [
                       {
                           tool: 'respond_to_request',
@@ -1028,7 +1062,11 @@ function nextStepsFor(
                 {
                     tool: 'trigger_search',
                     arguments: { ...instanceArgs(acquisition.service), id: acquisition.id },
-                    why: `Searches ${acquisition.service} for the missing file.`
+                    why: `Searches ${acquisition.service} for the missing file.${
+                        ev.cleanupUnread === undefined
+                            ? ''
+                            : ` ${ev.cleanupUnread} could not be read, so check it for a cleanup rule before searching again.`
+                    }`
                 }
             ];
         case 'queue':

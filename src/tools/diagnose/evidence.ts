@@ -22,6 +22,8 @@ import {
     type ServiceAdapter
 } from '../../services/types.ts';
 import type { LibraryLoader } from '../library.ts';
+import type { IdentityResolver } from '../../core/identity.ts';
+import { mayManageRequest } from '../manageRequests.ts';
 import { resolveInstance } from '../resolveInstance.ts';
 import { queueRowsFor, releaseMentions, type Evidence } from './chain.ts';
 
@@ -32,6 +34,8 @@ export type DiagnoseDeps = {
     library: LibraryLoader;
     /** With two media servers, the one diagnose walks; absent means the first. */
     primaryMediaServer?: string;
+    /** Decides whether an approval can be offered; without it none is. */
+    seerrIdentity?: IdentityResolver;
 };
 
 const RECENT_REJECTION_LIMIT = 50;
@@ -347,7 +351,14 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
         request = undefined;
     } else {
         const match = findRequest(requests, item.ids);
-        request = match === undefined ? null : { status: match.status, id: match.id };
+        // Whose request it is stays here: only whether the caller may act on it
+        // leaves, so the next step is withheld where the write would refuse.
+        // Unknown (no identity, or it would not resolve) reads as "may not".
+        let mayRespond = false;
+        if (match !== undefined && match.status === 'pending' && deps.seerrIdentity !== undefined) {
+            mayRespond = await mayManageRequest(match, deps.seerrIdentity).catch(() => false);
+        }
+        request = match === undefined ? null : { status: match.status, id: match.id, mayRespond };
     }
 
     // null: not configured. undefined: could not look. Matched by download id,

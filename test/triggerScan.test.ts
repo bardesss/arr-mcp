@@ -853,6 +853,10 @@ describe('trigger_scan remapping episodes', () => {
             expect.objectContaining({ tool: 'trigger_scan', arguments: { service: 'jellyfin', action: 'scan' } })
         ]);
         expect(done.content[0]?.text).toContain('Next: trigger_scan {"service":"jellyfin","action":"scan"}');
+        // And the tool takes it: the step is a call this harness's own trigger_scan plans without refusal.
+        const step = (done.structuredContent.next_steps as { arguments: Record<string, unknown> }[])[0];
+        const again = await h.call({ ...step?.arguments, dry_run: true });
+        expect(again.structuredContent).toMatchObject({ applied: false, dry_run: true, noop: false });
         // The step replaces the sentence that told a person to do it by hand.
         expect(String(done.structuredContent.result)).not.toMatch(/rescan your media server/);
     });

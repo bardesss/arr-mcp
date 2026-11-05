@@ -2,11 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { ServiceError } from '../src/core/errors.ts';
 import { IdentityResolver } from '../src/core/identity.ts';
 import type { IndexInput } from '../src/core/resolver.ts';
-import { buildChain } from '../src/tools/diagnose/chain.ts';
+import { buildChain as chain, type Diagnosis, type Evidence } from '../src/tools/diagnose/chain.ts';
 import { collectEvidence } from '../src/tools/diagnose/evidence.ts';
 import { buildDiagnose, type DiagnoseDeps } from '../src/tools/diagnose/index.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
 import type { ServiceAdapter, UserDirectoryCapable } from '../src/services/types.ts';
+
+/** These tests diagnose by title, the form that takes a query. */
+const buildChain = (query: string, ev: Evidence): Diagnosis => chain(query, ev, true);
 
 const stub = (id: string, extra: Record<string, unknown>): ServiceAdapter =>
     ({
