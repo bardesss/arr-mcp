@@ -86,6 +86,12 @@ reads them to decide the next version and to write `CHANGELOG.md`.
 | `feat!:` or a `BREAKING CHANGE:` footer | **major** |
 | `chore:`, `docs:`, `ci:`, `test:`, `refactor:` | none |
 
+Pull requests are squash merged, so one subject line reaches `main`: the
+commit's on a one-commit PR, and the PR title on anything longer. Make both
+follow this format. If only no-bump types land, no release PR opens and nothing
+ships, so a change a user or model can see is `fix:` or `feat:` even when the
+code change looks like a refactor.
+
 **What counts as breaking**, which is the part worth writing down:
 
 - A tool renamed or removed
