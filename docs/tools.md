@@ -496,7 +496,8 @@ command id and return immediately, and until now the only way to know whether
 one had finished was to wait and re-read the queue.
 
 Followable means the tasks this server can start — searches, scans, refreshes,
-renames, imports, the Prowlarr sync. A live instance also runs its own
+renames, imports. A Prowlarr sync is not listed, because `commands` does not read
+Prowlarr. A live instance also runs its own
 housekeeping every minute, and it is left out: measured on a quiet stack the
 unfiltered window held 37 rows, every one of them a poller, which is how the
 one row you asked about gets lost. Filtering on the command's `trigger` would
