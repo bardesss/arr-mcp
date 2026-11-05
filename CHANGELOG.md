@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.59.0](https://github.com/bardesss/arr-mcp/compare/v1.58.0...v1.59.0) (2026-11-05)
+
+
+### Features
+
+* warn about other services before deleting or fetching media ([#461](https://github.com/bardesss/arr-mcp/issues/461)) ([80c704a](https://github.com/bardesss/arr-mcp/commit/80c704af5b5774cd00d9eb5567a3a054d4621133))
+
 ## [1.58.0](https://github.com/bardesss/arr-mcp/compare/v1.57.2...v1.58.0) (2026-11-05)
 
 
