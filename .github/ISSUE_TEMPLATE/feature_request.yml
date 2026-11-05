@@ -53,13 +53,21 @@ body:
       options:
         - label: Radarr
         - label: Sonarr
+        - label: Lidarr
+        - label: Whisparr
         - label: Prowlarr
         - label: Bazarr
+        - label: Profilarr
         - label: Jellyfin
+        - label: Plex
         - label: Seerr
         - label: SABnzbd
+        - label: NZBGet
         - label: Transmission
         - label: qBittorrent
+        - label: Cleanuparr
+        - label: Reclaimerr
+        - label: Dispatcharr
 
   - type: input
     id: unsupported-service
@@ -79,7 +87,7 @@ body:
         [the ones that would be accepted today](https://github.com/bardesss/arr-mcp/blob/main/CONTRIBUTING.md#what-would-be-accepted-today)
         named in advance. Asking here first is the cheap way to find out — a
         service that misses on age alone gets a date back, not a no.
-      placeholder: 'Lidarr 2.14.0'
+      placeholder: 'Service name and version'
 
   - type: dropdown
     id: writes
