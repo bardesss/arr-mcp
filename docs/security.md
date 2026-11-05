@@ -321,17 +321,24 @@ so far.
   real problem. The unverified claim only picks which refusal is sent.
 
 The management API at `/api/v1` is off by default and answers 404 until you
-generate a key on the config page. The key is 256 bits, stored as a SHA-256
-hash, and accepted only in the `X-Api-Key` header, never in a URL. It is never
-valid on `/mcp`, and an MCP token is never valid there. The key can write
-config: services, their permissions, IMDb, `allowTokenInUrl` and MCP tokens.
-Treat it like an admin credential. It cannot change `allowed_hosts` (that could
-lock the owner out of the config page), the sign-in, OAuth or itself. Through a
-connection test, or by saving a new URL for a service, it can send the stored
-credential of any configured service to a host of its choosing. Both are logged
-with the target's origin, never its path, query or credentials. Tokens it
-creates outlive a key regeneration, so if it leaks, regenerate it on the config
-page and also review the token list there.
+create a key on the config page. Each key is named, 256 bits, stored as a SHA-256
+hash, and accepted only in the `X-Api-Key` header, never in a URL. A key is never
+valid on `/mcp`, and an MCP token is never valid there.
+
+A `read` key can use `GET` and `HEAD` and nothing else, so a leaked one exposes
+what the API shows, which never includes a secret. The check sits in front of
+every route, so an endpoint added later is closed to it by default.
+
+An `admin` key can write config: services, their permissions, IMDb,
+`allowTokenInUrl` and MCP tokens. Treat it like an admin credential. No key can
+change `allowed_hosts` (that could lock the owner out of the config page), the
+sign-in, OAuth or the management keys, so a leaked key cannot make more of
+itself. Through a connection test, or by saving a new URL for a service, an admin
+key can send the stored credential of any configured service to a host of its
+choosing. Both are logged with the target's origin, never its path, query or
+credentials, and with the key's name and fingerprint. MCP tokens it creates
+outlive the key, so if an admin key leaks, revoke it on the config page and also
+review the token list there.
 
 Request bodies are capped at 4 MB, refused with `413` before authentication
 runs. The cap is deliberately not configurable — every legitimate request is

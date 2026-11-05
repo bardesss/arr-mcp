@@ -9,7 +9,7 @@ import { AuthSchema, ConfigSchema, tokensNeedingRewrite, type Config } from './s
 export const CONFIG_FILENAME = 'config.yaml';
 
 /** What repair mode reads of an `auth` block that did not fully validate. */
-export type SalvagedAuth = Omit<z.infer<typeof AuthSchema>, 'oauth' | 'tokens' | 'bearer_token'>;
+export type SalvagedAuth = Omit<z.infer<typeof AuthSchema>, 'oauth' | 'tokens' | 'bearer_token' | 'management_key' | 'management_keys'>;
 
 /**
  * A config.yaml that was read but could not be understood — as opposed to one
@@ -108,8 +108,8 @@ export function validateConfigText(raw: string): ConfigTextResult {
     // Unrefined *and* unstrict on purpose: this runs precisely when the rest
     // of the file is already broken, and neither the auth refinements nor an
     // unrecognised key under auth has anything to do with whether we can
-    // authenticate whoever came to fix it. `oauth`, `tokens` and
-    // `bearer_token` are dropped from the shape, because a plain `z.object`
+    // authenticate whoever came to fix it. `oauth`, the MCP tokens and the
+    // management keys are dropped from the shape, because a plain `z.object`
     // ignores keys it has no field for: a mistake inside those blocks (a
     // typo in one token entry, say) no longer fails the salvage whole and
     // costs the operator the repair editor. Repair mode reads only
@@ -117,7 +117,10 @@ export function validateConfigText(raw: string): ConfigTextResult {
     // back through a re-read YAML document rather than through this object.
     // ConfigSchema's own `auth` field stays strict, so a typo anywhere in it
     // is still a startup failure.
-    const authOnly = z.object(AuthSchema.shape).omit({ oauth: true, tokens: true, bearer_token: true }).safeParse(obj.auth);
+    const authOnly = z
+        .object(AuthSchema.shape)
+        .omit({ oauth: true, tokens: true, bearer_token: true, management_key: true, management_keys: true })
+        .safeParse(obj.auth);
     return {
         ok: false,
         detail: z.prettifyError(result.error),
