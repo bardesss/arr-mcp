@@ -168,7 +168,12 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     const seerr = adapters.find((a): a is SeerrAdapter => a instanceof SeerrAdapter);
 
     const primary = bothIds(context.mediaServers)?.[0];
-    registerDiagnose(server, { adapters, library, ...(primary === undefined ? {} : { primaryMediaServer: primary }) });
+    registerDiagnose(server, {
+        adapters,
+        library,
+        ...(seerrIdentity === undefined ? {} : { seerrIdentity }),
+        ...(primary === undefined ? {} : { primaryMediaServer: primary })
+    });
     registerStackHealth(server, adapters, instances, primary);
     registerGetIndexers(server, adapters.filter(hasIndexers));
     registerGetSubtitles(server, adapters.filter(hasSubtitles));
