@@ -86,6 +86,7 @@ export async function readArrQueue(
         .map(r => {
             const eta = parseTimeleft(r.timeleft);
             const statusMessages = statusMessagesOf(service, r);
+            const mediaId = mediaIdOf(r, kind);
             return {
                 service,
                 id: String(r.id),
@@ -100,7 +101,7 @@ export async function readArrQueue(
                 // generated spec types these as `number | null`, so a build that
                 // serialises the null instead of omitting the key would hide the
                 // very rows `includeUnknownMovieItems=true` was added to surface.
-                ...(mediaIdOf(r, kind) === undefined ? { orphaned: true } : {}),
+                ...(mediaId === undefined ? { orphaned: true } : { mediaId: String(mediaId) }),
                 // Omitted when it only repeats `status`, which is the common case.
                 ...(r.trackedDownloadState === undefined || r.trackedDownloadState === r.status
                     ? {}

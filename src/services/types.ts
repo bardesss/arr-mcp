@@ -310,6 +310,8 @@ export type QueueItem = {
     remainingBytes?: number;
     etaSeconds?: number;
     errorMessage?: string;
+    /** The *arr's id for the movie, series or artist this row was grabbed for, as a string. Absent on an orphan and on a download client's row. */
+    mediaId?: string;
     /** No movie or series behind it. Not the same as safe to remove. */
     orphaned?: boolean;
     /** `trackedDownloadState`; `importBlocked` is the stuck one. */
