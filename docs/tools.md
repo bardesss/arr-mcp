@@ -25,7 +25,7 @@ off until you turn them on — see [writes](writes.md).
 | `lookup_media` | Tell me about this, without adding it |
 | `discover_media` | What exists in this genre, year, or rating band |
 | `trigger_search` | Go look for this again — the whole thing, one season, or specific episodes |
-| `trigger_scan` | Rescan a library, refresh or rename one item, import a download that never landed, put a mislabeled Sonarr file on the right episode, or rerun NZBGet's post-processing |
+| `trigger_scan` | Refresh and rescan a library or one item, rename one item, import a download that never landed, put a mislabeled Sonarr file on the right episode, or rerun NZBGet's post-processing |
 | `trigger_subtitle_search` | Go and find the subtitles this is missing, now |
 | `grab_release` | Not that one — grab this release from `get_releases` instead |
 | `set_monitoring` | Turn monitoring on or off: a whole series, one season, specific episodes; on Lidarr, `level: "album"` for one album or `level: "artist"` with `artists` and `monitor_new_items` for a policy over the set |
@@ -1946,12 +1946,13 @@ rejects the call without it.
 
 ## `trigger_scan`
 
-Five actions, one idea: make a service reconcile itself with what is on disk.
+Five actions, one idea: make a service reconcile itself with what is on disk
+and, on the *arrs, with its metadata provider.
 
 | Call | What it does |
 | --- | --- |
-| `service` alone | Rescans that service's whole library. On Prowlarr, which has no library, it syncs the indexer list to Radarr and Sonarr instead. |
-| `service` + `id` | Rescans just that Radarr/Sonarr/Whisparr item or Lidarr artist — far cheaper on a large library. |
+| `service` alone | Scans that service's whole library, refreshing metadata first on the *arrs. On Prowlarr, which has no library, it syncs the indexer list to Radarr and Sonarr instead. |
+| `service` + `id` | Refreshes and rescans just that Radarr/Sonarr/Whisparr item or Lidarr artist — far cheaper on a large library. |
 | `action: "rename"` + `id` | Renames that item's files to the service's own naming scheme. |
 | `action: "import"` + `download_id` | Imports a finished download the service never picked up. |
 | `action: "remap"` + `id` + `reassignments` | Tells Sonarr which episode an already-imported file really is, and renames those files to match. |
@@ -1961,12 +1962,27 @@ Everything here queues a command and returns, except `remap` and `postprocess` �
 `stack_health`'s `commands` list says whether it has finished; do not assume it
 has.
 
+### What a scan does on each service
+
+On Radarr, Sonarr, Whisparr and Lidarr a scan is the service's refresh command:
+`RefreshMovie`, `RefreshSeries` or `RefreshArtist`. It re-reads titles and air
+dates from the metadata provider, then rescans the folders unless the service's
+"rescan after refresh" setting is Never. With `id` on Sonarr this is the same
+command as the series page's Refresh & Scan button.
+
+That makes it the fix for an import refused over metadata the service has not
+caught up with, such as Sonarr's "Episode has a TBA title and recently aired".
+The flow is `trigger_scan` with the series `id`, then `stack_health` until
+`commands` shows the refresh finished, then `import` again. A refresh only helps
+once the provider has the title.
+
+On Jellyfin and Plex a scan looks for files that changed. It does not re-match
+what is already there, which is what `fix_metadata` is for.
+
 ### On Lidarr
 
 A scan is Lidarr's `RefreshArtist`, for the whole library or with `id` for one
-artist. It refreshes the artist's metadata, then rescans the artist folders
-unless Lidarr's "rescan artist folder after refresh" is set to Never.
-`rename` is `RenameArtist`, every file of that artist. Both appear in
+artist. `rename` is `RenameArtist`, every file of that artist. Both appear in
 `stack_health`'s `commands`.
 
 `import` reads Lidarr's queue first and refuses a download that has not
