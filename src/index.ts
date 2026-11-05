@@ -5,6 +5,7 @@ import { attachLogStore } from './core/logger.ts';
 import { logger } from './core/logger.ts';
 import { LogStore } from './core/logs.ts';
 import { Sessions } from './core/session.ts';
+import { WebhookEvents } from './core/webhookEvents.ts';
 
 const CONFIG_DIR = process.env.ARR_MCP_CONFIG_DIR ?? '/config';
 const PORT = Number(process.env.ARR_MCP_PORT ?? 6060);
@@ -25,7 +26,9 @@ const audit = WriteAudit.open(CONFIG_DIR);
 // still be valid after a successful save swaps the app underneath it.
 const sessions = Sessions.open(CONFIG_DIR);
 
-const app = await bootstrap({ configDir: CONFIG_DIR, audit, logs, sessions, version: VERSION, port: PORT });
+const events = WebhookEvents.open(CONFIG_DIR);
+
+const app = await bootstrap({ configDir: CONFIG_DIR, audit, logs, events, sessions, version: VERSION, port: PORT });
 
 serve({ fetch: app.fetch, port: PORT, hostname: '0.0.0.0' }, info => {
     logger.info({ port: info.port }, `arr-mcp listening — open the config UI at http://<host>:${info.port}`);

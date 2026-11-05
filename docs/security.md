@@ -74,9 +74,10 @@ enabled.
 
 ## The repair page renders the config file verbatim
 
-Every other page in the config UI follows one rule: a secret is never rendered
-back. API keys and passwords come back as empty fields with an `unchanged`
-placeholder.
+The config UI otherwise follows one rule: a secret is never rendered back. API
+keys and passwords come back as empty fields with an `unchanged` placeholder. The
+[event log's secret](#the-library-event-log) is the one other exception, shown
+masked.
 
 The repair page — the one served when `config.yaml` does not load — breaks that
 rule. It shows the file as text, credentials included, because there is no
@@ -103,6 +104,36 @@ is also the case that produces the read-only page. The parser's own message is
 stripped of the source it quotes (`src/config/load.ts`), and `/healthz` is read
 by the Docker healthcheck, so an unstripped one would sit in the container's
 health log for `docker inspect` to print.
+
+## The library event log
+
+Off by default. While it's off, `/webhooks/*` answers 404 to everyone. While it's
+on, Radarr and Sonarr post to it, so it takes requests with neither a session nor
+an MCP token.
+
+**How a request is authenticated.** HTTP Basic, because that's what an *arr can
+send on a webhook. Any username works and the password is compared in constant
+time against `webhooks.secret`. An unauthenticated caller gets a 401 before the
+instance is looked up, so it can't find out which instances exist. The Host
+allowlist applies, and a body has a 256 KiB limit.
+
+**Only failures are throttled.** After repeated wrong secrets those attempts get a
+429, but the right secret always passes. Refusing it during a block would let
+anyone cost you real events by sending wrong ones. A generated secret is too long
+to guess, so the block mostly keeps the log quiet.
+
+**The secret is the exception to two rules.** It's stored in plain text like a
+service `api_key` rather than hashed like an MCP token, and the config page renders
+it back, masked with CSS, to a signed-in user, because it has to be pasted into each
+service. The management API doesn't return it. All it can do is add rows to the
+event log.
+
+**What's stored.** Only named fields: the event, title, internal and external ids,
+download id, quality, indexer and delete reason. Paths, URLs, release names and the
+instance name are never read, so a credential in one of them doesn't reach
+`events.db`. Titles, indexer names and reasons are fenced as upstream text. The
+payload doesn't say who deleted something, and so neither does the log. Events are
+pruned by age and by row count.
 
 ## MCP02 Privilege Escalation via Scope Creep
 

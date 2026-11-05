@@ -803,7 +803,8 @@ describe('every top-level block', () => {
         },
         primary_media_server: 'plex',
         metadata: { imdb: { enabled: true } },
-        ui: { theme: 'dark' }
+        ui: { theme: 'dark' },
+        webhooks: { enabled: true, secret: 's'.repeat(40), retention_days: 14 }
     });
 
     // Fails the moment a block joins the schema, which is the point: the round
@@ -827,13 +828,14 @@ describe('every top-level block', () => {
         await saveConfig(dir, FULL);
 
         // One media server left, so the primary goes with the second one.
-        const { metadata: _m, ui: _u, primary_media_server: _p, ...rest } = FULL;
+        const { metadata: _m, ui: _u, webhooks: _w, primary_media_server: _p, ...rest } = FULL;
         const bare = { ...rest, services: { radarr: rest.services.radarr } };
         await saveConfig(dir, bare);
 
         const { config } = await loadConfig(dir);
         expect(config.metadata).toBeUndefined();
         expect(config.ui).toBeUndefined();
+        expect(config.webhooks).toBeUndefined();
         expect(config.primary_media_server).toBeUndefined();
     });
 });

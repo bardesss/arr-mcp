@@ -802,6 +802,46 @@ Off by default. It is the only source of an IMDb rating for a TV series, and a
 fallback for everything else — see [IMDb ratings](imdb.md) for what it costs and
 whether you need it.
 
+## The library event log
+
+```yaml
+webhooks:
+  enabled: true
+  secret: <at least 32 characters>
+  retention_days: 30   # default
+```
+
+Off by default. Radarr and Sonarr lose a title's history when it's deleted, so
+this keeps what they report in `events.db`, next to `audit.db`, where a delete
+can't reach it. Without it nothing listens: `/webhooks/*` answers 404.
+
+Turn it on under **Library event log** on the Configuration page, which writes a
+generated secret and takes effect at once. Then add a connection in each Radarr
+and Sonarr instance, under Settings, Connect, Webhook:
+
+| Field | Value |
+|-------|-------|
+| URL | `http://<arr-mcp as the service reaches it>:6060/webhooks/radarr`, `/webhooks/sonarr`, or `/webhooks/radarr/4k` for a named instance |
+| Method | POST |
+| Username | `arr-mcp` (any name works) |
+| Password | The password shown on the Configuration page |
+
+Press Test in the service: a 200 means it's connected, and the test isn't stored.
+
+If you've set [`allowed_hosts`](#access), the host name in that URL has to be in
+the list. A container name like `arr-mcp` usually isn't, and the service gets a
+403 until it is.
+
+Only Radarr and Sonarr are accepted. Lidarr's payloads haven't been captured, so
+storing them would be guesswork, and on Whisparr the titles themselves are the
+sensitive part. Rename, manual interaction and health events have no captured
+payload either, so they're kept as `unknown` under their own name.
+
+Turning the log off keeps the secret and the stored events, and stops accepting
+new ones. Events past `retention_days` go when the next event arrives, with a
+limit of 50,000 rows underneath. See
+[Security](security.md#the-library-event-log) for what's stored.
+
 ## Appearance
 
 ```yaml

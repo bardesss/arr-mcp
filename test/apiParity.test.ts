@@ -29,7 +29,8 @@ const COVERAGE: Record<string, { api: string } | { pageOnly: string }> = {
     services: { api: '/app' },
     primary_media_server: { api: '/settings/media-servers' },
     metadata: { api: '/settings/imdb' },
-    ui: { pageOnly: 'the config page theme' }
+    ui: { pageOnly: 'the config page theme' },
+    webhooks: { pageOnly: 'turning it on means pasting a secret into each service, and the API never returns one' }
 };
 
 /** Each service field, as `GET /app` shows it and the body field that sets it. */

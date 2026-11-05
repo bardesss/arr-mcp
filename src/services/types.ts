@@ -665,6 +665,7 @@ export const HISTORY_EVENT_TYPES = [
     'failed',
     'deleted',
     'renamed',
+    'added',
     'ignored',
     'subtitle',
     'unknown',
@@ -696,6 +697,8 @@ export type HistoryEntry = {
     title: string; // fenced
     /** The movie or series id — hand it to get_media_details or trigger_search. */
     mediaId?: string;
+    /** Webhook rows only. A re-added title gets a new `mediaId`, and these stay. */
+    externalIds?: { tmdb?: number; tvdb?: number; imdb?: string };
     /** Sonarr only. Kept separate from `mediaId`, which always names the series. */
     episodeId?: string;
     indexer?: string; // fenced
