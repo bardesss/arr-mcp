@@ -149,9 +149,9 @@ export function registerTriggerScan(
 ): void {
     registerWriteTool(server, context, {
         name: 'trigger_scan',
-        title: 'Scan for new files',
+        title: 'Refresh and scan a library',
         description:
-            'Asks a service to reconcile itself with what is on disk — the "it downloaded but still will not play" family of actions, and the usual fix for what `diagnose` reports as a stale scan. With no `id`, it rescans the whole library of Radarr, Sonarr, Whisparr, Lidarr, Jellyfin or Plex; the media server is the one that matters when something is missing from what you can actually watch. On Prowlarr there is no library, and this pushes its indexer list to Radarr and Sonarr instead — the fix for "the app is using an indexer Prowlarr no longer has". With an `id`, it rescans just that Radarr/Sonarr/Whisparr item or Lidarr artist, which is far cheaper on a big library. `action: "rename"` renames one item\'s files to the service\'s own naming scheme and needs an `id`. `action: "import"` takes a finished download stuck at importBlocked; when the service matched a file to the wrong movie or episodes, or to none, `mapping` says what each file is and the service judges it again (not on Lidarr, whose files belong to albums and tracks: fix a wrong album match in Lidarr itself). `action: "remap"` tells Sonarr which episode an already-imported file really is, for a mislabel every automatic signal agrees with; follow it with rename, then a media-server rescan. `action: "postprocess"` on NZBGet reruns its post-processing (repair, unpack and your own scripts) on a finished download, for one a broken script left unimportable: take `downloadId` from the stuck get_queue row; it works only while the download\'s folder still exists. Everything else here queues a command and returns immediately; `stack_health` lists what is still running under `commands`, so check there rather than assuming it is done. `remap` and `postprocess` wait for their own result instead, and a rerun still going shows in get_queue, not `commands`. Previews by default — call again with the returned `confirm` token to actually run it.',
+            'Asks a service to reconcile itself with what is on disk — the "it downloaded but still will not play" family of actions, and the usual fix for what `diagnose` reports as a stale scan. With no `id`, it rescans the whole library of Radarr, Sonarr, Whisparr, Lidarr, Jellyfin or Plex; the media server is the one that matters when something is missing from what you can actually watch. On Prowlarr there is no library, and this pushes its indexer list to Radarr and Sonarr instead — the fix for "the app is using an indexer Prowlarr no longer has". On Radarr, Sonarr, Whisparr and Lidarr a scan is the service\'s refresh command: it re-reads titles and air dates from the metadata provider, then rescans the folders. With an `id`, it does that for just that item or Lidarr artist, which is far cheaper on a big library, and it is the fix for an import refused over an episode title the service has not caught up with ("TBA"): scan the series, wait for `stack_health` to show it finished, then import again. On Jellyfin and Plex a scan only looks for changed files; `fix_metadata` is the repair for wrong metadata there. `action: "rename"` renames one item\'s files to the service\'s own naming scheme and needs an `id`. `action: "import"` takes a finished download stuck at importBlocked; when the service matched a file to the wrong movie or episodes, or to none, `mapping` says what each file is and the service judges it again (not on Lidarr, whose files belong to albums and tracks: fix a wrong album match in Lidarr itself). `action: "remap"` tells Sonarr which episode an already-imported file really is, for a mislabel every automatic signal agrees with; follow it with rename, then a media-server rescan. `action: "postprocess"` on NZBGet reruns its post-processing (repair, unpack and your own scripts) on a finished download, for one a broken script left unimportable: take `downloadId` from the stuck get_queue row; it works only while the download\'s folder still exists. Everything else here queues a command and returns immediately; `stack_health` lists what is still running under `commands`, so check there rather than assuming it is done. `remap` and `postprocess` wait for their own result instead, and a rerun still going shows in get_queue, not `commands`. Previews by default — call again with the returned `confirm` token to actually run it.',
         inputSchema: z.object({
             service: ServiceIdSchema.describe(
                 'radarr, sonarr, whisparr, lidarr, jellyfin or plex — or prowlarr, to sync its indexers to the apps, or nzbget for action: "postprocess".'
@@ -161,14 +161,14 @@ export function registerTriggerScan(
                 .enum(['scan', 'rename', 'import', 'remap', 'postprocess'])
                 .default('scan')
                 .describe(
-                    'scan rescans the library, or just one item when `id` is given. rename renames one item\'s files to the service\'s own naming scheme, and requires `id`. import takes a finished download the service never picked up, and requires `download_id`; add `mapping` when the service cannot tell what a file is. remap reassigns already-imported Sonarr files to the episodes a person has confirmed they are, and requires `id` and `reassignments`. postprocess reruns NZBGet\'s post-processing on a finished download, and requires `download_id`.'
+                    'scan rescans the library, or just one item when `id` is given; on Radarr, Sonarr, Whisparr and Lidarr it refreshes metadata from the provider first. rename renames one item\'s files to the service\'s own naming scheme, and requires `id`. import takes a finished download the service never picked up, and requires `download_id`; add `mapping` when the service cannot tell what a file is. remap reassigns already-imported Sonarr files to the episodes a person has confirmed they are, and requires `id` and `reassignments`. postprocess reruns NZBGet\'s post-processing on a finished download, and requires `download_id`.'
                 ),
             id: z
                 .string()
                 .min(1)
                 .optional()
                 .describe(
-                    'One movie, series or Lidarr artist id — `acquisition.id` on a get_library record. Omit with action: "scan" to rescan the whole library.'
+                    'One movie, series or Lidarr artist id — `acquisition.id` on a get_library record. Omit with action: "scan" to scan the whole library.'
                 ),
             download_id: z
                 .string()
@@ -400,7 +400,7 @@ export function registerTriggerScan(
                     summary:
                         action === 'rename'
                             ? `Rename the files of ${label} in ${adapter.id}.`
-                            : `Ask ${adapter.id} to re-read ${label} from disk.`,
+                            : `Ask ${adapter.id} to refresh ${label} and rescan its folder.`,
                     effects:
                         action === 'rename'
                             ? [
@@ -408,8 +408,8 @@ export function registerTriggerScan(
                                   'A media server that indexed the old paths will need its own rescan afterwards.'
                               ]
                             : [
-                                  `Rescans ${label}'s folder and re-reads its metadata.`,
-                                  'Finds files added or moved on disk since the last scan, without touching the rest of the library.'
+                                  `Re-reads ${label}'s metadata from the provider, such as titles and air dates.`,
+                                  'Then rescans its folder for files added or moved since the last scan, unless the service is set never to rescan after a refresh. The rest of the library is not touched.'
                               ],
                     args: { service, action, id, ...(instance === undefined ? {} : { instance }) }
                 };
@@ -424,6 +424,9 @@ export function registerTriggerScan(
                     adapter.type === 'plex'
                         ? 'Queues a scan of every library section on plex, music and photos included: Plex has no single-library scan here.'
                         : `Queues a library scan on ${adapter.id}.`,
+                    ...(hasLibraryMaintenance(adapter)
+                        ? ['Re-reads the metadata of every item from the provider, such as titles and air dates.']
+                        : []),
                     'Finds media added or moved on disk since the last scan.',
                     'Can take minutes on a large library, and runs in the background.'
                 ],
@@ -488,7 +491,7 @@ export function registerTriggerScan(
             const adapter = findAdapter(adapters, service, instance);
             const handle = await adapter.startLibraryScan();
 
-            return `${adapter.id} is rescanning its library. It runs in the background — check get_media_details or stack_health in a few minutes rather than expecting it to be finished now.${
+            return `${adapter.id} is ${hasLibraryMaintenance(adapter) ? 'refreshing and rescanning' : 'rescanning'} its library. It runs in the background — check get_media_details or stack_health in a few minutes rather than expecting it to be finished now.${
                 handle.commandId === 0 ? '' : ` Command id ${handle.commandId}.`
             }${handle.detail === undefined ? '' : ` ${handle.detail}`}`;
         }
