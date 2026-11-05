@@ -365,6 +365,9 @@ describe('trigger_scan on a single item', () => {
         const { structuredContent } = await h.call({ service: 'radarr', id: '15', dry_run: true });
         expect(structuredContent.summary).toMatch(/refresh/i);
         expect(structuredContent.effects.join(' ')).toMatch(/metadata from the provider/i);
+        // Radarr's one-item rescan stays in that item's folder; Lidarr's does not.
+        expect(structuredContent.summary).toMatch(/rescan its folder/);
+        expect(structuredContent.effects.join(' ')).toMatch(/The rest of the library is not touched/);
     });
 
     it('says a library scan on an *arr refreshes metadata too', async () => {
