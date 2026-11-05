@@ -133,6 +133,18 @@ describe('being honest about what it cannot reach', () => {
         expect(text).not.toMatch(/`get_queue`[^\n]*what finished/i);
     });
 
+    it('does not throw on a window too large for a date', async () => {
+        const text = await textOf('whats_new', { days: '1e9' });
+        expect(text).toMatch(/`since: "\d{4}-\d{2}-\d{2}T/);
+        expect(text).toContain('last 36500 days');
+    });
+
+    it('says an artist can be asked about, and still keeps the instruction not to act', async () => {
+        const title = registered().why_not_playable?.argsSchema?.shape?.title as { description?: string };
+        expect(title.description).toMatch(/artist/);
+        expect(await textOf('why_not_playable', { title: 'Alien' })).toContain('Do not call it');
+    });
+
     it('falls back to seven days on a days value that is not a positive number', async () => {
         expect(await textOf('whats_new', { days: 'soon' })).toContain('last 7 days');
     });

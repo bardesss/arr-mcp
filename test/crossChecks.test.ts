@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { MergedItem } from '../src/core/resolver.ts';
+import type { MergedItem, SeasonSummary } from '../src/core/resolver.ts';
 import type {
     CleanupCandidate,
     CleanupProtection,
@@ -265,6 +265,67 @@ describe('cross-checks — delete', () => {
             })
         });
         expect(advice.warnings).toEqual(['Season 2 of Severance has not been fully watched yet.']);
+    });
+
+    // The series flag is "all watched", so false means "not all", and a show you are current on goes false when a new episode lands.
+    describe('a series nobody has watched in full', () => {
+        const show: CrossCheckSubject = { kind: 'series', label: 'Severance', ids: { tvdb: 371980 } };
+        const partly = (seasons?: SeasonSummary[]) =>
+            item({ kind: 'series', ids: { tvdb: 371980 }, playback: { user: 'default', watched: false }, ...(seasons === undefined ? {} : { seasons }) });
+
+        it('keeps the not-watched sentence when no season has an episode watched', async () => {
+            const advice = await check(show, 'delete', { library: partly([{ season: 1, watched: 0, total: 10 }, { season: 2, watched: 0, total: 10 }]) });
+            expect(advice.warnings).toEqual(['Severance has not been watched yet by the default user.']);
+        });
+
+        it('says it is partly watched, with the count, when a season has watched episodes', async () => {
+            const advice = await check(show, 'delete', {
+                library: partly([{ season: 1, watched: 10, total: 10 }, { season: 2, watched: 9, total: 10 }])
+            });
+            expect(advice.warnings).toEqual(['Severance is only partly watched by the default user: 19 episodes watched so far.']);
+        });
+
+        it('counts one episode in the singular', async () => {
+            const advice = await check(show, 'delete', { library: partly([{ season: 1, watched: 1, total: 8 }]) });
+            expect(advice.warnings).toEqual(['Severance is only partly watched by the default user: 1 episode watched so far.']);
+        });
+
+        it('skips a season the server holds nothing of rather than counting it as no evidence', async () => {
+            const advice = await check(show, 'delete', { library: partly([{ season: 1, total: 8 }, { season: 2, watched: 0, total: 8 }]) });
+            expect(advice.warnings).toEqual(['Severance has not been watched yet by the default user.']);
+            const some = await check(show, 'delete', { library: partly([{ season: 1, total: 8 }, { season: 2, watched: 3, total: 8 }]) });
+            expect(some.warnings).toEqual(['Severance is only partly watched by the default user: 3 episodes watched so far.']);
+        });
+
+        it('says only that it is not fully watched when no season could be counted', async () => {
+            const expected = ['Severance has not been fully watched yet by the default user.'];
+            expect((await check(show, 'delete', { library: partly(undefined) })).warnings).toEqual(expected);
+            expect((await check(show, 'delete', { library: partly([]) })).warnings).toEqual(expected);
+            expect((await check(show, 'delete', { library: partly([{ season: 1, total: 8 }]) })).warnings).toEqual(expected);
+        });
+
+        it('leaves a film with the not-watched sentence', async () => {
+            const advice = await check(subject, 'delete', { library: item({ playback: { user: 'default', watched: false } }) });
+            expect(advice.warnings).toEqual(['Alien (1979) has not been watched yet by the default user.']);
+        });
+    });
+
+    // A database-only delete keeps the file playable, so whether it was watched costs nothing.
+    it('leaves out the watch warning when the files stay', async () => {
+        const staying: CrossCheckSubject = { ...subject, filesStay: true };
+        const library = item({ playback: { user: 'default', watched: false } });
+        expect((await check(staying, 'delete', { library })).warnings).toEqual([]);
+        expect((await check(subject, 'delete', { library })).warnings).toHaveLength(1);
+    });
+
+    it('lists only the degraded sources that bear on the kind of title', async () => {
+        const degraded = ['jellyfin', 'jellyfin:music', 'jellyfin:seasons', 'lidarr', 'sonarr', 'sonarr/4k', 'radarr/4k', 'whisparr'];
+        const film = await check(subject, 'delete', { library: item(), degraded });
+        expect(film.unchecked).toEqual(['jellyfin', 'radarr/4k']);
+
+        const show: CrossCheckSubject = { kind: 'series', label: 'Severance', ids: { tvdb: 371980 } };
+        const series = await check(show, 'delete', { library: item({ kind: 'series', ids: { tvdb: 371980 } }), degraded });
+        expect(series.unchecked).toEqual(['jellyfin', 'sonarr', 'sonarr/4k', 'whisparr']);
     });
 
     it('reports the library as unchecked when the watch state could not be read', async () => {

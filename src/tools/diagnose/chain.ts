@@ -1093,7 +1093,10 @@ export function buildChain(query: string, ev: Evidence, byWords: boolean): Diagn
     // appears at all. A confirmed file is what lets the true wording say
     // "does not block the file already on disk"; its absence gets the
     // "may be the actual cause" wording instead, not silence.
-    const aside = queueAside(queueResult, fileIsOk) + cleanupAside(ev, byStage.get('file')?.detail);
+    // The cleanup sentence is left out only where the verdict itself quotes it:
+    // the file step's detail is not what a `managed` or `request` verdict says.
+    const verdictDetail = verdictStage === undefined ? undefined : byStage.get(verdictStage)?.detail;
+    const aside = queueAside(queueResult, fileIsOk) + cleanupAside(ev, verdictDetail);
 
     if (verdictStage === undefined) {
         // The positive claim "is available in <server> and playable" is only
@@ -1132,13 +1135,16 @@ export function buildChain(query: string, ev: Evidence, byWords: boolean): Diagn
     }
 
     const blocking = byStage.get(verdictStage) as Step;
+    const removedOnPurpose = acquisition?.hasFile === false && wholeRemoval(ev.cleanup, ev.lastImportAt) !== undefined;
     const remedy =
         blocking.stage === 'queue'
             ? queueResult.remedy
-            : blocking.stage === 'file'
+            : blocking.stage === 'managed' && removedOnPurpose
+              ? `A cleanup rule removed it on purpose. Protect it in ${ev.cleanup?.service ?? 'the cleanup service'} first, or the same rule will remove it again, then turn monitoring on in ${acquisition?.service ?? 'the service managing it'}.`
+              : blocking.stage === 'file'
               // The `file` step always carries the managing service: it is only
               // pushed on the branch where `acquisition` is defined.
-              ? wholeRemoval(ev.cleanup, ev.lastImportAt) !== undefined && acquisition?.hasFile === false
+              ? removedOnPurpose
                   ? `A cleanup rule removed it on purpose. Protect it in ${ev.cleanup?.service ?? 'the cleanup service'} first, or the same rule will remove it again, then search for it in ${blocking.service as string}.`
                   : fileRemedy(
                         blocking.service as string,
@@ -1209,6 +1215,8 @@ function nextStepsFor(
         case 'managed':
             // Nothing here looks up or adds music, so an artist nothing manages has no lookup to offer.
             if (item === undefined || acquisition === undefined) return item?.kind === 'artist' ? [] : lookupStep(query, byWords);
+            // Monitoring would search for, and so re-download, what a rule deleted on purpose: the file step withholds its search for this reason.
+            if (!acquisition.hasFile && wholeRemoval(ev.cleanup, ev.lastImportAt) !== undefined) return [];
             return monitorStep(acquisition, item);
         case 'file':
             // Lidarr has no search trigger: trigger_search refuses it.

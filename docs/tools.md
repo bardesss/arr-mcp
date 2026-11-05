@@ -239,7 +239,8 @@ Cleanuparr. An item with no id to match gaps by is `unknown`, not `ok`.
 
 **Lidarr artists.** `diagnose` walks an artist as it does a film: by name, or with
 `service: "lidarr"` and the artist id. A film or series of the same name wins over
-the artist when both match. The chain is the same, with these differences:
+the artist only when it matches the name as well as the artist does: an artist named exactly
+as asked beats a film that merely starts with or contains the name. The chain is the same, with these differences:
 
 - `request` is `skipped`, saying Seerr does not handle music, and Seerr is never
   read for an artist. Neither are Bazarr (`subtitles` is `skipped`, since it has
@@ -279,6 +280,7 @@ hold ids, `download_id`, and, for a lookup, the words you gave as `query`.
 |---|---|
 | `file`, no cleanup removal | `trigger_search` with the managing service and id; none for an artist, which is searched in Lidarr itself |
 | `file`, removed by a cleanup rule | none: protect the title in Reclaimerr |
+| `managed`, not monitored and removed by a cleanup rule | none: monitoring would search for it again. Protect the title in Reclaimerr first; the summary names the removal |
 | `managed`, in Radarr | `update_media` with `monitored: true` (`set_monitoring` refuses Radarr) |
 | `managed`, in Sonarr or Whisparr | `set_monitoring` with `monitored: true` |
 | `managed`, in Lidarr | `set_monitoring` with `level: "artist"`, `artists: [id]` and `monitored: true`, never `id`: the artist flag only, each album keeps its own |
@@ -293,7 +295,9 @@ hold ids, `download_id`, and, for a lookup, the words you gave as `query`.
 
 A step is left out when its tool would refuse it or when it cannot be built:
 no id to search for, a Whisparr download (which has no manual import), or an
-approval for someone else's request without `allow_other_users`. The `remedy`
+approval for someone else's request without `allow_other_users`. A step is still
+offered when the server's own settings would make the write refuse (`safe_write`
+off, or a read-tier token): the write then refuses and says how to fix it. The `remedy`
 and verdict still say what is wrong. A search offered while Reclaimerr could not
 be read says so in its `why`.
 
