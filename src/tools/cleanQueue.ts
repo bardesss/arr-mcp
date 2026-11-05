@@ -51,7 +51,7 @@ export function registerCleanQueue(
                     // stuck downloads that release never marks importBlocked.
                     summary:
                         `${adapter.id} has no orphaned queue items stuck at importBlocked.` +
-                        (adapter.queueKind === 'artist'
+                        (adapter.type === 'lidarr'
                             ? ' Lidarr before 2.10.1 never marks one importBlocked: there, a deleted artist\'s finished download stays `completed` with a warning in get_queue, and remove_queue_item removes it.'
                             : ''),
                     effects: [],

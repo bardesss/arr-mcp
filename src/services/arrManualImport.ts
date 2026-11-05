@@ -131,11 +131,54 @@ async function unfinishedRow(
     return row === undefined || row.status.toLowerCase() === 'completed' ? undefined : row;
 }
 
+/**
+ * The *arrs' `QueueStatus`: `unknown`, `queued`, `paused`, `downloading`,
+ * `completed`, `failed`, `warning`, `delay`, `downloadClientUnavailable` and
+ * `fallback` (the generated specs). These are a download on its way to
+ * `completed`.
+ */
+const IN_PROGRESS = new Set(['queued', 'paused', 'delay', 'downloading']);
+
+/**
+ * Worded by state: a download that is still on its way "has not finished", and
+ * waiting is the remedy, with `why` explaining the service's answer to a read
+ * while it runs. One at `failed` is not going to finish, so saying it had not
+ * would read as "wait for it"; it is named as failed, and the remedy is to
+ * remove it or fix it in the client. `warning` usually means stuck rather than
+ * stopped: the clients map a stalled torrent and missing files to it
+ * (`QBittorrent`, `TransmissionBase`, Lidarr 3.1.0), and a stalled torrent
+ * often finishes later. Not every warning will: a qBittorrent magnet with DHT
+ * off waits there for good. So it is named as a warning, and the remedy points
+ * at the row's own reason, which the client gives in the queue row's
+ * `errorMessage` (`QueueService`) and `get_queue` shows at `detail: "full"`.
+ * Anything else (`unknown`, `downloadClientUnavailable`, `fallback`) says only
+ * what is known: the queue does not report it completed.
+ */
 function notFinished(service: string, downloadId: string, row: QueueItem, why: string, cause?: unknown): ServiceError {
+    const status = row.status.toLowerCase();
     const state = row.importState === undefined ? row.status : `${row.status}/${row.importState}`;
-    return new ServiceError('UpstreamError', service, `download ${downloadId} has not finished downloading`, {
-        remedy: `get_queue reports it as ${state}. There is nothing to import until the download client says the item is complete — ${why}. Wait for it to finish, then try again.`,
-        ...(cause === undefined ? {} : { cause })
+    const opts = cause === undefined ? {} : { cause };
+    if (IN_PROGRESS.has(status)) {
+        return new ServiceError('UpstreamError', service, `download ${downloadId} has not finished downloading`, {
+            remedy: `get_queue reports it as ${state}. There is nothing to import until the download client says the item is complete — ${why}. Wait for it to finish, then try again.`,
+            ...opts
+        });
+    }
+    if (status === 'warning') {
+        return new ServiceError('UpstreamError', service, `download ${downloadId} has a warning in the download client`, {
+            remedy: `get_queue reports it as ${state}, not completed, so there is nothing to import yet. get_queue at \`detail: "full"\` shows that row's \`errorMessage\`, and any \`statusMessages\`, which say why when the client gave a reason. A stalled torrent often finishes later, so waiting may be enough; otherwise fix it in the download client and try again.`,
+            ...opts
+        });
+    }
+    if (status === 'failed') {
+        return new ServiceError('UpstreamError', service, `download ${downloadId} is ${row.status} in the download client`, {
+            remedy: `get_queue reports it as ${state}, not completed, so there is nothing to import. remove_queue_item removes it, with \`blocklist: true\` to have ${service} look for another release; or fix it in the download client and try again.`,
+            ...opts
+        });
+    }
+    return new ServiceError('UpstreamError', service, `download ${downloadId} is not completed`, {
+        remedy: `get_queue reports it as ${state}, so there is nothing to import yet. Check the download there and in the download client, then try again.`,
+        ...opts
     });
 }
 

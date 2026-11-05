@@ -266,6 +266,26 @@ describe('Lidarr import by download id', () => {
         expect(sent.map(s => s.path)).toEqual(['/api/v1/queue', '/api/v1/queue']);
     });
 
+    it('names a warning as a warning on Lidarr too, and still reads no files', async () => {
+        const { adapter, sent } = lidarr(s => (s.path === '/api/v1/queue' ? QUEUE('warning') : ROWS));
+
+        await expect(adapter.listImportCandidates('nzo-1')).rejects.toMatchObject({
+            message: expect.stringMatching(/has a warning in the download client/),
+            remedy: expect.stringMatching(/`errorMessage`/)
+        });
+        expect(sent.map(s => s.path)).toEqual(['/api/v1/queue']);
+    });
+
+    it('names a failed download as the client reports it, and still reads no files', async () => {
+        const { adapter, sent } = lidarr(s => (s.path === '/api/v1/queue' ? QUEUE('failed') : ROWS));
+
+        await expect(adapter.listImportCandidates('nzo-1')).rejects.toMatchObject({
+            message: expect.stringMatching(/is failed in the download client/),
+            remedy: expect.stringMatching(/not completed.*remove_queue_item/)
+        });
+        expect(sent.map(s => s.path)).toEqual(['/api/v1/queue']);
+    });
+
     it('fails rather than reading the files when Lidarr\'s queue cannot be read', async () => {
         const { adapter, sent } = lidarr(s => (s.path === '/api/v1/manualimport' ? ROWS : undefined));
 
