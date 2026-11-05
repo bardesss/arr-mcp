@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.57.1](https://github.com/bardesss/arr-mcp/compare/v1.57.0...v1.57.1) (2026-11-05)
+
+
+### Bug Fixes
+
+* correct the whats_wrong and whats_new prompts ([#454](https://github.com/bardesss/arr-mcp/issues/454)) ([9058096](https://github.com/bardesss/arr-mcp/commit/90580960fd4801e0f9abb53b0348af43ef487601))
+
 ## [1.57.0](https://github.com/bardesss/arr-mcp/compare/v1.56.0...v1.57.0) (2026-11-05)
 
 
