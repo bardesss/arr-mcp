@@ -25,6 +25,12 @@ type World = {
     queues?: Record<string, Source<QueueItem[]>>;
     /** What the library holds for the subject; `null` for a miss, an Error for an outage. */
     library?: MergedItem | null | Error;
+    /** The snapshot's own `degraded`, for a load that resolves while a source is down. */
+    degraded?: string[];
+    /** A library load that never answers. */
+    libraryHangs?: boolean;
+    /** Called with what Reclaimerr was asked. */
+    asked?: (kind: string, tmdb: number) => void;
 };
 
 const settle = async <T>(source: Source<T>): Promise<T> => {
@@ -43,7 +49,14 @@ function adaptersFor(world: World): ServiceAdapter[] {
     }
     if (world.reclaimerr !== undefined) {
         const source = world.reclaimerr;
-        adapters.push(stub('reclaimerr', { readCleanupStatus: () => settle(source) }));
+        adapters.push(
+            stub('reclaimerr', {
+                readCleanupStatus: (kind: string, tmdb: number) => {
+                    world.asked?.(kind, tmdb);
+                    return settle(source);
+                }
+            })
+        );
     }
     for (const [id, source] of Object.entries(world.queues ?? {})) {
         adapters.push(stub(id, { getQueue: () => settle(source), ...(id === 'lidarr' ? { queueKind: 'artist' } : id === 'radarr' ? { queueKind: 'movie' } : {}) }));
@@ -55,8 +68,9 @@ function libraryFor(world: World): LibraryLoader {
     const hit = world.library ?? undefined;
     return {
         load: async () => {
+            if (world.libraryHangs === true) return new Promise(() => {});
             if (hit instanceof Error) throw hit;
-            return { index: { find: () => hit }, degraded: [], counts: {} };
+            return { index: { find: () => hit }, degraded: world.degraded ?? [], counts: {} };
         }
     } as unknown as LibraryLoader;
 }
@@ -183,6 +197,27 @@ describe('cross-checks — delete', () => {
         expect(advice.warnings).toEqual(['Alien (1979) has not been watched yet by the default user.']);
     });
 
+    it('does not say a season delete is unwatched because the series as a whole is', async () => {
+        const series: CrossCheckSubject = { kind: 'series', label: 'Severance', ids: { tvdb: 371980 }, seasons: [1] };
+        const advice = await check(series, 'delete', {
+            library: item({
+                kind: 'series',
+                ids: { tvdb: 371980 },
+                playback: { user: 'default', watched: false },
+                seasons: [{ season: 1, complete: true }, { season: 2, complete: false }]
+            })
+        });
+        expect(advice.warnings).toEqual([]);
+    });
+
+    it('names several unwatched seasons readably', async () => {
+        const series: CrossCheckSubject = { kind: 'series', label: 'Severance', ids: { tvdb: 371980 }, seasons: [1, 2] };
+        const advice = await check(series, 'delete', {
+            library: item({ kind: 'series', ids: { tvdb: 371980 }, seasons: [{ season: 1, complete: false }, { season: 2, complete: false }] })
+        });
+        expect(advice.warnings).toEqual(['Seasons 1, 2 of Severance have not been fully watched yet.']);
+    });
+
     it('does not warn when watch state is absent or watched', async () => {
         expect((await check(subject, 'delete', { library: item({ playback: { user: 'default' } }) })).warnings).toEqual([]);
         expect((await check(subject, 'delete', { library: item({ playback: { user: 'default', watched: true } }) })).warnings).toEqual([]);
@@ -203,7 +238,7 @@ describe('cross-checks — delete', () => {
                 ]
             })
         });
-        expect(advice.warnings).toEqual(['Severance season 2 has not been fully watched yet.']);
+        expect(advice.warnings).toEqual(['Season 2 of Severance has not been fully watched yet.']);
     });
 
     it('reports the library as unchecked when the watch state could not be read', async () => {
@@ -293,9 +328,57 @@ describe('cross-checks — ids', () => {
     });
 
     it('carries on with the subject’s own ids when the library cannot be read', async () => {
-        const advice = await check(subject, 'acquire', { seerr: [request('pending')], library: new Error('down') });
+        const advice = await check(sonarr, 'acquire', {
+            seerr: [{ service: 'seerr', id: 2, status: 'pending', mediaType: 'tv', tvdbId: 371980, requestedBy: 'Sam' }],
+            reclaimerr: status(),
+            library: new Error('down')
+        });
+        expect(advice.warnings).toEqual(['The Seerr request for Severance is still waiting for approval.']);
+        expect(advice.unchecked).toEqual(['library', 'reclaimerr (no TMDB id)']);
+    });
+
+    it('does not take a request for a film as a request for a series sharing its TMDB id', async () => {
+        const series: CrossCheckSubject = { kind: 'series', label: 'Severance', ids: { tmdb: 348 } };
+        const advice = await check(series, 'acquire', { seerr: [request('declined')] });
+        expect(advice).toEqual({ warnings: [], unchecked: [] });
+    });
+
+    it('sees a pending request behind an approved one for the same series', async () => {
+        const advice = await check(subject, 'acquire', {
+            seerr: [request('approved'), request('pending', { id: 2 })]
+        });
+        expect(advice.warnings).toEqual(['The Seerr request for Alien (1979) is still waiting for approval.']);
+    });
+
+    it('matches queue rows by title from a fenced, year-suffixed label with no acquisition', async () => {
+        const added: CrossCheckSubject = {
+            kind: 'movie',
+            label: '<<untrusted:abc123>>Alien<</untrusted>> (1979)',
+            ids: { tmdb: 348 }
+        };
+        const advice = await check(added, 'acquire', {
+            queues: { qbittorrent: [{ service: 'qbittorrent', id: 'a', title: 'Alien 1080p BluRay', status: 'downloading' }] }
+        });
         expect(advice.warnings).toHaveLength(1);
-        expect(advice.unchecked).toEqual([]);
+        expect(advice.warnings[0]).toContain('already downloading in qbittorrent');
+    });
+
+    it('asks Reclaimerr with the TMDB id the library supplied', async () => {
+        const asked = vi.fn();
+        await check(sonarr, 'acquire', {
+            reclaimerr: status(),
+            library: item({ kind: 'series', ids: { tvdb: 371980, tmdb: 95396 } }),
+            asked
+        });
+        expect(asked).toHaveBeenCalledWith('series', 95396);
+    });
+
+    it('reports a media server that is down while the library still loads', async () => {
+        const advice = await check(subject, 'delete', {
+            library: item(),
+            degraded: ['jellyfin', 'jellyfin:seasons']
+        });
+        expect(advice).toEqual({ warnings: [], unchecked: ['jellyfin'] });
     });
 });
 
@@ -326,6 +409,19 @@ describe('cross-checks — failure and budget', () => {
         const advice = await pending;
         expect(advice.unchecked).toEqual(['seerr']);
         expect(advice.warnings).toHaveLength(1);
+    });
+
+    it('keeps the other services when the library is the slow one', async () => {
+        vi.useFakeTimers();
+        const pending = check(subject, 'delete', {
+            reclaimerr: status({ protections: [protection] }),
+            queues: { radarr: [row()] },
+            libraryHangs: true
+        });
+        await vi.advanceTimersByTimeAsync(CROSS_CHECK_BUDGET_MS);
+        const advice = await pending;
+        expect(advice.unchecked).toEqual(['library']);
+        expect(advice.warnings).toHaveLength(2);
     });
 
     it('leaves no timer running once the checks finish', async () => {

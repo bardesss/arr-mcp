@@ -86,48 +86,89 @@ export function buildCrossChecker(adapters: readonly ServiceAdapter[], library: 
         try {
             const { label } = subject;
 
-            // The library fills in what the subject's own ids lack (a Sonarr
-            // record has a TVDB id and no TMDB one), and `delete` reads watch
-            // state from it. A miss or a failure falls back to the subject's ids.
+            // Everything that can start now does, so a slow library cannot
+            // spend the shared budget before the other services were asked.
+            // The library only gates a read whose ids the subject lacks (a
+            // Sonarr record has a TVDB id and no TMDB one).
+            const hasSeerrIds = subject.ids.tmdb !== undefined || subject.ids.tvdb !== undefined;
             const wantsIds =
-                subject.ids.tmdb === undefined &&
-                (reclaimerr !== undefined || (seerr !== undefined && subject.ids.tvdb === undefined));
+                subject.ids.tmdb === undefined && (reclaimerr !== undefined || (seerr !== undefined && !hasSeerrIds));
             const needsLibrary = profile === 'delete' || wantsIds;
-            const snapshot = needsLibrary ? await read('library', () => library.load()) : undefined;
-            const found = snapshot?.index.find(subject.ids, subject.kind);
-            const ids: ExternalIds = {
+            // A load that resolves is not a load that saw everything: a media
+            // server or *arr that was down leaves watch state and ids absent,
+            // and absent must not read as "looked and found nothing".
+            const snapshotP = needsLibrary
+                ? read('library', () => library.load()).then(snap => {
+                      for (const id of snap?.degraded ?? []) {
+                          if (id !== library.secondaryMediaServerId) unchecked.add(id.replace(/:.*$/, ''));
+                      }
+                      return snap;
+                  })
+                : Promise.resolve(undefined);
+            const foundP = snapshotP.then(snap => snap?.index.find(subject.ids, subject.kind));
+            // A miss or a failure falls back to the subject's own ids.
+            const idsFrom = (found: MergedItem | undefined): ExternalIds => ({
                 ...subject.ids,
                 ...(subject.ids.tmdb === undefined && found?.ids.tmdb !== undefined ? { tmdb: found.ids.tmdb } : {}),
                 ...(subject.ids.tvdb === undefined && found?.ids.tvdb !== undefined ? { tvdb: found.ids.tvdb } : {})
-            };
+            });
+            const idsP = foundP.then(idsFrom);
 
-            const requestsP: Promise<MediaRequest[] | undefined> =
+            const askSeerr = (seerrAdapter: NonNullable<typeof seerr>, ids: ExternalIds): Promise<MediaRequest[] | undefined> => {
+                if (ids.tmdb === undefined && ids.tvdb === undefined) {
+                    unchecked.add(NO_TMDB(seerrAdapter.id));
+                    return Promise.resolve(undefined);
+                }
+                return read(seerrAdapter.id, () => seerrAdapter.getRequests({}));
+            };
+            const askCleanup = (cleanupAdapter: NonNullable<typeof reclaimerr>, ids: ExternalIds): Promise<CleanupStatus | undefined> => {
+                const tmdb = ids.tmdb;
+                if (tmdb === undefined) {
+                    unchecked.add(NO_TMDB(cleanupAdapter.id));
+                    return Promise.resolve(undefined);
+                }
+                return read(cleanupAdapter.id, () => cleanupAdapter.readCleanupStatus(subject.kind, tmdb));
+            };
+            const requestsP =
                 seerr === undefined
                     ? Promise.resolve(undefined)
-                    : ids.tmdb === undefined && ids.tvdb === undefined
-                      ? Promise.resolve(undefined).then(() => void unchecked.add(NO_TMDB(seerr.id)))
-                      : read(seerr.id, () => seerr.getRequests({}));
-            const tmdb = ids.tmdb;
-            const cleanupP: Promise<CleanupStatus | undefined> =
+                    : hasSeerrIds
+                      ? askSeerr(seerr, subject.ids)
+                      : idsP.then(ids => askSeerr(seerr, ids));
+            const cleanupP =
                 reclaimerr === undefined
                     ? Promise.resolve(undefined)
-                    : tmdb === undefined
-                      ? Promise.resolve(undefined).then(() => void unchecked.add(NO_TMDB(reclaimerr.id)))
-                      : read(reclaimerr.id, () => reclaimerr.readCleanupStatus(subject.kind, tmdb));
+                    : subject.ids.tmdb !== undefined
+                      ? askCleanup(reclaimerr, subject.ids)
+                      : idsP.then(ids => askCleanup(reclaimerr, ids));
             const queueP: Promise<QueueItem[]> = Promise.all(
                 queueAdapters.map(a => read(a.id, () => a.getQueue()))
             ).then(lists => lists.flatMap(rows => rows ?? []));
 
-            const [requests, cleanup, queue] = await Promise.all([requestsP, cleanupP, queueP]);
+            const [requests, cleanup, queue, found] = await Promise.all([requestsP, cleanupP, queueP, foundP]);
+            const ids = idsFrom(found);
 
-            const request = requests === undefined ? undefined : findRequest(requests, ids);
+            // Same title, not just same number: TMDB's film and series ids are
+            // separate namespaces. Every match is kept, so a pending request
+            // is not hidden behind an approved one for the same series.
+            const matching = (requests ?? []).filter(
+                r =>
+                    (r.mediaType === 'unknown' || r.mediaType === (subject.kind === 'movie' ? 'movie' : 'tv')) &&
+                    findRequest([r], ids) !== undefined
+            );
             const acquisition = subject.acquisition ?? found?.acquisition;
-            // The library's title when there is one: `mentions` tokenises it,
-            // and a label carrying fence markers or a year would not match a release.
+            // A title `mentions` can tokenise: the library's when there is one,
+            // otherwise the label without its fence markers and trailing year.
+            // A fenced label ends `<</untrusted>> (1979)`, which `unfenced`
+            // cannot strip, so the fence and the year would become tokens no
+            // release name contains.
+            const plain = label.replace(/<<untrusted:[^>]*>>/g, '').replace(/<<\/untrusted>>/g, '').trim();
+            const dated = /^(.*\S)\s*\((\d{4})\)$/.exec(plain);
+            const year = found?.year ?? (dated?.[2] === undefined ? undefined : Number(dated[2]));
             const item: MergedItem = {
                 kind: subject.kind,
-                title: found?.title ?? label,
-                ...(found?.year === undefined ? {} : { year: found.year }),
+                title: found?.title ?? dated?.[1] ?? plain,
+                ...(year === undefined ? {} : { year }),
                 ids,
                 presence: 'unknown',
                 ...(acquisition === undefined
@@ -145,7 +186,7 @@ export function buildCrossChecker(adapters: readonly ServiceAdapter[], library: 
             const where = (rows: QueueItem[]): string => [...new Set(rows.map(r => r.service))].join(', ');
 
             if (profile === 'delete') {
-                if (request !== undefined) {
+                if (matching.length > 0) {
                     warnings.push(`Seerr still has a request for ${label}. This write does not remove it; delete_request does.`);
                 }
                 if ((cleanup?.protections.length ?? 0) > 0 && cleanup !== undefined) {
@@ -159,7 +200,8 @@ export function buildCrossChecker(adapters: readonly ServiceAdapter[], library: 
                         `${label} is still seeding in ${where(seeding)}, so deleting it may not free the disk space if the files are hardlinked.`
                     );
                 }
-                if (found?.playback?.watched === false) {
+                // Not for a season delete: the series row's flag is false while any later season is unwatched.
+                if (subject.seasons === undefined && found?.playback?.watched === false) {
                     warnings.push(`${label} has not been watched yet by the default user.`);
                 }
                 // `=== false`, not `!== true`: `complete` is absent when either
@@ -168,7 +210,9 @@ export function buildCrossChecker(adapters: readonly ServiceAdapter[], library: 
                     n => found?.seasons?.find(s => s.season === n)?.complete === false
                 );
                 if (unwatched.length > 0) {
-                    warnings.push(`${label} season ${unwatched.join(', ')} has not been fully watched yet.`);
+                    warnings.push(
+                        `${unwatched.length === 1 ? 'Season' : 'Seasons'} ${unwatched.join(', ')} of ${label} ${unwatched.length === 1 ? 'has' : 'have'} not been fully watched yet.`
+                    );
                 }
             } else {
                 if (cleanup !== undefined) {
@@ -181,9 +225,9 @@ export function buildCrossChecker(adapters: readonly ServiceAdapter[], library: 
                         warnings.push(`${sentences.join(' ')} Protect ${label} in ${cleanup.service} first, or it may be removed again.`);
                     }
                 }
-                if (request?.status === 'pending') {
+                if (matching.some(r => r.status === 'pending')) {
                     warnings.push(`The Seerr request for ${label} is still waiting for approval.`);
-                } else if (request?.status === 'declined') {
+                } else if (matching.some(r => r.status === 'declined')) {
                     warnings.push(`The Seerr request for ${label} was declined.`);
                 }
                 const active = mine.filter(r => classifyQueueStatus(r) === 'active');
