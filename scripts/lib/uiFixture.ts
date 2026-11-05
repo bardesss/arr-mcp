@@ -42,19 +42,30 @@ export const VERSION: string = (
 ).version;
 
 /**
- * All eight reachable. A dashboard is not the place to demonstrate a failure —
- * the Problems table below it is, and it does, so the hero shot shows a working
- * stack while the page still shows what a problem looks like.
+ * Every supported service, all reachable. A dashboard is not the place to
+ * demonstrate a failure — the Problems table below it is, and it does, so the
+ * hero shot shows a working stack while the page still shows what a problem
+ * looks like. Seventeen tiles run past the fixed viewport, which cuts off that
+ * table in the committed PNG; the full page is one `fullPage` capture away.
  */
 export const DIAGNOSES: ConnectionDiagnosis[] = [
     { ok: true, service: 'bazarr', latency_ms: 26, version: '1.6.0' },
+    { ok: true, service: 'cleanuparr', latency_ms: 18, version: '2.10.12' },
+    { ok: true, service: 'dispatcharr', latency_ms: 21, version: '0.33.0' },
     { ok: true, service: 'jellyfin', latency_ms: 9, version: '10.11.11' },
+    { ok: true, service: 'lidarr', latency_ms: 31, version: '3.1.6.5079' },
+    { ok: true, service: 'nzbget', latency_ms: 12, version: '26.3' },
+    { ok: true, service: 'plex', latency_ms: 16, version: '1.43.5' },
+    { ok: true, service: 'profilarr', latency_ms: 22, version: '2.2.0' },
     { ok: true, service: 'prowlarr', latency_ms: 35, version: '2.5.2.5491' },
+    { ok: true, service: 'qbittorrent', latency_ms: 11, version: '5.3.0' },
     { ok: true, service: 'radarr', latency_ms: 24, version: '6.3.0.10514' },
+    { ok: true, service: 'reclaimerr', latency_ms: 19, version: '0.6.5' },
     { ok: true, service: 'sabnzbd', latency_ms: 10, version: '5.1.0' },
     { ok: true, service: 'seerr', latency_ms: 29, version: '3.4.1' },
     { ok: true, service: 'sonarr', latency_ms: 13, version: '4.0.19.2979' },
-    { ok: true, service: 'transmission', latency_ms: 9, version: '4.1.3 (838877323f)' }
+    { ok: true, service: 'transmission', latency_ms: 9, version: '4.1.3 (838877323f)' },
+    { ok: true, service: 'whisparr', latency_ms: 27, version: '2.2.0.108' }
 ];
 
 export const CONFIGURED = DIAGNOSES.map(d => d.service);
