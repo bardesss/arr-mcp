@@ -1,4 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
     clearedSessionCookie,
     generatePassword,
@@ -7,6 +10,7 @@ import {
     sessionCookie,
     SESSION_COOKIE,
     Sessions,
+    SESSIONS_FILENAME,
     verifyPassword
 } from '../src/core/session.ts';
 
@@ -115,9 +119,163 @@ describe('sessions', () => {
         expect(issued.size).toBe(50);
     });
 
-    // A restart should log everyone out — the credentials may have changed.
+    // Without a shared key file, two instances have nothing in common.
     it('does not honour a token from a different instance', () => {
         expect(new Sessions().verify(new Sessions().issue()).valid).toBe(false);
+    });
+});
+
+describe('renewing a session', () => {
+    const HOUR = 60 * 60 * 1000;
+    const setup = () => {
+        const clock = stoppedClock();
+        return { clock, sessions: new Sessions({ now: clock.now, ttlMs: 10 * HOUR, renewAfterMs: HOUR }) };
+    };
+
+    it('leaves a recently renewed cookie alone, so most pages set nothing', () => {
+        const { clock, sessions } = setup();
+        const token = sessions.issue();
+        clock.advance(HOUR - 1);
+        expect(sessions.renew(token)).toBeUndefined();
+    });
+
+    it('keeps someone signed in for as long as they keep coming back', () => {
+        const { clock, sessions } = setup();
+        let token = sessions.issue();
+        for (let visit = 0; visit < 5; visit++) {
+            clock.advance(9 * HOUR);
+            const renewed = sessions.renew(token);
+            expect(renewed).toBeDefined();
+            token = renewed ?? '';
+            expect(sessions.verify(token).valid).toBe(true);
+        }
+    });
+
+    it('still ends a session nobody came back to', () => {
+        const { clock, sessions } = setup();
+        const token = sessions.issue();
+        clock.advance(10 * HOUR);
+        expect(sessions.renew(token)).toBeUndefined();
+        expect(sessions.verify(token).valid).toBe(false);
+    });
+
+    it('never renews what it would not accept', () => {
+        const { sessions } = setup();
+        const stranger = new Sessions().issue();
+        for (const bad of [undefined, '', 'nonsense', stranger]) expect(sessions.renew(bad)).toBeUndefined();
+    });
+
+    // A page's forms hold the CSRF token from when it loaded, and another tab can
+    // renew the cookie before they are submitted.
+    it('keeps a form loaded before the renewal working, and still refuses another session', () => {
+        const { clock, sessions } = setup();
+        const token = sessions.issue();
+        const csrf = sessions.csrfFor(token);
+        clock.advance(2 * HOUR);
+        const renewed = sessions.renew(token) ?? '';
+        expect(renewed).not.toBe(token);
+        expect(sessions.csrfValid(renewed, csrf)).toBe(true);
+        expect(sessions.csrfValid(sessions.issue(), csrf)).toBe(false);
+    });
+
+    it('signing out ends every copy of the session, renewed or not', () => {
+        const { clock, sessions } = setup();
+        const token = sessions.issue();
+        clock.advance(2 * HOUR);
+        const renewed = sessions.renew(token) ?? '';
+        sessions.revoke(token);
+        expect(sessions.verify(renewed).valid).toBe(false);
+        expect(sessions.renew(renewed)).toBeUndefined();
+    });
+
+    // Revoking the older copy must not forget the nonce when that copy would have
+    // expired, while the renewed one has hours left.
+    it('stays signed out after the older copy would have expired', () => {
+        const { clock, sessions } = setup();
+        const token = sessions.issue();
+        clock.advance(5 * HOUR);
+        const renewed = sessions.renew(token) ?? '';
+        sessions.revoke(token);
+        clock.advance(6 * HOUR);
+        sessions.revoke(sessions.issue()); // sweeps
+        expect(sessions.verify(renewed).valid).toBe(false);
+    });
+});
+
+describe('sessions across restarts', () => {
+    let dir: string;
+    beforeEach(async () => {
+        dir = await mkdtemp(join(tmpdir(), 'arr-mcp-sessions-'));
+    });
+    afterEach(async () => {
+        await rm(dir, { recursive: true, force: true });
+    });
+
+    const restart = () => {
+        const sessions = Sessions.open(dir);
+        sessions.bindCredentials('hash-a');
+        return sessions;
+    };
+
+    it('honours a session after a restart', () => {
+        const token = restart().issue();
+        expect(restart().verify(token).valid).toBe(true);
+    });
+
+    it('does not bring a signed-out session back after a restart', () => {
+        const first = restart();
+        const token = first.issue();
+        first.revoke(token);
+        expect(restart().verify(token).valid).toBe(false);
+    });
+
+    it('does not bring back sessions ended by a key rotation', () => {
+        const first = restart();
+        const token = first.issue();
+        first.rotateKey();
+        const after = first.issue();
+        const second = restart();
+        expect(second.verify(token).valid).toBe(false);
+        expect(second.verify(after).valid).toBe(true);
+    });
+
+    // The reason restarts used to end sessions: a hand-edited password must still.
+    it('ends sessions when the password hash changed while it was down', () => {
+        const token = restart().issue();
+        const sessions = Sessions.open(dir);
+        sessions.bindCredentials('hash-b');
+        expect(sessions.verify(token).valid).toBe(false);
+    });
+
+    it('ends sessions when the password hash changes on a reload', () => {
+        const sessions = restart();
+        const token = sessions.issue();
+        sessions.bindCredentials('hash-a');
+        expect(sessions.verify(token).valid).toBe(true);
+        sessions.bindCredentials('hash-b');
+        expect(sessions.verify(token).valid).toBe(false);
+    });
+
+    it('keeps the key out of reach of other users', async () => {
+        restart();
+        const { mode } = await stat(join(dir, SESSIONS_FILENAME));
+        // POSIX only: Windows reports its own idea of a mode.
+        if (process.platform !== 'win32') expect(mode & 0o077).toBe(0);
+    });
+
+    it('starts fresh from an unreadable file rather than failing to start', async () => {
+        await writeFile(join(dir, SESSIONS_FILENAME), 'not json', 'utf8');
+        const sessions = restart();
+        expect(sessions.verify(sessions.issue()).valid).toBe(true);
+        expect(restart().verify(sessions.issue()).valid).toBe(true);
+    });
+
+    it('still works when the file cannot be written, for this process only', () => {
+        const sessions = Sessions.open(join(dir, 'missing', 'folder'));
+        const token = sessions.issue();
+        expect(sessions.verify(token).valid).toBe(true);
+        sessions.revoke(token);
+        expect(sessions.verify(token).valid).toBe(false);
     });
 });
 

@@ -1,5 +1,8 @@
 import { createHmac, randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
+import { readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { promisify } from 'node:util';
+import { logger } from './logger.ts';
 
 /**
  * Password storage and browser sessions for the config UI.
@@ -34,9 +37,17 @@ const scrypt = promisify(scryptCallback) as (
 
 export const SESSION_COOKIE = 'arr_mcp_session';
 
-/** Long enough not to interrupt a config edit; short enough that a forgotten
- *  browser on a shared machine stops mattering the same day. */
-export const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
+/** How long a session lasts since someone last opened a page. Long enough that
+ *  checking in on the stack now and then never asks for the password; a forgotten
+ *  browser on a shared machine is what signing out is for. */
+export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+/** Once a cookie is this old it is renewed on the next page load. Not on every
+ *  one: a Set-Cookie per page is noise for a window measured in weeks. */
+export const SESSION_RENEW_AFTER_MS = 60 * 60 * 1000;
+
+/** Beside config.yaml, which already holds every API key and the password hash. */
+export const SESSIONS_FILENAME = 'sessions.json';
 
 /** Defensive bound on the revoked-nonce set, which is otherwise TTL-swept. */
 const MAX_REVOKED = 1024;
@@ -86,25 +97,75 @@ export type SessionVerdict =
  * A table would have to live somewhere — memory, which loses every session on
  * the restart a config change already causes, or SQLite, which is a third
  * database for something with no audit value. A signed token needs neither,
- * and the key being per-process means a restart invalidates outstanding
- * sessions.
+ * and `open` keeps the key in a file, so a restart or an update does not sign
+ * anyone out.
  *
- * A restart is not the only way credentials change, though: the config UI
- * changes them through `reload()`, and `runtime.sessions` deliberately
- * survives that. So ending sessions is explicit — `rotateKey` for all of them,
- * `revoke` for one — rather than a side effect of the process lifecycle.
+ * Restarts used to end sessions because the credentials may have changed. So the
+ * signing key is now derived from the password hash too (`bindCredentials`): a
+ * new hash ends every session, whether it came from the config UI or a hand edit
+ * to config.yaml. Ending sessions otherwise stays explicit: `rotateKey` for all
+ * of them, `revoke` for one. Both are written down, or a restart would undo them.
  */
 export class Sessions {
+    /** What the file holds. `#key` is this, mixed with the password hash. */
+    #baseKey: Buffer;
     #key: Buffer;
+    #credentials: string | undefined;
     readonly #ttlMs: number;
+    readonly #renewAfterMs: number;
     readonly #now: () => number;
-    /** nonce → the moment that token would have expired anyway. */
+    /** Undefined keeps everything in memory, for this process only. */
+    readonly #path: string | undefined;
+    /** nonce → when no token with that nonce can still be valid. */
     readonly #revoked = new Map<string, number>();
 
-    constructor(opts: { ttlMs?: number; now?: () => number; key?: Buffer } = {}) {
-        this.#key = opts.key ?? randomBytes(32);
+    constructor(
+        opts: { ttlMs?: number; renewAfterMs?: number; now?: () => number; key?: Buffer; path?: string } = {}
+    ) {
+        this.#baseKey = opts.key ?? randomBytes(32);
+        this.#key = this.#baseKey;
         this.#ttlMs = opts.ttlMs ?? SESSION_TTL_MS;
+        this.#renewAfterMs = opts.renewAfterMs ?? SESSION_RENEW_AFTER_MS;
         this.#now = opts.now ?? Date.now;
+        this.#path = opts.path;
+    }
+
+    /**
+     * Sessions that outlive a restart.
+     *
+     * Never throws. Losing this file costs a sign-in, which is no reason to keep
+     * the server from starting: an unreadable one is replaced, and if none can be
+     * written sessions last as long as the process, as they would without a file.
+     */
+    static open(configDir: string): Sessions {
+        const path = join(configDir, SESSIONS_FILENAME);
+        const stored = readStored(path);
+        const sessions = new Sessions({ path, ...(stored === undefined ? {} : { key: stored.key }) });
+        if (stored === undefined) {
+            sessions.#persist();
+            return sessions;
+        }
+        const now = sessions.#now();
+        for (const [nonce, deadAt] of stored.revoked) {
+            if (deadAt > now) sessions.#revoked.set(nonce, deadAt);
+        }
+        return sessions;
+    }
+
+    /**
+     * Ties every session to the password hash it was issued under. Called whenever
+     * the config is read, so a changed hash ends them all, and an unchanged one does
+     * nothing, which is the common case on reload.
+     */
+    bindCredentials(passwordHash: string | undefined): void {
+        if (passwordHash === this.#credentials) return;
+        this.#credentials = passwordHash;
+        this.#key = this.#derivedKey();
+    }
+
+    #derivedKey(): Buffer {
+        if (this.#credentials === undefined) return this.#baseKey;
+        return createHmac('sha256', this.#baseKey).update(`credentials\n${this.#credentials}`).digest();
     }
 
     /**
@@ -121,8 +182,28 @@ export class Sessions {
      * of one browser would hand the same string to the next.
      */
     issue(): string {
+        return this.#tokenFor(randomBytes(12).toString('base64url'));
+    }
+
+    /**
+     * The same session with a later expiry, or undefined when the cookie should be
+     * left as it is: too recent to be worth replacing, or not valid at all.
+     *
+     * The nonce stays, because it is the session's identity. A form already on
+     * screen stays valid (`csrfFor`), and signing out ends every copy (`revoke`).
+     * An older copy stays usable until its own expiry, which a stateless token
+     * cannot avoid and which grants nothing the renewed one does not.
+     */
+    renew(token: string | undefined): string | undefined {
+        if (token === undefined || !this.verify(token).valid) return undefined;
+        const parts = token.split('.');
+        const issuedAt = Number.parseInt(parts[0] ?? '', 36) - this.#ttlMs;
+        if (this.#now() - issuedAt < this.#renewAfterMs) return undefined;
+        return this.#tokenFor(parts[1] ?? '');
+    }
+
+    #tokenFor(nonce: string): string {
         const expiresAt = this.#now() + this.#ttlMs;
-        const nonce = randomBytes(12).toString('base64url');
         return `${expiresAt.toString(36)}.${nonce}.${this.#sign(expiresAt, nonce)}`;
     }
 
@@ -153,27 +234,49 @@ export class Sessions {
     /**
      * Ends every outstanding session.
      *
-     * The stateless-token design above assumes a restart follows a credential
-     * change. Changing the password from the config UI reloads rather than
-     * restarts, and `sessions` deliberately survives a reload, so the rotation
-     * has to be explicit.
+     * Changing the password also changes the hash `bindCredentials` mixes in, so
+     * this is the second lock on that door, and the one that holds if the hash ever
+     * stops being what changed.
      */
     rotateKey(): void {
-        this.#key = randomBytes(32);
+        this.#baseKey = randomBytes(32);
+        this.#key = this.#derivedKey();
         // Nonces signed with the old key can no longer verify anyway.
         this.#revoked.clear();
+        this.#persist();
     }
 
     /**
      * Ends one session. Only a token that verifies is remembered, so a forged
      * string cannot grow the set, and only until it would have expired anyway.
+     *
+     * A full window from now, not this token's own expiry: this may be an older copy
+     * of a session that has since been renewed, and the nonce has to outlast the
+     * newest copy. Nothing can renew it from here on.
      */
     revoke(token: string | undefined): void {
         if (token === undefined || !this.verify(token).valid) return;
-        const parts = token.split('.');
-        const nonce = parts[1] ?? '';
-        this.#revoked.set(nonce, Number.parseInt(parts[0] ?? '', 36));
+        const nonce = token.split('.')[1] ?? '';
+        this.#revoked.set(nonce, this.#now() + this.#ttlMs);
         this.#sweep();
+        this.#persist();
+    }
+
+    /** Atomic, so a crash mid-write cannot leave half a key. Failing costs only what
+     *  the file was for: the next restart signs everyone out. */
+    #persist(): void {
+        if (this.#path === undefined) return;
+        const temp = `${this.#path}.tmp`;
+        try {
+            const body = { key: this.#baseKey.toString('hex'), revoked: Object.fromEntries(this.#revoked) };
+            writeFileSync(temp, JSON.stringify(body), { mode: 0o600 });
+            renameSync(temp, this.#path);
+        } catch (err) {
+            logger.warn(
+                { code: (err as NodeJS.ErrnoException).code },
+                'could not save UI sessions; a restart will sign everyone out'
+            );
+        }
     }
 
     #sweep(): void {
@@ -192,9 +295,13 @@ export class Sessions {
      * A CSRF token bound to the session cookie, so a form stolen from one
      * session cannot be replayed in another. SameSite=Strict already blocks
      * the common case; this covers the rest, and costs one hidden input.
+     *
+     * Over the nonce rather than the whole token, because renewing replaces the
+     * token while a page's forms still hold what they were rendered with.
      */
     csrfFor(sessionToken: string): string {
-        return createHmac('sha256', this.#key).update(`csrf\n${sessionToken}`).digest('base64url');
+        const nonce = sessionToken.split('.')[1] ?? sessionToken;
+        return createHmac('sha256', this.#key).update(`csrf\n${nonce}`).digest('base64url');
     }
 
     csrfValid(sessionToken: string | undefined, presented: string | undefined): boolean {
@@ -206,6 +313,24 @@ export class Sessions {
         // Newline separated so a nonce cannot be shifted into the expiry to
         // forge a different pair with the same signature.
         return createHmac('sha256', this.#key).update(`${expiresAt}\n${nonce}`).digest('base64url');
+    }
+}
+
+/** Undefined for anything missing or not ours, which `open` treats as a first run. */
+function readStored(path: string): { key: Buffer; revoked: [string, number][] } | undefined {
+    try {
+        const parsed = JSON.parse(readFileSync(path, 'utf8')) as { key?: unknown; revoked?: unknown };
+        if (typeof parsed.key !== 'string' || !/^[0-9a-f]{64}$/.test(parsed.key)) throw new Error('no usable key');
+        const revoked = typeof parsed.revoked === 'object' && parsed.revoked !== null ? Object.entries(parsed.revoked) : [];
+        return {
+            key: Buffer.from(parsed.key, 'hex'),
+            revoked: revoked.filter((row): row is [string, number] => typeof row[1] === 'number')
+        };
+    } catch (err) {
+        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+            logger.warn(`${SESSIONS_FILENAME} could not be read, so everyone has to sign in again`);
+        }
+        return undefined;
     }
 }
 
