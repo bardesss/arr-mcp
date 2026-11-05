@@ -318,6 +318,16 @@ describe('trigger_scan on Plex', () => {
  * other two: re-read one item, and rename its files to the naming scheme.
  */
 describe('trigger_scan on a single item', () => {
+    const fakeItemAdapter = (extra: Record<string, unknown> = {}) =>
+        ({
+            id: 'radarr',
+            type: 'radarr',
+            getVersion: async () => '1',
+            refreshItem: async () => ({ service: 'radarr', commandId: 1, name: 'RefreshMovie' }),
+            renameItem: async () => ({ service: 'radarr', commandId: 2, name: 'RenameMovie' }),
+            ...extra
+        }) as unknown as ServiceAdapter;
+
     const arrRoutes = () => ({
         '/api/v3/movie/15': { id: 15, title: 'Heat', year: 1995 },
         '/api/v3/command': { id: 77, name: 'RefreshMovie', status: 'queued' }
@@ -367,6 +377,21 @@ describe('trigger_scan on a single item', () => {
         const h = harness();
         const { structuredContent } = await h.call({ service: 'jellyfin', dry_run: true });
         expect(structuredContent.effects.join(' ')).not.toMatch(/metadata/i);
+    });
+
+    it('points at stack_health only for a service it reports', async () => {
+        const followed = fakeItemAdapter({ listCommands: async () => [] });
+        const unfollowed = fakeItemAdapter();
+
+        for (const [adapter, expected] of [
+            [followed, /says whether it has finished/],
+            [unfollowed, /its absence there says nothing/]
+        ] as const) {
+            const h = harness({ adapters: [adapter], permissions: { radarr: permissive(true) } });
+            const first = await h.call({ service: 'radarr', id: '15' });
+            const done = await h.call({ service: 'radarr', id: '15', confirm: first.structuredContent.confirm_token });
+            expect(JSON.stringify(done)).toMatch(expected);
+        }
     });
 
     it('says a rename moves files on disk', async () => {
@@ -603,6 +628,7 @@ describe('trigger_scan on Prowlarr', () => {
 
         const done = await h.call({ service: 'prowlarr', confirm: first.structuredContent.confirm_token });
         expect(JSON.stringify(done)).toMatch(/syncing its indexers/i);
+        expect(JSON.stringify(done)).toMatch(/says whether it has finished/i);
         expect(JSON.stringify(done)).not.toMatch(/rescanning/i);
     });
 

@@ -759,6 +759,7 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         { name: 'indexerstatus', path: '/api/v1/indexerstatus' },
         { name: 'indexerstats', path: '/api/v1/indexerstats' },
         { name: 'history', path: '/api/v1/history?pageSize=20' },
+        { name: 'command', path: '/api/v1/command' },
         // Deliberately a query nothing will match well: this is captured for
         // its *shape*, and a popular term would pull hundreds of release names
         // into a public repository for no extra information.
