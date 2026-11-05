@@ -9,6 +9,7 @@ import { hashToken } from '../../src/core/mcpTokens.ts';
 import { Runtime } from '../../src/core/runtime.ts';
 
 export const KEY = `amk_${'1'.repeat(64)}`;
+export const READ_KEY = `amk_${'3'.repeat(64)}`;
 export const MCP = `amcp_${'2'.repeat(64)}`;
 export const RADARR_KEY = 'radarr-secret-key-0000';
 export const TX_PASSWORD = 'tx-secret-password';
@@ -35,7 +36,13 @@ export const seedApi = async (opts: { keyed?: boolean; radarrUrl?: string; extra
             '  allowed_hosts: []',
             '  tokens:',
             `    - { name: phone, tier: read, hash: '${hashToken(MCP)}' }`,
-            ...(opts.keyed === false ? [] : [`  management_key: { hash: '${hashToken(KEY)}', created: '2026-09-29' }`]),
+            ...(opts.keyed === false
+                ? []
+                : [
+                      '  management_keys:',
+                      `    - { name: ops, tier: admin, hash: '${hashToken(KEY)}', created: '2026-09-29' }`,
+                      `    - { name: dashboard, tier: read, hash: '${hashToken(READ_KEY)}', created: '2026-09-29' }`
+                  ]),
             'services:',
             '  radarr:',
             `    - { name: hd, url: '${opts.radarrUrl ?? 'http://user:pw@radarr:7878'}', api_key: '${RADARR_KEY}' }`,

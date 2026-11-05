@@ -3,6 +3,7 @@ import * as z from 'zod/v4';
 import { setImdb, setMcpEndpoint, setPrimaryMediaServer } from '../config/edits.ts';
 import { addCandidate, addToken, ConfigEditError, NO_API_KEY, removeInstance, revokeToken, updateInstance } from '../config/mutate.ts';
 import { logger } from '../core/logger.ts';
+import { managementKeyField } from '../core/managementKey.ts';
 import { buildAdapters } from '../services/registry.ts';
 import { originOf, warnIfCredentialMove } from '../web/routes.ts';
 import { AppBody, fieldsFromBody, NewAppBody, TestAppBody } from './bodies.ts';
@@ -150,7 +151,7 @@ export function registerWrites(app: Hono, deps: ApiDeps): void {
             const d = await adapter.testConnection();
             const sentTo = body.url === undefined ? undefined : originOfUrl(body.url);
             logger.info(
-                { ...originOf(c), service: target, ...(sentTo === undefined ? {} : { target: sentTo }), ok: d.ok },
+                { ...originOf(c), ...managementKeyField(c), service: target, ...(sentTo === undefined ? {} : { target: sentTo }), ok: d.ok },
                 'connection tested from the management API'
             );
             return c.json(
