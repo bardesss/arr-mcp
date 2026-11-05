@@ -373,6 +373,41 @@ describe('diagnose', () => {
             expect(d.resolved?.title).toContain('Daft Punk Experience');
             expect(d.steps.find(s => s.stage === 'managed')?.status).toBe('ok');
         });
+
+        it('keeps a server-only artist with the exact name over a Radarr-held film that merely contains it', async () => {
+            const serverSide: IndexInput = {
+                kind: 'artist',
+                title: '<<untrusted:jellyfin.title>>Daft Punk<</untrusted>>',
+                ids: {},
+                playback: { user: 'Someone', itemId: 'j1' }
+            };
+            const film: IndexInput = { ...FILM, title: '<<untrusted:radarr.title>>The Story of Daft Punk<</untrusted>>', ids: { tmdb: 77 } };
+            // A Lidarr with no artists, because the server's music is only read when one is configured.
+            const adapters = [
+                stub('radarr', { listLibrary: async () => [film], getQueue: async () => [] }),
+                Object.assign(lidarr(), { listLibrary: async () => [] }),
+                server(async () => [serverSide])
+            ];
+            const d = await buildDiagnose({ adapters, library: new LibraryLoader(adapters, identity) }, { query: 'daft punk' });
+
+            expect(d.resolved?.kind).toBe('artist');
+        });
+
+        it('still resolves a query that only films match, with the year', async () => {
+            const alien = (title: string, year: number, tmdb: number): IndexInput => ({
+                ...FILM,
+                title: `<<untrusted:radarr.title>>${title}<</untrusted>>`,
+                year,
+                ids: { tmdb }
+            });
+            const adapters = [
+                stub('radarr', { listLibrary: async () => [alien('Alien', 1979, 348), alien('Alien', 2024, 945961)], getQueue: async () => [] }),
+                server(async () => [])
+            ];
+            const deps = { adapters, library: new LibraryLoader(adapters, identity) };
+            expect((await buildDiagnose(deps, { query: 'Alien (1979)' })).resolved).toMatchObject({ kind: 'movie', year: 1979 });
+            expect((await buildDiagnose(deps, { query: 'alien' })).resolved?.kind).toBe('movie');
+        });
     });
 
     it('reads only artist queues and download clients for an artist', async () => {
@@ -1113,5 +1148,59 @@ describe('collectEvidence — Bazarr', () => {
         ]);
         expect(calls).toBe(0);
         expect(evidence.degraded).not.toContain('bazarr');
+    });
+});
+
+// TMDB's film and series ids are separate namespaces, so a number is not a title.
+describe('diagnose and a request for another kind of title', () => {
+    it('does not call a film waiting on a TV request that shares its TMDB id', async () => {
+        const d = await buildDiagnose(
+            deps({ requests: [{ service: 'seerr', id: 77, status: 'pending', mediaType: 'tv', tmdbId: 550, requestedBy: 'Someone' }] }),
+            { query: 'some film' }
+        );
+        expect(d.verdict.stage).toBe('file');
+        expect((d.verdict.next_steps ?? []).map(x => x.tool)).not.toContain('respond_to_request');
+        expect(d.steps.find(s => s.stage === 'request')?.status).toBe('skipped');
+    });
+
+    it('sees a pending request behind an approved one for the same series, as the write checks do', async () => {
+        const series: IndexInput = {
+            kind: 'series',
+            title: '<<untrusted:sonarr.title>>A Series<</untrusted>>',
+            ids: { tvdb: 700 },
+            acquisition: { service: 'sonarr', monitored: true, hasFile: false }
+        };
+        const adapters = [
+            stub('sonarr', { listLibrary: async () => [series] }),
+            stub('seerr', {
+                getRequests: async () => [
+                    { service: 'seerr', id: 1, status: 'approved', mediaType: 'tv', tvdbId: 700, requestedBy: 'Someone' },
+                    { service: 'seerr', id: 2, status: 'pending', mediaType: 'tv', tvdbId: 700, requestedBy: 'Someone' }
+                ]
+            })
+        ];
+        const d = await buildDiagnose({ adapters, library: new LibraryLoader(adapters, undefined) }, { query: 'a series' });
+        expect(d.verdict.stage).toBe('request');
+        expect(d.steps.find(s => s.stage === 'request')?.detail).toBe('The request is still awaiting approval.');
+    });
+});
+
+describe('diagnose by name and a partial match', () => {
+    const film = (title: string): IndexInput => ({ ...FILM, title: `<<untrusted:radarr.title>>${title}<</untrusted>>`, ids: { tmdb: 77 } });
+    const resolve = async (title: string) => {
+        const adapters = [stub('radarr', { listLibrary: async () => [film(title)], getQueue: async () => [] }), lidarr()];
+        return buildDiagnose({ adapters, library: new LibraryLoader(adapters, undefined) }, { query: 'daft punk' });
+    };
+
+    it('keeps an artist whose name is exact over a film that only starts with it', async () => {
+        expect((await resolve('Daft Punk Unchained')).resolved?.kind).toBe('artist');
+    });
+
+    it('keeps an artist whose name is exact over a film that only contains it', async () => {
+        expect((await resolve('The Story of Daft Punk')).resolved?.kind).toBe('artist');
+    });
+
+    it('still prefers a film of exactly the same name', async () => {
+        expect((await resolve('Daft Punk')).resolved?.kind).toBe('movie');
     });
 });

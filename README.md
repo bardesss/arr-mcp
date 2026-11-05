@@ -181,7 +181,7 @@ Forty tools, but you never name them — you ask, and the model picks:
 - At least one supported service, LAN-reachable: Radarr 4.0+, Sonarr 4.0+,
   Whisparr 2.x (V2 only, not Eros), Prowlarr 1.0+, Bazarr 1.4+, Jellyfin 10.9+, Plex Media Server (no minimum enforced; verified on 1.43),
   Seerr 1.0+, SABnzbd 3.0+, NZBGet 21.0+, Transmission 3.0+, qBittorrent 4.1+, Profilarr 2.2.0+, Cleanuparr 2.10.0+, Reclaimerr 0.6.0+, Dispatcharr 0.33.0+, Shelfmark 1.5.0+
-- Lidarr 2.1.3+ for reading, monitoring, its queue, `trigger_scan` and `stack_health`:
+- Lidarr 2.1.3+ for reading, monitoring, its queue, `diagnose`, `trigger_scan` and `stack_health`:
   `get_library` lists its artists with their album count, monitoring and file
   state, `get_media_details` lists an artist's albums, and `set_monitoring`
   writes one album's flag or an artist's policy. Artists join to Jellyfin and
