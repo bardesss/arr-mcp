@@ -22,6 +22,7 @@ jobs:
       released: ${{ steps.rp.outputs.release_created }}
       tag: ${{ steps.rp.outputs.tag_name }}
       version: ${{ steps.rp.outputs.version }}
+      docs_only: ${{ steps.changes.outputs.docs_only }}
     steps:
       - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
         id: rp
@@ -43,8 +44,31 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
+      # None of these paths reach the image (.dockerignore drops docs/, and the
+      # Dockerfile copies no Markdown), and each `main` build adds seven package
+      # versions to GHCR. It lives in this job, after release-please, and may
+      # fail freely: any doubt leaves `docs_only` empty, which builds the image.
+      # Previous names count too, so moving a file out of src/ still builds.
+      - name: Spot a docs-only push
+        id: changes
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          files=$(gh api --paginate "repos/$GITHUB_REPOSITORY/compare/$BEFORE...$AFTER" \
+            --jq '.files[] | .filename, (.previous_filename // empty)')
+          printf '%s\n' "$files"
+          if [ -n "$files" ] && ! printf '%s\n' "$files" | grep -qvE '^[^/]+\.md$|^docs/|^\.github/ISSUE_TEMPLATE/'; then
+            echo "docs_only=true" >> "$GITHUB_OUTPUT"
+          fi
+
   image:
     needs: release-please
+    # A release always builds, whatever the push touched: the registry job and
+    # every version tag depend on this one.
+    if: needs.release-please.outputs.released == 'true' || needs.release-please.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -57,7 +81,8 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # Stable releases get X.Y.Z / X.Y / X / latest; every other push to main
-      # gets `main` for bleeding edge. Nothing else (design spec §18).
+      # that changes more than docs gets `main` for bleeding edge. Nothing else
+      # (design spec §18).
       #
       # Feed `outputs.version` (a bare `0.1.0`) to the semver patterns, not
       # `outputs.tag`. metadata-action parses the value as semver and silently
