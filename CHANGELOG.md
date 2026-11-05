@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.64.0](https://github.com/bardesss/arr-mcp/compare/v1.63.0...v1.64.0) (2026-11-05)
+
+
+### Features
+
+* show and replace the webhook password with buttons on the config page ([#476](https://github.com/bardesss/arr-mcp/issues/476)) ([c5069b5](https://github.com/bardesss/arr-mcp/commit/c5069b51992da7b75f7a28d0812f8d776e9228dc))
+
 ## [1.63.0](https://github.com/bardesss/arr-mcp/compare/v1.62.0...v1.63.0) (2026-11-05)
 
 
