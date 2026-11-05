@@ -1,12 +1,19 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import type { KeyedServiceConfig } from '../src/config/schema.ts';
 import { ServiceError } from '../src/core/errors.ts';
 import { IdentityResolver } from '../src/core/identity.ts';
 import type { IndexInput } from '../src/core/resolver.ts';
-import { buildChain } from '../src/tools/diagnose/chain.ts';
+import { buildChain as chain, type Diagnosis, type Evidence } from '../src/tools/diagnose/chain.ts';
 import { collectEvidence } from '../src/tools/diagnose/evidence.ts';
 import { buildDiagnose, type DiagnoseDeps } from '../src/tools/diagnose/index.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
+import { LidarrAdapter } from '../src/services/lidarr.ts';
 import type { ServiceAdapter, UserDirectoryCapable } from '../src/services/types.ts';
+
+/** These tests diagnose by title, the form that takes a query. */
+const buildChain = (query: string, ev: Evidence): Diagnosis => chain(query, ev, true);
 
 const stub = (id: string, extra: Record<string, unknown>): ServiceAdapter =>
     ({
@@ -21,6 +28,33 @@ const stub = (id: string, extra: Record<string, unknown>): ServiceAdapter =>
         ...extra
     }) as unknown as ServiceAdapter;
 
+const lidarrConfig: KeyedServiceConfig = {
+    url: 'http://192.0.2.10:8686',
+    api_key: 'test-key',
+    timeout_ms: 10_000,
+    permissions: { safe_write: false, destructive: false }
+};
+
+const lidarrFixture = (name: string): unknown =>
+    JSON.parse(readFileSync(join(import.meta.dirname, 'fixtures/lidarr', `${name}.json`), 'utf8'));
+
+/**
+ * The real adapter over the recorded Lidarr responses: one artist, Daft Punk,
+ * monitored, with no track on disk and an empty queue.
+ */
+const lidarr = (): LidarrAdapter => {
+    const routes: Record<string, unknown> = {
+        '/api/v1/artist': lidarrFixture('artist'),
+        '/api/v1/artist/1': lidarrFixture('artist-detail'),
+        '/api/v1/queue': { ...(lidarrFixture('queue') as object), records: [], totalRecords: 0 }
+    };
+    const impl = (async (input: string | URL | Request) => {
+        const url = new URL(input instanceof Request ? input.url : String(input));
+        if (!(url.pathname in routes)) return new Response(JSON.stringify({ message: 'not found' }), { status: 404 });
+        return new Response(JSON.stringify(routes[url.pathname]), { headers: { 'content-type': 'application/json' } });
+    }) as unknown as typeof fetch;
+    return new LidarrAdapter(lidarrConfig, impl);
+};
 const FILM: IndexInput = {
     kind: 'movie',
     title: '<<untrusted:radarr.title>>Some Film<</untrusted>>',
@@ -46,7 +80,7 @@ describe('diagnose', () => {
     it('resolves a title and returns the chain', async () => {
         const d = await buildDiagnose(deps(), { query: 'some film' });
         expect(d.resolved?.ids).toEqual({ tmdb: 550 });
-        expect(d.steps).toHaveLength(8);
+        expect(d.steps).toHaveLength(9);
     });
 
     it('reports the missing file when nothing else explains it', async () => {
@@ -191,28 +225,170 @@ describe('diagnose', () => {
         expect(d.resolved?.ids).toEqual({ tmdb: 999 });
     });
 
-    it('refuses a Lidarr artist id rather than diagnosing it as a film', async () => {
-        // Lidarr gained getMediaDetails with the music work, so this path got
-        // past the `hasMediaDetails` gate. The artist row then failed
-        // `isFilmOrSeries` and fell through to a synthesised `kind: 'movie'`
-        // item with Lidarr acquisition, checked against Radarr's queue and
-        // indexers. Diagnosing by name already refuses artists; so does this.
+    it('diagnoses a Lidarr artist by id', async () => {
+        // The artist row once failed `isFilmOrSeries` and fell through to a
+        // synthesised `kind: 'movie'` item with Lidarr acquisition, checked
+        // against Radarr's queue and indexers. It is its own kind now.
+        const adapters = [lidarr()];
+        const d = await buildDiagnose({ adapters, library: new LibraryLoader(adapters, undefined) }, { service: 'lidarr', id: '1' });
+
+        expect(d.resolved).toMatchObject({ kind: 'artist', ids: { mbid: '056e4f3e-d505-4dad-8ec1-d04f521cbb56' } });
+        expect(d.resolved?.title).toContain('Daft Punk');
+        // no film stage is claimed: nothing about Seerr or Bazarr was looked at
+        expect(d.steps.find(s => s.stage === 'request')?.status).toBe('skipped');
+        expect(d.steps.find(s => s.stage === 'subtitles')?.status).toBe('skipped');
+        expect(d.verdict).toMatchObject({ stage: 'file', certain: true });
+    });
+
+    it('diagnoses an artist by id that the library read does not hold', async () => {
+        const adapters = [Object.assign(lidarr(), { listLibrary: async () => [] })];
+        const d = await buildDiagnose({ adapters, library: new LibraryLoader(adapters, undefined) }, { service: 'lidarr', id: '1' });
+        expect(d.resolved?.kind).toBe('artist');
+        expect(d.verdict.stage).toBe('file');
+    });
+
+    it('prefers a film over an artist of the same name, and diagnoses the artist when alone', async () => {
+        const sameName: IndexInput = { ...FILM, title: '<<untrusted:radarr.title>>Daft Punk<</untrusted>>', ids: { tmdb: 77 } };
+        const both = [stub('radarr', { listLibrary: async () => [sameName], getQueue: async () => [] }), lidarr()];
+        const film = await buildDiagnose({ adapters: both, library: new LibraryLoader(both, undefined) }, { query: 'daft punk' });
+        expect(film.resolved?.kind).toBe('movie');
+
+        const alone = [lidarr()];
+        const artist = await buildDiagnose({ adapters: alone, library: new LibraryLoader(alone, undefined) }, { query: 'daft punk' });
+        expect(artist.resolved?.kind).toBe('artist');
+    });
+
+    it('never reads Seerr, Bazarr or a cleanup service for an artist', async () => {
+        const reads: string[] = [];
+        const track = (name: string) => async () => {
+            reads.push(name);
+            throw new Error('down');
+        };
+        const withFiles: IndexInput = {
+            kind: 'artist',
+            title: '<<untrusted:lidarr.title>>Daft Punk<</untrusted>>',
+            // A tmdb id, so the cleanup read is kept off by the artist kind and not by this id's absence
+            ids: { mbid: '056e4f3e-d505-4dad-8ec1-d04f521cbb56', tmdb: 4242 },
+            acquisition: { service: 'lidarr', id: '1', monitored: true, hasFile: true }
+        };
         const adapters = [
+            Object.assign(lidarr(), { listLibrary: async () => [withFiles] }),
+            stub('seerr', { getRequests: track('seerr') }),
+            stub('bazarr', { getMissingSubtitles: track('bazarr') }),
+            stub('reclaimerr', { readCleanupStatus: track('reclaimerr') })
+        ];
+        const d = await buildDiagnose({ adapters, library: new LibraryLoader(adapters, undefined) }, { query: 'daft punk' });
+
+        expect(reads).toEqual([]);
+        expect(d.degraded).toEqual([]);
+        expect(d.steps.find(s => s.stage === 'request')).toMatchObject({ status: 'skipped', detail: expect.stringMatching(/Seerr does not handle music/) });
+        expect(d.steps.find(s => s.stage === 'subtitles')?.status).toBe('skipped');
+    });
+
+    it('does not count an unreachable Lidarr against a film', async () => {
+        const adapters = [
+            stub('radarr', { listLibrary: async () => [FILM], getQueue: async () => [], queueKind: 'movie' }),
             stub('lidarr', {
-                listLibrary: async () => [],
-                getMediaDetails: async () => ({
-                    service: 'lidarr',
-                    kind: 'artist',
-                    id: '4',
-                    title: 'Daft Punk',
-                    ids: { mbid: '056e4f3e-d505-4dad-8ec1-d04f521cbb56' }
-                })
+                queueKind: 'artist',
+                listLibrary: async () => {
+                    throw new ServiceError('Unreachable', 'lidarr', 'connection refused');
+                },
+                getQueue: async () => {
+                    throw new ServiceError('Unreachable', 'lidarr', 'connection refused');
+                }
             })
         ];
+        const d = await buildDiagnose({ adapters, library: new LibraryLoader(adapters, undefined) }, { query: 'some film' });
 
-        await expect(
-            buildDiagnose({ adapters, library: new LibraryLoader(adapters, undefined) }, { service: 'lidarr', id: '4' })
-        ).rejects.toThrow(/get_media_details.*detail: "full"/i);
+        expect(d.resolved?.kind).toBe('movie');
+        expect(d.steps.find(s => s.stage === 'queue')?.status).toBe('skipped');
+        expect(d.verdict).toMatchObject({ stage: 'file', certain: true });
+    });
+
+    it('counts an unreachable Lidarr against an artist', async () => {
+        const down = Object.assign(lidarr(), {
+            getQueue: async () => {
+                throw new ServiceError('Unreachable', 'lidarr', 'connection refused');
+            }
+        });
+        const adapters = [down];
+        const d = await buildDiagnose({ adapters, library: new LibraryLoader(adapters, undefined) }, { service: 'lidarr', id: '1' });
+
+        expect(d.steps.find(s => s.stage === 'queue')?.status).toBe('unknown');
+        expect(d.degraded).toContain('lidarr');
+        expect(d.verdict.certain).toBe(false);
+    });
+
+    describe('with a media server that reads music', () => {
+        const identity = { resolve: async () => ({ id: 'u1', name: 'Someone' }), hasDefaultUser: true } as unknown as IdentityResolver;
+        const MBID = '056e4f3e-d505-4dad-8ec1-d04f521cbb56';
+        const server = (music: () => Promise<IndexInput[]>): ServiceAdapter =>
+            stub('jellyfin', {
+                listUserLibrary: async () => [],
+                listUserMusic: music,
+                getScanState: async () => ({ service: 'jellyfin', lastCompleted: '2026-08-05T02:00:00Z' })
+            });
+
+        it('does not say the server cannot see an artist when its music read failed', async () => {
+            const onDisk = {
+                service: 'lidarr',
+                kind: 'artist',
+                id: '1',
+                title: '<<untrusted:lidarr.title>>Daft Punk<</untrusted>>',
+                monitored: true,
+                hasFile: true,
+                ids: { mbid: MBID }
+            };
+            const adapters = [
+                Object.assign(lidarr(), { listLibrary: async () => [], getMediaDetails: async () => onDisk }),
+                server(async () => {
+                    throw new ServiceError('Unreachable', 'jellyfin', 'connection refused');
+                })
+            ];
+            const d = await buildDiagnose({ adapters, library: new LibraryLoader(adapters, identity) }, { service: 'lidarr', id: '1' });
+
+            expect(d.steps.find(s => s.stage === 'library')?.status).toBe('unknown');
+            expect(d.verdict.stage).not.toBe('library');
+            expect(d.verdict.certain).toBe(false);
+            expect(JSON.stringify(d.verdict.next_steps ?? [])).not.toContain('trigger_scan');
+        });
+
+        it('diagnoses the Lidarr artist when a server-only artist ranks ahead of it', async () => {
+            // No MusicBrainz id on the server's side, so the two do not join.
+            const lidarrSide: IndexInput = {
+                kind: 'artist',
+                title: '<<untrusted:lidarr.title>>Daft Punk Experience<</untrusted>>',
+                ids: { mbid: MBID },
+                acquisition: { service: 'lidarr', id: '1', monitored: true, hasFile: false }
+            };
+            const serverSide: IndexInput = {
+                kind: 'artist',
+                title: '<<untrusted:jellyfin.title>>Daft Punk<</untrusted>>',
+                ids: {},
+                playback: { user: 'Someone', itemId: 'j1' }
+            };
+            const adapters = [Object.assign(lidarr(), { listLibrary: async () => [lidarrSide] }), server(async () => [serverSide])];
+            const d = await buildDiagnose({ adapters, library: new LibraryLoader(adapters, identity) }, { query: 'daft punk' });
+
+            expect(d.resolved?.title).toContain('Daft Punk Experience');
+            expect(d.steps.find(s => s.stage === 'managed')?.status).toBe('ok');
+        });
+    });
+
+    it('reads only artist queues and download clients for an artist', async () => {
+        const read: string[] = [];
+        const queue = (id: string) => async () => {
+            read.push(id);
+            return [];
+        };
+        const adapters = [
+            lidarr(),
+            stub('radarr', { getQueue: queue('radarr'), queueKind: 'movie' }),
+            stub('sonarr', { getQueue: queue('sonarr'), queueKind: 'series' }),
+            stub('sabnzbd', { getQueue: queue('sabnzbd') })
+        ];
+        await collectEvidence({ adapters, library: new LibraryLoader(adapters, undefined) }, { query: 'daft punk' });
+        expect(read).toEqual(['sabnzbd']);
     });
 
     it('names the parameters when given neither', async () => {
@@ -895,5 +1071,47 @@ describe('diagnose — download history for a title no library has', () => {
         const evidence = await collectEvidence(d, { query: 'some film' });
         expect(evidence.history).toBeUndefined();
         expect(evidence.degraded).not.toContain('cleanuparr');
+    });
+});
+
+describe('collectEvidence — Bazarr', () => {
+    const owned = { ...FILM, acquisition: { service: 'radarr', id: '5', monitored: true, hasFile: true } };
+    const gap = { service: 'bazarr', kind: 'movie', id: 5, title: 'Some Film', missing: [{ name: 'Dutch', code2: 'nl', forced: false, hearingImpaired: false }] };
+    const radarr = (film: IndexInput) => stub('radarr', { listLibrary: async () => [film], getQueue: async () => [] });
+    const bazarr = (read: () => Promise<unknown[]>) => stub('bazarr', { getMissingSubtitles: read, getProviders: async () => [] });
+    const run = (adapters: ServiceAdapter[]) => collectEvidence({ adapters, library: new LibraryLoader(adapters, undefined) }, { query: 'some film' });
+
+    it('reads what Bazarr is missing for an item with a file', async () => {
+        const evidence = await run([radarr(owned), bazarr(async () => [gap])]);
+        expect(evidence.subtitles).toEqual({ gaps: [gap], service: 'bazarr' });
+    });
+
+    it('is undefined, and degraded, when Bazarr cannot be read', async () => {
+        const evidence = await run([
+            radarr(owned),
+            bazarr(async () => {
+                throw new Error('down');
+            })
+        ]);
+        expect(evidence.subtitles).toBeUndefined();
+        expect(evidence.degraded).toContain('bazarr');
+        expect(buildChain('some film', evidence).steps.find(s => s.stage === 'subtitles')?.status).toBe('unknown');
+    });
+
+    it('is null when Bazarr is not configured', async () => {
+        expect((await run([radarr(owned)])).subtitles).toBeNull();
+    });
+
+    it('does not read Bazarr for an item with no file', async () => {
+        let calls = 0;
+        const evidence = await run([
+            radarr(FILM),
+            bazarr(async () => {
+                calls += 1;
+                return [gap];
+            })
+        ]);
+        expect(calls).toBe(0);
+        expect(evidence.degraded).not.toContain('bazarr');
     });
 });

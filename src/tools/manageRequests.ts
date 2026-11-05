@@ -39,6 +39,17 @@ const seerrAdapter = (adapters: readonly ServiceAdapter[]): ServiceAdapter & Req
 };
 
 /**
+ * Whether the configured caller may act on this request: `allow_other_users`
+ * is on, or it is their own. Shared with `diagnose`, so it offers an approval
+ * only where the write's own plan would accept it.
+ */
+export async function mayManageRequest(request: MediaRequest, identity: IdentityResolver): Promise<boolean> {
+    if (identity.allowsOtherUsers) return true;
+    const own = identity.hasDefaultUser ? await identity.resolve() : undefined;
+    return own !== undefined && request.requestedById === own.id;
+}
+
+/**
  * Requests are read back by id from the live list rather than trusted from the
  * argument, for the same reason every other write tool reads first: so the
  * preview names a film and a person, and so a stale id fails here rather than
@@ -71,8 +82,7 @@ async function findRequest(
     // own `AuthFailed`: nothing is wrong with the API key, and a model told
     // "auth failed" goes looking at the wrong thing. Matched on the user id:
     // a display name is the requester's own choice.
-    const own = identity.allowsOtherUsers || !identity.hasDefaultUser ? undefined : await identity.resolve();
-    if (!identity.allowsOtherUsers && (own === undefined || found.requestedById !== own.id)) {
+    if (!(await mayManageRequest(found, identity))) {
         throw new ServiceError('PermissionDenied', 'seerr', `request ${id} belongs to another user`, {
             remedy: 'Set services.seerr.allow_other_users: true to manage requests other people made — this also exposes their request history to get_requests.'
         });

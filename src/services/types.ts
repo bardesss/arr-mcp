@@ -1705,6 +1705,8 @@ export type AddCandidate = {
      *  Sonarr both report `id: 0` on a lookup for something not yet added,
      *  which is how "already there" is told apart from "new". */
     existingId?: number;
+    /** Every id the lookup reported; a `0` ("none") is left out. */
+    ids: { tmdb?: number; tvdb?: number };
 };
 
 /** Raw `label` for matching, fenced `display` for prose — the same split

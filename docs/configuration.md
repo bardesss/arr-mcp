@@ -207,11 +207,26 @@ services:
 Single instance only. Lidarr answers on `/api/v1`, where Radarr and Sonarr
 answer on `/api/v3`.
 
-A configured Lidarr connects, appears in `stack_health`, reports its version,
-and lists its **artists** in `get_library` as `kind: "artist"`, with the album
-count, genres, monitoring, quality profile, file state and the artist's
-MusicBrainz id. One row per artist, the way Sonarr rows on a series: a library of
-1,578 artists is 1,578 rows rather than 36,170 album rows.
+A configured Lidarr connects, appears in `stack_health` with its version, its
+disks, any failing health checks and when its library was last scanned
+(`RescanFolders`, Lidarr's daily disk scan: its scheduled `RefreshArtist` skips
+the disk when no metadata changed, so it is not the scan time), and lists its
+**artists** in `get_library` as `kind: "artist"`, with the album count, genres,
+monitoring, quality profile, file state and the artist's MusicBrainz id. One row
+per artist, the way Sonarr rows on a series: a library of 1,578 artists is 1,578
+rows rather than 36,170 album rows.
+
+That scan time is when a `RescanFolders` last finished, even one that failed,
+which is not always a full scan of the library. A scan stops at a missing root
+folder and skips an empty one, but either way it counts, so an unmounted music
+share can show a scan from today; Lidarr's root-folder health check, every six
+hours, reports a missing root folder that holds artists in `failures`, but not
+an empty one. Adding an artist runs one for that artist's folder alone, and
+because the daily scan is scheduled from the last run, an import list that adds
+an artist every day keeps putting the scheduled scan off while the time stays
+recent; the whole library is then read only when the daily `RefreshArtist`
+updates some metadata. A new install sets the time when it creates the task, so
+for up to a day it reports a scan that has not run.
 
 `get_media_details` on an artist lists the albums under it, each with its Lidarr
 album id, type, year, monitoring and file state. That is where the id for
@@ -220,21 +235,19 @@ album id, type, year, monitoring and file state. That is where the id for
 **An artist joins to a media server.** Lidarr's `foreignArtistId`, Jellyfin's
 `ProviderIds.MusicBrainzArtist` on an album artist, and Plex's `mbid://` guid on
 an artist in a music section are the same value, matched case-insensitively, so
-an artist reports a real `presence`. A media server with no music library, or a
-music read that failed, reports `unknown`, never `arr_only`, which would claim
-the server looked and found nothing.
+an artist reports a real `presence`. A music read that failed reports `unknown`,
+never `arr_only`, which would claim the server looked and found nothing. A server
+whose music library is empty, or lacks the artist, was read and reports `arr_only`.
 
 The media server's music read runs only when a Lidarr is configured. With no
 Lidarr there is no artist row to join to, so the read would add every artist the
 server holds as `jellyfin_only` and answer "what does no *arr manage?" with the
 whole music collection.
 
-`diagnose` does not follow music: it reads the film and series chain, and refuses
-an artist rather than reporting it absent. The refusal names `get_media_details`
-with `service: "lidarr"`, the artist id and `detail: "full"`, which is the route
-that holds the albums, and `get_library` with `kind: "artist"` for the artist
-list. Both a query that matches an artist and a Lidarr artist id are refused
-the same way.
+`diagnose` walks a Lidarr artist too, by name or by Lidarr artist id; see "Lidarr
+artists" under `diagnose` in [tools.md](tools.md). `get_media_details` and
+`fix_metadata` still refuse an artist, naming `get_media_details` with
+`service: "lidarr"` and `detail: "full"` as the route that holds the albums.
 
 **It is not read-only.** `set_monitoring` writes two different things, and
 `level` says which one:
@@ -256,8 +269,9 @@ discovers later, and `none` is the only value that stops the wanted list growing
 by itself. Both levels are written with Lidarr's bulk endpoints, which queued no
 `MoveArtist` job in the runs that were captured.
 
-`trigger_scan` rescans the library or one artist, renames an artist's files, and
-imports a finished download by its id; see `docs/tools.md`. Its queue, history
+`trigger_scan` rescans the library or refreshes one artist (the rescan after it
+still reads every root folder), renames an artist's files, and imports a
+finished download by its id; see `docs/tools.md`. Its queue, history
 and blocklist read the way Radarr's and Sonarr's do, in `get_queue`,
 `get_history` and `get_blocklist`, and `remove_blocklist_item` takes a Lidarr
 entry, as `remove_queue_item` and `clean_queue` take a Lidarr download.

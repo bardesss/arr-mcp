@@ -7,6 +7,7 @@ import { ConfirmTokens } from '../src/core/confirm.ts';
 import { ServiceError } from '../src/core/errors.ts';
 import { permissionSourceFrom } from '../src/core/permissions.ts';
 import type { LibraryLoader } from '../src/tools/library.ts';
+import type { CrossChecker, CrossCheckProfile } from '../src/tools/crossChecks.ts';
 import { registerWriteTool, type WritePlan, type WriteToolResult } from '../src/tools/write.ts';
 
 /**
@@ -61,6 +62,8 @@ function buildHarness(
         apply?: () => Promise<unknown>;
         tier?: 'safe' | 'destructive';
         caller?: string;
+        crossChecks?: CrossChecker;
+        crossCheck?: CrossCheckProfile;
     } = {}
 ) {
     const audit = WriteAudit.ephemeral();
@@ -77,7 +80,8 @@ function buildHarness(
             confirm,
             audit,
             library: { invalidate } as unknown as LibraryLoader,
-            ...(opts.caller === undefined ? {} : { caller: opts.caller })
+            ...(opts.caller === undefined ? {} : { caller: opts.caller }),
+            ...(opts.crossChecks === undefined ? {} : { crossChecks: opts.crossChecks })
         },
         {
             name: 'delete_media',
@@ -88,7 +92,8 @@ function buildHarness(
             operation: 'delete_movie',
             tier: opts.tier ?? 'destructive',
             plan,
-            apply
+            apply,
+            ...(opts.crossCheck === undefined ? {} : { crossCheck: opts.crossCheck })
         }
     );
 
@@ -391,5 +396,151 @@ describe('write tool harness — argument binding', () => {
         expect(second.structuredContent.applied).toBe(false);
         expect(second.structuredContent.confirm_error).toContain('different operation');
         expect(shifting.apply).not.toHaveBeenCalled();
+    });
+});
+
+describe('write tool harness — cross-checks', () => {
+    const SUBJECT = { kind: 'movie' as const, label: 'Alien (1979)', ids: { tmdb: 348 } };
+    const SUBJECT_PLAN: WritePlan = { ...PLAN, subject: SUBJECT };
+    const WARNING = 'Seerr still has a request for Alien (1979).';
+    const advised = (warnings: string[] = [WARNING], unchecked: string[] = ['reclaimerr']) =>
+        vi.fn<CrossChecker>(() => Promise.resolve({ warnings, unchecked }));
+    const endsWithToken = /`v2\.[\w.-]+`\.?$/u;
+
+    it('shows warnings on a preview, in the structured result and the text', async () => {
+        const crossChecks = advised();
+        const h = buildHarness({ plan: SUBJECT_PLAN, crossChecks, crossCheck: 'delete' });
+        const { structuredContent, content } = await h.call('delete_media', { id: '5' });
+        const text = content[0]?.text ?? '';
+
+        expect(crossChecks).toHaveBeenCalledWith(SUBJECT, 'delete');
+        expect(structuredContent.warnings).toEqual([WARNING]);
+        expect(structuredContent.unchecked).toEqual(['reclaimerr']);
+        expect(text).toContain(`Worth checking first:\n- ${WARNING}`);
+        expect(text).toContain('Could not check: reclaimerr.');
+        // Before the effects and the token, which stays last.
+        expect(text.indexOf('Worth checking first')).toBeLessThan(text.indexOf(PLAN.effects[0] as string));
+        expect(text.trimEnd()).toMatch(endsWithToken);
+    });
+
+    it('shows warnings in the dry-run text', async () => {
+        const h = buildHarness({ plan: SUBJECT_PLAN, crossChecks: advised(), crossCheck: 'delete' });
+        const { structuredContent, content } = await h.call('delete_media', { id: '5', dry_run: true });
+
+        expect(content[0]?.text).toContain(WARNING);
+        expect(content[0]?.text).toContain('Omit `dry_run`');
+        expect(structuredContent.warnings).toEqual([WARNING]);
+    });
+
+    it('shows warnings on a rejected token, ahead of the fresh one', async () => {
+        const h = buildHarness({ plan: SUBJECT_PLAN, crossChecks: advised(), crossCheck: 'delete' });
+        const { content } = await h.call('delete_media', { id: '5', confirm: 'nonsense' });
+        const text = content[0]?.text ?? '';
+
+        expect(text).toContain(WARNING);
+        expect(text.indexOf(WARNING)).toBeLessThan(text.indexOf('Do not resend'));
+        expect(text.trimEnd()).toMatch(endsWithToken);
+    });
+
+    it('omits both fields when there is nothing to say', async () => {
+        const h = buildHarness({ plan: SUBJECT_PLAN, crossChecks: advised([], []), crossCheck: 'delete' });
+        const { structuredContent, content } = await h.call('delete_media', { id: '5' });
+
+        expect(structuredContent).not.toHaveProperty('warnings');
+        expect(structuredContent).not.toHaveProperty('unchecked');
+        expect(content[0]?.text).not.toContain('Worth checking');
+    });
+
+    it('does not run cross-checks when a confirm token is applied', async () => {
+        const crossChecks = advised();
+        const h = buildHarness({ plan: SUBJECT_PLAN, crossChecks, crossCheck: 'delete' });
+        const first = await h.call('delete_media', { id: '5' });
+        const second = await h.call('delete_media', { id: '5', confirm: first.structuredContent.confirm_token });
+
+        expect(second.structuredContent.applied).toBe(true);
+        expect(second.structuredContent).not.toHaveProperty('warnings');
+        expect(crossChecks).toHaveBeenCalledTimes(1);
+    });
+
+    it('applies a valid token whatever the warnings say now', async () => {
+        const crossChecks = vi
+            .fn<CrossChecker>()
+            .mockResolvedValueOnce({ warnings: [], unchecked: [] })
+            .mockResolvedValue({ warnings: ['A new warning.'], unchecked: [] });
+        const h = buildHarness({ plan: SUBJECT_PLAN, crossChecks, crossCheck: 'delete' });
+        const first = await h.call('delete_media', { id: '5' });
+        const second = await h.call('delete_media', { id: '5', confirm: first.structuredContent.confirm_token });
+
+        expect(second.structuredContent.applied).toBe(true);
+        expect(h.apply).toHaveBeenCalledTimes(1);
+    });
+
+    it('resolves a subject given as a function on the preview only', async () => {
+        const crossChecks = advised();
+        const subject = vi.fn(() => Promise.resolve(SUBJECT));
+        const h = buildHarness({ plan: { ...PLAN, subject }, crossChecks, crossCheck: 'delete' });
+
+        const first = await h.call('delete_media', { id: '5' });
+        await h.call('delete_media', { id: '5', confirm: first.structuredContent.confirm_token });
+
+        expect(subject).toHaveBeenCalledTimes(1);
+        expect(crossChecks).toHaveBeenCalledWith(SUBJECT, 'delete');
+    });
+
+    it('still previews when a subject function rejects', async () => {
+        const crossChecks = advised();
+        const h = buildHarness({
+            plan: { ...PLAN, subject: () => Promise.reject(new Error('boom')) },
+            crossChecks,
+            crossCheck: 'delete'
+        });
+        const { structuredContent } = await h.call('delete_media', { id: '5' });
+
+        expect(structuredContent.confirm_token).toBeTypeOf('string');
+        expect(structuredContent.unchecked).toEqual(['cross-service checks']);
+        expect(crossChecks).not.toHaveBeenCalled();
+    });
+
+    it('still previews when the checker throws', async () => {
+        const crossChecks = vi.fn<CrossChecker>(() => Promise.reject(new Error('boom')));
+        const h = buildHarness({ plan: SUBJECT_PLAN, crossChecks, crossCheck: 'delete' });
+        const { structuredContent, content } = await h.call('delete_media', { id: '5' });
+
+        expect(structuredContent.confirm_token).toBeTypeOf('string');
+        expect(structuredContent.unchecked).toEqual(['cross-service checks']);
+        expect(content[0]?.text).toContain('Could not check: cross-service checks.');
+    });
+
+    it('does not run cross-checks for a no-op or a refusal', async () => {
+        const crossChecks = advised();
+        const noop = buildHarness({ plan: { ...SUBJECT_PLAN, noop: true }, crossChecks, crossCheck: 'delete' });
+        await noop.call('delete_media', { id: '5' });
+
+        const denied = buildHarness({
+            permissions: { radarr: service(false, false) },
+            plan: SUBJECT_PLAN,
+            crossChecks,
+            crossCheck: 'delete'
+        });
+        await expect(denied.call('delete_media', { id: '5' })).rejects.toThrow(ServiceError);
+
+        expect(crossChecks).not.toHaveBeenCalled();
+    });
+
+    it('asks nothing without a profile, a subject or a checker', async () => {
+        const crossChecks = advised();
+        await buildHarness({ plan: SUBJECT_PLAN, crossChecks }).call('delete_media', { id: '5' });
+        await buildHarness({ plan: PLAN, crossChecks, crossCheck: 'delete' }).call('delete_media', { id: '5' });
+        const bare = buildHarness({ plan: SUBJECT_PLAN, crossCheck: 'delete' });
+        const { structuredContent } = await bare.call('delete_media', { id: '5' });
+
+        expect(crossChecks).not.toHaveBeenCalled();
+        expect(structuredContent).not.toHaveProperty('warnings');
+    });
+
+    it('records the same single audit row with or without cross-checks', async () => {
+        const h = buildHarness({ plan: SUBJECT_PLAN, crossChecks: advised(), crossCheck: 'delete' });
+        await h.call('delete_media', { id: '5' });
+        expect(outcomes(h)).toEqual(['unconfirmed']);
     });
 });

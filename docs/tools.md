@@ -225,6 +225,83 @@ title scheduled for deletion, or eligible at the next deletion run, the summary
 says so with the date and the rule. Neither blocks a playable verdict, and a
 Reclaimerr that cannot be read only adds it to `degraded`.
 
+With Bazarr configured, `diagnose` ends with a `subtitles` step for a title that
+has a file. It lists the languages Bazarr is missing for it and is `warning`, not
+`blocked`: the verdict stays where the other stages put it, a playable title is
+still `playable`, and `certain` does not depend on it. The summary of a playable
+title carries the sentence. A gap matches by id and by title, because nothing
+says which Radarr or Sonarr a Bazarr is paired with, and a series matches by
+series id. The step is `unknown` when Bazarr cannot be read, and `skipped` when
+there is no file or no Bazarr. Bazarr's wanted list is read whole, with no
+paging, so it is the one read that grows with the size of the library, and it
+adds Bazarr to `degraded` when it fails. Only the first Bazarr is read, as with
+Cleanuparr. An item with no id to match gaps by is `unknown`, not `ok`.
+
+**Lidarr artists.** `diagnose` walks an artist as it does a film: by name, or with
+`service: "lidarr"` and the artist id. A film or series of the same name wins over
+the artist when both match. The chain is the same, with these differences:
+
+- `request` is `skipped`, saying Seerr does not handle music, and Seerr is never
+  read for an artist. Neither are Bazarr (`subtitles` is `skipped`, since it has
+  no music) nor Reclaimerr, so an outage of any of them costs an artist nothing.
+  Cleanuparr is still read when the artist has downloads to match, because it
+  explains what happened to a download.
+- `queue` reads Lidarr's queue and the download clients', and not Radarr's or
+  Sonarr's. A film is read the other way round, so a Lidarr that is down leaves a
+  film's verdict as certain as before and makes an artist's `queue` `unknown`.
+  Rows are tied to the artist by `mediaId` first. A download client's row counts
+  only through a Lidarr row sharing its download id, so a film's release that
+  merely shares the artist's name is not blamed on the artist; an orphaned Lidarr
+  row is still matched by its release name.
+- `file` means any track on disk, as `has_file` does for a series. A missing one
+  has no `trigger_search` step, because this server cannot start a Lidarr search:
+  the remedy is to search in Lidarr itself.
+- `library` follows the music read, not the film read. It is `unknown` when that
+  read failed. When the read worked and the server lacks the artist (including a
+  server with no music library, or an artist with no MusicBrainz id on the
+  server) an artist with tracks on disk is `blocked`: the server cannot see it.
+- An artist with a track on disk and everything else clear is `playable`, and the
+  summary says that only means at least one track is there: `get_media_details`
+  lists the albums and which of them have files.
+
+This has been tested against the recorded Lidarr responses and stand-ins, not
+against a running Lidarr.
+
+**Next steps.** Beside the prose `remedy`, `verdict.next_steps` holds the tool
+call that does it, as `{ tool, arguments, why }`, and the text block ends with
+the same call as a `Next:` line. The server never runs it: a client offers it to
+the person, and a write still previews and asks for confirmation. A step names
+an instance as `service` plus `instance` (`radarr/hd` is `service: "radarr"`,
+`instance: "hd"`). The text a step carries is never a service's: `arguments`
+hold ids, `download_id`, and, for a lookup, the words you gave as `query`.
+
+| Verdict | `next_steps` |
+|---|---|
+| `file`, no cleanup removal | `trigger_search` with the managing service and id; none for an artist, which is searched in Lidarr itself |
+| `file`, removed by a cleanup rule | none: protect the title in Reclaimerr |
+| `managed`, in Radarr | `update_media` with `monitored: true` (`set_monitoring` refuses Radarr) |
+| `managed`, in Sonarr or Whisparr | `set_monitoring` with `monitored: true` |
+| `managed`, in Lidarr | `set_monitoring` with `level: "artist"`, `artists: [id]` and `monitored: true`, never `id`: the artist flag only, each album keeps its own |
+| `managed` or `resolve`, nothing manages it | `lookup_media` with your `query`, only when you diagnosed by title; none for an artist, since nothing here adds music |
+| `request`, pending | `respond_to_request` with `verdict: "approve"`, only if you may act on that request (it is yours, or `allow_other_users` is on) |
+| `queue`, import pending | `trigger_scan` with `action: "import"` and the `download_id` of the *arr's row, on Radarr, Sonarr or Lidarr |
+| `queue`, fault | `remove_queue_item` with the row's service and id; it deletes partial data and does not blocklist |
+| `queue`, a stopped or paused download, or a fault whose import is pending on another row of the same grab | the import above, never the removal |
+| `library` | `trigger_scan` with `action: "scan"` on the media server |
+| playable, one film or episode missing a subtitle | `trigger_subtitle_search` with the first missing language, only when Bazarr gave it a code |
+| `scan`, `indexers`, playable otherwise, still downloading | none |
+
+A step is left out when its tool would refuse it or when it cannot be built:
+no id to search for, a Whisparr download (which has no manual import), or an
+approval for someone else's request without `allow_other_users`. The `remedy`
+and verdict still say what is wrong. A search offered while Reclaimerr could not
+be read says so in its `why`.
+
+An applied `trigger_scan` with `action: "remap"` returns the same field when a
+media server that can scan is configured: a `trigger_scan` of it, in place of
+the sentence telling you to rescan by hand. Any write can carry `next_steps`; a
+step that fails to build never fails a write that already landed.
+
 ## `stack_health`
 
 With more than one instance of a service, each is reported separately. With
@@ -243,10 +320,10 @@ no more a fault than a grant is.
 ### Which services report health checks
 
 `failures` carries what each service says is wrong with itself. Radarr,
-Sonarr, Whisparr, Prowlarr and Bazarr report their own health checks, NZBGet
-its `systemhealth` alerts (v26 and later), and Cleanuparr, Reclaimerr, Dispatcharr and Shelfmark their
-own status (see [Dispatcharr](#dispatcharr) and [Shelfmark](#shelfmark) below). Lidarr does not report
-health checks yet.
+Sonarr, Whisparr, Lidarr, Prowlarr and Bazarr report their own health checks,
+NZBGet its `systemhealth` alerts (v26 and later), and Cleanuparr, Reclaimerr,
+Dispatcharr and Shelfmark their own status (see [Dispatcharr](#dispatcharr) and
+[Shelfmark](#shelfmark) below).
 
 SABnzbd reports the warnings and errors from its log, and only those from the
 last 24 hours. Its warnings list is a log rather than a state: it keeps every
@@ -2011,7 +2088,7 @@ and, on the *arrs, with its metadata provider.
 | Call | What it does |
 | --- | --- |
 | `service` alone | Scans that service's whole library, refreshing metadata first on the *arrs. On Prowlarr, which has no library, it syncs the indexer list to Radarr and Sonarr instead. |
-| `service` + `id` | Refreshes and rescans just that Radarr/Sonarr/Whisparr item or Lidarr artist — far cheaper on a large library. |
+| `service` + `id` | Refreshes and rescans just that Radarr/Sonarr/Whisparr item — far cheaper on a large library. On Lidarr it refreshes one artist, but the rescan after it still reads every root folder. |
 | `action: "rename"` + `id` | Renames that item's files to the service's own naming scheme. |
 | `action: "import"` + `download_id` | Imports a finished download the service never picked up. |
 | `action: "remap"` + `id` + `reassignments` | Tells Sonarr which episode an already-imported file really is, and renames those files to match. |
@@ -2041,8 +2118,12 @@ what is already there, which is what `fix_metadata` is for.
 ### On Lidarr
 
 A scan is Lidarr's `RefreshArtist`, for the whole library or with `id` for one
-artist. `rename` is `RenameArtist`, every file of that artist. Both appear in
-`stack_health`'s `commands`.
+artist. The rescan after it is Lidarr's `RescanFolders`, the scan time
+`stack_health` reports under `scans`. With `id` only the refresh narrows: the
+rescan still reads every root folder unless the artist is new
+(`RefreshArtistService.RescanArtists`), so it reads the whole library from disk,
+as a full scan does. `rename` is `RenameArtist`, every file of that artist. Both
+appear in `stack_health`'s `commands`.
 
 `import` reads Lidarr's queue first and refuses a download that has not
 finished. Lidarr's candidate read for one fails, as Radarr's and Sonarr's does,
