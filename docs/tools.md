@@ -243,17 +243,23 @@ the artist when both match. The chain is the same, with these differences:
 
 - `request` is `skipped`, saying Seerr does not handle music, and Seerr is never
   read for an artist. Neither are Bazarr (`subtitles` is `skipped`, since it has
-  no music) nor a cleanup service, so an outage of any of them costs an artist
-  nothing.
+  no music) nor Reclaimerr, so an outage of any of them costs an artist nothing.
+  Cleanuparr is still read when the artist has downloads to match, because it
+  explains what happened to a download.
 - `queue` reads Lidarr's queue and the download clients', and not Radarr's or
   Sonarr's. A film is read the other way round, so a Lidarr that is down leaves a
   film's verdict as certain as before and makes an artist's `queue` `unknown`.
-  Rows are tied to the artist by `mediaId` first.
+  Rows are tied to the artist by `mediaId` first. A download client's row counts
+  only through a Lidarr row sharing its download id, so a film's release that
+  merely shares the artist's name is not blamed on the artist; an orphaned Lidarr
+  row is still matched by its release name.
 - `file` means any track on disk, as `has_file` does for a series. A missing one
   has no `trigger_search` step, because this server cannot start a Lidarr search:
   the remedy is to search in Lidarr itself.
-- `library` is `unknown` when the media server's music read failed and `skipped`
-  when no media server reads music, never "the server cannot see it".
+- `library` follows the music read, not the film read. It is `unknown` when that
+  read failed. When the read worked and the server lacks the artist (including a
+  server with no music library, or an artist with no MusicBrainz id on the
+  server) an artist with tracks on disk is `blocked`: the server cannot see it.
 - An artist with a track on disk and everything else clear is `playable`, and the
   summary says that only means at least one track is there: `get_media_details`
   lists the albums and which of them have files.

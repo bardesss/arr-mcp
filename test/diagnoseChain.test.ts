@@ -1842,7 +1842,6 @@ describe('buildChain — missing subtitles', () => {
     });
 });
 
-
 describe('buildChain — a Lidarr artist', () => {
     const lidarrFence = (value: string): string => fenceText(value, { service: 'lidarr', field: 'title' });
     const MBID = '056e4f3e-d505-4dad-8ec1-d04f521cbb56';
@@ -1993,5 +1992,75 @@ describe('buildChain — a Lidarr artist', () => {
         const d = buildChain('daft punk', healthy({ item: noTracks(), queue: { items: [lidarrRow({ status: 'failed', errorMessage: 'unpack failed' })], partial: [] } }));
         expect(d.verdict.next_steps).toEqual([expect.objectContaining({ tool: 'remove_queue_item', arguments: { service: 'lidarr', id: '103' } })]);
         expect(d.verdict.remedy).not.toMatch(/Radarr/);
+    });
+    describe('a client row is only an artist\'s through a Lidarr row', () => {
+        // Radarr's and Sonarr's queues are not read for an artist, so a film's
+        // download on a client has no *arr row to claim it, and an artist has no
+        // year for the title match to be contradicted by.
+        const rush = (over: ItemOverride = {}): MergedItem => noTracks({ title: lidarrFence('Rush'), ...over });
+        const filmGrab = (status: string): QueueItem => ({
+            service: 'sabnzbd',
+            id: 'SAB1',
+            title: queueTitle('sabnzbd', 'Rush.2013.1080p.BluRay.x264'),
+            status,
+            downloadId: 'SAB1'
+        });
+
+        for (const status of ['failed', 'completed', 'downloading']) {
+            it(`does not blame a film's ${status} download on an artist of the same name`, () => {
+                const d = buildChain('rush', healthy({ item: rush(), queue: { items: [filmGrab(status)], partial: [] } }));
+                expect(stepFor(d, 'queue')?.status).toBe('skipped');
+                expect(d.verdict.stage).toBe('file');
+                expect(d.verdict.next_steps).toBeUndefined();
+            });
+        }
+
+        it('takes a client row that shares a download id with the artist\'s Lidarr row', () => {
+            const client = { ...filmGrab('failed'), downloadId: 'lidarr-download-1' };
+            expect(queueRowsFor([lidarrRow({ status: 'downloading' }), client], noTracks())).toHaveLength(2);
+        });
+
+        it('leaves a client row sharing a download id with another artist\'s Lidarr row out', () => {
+            const client = { ...filmGrab('failed'), downloadId: 'lidarr-download-1' };
+            expect(queueRowsFor([lidarrRow({ mediaId: '9' }), client], rush())).toEqual([]);
+        });
+
+        it('still matches an orphaned Lidarr row by its release name', () => {
+            const { mediaId: _mediaId, ...rest } = lidarrRow({ orphaned: true, title: fenceText('Rush - Moving Pictures FLAC', { service: 'lidarr', field: 'title' }) });
+            expect(queueRowsFor([rest], rush())).toEqual([rest]);
+        });
+    });
+
+    it('does not call an album stuck in import already imported because a client row is seeding', () => {
+        const HASH = 'abcdef0123456789abcdef0123456789abcdef01';
+        const seeding: QueueItem = {
+            service: 'qbittorrent',
+            id: HASH,
+            title: queueTitle('qbittorrent', 'Daft.Punk.Discovery.FLAC'),
+            status: 'seeding',
+            torrent: { hash: HASH, category: '', tags: [], trackerDomains: [], stopped: false, seeding: true }
+        };
+        const stuck = lidarrRow({ downloadId: HASH.toUpperCase() });
+        const d = buildChain('daft punk', healthy({ item: artist(), queue: { items: [seeding, stuck], partial: [] } }));
+        expect(stepFor(d, 'queue')).toMatchObject({ status: 'blocked', service: 'lidarr', detail: expect.stringMatching(/not yet imported by lidarr/) });
+        expect(d.verdict.summary).toMatch(/not yet imported by lidarr/);
+    });
+
+    it('reads the music read, not the film read, for where an artist is', () => {
+        // A failed film read says nothing about an artist whose presence came from the music read.
+        const filmReadDown = buildChain('daft punk', healthy({ item: artist({ presence: 'both' }), libraryDegraded: ['jellyfin'] }));
+        expect(stepFor(filmReadDown, 'library')?.status).toBe('ok');
+        expect(filmReadDown.verdict.certain).toBe(true);
+
+        // And a failed music read is unknown whatever presence the join guessed.
+        const musicDown = buildChain('daft punk', healthy({ item: artist({ presence: 'arr_only' }), libraryDegraded: ['jellyfin:music'] }));
+        expect(stepFor(musicDown, 'library')).toMatchObject({ status: 'unknown', detail: expect.stringMatching(/music/i) });
+        expect(musicDown.verdict).toMatchObject({ stage: 'playable', certain: false });
+        expect(musicDown.verdict.next_steps).toBeUndefined();
+    });
+
+    it('says what a track on disk means before what the media server says', () => {
+        const d = buildChain('daft punk', healthy({ item: artist() }));
+        expect(d.verdict.summary).toMatch(/has tracks on disk\. That only means at least one track is there: get_media_details lists its albums and which of them have files\. Present in the jellyfin library\./);
     });
 });

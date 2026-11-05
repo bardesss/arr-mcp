@@ -264,7 +264,8 @@ export const artistRefusal = (name: string): Error =>
 
 /**
  * The best match among films and series, for the readers whose question is
- * about that chain: `get_media_details`, `fix_metadata` and `diagnose`.
+ * about that chain: `get_media_details` and `fix_metadata`. `diagnose` also reads
+ * artists, so it does not use this.
  *
  * An artist must not shadow a film that happens to share its title, which the
  * ranking alone cannot prevent. And when an artist is the only thing that

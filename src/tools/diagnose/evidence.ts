@@ -117,7 +117,7 @@ async function resolveItem(
         // error and remedy as get_media_details.
         if (!hasMediaDetails(adapter)) {
             throw new ServiceError('NotFound', target.service, `${target.service} cannot look up an item by id`, {
-                remedy: `Pass a service that holds media — radarr, sonarr, whisparr, jellyfin or plex — or diagnose by query instead.`
+                remedy: `Pass a service that holds media — radarr, sonarr, whisparr, lidarr, jellyfin or plex — or diagnose by query instead.`
             });
         }
 
@@ -198,7 +198,9 @@ async function resolveItem(
     // A film or series wins over an artist of the same name, which the ranking
     // alone cannot promise; the artist is diagnosed when nothing else matched.
     const hits = snapshot.index.search(target.query);
-    return hits.find(isFilmOrSeries) ?? hits[0];
+    // Then one Lidarr knows: a server-only artist with no MusicBrainz id can rank
+    // ahead of it when the names differ in case or article.
+    return hits.find(isFilmOrSeries) ?? hits.find(h => h.acquisition !== undefined) ?? hits[0];
 }
 
 /**
@@ -248,7 +250,8 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
     // The queues of the item's own kind, and the download clients' (no
     // `queueKind`). A film is not read against Lidarr's queue, so an unreachable
     // Lidarr cannot leave its queue "only partially known"; an artist is read
-    // against Lidarr's alone, since a Radarr row could only match it by title.
+    // against Lidarr's alone, and `queueRowsFor` counts a client row for it only
+    // through a Lidarr row's download id, so a film's grab is never its own.
     const queueKinds: readonly LibraryKind[] = isArtist ? ['artist'] : ['movie', 'series'];
     const queueAdapters = deps.adapters
         .filter(hasQueue)

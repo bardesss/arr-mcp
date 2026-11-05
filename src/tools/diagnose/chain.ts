@@ -396,6 +396,8 @@ const queueServicesFor = (item: MergedItem): readonly ServiceId[] => (item.kind 
 /** What ties a client's row to the *arr's row for the same grab. */
 const downloadKey = (row: QueueItem): string | undefined => (row.downloadId ?? row.torrent?.hash)?.toLowerCase();
 
+const isLidarrRow = (row: QueueItem): boolean => row.service === 'lidarr' || row.service.startsWith('lidarr/');
+
 export function queueRowsFor(rows: readonly QueueItem[], item: MergedItem): QueueItem[] {
     const acquisition = item.acquisition;
     const byId = (row: QueueItem): boolean | undefined =>
@@ -413,7 +415,13 @@ export function queueRowsFor(rows: readonly QueueItem[], item: MergedItem): Queu
         if (direct !== undefined) return direct;
         const key = row.mediaId === undefined ? keyOf(row) : undefined;
         const linked = key === undefined ? undefined : claimed.get(key);
-        return (linked === undefined ? undefined : byId(linked)) ?? mentions(row.title, item);
+        const verdict = linked === undefined ? undefined : byId(linked);
+        // Only Lidarr's queue is read for an artist, so a client row that no
+        // Lidarr row claims is a film's or someone else's, and an artist has no
+        // year for the title match to be contradicted by ("Rush.2013.1080p").
+        // An orphaned Lidarr row has no id to claim it by, so it keeps the title.
+        if (item.kind === 'artist' && !isLidarrRow(row)) return verdict ?? (linked !== undefined && mentions(row.title, item));
+        return verdict ?? mentions(row.title, item);
     });
 }
 
@@ -523,7 +531,16 @@ function queueStep(ev: Evidence, item: MergedItem): QueueResult {
         return { step: SKIPPED('queue', 'Nothing matching it is in any download queue.') };
     }
 
-    const { row, cls } = pickQueueRow(mine);
+    const picked = pickQueueRow(mine);
+    const cls = picked.cls;
+    // `hasFile` on an artist is any track, so a seeding client row sorted ahead
+    // of a Lidarr row still waiting to import the same download says nothing
+    // about that album being imported. Name the row that is stuck instead.
+    const stuck =
+        item.kind === 'artist' && cls === 'importPending' && SEEDING.has(picked.row.status.toLowerCase())
+            ? mine.find(q => classifyQueueStatus(q) === 'importPending' && !SEEDING.has(q.status.toLowerCase()) && downloadKey(q) === downloadKey(picked.row))
+            : undefined;
+    const row = stuck ?? picked.row;
     const strikeNote = strikeNoteFor(row, ev.cleanuparr);
 
     if (cls === 'fault') {
@@ -547,7 +564,7 @@ function queueStep(ev: Evidence, item: MergedItem): QueueResult {
     }
 
     // A torrent still seeding a file that is already in the library has nothing left to import.
-    if (cls === 'importPending' && item.acquisition?.hasFile === true && SEEDING.has(row.status.toLowerCase())) {
+    if (cls === 'importPending' && item.acquisition?.hasFile === true && stuck === undefined && SEEDING.has(row.status.toLowerCase())) {
         return {
             step: {
                 stage: 'queue',
@@ -633,7 +650,15 @@ function indexerStep(ev: Evidence, item: MergedItem): Step {
 function libraryStep(ev: Evidence, item: MergedItem): Step {
     const server = ev.mediaServer;
     if (server === undefined) return SKIPPED('library', 'No media server is configured.');
-    if (ev.libraryDegraded.includes(server)) {
+    // An artist's presence comes from the music read alone, so the film read
+    // failing says nothing about it and the music read failing does, whatever
+    // `presence` the join landed on. Unless the server has it, which is a fact.
+    const isArtist = item.kind === 'artist';
+    const onServer = item.presence === 'both' || item.presence === 'jellyfin_only';
+    if (isArtist && !onServer && ev.libraryDegraded.includes(`${server}:music`)) {
+        return { stage: 'library', service: server, status: 'unknown', detail: `${server}’s music library could not be read, so whether it has this artist was not checked.` };
+    }
+    if (!isArtist && ev.libraryDegraded.includes(server)) {
         // Never "it is not in the library" when the library was not asked. Reads
         // `libraryDegraded`, not `degraded`: a failed scan probe belongs to the
         // latter and must not land here, because this stage is about the
@@ -642,13 +667,10 @@ function libraryStep(ev: Evidence, item: MergedItem): Step {
         // `hasFile` is real *arr data this module must not reinterpret.
         return { stage: 'library', service: server, status: 'unknown', detail: `${server} could not be reached, so its library was not checked.` };
     }
-    // An artist's presence comes from the music read, which fails, and is absent,
-    // on its own. `unknown` is "never looked", so the file-on-disk branch below
-    // would claim the server cannot see an artist it was never asked about.
-    if (item.kind === 'artist' && item.presence === 'unknown') {
-        return ev.libraryDegraded.includes(`${server}:music`)
-            ? { stage: 'library', service: server, status: 'unknown', detail: `${server}’s music library could not be read, so whether it has this artist was not checked.` }
-            : SKIPPED('library', `${server} does not report a music library here, so whether it has this artist is not known.`);
+    // `unknown` is "never looked", so the file-on-disk branch below would claim
+    // the server cannot see an artist it was never asked about.
+    if (isArtist && item.presence === 'unknown') {
+        return SKIPPED('library', `${server} did not report on music, so whether it has this artist is not known.`);
     }
     const others = Object.entries(item.media_servers ?? {})
         .filter(([id]) => id !== server)
@@ -833,10 +855,10 @@ const queueAside = (queueResult: QueueResult, fileIsOk: boolean): string => {
  * deliberately left unmonitored" from "an ongoing one accidentally
  * unmonitored", so this says so rather than guessing.
  *
- * Only for `request`/`managed` verdicts on a series with a file already
- * visible in the configured media server — a movie in that position is
- * excluded upstream, so "episodes you do not have yet" is always literally
- * true here.
+ * Only for `request`/`managed` verdicts on a series or an artist with a file
+ * already visible in the configured media server — a movie in that position is
+ * excluded upstream, so "episodes (or albums) you do not have yet" is always
+ * literally true here.
  */
 const seriesFileVisibleHedge = (server: string, item: MergedItem): string =>
     ` (A file is already on disk and visible in ${server} — this may only affect ${item.kind === 'artist' ? 'albums' : 'episodes'} you do not have yet.)`;
@@ -1086,7 +1108,7 @@ export function buildChain(query: string, ev: Evidence, byWords: boolean): Diagn
         // "playable": the albums are one read down and may hold none.
         const summary =
             item.kind === 'artist'
-                ? `${item.title} has tracks on disk. ${libStep?.detail ?? ''} That only means at least one track is there: get_media_details lists its albums and which of them have files.${caveat}${aside}`
+                ? `${item.title} has tracks on disk. That only means at least one track is there: get_media_details lists its albums and which of them have files. ${libStep?.detail ?? ''}${caveat}${aside}`
                 : libStep?.status === 'ok'
                   ? `${item.title} is available in ${ev.mediaServer} and playable.${caveat}${aside}`
                   : libStep?.status === 'unknown'
@@ -1191,7 +1213,7 @@ function nextStepsFor(
         case 'file':
             // Lidarr has no search trigger: trigger_search refuses it.
             if (item?.kind === 'artist') return [];
-            if (acquisition?.id === undefined ||(!acquisition.hasFile && wholeRemoval(ev.cleanup, ev.lastImportAt) !== undefined)) return [];
+            if (acquisition?.id === undefined || (!acquisition.hasFile && wholeRemoval(ev.cleanup, ev.lastImportAt) !== undefined)) return [];
             return [
                 {
                     tool: 'trigger_search',

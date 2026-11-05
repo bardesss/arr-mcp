@@ -267,7 +267,8 @@ describe('diagnose', () => {
         const withFiles: IndexInput = {
             kind: 'artist',
             title: '<<untrusted:lidarr.title>>Daft Punk<</untrusted>>',
-            ids: { mbid: '056e4f3e-d505-4dad-8ec1-d04f521cbb56' },
+            // A tmdb id, so the cleanup read is kept off by the artist kind and not by this id's absence
+            ids: { mbid: '056e4f3e-d505-4dad-8ec1-d04f521cbb56', tmdb: 4242 },
             acquisition: { service: 'lidarr', id: '1', monitored: true, hasFile: true }
         };
         const adapters = [
@@ -318,6 +319,62 @@ describe('diagnose', () => {
         expect(d.verdict.certain).toBe(false);
     });
 
+    describe('with a media server that reads music', () => {
+        const identity = { resolve: async () => ({ id: 'u1', name: 'Someone' }), hasDefaultUser: true } as unknown as IdentityResolver;
+        const MBID = '056e4f3e-d505-4dad-8ec1-d04f521cbb56';
+        const server = (music: () => Promise<IndexInput[]>): ServiceAdapter =>
+            stub('jellyfin', {
+                listUserLibrary: async () => [],
+                listUserMusic: music,
+                getScanState: async () => ({ service: 'jellyfin', lastCompleted: '2026-08-05T02:00:00Z' })
+            });
+
+        it('does not say the server cannot see an artist when its music read failed', async () => {
+            const onDisk = {
+                service: 'lidarr',
+                kind: 'artist',
+                id: '1',
+                title: '<<untrusted:lidarr.title>>Daft Punk<</untrusted>>',
+                monitored: true,
+                hasFile: true,
+                ids: { mbid: MBID }
+            };
+            const adapters = [
+                Object.assign(lidarr(), { listLibrary: async () => [], getMediaDetails: async () => onDisk }),
+                server(async () => {
+                    throw new ServiceError('Unreachable', 'jellyfin', 'connection refused');
+                })
+            ];
+            const d = await buildDiagnose({ adapters, library: new LibraryLoader(adapters, identity) }, { service: 'lidarr', id: '1' });
+
+            expect(d.steps.find(s => s.stage === 'library')?.status).toBe('unknown');
+            expect(d.verdict.stage).not.toBe('library');
+            expect(d.verdict.certain).toBe(false);
+            expect(JSON.stringify(d.verdict.next_steps ?? [])).not.toContain('trigger_scan');
+        });
+
+        it('diagnoses the Lidarr artist when a server-only artist ranks ahead of it', async () => {
+            // No MusicBrainz id on the server's side, so the two do not join.
+            const lidarrSide: IndexInput = {
+                kind: 'artist',
+                title: '<<untrusted:lidarr.title>>Daft Punk Experience<</untrusted>>',
+                ids: { mbid: MBID },
+                acquisition: { service: 'lidarr', id: '1', monitored: true, hasFile: false }
+            };
+            const serverSide: IndexInput = {
+                kind: 'artist',
+                title: '<<untrusted:jellyfin.title>>Daft Punk<</untrusted>>',
+                ids: {},
+                playback: { user: 'Someone', itemId: 'j1' }
+            };
+            const adapters = [Object.assign(lidarr(), { listLibrary: async () => [lidarrSide] }), server(async () => [serverSide])];
+            const d = await buildDiagnose({ adapters, library: new LibraryLoader(adapters, identity) }, { query: 'daft punk' });
+
+            expect(d.resolved?.title).toContain('Daft Punk Experience');
+            expect(d.steps.find(s => s.stage === 'managed')?.status).toBe('ok');
+        });
+    });
+
     it('reads only artist queues and download clients for an artist', async () => {
         const read: string[] = [];
         const queue = (id: string) => async () => {
@@ -333,6 +390,7 @@ describe('diagnose', () => {
         await collectEvidence({ adapters, library: new LibraryLoader(adapters, undefined) }, { query: 'daft punk' });
         expect(read).toEqual(['sabnzbd']);
     });
+
     it('names the parameters when given neither', async () => {
         await expect(buildDiagnose(deps(), {})).rejects.toThrow(/query.*service.*id/i);
     });
