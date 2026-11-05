@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.63.0](https://github.com/bardesss/arr-mcp/compare/v1.62.0...v1.63.0) (2026-11-05)
+
+
+### Features
+
+* keep the config UI signed in while it is used and across restarts ([#472](https://github.com/bardesss/arr-mcp/issues/472)) ([40ed6a6](https://github.com/bardesss/arr-mcp/commit/40ed6a6c98246a8aca59f5ae6632590c58e45e61))
+* receive and store webhook events ([#474](https://github.com/bardesss/arr-mcp/issues/474)) ([22158ef](https://github.com/bardesss/arr-mcp/commit/22158ef2a62ffe7add11c3a6c7bfcd640551fad4))
+* surface webhook events in get_history, diagnose and the Logs page ([#475](https://github.com/bardesss/arr-mcp/issues/475)) ([26ea295](https://github.com/bardesss/arr-mcp/commit/26ea295a77bddf9a9ea0d49c378cccd23ab4ca6c))
+
 ## [1.62.0](https://github.com/bardesss/arr-mcp/compare/v1.61.0...v1.62.0) (2026-11-05)
 
 
