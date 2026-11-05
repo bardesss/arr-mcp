@@ -13,6 +13,7 @@ import {
     hasQueue,
     hasRequests,
     hasScanState,
+    hasSubtitles,
     hasUserLibrary,
     type HistoryEntry,
     type IndexerRejection,
@@ -303,7 +304,18 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
             ? Promise.resolve(undefined)
             : probe(scanAdapter.id, degraded, () => scanAdapter.getScanState());
 
-    const [requests, queueGathered, rejections, scan] = await Promise.all([requestsP, queueP, rejectionsP, scanP]);
+    // Every wanted subtitle in the library, unpaged, so only for an item with a
+    // file. Probed like the rest: a Bazarr that is down is `undefined` and
+    // `degraded`, and the stage reports unknown without costing the verdict.
+    const subtitlesAdapter = deps.adapters.find(hasSubtitles);
+    const subtitlesP: Promise<Evidence['subtitles']> =
+        subtitlesAdapter === undefined || item?.acquisition?.hasFile !== true
+            ? Promise.resolve(null) // without a file the stage skips before it reads this
+            : probe(subtitlesAdapter.id, degraded, () => subtitlesAdapter.getMissingSubtitles()).then(gaps =>
+                  gaps === undefined ? undefined : { gaps, service: subtitlesAdapter.id }
+              );
+
+    const [requests, queueGathered, rejections, scan, subtitles] = await Promise.all([requestsP, queueP, rejectionsP, scanP, subtitlesP]);
 
     let queue: Evidence['queue'];
     if (queueGathered === undefined) {
@@ -430,6 +442,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
         ...(mediaServer === undefined ? {} : { mediaServer }),
         scanCapable: scanAdapter !== undefined,
         cleanuparr,
+        subtitles,
         ...(history === undefined ? {} : { history }),
         cleanup,
         ...(cleanupAdapter !== undefined && cleanup === undefined ? { cleanupUnread: cleanupAdapter.id } : {}),

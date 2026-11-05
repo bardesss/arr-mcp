@@ -7,7 +7,7 @@ import { nextStepLine } from '../src/core/nextStep.ts';
 import { permissionSourceFrom } from '../src/core/permissions.ts';
 import type { IdentityResolver } from '../src/core/identity.ts';
 import type { FilmOrSeries, IndexInput } from '../src/core/resolver.ts';
-import type { CleanupStatus, QueueItem, ServiceAdapter } from '../src/services/types.ts';
+import type { CleanupStatus, QueueItem, ServiceAdapter, SubtitleGap } from '../src/services/types.ts';
 import { buildChain as chain, type Diagnosis, type Evidence } from '../src/tools/diagnose/chain.ts';
 import { registerDiagnose } from '../src/tools/diagnose/index.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
@@ -18,6 +18,7 @@ import { instanceArgs } from '../src/tools/resolveInstance.ts';
 import { registerSetMonitoring } from '../src/tools/setMonitoring.ts';
 import { registerTriggerScan } from '../src/tools/triggerScan.ts';
 import { registerTriggerSearch } from '../src/tools/triggerSearch.ts';
+import { registerTriggerSubtitleSearch } from '../src/tools/triggerSubtitleSearch.ts';
 import { registerUpdateMedia } from '../src/tools/updateMedia.ts';
 import { registerWriteTool, type WriteContext } from '../src/tools/write.ts';
 import { instancesOf } from './helpers/instances.ts';
@@ -66,6 +67,7 @@ const healthy = (over: EvidenceOverride = {}): Evidence => {
         mediaServer: 'jellyfin',
         scanCapable: true,
         cleanuparr: null,
+        subtitles: null,
         libraryDegraded: [],
         degraded: [],
         ...over
@@ -112,6 +114,14 @@ const REMOVED: CleanupStatus = {
 
 /** Diagnosing by title, the common case; the by-id form passes `false` itself. */
 const buildChain = (query: string, ev: Evidence, byWords = true): Diagnosis => chain(query, ev, byWords);
+
+const MISSING_DUTCH: SubtitleGap = {
+    service: 'bazarr',
+    kind: 'movie',
+    id: 5,
+    title: fenceText('Some Film', { service: 'bazarr', field: 'title' }),
+    missing: [{ name: 'Dutch', code2: 'nl', forced: false, hearingImpaired: false }]
+};
 
 type Case = { name: string; diagnosis: () => Diagnosis; on?: 'hd'; expected: { tool: string; arguments: Record<string, unknown> } | undefined };
 
@@ -236,6 +246,18 @@ const CASES: Case[] = [
         on: 'hd',
         diagnosis: () => buildChain(QUERY, healthy({ item: item({ acquisition: { service: 'whisparr', id: '5', monitored: false, hasFile: false } }) })),
         expected: { tool: 'set_monitoring', arguments: { service: 'whisparr', id: '5', monitored: true } }
+    },
+    {
+        name: 'playable, missing subtitles',
+        diagnosis: () =>
+            buildChain(
+                QUERY,
+                healthy({
+                    item: item({ presence: 'both', acquisition: { service: 'radarr', id: '5', monitored: true, hasFile: true } }),
+                    subtitles: { gaps: [MISSING_DUTCH], service: 'bazarr' }
+                })
+            ),
+        expected: { tool: 'trigger_subtitle_search', arguments: { service: 'bazarr', kind: 'movie', id: '5', language: 'nl' } }
     },
     {
         name: 'still downloading',
@@ -479,7 +501,8 @@ const world = (): ServiceAdapter[] => [
         describeRequestMedia: async () => undefined,
         deleteRequest: async () => undefined
     }),
-    jellyfinStub()
+    jellyfinStub(),
+    stub('bazarr', { getMissingSubtitles: async () => [MISSING_DUTCH], getProviders: async () => [], triggerSubtitleSearch: async () => undefined })
 ];
 
 /** A stack with a named Radarr instance, Whisparr and a usenet client: the step shapes `world` has no adapter for. */
@@ -509,6 +532,7 @@ function realTools(adapters: ServiceAdapter[] = world(), identity: Partial<Ident
     const { server, tools } = fakeServer();
     const write = writeContext();
     registerTriggerSearch(server, write, adapters);
+    registerTriggerSubtitleSearch(server, write, adapters);
     registerTriggerScan(server, write, adapters);
     registerSetMonitoring(server, write, adapters);
     registerUpdateMedia(server, write, adapters);
