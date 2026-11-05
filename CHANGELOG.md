@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.57.0](https://github.com/bardesss/arr-mcp/compare/v1.56.0...v1.57.0) (2026-11-05)
+
+
+### Features
+
+* named management API keys with read and admin tiers ([#451](https://github.com/bardesss/arr-mcp/issues/451)) ([38770a1](https://github.com/bardesss/arr-mcp/commit/38770a1e31d0924b6843560592612f61ad124609))
+
+
+### Bug Fixes
+
+* say that trigger_scan refreshes metadata on the *arrs ([#453](https://github.com/bardesss/arr-mcp/issues/453)) ([c471d4a](https://github.com/bardesss/arr-mcp/commit/c471d4a04e448da3bc0cda8f42b72695b0c402c7)), closes [#450](https://github.com/bardesss/arr-mcp/issues/450)
+
 ## [1.56.0](https://github.com/bardesss/arr-mcp/compare/v1.55.0...v1.56.0) (2026-11-03)
 
 
