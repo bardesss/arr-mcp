@@ -111,10 +111,13 @@ get stricter review than ordinary refactors. Since 1.0, a renamed tool keeps its
 old name as an alias for one full minor, with the deprecation stated in the
 tool's own description text.
 
-Tool count is a hard constraint, not a preference: model accuracy degrades
-measurably past roughly 40 tools. There are 40 now, so the ceiling is reached
-and `test/app.test.ts` fails on a forty-first. New capability extends an
-existing tool.
+Tool count has a ceiling because model accuracy degrades measurably past roughly
+40 tools. There are 40 now, so the ceiling is reached and `test/app.test.ts`
+fails on a forty-first. New capability extends an existing tool wherever it can.
+Where it can't, a new tool is possible, but raising the ceiling needs a good
+reason: the pull request says why no existing tool can carry the capability and
+why it is worth the cost to every other tool, and it raises the limit in that
+test as a visible part of the change.
 
 **Prompt names are public surface too.** A client that has surfaced
 `whats_wrong` as a slash command breaks when it is renamed, exactly as a saved
@@ -189,8 +192,8 @@ things it is trying to establish, and the checks that stand in for them:
   questions live between services. A service that cannot make `diagnose` smarter
   is a second product, not a seventeenth adapter.
 - **It adds no new tool**, or the pull request argues explicitly for the one it
-  adds. The forty-tool ceiling above is a hard constraint, it is already
-  reached, and a new service does not get to spend it quietly.
+  adds. The forty-tool ceiling above is already reached, so that argument has
+  to justify raising it, and a new service does not get to raise it quietly.
 - **It introduces no new risk class.** Code execution, credential brokering, or
   outbound requests to hosts the operator never configured are changes to the
   security model. Those get decided on their own terms, never as a side effect
