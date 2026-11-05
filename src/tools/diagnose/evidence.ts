@@ -2,8 +2,7 @@ import type { ServiceId } from '../../config/schema.ts';
 import { ServiceError } from '../../core/errors.ts';
 import { gather, type Gathered } from '../../core/gather.ts';
 import { logger } from '../../core/logger.ts';
-import { artistRefusal, filmOrSeriesMatch, isFilmOrSeries, type ExternalIds, type FilmOrSeries } from '../../core/resolver.ts';
-import { unfenced } from '../../core/titleMatch.ts';
+import { isFilmOrSeries, type ExternalIds, type LibraryKind, type MergedItem } from '../../core/resolver.ts';
 import {
     hasCleanup,
     hasCleanuparr,
@@ -87,7 +86,7 @@ async function resolveItem(
     target: DiagnoseTarget,
     degraded: string[],
     libraryDegraded: string[]
-): Promise<FilmOrSeries | undefined> {
+): Promise<MergedItem | undefined> {
     // the gate lives in the loader's identity resolver, and a refusal
     // propagates out of diagnose rather than becoming a degraded stage — this
     // call is deliberately not wrapped in `probe`.
@@ -141,13 +140,6 @@ async function resolveItem(
             return undefined;
         }
 
-        // An artist reached by id, which the film chain has no answer for.
-        // Without this the artist row failed `isFilmOrSeries` and fell through
-        // to a synthesised `kind: 'movie'` item carrying Lidarr acquisition,
-        // which the chain then checked against Radarr's queue and indexers.
-        // The query path refuses the same case in `filmOrSeriesMatch`.
-        if (details.kind === 'artist') throw artistRefusal(unfenced(details.title));
-
         // Jellyfin's MediaDetails never says 'movie' or 'series' — it is the
         // one adapter that reports `kind: 'item'` for everything. Passing a
         // *wrong* kind to `find` is worse than passing none: it restricts the
@@ -155,9 +147,11 @@ async function resolveItem(
         // the other (a series id would scan only movie keys and never find
         // it). `undefined` here makes `find` scan both, exactly as it already
         // does for every caller that does not know the kind in advance.
-        const searchKind = details.kind === 'movie' || details.kind === 'series' ? details.kind : undefined;
+        const searchKind = details.kind === 'movie' || details.kind === 'series' || details.kind === 'artist' ? details.kind : undefined;
         const joined = snapshot.index.find(details.ids, searchKind);
-        if (joined !== undefined && isFilmOrSeries(joined)) return joined;
+        // An unknown kind scans every keyspace, and music is not what a media
+        // server's `item` was asked about; a known `artist` only finds artists.
+        if (joined !== undefined && (searchKind === 'artist' || isFilmOrSeries(joined))) return joined;
 
         // The id was valid and the index does not contain it — a real state,
         // not an error: the service holding it may be the one that failed to
@@ -168,7 +162,8 @@ async function resolveItem(
         // too: for Radarr/Sonarr it is the kind they actually reported. A
         // media-server 'item' leaves no signal to disambiguate, and this chain
         // reads films and series, so 'movie' is the least-committal default.
-        // An 'artist' never reaches here — it was refused above.
+        // An artist keeps its kind, so the chain reads Lidarr's queue for it and
+        // not Radarr's.
         //
         // A media server contributes watch state and never acquisition, so it
         // is the capability that decides the shape, not the service's name —
@@ -199,7 +194,11 @@ async function resolveItem(
         };
     }
 
-    return target.query === undefined ? undefined : filmOrSeriesMatch(snapshot.index.search(target.query), target.query);
+    if (target.query === undefined) return undefined;
+    // A film or series wins over an artist of the same name, which the ranking
+    // alone cannot promise; the artist is diagnosed when nothing else matched.
+    const hits = snapshot.index.search(target.query);
+    return hits.find(isFilmOrSeries) ?? hits[0];
 }
 
 /**
@@ -241,14 +240,19 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
     // Structural, not `instanceof SeerrAdapter`: every other capability here
     // (queue, indexers, scan, media details) is checked the same way, and
     // duck-typing is what lets a test double stand in for the real adapter.
-    const seerr = deps.adapters.find(hasRequests);
-    // Only queues of films or series, and the download clients' (no
-    // `queueKind`): `diagnose` refuses an artist (`artistRefusal` above), so a
-    // Lidarr row could only match by title, and an unreachable Lidarr would
-    // leave a film's queue "only partially known".
+    //
+    // Not read for an artist: Seerr does not handle music, and an outage there
+    // must not make a Lidarr diagnosis uncertain.
+    const isArtist = item?.kind === 'artist';
+    const seerr = isArtist ? undefined : deps.adapters.find(hasRequests);
+    // The queues of the item's own kind, and the download clients' (no
+    // `queueKind`). A film is not read against Lidarr's queue, so an unreachable
+    // Lidarr cannot leave its queue "only partially known"; an artist is read
+    // against Lidarr's alone, since a Radarr row could only match it by title.
+    const queueKinds: readonly LibraryKind[] = isArtist ? ['artist'] : ['movie', 'series'];
     const queueAdapters = deps.adapters
         .filter(hasQueue)
-        .filter(a => a.queueKind === undefined || a.queueKind === 'movie' || a.queueKind === 'series');
+        .filter(a => a.queueKind === undefined || queueKinds.includes(a.queueKind));
     const queueConfigured = queueAdapters.length > 0;
     const prowlarrs = deps.adapters.filter(hasIndexers);
     const prowlarrConfigured = prowlarrs.length > 0;
@@ -305,11 +309,12 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
             : probe(scanAdapter.id, degraded, () => scanAdapter.getScanState());
 
     // Every wanted subtitle in the library, unpaged, so only for an item with a
-    // file. Probed like the rest: a Bazarr that is down is `undefined` and
-    // `degraded`, and the stage reports unknown without costing the verdict.
+    // file, and never an artist: Bazarr has no music. Probed like the rest: a
+    // Bazarr that is down is `undefined` and `degraded`, and the stage reports
+    // unknown without costing the verdict.
     const subtitlesAdapter = deps.adapters.find(hasSubtitles);
     const subtitlesP: Promise<Evidence['subtitles']> =
-        subtitlesAdapter === undefined || item?.acquisition?.hasFile !== true
+        subtitlesAdapter === undefined || isArtist || item?.acquisition?.hasFile !== true
             ? Promise.resolve(null) // without a file the stage skips before it reads this
             : probe(subtitlesAdapter.id, degraded, () => subtitlesAdapter.getMissingSubtitles()).then(gaps =>
                   gaps === undefined ? undefined : { gaps, service: subtitlesAdapter.id }
@@ -416,8 +421,10 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
     let cleanup: Evidence['cleanup'] = null;
     let lastImportAt: string | undefined;
     const tmdb = item?.ids.tmdb;
-    if (cleanupAdapter !== undefined && item !== undefined && tmdb !== undefined) {
-        cleanup = await probe(cleanupAdapter.id, degraded, () => cleanupAdapter.readCleanupStatus(item.kind, tmdb));
+    // Never for an artist: a cleanup service finds a title by its TMDB id, which music has none of.
+    const cleanupKind = item?.kind === 'artist' ? undefined : item?.kind;
+    if (cleanupAdapter !== undefined && item !== undefined && cleanupKind !== undefined && tmdb !== undefined) {
+        cleanup = await probe(cleanupAdapter.id, degraded, () => cleanupAdapter.readCleanupStatus(cleanupKind, tmdb));
         // A removal only explains a missing file if nothing was imported after it.
         if ((cleanup?.removals.length ?? 0) > 0 && item.acquisition?.hasFile !== true) {
             lastImportAt = (await readArrHistory())
