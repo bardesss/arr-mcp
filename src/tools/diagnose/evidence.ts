@@ -25,6 +25,8 @@ import {
 import type { LibraryLoader } from '../library.ts';
 import type { IdentityResolver } from '../../core/identity.ts';
 import { mayManageRequest } from '../manageRequests.ts';
+import type { WebhookEvents } from '../../core/webhookEvents.ts';
+import { EVENT_LOG_SOURCE } from '../getHistory.ts';
 import { resolveInstance } from '../resolveInstance.ts';
 import { queueRowsFor, releaseMentions, type Evidence } from './chain.ts';
 
@@ -37,6 +39,8 @@ export type DiagnoseDeps = {
     primaryMediaServer?: string;
     /** Decides whether an approval can be offered; without it none is. */
     seerrIdentity?: IdentityResolver;
+    /** What Radarr and Sonarr reported, for a title they no longer have. */
+    events?: WebhookEvents;
 };
 
 const RECENT_REJECTION_LIMIT = 50;
@@ -55,15 +59,22 @@ const rowsOf = (read: HistoryEntry[] | { items: HistoryEntry[] } | undefined): H
  * by release name. An item removed from Radarr whose torrent Cleanuparr then
  * cleaned is in no library, and its history is the only record left of what
  * happened. Bounded like the item path: the same 30 days and 500 Cleanuparr
- * events, and one history read per client.
+ * events, and one history read per client. The event log gets the same 30 days
+ * and no row cap: its own limit bounds it, and it holds what the *arr has lost.
  */
-async function historyByName(adapters: readonly ServiceAdapter[], query: string, degraded: string[]): Promise<HistoryEntry[] | undefined> {
+async function historyByName(
+    adapters: readonly ServiceAdapter[],
+    events: WebhookEvents | undefined,
+    query: string,
+    degraded: string[]
+): Promise<HistoryEntry[] | undefined> {
     const sources = adapters.filter(hasHistory).filter(a => hasCleanuparr(a) || CLIENT_SERVICES.includes(a.type));
-    if (sources.length === 0) return undefined;
+    if (sources.length === 0 && events === undefined) return undefined;
     const since = new Date(Date.now() - CLEANUPARR_WINDOW_MS).toISOString();
-    const reads = await Promise.all(
-        sources.map(a => probe(a.id, degraded, () => a.readHistory(hasCleanuparr(a) ? { since, want: CLEANUPARR_EVENT_LIMIT } : { since })))
-    );
+    const reads = await Promise.all([
+        ...sources.map(a => probe(a.id, degraded, () => a.readHistory(hasCleanuparr(a) ? { since, want: CLEANUPARR_EVENT_LIMIT } : { since }))),
+        ...(events === undefined ? [] : [probe(EVENT_LOG_SOURCE, degraded, async () => events.read({ since }))])
+    ]);
     return reads.flatMap(rowsOf).filter(r => releaseMentions(r.title, query));
 }
 
@@ -445,7 +456,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
         }
     }
 
-    const history = item === undefined && target.query !== undefined ? await historyByName(deps.adapters, target.query, degraded) : undefined;
+    const history = item === undefined && target.query !== undefined ? await historyByName(deps.adapters, deps.events, target.query, degraded) : undefined;
     // null: no cleanup service, or no TMDB id to find the title by. undefined: could not look.
     let cleanup: Evidence['cleanup'] = null;
     let lastImportAt: string | undefined;

@@ -5,8 +5,17 @@ import type { ServiceId } from '../config/schema.ts';
 import { ServiceIdSchema } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { gather } from '../core/gather.ts';
+import { logger } from '../core/logger.ts';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, windowEnd, type DetailLevel } from '../core/shape.ts';
+import type { WebhookEvents } from '../core/webhookEvents.ts';
+import { WEBHOOK_SERVICES } from '../services/arrWebhook.ts';
 import { HISTORY_EVENT_TYPES, hasHistory, type HistoryCapable, type HistoryEntry, type HistoryEventType, type ServiceAdapter } from '../services/types.ts';
+
+/** The stored events, and whether more are being recorded. A log turned off keeps what it has. */
+export type EventLog = { store: WebhookEvents; enabled: boolean };
+
+/** Named in `degraded` when the store cannot be read. No `:`, so it costs a verdict its certainty. */
+export const EVENT_LOG_SOURCE = 'event-log';
 
 export type GetHistoryResult = {
     items: HistoryEntry[];
@@ -71,14 +80,15 @@ const project = (h: HistoryEntry, detail: DetailLevel): HistoryEntry => {
  * `trigger_search` want.
  */
 export function historyLine(entry: HistoryEntry): string {
-    const facts: string[] = [entry.event];
+    const facts: string[] = [entry.event === 'unknown' && entry.rawEvent !== undefined ? entry.rawEvent : entry.event];
     if (entry.mediaId !== undefined) facts.push(`${entry.service}:${entry.mediaId}`);
     else facts.push(entry.service);
     if (entry.quality !== undefined && entry.quality !== '') facts.push(entry.quality);
     if (entry.indexer !== undefined && entry.indexer !== '') facts.push(entry.indexer);
 
     if (entry.strikeCount !== undefined) facts.push(`${entry.strikeCount} strike${entry.strikeCount === 1 ? '' : 's'}`);
-    if (entry.reason !== undefined && (entry.service === 'cleanuparr' || entry.service === 'reclaimerr')) facts.push(entry.reason);
+    // `externalIds` only a stored event has, and its reason is why a file or title went.
+    if (entry.reason !== undefined && (entry.service === 'cleanuparr' || entry.service === 'reclaimerr' || entry.externalIds !== undefined)) facts.push(entry.reason);
     if (entry.oldCategory !== undefined || entry.newCategory !== undefined) facts.push(`${entry.oldCategory ?? '(none)'} → ${entry.newCategory ?? '(none)'}`);
     if (entry.downloadClient !== undefined) facts.push(`on ${entry.downloadClient}`);
     if (entry.clientRemoved === true) facts.push('on a client since deleted from Cleanuparr');
@@ -163,16 +173,96 @@ export async function buildGetHistory(
     return { ...shaped, items: shaped.items.map(i => project(i, opts.detail)), degraded, counts };
 }
 
-export function registerGetHistory(server: McpServer, adapters: readonly ServiceAdapter[]): void {
+type EventLogOptions = {
+    service?: ServiceId;
+    instance?: string;
+    id?: string;
+    eventType?: HistoryEventType;
+    since?: string;
+    detail: DetailLevel;
+    limit: number;
+    offset?: number;
+};
+
+/**
+ * `source: "webhooks"`: what Radarr and Sonarr reported, read from arr-mcp's own
+ * store. A separate read from `buildGetHistory`, because a stored row and the
+ * service's own row for the same grab would otherwise both appear.
+ *
+ * `service` goes through `resolveInstance`, so a stack with two Radarrs is asked
+ * which, as the default source asks. That means events from an instance since
+ * removed from the config are reachable only without a `service`.
+ */
+export function readEventLog(
+    adapters: readonly ServiceAdapter[],
+    log: EventLog | undefined,
+    opts: EventLogOptions
+): GetHistoryResult & { note?: string } {
+    if (opts.id !== undefined && opts.service === undefined) {
+        throw new Error('`id` scopes to one movie or series; pass `service` (and `instance` if it is named) to say which.');
+    }
+    if (opts.service !== undefined && !Object.hasOwn(WEBHOOK_SERVICES, opts.service)) {
+        // Refused, because an empty list would read as "nothing happened to it".
+        throw new ServiceError('NotFound', opts.service, `${opts.service} does not send events to arr-mcp`, {
+            remedy: 'The event log only holds what Radarr and Sonarr report. Leave `source` out to read the service\'s own history.'
+        });
+    }
+    const service = opts.service === undefined ? undefined : resolveInstance(adapters, opts.service, opts.instance).id;
+    const query = {
+        ...(service === undefined ? {} : { service }),
+        ...(opts.id === undefined ? {} : { id: opts.id }),
+        ...(opts.eventType === undefined ? {} : { eventType: opts.eventType }),
+        ...(opts.since === undefined ? {} : { since: opts.since })
+    };
+    const OFF = 'The library event log is off, so nothing new is being recorded. Turn it on under Library event log on the Configuration page.';
+    const empty = { ...applyLimit<HistoryEntry>([], opts.limit, opts.offset, 0), counts: {} };
+
+    if (log === undefined) return { ...empty, degraded: [], note: OFF };
+
+    let read: ReturnType<WebhookEvents['read']>;
+    let counts: Record<string, number>;
+    let anything: number;
+    try {
+        read = log.store.read({ ...query, want: windowEnd(opts.limit, opts.offset) });
+        counts = log.store.counts(query);
+        anything = log.store.read({ want: 0 }).total;
+    } catch (err) {
+        logger.warn({ err }, 'could not read the library event log');
+        return { ...empty, degraded: [EVENT_LOG_SOURCE] };
+    }
+
+    const shaped = applyLimit(read.items, opts.limit, opts.offset, read.total);
+    const note = !log.enabled
+        ? OFF
+        : anything === 0
+          ? 'The library event log is on, but nothing has arrived. Each Radarr and Sonarr instance needs a webhook connection, and the Configuration page has the details.'
+          : undefined;
+    return {
+        ...shaped,
+        // `rawEvent` stays on an unknown event, because it is the only thing saying what it was.
+        items: shaped.items.map(i => ({ ...project(i, opts.detail), ...(i.event === 'unknown' && i.rawEvent !== undefined ? { rawEvent: i.rawEvent } : {}) })),
+        degraded: [],
+        counts,
+        ...(note === undefined ? {} : { note })
+    };
+}
+
+export function registerGetHistory(server: McpServer, adapters: readonly ServiceAdapter[], eventLog?: EventLog): void {
     server.registerTool(
         'get_history',
         {
             title: 'Download history',
             annotations: READ_ONLY,
             description:
-                'What happened to a grab after it left the queue: grabbed, imported, failed or deleted, merged across Radarr, Sonarr, Lidarr, SABnzbd, NZBGet and Bazarr and normalised to one vocabulary — the upstream spelling survives as `rawEvent`. SABnzbd\'s and NZBGet\'s own rows are the layer below the *arrs: when Radarr says it grabbed something and nothing arrived, the download client\'s failure message is here. Bazarr contributes `subtitle` rows — a downloaded subtitle is not an import, and calling it one would put it in the answer to "what did Radarr import last night". `trigger_search` only ever hands back a command handle with no way to follow up, and `get_queue` cannot see anything that has already failed or finished; this is how you answer "why did last night\'s download fail". A failure carries the download client\'s own message, fenced and in whatever language it runs in. Cleanuparr contributes what it did to downloads: `strike` (stalled, slow, failed import), `recovered` (strikes reset), `recategorised` (with `oldCategory` and `newCategory`), `stopped` and `deleted` rows, with its reason, strike count and `downloadClient` (or `clientRemoved` when that client was since deleted); `dryRun` marks what it only logged. `downloadId` links a row to the *arr grab it belongs to. Reclaimerr contributes its cleanup lifecycle: `scheduled` (a rule matched and a deletion date was set), `deleted` (deleted or moved; `rawEvent` says which), `protected`, and `unknown` for a cancel, postpone or timer reset, each with the rule and reason in `reason`; its rows cannot be scoped by `id`. An NZBGet row carries `downloadId`, the id `trigger_scan`\'s `postprocess` takes to rerun its post-processing. Shelfmark contributes finished books as `imported`, failed ones as `failed` and cancelled ones as `stopped`; `id` is what `retry_download` takes, `at` is usually when the book was queued rather than when it ended, and its rows cannot be scoped by `id`. Pass `service` and `id` to scope to one movie, series or Lidarr artist.',
-            outputSchema: PagedOutputSchema,
+                'What happened to a grab after it left the queue: grabbed, imported, failed or deleted, merged across Radarr, Sonarr, Lidarr, SABnzbd, NZBGet and Bazarr and normalised to one vocabulary — the upstream spelling survives as `rawEvent`. SABnzbd\'s and NZBGet\'s own rows are the layer below the *arrs: when Radarr says it grabbed something and nothing arrived, the download client\'s failure message is here. Bazarr contributes `subtitle` rows — a downloaded subtitle is not an import, and calling it one would put it in the answer to "what did Radarr import last night". `trigger_search` only ever hands back a command handle with no way to follow up, and `get_queue` cannot see anything that has already failed or finished; this is how you answer "why did last night\'s download fail". A failure carries the download client\'s own message, fenced and in whatever language it runs in. Cleanuparr contributes what it did to downloads: `strike` (stalled, slow, failed import), `recovered` (strikes reset), `recategorised` (with `oldCategory` and `newCategory`), `stopped` and `deleted` rows, with its reason, strike count and `downloadClient` (or `clientRemoved` when that client was since deleted); `dryRun` marks what it only logged. `downloadId` links a row to the *arr grab it belongs to. Reclaimerr contributes its cleanup lifecycle: `scheduled` (a rule matched and a deletion date was set), `deleted` (deleted or moved; `rawEvent` says which), `protected`, and `unknown` for a cancel, postpone or timer reset, each with the rule and reason in `reason`; its rows cannot be scoped by `id`. An NZBGet row carries `downloadId`, the id `trigger_scan`\'s `postprocess` takes to rerun its post-processing. Shelfmark contributes finished books as `imported`, failed ones as `failed` and cancelled ones as `stopped`; `id` is what `retry_download` takes, `at` is usually when the book was queued rather than when it ended, and its rows cannot be scoped by `id`. Pass `service` and `id` to scope to one movie, series or Lidarr artist. Deleting a title also deletes its history from Radarr and Sonarr, so `source: "webhooks"` reads what they reported to arr-mcp instead: the only record that survives a delete, kept when the library event log is on. A stored row carries `externalIds`, which stay the same when a title is re-added under a new id. Its `at` is when arr-mcp received it, and `unknown` rows keep their `rawEvent`.',
+            outputSchema: PagedOutputSchema.extend({
+                note: z.string().optional().describe('Why a `source: "webhooks"` answer may be empty: the log is off, or nothing has arrived.')
+            }),
             inputSchema: toolInput({
+                source: z
+                    .enum(['services', 'webhooks'])
+                    .default('services')
+                    .describe('`services` asks each service for its own history. `webhooks` reads the events Radarr and Sonarr reported to arr-mcp, which survive deleting a title.'),
                 service: ServiceIdSchema.optional().describe('Scope to one service. Required alongside `id`.'),
                 instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
                 id: z.string().min(1).optional().describe('One movie, series or Lidarr artist id — `acquisition.id` on a get_library or get_media_details record. Requires `service`.'),
@@ -183,8 +273,8 @@ export function registerGetHistory(server: McpServer, adapters: readonly Service
                 offset: OffsetSchema
             })
         },
-        async ({ service, instance, id, event_type, since, detail, limit, offset }) => {
-            const result = await buildGetHistory(adapters, {
+        async ({ source, service, instance, id, event_type, since, detail, limit, offset }) => {
+            const opts = {
                 ...(service === undefined ? {} : { service }),
                 ...(instance === undefined ? {} : { instance }),
                 ...(id === undefined ? {} : { id }),
@@ -193,7 +283,17 @@ export function registerGetHistory(server: McpServer, adapters: readonly Service
                 detail,
                 limit,
                 offset
-            });
+            };
+            if (source === 'webhooks') {
+                const stored = readEventLog(adapters, eventLog, opts);
+                const said =
+                    `${stored.returned} of ${stored.total} stored event${stored.total === 1 ? '' : 's'}` +
+                    (stored.degraded.length > 0 ? '; the event log could not be read.' : '.') +
+                    (stored.note === undefined ? '' : ` ${stored.note}`);
+                return { content: [{ type: 'text', text: listText(said, stored.items, historyLine) }], structuredContent: stored };
+            }
+
+            const result = await buildGetHistory(adapters, opts);
             const summary =
                 `${result.returned} of ${result.total} history entr${result.returned === 1 ? 'y' : 'ies'}` +
                 (result.degraded.length > 0 ? `; ${result.degraded.join(', ')} unreachable.` : '.');
