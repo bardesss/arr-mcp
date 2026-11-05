@@ -206,8 +206,9 @@ async function resolveItem(
     const best = hits.reduce((lowest, h) => Math.min(lowest, rankOf(h)), RANK_NONE);
     const top = hits.filter(h => rankOf(h) === best);
     // Then one Lidarr knows: a server-only artist with no MusicBrainz id can rank
-    // ahead of it when the names differ in case or article.
-    return top.find(isFilmOrSeries) ?? hits.find(h => h.acquisition !== undefined) ?? hits[0];
+    // ahead of it when the names differ in case or article. Artists only: a film
+    // wins by ranking best, never by being the one an *arr holds.
+    return top.find(isFilmOrSeries) ?? hits.find(h => !isFilmOrSeries(h) && h.acquisition !== undefined) ?? hits[0];
 }
 
 /**

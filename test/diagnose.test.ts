@@ -373,6 +373,41 @@ describe('diagnose', () => {
             expect(d.resolved?.title).toContain('Daft Punk Experience');
             expect(d.steps.find(s => s.stage === 'managed')?.status).toBe('ok');
         });
+
+        it('keeps a server-only artist with the exact name over a Radarr-held film that merely contains it', async () => {
+            const serverSide: IndexInput = {
+                kind: 'artist',
+                title: '<<untrusted:jellyfin.title>>Daft Punk<</untrusted>>',
+                ids: {},
+                playback: { user: 'Someone', itemId: 'j1' }
+            };
+            const film: IndexInput = { ...FILM, title: '<<untrusted:radarr.title>>The Story of Daft Punk<</untrusted>>', ids: { tmdb: 77 } };
+            // A Lidarr with no artists, because the server's music is only read when one is configured.
+            const adapters = [
+                stub('radarr', { listLibrary: async () => [film], getQueue: async () => [] }),
+                Object.assign(lidarr(), { listLibrary: async () => [] }),
+                server(async () => [serverSide])
+            ];
+            const d = await buildDiagnose({ adapters, library: new LibraryLoader(adapters, identity) }, { query: 'daft punk' });
+
+            expect(d.resolved?.kind).toBe('artist');
+        });
+
+        it('still resolves a query that only films match, with the year', async () => {
+            const alien = (title: string, year: number, tmdb: number): IndexInput => ({
+                ...FILM,
+                title: `<<untrusted:radarr.title>>${title}<</untrusted>>`,
+                year,
+                ids: { tmdb }
+            });
+            const adapters = [
+                stub('radarr', { listLibrary: async () => [alien('Alien', 1979, 348), alien('Alien', 2024, 945961)], getQueue: async () => [] }),
+                server(async () => [])
+            ];
+            const deps = { adapters, library: new LibraryLoader(adapters, identity) };
+            expect((await buildDiagnose(deps, { query: 'Alien (1979)' })).resolved).toMatchObject({ kind: 'movie', year: 1979 });
+            expect((await buildDiagnose(deps, { query: 'alien' })).resolved?.kind).toBe('movie');
+        });
     });
 
     it('reads only artist queues and download clients for an artist', async () => {
