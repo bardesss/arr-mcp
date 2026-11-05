@@ -147,6 +147,7 @@ function cappedTools(tools: ToolContext, oauth: OAuthConfig | undefined, authInf
 
 export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogStore; events?: WebhookEvents }) {
     const { runtime, audit, logs } = opts;
+    const events = opts.events ?? WebhookEvents.ephemeral();
 
     // The factory runs once per request, so every call gets a fresh McpServer.
     // This is what keeps the transport stateless — do not
@@ -162,7 +163,10 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
         // this factory already runs once per request — the same property
         // that lets a config reload take effect without a restart. Every
         // request arrives with authInfo; one without is capped to reads.
-        const tools = cappedTools(snapshot.tools, snapshot.config.auth.oauth, ctx.authInfo);
+        const tools: ToolContext = {
+            ...cappedTools(snapshot.tools, snapshot.config.auth.oauth, ctx.authInfo),
+            eventLog: { store: events, enabled: snapshot.config.webhooks?.enabled === true }
+        };
         const server = new McpServer(
             { name: NAME, version: VERSION },
             {
@@ -362,8 +366,8 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
     }
 
     // After the Host allowlist, like everything else but /healthz.
-    registerWebhookRoutes(app, { runtime, events: opts.events ?? WebhookEvents.ephemeral() });
-    registerWebRoutes(app, { runtime, audit, logs, version: VERSION });
+    registerWebhookRoutes(app, { runtime, events });
+    registerWebRoutes(app, { runtime, audit, logs, events, version: VERSION });
     registerApiRoutes(app, { runtime, logs, version: VERSION });
 
     app.all('/mcp', async (c: Context) => {

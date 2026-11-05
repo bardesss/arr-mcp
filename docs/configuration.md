@@ -815,6 +815,10 @@ Off by default. Radarr and Sonarr lose a title's history when it's deleted, so
 this keeps what they report in `events.db`, next to `audit.db`, where a delete
 can't reach it. Without it nothing listens: `/webhooks/*` answers 404.
 
+You can read the events under **Library events** on the Logs page, with
+[`get_history`](tools.md#get_history-and-the-event-log) and `source: "webhooks"`,
+and through `diagnose` when a title is no longer in your library.
+
 Turn it on under **Library event log** on the Configuration page, which writes a
 generated secret and takes effect at once. Then add a connection in each Radarr
 and Sonarr instance, under Settings, Connect, Webhook:

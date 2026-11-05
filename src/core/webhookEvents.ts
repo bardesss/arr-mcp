@@ -72,20 +72,8 @@ export class WebhookEvents {
     }
 
     /** Newest first, in the shape `HistoryCapable` reads: `total` counts every match. */
-    read(query: HistoryQuery & { service?: string }): Window<HistoryEntry> {
-        const where: string[] = [];
-        const args: string[] = [];
-        const filter = (clause: string, value: string | undefined) => {
-            if (value === undefined) return;
-            where.push(clause);
-            args.push(value);
-        };
-        filter('service = ?', query.service);
-        filter('media_id = ?', query.id);
-        filter('event = ?', query.eventType);
-        filter('at >= ?', normalisedSince(query.since));
-
-        const condition = where.length === 0 ? '' : `WHERE ${where.join(' AND ')}`;
+    read(query: EventQuery): Window<HistoryEntry> {
+        const { condition, args } = whereOf(query);
         const { total } = this.#db.prepare(`SELECT COUNT(*) AS total FROM webhook_events ${condition}`).get(...args) as { total: number };
         const limit = query.want === undefined ? '' : `LIMIT ${Math.max(0, Math.floor(query.want))}`;
         const rows = this.#db
@@ -95,9 +83,35 @@ export class WebhookEvents {
         return { total, items: rows.map(row => ({ ...(JSON.parse(row.entry) as WebhookEntry), id: String(row.id) })) };
     }
 
+    /** How many rows match per service, for `get_history`'s `counts`. */
+    counts(query: EventQuery): Record<string, number> {
+        const { condition, args } = whereOf(query);
+        const rows = this.#db
+            .prepare(`SELECT service, COUNT(*) AS n FROM webhook_events ${condition} GROUP BY service`)
+            .all(...args) as { service: string; n: number }[];
+        return Object.fromEntries(rows.map(row => [row.service, row.n]));
+    }
+
     close(): void {
         this.#db.close();
     }
+}
+
+type EventQuery = HistoryQuery & { service?: string };
+
+function whereOf(query: EventQuery): { condition: string; args: string[] } {
+    const where: string[] = [];
+    const args: string[] = [];
+    const filter = (clause: string, value: string | undefined) => {
+        if (value === undefined) return;
+        where.push(clause);
+        args.push(value);
+    };
+    filter('service = ?', query.service);
+    filter('media_id = ?', query.id);
+    filter('event = ?', query.eventType);
+    filter('at >= ?', normalisedSince(query.since));
+    return { condition: where.length === 0 ? '' : `WHERE ${where.join(' AND ')}`, args };
 }
 
 /** Rows hold `toISOString()` text, so a date compares only in that same form. */
