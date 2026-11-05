@@ -327,7 +327,7 @@ describe('trigger_scan on lidarr', () => {
 
         const { structuredContent } = await call({ service: 'lidarr', id: '3', dry_run: true });
 
-        expect(plain(structuredContent.summary)).toBe('Ask lidarr to re-read Some Artist from disk.');
+        expect(plain(structuredContent.summary)).toBe('Ask lidarr to refresh Some Artist and rescan its folder.');
         expect(sent.map(s => `${s.method} ${s.path}`)).toEqual(['GET /api/v1/artist/3']);
     });
 

@@ -350,6 +350,25 @@ describe('trigger_scan on a single item', () => {
         expect(structuredContent.summary).toContain('Heat');
     });
 
+    it('says a scan of one item refreshes its metadata, not only the disk', async () => {
+        const h = radarrHarness();
+        const { structuredContent } = await h.call({ service: 'radarr', id: '15', dry_run: true });
+        expect(structuredContent.summary).toMatch(/refresh/i);
+        expect(structuredContent.effects.join(' ')).toMatch(/metadata from the provider/i);
+    });
+
+    it('says a library scan on an *arr refreshes metadata too', async () => {
+        const h = radarrHarness();
+        const { structuredContent } = await h.call({ service: 'radarr', dry_run: true });
+        expect(structuredContent.effects.join(' ')).toMatch(/metadata of every item/i);
+    });
+
+    it('does not promise a metadata refresh from a media server scan', async () => {
+        const h = harness();
+        const { structuredContent } = await h.call({ service: 'jellyfin', dry_run: true });
+        expect(structuredContent.effects.join(' ')).not.toMatch(/metadata/i);
+    });
+
     it('says a rename moves files on disk', async () => {
         const h = radarrHarness();
         const { structuredContent } = await h.call({
