@@ -18,7 +18,8 @@ export const ServiceIdSchema = z.enum([
     'profilarr',
     'cleanuparr',
     'reclaimerr',
-    'dispatcharr'
+    'dispatcharr',
+    'shelfmark'
 ]);
 export type ServiceId = z.infer<typeof ServiceIdSchema>;
 
@@ -63,6 +64,13 @@ export const READ_ONLY_SERVICES: ReadonlySet<string> = new Set(['cleanuparr', 'r
  */
 const ReadOnlyKeyedServiceSchema = KeyedServiceSchema.transform(c => ({ ...c, permissions: { safe_write: false, destructive: false } }));
 export type KeyedServiceConfig = z.infer<typeof KeyedServiceSchema>;
+
+/**
+ * Shelfmark, whose default is no authentication at all: every route is open and
+ * there is no key to give.
+ */
+const OptionalKeyServiceSchema = z.strictObject({ ...BaseServiceShape, api_key: ApiKeyShape.api_key.optional() });
+export type OptionalKeyServiceConfig = z.infer<typeof OptionalKeyServiceSchema>;
 
 /**
  * Which services may appear more than once.
@@ -262,6 +270,7 @@ export type ConfigByService = {
     cleanuparr: For<'cleanuparr', KeyedServiceConfig>;
     reclaimerr: For<'reclaimerr', KeyedServiceConfig>;
     dispatcharr: For<'dispatcharr', KeyedServiceConfig>;
+    shelfmark: For<'shelfmark', OptionalKeyServiceConfig>;
 };
 
 /**
@@ -316,7 +325,9 @@ const ServicesSchema = z
         // Single only: one Reclaimerr owns one library's cleanup rules.
         reclaimerr: singleOnly(ReadOnlyKeyedServiceSchema).optional(),
         // Single only: one Dispatcharr serves one set of playlists.
-        dispatcharr: singleOnly(ReadOnlyKeyedServiceSchema).optional()
+        dispatcharr: singleOnly(ReadOnlyKeyedServiceSchema).optional(),
+        // Single only: one Shelfmark holds one download queue and one set of requests.
+        shelfmark: singleOnly(OptionalKeyServiceSchema).optional()
     })
     .superRefine((services, ctx) => {
         /**

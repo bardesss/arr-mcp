@@ -958,6 +958,17 @@ const CONTRACTS: Record<string, ServiceContract> = {
             },
             { path: '/api/epg/sources/', fixture: 'test/fixtures/dispatcharr/epg-sources.json', fields: ['id', 'name', 'is_active', 'status', 'last_message'] }
         ]
+    },
+    // No published spec. These fixtures are a live v1.6.1's answers, with no authentication set up.
+    shelfmark: {
+        dependencies: [
+            { path: '/api/health', fixture: 'test/fixtures/shelfmark/health.json', fields: ['coordinator', 'status'] },
+            { path: '/api/stats', fixture: 'test/fixtures/shelfmark/stats.json', fields: ['errors.failed_7d'] },
+            { path: '/api/config', fixture: 'test/fixtures/shelfmark/config.json', fields: ['release_version'] },
+            { path: '/api/metadata/search', fixture: 'test/fixtures/shelfmark/metadata-search.json', fields: ['books.provider', 'books.provider_id', 'books.title', 'books.authors', 'books.publish_year'] },
+            { path: '/api/releases', fixture: 'test/fixtures/shelfmark/releases.json', fields: ['releases.source', 'releases.source_id', 'releases.title', 'releases.indexer', 'releases.format', 'releases.protocol', 'releases.size_bytes'] },
+            { path: '/api/releases/download', fixture: 'test/fixtures/shelfmark/download.json', fields: ['status'] }
+        ]
     }
 };
 

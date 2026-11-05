@@ -1,7 +1,7 @@
 import type { Hono } from 'hono';
 import * as z from 'zod/v4';
 import { setImdb, setMcpEndpoint, setPrimaryMediaServer } from '../config/edits.ts';
-import { addCandidate, addToken, ConfigEditError, NO_API_KEY, removeInstance, revokeToken, updateInstance } from '../config/mutate.ts';
+import { addCandidate, addToken, API_KEY_OPTIONAL, ConfigEditError, NO_API_KEY, removeInstance, revokeToken, updateInstance } from '../config/mutate.ts';
 import { logger } from '../core/logger.ts';
 import { managementKeyField } from '../core/managementKey.ts';
 import { buildAdapters } from '../services/registry.ts';
@@ -176,7 +176,7 @@ export function registerWrites(app: Hono, deps: ApiDeps): void {
         const body = parseWith(c, NewAppBody, raw);
         if (body instanceof Response) return body;
         const name = body.name ?? undefined;
-        if (!NO_API_KEY.has(body.type) && (body.apiKey === undefined || body.apiKey.trim() === '')) {
+        if (!NO_API_KEY.has(body.type) && !API_KEY_OPTIONAL.has(body.type) && (body.apiKey === undefined || body.apiKey.trim() === '')) {
             return apiError(c, 400, `apiKey is required for ${body.type}.`);
         }
 

@@ -1,0 +1,134 @@
+{
+  "releases": [
+    {
+      "content_type": "📘 book (non-fiction)",
+      "download_url": "",
+      "extra": {
+        "downloads": 596
+      },
+      "format": "pdf",
+      "indexer": "Direct Download",
+      "info_url": "",
+      "language": "en",
+      "peers": null,
+      "protocol": "http",
+      "seeders": null,
+      "size": "42.2MB",
+      "size_bytes": null,
+      "source": "direct_download",
+      "source_id": "5a9feb7cc918dc18a98a1730c00a8760",
+      "title": "The Dutch Republic: Its Rise, Greatness, and Fall 1477-1806 (Oxford History of Early Modern Europe)"
+    },
+    {
+      "content_type": "📘 book (non-fiction)",
+      "download_url": "",
+      "extra": {
+        "downloads": 752
+      },
+      "format": "pdf",
+      "indexer": "Direct Download",
+      "info_url": "",
+      "language": "en",
+      "peers": null,
+      "protocol": "http",
+      "seeders": null,
+      "size": "18.0MB",
+      "size_bytes": null,
+      "source": "direct_download",
+      "source_id": "65c916ff996425e569d6959848aa2872",
+      "title": "The Dutch Republic : Its Rise, Greatness, and Fall 1477-1806 (Oxford History of Early Modern Europe)"
+    },
+    {
+      "content_type": "📗 book (unknown)",
+      "download_url": "",
+      "extra": {
+        "downloads": 275
+      },
+      "format": "pdf",
+      "indexer": "Direct Download",
+      "info_url": "",
+      "language": "en",
+      "peers": null,
+      "protocol": "http",
+      "seeders": null,
+      "size": "105.1MB",
+      "size_bytes": null,
+      "source": "direct_download",
+      "source_id": "a5893770aa1615bf0d98c99c63a9340b",
+      "title": "The Dutch Republic : Its Rise, Greatness, and Fall 1477-1806 (Oxford History of Early Modern Europe)"
+    },
+    {
+      "content_type": "book",
+      "download_url": "",
+      "extra": {},
+      "format": null,
+      "indexer": "Example Indexer 1",
+      "info_url": "",
+      "language": null,
+      "peers": null,
+      "protocol": "nzb",
+      "seeders": null,
+      "size": "18.5 MB",
+      "size_bytes": 19390485,
+      "source": "prowlarr",
+      "source_id": "example-1",
+      "title": "Arthur der Weduwen, Andrew Pettegree - The Dutch Republic and the Birth of Modern Advertising (pdf)"
+    },
+    {
+      "content_type": "book",
+      "download_url": "",
+      "extra": {},
+      "format": null,
+      "indexer": "Example Indexer 2",
+      "info_url": "",
+      "language": null,
+      "peers": null,
+      "protocol": "nzb",
+      "seeders": null,
+      "size": "19.1 MB",
+      "size_bytes": 20012640,
+      "source": "prowlarr",
+      "source_id": "example-2",
+      "title": "Arthur der Weduwen, Andrew Pettegree - The Dutch Republic and the Birth of Modern Advertising"
+    },
+    {
+      "content_type": "book",
+      "download_url": "",
+      "extra": {},
+      "format": null,
+      "indexer": "Example Indexer 3",
+      "info_url": "",
+      "language": null,
+      "peers": null,
+      "protocol": "nzb",
+      "seeders": null,
+      "size": "31.2 MB",
+      "size_bytes": 32707036,
+      "source": "prowlarr",
+      "source_id": "example-3",
+      "title": "Andrew Pettegree, Arthur der Weduwen - The Bookshop of the World- Making and Trading Books in the Dutch Golden Age"
+    },
+    {
+      "content_type": "ebook",
+      "download_url": "",
+      "extra": {},
+      "format": "pdf",
+      "indexer": "Example Indexer 1",
+      "info_url": "",
+      "language": null,
+      "peers": null,
+      "protocol": "soulseek",
+      "seeders": null,
+      "size": "38.9 MB",
+      "size_bytes": 40777485,
+      "source": "slskd",
+      "source_id": "example-1",
+      "title": "76. Christiane Berkvens-Stevelinck, Jonathan Irvine Israel, G. H. M. Posthumus Meyjes - The Emergence of Tolerance in the Dutch Republic (Studies in the History of Christian Traditions, Book 76) [Retail WM]"
+    }
+  ],
+  "sources_searched": [
+    "direct_download",
+    "prowlarr",
+    "slskd"
+  ]
+}

@@ -195,7 +195,7 @@ describe('retry_download', () => {
 
     it('refuses a service that cannot retry', async () => {
         const h = harness();
-        await expect(h.call({ service: 'radarr', id: '5' })).rejects.toThrow(/sabnzbd and nzbget/);
+        await expect(h.call({ service: 'radarr', id: '5' })).rejects.toThrow(/sabnzbd, nzbget and shelfmark/);
     });
 
     it('a different password needs a new preview', async () => {
