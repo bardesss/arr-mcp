@@ -165,6 +165,11 @@ describe('POST /app', () => {
         expect(await noKey.json()).toEqual({ message: 'apiKey is required for bazarr.' });
     });
 
+    it('needs no apiKey for Shelfmark, which has no authentication until it is set up', async () => {
+        const response = await api('/app', json('POST', { type: 'shelfmark', url: 'http://shelfmark:8084' }));
+        expect(response.status).toBe(201);
+    });
+
     it('needs no apiKey for a download client that signs in', async () => {
         expect((await api('/app', json('POST', { type: 'qbittorrent', url: 'http://qbit:8080' }))).status).toBe(201);
     });

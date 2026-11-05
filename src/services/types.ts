@@ -647,8 +647,10 @@ export interface QueueCapable {
      * What the queue's rows are downloads of, set by the *arrs. Absent on a
      * download client, whose rows can be anything. Lets a caller that only
      * wants films and series leave Lidarr's queue out without naming it.
+     * `book` is Shelfmark's: books are in no library this server indexes, so it
+     * is not a `LibraryKind`.
      */
-    readonly queueKind?: LibraryKind;
+    readonly queueKind?: LibraryKind | 'book';
 }
 
 export const hasQueue = (a: ServiceAdapter): a is ServiceAdapter & QueueCapable =>
@@ -802,6 +804,8 @@ export type ReleaseCandidate = {
     /** Torrent-only. Absent on a usenet release, which has no seeder count —
      *  never defaulted to 0, which would read as "nobody has this". */
     seeders?: number;
+    /** Shelfmark's, where the source counts them. Absent when it does not, never defaulted to 0. */
+    downloads?: number;
     age?: number;
     quality?: string;
     language?: string;
@@ -834,6 +838,9 @@ export interface ReleaseGrabCapable {
     /** `guid` and `indexerId` come from a `ReleaseCandidate` verbatim; nothing
      *  else identifies a release. */
     grabRelease(opts: { guid: string; indexerId: number }): Promise<void>;
+    /** `findReleases` ranks its list, so `grab_release` may take the first when no
+     *  release is named. Shelfmark's, by downloads. An *arr's list is unranked. */
+    readonly grabsFirstReleaseByDefault?: boolean;
 }
 
 export const hasReleaseGrab = (a: ServiceAdapter): a is ServiceAdapter & ReleaseGrabCapable =>
@@ -1106,7 +1113,7 @@ export type SearchHit = {
     service: string;
     source: SearchSource;
     /** `artist` is Lidarr's, and it appears for `source: 'library'` only. */
-    kind: 'movie' | 'series' | 'item' | 'release' | 'artist';
+    kind: 'movie' | 'series' | 'item' | 'release' | 'artist' | 'book';
     id: string;
     title: string;
     year?: number;
@@ -1328,7 +1335,7 @@ export const hasPostProcess = (a: ServiceAdapter): a is ServiceAdapter & PostPro
     typeof (a as Partial<PostProcessCapable>).runPostProcess === 'function';
 
 /** What a retry will send, decided by the preview and bound into the token. */
-export type RetryMethod = 'unlock' | 'retry' | 'postprocess' | 'retry-failed';
+export type RetryMethod = 'unlock' | 'retry' | 'postprocess' | 'retry-failed' | 'requeue';
 
 /** The failed job as the preview saw it. It is resolved again on confirm, so
  *  a job that changed in between is refused instead of sent the wrong write;
@@ -1586,6 +1593,9 @@ export interface QueueRemoveCapable {
     removeQueueItem(id: string, opts: RemoveQueueOptions): Promise<void>;
     /** True when this service can actually honour `blocklist`. */
     readonly supportsBlocklist: boolean;
+    /** Shelfmark's: it can only stop what is queued or running, so a failed row has nothing to
+     *  remove and `removeFromClient: false` cannot be honoured. `remove_queue_item` refuses both. */
+    readonly cancelOnly?: boolean;
 }
 
 export const hasQueueRemove = (a: ServiceAdapter): a is ServiceAdapter & QueueRemoveCapable =>

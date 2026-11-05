@@ -20,6 +20,7 @@ import {
     embyToken,
     plexToken,
     qbittorrentSession,
+    noAuth,
     queryParamKey,
     transmissionRpc,
     type AuthStrategy
@@ -39,6 +40,7 @@ import {
     LIDARR_STATIC_PATHS
 } from './lib/lidarrCapture.ts';
 import { anonymiseDispatcharr } from './lib/dispatcharrCapture.ts';
+import { anonymiseShelfmarkConfig, anonymiseShelfmarkHistory, anonymiseShelfmarkReleases, anonymiseShelfmarkSearch, anonymiseShelfmarkSnapshot, anonymiseShelfmarkStatus } from './lib/shelfmarkCapture.ts';
 import {
     anonymiseImages,
     anonymisePlexAccounts,
@@ -1178,6 +1180,29 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         // Scrubbed in lib/dispatcharrCapture.ts: these bodies hold IPTV provider credentials.
         { name: 'm3u-accounts', path: '/api/m3u/accounts/', anonymise: anonymiseDispatcharr },
         { name: 'epg-sources', path: '/api/epg/sources/', anonymise: anonymiseDispatcharr }
+    ],
+    // Capture with no key or the admin key: the read-only key reaches only /api/stats.
+    shelfmark: [
+        { name: 'health', path: '/api/health' },
+        { name: 'stats', path: '/api/stats' },
+        // Scrubbed in lib/shelfmarkCapture.ts: these bodies hold hosts, paths, user names and indexer keys.
+        { name: 'config', path: '/api/config', anonymise: anonymiseShelfmarkConfig },
+        { name: 'status', path: '/api/status', anonymise: anonymiseShelfmarkStatus },
+        { name: 'activity-snapshot', path: '/api/activity/snapshot', anonymise: anonymiseShelfmarkSnapshot },
+        { name: 'activity-history', path: '/api/activity/history?limit=500', anonymise: anonymiseShelfmarkHistory },
+        { name: 'metadata-search', path: '/api/metadata/search?query=the%20dutch%20republic%20israel&limit=3', anonymise: anonymiseShelfmarkSearch },
+        {
+            name: 'releases',
+            // Every source Shelfmark has is searched, which outlasts the default timeout.
+            fetch: async (http, captured) => {
+                const books = (captured.get('metadata-search') as { books?: { provider?: string; provider_id?: string }[] } | undefined)?.books;
+                const book = books?.[0];
+                if (book?.provider === undefined || book.provider_id === undefined) return undefined;
+                const path = `/api/releases?${new URLSearchParams({ provider: book.provider, book_id: book.provider_id, content_type: 'ebook' }).toString()}`;
+                return { path, body: await http.get<unknown>(path, { timeoutMs: 120_000, retry: false }) };
+            },
+            anonymise: anonymiseShelfmarkReleases
+        }
     ]
 };
 
@@ -1307,6 +1332,7 @@ function strategyFor(id: ServiceId, service: NonNullable<Config['services'][Serv
             ...(q.password === undefined ? {} : { password: q.password })
         });
     }
+    if (id === 'shelfmark' && (service as { api_key?: string }).api_key === undefined) return noAuth;
     const key = (service as { api_key: string }).api_key;
     if (id === 'jellyfin') return embyToken(key);
     if (id === 'plex') return plexToken(key);
@@ -1338,8 +1364,9 @@ const { config } = await loadConfig(configDir, { persist: false });
 const secrets = secretsOf(config);
 const hosts = hostsOf(config);
 
-if (secrets.length === 0) {
-    console.error(`No credentials found in ${configDir}/config.yaml — nothing to capture.`);
+// Hosts rather than secrets: a Shelfmark with no authentication has none to hold.
+if (hosts.length === 0) {
+    console.error(`No services found in ${configDir}/config.yaml — nothing to capture.`);
     process.exit(1);
 }
 

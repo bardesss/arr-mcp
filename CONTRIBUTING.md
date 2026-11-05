@@ -316,6 +316,20 @@ small, shaped change, and a service in no slot at all is a different product.
   one new tool against the ceiling, and its writes change what every client of
   that playlist sees.
 
+**Beside the chain — the books the same stack downloads**
+
+- **Shelfmark — audiobooks.** The adapter has shipped by maintainer
+  waiver on 2026-11-05. It missed two checks above: only the maintainer asked for
+  it, and a book never passes through the chain `diagnose` walks, so `diagnose`
+  leaves its queue out. It also comes close to the risk-class check:
+  `SHELFMARK_API_KEY` is root-equivalent, and an install with authentication on
+  needs it to find or grab a book; with no authentication set up there is no key to
+  store, and the read-only key still gives `stack_health`. The waiver rests on one
+  thing: Shelfmark is a downloader run beside the rest of the stack, and finding,
+  grabbing, cancelling and retrying a book fit the existing `lookup_media`,
+  `get_releases`, `grab_release`, `remove_queue_item`, `retry_download` and
+  `get_history` with no new tool. Ebooks only so far.
+
 Named and **not** accepted, so nobody spends a weekend finding out:
 
 - **Readarr.** Archived upstream. Nothing to track.
@@ -350,7 +364,11 @@ was tested by its requester on a live 0.6.5 in [#402](../../issues/402), and
 those captures are its fixtures; it has not yet deleted anything there, so its
 deletion events are tested on a captured candidate inside a constructed event.
 Dispatcharr is the exception: the maintainer runs it, and its fixtures were
-captured from a live 0.33.0. Whichever you take on, your testing is the only
+captured from a live 0.33.0. So is Shelfmark, captured from a live v1.6.1 with no
+authentication, including a real grab; it has had no failed download there, and
+its key handling and its stopped and failed paths are tested on captured bodies
+with those answers constructed.
+Whichever you take on, your testing is the only
 testing it gets before it ships.
 
 Concretely: run it against your own live instance, say in the pull request what
@@ -402,7 +420,7 @@ around them.
    be configured, because `get_library`'s `presence` join needs a single
    counterparty.
 6. **Decide whether it can be configured twice**, and say so in the adapter.
-   Eight of the seventeen services can be, so this is the common case rather than the
+   Eight of the eighteen services can be, so this is the common case rather than the
    exotic one — but copying `jellyfin.ts` gets you `readonly id: string =
    '<type>'`, which is the *single*-instance shape. That is the safe default
    (a service that simply cannot be configured twice, rather than two adapters
@@ -464,7 +482,7 @@ implementations learned this the hard way: Radarr runs three tasks whose names
 contain "Refresh", only one of which is the library scan, and Jellyfin's task
 names are localised — a Dutch server returns "Mediabibliotheek scannen".
 
-Seven of the seventeen services publish no usable OpenAPI spec, and two more
+Eight of the eighteen services publish no usable OpenAPI spec, and two more
 have hand-written adapters anyway, so the adapter
 interface is defined by us and must stay hand-writable. Code generation is an
 implementation detail inside an adapter, never the shape of the contract.
@@ -566,7 +584,9 @@ and are hand-written against recorded fixtures. Reclaimerr publishes OpenAPI at
 hand-written too, against fixtures captured from 0.6.5. Dispatcharr serves
 OpenAPI only at runtime (`/api/swagger.json`), with nothing committed for the
 nightly check to fetch, so its adapter is hand-written against fixtures
-captured from 0.33.0 and pins the minor it was written for instead.
+captured from 0.33.0 and pins the minor it was written for instead. Shelfmark
+publishes no spec, only a written API page, and is hand-written against fixtures
+captured from v1.6.1.
 
 ### The nightly compatibility check
 

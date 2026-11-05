@@ -21,7 +21,7 @@ const findAdapter = (adapters: readonly ServiceAdapter[], service: ServiceId, in
     const adapter = resolveInstance(adapters, service, instance);
     if (!hasQueueRemove(adapter)) {
         throw new ServiceError('NotFound', service, `${service} has no download queue`, {
-            remedy: 'Queue items live on radarr, sonarr, whisparr, lidarr, sabnzbd, nzbget, transmission and qbittorrent. Take a service and id from get_queue.'
+            remedy: 'Queue items live on radarr, sonarr, whisparr, lidarr, sabnzbd, nzbget, transmission, qbittorrent and shelfmark. Take a service and id from get_queue.'
         });
     }
     return adapter;
@@ -36,9 +36,9 @@ export function registerRemoveQueueItem(
         name: 'remove_queue_item',
         title: 'Remove a queue item',
         description:
-            'Removes one item from a download queue — the stuck-at-0%, wrong-release, or stalled download. Works against Radarr, Sonarr, Whisparr, Lidarr, SABnzbd, NZBGet, Transmission and qBittorrent; take `service` and `id` from get_queue. Optionally deletes partial data and, on Radarr, Sonarr, Whisparr and Lidarr only, blocklists the release so it will not be grabbed again. On NZBGet, keeping the data parks the download in its history rather than deleting it. Previews by default — call again with the returned `confirm` token to actually remove it.',
+            'Removes one item from a download queue — the stuck-at-0%, wrong-release, or stalled download. Works against Radarr, Sonarr, Whisparr, Lidarr, SABnzbd, NZBGet, Transmission, qBittorrent and Shelfmark; take `service` and `id` from get_queue. Optionally deletes partial data and, on Radarr, Sonarr, Whisparr and Lidarr only, blocklists the release so it will not be grabbed again. On NZBGet, keeping the data parks the download in its history rather than deleting it. On Shelfmark it cancels a queued or running book, and a failed one has nothing to cancel. Previews by default — call again with the returned `confirm` token to actually remove it.',
         inputSchema: z.object({
-            service: ServiceIdSchema.describe('radarr, sonarr, whisparr, lidarr, sabnzbd, nzbget, transmission or qbittorrent.'),
+            service: ServiceIdSchema.describe('radarr, sonarr, whisparr, lidarr, sabnzbd, nzbget, transmission, qbittorrent or shelfmark.'),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             id: z.string().min(1).describe('The queue item id, exactly as get_queue reported it.'),
             remove_from_client: z
@@ -78,10 +78,23 @@ export function registerRemoveQueueItem(
                 });
             }
 
+            if (adapter.cancelOnly === true && !remove_from_client) {
+                throw new ServiceError('NotFound', adapter.id, `${adapter.id} can only cancel a download outright, so it cannot leave the download alone`, {
+                    remedy: 'Leave out `remove_from_client` to cancel it.'
+                });
+            }
+            if (adapter.cancelOnly === true && item.status === 'error') {
+                throw new ServiceError('NotFound', adapter.id, 'that download has already failed, so there is nothing to cancel', {
+                    remedy: 'retry_download tries it again. To clear the row, dismiss it in Shelfmark.'
+                });
+            }
+
             const effects = [
-                remove_from_client
-                    ? `Removes it from ${adapter.id} and deletes any partial data already downloaded.`
-                    : `Removes it from ${adapter.id}'s queue but leaves the download itself alone.`
+                adapter.cancelOnly === true
+                    ? `Cancels it in ${adapter.id}, stopping it if it has started. get_history then shows it as stopped, and retry_download can usually start it again.`
+                    : remove_from_client
+                      ? `Removes it from ${adapter.id} and deletes any partial data already downloaded.`
+                      : `Removes it from ${adapter.id}'s queue but leaves the download itself alone.`
             ];
 
             // Accepting a flag that silently does nothing is how someone

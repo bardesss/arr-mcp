@@ -65,7 +65,7 @@ sign-in page is untouched — that one *should* be filled.
 <img src="../screenshots/config-dark.png" alt="The configuration page: one card per configured instance, with its URL, credentials and per-instance write permissions" width="880">
 
 **The page starts empty.** It shows a card per instance you have actually
-configured, in alphabetical order, and an **Add a service** button — not seventeen
+configured, in alphabetical order, and an **Add a service** button — not eighteen
 blank fieldsets for services you do not run. Each card saves on its own, so
 editing your 4K Radarr cannot disturb the HD one. A card saves its whole form,
 so if the config changed after the page loaded (through the management API,
@@ -75,7 +75,7 @@ your edit again on the fresh copy.
 **Add a service** opens a dialog that only asks what the service needs: pick
 Transmission or qBittorrent and it wants a username and password, pick NZBGet and
 it wants the control username and password (left blank when NZBGet has none), pick
-anything else and it wants an API key. Cleanuparr's, Reclaimerr's and Dispatcharr's cards have no write
+anything else and it wants an API key (left blank for a Shelfmark with no authentication). Cleanuparr's, Reclaimerr's and Dispatcharr's cards have no write
 checkboxes, only a note that arr-mcp never writes to them. Services that can only have one instance drop out of the list
 once you have that one, so the picker never offers a choice that ends in
 "already configured". With scripting off the dialog is the plain form it used to

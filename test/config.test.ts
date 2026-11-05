@@ -508,6 +508,29 @@ describe('cleanuparr', () => {
     });
 });
 
+describe('shelfmark', () => {
+    it('needs no api_key, since Shelfmark has no authentication until it is set up', () => {
+        const parsed = ConfigSchema.parse({ auth: AUTH, services: { shelfmark: { url: 'http://shelfmark:8084' } } });
+        expect(parsed.services.shelfmark?.api_key).toBeUndefined();
+    });
+
+    it('still refuses an empty api_key', () => {
+        expect(() => ConfigSchema.parse({ auth: AUTH, services: { shelfmark: { url: 'http://shelfmark:8084', api_key: '' } } })).toThrow(/api_key must not be empty/);
+    });
+
+    it('keeps the write permission it is given, since grab_release queues books', () => {
+        const parsed = ConfigSchema.parse({
+            auth: AUTH,
+            services: { shelfmark: { url: 'http://shelfmark:8084', permissions: { safe_write: true } } }
+        });
+        expect(parsed.services.shelfmark?.permissions.safe_write).toBe(true);
+    });
+
+    it('refuses a list of shelfmark instances', () => {
+        expect(() => ConfigSchema.parse({ auth: AUTH, services: { shelfmark: [{ url: 'http://a:8084' }] } })).toThrow(/single block/);
+    });
+});
+
 describe('dispatcharr', () => {
     it('reads write permissions on dispatcharr as off, since nothing writes to it', () => {
         const parsed = ConfigSchema.parse({

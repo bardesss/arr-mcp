@@ -62,10 +62,12 @@ confirm rather than after.
 `remove_queue_item` is destructive rather than safe because it deletes partial
 data, and because `blocklist: true` durably teaches Radarr, Sonarr, Whisparr or
 Lidarr to refuse a release — which is hard to notice and hard to undo months
-later, when the same film mysteriously never grabs. SABnzbd, NZBGet and the
-torrent clients have no blocklist of their own; ask for one there and the
+later, when the same film mysteriously never grabs. SABnzbd, NZBGet, the torrent
+clients and Shelfmark have no blocklist of their own; ask for one there and the
 preview tells you it is being ignored rather than silently accepting a flag that
-does nothing.
+does nothing. On Shelfmark it only cancels a queued or running book, and refuses
+`remove_from_client: false`, because Shelfmark has no way to leave the download
+alone.
 
 `fix_metadata` is destructive without deleting a single byte, which is the
 clearest statement of where the line actually is: it replaces every metadata
@@ -108,6 +110,10 @@ but it is the one write where the thing being downloaded was chosen by the
 caller rather than found by an indexer. The link is validated before it reaches
 the client, and the preview says that nothing vetted it and nothing will import
 it.
+
+`grab_release` on Shelfmark can pick the file itself: given only a book id, it takes
+the most-downloaded release. It is safe for the same reason, and the preview names
+the file before anything is queued.
 
 `manage_indexer` is the one tool whose tier depends on its arguments. Disabling
 an indexer is undone by enabling it, so it needs only `safe_write`; deleting it

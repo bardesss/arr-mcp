@@ -30,7 +30,7 @@ const findRetryAdapter = (adapters: readonly ServiceAdapter[], service: ServiceI
     const adapter = resolveInstance(adapters, service, instance);
     if (!hasRetry(adapter)) {
         throw new ServiceError('NotFound', service, `${service} cannot retry a download`, {
-            remedy: 'retry_download is for sabnzbd and nzbget.'
+            remedy: 'retry_download is for sabnzbd, nzbget and shelfmark.'
         });
     }
     return adapter;
@@ -41,7 +41,8 @@ const METHOD_TEXT: Record<RetryMethod, (client: string) => string> = {
     unlock: client => `Gives ${client} the password, so the paused encrypted job carries on downloading.`,
     retry: client => `Asks ${client} to retry the failed job: it fetches what is missing, then repairs and unpacks again.`,
     postprocess: client => `Runs ${client}'s post-processing again (repair, unpack and scripts) on the files it already has.`,
-    'retry-failed': client => `Asks ${client} to download the missing articles again, then repair and unpack.`
+    'retry-failed': client => `Asks ${client} to download the missing articles again, then repair and unpack.`,
+    requeue: client => `Puts it back at the front of ${client}'s queue to download again.`
 };
 
 /** What the *arrs said about this download, kept from the plan so the result
@@ -147,11 +148,11 @@ export function registerRetryDownload(server: McpServer, context: WriteContext, 
 
     registerWriteTool(server, context, {
         name: 'retry_download',
-        title: 'Retry a failed usenet download',
+        title: 'Retry a failed download',
         description:
-            'Retries one failed download on SABnzbd or NZBGet, the client that holds the files. It picks what to send from the job itself: a SABnzbd job paused for a password is unlocked, a failed SABnzbd job is retried, an NZBGet download with missing articles fetches them again, and one that only failed to unpack is post-processed again. Give `password` when the failure was an encrypted archive; it comes from the site the NZB came from and is never shown back. Take `id` from the get_history or get_queue row. The preview checks whether Radarr or Sonarr already grabbed a replacement, since retrying then can leave two copies. If no *arr imports the result, trigger_scan with action: "import" does. Safe tier. Previews by default — call again with the returned `confirm` token to apply it.',
+            'Retries one failed download on SABnzbd or NZBGet, the client that holds the files, or a failed or cancelled book on Shelfmark, which queues it again if Shelfmark says it can. It picks what to send from the job itself: a SABnzbd job paused for a password is unlocked, a failed SABnzbd job is retried, an NZBGet download with missing articles fetches them again, and one that only failed to unpack is post-processed again. Give `password` when the failure was an encrypted archive; it comes from the site the NZB came from and is never shown back. Take `id` from the get_history or get_queue row. The preview checks whether Radarr or Sonarr already grabbed a replacement, since retrying then can leave two copies. If no *arr imports the result, trigger_scan with action: "import" does. Safe tier. Previews by default — call again with the returned `confirm` token to apply it.',
         inputSchema: z.object({
-            service: ServiceIdSchema.describe('sabnzbd or nzbget.'),
+            service: ServiceIdSchema.describe('sabnzbd, nzbget or shelfmark.'),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             id: z.string().min(1).describe("the id on that client's get_history or get_queue row"),
             password: z.string().min(1).optional().describe('the archive password, from the site the NZB came from')
@@ -230,7 +231,8 @@ export function registerRetryDownload(server: McpServer, context: WriteContext, 
             if (r.previous_id !== undefined) lines.push(`Its id is now ${r.id}.`);
             lines.push(describeOutcome(r, r.service));
             if (view !== undefined) lines.push(...arrLines(view, r.previous_id !== undefined));
-            if (importable(r)) {
+            // No view means no *arr knows this download's id, as on Shelfmark, so no import to offer.
+            if (view !== undefined && importable(r)) {
                 lines.push(`If Radarr, Sonarr or Lidarr does not import it, trigger_scan with action: "import" and download_id: "${r.download_id}" does.`);
             }
             return lines.join(' ');

@@ -83,7 +83,9 @@ export const ICONS: Record<ServiceId, string> = {
     // A bin: rules decide what goes in it.
     reclaimerr: draw('<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="m6 6 1 14h10l1-14"/><path d="M10 11v6M14 11v6"/>'),
     // A TV: the category is live TV.
-    dispatcharr: draw('<rect x="3" y="6" width="18" height="12" rx="2"/><path d="m8 2 4 4 4-4"/>')
+    dispatcharr: draw('<rect x="3" y="6" width="18" height="12" rx="2"/><path d="m8 2 4 4 4-4"/>'),
+    // An open book: the category is books.
+    shelfmark: draw('<path d="M12 7c-2-2-5-2.5-9-2.5v14c4 0 7 .5 9 2.5 2-2 5-2.5 9-2.5v-14c-4 0-7 .5-9 2.5Z"/><path d="M12 7v14"/>')
 };
 
 /**

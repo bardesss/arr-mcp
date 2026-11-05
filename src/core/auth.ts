@@ -61,6 +61,9 @@ export function apiKeyHeader(header: string, key: string): AuthStrategy {
     };
 }
 
+/** A route or a service that takes no credential. Shelfmark's `/api/health`, and all of it until auth is set up. */
+export const noAuth: AuthStrategy = { id: 'none', apply() {} };
+
 /** HTTP Basic authentication for services that do not have a session login. */
 export function basicAuth(creds: { username?: string | undefined; password?: string | undefined }): AuthStrategy {
     return {

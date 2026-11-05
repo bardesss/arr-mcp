@@ -1,0 +1,32 @@
+{
+  "cancelled": {},
+  "complete": {},
+  "downloading": {},
+  "error": {},
+  "locating": {},
+  "queued": {},
+  "resolving": {
+    "fb73d4fd19b0da98923365cb85a03a2b": {
+      "added_time": 1793892128.5634325,
+      "author": "Jane Austen",
+      "content_type": "📕 book (fiction)",
+      "download_path": null,
+      "downloads": 1286,
+      "format": "epub",
+      "id": "fb73d4fd19b0da98923365cb85a03a2b",
+      "preview": "",
+      "priority": 0,
+      "progress": 0,
+      "request_id": null,
+      "retry_available": false,
+      "size": "24.8MB",
+      "source": "direct_download",
+      "source_display_name": "Direct Download",
+      "status": "resolving",
+      "status_message": "Trying Anna's Archive (Server #1)",
+      "title": "Pride and Prejudice",
+      "user_id": null,
+      "username": null
+    }
+  }
+}
