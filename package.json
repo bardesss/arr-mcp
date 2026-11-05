@@ -23,6 +23,7 @@
     "codegen": "node scripts/codegen.mjs",
     "icon:write": "node scripts/write-logo.ts",
     "capture": "node scripts/capture-fixtures.ts",
+    "capture:webhooks": "node scripts/capture-webhooks.ts",
     "integration": "node scripts/integration.ts",
     "multi-instance": "node scripts/multi-instance-check.ts",
     "screenshots": "node scripts/screenshots.ts"

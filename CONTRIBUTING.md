@@ -663,6 +663,25 @@ discard the filter cannot do for you: keep the file you were asked for and
 `git checkout` the rest. Issue #272 is what it looks like in practice, ten
 captured and nine discarded.
 
+### Webhook payloads
+
+An *arr sends these rather than answering a request, so they have their own script:
+
+```bash
+npm run capture:webhooks          # port 9099, or pass another
+```
+
+It prints a URL per service and a password that exists only for that run. Add a
+Webhook connection in the *arr with those, press Test, then cause the real events.
+Each event type keeps one file in `test/fixtures/webhooks/<service>/`, and a repeat
+overwrites it. Radarr, Sonarr and Lidarr only: Whisparr is refused because titles
+are kept, and on Whisparr the titles are the sensitive part.
+
+**Read every file before committing it.** Paths, release names, indexers and
+download ids are replaced by field name, so a field nobody has seen yet can get
+through. Re-adding a series you deleted may start a search and real downloads, so
+leave that option off if you don't want them.
+
 The script scrubs two different things, and the distinction matters:
 
 - **Credentials** — every configured API key and password, plus any
