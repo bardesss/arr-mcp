@@ -3,6 +3,7 @@ import { commitConfig } from '../config/commit.ts';
 import { ConfigDriftError, ConfigRejectedError, ConfigUnloadableError } from '../config/save.ts';
 import type { Config } from '../config/schema.ts';
 import { logger } from '../core/logger.ts';
+import { managementKeyField } from '../core/managementKey.ts';
 import { originOf, warnIfCredentialMove } from '../web/routes.ts';
 import { apiError, etagMatches } from './http.ts';
 import type { ApiDeps } from './index.ts';
@@ -39,6 +40,6 @@ export async function applyWrite(
         return apiError(c, 500, 'Saving config.yaml failed. The server log has the details.');
     }
 
-    logger.info({ ...originOf(c), what, ...logged() }, 'configuration saved from the management API');
+    logger.info({ ...originOf(c), ...managementKeyField(c), what, ...logged() }, 'configuration saved from the management API');
     return runtime.config;
 }

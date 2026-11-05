@@ -472,11 +472,20 @@ export function tokensNeedingRewrite(rawAuth: unknown): string[] {
     return names;
 }
 
-/** Hash only: unlike MCP tokens there is no plaintext form to hand-write. */
-const ManagementKeySchema = z.strictObject({
+/** The single key from before named keys. Normalised into a `default` admin entry on parse. */
+const LegacyManagementKeySchema = z.strictObject({
     hash: z.string().regex(/^sha256:[0-9a-f]{64}$/, 'hash must be sha256:<64 hex>'),
     created: z.iso.date()
 });
+
+/** Hash only: unlike MCP tokens there is no plaintext form to hand-write. */
+const ManagementKeySchema = z.strictObject({
+    name: InstanceNameSchema,
+    tier: z.enum(['read', 'admin']),
+    ...LegacyManagementKeySchema.shape
+});
+
+type NamedManagementKey = z.infer<typeof ManagementKeySchema>;
 
 /**
  * Named, rather than inlined into `ConfigSchema`, so `load.ts`'s salvage path
@@ -519,8 +528,10 @@ export const AuthSchema = z.strictObject({
      */
     allowed_hosts: z.array(z.string()).default([]),
     oauth: OAuthSchema.optional(),
-    /** The management API's key. Absent means the API is off. */
-    management_key: ManagementKeySchema.optional()
+    /** Pre-named-keys single key. Normalised into a `default` entry on parse. */
+    management_key: LegacyManagementKeySchema.optional(),
+    /** The management API's keys. Absent means the API is off. */
+    management_keys: z.array(ManagementKeySchema).optional()
 });
 
 export const MediaServerIdSchema = z.enum(['jellyfin', 'plex']);
@@ -547,14 +558,32 @@ export const ConfigSchema = z.object({
                     ctx.addIssue({ code: 'custom', path: ['tokens', i, 'token'], message: `token '${t.name}' must be at least ${MIN_PLAINTEXT_TOKEN} characters` });
                 }
             });
+            if (auth.management_key !== undefined && auth.management_keys !== undefined) {
+                ctx.addIssue({ code: 'custom', path: ['management_key'], message: 'cannot be set together with management_keys; move the old key into management_keys or delete it' });
+            }
+            const seenKeys = new Set<string>();
+            (auth.management_keys ?? []).forEach((k: NamedManagementKey, i: number) => {
+                const key = k.name.toLowerCase();
+                if (seenKeys.has(key)) ctx.addIssue({ code: 'custom', path: ['management_keys', i, 'name'], message: `duplicate management key name "${k.name}"` });
+                seenKeys.add(key);
+            });
         })
-        .transform(({ bearer_token, tokens, ...rest }) => ({
-            ...rest,
-            tokens: [
-                ...(bearer_token === undefined ? [] : [{ name: 'default', tier: 'destructive' as const, hash: hashToken(bearer_token) }]),
-                ...(tokens ?? []).map(({ token, hash, ...t }: RawToken) => ({ ...t, hash: hash ?? hashToken(token as string) }))
-            ]
-        })),
+        .transform(({ bearer_token, tokens, management_key, management_keys, ...rest }) => {
+            const keys: NamedManagementKey[] = [
+                ...(management_key === undefined ? [] : [{ name: 'default', tier: 'admin' as const, ...management_key }]),
+                ...(management_keys ?? [])
+            ];
+            return {
+                ...rest,
+                tokens: [
+                    ...(bearer_token === undefined ? [] : [{ name: 'default', tier: 'destructive' as const, hash: hashToken(bearer_token) }]),
+                    ...(tokens ?? []).map(({ token, hash, ...t }: RawToken) => ({ ...t, hash: hash ?? hashToken(token as string) }))
+                ],
+                // Absent rather than empty: an instance that never used the API
+                // should not gain a key older versions refuse to load.
+                ...(keys.length === 0 ? {} : { management_keys: keys })
+            };
+        }),
     services: ServicesSchema,
     /** Which media server the tools default to. Required when both are configured. */
     primary_media_server: MediaServerIdSchema.optional(),

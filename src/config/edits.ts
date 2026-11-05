@@ -1,6 +1,6 @@
 import { ConfigEditError } from './mutate.ts';
-import { MediaServerIdSchema, type Config, type MediaServerId } from './schema.ts';
-import { generateManagementKey } from '../core/managementKey.ts';
+import { ConfigSchema, MediaServerIdSchema, type Config, type MediaServerId } from './schema.ts';
+import { generateManagementKey, type ManagementKeyTier } from '../core/managementKey.ts';
 import { hashToken } from '../core/mcpTokens.ts';
 
 /**
@@ -34,16 +34,31 @@ export function setMcpEndpoint(
     return { ...config, auth: { ...config.auth, allow_token_in_url: urlToken, allowed_hosts: hosts } };
 }
 
-/** Generating again replaces the old key, which stops working on the next request. */
-export function setManagementKey(config: Config, now: Date): { config: Config; plaintext: string } {
+export function addManagementKey(
+    config: Config,
+    opts: { name: string; tier: ManagementKeyTier },
+    now: Date
+): { config: Config; plaintext: string } {
+    const existing = config.auth.management_keys ?? [];
+    if (existing.some(k => k.name.toLowerCase() === opts.name.toLowerCase())) {
+        throw new ConfigEditError(`There is already a key named "${opts.name}".`);
+    }
     const plaintext = generateManagementKey();
-    const management_key = { hash: hashToken(plaintext), created: now.toISOString().slice(0, 10) };
-    return { config: { ...config, auth: { ...config.auth, management_key } }, plaintext };
+    const key = { ...opts, hash: hashToken(plaintext), created: now.toISOString().slice(0, 10) };
+    const parsed = ConfigSchema.safeParse({ ...config, auth: { ...config.auth, management_keys: [...existing, key] } });
+    if (!parsed.success) {
+        throw new ConfigEditError('Key names must be letters, digits, dashes or underscores, starting with one.');
+    }
+    return { config: parsed.data, plaintext };
 }
 
-export function clearManagementKey(config: Config): Config {
-    const { management_key: _dropped, ...auth } = config.auth;
-    return { ...config, auth };
+/** Names are unique regardless of case, so this matches that way too. Revoking the last key turns the API off. */
+export function revokeManagementKey(config: Config, name: string): Config {
+    const { management_keys: existing = [], ...auth } = config.auth;
+    const same = (k: { name: string }) => k.name.toLowerCase() === name.toLowerCase();
+    if (!existing.some(same)) throw new ConfigEditError(`No key named "${name}".`);
+    const left = existing.filter(k => !same(k));
+    return { ...config, auth: { ...auth, ...(left.length === 0 ? {} : { management_keys: left }) } };
 }
 
 export const configuredMediaServers = (config: Config): MediaServerId[] =>
