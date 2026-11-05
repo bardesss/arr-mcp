@@ -65,7 +65,7 @@ export class ServiceHttp {
 
     /**
      * The API version segment this service's resources live under, `/api/v3`
-     * for Radarr, Sonarr and Whisparr and `/api/v1` for Lidarr.
+     * for Radarr, Sonarr and Whisparr and `/api/v1` for Lidarr and Prowlarr.
      *
      * It sits here rather than in `BaseServiceConfig` because it belongs to the
      * service, not to the operator: nobody chooses a different root for the
