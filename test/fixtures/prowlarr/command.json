@@ -1,0 +1,58 @@
+[
+  {
+    "name": "MessagingCleanup",
+    "commandName": "Messaging Cleanup",
+    "body": {
+      "sendUpdatesToClient": false,
+      "updateScheduledTask": true,
+      "requiresDiskAccess": false,
+      "isExclusive": false,
+      "isTypeExclusive": false,
+      "name": "MessagingCleanup",
+      "lastExecutionTime": "2026-11-05T11:12:34Z",
+      "lastStartTime": "2026-11-05T11:12:34Z",
+      "trigger": "scheduled",
+      "suppressMessages": false
+    },
+    "priority": "low",
+    "status": "completed",
+    "queued": "2026-11-05T11:18:04Z",
+    "started": "2026-11-05T11:18:04Z",
+    "ended": "2026-11-05T11:18:04Z",
+    "duration": "00:00:00.0072043",
+    "trigger": "scheduled",
+    "stateChangeTime": "2026-11-05T11:18:04Z",
+    "sendUpdatesToClient": false,
+    "updateScheduledTask": true,
+    "lastExecutionTime": "2026-11-05T11:12:34Z",
+    "id": 536766
+  },
+  {
+    "name": "ClearExpiredCache",
+    "commandName": "Clear Expired Cache",
+    "body": {
+      "sendUpdatesToClient": false,
+      "updateScheduledTask": true,
+      "requiresDiskAccess": false,
+      "isExclusive": false,
+      "isTypeExclusive": false,
+      "name": "ClearExpiredCache",
+      "lastExecutionTime": "2026-11-05T11:13:04Z",
+      "lastStartTime": "2026-11-05T11:13:04Z",
+      "trigger": "scheduled",
+      "suppressMessages": false
+    },
+    "priority": "low",
+    "status": "completed",
+    "queued": "2026-11-05T11:18:34Z",
+    "started": "2026-11-05T11:18:34Z",
+    "ended": "2026-11-05T11:18:34Z",
+    "duration": "00:00:00.0045931",
+    "trigger": "scheduled",
+    "stateChangeTime": "2026-11-05T11:18:34Z",
+    "sendUpdatesToClient": false,
+    "updateScheduledTask": true,
+    "lastExecutionTime": "2026-11-05T11:13:04Z",
+    "id": 536767
+  }
+]

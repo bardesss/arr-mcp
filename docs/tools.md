@@ -496,12 +496,15 @@ command id and return immediately, and until now the only way to know whether
 one had finished was to wait and re-read the queue.
 
 Followable means the tasks this server can start — searches, scans, refreshes,
-renames, imports. A Prowlarr sync is not listed, because `commands` does not read
-Prowlarr. A live instance also runs its own
+renames, imports, the Prowlarr sync. A live instance also runs its own
 housekeeping every minute, and it is left out: measured on a quiet stack the
 unfiltered window held 37 rows, every one of them a poller, which is how the
 one row you asked about gets lost. Filtering on the command's `trigger` would
 not have helped — Radarr reports its own per-minute refresh as `manual`.
+
+Radarr, Sonarr, Lidarr and Prowlarr are read. Whisparr is not, because its
+command list has no captured fixture yet, so nothing can be concluded from a
+Whisparr command being absent.
 
 **A command that is not in the list has finished.** The fifteen-minute window
 is what makes that readable rather than merely true: a search you started a
@@ -1966,7 +1969,7 @@ and, on the *arrs, with its metadata provider.
 
 Everything here queues a command and returns, except `remap` and `postprocess` — see below.
 `stack_health`'s `commands` list says whether it has finished; do not assume it
-has.
+has. Whisparr's commands are not reported there.
 
 ### What a scan does on each service
 

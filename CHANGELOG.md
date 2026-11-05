@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.58.0](https://github.com/bardesss/arr-mcp/compare/v1.57.2...v1.58.0) (2026-11-05)
+
+
+### Features
+
+* match diagnose queue rows by id before title ([#458](https://github.com/bardesss/arr-mcp/issues/458)) ([a1d6dd2](https://github.com/bardesss/arr-mcp/commit/a1d6dd23363e6917b12dbac9859259f7eb299357))
+* report Prowlarr's commands in stack_health ([#460](https://github.com/bardesss/arr-mcp/issues/460)) ([400a524](https://github.com/bardesss/arr-mcp/commit/400a52467c4d58a0114fcfc7bbe8cab0c929bc27))
+
 ## [1.57.2](https://github.com/bardesss/arr-mcp/compare/v1.57.1...v1.57.2) (2026-11-05)
 
 
