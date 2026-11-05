@@ -27,7 +27,11 @@ export type CrossCheckSubject = {
     label: string;
     ids: ExternalIds;
     acquisition?: { service: string; id: string };
-    /** delete_episode_files only: the seasons being deleted. */
+    /**
+     * delete_episode_files only: the seasons being deleted. Empty means part of
+     * the title with no season-level answer, so no watch warning; absent means
+     * the whole title.
+     */
     seasons?: number[];
 };
 

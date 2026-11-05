@@ -235,13 +235,13 @@ export function registerDeleteEpisodeFiles(
                 // verify — the write is refused rather than applied against
                 // stale or changed ids.
                 args: { service, id, fileIds },
-                // Seasons only for a season delete: named episodes may span
-                // several, and a season-level answer would overstate them.
+                // Empty for named episodes, not absent: they are part of the
+                // title, and the series' watched flag says nothing about them.
                 ...arrSubject(adapter, {
                     label,
                     ids: details.ids,
                     acquisition: { service: adapter.id, id },
-                    ...(season === undefined ? {} : { seasons: [season] })
+                    seasons: season === undefined ? [] : [season]
                 })
             };
         },

@@ -3,14 +3,17 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
+import { logger } from '../core/logger.ts';
 import { btihToHex } from '../services/qbittorrent.ts';
 import {
     hasMagnetAdd,
+    hasMediaDetails,
     hasReleaseGrab,
     hasReleaseSearch,
     type MagnetAddCapable,
     type ServiceAdapter
 } from '../services/types.ts';
+import { arrSubject } from './crossChecks.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 
 /**
@@ -114,6 +117,7 @@ export function registerGrabRelease(
                 : findClient(adapters, service, instance).id,
         operation: 'grab_release',
         tier: 'safe',
+        crossCheck: 'acquire',
 
         async plan({ service, instance, id, season, episode, guid, indexer_id, magnet }): Promise<WritePlan> {
             if (magnet !== undefined) {
@@ -194,16 +198,30 @@ export function registerGrabRelease(
                 );
             }
 
-            // No `subject`, so no cross-checks: the plan holds a release name
-            // and an id, not the title or its ids, and reading the item to get
-            // them would add a call to a preview that is already slow.
+            // Only to name the title for the cross-checks, so it must never block
+            // a grab. Without it the release name stands in, with no ids: the
+            // checker then lists what it could not look up rather than saying
+            // nothing was found.
+            let label = match.title;
+            let ids = {};
+            if (hasMediaDetails(adapter)) {
+                try {
+                    const details = await adapter.getMediaDetails(id, { includeEpisodes: false, episodeLimit: 0 });
+                    label = `${details.title}${details.year === undefined ? '' : ` (${details.year})`}`;
+                    ids = details.ids;
+                } catch (err) {
+                    logger.warn({ service: adapter.id, err }, 'could not read the item to name it for the cross-checks');
+                }
+            }
+
             return {
                 target: `${adapter.id}:${guid}`,
                 summary: `Grab ${match.title} from ${match.indexer} for ${service}.`,
                 effects,
                 // Both, because both decide what apply() sends. A token that
                 // bound only the guid would carry across a different indexer.
-                args: { guid, indexerId: indexer_id }
+                args: { guid, indexerId: indexer_id },
+                ...arrSubject(adapter, { label, ids, acquisition: { service: adapter.id, id } })
             };
         },
 

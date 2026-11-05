@@ -188,10 +188,10 @@ nothing was found only for the services not named there. The checks run on a
 | Write | Asks | About |
 |---|---|---|
 | `delete_media` | whether something still depends on the title | Seerr requests, Reclaimerr protections, downloads and seeding, watch state |
-| `delete_episode_files` | the same, for the series | the same, plus whether the season being deleted was watched (a season delete only) |
+| `delete_episode_files` | the same, for the series | the same, plus whether the season being deleted was watched. Named episodes do not check watch state: the series flag says nothing about one episode |
 | `trigger_search` | whether something is working against getting it | Reclaimerr removals, a Seerr request waiting or declined, an existing download |
 | `add_media` | the same, by the id you gave | the same |
-| `grab_release` | nothing yet | the preview names a release, not the title, so there is nothing to look up |
+| `grab_release` | the same as `trigger_search` | the item the release is for, read once to name it. If that read fails the release name stands in and the ids-based checks are listed under **Could not check** |
 
 Whisparr is never checked, on any of these. It keeps its own scene id in the TVDB
 field, so a Seerr match on it would be a different title that shares a number. A

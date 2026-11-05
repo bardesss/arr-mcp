@@ -210,6 +210,21 @@ describe('cross-checks — delete', () => {
         expect(advice.warnings).toEqual([]);
     });
 
+    it('gives no watch warning for named episodes, which are part of a title with no season answer', async () => {
+        const series: CrossCheckSubject = { kind: 'series', label: 'Severance', ids: { tvdb: 371980 }, seasons: [] };
+        const advice = await check(series, 'delete', {
+            library: item({ kind: 'series', ids: { tvdb: 371980 }, playback: { user: 'default', watched: false } })
+        });
+        expect(advice.warnings).toEqual([]);
+    });
+
+    it('says what it could not check when a subject has no ids', async () => {
+        const nameless: CrossCheckSubject = { kind: 'movie', label: 'Alien.1979-GROUP', ids: {} };
+        const advice = await check(nameless, 'acquire', { seerr: [], reclaimerr: status(), library: null });
+        expect(advice.warnings).toEqual([]);
+        expect(advice.unchecked).toEqual(['reclaimerr (no TMDB id)', 'seerr (no TMDB id)']);
+    });
+
     it('names several unwatched seasons readably', async () => {
         const series: CrossCheckSubject = { kind: 'series', label: 'Severance', ids: { tvdb: 371980 }, seasons: [1, 2] };
         const advice = await check(series, 'delete', {

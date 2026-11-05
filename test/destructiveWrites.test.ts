@@ -1350,11 +1350,12 @@ describe('delete_episode_files cross-checks', () => {
         });
     });
 
-    it('asks about the series alone when episodes were named', async () => {
+    // The series flag says nothing about one episode, so an empty list (not an absent one) turns the watch warning off.
+    it('asks about part of the series, with no season, when episodes were named', async () => {
         const crossChecks = quiet();
         await sonarrHarness(crossChecks).call({ service: 'sonarr', id: '7', episodes: ['11'], dry_run: true });
 
-        expect(crossChecks.mock.calls[0]?.[0].seasons).toBeUndefined();
+        expect(crossChecks.mock.calls[0]?.[0].seasons).toEqual([]);
     });
 
     it('does not ask when there is nothing to delete', async () => {
