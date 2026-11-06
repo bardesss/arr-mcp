@@ -16,6 +16,7 @@ import { attachLogStore, detachLogStore, logger } from '../src/core/logger.ts';
 import { hashPassword } from '../src/core/session.ts';
 import * as session from '../src/core/session.ts';
 import { hashToken } from '../src/core/mcpTokens.ts';
+import { CONFIG_TABS, configTabForPost } from '../src/web/configPage.ts';
 import { buildMcpConfig } from '../src/web/routes.ts';
 
 /**
@@ -110,6 +111,13 @@ const call = async (path: string, opts: RequestInit = {}) => {
     if (set !== null) cookie = set.split(';')[0] ?? '';
     return res;
 };
+
+/**
+ * The whole configuration, across its tabs. Reading one tab would let every
+ * "does not contain" below pass only because the card is on another tab.
+ */
+const everyConfigTab = async (): Promise<string> =>
+    (await Promise.all(CONFIG_TABS.map(async t => (await call(`/ui/config?tab=${t.key}`)).text()))).join('\n');
 
 const form = (body: Record<string, string>): RequestInit => ({
     method: 'POST',
@@ -375,14 +383,14 @@ describe('secrets', () => {
         await seed('  radarr:\n    url: http://192.0.2.10:7878\n    api_key: super-secret-key\n');
         await signIn();
 
-        const page = await (await call('/ui/config')).text();
+        const page = await everyConfigTab();
         expect(page).toContain('192.0.2.10:7878');
         expect(page).not.toContain('super-secret-key');
     });
 
     it('never renders the password hash', async () => {
         await signIn();
-        expect(await (await call('/ui/config')).text()).not.toContain('scrypt$');
+        expect(await everyConfigTab()).not.toContain('scrypt$');
     });
 
     it('never renders an MCP token on the dashboard', async () => {
@@ -413,13 +421,13 @@ describe('password managers', () => {
         await seed(BOTH_KINDS);
         await signIn();
 
-        expect(await (await call('/ui/config')).text()).not.toContain('type="password"');
+        expect(await everyConfigTab()).not.toContain('type="password"');
     });
 
     it('masks the secret fields all the same', async () => {
         await seed(BOTH_KINDS);
         await signIn();
-        const page = await (await call('/ui/config')).text();
+        const page = await everyConfigTab();
 
         for (const name of ['api_key', 'password', 'auth.password']) {
             expect(page).toMatch(new RegExp(`class="secret"[^>]*name="${name.replace('.', '\\.')}"`));
@@ -429,7 +437,7 @@ describe('password managers', () => {
     it('opts every field out for the managers that honour an attribute', async () => {
         await seed(BOTH_KINDS);
         await signIn();
-        const page = await (await call('/ui/config')).text();
+        const page = await everyConfigTab();
 
         for (const attr of ['data-1p-ignore', 'data-lpignore="true"', 'data-bwignore', 'data-protonpass-ignore']) {
             expect(page).toContain(attr);
@@ -611,10 +619,89 @@ describe('adding an instance', () => {
     });
 });
 
+describe('the configuration tabs', () => {
+    const onTab = (page: string, key: string) => page.includes(`href="/ui/config?tab=${key}" class="on" aria-current="page"`);
+    const actionsOn = (page: string) =>
+        [...page.matchAll(/(?:form)?action="(\/ui\/config[^"#]*)/g)].map(m => m[1] as string);
+
+    it('renders only the tab it was asked for', async () => {
+        await signIn();
+        const access = await (await call('/ui/config?tab=access')).text();
+        expect(onTab(access, 'access')).toBe(true);
+        expect(access).toContain('id="tokens"');
+        // Five columns with a button in the last: letter-by-letter on a phone otherwise.
+        expect(access).toContain('<table class="stacked">');
+        expect(access).not.toContain('name="metadata.imdb"');
+        expect(access).not.toContain('id="add-service"');
+    });
+
+    it('opens on Services, and treats a tab it does not know the same way', async () => {
+        await signIn();
+        for (const path of ['/ui/config', '/ui/config?tab=nonsense']) {
+            const page = await (await call(path)).text();
+            expect(onTab(page, 'services'), path).toBe(true);
+            expect(page).toContain('id="add-service"');
+        }
+    });
+
+    // The page answering a post is a render of one tab, so a form whose route is
+    // not mapped to its own tab would save and then show you a different page.
+    it('brings every form back to the tab it is on', async () => {
+        await seed('  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n');
+        await signIn();
+        await call('/ui/config/oauth', form({ ...keysFrom(await everyConfigTab()), 'auth.oauth.issuer': 'https://auth.example.com/', 'auth.oauth.audience': 'arr-mcp', 'auth.oauth.jwks_uri': 'https://auth.example.com/jwks/' }));
+
+        for (const { key } of CONFIG_TABS) {
+            const actions = actionsOn(await (await call(`/ui/config?tab=${key}`)).text());
+            expect(actions.length, key).toBeGreaterThan(0);
+            for (const action of actions) expect(configTabForPost(action), action).toBe(key);
+        }
+    });
+
+    // Shown once, in the answer to the post, and nowhere else ever again.
+    it('reveals a new token on the Access tab', async () => {
+        await signIn();
+        const res = await call('/ui/config/tokens/add', form({ csrf: await csrfFrom(), 'token.name': 'phone', 'token.tier': 'read', 'token.expiry': '90' }));
+        const page = await res.text();
+        expect(onTab(page, 'access')).toBe(true);
+        expect(page).toMatch(/value="amcp_[0-9a-f]{64}"/);
+    });
+
+    it('reveals a new management key on the Access tab, scrolled to its card', async () => {
+        await signIn();
+        const before = await (await call('/ui/config?tab=access')).text();
+        expect(before).toContain('action="/ui/config/api-keys/add#management-api"');
+
+        const res = await call('/ui/config/api-keys/add', form({ csrf: await csrfFrom(), 'api-key.name': 'phone', 'api-key.tier': 'read' }));
+        const page = await res.text();
+        expect(onTab(page, 'access')).toBe(true);
+        expect(page).toContain('id="management-key"');
+    });
+
+    it('keeps a refused save on the tab it came from', async () => {
+        await signIn();
+        const res = await call('/ui/config/imdb', form({ csrf: 'stale' }));
+        expect(res.status).toBe(403);
+        expect(onTab(await res.text(), 'settings')).toBe(true);
+    });
+
+    it('builds the tabs the same way as the Logs page', async () => {
+        await signIn();
+        const bar = (page: string) => /<nav style="margin-bottom:\.75rem">[\s\S]*?<\/nav>/.exec(page)?.[0] ?? '';
+        const shape = (html: string) => html.replace(/href="[^"]*"/g, 'href').replace(/>[^<]+</g, '><').replace(/\s+/g, ' ');
+        const logs = bar(await (await call('/ui/logs')).text());
+        const config = bar(await (await call('/ui/config')).text());
+
+        expect(logs).toContain('aria-current="page"');
+        expect(config).toContain('aria-current="page"');
+        expect(shape(config).split('</a>')[0]).toBe(shape(logs).split('</a>')[0]);
+    });
+});
+
 describe('the configuration page', () => {
     it('shows an empty state rather than eight blank fieldsets', async () => {
         await signIn();
-        const page = await (await call('/ui/config')).text();
+        const page = await everyConfigTab();
 
         expect(page).toContain('Nothing is configured yet');
         expect(page).not.toContain('name="instance"');
@@ -627,7 +714,7 @@ describe('the configuration page', () => {
                 '  - name: 4k\n    url: http://192.0.2.11:7878\n    api_key: k\n'
         );
         await signIn();
-        const page = await (await call('/ui/config')).text();
+        const page = await everyConfigTab();
 
         const order = [...page.matchAll(/name="instance" value="([^"]+)"/g)].map(m => m[1]);
         expect(order).toEqual(['radarr/4k', 'radarr/hd', 'sonarr']);
@@ -644,7 +731,7 @@ describe('the configuration page', () => {
 describe('the add dialog', () => {
     it('is opened by a button rather than sitting under the cards', async () => {
         await signIn();
-        const page = await (await call('/ui/config')).text();
+        const page = await everyConfigTab();
 
         expect(page).toContain('data-open="add-service"');
         expect(page).toContain('<dialog id="add-service"');
@@ -653,7 +740,7 @@ describe('the add dialog', () => {
 
     it('falls back to an inline form when scripting is off', async () => {
         await signIn();
-        const page = await (await call('/ui/config')).text();
+        const page = await everyConfigTab();
 
         expect(page).toContain('<noscript>');
         expect(page).toMatch(/<noscript><style>[^<]*dialog\b/);
@@ -661,7 +748,7 @@ describe('the add dialog', () => {
 
     it('says which service each field belongs to, so the picker can hide the rest', async () => {
         await signIn();
-        const page = await (await call('/ui/config')).text();
+        const page = await everyConfigTab();
 
         // The two torrent clients and NZBGet are the services with no API key,
         // and the only ones with a username and password.
@@ -685,7 +772,7 @@ describe('the add dialog', () => {
                 '  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n'
         );
         await signIn();
-        const page = await (await call('/ui/config')).text();
+        const page = await everyConfigTab();
 
         const offered = [...page.matchAll(/<option value="([^"]+)"/g)].map(m => m[1]);
         expect(offered).not.toContain('seerr');
@@ -701,7 +788,7 @@ describe('the add dialog', () => {
         it('offers plex once jellyfin is configured', async () => {
             await seed(JF);
             await signIn();
-            const page = await (await call('/ui/config')).text();
+            const page = await everyConfigTab();
             const offered = [...page.matchAll(/<option value="([^"]+)"/g)].map(m => m[1]);
             expect(offered).toContain('plex');
         });
@@ -709,7 +796,7 @@ describe('the add dialog', () => {
         it('offers jellyfin once plex is configured', async () => {
             await seed(PX);
             await signIn();
-            const page = await (await call('/ui/config')).text();
+            const page = await everyConfigTab();
             const offered = [...page.matchAll(/<option value="([^"]+)"/g)].map(m => m[1]);
             expect(offered).toContain('jellyfin');
         });
@@ -717,20 +804,20 @@ describe('the add dialog', () => {
         it('shows a primary selector only when both are configured', async () => {
             await seed(JF + PX + 'primary_media_server: jellyfin\n');
             await signIn();
-            const page = await (await call('/ui/config')).text();
+            const page = await everyConfigTab();
             expect(page).toContain('name="primary_media_server"');
         });
 
         it('has no primary selector with one', async () => {
             await seed(JF);
             await signIn();
-            expect(await (await call('/ui/config')).text()).not.toContain('name="primary_media_server"');
+            expect(await everyConfigTab()).not.toContain('name="primary_media_server"');
         });
 
         it('saves the primary from the Media servers card', async () => {
             await seed(JF + PX + 'primary_media_server: jellyfin\n');
             await signIn();
-            const keys = keysFrom(await (await call('/ui/config')).text());
+            const keys = keysFrom(await everyConfigTab());
             await call('/ui/config/media-servers', form({ ...keys, primary_media_server: 'plex' }));
             const { config } = await loadConfig(dir);
             expect(config.primary_media_server).toBe('plex');
@@ -739,7 +826,7 @@ describe('the add dialog', () => {
         it('refuses an invalid primary instead of saying it saved', async () => {
             await seed(JF + PX + 'primary_media_server: jellyfin\n');
             await signIn();
-            const keys = keysFrom(await (await call('/ui/config')).text());
+            const keys = keysFrom(await everyConfigTab());
             const res = await call('/ui/config/media-servers', form({ ...keys, primary_media_server: 'nope' }));
             expect(await res.text()).not.toContain('Primary media server saved.');
             const { config } = await loadConfig(dir);
@@ -749,7 +836,7 @@ describe('the add dialog', () => {
         it('adding plex to a jellyfin install keeps jellyfin primary', async () => {
             await seed(JF);
             await signIn();
-            const keys = keysFrom(await (await call('/ui/config')).text());
+            const keys = keysFrom(await everyConfigTab());
             await call('/ui/config/add', form({ ...keys, type: 'plex', url: 'http://192.0.2.10:32400', api_key: 'k' }));
             const { config } = await loadConfig(dir);
             expect(config.primary_media_server).toBe('jellyfin');
@@ -759,7 +846,7 @@ describe('the add dialog', () => {
     it('offers a name only for the services that already have an instance', async () => {
         await seed('  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n');
         await signIn();
-        const page = await (await call('/ui/config')).text();
+        const page = await everyConfigTab();
 
         const only = /data-only="([^"]*)"[^>]*>\s*<label for="add\.name"/.exec(page)?.[1];
         expect(only).toBe('radarr');
@@ -820,7 +907,7 @@ describe('the default user field', () => {
         await seed(JELLYFIN);
         await signIn();
 
-        const page = await (await call('/ui/config')).text();
+        const page = await everyConfigTab();
 
         expect(page).toContain('<datalist id="svc.jellyfin.default_user.options">');
         expect(page).toContain('<option value="bartus">');
@@ -837,7 +924,7 @@ describe('the default user field', () => {
         await seed(JELLYFIN);
         await signIn();
 
-        const page = await (await call('/ui/config')).text();
+        const page = await everyConfigTab();
 
         expect(page).not.toContain('<datalist');
         expect(page).toContain('did not answer when asked who its users are');
@@ -851,7 +938,7 @@ describe('the default user field', () => {
         await seed(JELLYFIN);
         await signIn();
 
-        expect(await (await call('/ui/config')).text()).toContain('jellyfin reports no users yet');
+        expect(await everyConfigTab()).toContain('jellyfin reports no users yet');
     });
 });
 
@@ -881,7 +968,7 @@ describe('testing a connection', () => {
         it('starts every card closed, with the row still saying what it is', async () => {
             await seed(TWO);
             await signIn();
-            const page = await (await call('/ui/config')).text();
+            const page = await everyConfigTab();
 
             expect(page).toContain('<details class="svc">');
             expect(page).not.toContain('<details class="svc" open>');
@@ -1073,7 +1160,7 @@ describe('testing from the add dialog', () => {
 
     it('offers a Test button in the dialog', async () => {
         await signIn();
-        const page = await (await call('/ui/config')).text();
+        const page = await everyConfigTab();
         const dialog = page.slice(page.indexOf('<dialog id="add-service"'));
 
         expect(dialog).toContain('formaction="/ui/config/test"');
@@ -1169,7 +1256,7 @@ describe('the Plex repair switch', () => {
     it('shows on the Plex card only, marked experimental', async () => {
         await seed(`${PLEX}  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n`);
         await signIn();
-        const page = await (await call('/ui/config')).text();
+        const page = await everyConfigTab();
 
         expect(page.match(/name="allow_metadata_repair"/g)).toHaveLength(1);
         expect(page).not.toContain('experimental');
@@ -1182,7 +1269,7 @@ describe('the Plex repair switch', () => {
 
         await savePlex({ allow_metadata_repair: 'on' });
         expect(runtime.config.services.plex?.allow_metadata_repair).toBe(true);
-        expect(await (await call('/ui/config')).text()).toMatch(/name="allow_metadata_repair"[^>]*checked/);
+        expect(await everyConfigTab()).toMatch(/name="allow_metadata_repair"[^>]*checked/);
 
         await savePlex();
         expect(runtime.config.services.plex?.allow_metadata_repair).toBe(false);
@@ -1212,7 +1299,7 @@ describe('a URL with credentials in it', () => {
         await seed(WITH_USERINFO);
         await signIn();
 
-        const page = await (await call('/ui/config')).text();
+        const page = await everyConfigTab();
         expect(page).not.toContain('proxy-secret');
         expect(page).toContain('http://192.0.2.10:7878/');
     });
@@ -1314,7 +1401,7 @@ describe('a page left open while the config changed', () => {
     it('refuses the save instead of undoing an API change the page never saw', async () => {
         await seedKeyed();
         await signIn();
-        const keys = keysFrom(await (await call('/ui/config')).text());
+        const keys = keysFrom(await everyConfigTab());
         expect(keys.etag).not.toBe('');
 
         expect((await putSafeWrite()).status).toBe(200);
@@ -1331,7 +1418,7 @@ describe('a page left open while the config changed', () => {
         await seedKeyed();
         await signIn();
         await putSafeWrite();
-        const keys = keysFrom(await (await call('/ui/config')).text());
+        const keys = keysFrom(await everyConfigTab());
 
         const res = await saveCard(keys);
 
@@ -1342,9 +1429,9 @@ describe('a page left open while the config changed', () => {
     it('carries the etag through a two-step revoke', async () => {
         await seedKeyed();
         await signIn();
-        await call('/ui/config/tokens/add', form({ ...keysFrom(await (await call('/ui/config')).text()), 'token.name': 'phone', 'token.tier': 'read', 'token.expiry': '90' }));
+        await call('/ui/config/tokens/add', form({ ...keysFrom(await everyConfigTab()), 'token.name': 'phone', 'token.tier': 'read', 'token.expiry': '90' }));
 
-        const asked = await call('/ui/config/tokens/revoke', form({ ...keysFrom(await (await call('/ui/config')).text()), token: 'phone' }));
+        const asked = await call('/ui/config/tokens/revoke', form({ ...keysFrom(await everyConfigTab()), token: 'phone' }));
         const confirm = keysFrom(await asked.text());
         expect(confirm.etag).not.toBe('');
         const res = await call('/ui/config/tokens/revoke', form({ ...confirm, token: 'phone', confirm: 'yes' }));
@@ -1356,8 +1443,8 @@ describe('a page left open while the config changed', () => {
     it('refuses a stale confirm the same way', async () => {
         await seedKeyed();
         await signIn();
-        await call('/ui/config/tokens/add', form({ ...keysFrom(await (await call('/ui/config')).text()), 'token.name': 'phone', 'token.tier': 'read', 'token.expiry': '90' }));
-        const asked = keysFrom(await (await call('/ui/config/tokens/revoke', form({ ...keysFrom(await (await call('/ui/config')).text()), token: 'phone' }))).text());
+        await call('/ui/config/tokens/add', form({ ...keysFrom(await everyConfigTab()), 'token.name': 'phone', 'token.tier': 'read', 'token.expiry': '90' }));
+        const asked = keysFrom(await (await call('/ui/config/tokens/revoke', form({ ...keysFrom(await everyConfigTab()), token: 'phone' }))).text());
 
         await putSafeWrite();
         const res = await call('/ui/config/tokens/revoke', form({ ...asked, token: 'phone', confirm: 'yes' }));
@@ -1369,7 +1456,7 @@ describe('a page left open while the config changed', () => {
 
     // Ask, then confirm from the asking page, as a browser would.
     const confirmFlow = async (path: string, fields: Record<string, string> = {}) => {
-        const asked = await call(path, form({ ...keysFrom(await (await call('/ui/config')).text()), ...fields }));
+        const asked = await call(path, form({ ...keysFrom(await everyConfigTab()), ...fields }));
         expect(asked.status).toBe(200);
         const keys = keysFrom(await asked.text());
         expect(keys.etag).not.toBe('');
@@ -1403,7 +1490,7 @@ describe('a page left open while the config changed', () => {
     it('logs a hand edit that no longer loads once, at warn', async () => {
         await seedKeyed();
         await signIn();
-        const keys = keysFrom(await (await call('/ui/config')).text());
+        const keys = keysFrom(await everyConfigTab());
         await writeFile(join(dir, 'config.yaml'), 'services: 5\n', 'utf8');
         const warn = vi.spyOn(logger, 'warn');
         const error = vi.spyOn(logger, 'error');
@@ -1421,8 +1508,8 @@ describe('a page left open while the config changed', () => {
     it('puts the etag on every form that saves', async () => {
         await seedKeyed();
         await signIn();
-        await call('/ui/config/oauth', form({ ...keysFrom(await (await call('/ui/config')).text()), 'auth.oauth.issuer': 'https://auth.example.com/', 'auth.oauth.audience': 'arr-mcp', 'auth.oauth.jwks_uri': 'https://auth.example.com/jwks/' }));
-        const page = await (await call('/ui/config')).text();
+        await call('/ui/config/oauth', form({ ...keysFrom(await everyConfigTab()), 'auth.oauth.issuer': 'https://auth.example.com/', 'auth.oauth.audience': 'arr-mcp', 'auth.oauth.jwks_uri': 'https://auth.example.com/jwks/' }));
+        const page = await everyConfigTab();
 
         const forms = [...page.matchAll(/<form method="post"[^>]*action="([^"#]+)[^>]*>([\s\S]*?)<\/form>/g)]
             .map(m => ({ action: m[1] as string, body: m[2] as string }))
@@ -1663,7 +1750,7 @@ describe('each access card saves only itself', () => {
 
     it('gives each card its own button, and the page no button that spans them', async () => {
         await signIn();
-        const page = await (await call('/ui/config')).text();
+        const page = await everyConfigTab();
 
         expect(page).toContain('/ui/config/account');
         expect(page).toContain('/ui/config/imdb');
@@ -1728,7 +1815,7 @@ describe('MCP tokens', () => {
         expect(token).toBeDefined();
         expect((await mcp(token as string)).status).toBe(200);
 
-        const later = await (await call('/ui/config')).text();
+        const later = await everyConfigTab();
         expect(later).not.toContain(token as string);
         expect(later).toContain('phone');
     });
@@ -1785,7 +1872,7 @@ describe('MCP tokens', () => {
         app = buildApp({ runtime, audit, logs });
         await signIn();
 
-        const page = await (await call('/ui/config')).text();
+        const page = await everyConfigTab();
         expect(page).toMatch(/>old<\/td>[\s\S]*?<strong>expired<\/strong> 2020-01-01/);
         expect(page).toContain('still plaintext in config.yaml');
         expect(page).not.toContain('y'.repeat(40));
@@ -2081,7 +2168,7 @@ describe('the IMDb dataset in the config UI', () => {
 
     it('offers the toggle on the configuration page', async () => {
         await signIn();
-        expect(await (await call('/ui/config')).text()).toContain('name="metadata.imdb"');
+        expect(await everyConfigTab()).toContain('name="metadata.imdb"');
     });
 
     /** The toggle has to reach config.yaml — `saveConfig` edits the document in
@@ -2324,7 +2411,7 @@ services: {}
         await signIn();
         const page = await (await call('/ui')).text();
         expect(page).not.toContain('id="bearer"');
-        expect(page).toMatch(/1 token · <a href="\/ui\/config#tokens">Manage<\/a>/);
+        expect(page).toMatch(/1 token · <a href="\/ui\/config\?tab=access#tokens">Manage<\/a>/);
     });
 
     it('prompts for a first token when there are none', async () => {
@@ -2479,7 +2566,7 @@ describe('the OAuth card', async () => {
 
     it('sits in the Access section after the MCP endpoint card, anchored as #oauth', async () => {
         await signIn();
-        const page = await (await call('/ui/config')).text();
+        const page = await everyConfigTab();
 
         expect(page).toContain('id="oauth"');
         expect(page.indexOf('id="oauth"')).toBeGreaterThan(page.indexOf('/ui/config/mcp'));
@@ -2490,7 +2577,7 @@ describe('the OAuth card', async () => {
 
     it('pre-fills the scope fields with the defaults when OAuth is absent', async () => {
         await signIn();
-        const page = await (await call('/ui/config')).text();
+        const page = await everyConfigTab();
 
         expect(valueOf(page, 'auth.oauth.scopes.read')).toBe('arr-mcp:read');
         expect(valueOf(page, 'auth.oauth.scopes.write')).toBe('arr-mcp:write');
@@ -2501,7 +2588,7 @@ describe('the OAuth card', async () => {
     it('saves OAuth, trimmed, with the pre-filled scopes, and touches nothing else', async () => {
         await signIn();
         const before = runtime.config;
-        const page = await (await call('/ui/config')).text();
+        const page = await everyConfigTab();
 
         const res = await post('/ui/config/oauth', {
             'auth.oauth.issuer': `  ${ISSUER} `,
@@ -2527,7 +2614,7 @@ describe('the OAuth card', async () => {
     it('pre-fills every field with the current values once configured', async () => {
         await signIn();
         await post('/ui/config/oauth', fields({ 'auth.oauth.scopes.read': 'mcp.read' }));
-        const page = await (await call('/ui/config')).text();
+        const page = await everyConfigTab();
 
         expect(valueOf(page, 'auth.oauth.issuer')).toBe(ISSUER);
         expect(valueOf(page, 'auth.oauth.audience')).toBe('arr-mcp');
@@ -2566,7 +2653,7 @@ describe('the OAuth card', async () => {
 
     it('shows the current OAuth config, not the typed draft, when the page was stale', async () => {
         await signIn();
-        const stale = keysFrom(await (await call('/ui/config')).text());
+        const stale = keysFrom(await everyConfigTab());
         await post('/ui/config/oauth', fields());
 
         const res = await call('/ui/config/oauth', form({ ...stale, ...fields({ 'auth.oauth.audience': 'typed' }) }));
@@ -2593,7 +2680,7 @@ describe('the OAuth card', async () => {
         await signIn();
         await post('/ui/config/oauth', fields());
 
-        const page = await (await call('/ui/config')).text();
+        const page = await everyConfigTab();
         expect(page).toContain('Unavailable while OAuth is configured');
         const refused = await decoded(
             await post('/ui/config/mcp', { 'auth.allow_token_in_url': 'on', 'auth.allowed_hosts': '' })
@@ -2805,7 +2892,7 @@ describe('management API keys', () => {
 
     it('is off until a key is created, then shows it once', async () => {
         await signIn();
-        expect(await (await call('/ui/config')).text()).toContain('until you create a key');
+        expect(await everyConfigTab()).toContain('until you create a key');
 
         const res = await create('nzb360', 'read');
         expect(res.headers.get('cache-control')).toBe('no-store');
@@ -2817,7 +2904,7 @@ describe('management API keys', () => {
             { name: 'nzb360', tier: 'read', hash: hashToken(key as string), created: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) as string }
         ]);
 
-        const later = await (await call('/ui/config')).text();
+        const later = await everyConfigTab();
         expect(later).not.toContain(key as string);
         expect(later).toContain('nzb360');
         expect(later).toContain(hashToken(key as string).slice(7, 15));
@@ -2825,7 +2912,7 @@ describe('management API keys', () => {
 
     it('offers read first, so a key is read-only unless you choose otherwise', async () => {
         await signIn();
-        expect(await (await call('/ui/config')).text()).toMatch(/<option value="read" selected>/);
+        expect(await everyConfigTab()).toMatch(/<option value="read" selected>/);
     });
 
     it('keeps each tier to what it may do', async () => {
