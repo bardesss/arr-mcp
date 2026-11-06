@@ -25,6 +25,22 @@ const LOG_DATE_TIME = /(?<![\d.])(?:\d{4}[/.-]\d{1,2}[/.-]\d{1,2}|\d{1,2}[/.-]\d
  */
 const LOG_CREDENTIAL = /\b((?:[a-z_-]*api[_-]?key|(?:access[_-]?)?token|passkey|password|passwd)["']?\s*[=:]\s*["']?)[^\s"'&,;}]+/gi;
 
+/** An `Authorization` header's value. The scheme stays: it says what kind of login failed. */
+const LOG_AUTHORIZATION = /\b(authorization["']?\s*[=:]\s*["']?(?:(?:bearer|basic|token)\s+)?)[^\s"'&,;}]+/gi;
+
+/** A bearer token with no header name. Sixteen characters keeps "Bearer token rejected" as written. */
+const LOG_BEARER = /\b(bearer\s+)[a-z0-9._~+/-]{16,}=*/gi;
+
+/** Credentials in a URL's authority, whether `user:password@` or a lone token. A port or a later `@` is not one. */
+const LOG_URL_CREDENTIAL = /\b([a-z][a-z0-9+.-]*:\/\/)[^\s/@]+@/gi;
+
+const removeCredentials = (message: string): string =>
+    message
+        .replace(LOG_URL_CREDENTIAL, '$1(removed)@')
+        .replace(LOG_AUTHORIZATION, '$1(removed)')
+        .replace(LOG_BEARER, '$1(removed)')
+        .replace(LOG_CREDENTIAL, '$1(removed)');
+
 /** One line of a service's log, with its own field names already mapped. */
 export type LogLine = {
     time: string;
@@ -38,7 +54,7 @@ export type LogLine = {
 export function foldLogLines(lines: readonly LogLine[], id: string): LogEntry[] {
     const folded = new Map<string, LogEntry>();
     for (const line of lines) {
-        const message = line.message.replace(LOG_CREDENTIAL, '$1(removed)');
+        const message = removeCredentials(line.message);
         const key = `${line.level}\u0000${line.logger}\u0000${message.replace(LOG_DATE_TIME, '\u0000')}`;
         const seen = folded.get(key);
         if (seen !== undefined) {

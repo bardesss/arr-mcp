@@ -214,11 +214,30 @@ describe('arr recent logs', () => {
         ['X-Api-Key: secret123 refused', 'X-Api-Key: (removed) refused'],
         ['"access_token":"secret123"', '"access_token":"(removed)"'],
         ['password=secret123', 'password=(removed)'],
-        ['apikey=(removed)', 'apikey=(removed)']
+        ['apikey=(removed)', 'apikey=(removed)'],
+        ['Authorization: Bearer secret123 refused', 'Authorization: Bearer (removed) refused'],
+        ['Authorization: Basic secret123', 'Authorization: Basic (removed)'],
+        ['Authorization: secret123', 'Authorization: (removed)'],
+        ['Proxy-Authorization: Basic secret123', 'Proxy-Authorization: Basic (removed)'],
+        ['"authorization":"Bearer secret123"', '"authorization":"Bearer (removed)"'],
+        ['sent Bearer secret123secret123secret', 'sent Bearer (removed)'],
+        ['GET http://admin:secret123@server:8080/api failed', 'GET http://(removed)@server:8080/api failed'],
+        ['GET https://secret123@server/api failed', 'GET https://(removed)@server/api failed']
     ])('removes a credential from %s', async (line, cleaned) => {
         const { entries } = await logsOf(line);
         expect(entries[0]?.message).toContain(cleaned);
         expect(JSON.stringify(entries)).not.toContain('secret123');
+    });
+
+    it.each([
+        'Basic authentication failed',
+        'Bearer token rejected',
+        'Cannot reach http://server:8080/api',
+        'Cannot reach http://server/path@v2',
+        'Mail to someone@example.com bounced'
+    ])('leaves %s as written', async line => {
+        const { entries } = await logsOf(line);
+        expect(entries[0]?.message).toContain(line);
     });
 });
 
