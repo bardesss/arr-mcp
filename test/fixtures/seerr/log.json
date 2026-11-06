@@ -1,0 +1,17 @@
+{
+  "pageInfo": {
+    "pages": 1,
+    "pageSize": 20,
+    "results": 101,
+    "page": 1
+  },
+  "results": [
+    {
+      "label": "Jellyfin Sync",
+      "level": "error",
+      "message": "Fixture message 1",
+      "errorMessage": "Fixture reason 1",
+      "timestamp": "2023-11-14T22:13:20.000Z"
+    }
+  ]
+}

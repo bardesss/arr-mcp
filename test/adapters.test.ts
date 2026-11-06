@@ -208,6 +208,114 @@ describe('arr recent logs', () => {
         const q = new URL(asked).searchParams;
         expect([q.get('level'), q.get('sortKey'), q.get('sortDirection')]).toEqual(['warn', 'time', 'descending']);
     });
+
+    it.each([
+        ['apikey=secret123&offset=0', 'apikey=(removed)&offset=0'],
+        ['X-Api-Key: secret123 refused', 'X-Api-Key: (removed) refused'],
+        ['"access_token":"secret123"', '"access_token":"(removed)"'],
+        ['password=secret123', 'password=(removed)'],
+        ['apikey=(removed)', 'apikey=(removed)']
+    ])('removes a credential from %s', async (line, cleaned) => {
+        const { entries } = await logsOf(line);
+        expect(entries[0]?.message).toContain(cleaned);
+        expect(JSON.stringify(entries)).not.toContain('secret123');
+    });
+});
+
+describe('Prowlarr recent logs', () => {
+    it('reads its own v1 log, asking for warnings and above', async () => {
+        const page = fixture('prowlarr/log.json') as { totalRecords: number; records: unknown[] };
+        let asked = '';
+        const spy = (async (input: string | URL | Request) => {
+            asked = String(input);
+            return jsonResponse(page);
+        }) as unknown as typeof fetch;
+        const { entries, read, total } = await new ProwlarrAdapter(keyed(9696), spy).getRecentLogs();
+        expect(new URL(asked).pathname).toBe('/api/v1/log');
+        expect(new URL(asked).searchParams.get('level')).toBe('warn');
+        expect(entries.every(l => l.service === 'prowlarr' && l.message.startsWith('<<'))).toBe(true);
+        expect([read, total]).toEqual([page.records.length, page.totalRecords]);
+    });
+});
+
+describe('Seerr recent logs', () => {
+    const page = fixture('seerr/log.json') as { pageInfo: { results: number }; results: { message: string }[] };
+
+    const logsOf = (...rows: Record<string, unknown>[]) =>
+        new SeerrAdapter(
+            multiUser(5055),
+            serving({ '/api/v1/settings/logs': { pageInfo: { results: rows.length }, results: rows } })
+        ).getRecentLogs();
+
+    it('reads warnings and above, and says how much of the log that was', async () => {
+        let asked = '';
+        const spy = (async (input: string | URL | Request) => {
+            asked = String(input);
+            return jsonResponse(page);
+        }) as unknown as typeof fetch;
+        const { entries, read, total } = await new SeerrAdapter(multiUser(5055), spy).getRecentLogs();
+        expect(new URL(asked).searchParams.get('filter')).toBe('warn');
+        expect(entries.length).toBeGreaterThan(0);
+        expect(entries.every(l => l.service === 'seerr' && l.message.startsWith('<<'))).toBe(true);
+        expect([read, total]).toEqual([page.results.length, page.pageInfo.results]);
+    });
+
+    it('appends the reason, uses the label as the logger, and drops what else the line carried', async () => {
+        const { entries } = await logsOf({
+            timestamp: '2026-11-05T05:55:01.123Z',
+            level: 'error',
+            label: 'Jellyfin Sync',
+            message: 'Failed to process item',
+            errorMessage: 'Request timed out',
+            jellyfinitem: { Name: 'A Real Title' },
+            data: { errorMessage: 'Request timed out', jellyfinitem: { Name: 'A Real Title' } }
+        });
+        expect(entries[0]?.message).toContain('Failed to process item: Request timed out');
+        expect(entries[0]?.logger).toBe('Jellyfin Sync');
+        expect(JSON.stringify(entries)).not.toContain('A Real Title');
+    });
+
+    it('folds on the reason too, so two failures of one job stay apart', async () => {
+        const row = { timestamp: '2026-11-05T05:55:01.123Z', level: 'error', label: 'Sync', message: 'Failed' };
+        const { entries } = await logsOf({ ...row, errorMessage: 'one' }, { ...row, errorMessage: 'one' }, { ...row, errorMessage: 'two' });
+        expect(entries.map(l => l.count)).toEqual([2, 1]);
+    });
+});
+
+describe('Bazarr recent logs', () => {
+    const page = fixture('bazarr/log.json') as { data: { type: string }[] };
+
+    const logsOf = (...data: Record<string, unknown>[]) =>
+        new BazarrAdapter(keyed(6767), serving({ '/api/system/logs': { data } })).getRecentLogs();
+
+    it('keeps warnings and worse out of a log at every level', async () => {
+        const wanted = page.data.filter(r => r.type !== 'INFO' && r.type !== 'DEBUG');
+        expect(wanted.length).toBeLessThan(page.data.length);
+        const { entries, read, total } = await new BazarrAdapter(keyed(6767), serving({ '/api/system/logs': page })).getRecentLogs();
+        expect(entries.reduce((n, l) => n + l.count, 0)).toBe(wanted.length);
+        expect([read, total]).toEqual([wanted.length, wanted.length]);
+        expect(entries.every(l => l.service === 'bazarr' && l.logger === 'bazarr' && l.message.startsWith('<<'))).toBe(true);
+    });
+
+    it('spells levels as the other services do, and keeps the time local', async () => {
+        const row = { timestamp: '2026-11-05 05:55:01', exception: null };
+        const { entries } = await logsOf(
+            { ...row, type: 'WARNING', message: 'one' },
+            { ...row, type: 'ERROR', message: 'two' },
+            { ...row, type: 'CRITICAL', message: 'three' },
+            { ...row, type: 'INFO', message: 'four' },
+            { ...row, type: 'DEBUG', message: 'five' }
+        );
+        expect(entries.map(l => l.level)).toEqual(['warn', 'error', 'critical']);
+        expect(entries[0]?.lastSeen).toBe('2026-11-05T05:55:01');
+    });
+
+    it('reads the newest fifty, and counts the rest in total', async () => {
+        const rows = Array.from({ length: 60 }, (_, i) => ({ timestamp: '2026-11-05 05:55:01', type: 'ERROR', message: `line ${i}` }));
+        const { entries, read, total } = await logsOf(...rows);
+        expect([entries.length, read, total]).toEqual([50, 50, 60]);
+        expect(entries[0]?.message).toContain('line 0<');
+    });
 });
 
 describe('ProwlarrAdapter', () => {

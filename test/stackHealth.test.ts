@@ -116,6 +116,17 @@ describe('stack_health logs', () => {
         expect(full.logs?.lines).toEqual([]);
         expect(full.degraded).toEqual(['radarr']);
     });
+
+    it('sorts by the moment, whichever way a service writes its times', async () => {
+        const seen = (lastSeen: string) => ({ ...line, lastSeen });
+        const adapter = withLogs(async () => ({
+            entries: [seen('2026-11-05T10:00:00Z'), seen('2026-11-05T10:00:00.500Z'), seen('2026-11-05T09:59:59.999+00:00')],
+            read: 3,
+            total: 3
+        }));
+        const full = await buildStackHealth([adapter], { detail: 'full', limit: 50 });
+        expect(full.logs?.items.map(l => l.lastSeen)).toEqual(['2026-11-05T10:00:00.500Z', '2026-11-05T10:00:00Z', '2026-11-05T09:59:59.999+00:00']);
+    });
 });
 
 describe('stack_health', () => {

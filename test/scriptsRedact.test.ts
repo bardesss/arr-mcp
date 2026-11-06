@@ -3,6 +3,8 @@ import { ConfigSchema } from '../src/config/schema.ts';
 import { classifyFetchError } from '../src/core/errors.ts';
 import {
     anonymiseArrLog,
+    anonymiseBazarrLog,
+    anonymiseSeerrLog,
     anonymiseNzbgetHealth,
     anonymiseNzbgetLog,
     anonymiseNzbgetRows,
@@ -237,6 +239,44 @@ describe('NZBGet fixture anonymisers', () => {
         expect(output.records.map(r => r.id)).toEqual([3, 2, 1]);
         expect(output.records[0]!.time > output.records[2]!.time).toBe(true);
         expect(output.totalRecords).toBeGreaterThan(output.records.length);
+    });
+
+    it('rebuilds Seerr log rows from the fields the adapter reads, dropping what else they carried', () => {
+        const output = anonymiseSeerrLog({
+            pageInfo: { pages: 1, pageSize: 20, results: 4321, page: 1 },
+            results: [
+                {
+                    timestamp: '2026-11-05T05:55:01.123Z',
+                    level: 'error',
+                    label: 'Jellyfin Sync',
+                    message: 'Failed on A Real Title',
+                    errorMessage: 'real-host refused',
+                    jellyfinitem: { Name: 'A Real Title', Id: 'abc' },
+                    data: { errorMessage: 'real-host refused' }
+                }
+            ]
+        }) as { pageInfo: { results: number }; results: Record<string, unknown>[] };
+
+        expect(JSON.stringify(output)).not.toMatch(/Real Title|real-host|4321|2026|jellyfinitem|"data"/);
+        expect(Object.keys(output.results[0]!).sort()).toEqual(['errorMessage', 'label', 'level', 'message', 'timestamp']);
+        expect(output.results[0]?.label).toBe('Jellyfin Sync');
+        expect(output.pageInfo.results).toBeGreaterThan(output.results.length);
+    });
+
+    it('replaces Bazarr log text and tracebacks, keeping levels and the time format', () => {
+        const output = anonymiseBazarrLog({
+            data: [
+                { timestamp: '2026-11-05 05:55:01', type: 'ERROR', message: 'real-host refused', exception: 'Traceback real-host' },
+                { timestamp: '2026-11-05 05:54:01', type: 'INFO', message: 'A Real Title', exception: null }
+            ]
+        }) as { data: { timestamp: string; type: string; exception: string | null }[] };
+
+        expect(JSON.stringify(output)).not.toMatch(/real-host|Real Title|2026/);
+        expect(output.data.map(r => r.type)).toEqual(['ERROR', 'INFO']);
+        expect(output.data[0]?.timestamp).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
+        expect(output.data[0]?.exception).toBe('Fixture exception 1');
+        expect(output.data[1]?.exception).toBeNull();
+        expect(output.data[0]!.timestamp > output.data[1]!.timestamp).toBe(true);
     });
 
     it('scrubs every NZBGet systemhealth message, keeping names and severities', () => {

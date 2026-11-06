@@ -488,6 +488,14 @@ const CONTRACTS: Record<string, ServiceContract> = {
                 // window, and starting one to record it would change the stack.
                 fixture: 'test/fixtures/prowlarr/command.json',
                 fields: ['id', 'name', 'commandName', 'status', 'queued', 'started', 'ended']
+            },
+            {
+                // Captured at every level, since this Prowlarr had no warnings,
+                // so no row here carries the `exceptionType` the adapter also reads.
+                path: '/api/v1/log',
+                method: 'get',
+                fixture: 'test/fixtures/prowlarr/log.json',
+                fields: ['totalRecords', 'records.time', 'records.level', 'records.logger', 'records.message']
             }
             // No `search` entry: the capture used a deliberately unmatchable
             // query, so no release shape was recorded. Publishing real release
@@ -619,7 +627,13 @@ const CONTRACTS: Record<string, ServiceContract> = {
                 fixture: 'test/fixtures/seerr/request.json',
                 fields: ['results', 'results.media.tvdbId']
             },
-            { path: '/discover/movies', method: 'get', fixture: 'test/fixtures/seerr/discover-movies.json', fields: ['results'] }
+            { path: '/discover/movies', method: 'get', fixture: 'test/fixtures/seerr/discover-movies.json', fields: ['results'] },
+            {
+                // No `path`: specs/seerr.json documents a bare array, and the
+                // live service answers with `pageInfo` and `results`.
+                fixture: 'test/fixtures/seerr/log.json',
+                fields: ['pageInfo.results', 'results.timestamp', 'results.level', 'results.label', 'results.message', 'results.errorMessage']
+            }
         ]
     },
     // Bazarr, SABnzbd, Transmission, qBittorrent and Plex publish no OpenAPI document,
@@ -627,6 +641,7 @@ const CONTRACTS: Record<string, ServiceContract> = {
     bazarr: {
         dependencies: [
             { fixture: 'test/fixtures/bazarr/system-status.json', fields: ['data.bazarr_version'] },
+            { fixture: 'test/fixtures/bazarr/log.json', fields: ['data.timestamp', 'data.type', 'data.message'] },
             // `status` is "Good" with a capital G; `retry` is "-" when idle.
             { fixture: 'test/fixtures/bazarr/providers.json', fields: ['data.name', 'data.status', 'data.retry'] },
             {

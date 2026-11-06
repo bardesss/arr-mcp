@@ -5,14 +5,17 @@ import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
 import { fenceText } from '../core/fence.ts';
 import { logger } from '../core/logger.ts';
+import { LOG_LINES, foldLogLines } from './logLines.ts';
 import {
     diagnoseConnection,
     type ConnectionDiagnosis,
     type CreateRequestOptions,
     type DiscoverCapable,
     type IssueCapable,
+    type LogCapable,
     type MediaIssue,
     type MediaRequest,
+    type RecentLogs,
     type RequestManageCapable,
     type RequestStatus,
     type RequestVerdict,
@@ -126,6 +129,7 @@ type RawUser = { id?: number; displayName?: string; username?: string; email?: s
 
 /** Every paginated Seerr list answers with this envelope. */
 type PageInfo = { results?: number };
+type RawLogRow = { timestamp?: string; level?: string; label?: string; message?: string; errorMessage?: unknown };
 
 /**
  * Seerr users may have no display name. The email local part is the fallback
@@ -135,7 +139,7 @@ type PageInfo = { results?: number };
 const nameOf = (u: RawUser): string | undefined => u.displayName ?? u.username ?? u.email?.split('@')[0];
 
 export class SeerrAdapter
-    implements ServiceAdapter, UserDirectoryCapable, SearchCapable, DiscoverCapable, RequestManageCapable, IssueCapable
+    implements ServiceAdapter, LogCapable, UserDirectoryCapable, SearchCapable, DiscoverCapable, RequestManageCapable, IssueCapable
 {
     readonly type: ServiceId = 'seerr';
     readonly id: string = 'seerr';
@@ -152,6 +156,34 @@ export class SeerrAdapter
             throw new ServiceError('UpstreamError', this.id, 'status returned no version field');
         }
         return status.version;
+    }
+
+    /**
+     * `filter=warn` means warnings and worse. The answer is `pageInfo` and
+     * `results`, not the bare array `specs/seerr.json` documents. A row also
+     * carries whatever the line was logged with, whole library items included, so
+     * only these fields are read. `errorMessage` is the reason, and `message`
+     * often only says which job failed, so it is kept the way the *arrs keep
+     * theirs: appended to the message.
+     */
+    async getRecentLogs(): Promise<RecentLogs> {
+        const page = await this.#http.get<{ pageInfo?: PageInfo; results?: RawLogRow[] }>(
+            `/api/v1/settings/logs?take=${LOG_LINES}&skip=0&filter=warn`
+        );
+        const rows = page.results ?? [];
+        const lines = rows.flatMap(r => {
+            if (typeof r.timestamp !== 'string') return [];
+            const message = r.message ?? '';
+            return [
+                {
+                    time: r.timestamp,
+                    level: r.level ?? 'warn',
+                    logger: r.label ?? 'unknown',
+                    message: typeof r.errorMessage === 'string' ? `${message}: ${r.errorMessage}` : message
+                }
+            ];
+        });
+        return { entries: foldLogLines(lines, this.id), read: rows.length, total: page.pageInfo?.results ?? rows.length };
     }
 
     /**
