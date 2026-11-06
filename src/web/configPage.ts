@@ -747,8 +747,8 @@ function webhooksCard(config: Config, keys: SafeHtml, confirmingNewSecret: boole
                       On Movie Delete or On Series Delete, and On Movie File Delete or On Episode File Delete.
                       The file delete for an upgrade, On Rename and On Manual Interaction Required are optional.
                       Leave the health triggers and On Application Update off, because they aren't about a title.
-                      In Sonarr, also leave On Import Complete off: it reports the same import as On File Import,
-                      so you would get a second row.
+                      In Sonarr, also leave On Import Complete off: On File Import already reports each import,
+                      and with both on you may get a second row.
                   </p>
                   <p class="note">Username: <span class="mono">${WEBHOOK_USERNAME}</span></p>
                   <div class="field">

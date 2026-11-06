@@ -844,8 +844,8 @@ The file delete for an upgrade, On Rename and On Manual Interaction Required are
 optional. The first adds a row to every upgrade, and the other two are kept as
 `unknown`. Leave the health triggers and On Application Update off: they aren't
 about a title, and their message isn't kept. In Sonarr, also leave On Import
-Complete off: it reports the same import as On File Import, so you would get a
-second row.
+Complete off: On File Import already reports each import, and with both on you
+may get a second row.
 
 Press Test in the service: a 200 means it's connected, and the test isn't stored.
 
