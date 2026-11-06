@@ -6,6 +6,7 @@ import { fenceText } from '../core/fence.ts';
 import { ServiceHttp } from '../core/http.ts';
 import { readArrCommands } from './arrCommands.ts';
 import { readSeedCriteria } from './arrSeedCriteria.ts';
+import { arrRecentLogs } from './arrSystem.ts';
 import type { components } from './generated/prowlarr.ts';
 import {
     diagnoseConnection,
@@ -28,6 +29,8 @@ import {
     type IndexerSyncView,
     type IndexerWriteCapable,
     type LibraryScanCapable,
+    type LogCapable,
+    type RecentLogs,
     type SearchCapable,
     type SearchHit,
     type SearchSource,
@@ -97,6 +100,7 @@ export class ProwlarrAdapter
     implements
         ServiceAdapter,
         HealthCheckCapable,
+        LogCapable,
         IndexerCapable,
         IndexerWriteCapable,
         SearchCapable,
@@ -123,6 +127,10 @@ export class ProwlarrAdapter
             throw new ServiceError('UpstreamError', this.id, 'system/status returned no version field');
         }
         return status.version;
+    }
+
+    async getRecentLogs(): Promise<RecentLogs> {
+        return arrRecentLogs(this.#http, this.id);
     }
 
     /**

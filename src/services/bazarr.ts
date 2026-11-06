@@ -4,6 +4,7 @@ import { apiKeyHeader } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
 import { fenceText } from '../core/fence.ts';
+import { LOG_LINES, foldLogLines } from './logLines.ts';
 import {
     diagnoseConnection,
     type ConnectionDiagnosis,
@@ -11,7 +12,9 @@ import {
     type HealthCheckCapable,
     type HistoryCapable,
     type HistoryEntry,
+    type LogCapable,
     type MissingLanguage,
+    type RecentLogs,
     type ServiceAdapter,
     type SubtitleCapable,
     type SubtitleGap,
@@ -31,6 +34,13 @@ import {
 type Envelope<T> = { data?: T };
 type RawStatus = { bazarr_version?: string };
 type RawHealth = { object?: string; issue?: string };
+type RawLogRow = { timestamp?: string; type?: string; message?: string };
+/** Python's level names, as the *arrs spell the ones they share. INFO and DEBUG are not faults. */
+const LOG_LEVELS = new Map([
+    ['WARNING', 'warn'],
+    ['ERROR', 'error'],
+    ['CRITICAL', 'critical']
+]);
 type RawMissing = { name?: string; code2?: string; forced?: boolean; hi?: boolean };
 type RawWantedMovie = { radarrId?: number; title?: string; sceneName?: string | null; missing_subtitles?: RawMissing[] };
 type RawWantedEpisode = {
@@ -94,7 +104,7 @@ export function bazarrTimestamp(h: { timestamp?: number | string; parsed_timesta
 }
 
 export class BazarrAdapter
-    implements ServiceAdapter, HealthCheckCapable, SubtitleCapable, SubtitleSearchCapable, HistoryCapable
+    implements ServiceAdapter, HealthCheckCapable, LogCapable, SubtitleCapable, SubtitleSearchCapable, HistoryCapable
 {
     readonly type: ServiceId = 'bazarr';
     readonly instance: string | undefined;
@@ -132,6 +142,24 @@ export class BazarrAdapter
             type: 'warning',
             message: fenceText(row.issue ?? '', { service: this.id, field: 'message' })
         }));
+    }
+
+    /**
+     * Bazarr answers with its whole current log at every level and cannot filter,
+     * so the filter and the limit are here, and `total` counts warnings and worse
+     * like the other services' logs. It has no logger field, and its times are
+     * local with no offset, so they stay that way rather than claim a zone.
+     */
+    async getRecentLogs(): Promise<RecentLogs> {
+        const body = await this.#http.get<Envelope<RawLogRow[]>>('/api/system/logs');
+        const lines = (body.data ?? []).flatMap(row => {
+            const level = LOG_LEVELS.get(row.type ?? '');
+            return level !== undefined && typeof row.timestamp === 'string'
+                ? [{ time: row.timestamp.replace(' ', 'T'), level, logger: 'bazarr', message: row.message ?? '' }]
+                : [];
+        });
+        const newest = lines.slice(0, LOG_LINES);
+        return { entries: foldLogLines(newest, this.id), read: newest.length, total: lines.length };
     }
 
     /**

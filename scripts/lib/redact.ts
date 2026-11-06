@@ -417,6 +417,45 @@ export function anonymiseArrLog(body: unknown): unknown {
     };
 }
 
+/**
+ * Seerr's log (`/api/v1/settings/logs`). A row carries whatever the line was
+ * logged with, whole library items included, so it is rebuilt from the fields the
+ * adapter reads rather than scrubbed field by field. `label` and `level` stay: the
+ * service's own vocabulary. Times and `pageInfo.results` are synthetic.
+ */
+export function anonymiseSeerrLog(body: unknown): unknown {
+    if (!isFixtureRow(body) || !Array.isArray(body.results)) return body;
+    const rows = body.results as unknown[];
+    return {
+        pageInfo: { ...(isFixtureRow(body.pageInfo) ? body.pageInfo : {}), results: rows.length + 100 },
+        results: rows.filter(isFixtureRow).map((row, index) => ({
+            label: row.label,
+            level: row.level,
+            message: `Fixture message ${index + 1}`,
+            ...(typeof row.errorMessage === 'string' ? { errorMessage: `Fixture reason ${index + 1}` } : {}),
+            // Newest first, as the service sorted them.
+            timestamp: new Date(1_700_000_000_000 - 60_000 * index).toISOString()
+        }))
+    };
+}
+
+/**
+ * Bazarr's log (`/api/system/logs`), every level of it. `type` stays; the text and
+ * any traceback are replaced, and times are synthetic but keep Bazarr's own format,
+ * local with no offset, because that format is what the adapter has to handle.
+ */
+export function anonymiseBazarrLog(body: unknown): unknown {
+    if (!isFixtureRow(body) || !Array.isArray(body.data)) return body;
+    return {
+        data: (body.data as unknown[]).filter(isFixtureRow).map((row, index) => ({
+            timestamp: new Date(1_700_000_000_000 - 60_000 * index).toISOString().slice(0, 19).replace('T', ' '),
+            type: row.type,
+            message: `Fixture message ${index + 1}`,
+            exception: typeof row.exception === 'string' ? `Fixture exception ${index + 1}` : null
+        }))
+    };
+}
+
 /** Anonymises queue/history rows inside an NZBGet JSON-RPC response. */
 export function anonymiseNzbgetRows(body: unknown): unknown {
     if (Array.isArray(body)) return syntheticNzbgetNumbers(body.map((row, index) => anonymiseNzbgetRow(row, index)));

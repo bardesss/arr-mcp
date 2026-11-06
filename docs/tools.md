@@ -667,10 +667,10 @@ not a fault — and bounded like `scans` rather than sharing the `limit` budget.
 
 ### Why is it failing?
 
-At `detail: "full"`, `logs` lists the recent warnings and errors each Radarr and
-Sonarr wrote to its own log, newest first. A health check says *what* is broken
-("download client unavailable"); the log line says *why* ("Name does not
-resolve (qbittorrent:8080)", a path it cannot write).
+At `detail: "full"`, `logs` lists the recent warnings and errors each Radarr,
+Sonarr, Prowlarr, Seerr and Bazarr wrote to its own log, newest first. A health
+check says *what* is broken ("download client unavailable"); the log line says
+*why* ("Name does not resolve (qbittorrent:8080)", a path it cannot write).
 
 The last 50 warning-or-worse lines are read per instance, and lines that differ
 only in a date-time are folded into one row: `level`, `logger`, `message`,
@@ -686,6 +686,16 @@ Those lines are not the whole log. `logs.lines` gives each instance's `read` and
 `total`; `count` and `firstSeen` stop at what was read, and a retry storm can push
 the line that explains it out of the window. There is no time limit either, so an
 old line may no longer apply: `lastSeen` says how old it is.
+
+The services differ in a few ways. Seerr's `errorMessage` is appended to `message`,
+because that is where it says why, and the rest of what a Seerr line was logged
+with is dropped. Bazarr has no logger name, so `logger` is `bazarr`; its times are
+local with no offset, so its rows sort as if in this server's time zone. It answers
+with its whole current log, so its `total` counts the warnings and worse in that.
+A value that looks like an API key, token or password is replaced with `(removed)`
+in every service's lines. SABnzbd's warnings are in `failures` rather than here.
+Jellyfin's real log is plain-text files, and Dispatcharr and Profilarr have no log
+to read, so none of the three appears here.
 
 ## `get_library`
 

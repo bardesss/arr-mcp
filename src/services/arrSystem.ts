@@ -2,7 +2,8 @@ import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
 import { postArrCommand } from './arrCommands.ts';
-import type { CommandHandle, DiskSpace, HealthCheck, LogEntry, RecentLogs, ScanState } from './types.ts';
+import { LOG_LINES, foldLogLines } from './logLines.ts';
+import type { CommandHandle, DiskSpace, HealthCheck, RecentLogs, ScanState } from './types.ts';
 
 /**
  * Radarr, Sonarr, Whisparr and Lidarr share a framework, so their system
@@ -61,55 +62,18 @@ type RawLogPage = {
     records?: { time?: string; level?: string | null; logger?: string | null; message?: string | null; exceptionType?: string | null }[] | null;
 };
 
-/**
- * Raw lines read before folding. A client failing every two seconds writes a
- * pair of lines each time and fills this in under a minute, which can push out
- * the line that explains the failure. `read` and `total` say how far it got.
- */
-const LOG_LINES = 50;
-
-/**
- * A numeric date and time, in the orders and separators locales write them in.
- * Only the fold key is masked: a recurring warning that quotes a time would
- * otherwise never repeat. A four-digit year keeps IP addresses and versions out,
- * because a difference in those is often what the log is there to show. A format
- * this misses only folds less.
- */
-const LOG_DATE_TIME = /(?<![\d.])(?:\d{4}[/.-]\d{1,2}[/.-]\d{1,2}|\d{1,2}[/.-]\d{1,2}[/.-]\d{4})[ T]\d{1,2}:\d{2}(?::\d{2}(?:[.,]\d+)?)?(?:\s?[AP]M)?(?:Z|[+-]\d{2}(?::?\d{2})?)?(?!\d)/gi;
-
 /** Warnings and errors, newest first, lines differing only in a date-time folded into one with a count. */
 export async function arrRecentLogs(http: ServiceHttp, id: string): Promise<RecentLogs> {
     const page = await http.get<RawLogPage>(
         `${http.apiRoot}/log?page=1&pageSize=${LOG_LINES}&sortKey=time&sortDirection=descending&level=warn`
     );
     const records = page.records ?? [];
-    const folded = new Map<string, LogEntry>();
-    for (const r of records) {
-        if (typeof r.time !== 'string') continue;
-        const level = r.level ?? 'warn';
-        const logger = r.logger ?? 'unknown';
-        const message = r.message ?? '';
-        const key = `${level}\u0000${logger}\u0000${message.replace(LOG_DATE_TIME, '\u0000')}`;
-        const seen = folded.get(key);
-        if (seen !== undefined) {
-            // Rows arrive newest first, so a later row only moves firstSeen back.
-            seen.count++;
-            seen.firstSeen = r.time;
-            continue;
-        }
-        folded.set(key, {
-            service: id,
-            level,
-            logger,
-            // Log lines quote hosts, paths, release names and indexer errors.
-            message: fenceText(message, { service: id, field: 'message' }),
-            ...(r.exceptionType ? { exceptionType: fenceText(r.exceptionType, { service: id, field: 'exceptionType' }) } : {}),
-            count: 1,
-            firstSeen: r.time,
-            lastSeen: r.time
-        });
-    }
-    return { entries: [...folded.values()], read: records.length, total: page.totalRecords ?? records.length };
+    const lines = records.flatMap(r =>
+        typeof r.time === 'string'
+            ? [{ time: r.time, level: r.level ?? 'warn', logger: r.logger ?? 'unknown', message: r.message ?? '', exceptionType: r.exceptionType }]
+            : []
+    );
+    return { entries: foldLogLines(lines, id), read: records.length, total: page.totalRecords ?? records.length };
 }
 
 /**

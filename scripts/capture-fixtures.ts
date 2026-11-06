@@ -43,6 +43,8 @@ import { anonymiseDispatcharr } from './lib/dispatcharrCapture.ts';
 import { anonymiseShelfmarkConfig, anonymiseShelfmarkHistory, anonymiseShelfmarkReleases, anonymiseShelfmarkSearch, anonymiseShelfmarkSnapshot, anonymiseShelfmarkStatus } from './lib/shelfmarkCapture.ts';
 import {
     anonymiseArrLog,
+    anonymiseBazarrLog,
+    anonymiseSeerrLog,
     anonymiseImages,
     anonymisePlexAccounts,
     anonymisePlexHistory,
@@ -775,6 +777,14 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         { name: 'indexerstats', path: '/api/v1/indexerstats' },
         { name: 'history', path: '/api/v1/history?pageSize=20' },
         { name: 'command', path: '/api/v1/command' },
+        {
+            // Every level, unlike the Radarr and Sonarr entries: the adapter asks
+            // for warnings and worse, but a healthy Prowlarr has none, and an
+            // empty list records no shape.
+            name: 'log',
+            path: '/api/v1/log?page=1&pageSize=20&sortKey=time&sortDirection=descending',
+            anonymise: anonymiseArrLog
+        },
         // Deliberately a query nothing will match well: this is captured for
         // its *shape*, and a popular term would pull hundreds of release names
         // into a public repository for no extra information.
@@ -783,6 +793,7 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
     bazarr: [
         { name: 'system-status', path: '/api/system/status' },
         { name: 'system-health', path: '/api/system/health' },
+        { name: 'log', path: '/api/system/logs', anonymise: anonymiseBazarrLog },
         { name: 'providers', path: '/api/providers' },
         { name: 'movies-wanted', path: '/api/movies/wanted' },
         { name: 'episodes-wanted', path: '/api/episodes/wanted' }
@@ -897,6 +908,7 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
             }
         },
         { name: 'settings-about', path: '/api/v1/settings/about' },
+        { name: 'log', path: '/api/v1/settings/logs?take=20&skip=0&filter=warn', anonymise: anonymiseSeerrLog },
         {
             name: 'request',
             path: '/api/v1/request?take=20',
