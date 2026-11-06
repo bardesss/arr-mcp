@@ -423,7 +423,7 @@ around them.
    be configured, because `get_library`'s `presence` join needs a single
    counterparty.
 6. **Decide whether it can be configured twice**, and say so in the adapter.
-   Eight of the eighteen services can be, so this is the common case rather than the
+   Nine of the eighteen services can be, so this is the common case rather than the
    exotic one — but copying `jellyfin.ts` gets you `readonly id: string =
    '<type>'`, which is the *single*-instance shape. That is the safe default
    (a service that simply cannot be configured twice, rather than two adapters
