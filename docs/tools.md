@@ -672,12 +672,15 @@ Sonarr wrote to its own log, newest first. A health check says *what* is broken
 ("download client unavailable"); the log line says *why* ("Name does not
 resolve (qbittorrent:8080)", a path it cannot write).
 
-The last 50 warning-or-worse lines are read per instance, and identical lines
-are folded into one row: `level`, `logger`, `message`, `exceptionType`, `count`,
-`firstSeen` and `lastSeen`. A client test that fails every two seconds writes the
-same pair of lines dozens of times; on the recorded fixture, 20 lines fold into
-3. `logs` is an envelope with its own `limit` budget. A log that cannot be read
-marks the instance `degraded`.
+The last 50 warning-or-worse lines are read per instance, and lines that differ
+only in a date-time are folded into one row: `level`, `logger`, `message`,
+`exceptionType`, `count`, `firstSeen` and `lastSeen`. `message` is the newest line
+as written. A client test that fails every two seconds writes the same pair of
+lines dozens of times, and an RSS warning quoting the period it missed differs
+only in its times; on the recorded fixture, 20 lines fold into 3. Hosts, ports,
+IP addresses and other numbers stay in the comparison, so `server1:8080` and
+`server2:8080` stay apart. `logs` is an envelope with its own `limit` budget. A
+log that cannot be read marks the instance `degraded`.
 
 Those lines are not the whole log. `logs.lines` gives each instance's `read` and
 `total`; `count` and `firstSeen` stop at what was read, and a retry storm can push

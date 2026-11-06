@@ -68,7 +68,16 @@ type RawLogPage = {
  */
 const LOG_LINES = 50;
 
-/** Warnings and errors, newest first, identical lines folded into one with a count. */
+/**
+ * A numeric date and time, in the orders and separators locales write them in.
+ * Only the fold key is masked: a recurring warning that quotes a time would
+ * otherwise never repeat. A four-digit year keeps IP addresses and versions out,
+ * because a difference in those is often what the log is there to show. A format
+ * this misses only folds less.
+ */
+const LOG_DATE_TIME = /(?<![\d.])(?:\d{4}[/.-]\d{1,2}[/.-]\d{1,2}|\d{1,2}[/.-]\d{1,2}[/.-]\d{4})[ T]\d{1,2}:\d{2}(?::\d{2}(?:[.,]\d+)?)?(?:\s?[AP]M)?(?:Z|[+-]\d{2}(?::?\d{2})?)?(?!\d)/gi;
+
+/** Warnings and errors, newest first, lines differing only in a date-time folded into one with a count. */
 export async function arrRecentLogs(http: ServiceHttp, id: string): Promise<RecentLogs> {
     const page = await http.get<RawLogPage>(
         `${http.apiRoot}/log?page=1&pageSize=${LOG_LINES}&sortKey=time&sortDirection=descending&level=warn`
@@ -80,7 +89,7 @@ export async function arrRecentLogs(http: ServiceHttp, id: string): Promise<Rece
         const level = r.level ?? 'warn';
         const logger = r.logger ?? 'unknown';
         const message = r.message ?? '';
-        const key = `${level}\u0000${logger}\u0000${message}`;
+        const key = `${level}\u0000${logger}\u0000${message.replace(LOG_DATE_TIME, '\u0000')}`;
         const seen = folded.get(key);
         if (seen !== undefined) {
             // Rows arrive newest first, so a later row only moves firstSeen back.
