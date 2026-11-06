@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.65.0](https://github.com/bardesss/arr-mcp/compare/v1.64.0...v1.65.0) (2026-11-06)
+
+
+### Features
+
+* list the webhook triggers and add a copy button to the password ([#479](https://github.com/bardesss/arr-mcp/issues/479)) ([84a1a3b](https://github.com/bardesss/arr-mcp/commit/84a1a3bf383bdb09f12bb49ba4b682d956e2e143))
+* split the configuration page into tabs ([#482](https://github.com/bardesss/arr-mcp/issues/482)) ([f25ee99](https://github.com/bardesss/arr-mcp/commit/f25ee990bc68197f5e80e4b88f27fbec8fdc215b))
+
 ## [1.64.0](https://github.com/bardesss/arr-mcp/compare/v1.63.0...v1.64.0) (2026-11-05)
 
 
