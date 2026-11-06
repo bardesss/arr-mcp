@@ -692,8 +692,9 @@ because that is where it says why, and the rest of what a Seerr line was logged
 with is dropped. Bazarr has no logger name, so `logger` is `bazarr`; its times are
 local with no offset, so its rows sort as if in this server's time zone. It answers
 with its whole current log, so its `total` counts the warnings and worse in that.
-A value that looks like an API key, token or password is replaced with `(removed)`
-in every service's lines. SABnzbd's warnings are in `failures` rather than here.
+A value that looks like an API key, token or password, an `Authorization` header's
+value and any credentials inside a URL are replaced with `(removed)` in every
+service's lines. SABnzbd's warnings are in `failures` rather than here.
 Jellyfin's real log is plain-text files, and Dispatcharr and Profilarr have no log
 to read, so none of the three appears here.
 
