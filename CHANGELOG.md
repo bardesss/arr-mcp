@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.67.0](https://github.com/bardesss/arr-mcp/compare/v1.66.0...v1.67.0) (2026-11-06)
+
+
+### Features
+
+* **stack-health:** report recent Prowlarr, Seerr and Bazarr log warnings at full ([#487](https://github.com/bardesss/arr-mcp/issues/487)) ([d84f34c](https://github.com/bardesss/arr-mcp/commit/d84f34cc66e7732ae4b06f4ed9aceccb4158d0eb))
+* **stack-health:** report recent Radarr/Sonarr log warnings and errors at full ([#485](https://github.com/bardesss/arr-mcp/issues/485)) ([9c20a21](https://github.com/bardesss/arr-mcp/commit/9c20a2129a0cd3454509655b801ea364b06dd87b))
+
+
+### Bug Fixes
+
+* **stack-health:** remove auth headers and URL credentials from log lines ([#488](https://github.com/bardesss/arr-mcp/issues/488)) ([6bc95f8](https://github.com/bardesss/arr-mcp/commit/6bc95f8d5357f91bae8b89067ffe926706c805e6))
+
 ## [1.66.0](https://github.com/bardesss/arr-mcp/compare/v1.65.0...v1.66.0) (2026-11-06)
 
 
