@@ -44,6 +44,7 @@ part it could not check rather than guessing across the hole.
 |  | |
 | --- | --- |
 | 🔍 **`diagnose` answers what no single service can** | Walks the whole chain — requested, managed, monitored, downloaded, indexed, imported, scanned — and names the *first* thing that explains the absence. |
+| 🗂️ **A record that outlives the title** | Deleting a title deletes its history. Turn on the [library event log](docs/configuration.md#the-library-event-log) and arr-mcp keeps what Radarr and Sonarr report, so `get_history` and `diagnose` can still tell you what happened to it. |
 | 🧮 **Quality profiles that cannot do what they say** | A minimum score nothing can reach, a language preferred but never required, a format scored where its wider twin sits at zero. The arithmetic ones are proved rather than guessed, and every fix names a change to make in Profilarr, which owns them. |
 | 🛡️ **Indexer text is data, never instruction** | Release names from public indexers are attacker-controllable and flow straight into model context. arr-mcp fences every one of them. |
 | ✋ **Writes are opt-in, previewed, recorded** | Off until you turn them on, per service. Every write shows you exactly what it would do and waits for confirmation — and lands in an audit trail either way. |
