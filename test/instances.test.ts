@@ -112,7 +112,7 @@ describe('what the list form refuses', () => {
         for (const type of ['jellyfin', 'seerr', 'plex']) {
             expect(isMultiInstance(type as never)).toBe(false);
             expect(() => parse({ [type]: [entry('a', 9999)] })).toThrow(
-                /only bazarr, nzbget, prowlarr, qbittorrent, radarr, sabnzbd, sonarr, transmission/i
+                /only bazarr, lidarr, nzbget, prowlarr, qbittorrent, radarr, sabnzbd, sonarr, transmission/i
             );
         }
     });
@@ -126,6 +126,14 @@ describe('adapters', () => {
         expect(adapters.map(a => a.id)).toEqual(['radarr/4k', 'radarr/hd']);
         expect(adapters.every(a => a.type === 'radarr')).toBe(true);
         expect(adapters.map(a => a.instance)).toEqual(['4k', 'hd']);
+    });
+
+    it('builds two Lidarrs as two adapters, a lossless library beside a lossy one', () => {
+        const adapters = buildAdapters(parse({ lidarr: [entry('flac', 8686), entry('mp3', 8686)] }));
+
+        expect(adapters.map(a => a.id)).toEqual(['lidarr/flac', 'lidarr/mp3']);
+        expect(adapters.every(a => a.type === 'lidarr')).toBe(true);
+        expect(adapters.map(a => a.instance)).toEqual(['flac', 'mp3']);
     });
 
     it('leaves a single instance reporting the bare id and no instance name', () => {
@@ -245,9 +253,9 @@ describe('the download clients and Prowlarr take a list', () => {
     });
 
     it('reports the new types as multi-instance', () => {
-        for (const type of ['nzbget', 'sabnzbd', 'prowlarr', 'transmission', 'qbittorrent'] as const) {
+        for (const type of ['lidarr', 'nzbget', 'sabnzbd', 'prowlarr', 'transmission', 'qbittorrent'] as const) {
             expect(isMultiInstance(type)).toBe(true);
         }
-        expect(MULTI_INSTANCE).toHaveLength(8);
+        expect(MULTI_INSTANCE).toHaveLength(9);
     });
 });

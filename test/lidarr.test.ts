@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { KeyedServiceConfig } from '../src/config/schema.ts';
+import type { ConfigByService, KeyedServiceConfig } from '../src/config/schema.ts';
 import { unfenced } from '../src/core/titleMatch.ts';
 import { LidarrAdapter } from '../src/services/lidarr.ts';
 import {
@@ -37,11 +37,47 @@ const serving = (routes: Record<string, unknown>, seen: string[] = []) =>
 const adapter = (routes: Record<string, unknown>, seen?: string[]) => new LidarrAdapter(config, serving(routes, seen));
 
 describe('LidarrAdapter', () => {
-    it('is lidarr, single-instance', () => {
+    it('is a bare lidarr with no instance name when configured once', () => {
         const a = adapter({});
         expect(a.id).toBe('lidarr');
         expect(a.type).toBe('lidarr');
         expect(a.instance).toBeUndefined();
+    });
+
+    describe('as one of several instances', () => {
+        const named = (routes: Record<string, unknown>, seen?: string[]) =>
+            new LidarrAdapter({ ...config, name: 'flac' } as ConfigByService['lidarr'], serving(routes, seen));
+
+        it('takes its id from the instance name', () => {
+            const a = named({});
+            expect(a.id).toBe('lidarr/flac');
+            expect(a.type).toBe('lidarr');
+            expect(a.instance).toBe('flac');
+        });
+
+        /**
+         * The trap CONTRIBUTING names: `ServiceHttp` puts the id it was given
+         * into every error, so a literal there would blame a bare `lidarr` for a
+         * failure in `lidarr/flac`.
+         */
+        it('blames the named instance when a read fails', async () => {
+            await expect(named({}).getVersion()).rejects.toMatchObject({ service: 'lidarr/flac' });
+        });
+
+        it('blames the named instance when the connection test fails', async () => {
+            const diagnosis = await named({}).testConnection();
+            expect(diagnosis).toMatchObject({ ok: false, service: 'lidarr/flac' });
+        });
+
+        it('blames the named instance when it refuses an id', async () => {
+            await expect(named({}).getMonitorState('not-a-number')).rejects.toMatchObject({ service: 'lidarr/flac' });
+        });
+
+        it('still answers on /api/v1', async () => {
+            const seen: string[] = [];
+            await named({ '/api/v1/system/status': STATUS }, seen).getVersion();
+            expect(seen).toEqual(['/api/v1/system/status']);
+        });
     });
 
     /**

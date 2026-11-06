@@ -1,7 +1,8 @@
 import type { McpServer } from '@modelcontextprotocol/server';
+import { gather } from '../core/gather.ts';
 import { logger } from '../core/logger.ts';
 import { hasArtistMonitor } from '../services/types.ts';
-import type { ArtistMonitorCapable, ServiceAdapter } from '../services/types.ts';
+import type { ArtistMonitorCapable, ArtistMonitorPolicy, ServiceAdapter } from '../services/types.ts';
 import type { ToolContext } from '../tools/register.ts';
 import { buildGetLibrary } from '../tools/getLibrary.ts';
 import { buildStackHealth } from '../tools/stackHealth.ts';
@@ -60,16 +61,48 @@ const json = (uri: URL, body: Record<string, unknown>) => ({
     contents: [{ uri: uri.href, mimeType: 'application/json', text: stamped(body) }]
 });
 
-/** The Lidarr adapter, and only when it can answer for artist policies.
+/** Every Lidarr adapter that can answer for artist policies, in id order.
  *
  * Both branches below ask whether Lidarr can explain music, not merely whether
  * a `lidarr` entry exists: an adapter that cannot list artist policies has no
  * music rows to account for and no policy to report. Keeping one predicate
  * stops the summary and the monitoring resource disagreeing about what
  * "configured" means.
+ *
+ * A list, because Lidarr can be configured more than once. Taking the first
+ * would report one instance's policy as if it were the whole music library's.
  */
-const lidarrWithPolicies = (adapters: readonly ServiceAdapter[]): (ServiceAdapter & ArtistMonitorCapable) | undefined =>
-    adapters.find((a): a is ServiceAdapter & ArtistMonitorCapable => a.type === 'lidarr' && hasArtistMonitor(a));
+const lidarrsWithPolicies = (adapters: readonly ServiceAdapter[]): (ServiceAdapter & ArtistMonitorCapable)[] =>
+    adapters.filter((a): a is ServiceAdapter & ArtistMonitorCapable => hasArtistMonitor(a));
+
+/** The counts the monitoring resource reports, for one instance or for all of them. */
+const policyCounts = (policies: readonly ArtistMonitorPolicy[]) => {
+    const byPolicy: Record<string, number> = {};
+    let flagged = 0;
+    for (const p of policies) {
+        byPolicy[p.monitorNewItems] = (byPolicy[p.monitorNewItems] ?? 0) + 1;
+        if (p.monitored) flagged += 1;
+    }
+
+    // `unknown` counts against stability on purpose. A policy that could not
+    // be read is not a policy that is off, and calling it settled is the
+    // confidently-wrong answer this file keeps refusing to give.
+    const autoMonitoring = (byPolicy['all'] ?? 0) + (byPolicy['new'] ?? 0) + (byPolicy['unknown'] ?? 0);
+
+    return {
+        counts: {
+            artists: policies.length,
+            monitor_new_items: byPolicy,
+            artist_flag: { monitored: flagged, unmonitored: policies.length - flagged },
+            // An empty artist list is stable in the only sense this field
+            // reports: nothing in it can grow the wanted list by itself.
+            // `false` beside a note saying nothing will grow was the one pair
+            // a reader could not reconcile.
+            stable: policies.length === 0 || autoMonitoring === 0
+        },
+        autoMonitoring
+    };
+};
 
 export function registerAllResources(server: McpServer, context: ToolContext): void {
     const { adapters, instances, library } = context;
@@ -169,7 +202,7 @@ export function registerAllResources(server: McpServer, context: ToolContext): v
                 // as the usual source would send the reader to a service they do
                 // not run.
                 const unmonitored = all.total - monitored.total;
-                const lidarrConfigured = lidarrWithPolicies(adapters) !== undefined;
+                const lidarrConfigured = lidarrsWithPolicies(adapters).length > 0;
                 return json(uri, {
                     total: all.total,
                     monitored: monitored.total,
@@ -228,13 +261,13 @@ export function registerAllResources(server: McpServer, context: ToolContext): v
         {
             title: 'Lidarr monitoring policy',
             description:
-                "Every Lidarr artist's monitoring policy in one read: how many will monitor albums they discover later, and how many carry the artist-level monitor flag. `set_monitoring` with `level: \"artist\"` is the live answer and the way to change it. The artist flag is not the album flag — an artist can read unmonitored while an album under it stays monitored — so read arr://library/summary for what is actually pending.",
+                "Every Lidarr artist's monitoring policy in one read: how many will monitor albums they discover later, and how many carry the artist-level monitor flag. `set_monitoring` with `level: \"artist\"` (and `instance` when there is more than one Lidarr) is the live answer and the way to change it. The artist flag is not the album flag — an artist can read unmonitored while an album under it stays monitored — so read arr://library/summary for what is actually pending. With more than one Lidarr, `instances` reports each one that answered (one that did not is listed in `degraded`), since `set_monitoring` writes one instance at a time, and the totals add those instances up: an artist two Lidarrs hold counts once in each.",
             mimeType: 'application/json',
             cacheHint: { ttlMs: MONITORING_TTL_MS, cacheScope: 'private' }
         },
         async uri => {
-            const lidarr = lidarrWithPolicies(adapters);
-            if (lidarr === undefined) {
+            const lidarrs = lidarrsWithPolicies(adapters);
+            if (lidarrs.length === 0) {
                 // Absent, not zero: holding no artists and having no Lidarr at all
                 // are different facts, and only one of them is a config problem.
                 return json(uri, {
@@ -244,54 +277,83 @@ export function registerAllResources(server: McpServer, context: ToolContext): v
                 });
             }
 
-            try {
-                const policies = await lidarr.listArtistMonitorPolicies();
-                const byPolicy: Record<string, number> = {};
-                let flagged = 0;
-                for (const p of policies) {
-                    byPolicy[p.monitorNewItems] = (byPolicy[p.monitorNewItems] ?? 0) + 1;
-                    if (p.monitored) flagged += 1;
-                }
+            // Each instance is read on its own, so one unreachable Lidarr is
+            // named as degraded rather than taking the others' answer with it.
+            const { items: read, degraded } = await gather<{ service: string; policies: ArtistMonitorPolicy[] }>(
+                lidarrs.map(l => ({
+                    id: l.id,
+                    fetch: async () => [{ service: l.id, policies: await l.listArtistMonitorPolicies() }]
+                }))
+            );
 
-                // `unknown` counts against stability on purpose. A policy that
-                // could not be read is not a policy that is off, and calling it
-                // settled is the confidently-wrong answer this file keeps
-                // refusing to give.
-                const autoMonitoring = (byPolicy['all'] ?? 0) + (byPolicy['new'] ?? 0) + (byPolicy['unknown'] ?? 0);
-                const empty = policies.length === 0;
-
-                return json(uri, {
-                    configured: true,
-                    artists: policies.length,
-                    monitor_new_items: byPolicy,
-                    artist_flag: { monitored: flagged, unmonitored: policies.length - flagged },
-                    // An empty artist list is stable in the only sense this field
-                    // reports: nothing in it can grow the wanted list by itself.
-                    // `false` beside a note saying nothing will grow was the one
-                    // pair a reader could not reconcile.
-                    stable: empty || autoMonitoring === 0,
-                    note: empty
-                        ? 'This Lidarr holds no artists, so it reports no monitoring policy and nothing here can grow ' +
-                          'the wanted list by itself. Check that it holds the artists you expect.'
-                        : autoMonitoring === 0
-                          ? "No artist will monitor an album it discovers later, so the wanted list cannot grow by itself. " +
-                            "The artist-level flag is separate from an album's own: read arr://library/summary for what is " +
-                            'still pending.'
-                          : `${autoMonitoring} artist(s) will keep monitoring albums they discover later, or report no `
-                            + 'readable policy. Unmonitoring albums under those artists is a treadmill until the policy '
-                            + 'changes — set_monitoring with level: "artist" does it.'
-                });
-            } catch (err) {
-                logger.warn({ err }, 'lidarr monitoring policy resource degraded');
+            const several = lidarrs.length > 1;
+            if (read.length === 0) {
                 return json(uri, {
                     configured: true,
                     artists: 0,
                     stable: false,
-                    note:
-                        'The policy could not be read, which is not the same as it being off. Call set_monitoring with ' +
-                        'level: "artist" for the live answer.'
+                    ...(several ? { degraded } : {}),
+                    note: several
+                        ? 'The policies could not be read, which is not the same as them being off. Call set_monitoring ' +
+                          'with level: "artist" and `instance` for the live answer.'
+                        : 'The policy could not be read, which is not the same as it being off. Call set_monitoring with ' +
+                          'level: "artist" for the live answer.'
                 });
             }
+
+            const { counts: total, autoMonitoring } = policyCounts(read.flatMap(r => r.policies));
+            const empty = total.artists === 0;
+
+            // With several Lidarrs, a write names one of them or is refused.
+            const change = several ? 'set_monitoring with level: "artist" and `instance`' : 'set_monitoring with level: "artist"';
+            // The totals add the instances up, so an artist two of them hold is
+            // counted in each, unlike get_library's one merged row.
+            const counted = several ? ' (counted once per instance)' : '';
+            const treadmill =
+                `${autoMonitoring} artist(s)${counted} will keep monitoring albums they discover later, or report no ` +
+                'readable policy. Unmonitoring albums under those artists is a treadmill until the policy ' +
+                `changes — ${change} does it.`;
+            let note: string;
+            if (degraded.length > 0) {
+                // Nothing here may claim the wanted list cannot grow: the
+                // instance that did not answer may be the one growing it.
+                const policy = degraded.length === 1 ? 'its policy' : 'their policies';
+                const unread =
+                    `${degraded.join(', ')} could not be read, which is not the same as ${policy} being off, so the ` +
+                    'counts cover only the rest and cannot say the wanted list will not grow.';
+                note = autoMonitoring > 0 ? `${unread} ${treadmill}` : unread;
+            } else if (empty) {
+                note = several
+                    ? 'None of these Lidarrs holds any artists, so they report no monitoring policy and nothing here ' +
+                      'can grow the wanted list by itself. Check that they hold the artists you expect.'
+                    : 'This Lidarr holds no artists, so it reports no monitoring policy and nothing here can grow ' +
+                      'the wanted list by itself. Check that it holds the artists you expect.';
+            } else if (autoMonitoring === 0) {
+                note =
+                    "No artist will monitor an album it discovers later, so the wanted list cannot grow by itself. " +
+                    "The artist-level flag is separate from an album's own: read arr://library/summary for what is " +
+                    'still pending.';
+            } else {
+                note = treadmill;
+            }
+
+            return json(uri, {
+                configured: true,
+                ...total,
+                // Stable is a claim about the whole music library, and an
+                // instance that did not answer may be the one still growing.
+                stable: total.stable && degraded.length === 0,
+                // One Lidarr keeps the shape it always had. With several, each
+                // is reported as well: `set_monitoring` writes one instance at
+                // a time, so the totals alone do not say where to write.
+                ...(several
+                    ? {
+                          instances: read.map(r => ({ service: r.service, ...policyCounts(r.policies).counts })),
+                          ...(degraded.length === 0 ? {} : { degraded })
+                      }
+                    : {}),
+                note
+            });
         }
     );
 }

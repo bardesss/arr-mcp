@@ -4,7 +4,7 @@
  *
  *     ARR_MCP_CONFIG_DIR=./config node scripts/multi-instance-check.ts
  *
- * It configures whichever of Radarr, Sonarr, SABnzbd, NZBGet, Prowlarr,
+ * It configures whichever of Radarr, Sonarr, Lidarr, SABnzbd, NZBGet, Prowlarr,
  * Transmission and qBittorrent the live config holds twice, as `hd` and `4k`. Doubling one
  * service is what makes its totals checkable: the same ids merge, so a
  * fan-out that double-counted or dropped an instance shows up as a total that
@@ -29,7 +29,7 @@ const { config: real, token } = withScriptToken(loaded.config);
 const hosts = hostsOf(real);
 
 /** The same service twice, under two names. */
-const DOUBLED_TYPES = ['radarr', 'sonarr', 'sabnzbd', 'nzbget', 'prowlarr', 'transmission', 'qbittorrent'] as const;
+const DOUBLED_TYPES = ['radarr', 'sonarr', 'lidarr', 'sabnzbd', 'nzbget', 'prowlarr', 'transmission', 'qbittorrent'] as const;
 
 /** The subset of `DOUBLED_TYPES` that are download clients, not *arr apps or Prowlarr. */
 const DOWNLOAD_CLIENT_TYPES = ['sabnzbd', 'nzbget', 'transmission', 'qbittorrent'] as const;
@@ -74,6 +74,9 @@ const multiConfig = doubled(real);
 const multi = appFor(multiConfig);
 
 const arrTypes = (['radarr', 'sonarr'] as const).filter(t => Array.isArray(multiConfig.services[t]));
+// Lidarr reads and is listed like the other two, but takes none of the write
+// cases below that need `trigger_search`; its own write cases follow them.
+const libraryTypes = (['radarr', 'sonarr', 'lidarr'] as const).filter(t => Array.isArray(multiConfig.services[t]));
 const doubledTypes = DOUBLED_TYPES.filter(t => Array.isArray(multiConfig.services[t]));
 const downloadClientTypes = DOWNLOAD_CLIENT_TYPES.filter(t => Array.isArray(multiConfig.services[t]));
 if (doubledTypes.length === 0) {
@@ -117,7 +120,7 @@ const health = await run('stack_health sees both instances', 'stack_health', { d
 const healthIds = ((health?.structuredContent as { services?: { service?: string }[] } | undefined)?.services ?? []).map(
     s => s.service
 );
-for (const type of arrTypes) {
+for (const type of libraryTypes) {
     const want = [`${type}/hd`, `${type}/4k`];
     if (want.every(id => healthIds.includes(id))) pass(`stack_health lists ${want.join(' and ')}`);
     else fail(`stack_health lists ${want.join(' and ')}`, `got: ${healthIds.join(', ')}`);
@@ -147,7 +150,7 @@ if (one?.total === undefined || two?.total === undefined) {
 }
 console.log(`     counts single: ${JSON.stringify(one?.counts ?? {})}`);
 console.log(`     counts doubled: ${JSON.stringify(two?.counts ?? {})}`);
-for (const type of arrTypes) {
+for (const type of libraryTypes) {
     const keys = Object.keys(two?.counts ?? {});
     const want = [`${type}/hd`, `${type}/4k`];
     if (want.every(k => keys.includes(k))) pass(`get_library counts both ${type} instances separately`);
@@ -271,6 +274,30 @@ await expectRefusal(
     /instances configured|does not say which/
 );
 
+if (Array.isArray(multiConfig.services.lidarr)) {
+    await expectRefusal(
+        'set_monitoring refuses to guess between two lidarrs',
+        'set_monitoring',
+        { service: 'lidarr', level: 'artist', monitor_new_items: 'none', dry_run: true },
+        /instances configured|does not say which/
+    );
+
+    await expectRefusal(
+        'set_monitoring names the configured lidarr instances when given a bad one',
+        'set_monitoring',
+        { service: 'lidarr', instance: 'nope', level: 'artist', monitor_new_items: 'none', dry_run: true },
+        /no instance named/
+    );
+
+    await run('set_monitoring dry run against lidarr/hd', 'set_monitoring', {
+        service: 'lidarr',
+        instance: 'hd',
+        level: 'artist',
+        monitor_new_items: 'none',
+        dry_run: true
+    });
+}
+
 // --- 3a. the write path refuses ambiguity and scopes permissions ----------
 //
 // Looped over whichever download clients are configured, one type fully at a
@@ -344,14 +371,14 @@ const uiBody = async (path: string) =>
     (await uiApp.request(`http://localhost:6060${path}`, { headers: { cookie }, redirect: 'manual' })).text();
 
 const configPage = await uiBody('/ui/config');
-for (const type of arrTypes) {
+for (const type of libraryTypes) {
     const want = [`${type}/hd`, `${type}/4k`];
     if (want.every(id => configPage.includes(id))) pass(`config UI renders a card for ${want.join(' and ')}`);
     else fail(`config UI renders a card for ${want.join(' and ')}`, 'one or both cards are missing');
 }
 
 const dashboard = await uiBody('/ui');
-for (const type of arrTypes) {
+for (const type of libraryTypes) {
     const want = [`${type}/hd`, `${type}/4k`];
     if (want.every(id => dashboard.includes(id))) pass(`dashboard shows both ${type} instances`);
     else fail(`dashboard shows both ${type} instances`, 'one or both are missing from the dashboard');

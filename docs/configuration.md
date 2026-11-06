@@ -204,8 +204,40 @@ services:
     api_key: "…"
 ```
 
-Single instance only. Lidarr answers on `/api/v1`, where Radarr and Sonarr
-answer on `/api/v3`.
+Lidarr answers on `/api/v1`, where Radarr and Sonarr answer on `/api/v3`.
+
+It can be configured more than once, the way Radarr can (see
+[several instances](#several-instances-of-one-service)), for example for a
+lossless library beside a lossy one:
+
+```yaml
+services:
+  lidarr:
+    - name: flac
+      url: http://lidarr-flac:8686
+      api_key: "…"
+    - name: mp3
+      url: http://lidarr-mp3:8686
+      api_key: "…"
+```
+
+Every artist row names the instance it came from in `acquisition.service`, as
+`lidarr/flac`. An artist both of them hold is one row, joined on its MusicBrainz
+id the way a film two Radarrs hold is, and that row carries one instance's
+`acquisition`: the one whose name sorts later, since instances are read in id
+order whatever their order in `config.yaml` (with `flac` and `mp3`, always
+`mp3`). Its `acquisition.id` is that instance's: ids are per instance. The rest
+of that row is that one instance's too: `has_file` and `monitored`, and a
+`diagnose` built from it, say nothing about the other copy. In a lossless
+library beside a lossy one, where most artists are in both, `diagnose` can call
+an artist playable when only one instance has its files; `get_media_details`
+with `instance` reads each one.
+
+Every tool that acts on one Lidarr, such as `set_monitoring`, `trigger_scan`,
+`remove_queue_item` and `clean_queue`, takes `instance` and refuses to guess
+between them. `arr://lidarr/monitoring` reports each instance that answered
+beside the totals, and names one that did not in `degraded`; the totals add the
+instances up, so an artist both hold counts in each.
 
 A configured Lidarr connects, appears in `stack_health` with its version, its
 disks, any failing health checks and when its library was last scanned
@@ -456,20 +488,19 @@ is deliberate, and it only affects writes.
 a configuration you can express — each entry carries its own `permissions`
 block.
 
-**Eight services stay single.** Jellyfin and Plex because each is one server,
+**Nine services stay single.** Jellyfin and Plex because each is one server,
 and [running both](#plex-and-jellyfin-together) is a different thing from
-running two of one. Lidarr because music libraries are rarely split, so a
-second instance would merge silently into every read. Seerr because a
-request carries the identity of the person who made it, and a second Seerr makes
-"which one do I ask" a guess with an approver on the other end of it. Whisparr
-because the one deployment that wants two is V2 beside V3 (Eros), and Eros is a
-different API with no adapter. Profilarr because it is the one place that owns
-profile config, so two of them would mean two sources of truth. Cleanuparr
-because one instance cleans one stack, Reclaimerr because one instance owns
-one library's cleanup rules, Dispatcharr because one instance serves one
-set of playlists, and Shelfmark because one instance holds one download queue.
+running two of one. Seerr because a request carries the identity of the person
+who made it, and a second Seerr makes "which one do I ask" a guess with an
+approver on the other end of it. Whisparr because the one deployment that wants
+two is V2 beside V3 (Eros), and Eros is a different API with no adapter.
+Profilarr because it is the one place that owns profile config, so two of them
+would mean two sources of truth. Cleanuparr because one instance cleans one
+stack, Reclaimerr because one instance owns one library's cleanup rules,
+Dispatcharr because one instance serves one set of playlists, and Shelfmark
+because one instance holds one download queue.
 
-Everything else takes a list: Radarr, Sonarr, Bazarr, Prowlarr, SABnzbd,
+Everything else takes a list: Radarr, Sonarr, Lidarr, Bazarr, Prowlarr, SABnzbd,
 NZBGet, Transmission and qBittorrent.
 
 Two download clients, one behind a VPN and one not:
