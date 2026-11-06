@@ -167,6 +167,7 @@ legend { padding: 0 .4rem; color: var(--dim); font-size: .85rem; }
    to read, and everything else on screen was just typed. */
 .secret { -webkit-text-security: disc; }
 [data-icon] { padding: .35rem .5rem; line-height: 0; }
+[data-icon]:not(:has(svg)) { line-height: normal; }
 [data-reveal][aria-pressed="false"] .eye-slash { display: none; }
 dialog {
   background: var(--panel); color: var(--text); border: 1px solid var(--line);
@@ -275,10 +276,12 @@ export const JS = `
 // Say what actually happened. The clipboard write fails on every plain http
 // origin, and reporting "Copied" for a fallback that only selected the text is
 // how someone pastes the wrong thing and blames the field.
+const faces = new WeakMap();
 const flash = (btn, text) => {
-  if (btn.dataset.label === undefined) btn.dataset.label = btn.textContent.trim();
+  // The nodes rather than the text, because an icon button's face is an svg.
+  if (!faces.has(btn)) faces.set(btn, [...btn.childNodes]);
   btn.textContent = text;
-  setTimeout(() => { btn.textContent = btn.dataset.label; }, 1600);
+  setTimeout(() => { btn.replaceChildren(...faces.get(btn)); }, 1600);
 };
 
 const selectIn = (el) => {

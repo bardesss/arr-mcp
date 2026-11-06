@@ -689,6 +689,11 @@ function oauthCard(config: Config, keys: SafeHtml, state: OAuthCardState): SafeH
     </form>`;
 }
 
+const COPY = raw(
+    '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+        '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>'
+);
+
 /** The slash appears while the secret is showing. See `[data-reveal]` in the stylesheet. */
 const EYE = raw(
     '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
@@ -737,6 +742,14 @@ function webhooksCard(config: Config, keys: SafeHtml, confirmingNewSecret: boole
                       : html`<ul class="note">
                             ${targets.map(i => html`<li>${i.id}: <span class="mono">/webhooks/${i.id}</span></li>`)}
                         </ul>`}
+                  <p class="note">
+                      Tick these triggers: On Grab, On File Import, On File Upgrade, On Movie Added or On Series Add,
+                      On Movie Delete or On Series Delete, and On Movie File Delete or On Episode File Delete.
+                      The file delete for an upgrade, On Rename and On Manual Interaction Required are optional.
+                      Leave the health triggers and On Application Update off, because they aren't about a title.
+                      In Sonarr, also leave On Import Complete off: it reports the same import as On File Import,
+                      so you would get a second row.
+                  </p>
                   <p class="note">Username: <span class="mono">${WEBHOOK_USERNAME}</span></p>
                   <div class="field">
                       <label for="webhooks.secret">Password</label>
@@ -752,6 +765,14 @@ function webhooksCard(config: Config, keys: SafeHtml, confirmingNewSecret: boole
                               aria-label="Show password"
                               title="Show password"
                           >${EYE}</button>
+                          <button
+                              class="ghost"
+                              type="button"
+                              data-icon
+                              data-copy="webhooks.secret"
+                              aria-label="Copy password"
+                              title="Copy password"
+                          >${COPY}</button>
                           <button
                               class="ghost"
                               type="submit"
