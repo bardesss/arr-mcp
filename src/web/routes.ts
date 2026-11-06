@@ -11,7 +11,7 @@ import type { WriteAudit } from '../core/audit.ts';
 import { logger } from '../core/logger.ts';
 import { LoginThrottle } from '../core/loginThrottle.ts';
 import { managementKeyField } from '../core/managementKey.ts';
-import { logFields, type LogStore } from '../core/logs.ts';
+import type { LogStore } from '../core/logs.ts';
 import type { Runtime } from '../core/runtime.ts';
 import {
     clearedSessionCookie,
@@ -39,7 +39,7 @@ import {
     type InstanceFields
 } from '../config/mutate.ts';
 import type { ExpiryChoice, TokenTier } from '../core/mcpTokens.ts';
-import { configPage, type OAuthDraft } from './configPage.ts';
+import { configPage, configTabForPost, configTabNamed, type OAuthDraft } from './configPage.ts';
 import { probeJwks } from './jwksProbe.ts';
 import { apiEndpoint, mcpEndpoint, sameOrigin } from './origin.ts';
 import type { WebhookEvents } from '../core/webhookEvents.ts';
@@ -49,6 +49,7 @@ import {
     dashboardPage,
     eventLogPage,
     loginPage,
+    logRowView,
     logsPage,
     setupPage,
     LOG_STREAMS,
@@ -339,12 +340,9 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         if (guard(c) === undefined) return c.json({ error: 'unauthorized' }, 401);
 
         const { minLevel, service } = logQuery(c, logs);
-        // `detail` is flattened here rather than in the browser so the polled
-        // table and the server-rendered one cannot disagree about what a row
-        // says.
-        const rows = logs
-            .recent({ minLevel, service, limit: 300 })
-            .map(r => ({ ...r, detail: logFields(r.fields) }));
+        // Prepared here rather than in the browser so the polled table and the
+        // server-rendered one cannot disagree about what a row says.
+        const rows = logs.recent({ minLevel, service, limit: 300 }).map(logRowView);
         return c.json({ rows }, 200, NO_STORE);
     });
 
@@ -404,12 +402,16 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         const session = guard(c);
         if (session === undefined) return c.redirect(entry(), 302);
         c.header('cache-control', 'no-store');
+        const tab = configTabNamed(c.req.query('tab'));
         return c.html(
             configPage({
+                tab,
                 version,
                 config: runtime.config,
                 csrf: runtime.sessions.csrfFor(session),
-                users: await usersByInstance(),
+                // Only the service cards suggest users, and asking waits on every
+                // user-aware service. The other tabs have no reason to.
+                users: tab === 'services' ? await usersByInstance() : {},
                 plaintextOnDisk: runtime.plaintextOnDisk
             })
         );
@@ -471,12 +473,14 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                 extra: Partial<Parameters<typeof configPage>[0]> = {}
             ) => {
                 c.header('cache-control', 'no-store');
+                const tab = configTabForPost(c.req.path);
                 return c.html(
                     configPage({
+                        tab,
                         version,
                         config: runtime.config,
                         csrf: runtime.sessions.csrfFor(activeSession),
-                        users: await usersByInstance(),
+                        users: tab === 'services' ? await usersByInstance() : {},
                         plaintextOnDisk: runtime.plaintextOnDisk,
                         ...(touched === undefined ? {} : { openInstance: touched }),
                         ...(opts.reopensAdd === true && status !== 200 ? { openAdd: true } : {}),
@@ -734,10 +738,10 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         const render = async (status: 200 | 400 | 403, oauth: NonNullable<Parameters<typeof configPage>[0]['oauth']>) =>
             c.html(
                 configPage({
+                    tab: 'access',
                     version,
                     config: runtime.config,
                     csrf: runtime.sessions.csrfFor(session),
-                    users: await usersByInstance(),
                     plaintextOnDisk: runtime.plaintextOnDisk,
                     oauth: { draft, ...oauth }
                 }),
@@ -802,6 +806,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         const render = async (status: 200 | 400 | 403, extra: Partial<Parameters<typeof configPage>[0]>) =>
             c.html(
                 configPage({
+                    tab: 'services',
                     version,
                     config: runtime.config,
                     csrf: runtime.sessions.csrfFor(session),

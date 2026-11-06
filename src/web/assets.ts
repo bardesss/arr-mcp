@@ -125,7 +125,9 @@ th, td {
   text-align: left; padding: .45rem .6rem; border-bottom: 1px solid var(--line);
   vertical-align: top; overflow-wrap: anywhere;
 }
-th { color: var(--dim); font-weight: 500; position: sticky; top: 0; background: var(--panel); }
+/* The z-index is for .fields dt: its opacity gives it a stacking context, which
+   paints it over a sticky header that has no z-index of its own. */
+th { color: var(--dim); font-weight: 500; position: sticky; top: 0; z-index: 1; background: var(--panel); }
 td.mono, .mono { font-family: var(--mono); font-size: .85em; }
 tr.lvl-40 td { color: var(--warn); } tr.lvl-50 td, tr.lvl-60 td { color: var(--bad); }
 .scroll { max-height: 65vh; overflow: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
@@ -133,7 +135,7 @@ form.inline { display: flex; gap: .5rem; flex-wrap: wrap; align-items: end; marg
 label { display: block; font-size: .85rem; color: var(--dim); margin-bottom: .2rem; }
 input, select, textarea {
   background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
-  border-radius: 7px; padding: .45rem .6rem; font: inherit; min-width: 0;
+  border-radius: 7px; padding: .45rem .6rem; font: inherit; min-width: 0; max-width: 100%;
 }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 input[type=checkbox] { min-width: auto; }
@@ -237,8 +239,9 @@ dialog .panel { margin: 0; border: 0; border-radius: 10px; max-height: 82vh; ove
      sideways across a form you were only trying to type in. */
   input, select, textarea, .token input, #mcp-config { font-size: 16px; }
 
-  /* Tables whose last column is prose, which is the logs and the dashboard's
-     problems and nothing else. Four columns split about 340px on a phone, so
+  /* Tables with too many columns for a phone: the logs, the dashboard's problems,
+     library events, and the token and key lists, whose last column is the Revoke
+     button. Four columns split about 340px on a phone, so
      the three narrow headings wrap letter by letter — "Le/ve/l" — and the
      message keeps what is left. The write audit reached this first and
      answered it by leaving the table for cards; this is that answer applied
@@ -251,6 +254,8 @@ dialog .panel { margin: 0; border: 0; border-radius: 10px; max-height: 82vh; ove
   .stacked, .stacked tbody, .stacked tr, .stacked td { display: block; }
   .stacked thead { display: none; }
   .stacked tr { padding: .7rem .85rem; border-bottom: 1px solid var(--line); }
+  /* A panel already has this padding; the log table's .scroll box does not. */
+  .panel .stacked tr { padding-inline: 0; }
   .stacked tr:last-child { border-bottom: 0; }
   .stacked td { border: 0; padding: 0; }
   /* The short cells rejoined into one meta line above the message. Selected by
@@ -264,6 +269,19 @@ dialog .panel { margin: 0; border: 0; border-radius: 10px; max-height: 82vh; ove
   .stacked td:where(:not(:last-child)) { display: inline; font-size: .8rem; color: var(--dim); }
   .stacked td:where(:not(:last-child)) + td:where(:not(:last-child))::before { content: ' · '; }
   .stacked td:where(:last-child) { margin-top: .35rem; }
+}
+
+/* The same tables with room to spare. overflow-wrap: anywhere leaves every
+   column free to shrink to one letter, and auto layout hands the width out by
+   content length, so one long message starves the rest: "inf/o" with half the
+   row empty. The short columns keep their words and the message takes what is
+   left, and only the message can wrap. */
+@media (min-width: 701px) {
+  .stacked th:not(:last-child), .stacked td:not(:last-child) { white-space: nowrap; }
+  .stacked th:last-child, .stacked td:last-child { width: 100%; }
+  /* A release name beside the last column, on the library events table: as long
+     as any message, and half the spare width stops either starving the other. */
+  .stacked th.prose, .stacked td.prose { white-space: normal; width: 50%; }
 }
 `;
 
@@ -499,7 +517,7 @@ if (stream) {
     for (const row of rows) {
       const tr = document.createElement('tr');
       tr.className = 'lvl-' + row.level;
-      tr.appendChild(cell(row.at, 'mono'));
+      tr.appendChild(cell(row.time, 'mono'));
       tr.appendChild(cell(row.levelName));
       tr.appendChild(cell(row.service || '—'));
 

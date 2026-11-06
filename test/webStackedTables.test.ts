@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { HealthCheck } from '../src/services/types.ts';
 import type { LogRow } from '../src/core/logs.ts';
 import { CSS, JS } from '../src/web/assets.ts';
-import { dashboardPage, logTable } from '../src/web/pages.ts';
+import { dashboardPage, logRowView, logTable } from '../src/web/pages.ts';
+import { fenceText, unfence } from '../src/core/fence.ts';
 
 const ROWS: LogRow[] = [
     {
@@ -88,9 +89,38 @@ describe('stacked tables', () => {
         expect(JS).toContain("table.className = 'stacked'");
     });
 
-    it('styles the class only under the small-screen breakpoint', () => {
+    it('styles the class only inside its two width breakpoints', () => {
         const small = CSS.slice(CSS.indexOf('@media (max-width: 700px)'));
         expect(small).toContain('.stacked');
         expect(CSS.slice(0, CSS.indexOf('@media (max-width: 700px)'))).not.toContain('.stacked');
+    });
+
+    // "inf/o" and "Lev/el" on a wide screen: overflow-wrap: anywhere lets a
+    // column shrink to one letter, so only nowrap keeps the short ones whole.
+    it('keeps the short columns on one line when there is room', () => {
+        const wide = CSS.slice(CSS.indexOf('@media (min-width: 701px)'));
+        expect(wide).toContain('.stacked td:not(:last-child) { white-space: nowrap; }');
+    });
+});
+
+describe('what a person reads', () => {
+    const fenced = fenceText('Line <Queen>', { service: 'dispatcharr', field: 'name' });
+
+    it('takes the fence off and puts the brackets back', () => {
+        expect(unfence(`EPG source ${fenced} failed`)).toBe('EPG source Line <Queen> failed');
+    });
+
+    it('still escapes what the fence was holding', () => {
+        const page = dashboard([{ service: 'dispatcharr', source: 'epg', type: 'error', message: `EPG source ${fenced} failed` }]);
+        expect(page).toContain('EPG source Line &lt;Queen&gt; failed');
+        expect(page).not.toContain('untrusted');
+    });
+
+    it('gives the polled table the same time and wording as the first render', () => {
+        const view = logRowView({ ...ROWS[0]!, msg: `saw ${fenced}`, fields: JSON.stringify({ title: fenced }) });
+        expect(view.time).toBe('2026-09-10 02:01:23');
+        expect(view.msg).toBe('saw Line <Queen>');
+        expect(view.detail).toEqual([['title', 'Line <Queen>']]);
+        expect(JS).toContain("cell(row.time, 'mono')");
     });
 });
