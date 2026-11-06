@@ -413,6 +413,9 @@ describe('the webhook route', () => {
             expect(page).toContain('/webhooks/sonarr');
             expect(page).not.toContain('/webhooks/prowlarr');
             expect(page).toContain('arr-mcp');
+            for (const trigger of ['On Grab', 'On File Import', 'On Movie Delete', 'On Series Delete', 'On Episode File Delete', 'On Import Complete']) {
+                expect(page).toContain(trigger);
+            }
         });
 
         it('masks the password, with a button to show it that does not submit the form', async () => {
@@ -422,6 +425,14 @@ describe('the webhook route', () => {
             const button = /<button[^>]*data-reveal="webhooks\.secret"[^>]*>/.exec(page)?.[0] ?? '';
             expect(button).toContain('type="button"');
             expect(button).toContain('aria-label="Show password"');
+        });
+
+        it('has a button to copy the password that does not submit the form', async () => {
+            await save({ 'webhooks.enabled': 'on', 'webhooks.retention_days': '30' });
+            const page = await (await call('/ui/config')).text();
+            const button = /<button[^>]*data-copy="webhooks\.secret"[^>]*>/.exec(page)?.[0] ?? '';
+            expect(button).toContain('type="button"');
+            expect(button).toContain('aria-label="Copy password"');
         });
 
         // Inside the card's form it would be the button Enter presses.

@@ -830,6 +830,23 @@ and Sonarr instance, under Settings, Connect, Webhook:
 | Username | `arr-mcp` (any name works) |
 | Password | The password shown on the Configuration page |
 
+Tick these triggers:
+
+| Trigger | Stored as |
+|---------|-----------|
+| On Grab | `grabbed` |
+| On File Import, On File Upgrade | `imported` |
+| On Movie Added, or On Series Add in Sonarr | `added` |
+| On Movie Delete, or On Series Delete | `deleted`, and whether the files went too |
+| On Movie File Delete, or On Episode File Delete | `deleted`, with the reason |
+
+The file delete for an upgrade, On Rename and On Manual Interaction Required are
+optional. The first adds a row to every upgrade, and the other two are kept as
+`unknown`. Leave the health triggers and On Application Update off: they aren't
+about a title, and their message isn't kept. In Sonarr, also leave On Import
+Complete off: On File Import already reports each import, and with both on you
+may get a second row.
+
 Press Test in the service: a 200 means it's connected, and the test isn't stored.
 
 If you've set [`allowed_hosts`](#access), the host name in that URL has to be in
