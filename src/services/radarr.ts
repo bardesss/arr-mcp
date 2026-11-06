@@ -28,7 +28,7 @@ import { findArrReleases, grabArrRelease } from './arrRelease.ts';
 import { readArrWanted } from './arrWanted.ts';
 import { readAudioLanguages, type RawMediaInfo } from './arrMediaInfo.ts';
 import { flattenRatings, toMergedRatings, type RawRating } from './arrRatings.ts';
-import { arrDiskSpace, arrFailedHealthChecks, arrScanState, arrStartLibraryScan, arrVersion } from './arrSystem.ts';
+import { arrDiskSpace, arrFailedHealthChecks, arrRecentLogs, arrScanState, arrStartLibraryScan, arrVersion } from './arrSystem.ts';
 import {
     diagnoseConnection,
     type BlocklistEntry,
@@ -43,6 +43,8 @@ import {
     type DownloadTraceCapable,
     type HealthCheck,
     type HealthCheckCapable,
+    type LogCapable,
+    type RecentLogs,
     type HistoryCapable,
     type HistoryEntry,
     type HistoryQuery,
@@ -133,6 +135,7 @@ export class RadarrAdapter
         ServiceAdapter,
         DiskSpaceCapable,
         HealthCheckCapable,
+        LogCapable,
         ScanStateCapable,
         QueueCapable,
         CalendarCapable,
@@ -183,6 +186,10 @@ export class RadarrAdapter
 
     async getFailedHealthChecks(): Promise<HealthCheck[]> {
         return arrFailedHealthChecks(this.#http, this.id);
+    }
+
+    async getRecentLogs(): Promise<RecentLogs> {
+        return arrRecentLogs(this.#http, this.id);
     }
 
     async startLibraryScan(): Promise<CommandHandle> {

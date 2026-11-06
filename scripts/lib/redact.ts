@@ -384,6 +384,39 @@ export function anonymiseNzbgetLog(body: unknown): unknown {
     };
 }
 
+/**
+ * Radarr's and Sonarr's log (`/api/v3/log`). A message or stack trace can name
+ * a host, an indexer, a release or a path, so each is replaced. Identical lines
+ * get the same text, because folding them is what the fixture is for. Ids,
+ * times and `totalRecords` are synthetic, so nothing says how long the log is or
+ * when it ran. `level`, `logger` and `exceptionType` stay: the service's own
+ * vocabulary.
+ */
+export function anonymiseArrLog(body: unknown): unknown {
+    if (!isFixtureRow(body) || !Array.isArray(body.records)) return body;
+    const records = body.records as unknown[];
+    const seen = new Map<string, number>();
+    return {
+        ...body,
+        totalRecords: records.length + 100,
+        records: records.map((row, index) => {
+            if (!isFixtureRow(row)) return row;
+            const key = JSON.stringify([row.level, row.logger, row.message]);
+            const n = seen.get(key) ?? seen.size + 1;
+            seen.set(key, n);
+            const text = `Fixture message ${n}`;
+            return {
+                ...row,
+                id: records.length - index,
+                // Newest first, as the service sorted them.
+                time: new Date(1_700_000_000_000 - 60_000 * index).toISOString().replace('.000Z', 'Z'),
+                message: text,
+                ...(typeof row.exception === 'string' ? { exception: `${String(row.exceptionType ?? 'Exception')}: ${text}` } : {})
+            };
+        })
+    };
+}
+
 /** Anonymises queue/history rows inside an NZBGet JSON-RPC response. */
 export function anonymiseNzbgetRows(body: unknown): unknown {
     if (Array.isArray(body)) return syntheticNzbgetNumbers(body.map((row, index) => anonymiseNzbgetRow(row, index)));

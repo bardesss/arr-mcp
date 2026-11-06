@@ -123,6 +123,93 @@ describe('SonarrAdapter', () => {
     expectsAuthDiagnosis(new SonarrAdapter(keyed(8989), unauthorized));
 });
 
+describe('arr recent logs', () => {
+    const page = fixture('radarr/log.json') as { totalRecords: number; records: { time: string; message: string }[] };
+    const adapter = new RadarrAdapter(keyed(7878), serving({ '/api/v3/log': page }));
+
+    it('folds identical lines into one row that counts them', async () => {
+        const { entries: logs } = await adapter.getRecentLogs();
+        expect(logs.reduce((n, l) => n + l.count, 0)).toBe(page.records.length);
+        expect(logs.length).toBeLessThan(page.records.length);
+        expect(logs.some(l => l.count > 1)).toBe(true);
+        expect(logs.every(l => l.service === 'radarr' && l.firstSeen <= l.lastSeen)).toBe(true);
+    });
+
+    const logsOf = (...messages: string[]) =>
+        new RadarrAdapter(
+            keyed(7878),
+            serving({
+                '/api/v3/log': {
+                    records: messages.map((message, i) => ({
+                        time: `2026-11-05T05:${String(59 - i).padStart(2, '0')}:00Z`,
+                        level: 'warn',
+                        logger: 'RssSyncService',
+                        message
+                    }))
+                }
+            })
+        ).getRecentLogs();
+
+    it.each([
+        ['US', '11/05/2026 05:05:01', '11/05/2026 05:55:01'],
+        ['US with AM/PM', '11/5/2026 5:05:01 AM', '11/5/2026 5:55:01 PM'],
+        ['day first with dashes', '05-11-2026 05:05', '05-11-2026 05:55'],
+        ['day first with dots', '05.11.2026 05:05:01', '05.11.2026 05:55:01'],
+        ['ISO 8601', '2026-11-05T05:05:01Z', '2026-11-05T05:55:01Z'],
+        ['ISO 8601 with fraction and offset', '2026-11-05T05:05:01.123+01:00', '2026-11-05T05:55:01.456+01:00'],
+        ['ISO 8601 with a space', '2026-11-05 05:05:01', '2026-11-05 05:55:01']
+    ])('folds lines that differ only in a %s date-time', async (_format, newer, older) => {
+        const { entries } = await logsOf(`Sync missed the period up to ${newer} UTC.`, `Sync missed the period up to ${older} UTC.`);
+        expect(entries).toHaveLength(1);
+        expect(entries[0]?.count).toBe(2);
+    });
+
+    it('shows the newest message as written when date-times are folded', async () => {
+        const { entries } = await logsOf('Missed 11/05/2026 05:55:01.', 'Missed 11/05/2026 05:05:01.');
+        expect(entries[0]?.message).toContain('Missed 11/05/2026 05:55:01.');
+    });
+
+    it.each([
+        ['hosts', 'Cannot reach server1:8080', 'Cannot reach server2:8080'],
+        ['ports', 'Cannot reach server1:8080', 'Cannot reach server1:9090'],
+        ['IP addresses', 'Cannot reach 10.0.0.1 12:30', 'Cannot reach 10.0.0.2 12:30'],
+        ['IP addresses with a port', 'Cannot reach 192.168.1.10:8080', 'Cannot reach 192.168.1.11:8080'],
+        ['versions', 'Version 1.2.3 12:30', 'Version 1.2.4 12:30'],
+        ['counts', 'Found 3 errors', 'Found 4 errors'],
+        ['dates alone', 'Nothing since 2026-11-05', 'Nothing since 2026-11-04']
+    ])('keeps lines apart that differ in %s', async (_what, one, other) => {
+        const { entries } = await logsOf(one, other);
+        expect(entries).toHaveLength(2);
+    });
+
+    it('fences the message and the exception type, and drops the stack trace', async () => {
+        const { entries: logs } = await adapter.getRecentLogs();
+        expect(logs.every(l => l.message === '' || l.message.startsWith('<<'))).toBe(true);
+        const withException = logs.filter(l => l.exceptionType !== undefined);
+        expect(withException.length).toBeGreaterThan(0);
+        expect(withException.every(l => l.exceptionType!.startsWith('<<'))).toBe(true);
+        expect(JSON.stringify(logs)).not.toContain('   at ');
+    });
+
+    it('says how much of the log it read', async () => {
+        const { read, total } = await adapter.getRecentLogs();
+        expect(read).toBe(page.records.length);
+        expect(total).toBe(page.totalRecords);
+        expect(read).toBeLessThan(total);
+    });
+
+    it('asks for warnings and above, newest first', async () => {
+        let asked = '';
+        const spy = (async (input: string | URL | Request) => {
+            asked = String(input);
+            return jsonResponse({ records: [] });
+        }) as unknown as typeof fetch;
+        expect(await new SonarrAdapter(keyed(8989), spy).getRecentLogs()).toEqual({ entries: [], read: 0, total: 0 });
+        const q = new URL(asked).searchParams;
+        expect([q.get('level'), q.get('sortKey'), q.get('sortDirection')]).toEqual(['warn', 'time', 'descending']);
+    });
+});
+
 describe('ProwlarrAdapter', () => {
     const adapter = new ProwlarrAdapter(
         keyed(9696),

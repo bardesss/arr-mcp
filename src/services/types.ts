@@ -85,6 +85,39 @@ export const hasHealthChecks = (a: ServiceAdapter): a is ServiceAdapter & Health
 export const hasScanState = (a: ServiceAdapter): a is ServiceAdapter & ScanStateCapable =>
     typeof (a as Partial<ScanStateCapable>).getScanState === 'function';
 
+/**
+ * A recent warning or error from a service's own log, with identical lines
+ * folded into one: a client that fails every two seconds writes the same
+ * message hundreds of times, and the count is the fact, not the repetition.
+ */
+export type LogEntry = {
+    service: string;
+    level: string;
+    logger: string;
+    message: string;
+    /** The type only: the service already appends the exception's message to `message`. */
+    exceptionType?: string;
+    /** Within the lines read, not the whole log. */
+    count: number;
+    /** Within the lines read, not the whole log. */
+    firstSeen: string;
+    lastSeen: string;
+};
+
+/** The folded rows, and how much of the log they were folded from. */
+export type RecentLogs = {
+    entries: LogEntry[];
+    read: number;
+    total: number;
+};
+
+export interface LogCapable {
+    getRecentLogs(): Promise<RecentLogs>;
+}
+
+export const hasLogs = (a: ServiceAdapter): a is ServiceAdapter & LogCapable =>
+    typeof (a as Partial<LogCapable>).getRecentLogs === 'function';
+
 // --- read-tool capabilities ---
 
 export type IndexerSummary = {

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ConfigSchema } from '../src/config/schema.ts';
 import { classifyFetchError } from '../src/core/errors.ts';
 import {
+    anonymiseArrLog,
     anonymiseNzbgetHealth,
     anonymiseNzbgetLog,
     anonymiseNzbgetRows,
@@ -210,6 +211,32 @@ describe('NZBGet fixture anonymisers', () => {
             ]
         });
         expect(JSON.stringify(output)).not.toMatch(/Real\.Release|\/downloads\//);
+    });
+
+    it('replaces arr log text and stack traces, keeping identical lines identical', () => {
+        const failure = {
+            level: 'error',
+            logger: 'Transmission',
+            message: 'Failed to test: Name does not resolve (real-host:9091)',
+            exception: 'HttpRequestException: Name does not resolve (real-host:9091)\n   at Real.Frame()',
+            exceptionType: 'HttpRequestException'
+        };
+        const output = anonymiseArrLog({
+            totalRecords: 4321,
+            records: [
+                { ...failure, id: 900, time: '2026-11-01T15:25:12Z' },
+                { level: 'warn', logger: 'Torznab', message: 'RealIndexer is unavailable', id: 899, time: '2026-11-01T15:25:11Z' },
+                { ...failure, id: 898, time: '2026-11-01T15:25:10Z' }
+            ]
+        }) as { totalRecords: number; records: { id: number; time: string; message: string; exception?: string; exceptionType?: string }[] };
+
+        expect(JSON.stringify(output)).not.toMatch(/real-host|RealIndexer|Real\.Frame|4321|2026/);
+        expect(output.records.map(r => r.message)).toEqual(['Fixture message 1', 'Fixture message 2', 'Fixture message 1']);
+        expect(output.records[0]?.exception).toBe('HttpRequestException: Fixture message 1');
+        expect(output.records[0]?.exceptionType).toBe('HttpRequestException');
+        expect(output.records.map(r => r.id)).toEqual([3, 2, 1]);
+        expect(output.records[0]!.time > output.records[2]!.time).toBe(true);
+        expect(output.totalRecords).toBeGreaterThan(output.records.length);
     });
 
     it('scrubs every NZBGet systemhealth message, keeping names and severities', () => {
