@@ -17,7 +17,7 @@ import { withoutCredentials } from '../tools/stackHealth.ts';
 import { html, raw, type SafeHtml } from './html.ts';
 import { serviceIcon } from './icons.ts';
 import type { JwksProbe } from './jwksProbe.ts';
-import { layout } from './pages.ts';
+import { layout, tabBar } from './pages.ts';
 
 /**
  * One card per configured instance, and nothing else. Three rules shape it.
@@ -310,7 +310,7 @@ function tokenList(opts: {
         return html`<p class="note">No MCP tokens yet. Every MCP client is refused until you create one.</p>`;
     }
     const last = opts.tokens.length === 1;
-    return html`<table>
+    return html`<table class="stacked">
         <thead><tr><th>Name</th><th>Tier</th><th>Expires</th><th>Fingerprint</th><th></th></tr></thead>
         <tbody>
             ${opts.tokens.map(
@@ -403,7 +403,7 @@ const KEY_TIERS: readonly { key: string; label: string }[] = [
 
 function managementKeyTable(apiKeys: readonly StoredManagementKey[], keys: SafeHtml, confirming: string | undefined): SafeHtml {
     const last = apiKeys.length === 1;
-    return html`<table>
+    return html`<table class="stacked">
         <thead><tr><th>Name</th><th>Tier</th><th>Created</th><th>Fingerprint</th><th></th></tr></thead>
         <tbody>
             ${apiKeys.map(
@@ -413,7 +413,7 @@ function managementKeyTable(apiKeys: readonly StoredManagementKey[], keys: SafeH
                     <td>${k.created}</td>
                     <td class="mono">${fingerprint(k.hash)}</td>
                     <td>
-                        <form method="post" action="/ui/config/api-keys/revoke" ${IGNORE_FORM}>
+                        <form method="post" action="/ui/config/api-keys/revoke#management-api" ${IGNORE_FORM}>
                             ${keys}
                             <input type="hidden" name="key" value="${k.name}">
                             ${confirming === k.name
@@ -459,7 +459,7 @@ function managementKeyCard(opts: {
         ${apiKeys.length === 0
             ? html`<p class="note">Off. Nothing answers under <span class="mono">/api/v1</span> until you create a key.</p>`
             : managementKeyTable(apiKeys, opts.keys, opts.confirmingRevoke)}
-        <form method="post" action="/ui/config/api-keys/add" ${IGNORE_FORM}>
+        <form method="post" action="/ui/config/api-keys/add#management-api" ${IGNORE_FORM}>
             ${opts.keys}
             ${field({ id: 'api-key.name', name: 'api-key.name', label: 'Name', placeholder: 'nzb360' })}
             <div class="field">
@@ -810,7 +810,40 @@ function webhooksCard(config: Config, keys: SafeHtml, confirmingNewSecret: boole
         : raw('')}`;
 }
 
+/** What each tab answers: what is connected, who can get in, how it behaves. */
+export const CONFIG_TABS = [
+    { key: 'services', label: 'Services' },
+    { key: 'access', label: 'Access' },
+    { key: 'settings', label: 'Settings' }
+] as const;
+
+export type ConfigTab = (typeof CONFIG_TABS)[number]['key'];
+
+/** Anything unknown lands on the first tab, as an unknown log stream does. */
+export const configTabNamed = (name: string | undefined): ConfigTab =>
+    CONFIG_TABS.find(t => t.key === name)?.key ?? 'services';
+
+const ACCESS_POSTS = ['account', 'mcp', 'tokens', 'api-keys', 'oauth'];
+const SETTINGS_POSTS = ['appearance', 'media-servers', 'imdb', 'webhooks'];
+
+/**
+ * The tab a config post came from, read off its path.
+ *
+ * The answer to a post is the only place a new token or management key is ever
+ * shown. Rendered on any other tab, that secret is gone and has to be created
+ * again, so the server decides this rather than trusting anything in the browser
+ * to bring you back.
+ */
+export function configTabForPost(path: string): ConfigTab {
+    const section = path.replace(/^\/ui\/config\//, '').split(/[/?#]/)[0] ?? '';
+    if (ACCESS_POSTS.includes(section)) return 'access';
+    if (SETTINGS_POSTS.includes(section)) return 'settings';
+    return 'services';
+}
+
 export function configPage(opts: {
+    /** Which tab to render. Only that one is in the response. */
+    tab: ConfigTab;
     version: string;
     config: Config;
     csrf: string;
@@ -853,8 +886,7 @@ export function configPage(opts: {
     const keys = html`<input type="hidden" name="csrf" value="${opts.csrf}">
         <input type="hidden" name="etag" value="${configEtag(opts.config)}">`;
 
-    const body = html`<h2>Services</h2>
-        <div class="row" style="margin-bottom:1rem">
+    const services = html`<div class="row" style="margin-bottom:1rem">
             <button type="button" data-open="add-service">Add a service</button>
             <span class="note" style="margin:0">
                 ${instances.length === 0
@@ -877,15 +909,11 @@ export function configPage(opts: {
                 opts.tested?.instance === i.id || opts.confirmingRemoval === i.id || opts.openInstance === i.id
             )
         )}
-        ${addDialog(opts.config, keys, opts.openAdd === true, opts.testedAdd)}
+        ${addDialog(opts.config, keys, opts.openAdd === true, opts.testedAdd)}`;
 
-        <h2>Access</h2>
-        <p class="note" style="margin:-.5rem 0 1rem">
-            Each card below is saved on its own, like the service cards above. A Save writes only its own
-            card.
-        </p>
+    const savedAlone = html`<p class="note">Each card is saved on its own. A Save writes only its own card.</p>`;
 
-        <form method="post" action="/ui/config/account" class="panel" ${IGNORE_FORM}>
+    const signIn = html`<form method="post" action="/ui/config/account" class="panel" ${IGNORE_FORM}>
             ${keys}
             <h3 style="margin:0 0 .75rem">Config UI sign-in</h3>
             ${field({ id: 'auth.username', name: 'auth.username', label: 'Username', value: opts.config.auth.username })}
@@ -900,9 +928,9 @@ export function configPage(opts: {
             <div class="row" style="margin-top:1rem">
                 <button type="submit">Save sign-in</button>
             </div>
-        </form>
+        </form>`;
 
-        <form method="post" action="/ui/config/appearance" class="panel" ${IGNORE_FORM}>
+    const appearance = html`<form method="post" action="/ui/config/appearance" class="panel" ${IGNORE_FORM}>
             ${keys}
             <h3 style="margin:0 0 .75rem">Appearance</h3>
             <div class="field">
@@ -921,9 +949,9 @@ export function configPage(opts: {
                 the system is the default and tracks your OS setting as it changes.
             </p>
             <button type="submit">Save</button>
-        </form>
+        </form>`;
 
-        ${bothMediaServers
+    const mediaServers = bothMediaServers
             ? html`<form method="post" action="/ui/config/media-servers" class="panel" ${IGNORE_FORM}>
                   ${keys}
                   <h3 style="margin:0 0 .75rem">Media servers</h3>
@@ -936,9 +964,9 @@ export function configPage(opts: {
                   <p class="note">The one every tool reads by default. The other still answers when a tool is given its name.</p>
                   <button type="submit">Save</button>
               </form>`
-            : raw('')}
+            : raw('');
 
-        <form method="post" action="/ui/config/imdb" class="panel" ${IGNORE_FORM}>
+    const imdb = html`<form method="post" action="/ui/config/imdb" class="panel" ${IGNORE_FORM}>
             ${keys}
             <h3 style="margin:0 0 .75rem">IMDb dataset</h3>
             ${checkbox(
@@ -978,11 +1006,9 @@ export function configPage(opts: {
             <div class="row" style="margin-top:1rem">
                 <button type="submit">Save IMDb settings</button>
             </div>
-        </form>
+        </form>`;
 
-        ${webhooksCard(opts.config, keys, opts.confirmingNewSecret === true)}
-
-        <div class="panel">
+    const tokens = html`<div class="panel">
             <h3 id="tokens" style="margin:0 0 .75rem">MCP tokens</h3>
             ${opts.revealed === undefined ? raw('') : revealPanel(opts.revealed)}
             ${tokenList({
@@ -993,9 +1019,9 @@ export function configPage(opts: {
                 now: opts.now ?? new Date()
             })}
             ${tokenCreateForm(keys)}
-        </div>
+        </div>`;
 
-        <form method="post" action="/ui/config/mcp" class="panel" ${IGNORE_FORM}>
+    const mcpEndpoint = html`<form method="post" action="/ui/config/mcp" class="panel" ${IGNORE_FORM}>
             ${keys}
             <h3 style="margin:0 0 .75rem">MCP endpoint</h3>
             ${field({
@@ -1029,15 +1055,24 @@ export function configPage(opts: {
             <div class="row" style="margin-top:1rem">
                 <button type="submit">Save MCP settings</button>
             </div>
-        </form>
+        </form>`;
 
-        ${managementKeyCard({
+    // Tokens first: the page a new token is revealed on opens with it on screen.
+    const sections: Record<ConfigTab, () => SafeHtml> = {
+        services: () => services,
+        access: () => html`${savedAlone}${tokens}${mcpEndpoint}${managementKeyCard({
             config: opts.config,
             keys,
             revealed: opts.revealedKey,
             confirmingRevoke: opts.confirmingKeyRevoke
-        })}
-        ${oauthCard(opts.config, keys, opts.oauth ?? {})}
+        })}${oauthCard(opts.config, keys, opts.oauth ?? {})}${signIn}`,
+        settings: () =>
+            html`${savedAlone}${appearance}${mediaServers}${imdb}${webhooksCard(opts.config, keys, opts.confirmingNewSecret === true)}`
+    };
+
+    const body = html`<h2>Configuration</h2>
+        ${tabBar(CONFIG_TABS.map(t => ({ href: `/ui/config?tab=${t.key}`, label: t.label, on: t.key === opts.tab })))}
+        ${sections[opts.tab]()}
 
         <p class="note"><a href="/ui">Back to the dashboard</a></p>`;
 

@@ -101,3 +101,19 @@ export function fenceText(value: string, source: { service: string; field: strin
 
     return `${OPEN}${source.service}.${source.field}>>${clean}${CLOSE}`;
 }
+
+const FENCED = /<<untrusted:[^>]*>>([\s\S]*?)<<\/untrusted>>/g;
+
+/**
+ * The value as its service said it, for a person reading the web UI. The fence
+ * tells a model which words are data, and to anyone else it is noise in the
+ * middle of a sentence.
+ *
+ * Only for output that escapes what it prints: this puts the value's own angle
+ * brackets back. Never for anything that reaches a model.
+ */
+export function unfence(value: string): string {
+    return value.replace(FENCED, (_fence, inner: string) =>
+        inner.replaceAll('\\u003c', '<').replaceAll('\\u003e', '>')
+    );
+}
