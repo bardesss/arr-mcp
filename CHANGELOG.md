@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.66.0](https://github.com/bardesss/arr-mcp/compare/v1.65.0...v1.66.0) (2026-11-06)
+
+
+### Features
+
+* **lidarr:** allow more than one Lidarr instance ([#477](https://github.com/bardesss/arr-mcp/issues/477)) ([0fefbe2](https://github.com/bardesss/arr-mcp/commit/0fefbe28fbca3fdf3f549b4aa0dccf18c78a1081))
+
 ## [1.65.0](https://github.com/bardesss/arr-mcp/compare/v1.64.0...v1.65.0) (2026-11-06)
 
 
