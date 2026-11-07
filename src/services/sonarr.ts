@@ -90,6 +90,7 @@ import {
     type QualityProfile,
     type QueueRemoveCapable,
     type ReleaseCandidate,
+    type ReleaseScope,
     type ReleaseSearchCapable,
     type RootFolder,
     type Tag,
@@ -252,7 +253,7 @@ export class SonarrAdapter
         return readArrWanted(this.#http, this.id, 'series', scope, want);
     }
 
-    async findReleases(opts: { id: string; season?: number; episode?: string }): Promise<ReleaseCandidate[]> {
+    async findReleases(opts: ReleaseScope): Promise<ReleaseCandidate[]> {
         return findArrReleases(this.#http, this.id, 'series', opts);
     }
 

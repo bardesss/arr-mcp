@@ -225,7 +225,9 @@ and a series whose seasons could not be read says it is not fully watched.
 A series is matched on the TMDB id Sonarr itself holds, so Reclaimerr is asked without a media server in the stack; when Sonarr has none, the library is used to find one, and the preview says if that fails.
 
 Whisparr is never checked, on any of these. It keeps its own scene id in the TVDB
-field, so a Seerr match on it would be a different title that shares a number. A
+field, so a Seerr match on it would be a different title that shares a number.
+Lidarr is not checked either, on `trigger_search` or `grab_release`: the checks
+are written for films and series, and Seerr and Reclaimerr hold no music. A
 magnet sent to a torrent client is not checked either.
 
 The checks share one five-second budget. A service that is slow or down is listed
@@ -255,6 +257,23 @@ whole season. A season the series does not have, or an episode id that does
 not resolve, is refused — naming the seasons that do exist — rather than
 posted, because Sonarr accepts a command matching nothing and reports success.
 Radarr has no seasons, so `season` and `episodes` are refused there outright.
+
+On Lidarr, `id` is the artist and `albums` names specific albums of it, which
+sends `AlbumSearch` instead of `ArtistSearch`; an album the artist does not have
+is refused, as an episode is. `season` and `episodes` are refused there. The
+preview says what Lidarr will actually grab:
+
+- A whole-artist search still asks every indexer, but grabs only releases of a
+  monitored album, so with none monitored it grabs nothing. A discography
+  release counts as every album it spans (all of them when it names no years),
+  so it passes while any of those is monitored and brings the unmonitored ones
+  along.
+- A search skips Lidarr's monitored check, so a named album is grabbed even when
+  it is not monitored.
+- For a complete album with tracks on disk, a search grabs only an upgrade.
+  When a track is missing, Lidarr skips its upgrade and cutoff checks, so any
+  quality the profile allows can be grabbed: it fills the missing tracks, and
+  the import still replaces a track on disk only with a better one.
 
 `delete_episode_files` (destructive) deletes the files for one season or
 specific episodes. There is no whole-series form, because that is what

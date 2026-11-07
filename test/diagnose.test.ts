@@ -41,16 +41,24 @@ const lidarrFixture = (name: string): unknown =>
 
 /**
  * The real adapter over the recorded Lidarr responses: one artist, Daft Punk,
- * monitored, with no track on disk and an empty queue.
+ * monitored, with no track on disk, four monitored albums and an empty queue.
+ * `albums` stands in for the album list (`null`: the album read fails); `seen`
+ * collects every path asked for; `trackFiles` puts tracks on disk.
  */
-const lidarr = (): LidarrAdapter => {
+const lidarr = (albums: unknown = lidarrFixture('album'), seen: string[] = [], trackFiles = 0): LidarrAdapter => {
+    const withFiles = (artist: Record<string, unknown>) => ({
+        ...artist,
+        statistics: { ...(artist.statistics as object), trackFileCount: trackFiles }
+    });
     const routes: Record<string, unknown> = {
-        '/api/v1/artist': lidarrFixture('artist'),
-        '/api/v1/artist/1': lidarrFixture('artist-detail'),
+        '/api/v1/artist': (lidarrFixture('artist') as Record<string, unknown>[]).map(withFiles),
+        '/api/v1/artist/1': withFiles(lidarrFixture('artist-detail') as Record<string, unknown>),
+        ...(albums === null ? {} : { '/api/v1/album': albums }),
         '/api/v1/queue': { ...(lidarrFixture('queue') as object), records: [], totalRecords: 0 }
     };
     const impl = (async (input: string | URL | Request) => {
         const url = new URL(input instanceof Request ? input.url : String(input));
+        seen.push(url.pathname);
         if (!(url.pathname in routes)) return new Response(JSON.stringify({ message: 'not found' }), { status: 404 });
         return new Response(JSON.stringify(routes[url.pathname]), { headers: { 'content-type': 'application/json' } });
     }) as unknown as typeof fetch;
@@ -239,6 +247,81 @@ describe('diagnose', () => {
         expect(d.steps.find(s => s.stage === 'request')?.status).toBe('skipped');
         expect(d.steps.find(s => s.stage === 'subtitles')?.status).toBe('skipped');
         expect(d.verdict).toMatchObject({ stage: 'file', certain: true });
+    });
+
+    // A Lidarr search grabs only releases of a monitored album, so before it is
+    // suggested for an artist with no tracks, the albums are read.
+    it('reads the albums of an artist with no tracks, and suggests trigger_search while one is monitored', async () => {
+        const seen: string[] = [];
+        const adapters = [lidarr(undefined, seen)];
+        const d = await buildDiagnose({ adapters, library: new LibraryLoader(adapters, undefined) }, { service: 'lidarr', id: '1' });
+
+        expect(seen).toContain('/api/v1/album');
+        expect(d.verdict.next_steps?.map(s => s.tool)).toEqual(['trigger_search']);
+        expect(d.degraded).not.toContain('lidarr:albums');
+    });
+
+    it('suggests monitoring an album first when none of the artist\'s albums is', async () => {
+        const none = (lidarrFixture('album') as Record<string, unknown>[]).map(a => ({ ...a, monitored: false }));
+        const adapters = [lidarr(none)];
+        const d = await buildDiagnose({ adapters, library: new LibraryLoader(adapters, undefined) }, { service: 'lidarr', id: '1' });
+
+        expect(d.verdict).toMatchObject({ stage: 'file', certain: true });
+        expect(d.verdict.remedy).toMatch(/^None of its 4 albums is monitored in lidarr, and a search grabs only releases of a monitored album, so it would grab nothing\./);
+        expect(d.verdict.next_steps).toEqual([
+            {
+                tool: 'get_media_details',
+                arguments: { service: 'lidarr', id: '1', detail: 'full' },
+                why: 'Lists its albums and their ids, to choose which to monitor with set_monitoring at `level: "album"`.'
+            }
+        ]);
+    });
+
+    it('still suggests trigger_search when the album read fails, without costing the verdict its certainty', async () => {
+        const adapters = [lidarr(null)];
+        const d = await buildDiagnose({ adapters, library: new LibraryLoader(adapters, undefined) }, { service: 'lidarr', id: '1' });
+
+        expect(d.verdict).toMatchObject({ stage: 'file', certain: true });
+        expect(d.verdict.next_steps?.map(s => s.tool)).toEqual(['trigger_search']);
+        expect(d.degraded).toContain('lidarr:albums');
+    });
+
+    it('keeps a named Lidarr\'s failed album read off the queue, and names the instance in the step', async () => {
+        const fixtures = (name: string) => lidarrFixture(name);
+        const routes: Record<string, unknown> = {
+            '/api/v1/artist': fixtures('artist'),
+            '/api/v1/artist/1': fixtures('artist-detail'),
+            '/api/v1/queue': { ...(fixtures('queue') as object), records: [], totalRecords: 0 }
+        };
+        const impl = (async (input: string | URL | Request) => {
+            const url = new URL(input instanceof Request ? input.url : String(input));
+            if (!(url.pathname in routes)) return new Response(JSON.stringify({ message: 'not found' }), { status: 404 });
+            return new Response(JSON.stringify(routes[url.pathname]), { headers: { 'content-type': 'application/json' } });
+        }) as unknown as typeof fetch;
+        const named = new LidarrAdapter({ ...lidarrConfig, name: 'one' } as never, impl);
+        const adapters = [named];
+        const d = await buildDiagnose({ adapters, library: new LibraryLoader(adapters, undefined) }, { service: 'lidarr', instance: 'one', id: '1' });
+
+        expect(d.degraded).toContain('lidarr/one:albums');
+        expect(d.steps.find(s => s.stage === 'queue')?.status).toBe('skipped');
+        expect(d.verdict).toMatchObject({ stage: 'file', certain: true });
+        expect(d.verdict.next_steps).toMatchObject([{ tool: 'trigger_search', arguments: { service: 'lidarr', instance: 'one', id: '1' } }]);
+    });
+
+    it('does not read the albums of an artist with tracks', async () => {
+        const seen: string[] = [];
+        const adapters = [lidarr(undefined, seen, 3)];
+        const d = await buildDiagnose({ adapters, library: new LibraryLoader(adapters, undefined) }, { service: 'lidarr', id: '1' });
+
+        expect(d.steps.find(s => s.stage === 'file')?.status).toBe('ok');
+        expect(seen).not.toContain('/api/v1/album');
+    });
+
+    it('keeps trigger_search when the album list is cut off at 500, none of the first 500 monitored', async () => {
+        const many = Array.from({ length: 501 }, (_, i) => ({ id: 1000 + i, artistId: 1, title: `Album ${i + 1}`, monitored: i === 500 }));
+        const adapters = [lidarr(many)];
+        const d = await buildDiagnose({ adapters, library: new LibraryLoader(adapters, undefined) }, { service: 'lidarr', id: '1' });
+        expect(d.verdict.next_steps?.map(s => s.tool)).toEqual(['trigger_search']);
     });
 
     it('diagnoses an artist by id that the library read does not hold', async () => {

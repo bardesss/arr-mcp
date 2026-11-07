@@ -1920,13 +1920,51 @@ describe('buildChain — a Lidarr artist', () => {
         expect(d.verdict.next_steps?.map(s => s.tool)).toEqual(['trigger_scan']);
     });
 
-    it('tells the user to search in Lidarr itself and suggests no trigger_search', () => {
-        // Lidarr has no search trigger here, so the film wording would be wrong.
+    it('suggests trigger_search on the artist when it has no tracks', () => {
         const d = buildChain('daft punk', healthy({ item: noTracks() }));
         expect(d.verdict.stage).toBe('file');
-        expect(d.verdict.remedy).toMatch(/Search in lidarr itself/);
-        expect(d.verdict.remedy).not.toMatch(/Trigger a search/);
-        expect(d.verdict.next_steps).toBeUndefined();
+        expect(d.verdict.remedy).toMatch(/^Trigger a search in lidarr/);
+        expect(d.verdict.next_steps).toEqual([
+            { tool: 'trigger_search', arguments: { service: 'lidarr', id: '1' }, why: "Searches lidarr for the artist's monitored albums." }
+        ]);
+    });
+
+    describe('when the albums say a search would grab nothing', () => {
+        const album = (id: string, monitored: boolean) => ({ id, title: `Album ${id}`, monitored, hasFile: false });
+
+        it('suggests monitoring the only album when it is not monitored', () => {
+            const d = buildChain('daft punk', healthy({ item: noTracks(), albums: { list: [album('7', false)], truncated: false } }));
+            expect(d.verdict.remedy).toMatch(/^Its one album is not monitored in lidarr, and a search grabs only releases of a monitored album, so it would grab nothing\./);
+            expect(d.verdict.next_steps).toEqual([
+                {
+                    tool: 'set_monitoring',
+                    arguments: { service: 'lidarr', level: 'album', id: '7', monitored: true },
+                    why: 'Monitors its only album, so a search has something to grab.'
+                }
+            ]);
+        });
+
+        it('lists the albums to choose from when there are several and none is monitored', () => {
+            const d = buildChain('daft punk', healthy({ item: noTracks(), albums: { list: [album('7', false), album('8', false)], truncated: false } }));
+            expect(d.verdict.remedy).toMatch(/^None of its 2 albums is monitored in lidarr/);
+            expect(d.verdict.remedy).toContain('Monitor the albums you want with set_monitoring at `level: "album"`, then search.');
+            expect(d.verdict.next_steps?.map(s => [s.tool, s.arguments])).toEqual([['get_media_details', { service: 'lidarr', id: '1', detail: 'full' }]]);
+        });
+
+        it('suggests a refresh when Lidarr lists no albums at all', () => {
+            const d = buildChain('daft punk', healthy({ item: noTracks(), albums: { list: [], truncated: false } }));
+            expect(d.verdict.remedy).toMatch(/^lidarr lists no albums for it, so a search has nothing to grab\. Refresh the artist with trigger_scan/);
+            expect(d.verdict.next_steps?.map(s => [s.tool, s.arguments])).toEqual([['trigger_scan', { service: 'lidarr', action: 'scan', id: '1' }]]);
+        });
+
+        it('still suggests trigger_search when one album is monitored, or the list was cut off', () => {
+            const one = buildChain('daft punk', healthy({ item: noTracks(), albums: { list: [album('7', false), album('8', true)], truncated: false } }));
+            expect(one.verdict.next_steps?.map(s => s.tool)).toEqual(['trigger_search']);
+            // the albums past the cut-off may be the monitored ones
+            const cut = buildChain('daft punk', healthy({ item: noTracks(), albums: { list: [album('7', false)], truncated: true } }));
+            expect(cut.verdict.next_steps?.map(s => s.tool)).toEqual(['trigger_search']);
+            expect(cut.verdict.remedy).toMatch(/^Trigger a search in lidarr/);
+        });
     });
 
     it('still says what could not be ruled out before searching', () => {
@@ -2011,7 +2049,8 @@ describe('buildChain — a Lidarr artist', () => {
                 const d = buildChain('rush', healthy({ item: rush(), queue: { items: [filmGrab(status)], partial: [] } }));
                 expect(stepFor(d, 'queue')?.status).toBe('skipped');
                 expect(d.verdict.stage).toBe('file');
-                expect(d.verdict.next_steps).toBeUndefined();
+                // A search for the artist, not a step on the film's download.
+                expect(d.verdict.next_steps?.map(s => s.tool)).toEqual(['trigger_search']);
             });
         }
 

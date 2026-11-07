@@ -248,7 +248,7 @@ small, shaped change, and a service in no slot at all is a different product.
 
 **Managed — what decides something should exist**
 
-- **Lidarr — the rest of it.** The adapter has shipped, with nineteen capabilities. `LibraryCapable` and `SearchCapable`, so
+- **Lidarr — the rest of it.** The adapter has shipped, with twenty-two capabilities. `LibraryCapable` and `SearchCapable`, so
   `get_library` lists artists and `search_media` finds them.
   `MediaDetailCapable`, so `get_media_details` lists an artist's albums and the
   album ids a write needs. `MonitoringCapable`, so `set_monitoring` writes an
@@ -270,10 +270,14 @@ small, shaped change, and a service in no slot at all is a different product.
   disk scan). `WantedCapable` and `CalendarCapable`, so `get_wanted` and
   `get_calendar` list albums: a wanted row names its artist as `id` and the
   album as `albumId`, and the wanted cutoff fixture was captured from Lidarr
-  3.1.0.4875. What it still lacks is a release search, and that is the work
-  accepted today. All 21 capture endpoints were exercised against a live Lidarr
-  3.1.6.5079 and the fixtures are committed, but three still have no rows:
-  release, tag and indexer are empty on a fresh instance. Those row shapes need
+  3.1.0.4875. `SearchTriggerCapable`, `ReleaseSearchCapable` and
+  `ReleaseGrabCapable`, so `trigger_search` searches the indexers for an artist
+  or some of its albums, and `get_releases` and `grab_release` list and grab the
+  releases for the artist or one album; the release fixture was captured from
+  an album search on Lidarr 3.1.6.5079. What it still lacks is adding, deleting
+  and editing artists. All 21 capture endpoints were exercised against a live
+  Lidarr 3.1.6.5079 and the fixtures are committed, but two still have no rows:
+  tag and indexer are empty on a fresh instance. Those row shapes need
   a capture against a library with real activity before a read adapter can
   claim them. The two write responses were captured separately, on a throwaway
   2.1.3.3927 instance.
