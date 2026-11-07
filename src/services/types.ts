@@ -354,6 +354,8 @@ export type QueueItem = {
     downloadId?: string;
     /** Why Radarr or Sonarr will not import it, one line per reason. */
     statusMessages?: string[];
+    /** ISO 8601, when the item arrived. Grimmory's Bookdrop rows only. */
+    addedAt?: string;
     /** Torrent clients only. Absent when the client did not say. */
     private?: boolean;
     /** Torrent clients only, and only once the download has finished. */
@@ -1697,6 +1699,8 @@ export interface QueueRemoveCapable {
     /** Shelfmark's: it can only stop what is queued or running, so a failed row has nothing to
      *  remove and `removeFromClient: false` cannot be honoured. `remove_queue_item` refuses both. */
     readonly cancelOnly?: boolean;
+    /** Removing deletes the file itself, so `removeFromClient: false` cannot be honoured. Grimmory's Bookdrop. */
+    readonly discardsFile?: boolean;
 }
 
 export const hasQueueRemove = (a: ServiceAdapter): a is ServiceAdapter & QueueRemoveCapable =>

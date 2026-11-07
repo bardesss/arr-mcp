@@ -12,6 +12,10 @@ import {
     type BookLibrary,
     type BookDeleteCapable,
     type BookDeletion,
+    type QueueCapable,
+    type QueueItem,
+    type QueueRemoveCapable,
+    type RemoveQueueOptions,
     type BookLibraryScanCapable,
     type HealthCheckCapable,
     type LibraryCapable,
@@ -60,6 +64,12 @@ const LIBRARY_PAGE_SIZE = 200;
  * server that ignores `page` would otherwise answer `hasNext: true` forever.
  */
 export const MAX_LIBRARY_PAGES = 100;
+/** Bookdrop files per page of the queue read. */
+const BOOKDROP_PAGE_SIZE = 100;
+/** The most pages one Bookdrop read follows: 1,000 files, then it fails by name rather than loop. */
+export const MAX_BOOKDROP_PAGES = 10;
+/** Grimmory's discard takes a selection; this names exactly one file and never "all". */
+const discardBody = (id: number) => ({ selectAll: false, selectedIds: [id], excludedIds: [] as number[] });
 /** A file type is a short word such as EPUB or CBZ; anything else is not one. */
 const fileType = (v: unknown): string | undefined => {
     const s = str(v);
@@ -84,9 +94,12 @@ type RawHealth = { data?: { version?: unknown } };
  * and password and answers with a JWT; the healthcheck is the one route that
  * takes no token.
  */
-export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, SearchCapable, MediaDetailCapable, LibraryCapable, BookLibraryScanCapable, BookDeleteCapable {
+export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, SearchCapable, MediaDetailCapable, LibraryCapable, BookLibraryScanCapable, BookDeleteCapable, QueueCapable, QueueRemoveCapable {
     readonly type: ServiceId = 'grimmory';
     readonly id = 'grimmory';
+    readonly queueKind = 'book';
+    readonly supportsBlocklist = false;
+    readonly discardsFile = true;
     readonly #http: ServiceHttp;
     /** The same timeout and breaker, without the login: the healthcheck needs no token. */
     readonly #public: ServiceHttp;
@@ -364,10 +377,61 @@ export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, Sear
         );
     }
 
+    /** One page of the files waiting in the Bookdrop. */
+    async #bookdropPage(page: number, size: number): Promise<Raw> {
+        return obj(await this.#http.get<unknown>(`/api/v1/bookdrop/files?status=pending&page=${page}&size=${size}`));
+    }
+
+    /**
+     * The Bookdrop's pending files, one row each. Paged until Grimmory's
+     * `page.totalPages` is reached or a page comes back empty; past
+     * `MAX_BOOKDROP_PAGES` it throws. A 403 fails by name rather than read as
+     * an empty Bookdrop.
+     */
+    async getQueue(): Promise<QueueItem[]> {
+        const out: QueueItem[] = [];
+        for (let page = 0; ; page += 1) {
+            if (page >= MAX_BOOKDROP_PAGES) {
+                throw new ServiceError(
+                    'UpstreamError',
+                    this.id,
+                    `the Bookdrop did not end within ${MAX_BOOKDROP_PAGES} pages of ${BOOKDROP_PAGE_SIZE} (${MAX_BOOKDROP_PAGES * BOOKDROP_PAGE_SIZE} files)`
+                );
+            }
+            const body = await this.#write('read the Bookdrop', 'canAccessBookdrop', 'Bookdrop', () => this.#bookdropPage(page, BOOKDROP_PAGE_SIZE));
+            const rows = list(body.content);
+            for (const file of rows) {
+                const id = num(file.id);
+                if (id === undefined) continue;
+                const addedAt = isoDate(file.createdAt);
+                out.push({
+                    service: this.id,
+                    id: String(id),
+                    title: this.#fence(str(file.fileName) ?? 'unnamed', 'file_name'),
+                    status: 'pending review',
+                    ...(addedAt === undefined ? {} : { addedAt })
+                });
+            }
+            const totalPages = num(obj(body.page).totalPages);
+            if (rows.length === 0 || totalPages === undefined || page + 1 >= totalPages) return out;
+        }
+    }
+
+    /** Deletes the file from disk and takes it off the Bookdrop; Grimmory has no keep-the-file discard. */
+    async removeQueueItem(id: string, _opts: RemoveQueueOptions): Promise<void> {
+        await this.#write(
+            'discard Bookdrop files',
+            'canAccessBookdrop',
+            `Bookdrop file ${id}`,
+            () => this.#http.post<unknown>('/api/v1/bookdrop/files/discard', discardBody(Number(id)), true),
+            'The file may already have been imported or discarded in Grimmory. get_queue lists what is waiting.'
+        );
+    }
+
     async #bookdropFinding(): Promise<HealthCheck | undefined> {
         const pending = Number(obj(await this.#http.get<unknown>('/api/v1/bookdrop/notification')).pendingCount);
         if (!(pending > 0)) return undefined;
-        const page = obj(await this.#http.get<unknown>('/api/v1/bookdrop/files?status=pending&page=0&size=50'));
+        const page = await this.#bookdropPage(0, 50);
         const times = list(page.content)
             .map(f => Date.parse(String(f.createdAt)))
             .filter(t => Number.isFinite(t));

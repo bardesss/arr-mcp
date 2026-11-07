@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { AnyServiceConfig } from '../src/config/schema.ts';
 import { resetGrimmoryLockouts } from '../src/core/auth.ts';
-import { GrimmoryAdapter } from '../src/services/grimmory.ts';
+import { GrimmoryAdapter, MAX_BOOKDROP_PAGES } from '../src/services/grimmory.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import { registerTriggerScan } from '../src/tools/triggerScan.ts';
 import { registerDeleteMedia } from '../src/tools/deleteMedia.ts';
+import { registerRemoveQueueItem } from '../src/tools/removeQueueItem.ts';
 import { fixture, grimmoryConfig, grimmoryServer, json, writeTool, type Reply } from './helpers/grimmory.ts';
 
 beforeEach(resetGrimmoryLockouts);
@@ -277,5 +278,114 @@ describe('delete_media on grimmory', () => {
         const { call, server } = deleteTool();
         await expect(call({ ...BOOK, id: '58,59' })).rejects.toThrow(/digits/);
         expect(server.sent.some(s => s.method === 'DELETE')).toBe(false);
+    });
+});
+
+const PENDING = fixture('mock-bookdrop-files-pending') as { content: unknown[] };
+const pendingPage = (content: unknown[], totalPages = 1) => json({ content, page: { size: 100, number: 0, totalElements: content.length, totalPages } });
+const FENCED_NAME = '<<untrusted:grimmory.file_name>>';
+
+describe('the Bookdrop as a queue', () => {
+    it('lists a pending file as a book queue row', async () => {
+        const server = grimmoryServer({ 'GET /api/v1/bookdrop/files': json(PENDING) });
+        const adapter = new GrimmoryAdapter(grimmoryConfig(), server.fetch);
+        const rows = await adapter.getQueue();
+        expect(rows).toEqual([
+            { service: 'grimmory', id: '3', title: expect.stringContaining('Example Book 3.epub'), status: 'pending review', addedAt: '2026-11-01T09:00:00Z' }
+        ]);
+        expect(rows[0]!.title).toContain(FENCED_NAME);
+        expect(adapter.queueKind).toBe('book');
+        expect(server.sent.find(s => s.path === '/api/v1/bookdrop/files')!.query).toBe('status=pending&page=0&size=100');
+    });
+
+    it('pages the Bookdrop until it ends', async () => {
+        const row = (id: number) => ({ ...(PENDING.content[0] as object), id });
+        const server = grimmoryServer({ 'GET /api/v1/bookdrop/files': [pendingPage([row(1)], 2), pendingPage([row(2)], 2)] });
+        const rows = await new GrimmoryAdapter(grimmoryConfig(), server.fetch).getQueue();
+        expect(rows.map(r => r.id)).toEqual(['1', '2']);
+        expect(server.sent.filter(s => s.path === '/api/v1/bookdrop/files').map(s => s.query)).toEqual([
+            'status=pending&page=0&size=100',
+            'status=pending&page=1&size=100'
+        ]);
+    });
+
+    it('stops at MAX_BOOKDROP_PAGES', async () => {
+        const server = grimmoryServer({ 'GET /api/v1/bookdrop/files': pendingPage(PENDING.content, 1_000_000) });
+        const error = await new GrimmoryAdapter(grimmoryConfig(), server.fetch).getQueue().catch((e: unknown) => e);
+        expect(error).toMatchObject({ kind: 'UpstreamError' });
+        expect(MAX_BOOKDROP_PAGES).toBe(10);
+        expect(server.sent.filter(s => s.path === '/api/v1/bookdrop/files')).toHaveLength(MAX_BOOKDROP_PAGES);
+    });
+
+    it('fails by name rather than claim an empty Bookdrop on a 403', async () => {
+        const server = grimmoryServer({ 'GET /api/v1/bookdrop/files': json({}, 403) });
+        const denied = await new GrimmoryAdapter(grimmoryConfig(), server.fetch).getQueue().catch((e: unknown) => e);
+        expect(denied).toMatchObject({ kind: 'AuthFailed', detail: 'this Grimmory account may not read the Bookdrop' });
+        expect((denied as { remedy: string }).remedy).toContain('canAccessBookdrop');
+    });
+});
+
+function discardTool(routes: Record<string, Reply | Reply[]> = {}, perms: { safe_write?: boolean; destructive?: boolean } = DESTRUCTIVE) {
+    const server = grimmoryServer({
+        'GET /api/v1/bookdrop/files': json(PENDING),
+        'POST /api/v1/bookdrop/files/discard': json({}),
+        ...routes
+    });
+    const adapter = new GrimmoryAdapter(grimmoryConfig(perms), server.fetch);
+    const call = writeTool((s, context) => registerRemoveQueueItem(s, context, [adapter]), perms);
+    const discards = () => server.sent.filter(s => s.path === '/api/v1/bookdrop/files/discard');
+    return { call, server, discards };
+}
+
+const DISCARD = { service: 'grimmory', id: '3' };
+
+describe('remove_queue_item on the Bookdrop', () => {
+    it('previews a discard that deletes the file', async () => {
+        const { call, discards } = discardTool();
+        const { structuredContent } = await call(DISCARD);
+        expect(structuredContent.applied).toBe(false);
+        const effects = structuredContent.effects.join('\n');
+        expect(effects).toMatch(/deletes the file from disk/);
+        expect(effects).toMatch(/not imported/);
+        expect(effects).toContain(FENCED_NAME);
+        expect(discards()).toEqual([]);
+    });
+
+    it('confirm discards exactly that file', async () => {
+        const { call, discards } = discardTool();
+        const done = await confirmed(call, DISCARD);
+        expect(done.structuredContent.applied).toBe(true);
+        expect(discards().map(d => d.body)).toEqual([{ selectAll: false, selectedIds: [3], excludedIds: [] }]);
+    });
+
+    it('refuses remove_from_client false on the Bookdrop', async () => {
+        const { call, discards } = discardTool();
+        const error = await call({ ...DISCARD, remove_from_client: false }).catch((e: unknown) => e);
+        expect(error).toMatchObject({ kind: 'NotFound' });
+        expect((error as { remedy: string }).remedy).toContain('Leave out remove_from_client');
+        expect(discards()).toEqual([]);
+    });
+
+    it('fails, sending nothing, when the file left the Bookdrop before confirm', async () => {
+        const { call, discards } = discardTool({ 'GET /api/v1/bookdrop/files': [json(PENDING), pendingPage([])] });
+        const preview = await call(DISCARD);
+        const error = await call({ ...DISCARD, confirm: preview.structuredContent.confirm_token }).catch((e: unknown) => e);
+        expect(error).toMatchObject({ kind: 'NotFound' });
+        expect((error as { detail: string }).detail).toContain("nothing in grimmory's queue has id");
+        expect(discards()).toEqual([]);
+    });
+
+    it('names canAccessBookdrop on a 403 from the discard', async () => {
+        const { call } = discardTool({ 'POST /api/v1/bookdrop/files/discard': json({}, 403) });
+        const denied = await confirmed(call, DISCARD).catch((e: unknown) => e);
+        expect(denied).toMatchObject({ kind: 'AuthFailed', detail: 'this Grimmory account may not discard Bookdrop files' });
+        expect((denied as { remedy: string }).remedy).toContain('canAccessBookdrop');
+    });
+
+    it('is refused without destructive', async () => {
+        const { call, discards } = discardTool({}, { safe_write: true });
+        const error = await call({ ...DISCARD, confirm: 'any-token' }).catch((e: unknown) => e);
+        expect(error).toMatchObject({ kind: 'PermissionDenied' });
+        expect(discards()).toEqual([]);
     });
 });
