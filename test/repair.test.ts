@@ -732,9 +732,8 @@ describe('promotion', () => {
 
     // The YAML branch carries a position rather than the offending line, but
     // zod renders `Unrecognized key: "…"` verbatim — and a mis-indentation can
-    // put a secret where a key belongs. Only the machine-facing routes are
-    // redacted: the editor is authenticated, and the read-only page renders
-    // only when `auth` itself failed, where the keys are auth's own names.
+    // put a secret where a key belongs. The editor is authenticated, so only
+    // what is served without a session is redacted.
     it('keeps an unrecognized key out of the unauthenticated machine routes', async () => {
         const hash = await hashPassword(PASSWORD);
         const { call, close } = await booted(
@@ -757,6 +756,33 @@ describe('promotion', () => {
 
         const mcp = await (await call('/mcp', { method: 'POST' })).text();
         expect(mcp).not.toContain('MY-SUPER-SECRET');
+
+        close();
+    });
+
+    // The reason covers the whole file, so a failure in `auth` that serves this
+    // page also carries whatever is wrong under `services`.
+    it('keeps an unrecognized key off the read-only page', async () => {
+        const { call, close } = await booted(
+            [
+                'auth:',
+                '  username: admin',
+                '  allowed_hosts: not-a-list',
+                'services:',
+                '  radarr:',
+                '    url: http://x.example',
+                '    api_key: k',
+                '    MY-SUPER-SECRET:',
+                ''
+            ].join('\n')
+        );
+
+        const res = await call('/ui/repair');
+        expect(res.status).toBe(503);
+        const page = await res.text();
+        expect(page).toContain('Unrecognized key');
+        expect(page).toContain('services.radarr');
+        expect(page).not.toContain('MY-SUPER-SECRET');
 
         close();
     });
