@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.68.0](https://github.com/bardesss/arr-mcp/compare/v1.67.2...v1.68.0) (2026-11-07)
+
+
+### Features
+
+* add Grimmory as a read-only book library service ([#496](https://github.com/bardesss/arr-mcp/issues/496)) ([e630057](https://github.com/bardesss/arr-mcp/commit/e6300574c0ab6a6a0323eb06de2853f916fe9693))
+* **lidarr:** list wanted albums and the album calendar ([#495](https://github.com/bardesss/arr-mcp/issues/495)) ([5b13076](https://github.com/bardesss/arr-mcp/commit/5b1307624116afb6a83767b08f57ef319173d821))
+
 ## [1.67.2](https://github.com/bardesss/arr-mcp/compare/v1.67.1...v1.67.2) (2026-11-07)
 
 
