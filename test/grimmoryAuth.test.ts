@@ -42,7 +42,6 @@ function setup(opts: { id?: string; url?: string; replies?: Array<() => Response
 }
 
 const unauthorized = () => new Response(null, { status: 401 });
-const bad = unauthorized;
 const LOCKOUT_S = LOGIN_LOCKOUT_MS / 1000;
 
 async function rejection(p: Promise<unknown>): Promise<ServiceError> {
@@ -98,7 +97,7 @@ describe('grimmorySession', () => {
     });
 
     it('never logs in twice inside the lockout', async () => {
-        const s = setup({ replies: [bad] });
+        const s = setup({ replies: [unauthorized] });
         const first = await rejection(Promise.resolve(s.auth.recover?.(unauthorized())));
         expect(first.kind).toBe('AuthFailed');
         expect(first.remedy).toMatch(/username or password/);
@@ -125,12 +124,37 @@ describe('grimmorySession', () => {
         expect(s.calls).toHaveLength(1);
     });
 
+    it('a 403 from login starts the lockout', async () => {
+        const s = setup({ replies: [() => new Response(null, { status: 403 })] });
+        await rejection(Promise.resolve(s.auth.recover?.(unauthorized())));
+        await rejection(Promise.resolve(s.auth.recover?.(unauthorized())));
+        expect(s.calls).toHaveLength(1);
+    });
+
+    it('a 429 from login starts the lockout', async () => {
+        const s = setup({ replies: [() => new Response(null, { status: 429 })] });
+        await rejection(Promise.resolve(s.auth.recover?.(unauthorized())));
+        await rejection(Promise.resolve(s.auth.recover?.(unauthorized())));
+        expect(s.calls).toHaveLength(1);
+    });
+
+    it('a 502 from login fails without a lockout', async () => {
+        const s = setup({ replies: [() => new Response(null, { status: 502 }), () => new Response(JSON.stringify({ accessToken: 'B', expires: 7200 }), { status: 200 })] });
+        const err = await rejection(Promise.resolve(s.auth.recover?.(unauthorized())));
+        expect(err.kind).toBe('AuthFailed');
+        expect(err.detail).toBe('login returned HTTP 502');
+        expect(err.message).not.toMatch(/password/i);
+        await expect(s.auth.recover?.(unauthorized())).resolves.toBe(true);
+        expect(s.calls).toHaveLength(2);
+        expect(s.header()).toBe('Bearer B');
+    });
+
     it('never calls refresh', async () => {
         const s = setup();
         await s.auth.recover?.(unauthorized());
         s.advance(8000);
         await s.auth.recover?.(unauthorized());
-        const f = setup({ replies: [bad] });
+        const f = setup({ replies: [unauthorized] });
         await rejection(Promise.resolve(f.auth.recover?.(unauthorized())));
         for (const c of [...s.calls, ...f.calls]) expect(c.url).not.toContain('/auth/refresh');
     });
@@ -145,7 +169,7 @@ describe('grimmorySession', () => {
     });
 
     it('errors carry the given id', async () => {
-        const s = setup({ id: 'grimmory', replies: [bad] });
+        const s = setup({ id: 'grimmory', replies: [unauthorized] });
         const err = await rejection(Promise.resolve(s.auth.recover?.(unauthorized())));
         expect(err.service).toBe('grimmory');
         const again = await rejection(Promise.resolve(s.auth.recover?.(unauthorized())));

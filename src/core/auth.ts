@@ -293,6 +293,9 @@ export const LOGIN_LOCKOUT_MS = 15 * 60_000;
 /** Renew this long before the token's stated expiry. */
 const GRIMMORY_EXPIRY_MARGIN_S = 60;
 
+/** The server answered the login and said no; distinct from a transport failure. */
+class GrimmoryRejected extends Error {}
+
 /**
  * Grimmory's JWT login. The token goes out as a Bearer header; nothing logs in
  * ahead of time, a 401 triggers it (same shape as qbittorrentSession).
@@ -357,9 +360,6 @@ export function grimmorySession(creds: {
     };
 }
 
-/** The server answered the login and said no; distinct from a transport failure. */
-class GrimmoryRejected extends Error {}
-
 async function grimmoryLogin(
     creds: { id: string; url: string; username: string; password: string; timeoutMs: number },
     doFetch: typeof fetch
@@ -399,17 +399,23 @@ async function grimmoryLogin(
         });
     }
 
-    if (response.status === 200) {
-        try {
-            const parsed: unknown = JSON.parse(text);
-            const token = (parsed as { accessToken?: unknown } | null)?.accessToken;
-            const expires = (parsed as { expires?: unknown } | null)?.expires;
-            if (typeof token === 'string' && token !== '') {
-                return { token, expiresS: typeof expires === 'number' && Number.isFinite(expires) ? expires : 3600 };
-            }
-        } catch {
-            // Not JSON: treated as a rejection below.
+    if (response.status === 401 || response.status === 403 || response.status === 429) throw new GrimmoryRejected();
+
+    if (response.status !== 200) {
+        throw new ServiceError('AuthFailed', creds.id, `login returned HTTP ${response.status}`, {
+            remedy: 'Grimmory or its reverse proxy answered the login with an error. Check that Grimmory is up and the url is right; arr-mcp will try again on the next request.'
+        });
+    }
+
+    try {
+        const parsed: unknown = JSON.parse(text);
+        const token = (parsed as { accessToken?: unknown } | null)?.accessToken;
+        const expires = (parsed as { expires?: unknown } | null)?.expires;
+        if (typeof token === 'string' && token !== '') {
+            return { token, expiresS: typeof expires === 'number' && Number.isFinite(expires) ? expires : 3600 };
         }
+    } catch {
+        // Not JSON: treated as a rejection below.
     }
     throw new GrimmoryRejected();
 }
