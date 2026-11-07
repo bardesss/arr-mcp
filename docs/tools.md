@@ -1340,17 +1340,18 @@ and what `at` means on its rows. Passing `id` with `service: shelfmark` is refus
 
 ### Grimmory
 
-Grimmory contributes three actions from its audit log. Logins, users, settings
+Grimmory contributes four actions from its audit log. Logins, users, settings
 and tasks are never read.
 
 | Audit action | `event` | What a row means |
 | --- | --- | --- |
+| `BOOK_UPLOADED` | `added` | A book was uploaded to Grimmory. `mediaId` is the book id when Grimmory logs one. No live upload row has been captured yet, so this shape follows Grimmory's API description |
 | `BOOK_DELETED` | `deleted` | A book was deleted. The title is the description Grimmory logged, fenced. On 3.5.0 that is a count such as "Deleted 1 book(s)", which names no book. The row has no book id and no `mediaId`, because Grimmory logs none for a delete |
 | `METADATA_UPDATED` | `metadata` | A book's metadata was changed. `mediaId` is the book id |
 | `LIBRARY_SCANNED` | `scanned` | A library was scanned. The title reads `library <id>` unless Grimmory logged a description |
 
-`rawEvent` holds the audit action. `event_type` can be `deleted`, `metadata` or
-`scanned`. Each action is read on its own, newest first, up to 1,000 rows, so a
+`rawEvent` holds the audit action. `event_type` can be `added`, `deleted`, `metadata`
+or `scanned`. Each action is read on its own, newest first, up to 1,000 rows, so a
 busy action does not push out the rows of a quiet one.
 
 The audit log needs a Grimmory admin account. A non-admin account gets an

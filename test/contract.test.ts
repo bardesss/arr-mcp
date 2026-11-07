@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { GRIMMORY_HISTORY_ACTIONS } from '../src/services/grimmory.ts';
 
 /**
  * Design spec §17 asks contract tests to catch upstream drift before users do.
@@ -1179,6 +1180,14 @@ describe('grimmory request bodies', () => {
         const doc = spec as { paths: Record<string, Record<string, { parameters?: Array<{ name: string }> }>> };
         const names = (doc.paths['/api/v1/audit-logs']?.get?.parameters ?? []).map(p => p.name);
         expect(names).toEqual(expect.arrayContaining(['action', 'from']));
+    });
+
+    // The live capture holds only BOOK_DELETED rows, so the other actions get_history
+    // reads are pinned to the spec's action enum: a rename upstream fails here.
+    it('every audit action get_history reads is one Grimmory declares', () => {
+        const doc = spec as { paths: Record<string, Record<string, { parameters?: Array<{ name: string; schema?: { enum?: string[] } }> }>> };
+        const declared = (doc.paths['/api/v1/audit-logs']?.get?.parameters ?? []).find(p => p.name === 'action')?.schema?.enum ?? [];
+        expect(declared).toEqual(expect.arrayContaining(Object.keys(GRIMMORY_HISTORY_ACTIONS)));
     });
 });
 

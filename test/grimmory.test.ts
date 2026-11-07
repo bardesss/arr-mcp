@@ -517,8 +517,8 @@ describe('GrimmoryAdapter history', () => {
     it('asks for each kept action and nothing else', async () => {
         const { adapter, sent } = serve({});
         await adapter.readHistory({});
-        expect(auditSent(sent).map(q => q.get('action')).sort()).toEqual(['BOOK_DELETED', 'LIBRARY_SCANNED', 'METADATA_UPDATED']);
-        expect(GRIMMORY_HISTORY_ACTIONS).toEqual({ BOOK_DELETED: 'deleted', METADATA_UPDATED: 'metadata', LIBRARY_SCANNED: 'scanned' });
+        expect(auditSent(sent).map(q => q.get('action')).sort()).toEqual(['BOOK_DELETED', 'BOOK_UPLOADED', 'LIBRARY_SCANNED', 'METADATA_UPDATED']);
+        expect(GRIMMORY_HISTORY_ACTIONS).toEqual({ BOOK_UPLOADED: 'added', BOOK_DELETED: 'deleted', METADATA_UPDATED: 'metadata', LIBRARY_SCANNED: 'scanned' });
     });
 
     it('maps a deleted book, a metadata change and a scan', async () => {
@@ -563,6 +563,15 @@ describe('GrimmoryAdapter history', () => {
         expect(auditSent(sent)).toHaveLength(0);
     });
 
+    it('maps an uploaded book to added, with its book id', async () => {
+        const { adapter, sent } = serve({ BOOK_UPLOADED: page([row(8, 'BOOK_UPLOADED', '2026-11-07T13:00:00', { entityType: 'BOOK', entityId: 60, description: '' })]) });
+        const { items } = (await adapter.readHistory({ want: 10 })) as Out;
+        expect(items.map(r => [r.event, r.rawEvent, r.mediaId, r.title])).toEqual([['added', 'BOOK_UPLOADED', '60', 'book 60']]);
+        sent.length = 0;
+        await adapter.readHistory({ eventType: 'added' });
+        expect(auditSent(sent).map(q => q.get('action'))).toEqual(['BOOK_UPLOADED']);
+    });
+
     it('an event type maps to its one action', async () => {
         const { adapter, sent } = serve({});
         await adapter.readHistory({ eventType: 'metadata' });
@@ -581,7 +590,7 @@ describe('GrimmoryAdapter history', () => {
         const out = await adapter.readHistory({ id: '58' });
         expect(Array.isArray(out)).toBe(true);
         expect((out as { id: string }[]).map(r => r.id).sort()).toEqual(['1', '2']);
-        expect(auditSent(sent).map(q => q.get('action')).sort()).toEqual(['BOOK_DELETED', 'METADATA_UPDATED']);
+        expect(auditSent(sent).map(q => q.get('action')).sort()).toEqual(['BOOK_DELETED', 'BOOK_UPLOADED', 'METADATA_UPDATED']);
     });
 
     it('sends since as an offset-free UTC from', async () => {
@@ -592,7 +601,7 @@ describe('GrimmoryAdapter history', () => {
             const { adapter, sent } = serve({});
             await adapter.readHistory({ since });
             const queries = auditSent(sent);
-            expect(queries).toHaveLength(3);
+            expect(queries).toHaveLength(4);
             for (const q of queries) expect(q.get('from')).toBe(from);
         }
     });

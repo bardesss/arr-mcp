@@ -7,7 +7,7 @@ import { IdentityResolver } from '../src/core/identity.ts';
 import { permissionSourceFrom } from '../src/core/permissions.ts';
 import type { AnyServiceConfig } from '../src/config/schema.ts';
 import { instancesOf } from './helpers/instances.ts';
-import { buildGetMetadataIssues, metadataIssueLine, registerGetMetadataIssues } from '../src/tools/getMetadataIssues.ts';
+import { buildGetMetadataIssues, metadataIssueLine, metadataIssuesSummary, registerGetMetadataIssues } from '../src/tools/getMetadataIssues.ts';
 import type { BookMetadataIssue, ServiceAdapter } from '../src/services/types.ts';
 import type { LibraryLoader } from '../src/tools/library.ts';
 import { PlexAdapter } from '../src/services/plex.ts';
@@ -638,6 +638,7 @@ describe('books in get_metadata_issues', () => {
         const result = await sweepBooks(skipping);
         expect(result.itemsSkipped).toBe(2);
         expect(result.degraded).toEqual([]);
+        expect(metadataIssuesSummary(result)).toContain('2 could not be read, so the count above is out of fewer');
     });
 
     it('a fully locked book points at unlocking in Grimmory', async () => {

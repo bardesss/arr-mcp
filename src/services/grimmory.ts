@@ -138,7 +138,7 @@ const AUDIT_PAGE_SIZE = 100;
 /** The most pages one audit action is followed: 1,000 rows, newest first. */
 export const MAX_AUDIT_PAGES = 10;
 /** The audit actions get_history reads, and the event each becomes. Logins, users, settings and tasks are not history. */
-export const GRIMMORY_HISTORY_ACTIONS = { BOOK_DELETED: 'deleted', METADATA_UPDATED: 'metadata', LIBRARY_SCANNED: 'scanned' } as const;
+export const GRIMMORY_HISTORY_ACTIONS = { BOOK_UPLOADED: 'added', BOOK_DELETED: 'deleted', METADATA_UPDATED: 'metadata', LIBRARY_SCANNED: 'scanned' } as const;
 type GrimmoryAuditAction = keyof typeof GRIMMORY_HISTORY_ACTIONS;
 const isBookEntity = (v: unknown): boolean => typeof v === 'string' && v.toUpperCase() === 'BOOK';
 /** A Java LocalDateTime has no offset; the ones Grimmory sends are read as UTC. */

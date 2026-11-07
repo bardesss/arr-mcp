@@ -376,26 +376,32 @@ export function registerGetMetadataIssues(
             const chosen = pickMediaServer(servers, service);
             const result = await buildGetMetadataIssues(chosen === undefined ? [] : [chosen.adapter], chosen?.identity, { detail, limit, offset, ...(permissions === undefined ? {} : { permissions }), ...(library === undefined ? {} : { library }), ...(books === undefined ? {} : { books }) });
 
-            const rename = result.items.filter(i => i.remedy === 'rename_files').length;
-            const look = result.items.filter(i => i.remedy === 'inspect').length;
-            const summary =
-                result.itemsScanned === 0
-                    ? 'No media server library could be read, so nothing was compared — this is not a clean result.'
-                    : `${result.total} of ${result.itemsScanned} items have metadata that disagrees with their files` +
-                      (result.total === 0
-                          ? '.'
-                          : `; ${rename} ${rename === 1 ? 'needs' : 'need'} a rename rather than a metadata refresh` +
-                            (look === 0 ? '.' : `, and ${look} ${look === 1 ? 'needs' : 'need'} a look because this cannot tell which side is wrong.`)) +
-                      (result.degraded.length > 0
-                          ? ` ${result.itemsSkipped ?? 0} could not be read at all (${result.degraded.join(', ')}), so the count above is out of fewer than the library holds.`
-                          : '') +
-                      // Said out loud, because it is the difference between a
-                      // quiet library and one nothing could be compared in.
-                      (result.notComparable === undefined
-                          ? ''
-                          : ` ${result.notComparable.length} series had no file paths to compare, so nothing is claimed about them.`);
-
-            return { content: [{ type: 'text', text: listText(summary, result.items, metadataIssueLine) }], structuredContent: result };
+            return { content: [{ type: 'text', text: listText(metadataIssuesSummary(result), result.items, metadataIssueLine) }], structuredContent: result };
         }
+    );
+}
+
+/** The line above the rows: what was compared, what disagrees, and what could not be read. */
+export function metadataIssuesSummary(result: GetMetadataIssuesResult): string {
+    if (result.itemsScanned === 0) return 'No media server library could be read, so nothing was compared — this is not a clean result.';
+    const rename = result.items.filter(i => i.remedy === 'rename_files').length;
+    const look = result.items.filter(i => i.remedy === 'inspect').length;
+    const skipped = result.itemsSkipped ?? 0;
+    return (
+        `${result.total} of ${result.itemsScanned} items have metadata that disagrees with their files` +
+        (result.total === 0
+            ? '.'
+            : `; ${rename} ${rename === 1 ? 'needs' : 'need'} a rename rather than a metadata refresh` +
+              (look === 0 ? '.' : `, and ${look} ${look === 1 ? 'needs' : 'need'} a look because this cannot tell which side is wrong.`)) +
+        // A skip with nothing degraded is a lone book (or series) that could not
+        // be read; it still shrinks the count, so it is said here too.
+        (result.degraded.length > 0
+            ? ` ${skipped} could not be read at all (${result.degraded.join(', ')}), so the count above is out of fewer than the library holds.`
+            : skipped > 0
+              ? ` ${skipped} could not be read, so the count above is out of fewer than the library holds.`
+              : '') +
+        // Said out loud, because it is the difference between a
+        // quiet library and one nothing could be compared in.
+        (result.notComparable === undefined ? '' : ` ${result.notComparable.length} series had no file paths to compare, so nothing is claimed about them.`)
     );
 }
