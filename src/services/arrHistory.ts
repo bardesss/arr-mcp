@@ -1,6 +1,6 @@
 import { fenceText, sanitizeGuid } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
-import type { LibraryKind } from '../core/resolver.ts';
+import type { ArrKind } from '../core/resolver.ts';
 import { pageSizeFor, readArrPages, readTotal, type ArrRead } from './arrPaging.ts';
 import { mediaIdOf, mediaIdsParam } from './arrRecord.ts';
 import type { HistoryEntry, HistoryEventType, HistoryQuery, Window } from './types.ts';
@@ -87,7 +87,7 @@ type RawHistory = {
  * TrackFileImported 3 and DownloadImported 8 are imports; DownloadFailed 4
  * and AlbumImportIncomplete 7 are failures; DownloadIgnored is 10.
  */
-const EVENT_CODE: Record<LibraryKind, Partial<Record<HistoryEventType, number | readonly number[]>>> = {
+const EVENT_CODE: Record<ArrKind, Partial<Record<HistoryEventType, number | readonly number[]>>> = {
     movie: { grabbed: 1, imported: 3, failed: 4, deleted: 6, renamed: 8, ignored: 9 },
     series: { grabbed: 1, imported: 3, failed: 4, deleted: 5, renamed: 6, ignored: 7 },
     artist: { grabbed: 1, imported: [2, 3, 8], failed: [4, 7], deleted: 5, renamed: 6, ignored: 10 }
@@ -101,7 +101,7 @@ const EVENT_CODE: Record<LibraryKind, Partial<Record<HistoryEventType, number | 
 export async function readArrHistory(
     http: ServiceHttp,
     service: string,
-    kind: LibraryKind,
+    kind: ArrKind,
     opts: HistoryQuery
 ): Promise<Window<HistoryEntry>> {
     const code = opts.eventType === undefined ? undefined : EVENT_CODE[kind][opts.eventType];
@@ -119,7 +119,7 @@ export async function readArrHistory(
 async function readHistoryPages(
     http: ServiceHttp,
     service: string,
-    kind: LibraryKind,
+    kind: ArrKind,
     opts: HistoryQuery,
     code: number | readonly number[] | undefined
 ): Promise<{ entries: HistoryEntry[]; read: ArrRead<unknown>; windowed: boolean }> {

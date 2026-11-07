@@ -163,8 +163,13 @@ export function buildCrossChecker(adapters: readonly ServiceAdapter[], library: 
             // and absent must not read as "looked and found nothing".
             const snapshotP = needsLibrary
                 ? read('library', () => library.load()).then(snap => {
+                      // A book-only source (Grimmory) never holds a film, series
+                      // or artist, so its outage is no gap in this check.
+                      const books = library.bookSourceIds ?? [];
                       for (const id of snap?.degraded ?? []) {
-                          if (id !== library.secondaryMediaServerId && bearsOn(id, subject.kind)) unchecked.add(id.replace(/:.*$/, ''));
+                          if (id !== library.secondaryMediaServerId && !books.includes(id) && bearsOn(id, subject.kind)) {
+                              unchecked.add(id.replace(/:.*$/, ''));
+                          }
                       }
                       return snap;
                   })

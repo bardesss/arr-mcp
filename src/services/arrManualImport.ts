@@ -1,7 +1,7 @@
 import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
-import type { LibraryKind } from '../core/resolver.ts';
+import type { ArrKind } from '../core/resolver.ts';
 import { awaitArrCommand, postArrCommand, renamedCount } from './arrCommands.ts';
 import { renameThroughTemporaryFormat } from './arrRename.ts';
 import { readArrQueue } from './arrQueue.ts';
@@ -58,7 +58,7 @@ const sxe = (season: number, episode: number): string =>
     `S${String(season).padStart(2, '0')}E${String(episode).padStart(2, '0')}`;
 
 /** The film, series or artist the file matched: Radarr, Sonarr and Lidarr name its field after the kind. */
-const matchedIdOf = (raw: RawCandidate, resource: LibraryKind): number | undefined => raw[resource]?.id;
+const matchedIdOf = (raw: RawCandidate, resource: ArrKind): number | undefined => raw[resource]?.id;
 
 const trackIdsOf = (raw: RawCandidate): number[] =>
     (raw.tracks ?? []).map(t => t.id).filter((id): id is number => typeof id === 'number');
@@ -84,7 +84,7 @@ const unplacedMusic = (raw: RawCandidate): string[] => [
     ...(trackIdsOf(raw).length > 0 ? [] : ['no track matched'])
 ];
 
-function toCandidate(service: string, resource: LibraryKind, raw: RawCandidate): ImportCandidate | undefined {
+function toCandidate(service: string, resource: ArrKind, raw: RawCandidate): ImportCandidate | undefined {
     if (typeof raw.path !== 'string' || raw.path === '') return undefined;
 
     const title = resource === 'artist' ? musicTitleOf(raw) : raw[resource]?.title;
@@ -122,7 +122,7 @@ function toCandidate(service: string, resource: LibraryKind, raw: RawCandidate):
 async function unfinishedRow(
     http: ServiceHttp,
     service: string,
-    resource: LibraryKind,
+    resource: ArrKind,
     downloadId: string
 ): Promise<QueueItem | undefined> {
     const row = (await readArrQueue(http, service, resource)).find(
@@ -198,7 +198,7 @@ function notFinished(service: string, downloadId: string, row: QueueItem, why: s
 async function explainUnfinishedDownload(
     http: ServiceHttp,
     service: string,
-    resource: LibraryKind,
+    resource: ArrKind,
     downloadId: string,
     err: unknown
 ): Promise<unknown> {
@@ -392,14 +392,14 @@ function refuseMusicMapping(service: string, mapping: readonly ImportMapping[]):
  * copy. This tool never asks for that, so it says so on the read as on the
  * import.
  */
-const candidateQuery = (resource: LibraryKind, downloadId: string): string =>
+const candidateQuery = (resource: ArrKind, downloadId: string): string =>
     `downloadId=${encodeURIComponent(downloadId)}&filterExistingFiles=true` +
     (resource === 'artist' ? '&replaceExistingFiles=false' : '');
 
 async function readCandidates(
     http: ServiceHttp,
     service: string,
-    resource: LibraryKind,
+    resource: ArrKind,
     downloadId: string,
     mapping: ImportMapping[] = []
 ): Promise<{ raw: RawCandidate[]; judged: (ImportCandidate | undefined)[]; candidates: ImportCandidate[] }> {
@@ -425,7 +425,7 @@ async function readCandidates(
 export async function listArrImportCandidates(
     http: ServiceHttp,
     service: string,
-    resource: LibraryKind,
+    resource: ArrKind,
     downloadId: string,
     mapping?: ImportMapping[]
 ): Promise<ImportCandidate[]> {
@@ -440,7 +440,7 @@ export async function listArrImportCandidates(
 export async function runArrManualImport(
     http: ServiceHttp,
     service: string,
-    resource: LibraryKind,
+    resource: ArrKind,
     downloadId: string,
     mapping?: ImportMapping[]
 ): Promise<CommandHandle> {

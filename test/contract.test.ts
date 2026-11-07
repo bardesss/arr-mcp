@@ -1020,6 +1020,43 @@ const CONTRACTS: Record<string, ServiceContract> = {
             { path: '/api/releases', fixture: 'test/fixtures/shelfmark/releases.json', fields: ['releases.source', 'releases.source_id', 'releases.title', 'releases.indexer', 'releases.format', 'releases.protocol', 'releases.size_bytes'] },
             { path: '/api/releases/download', fixture: 'test/fixtures/shelfmark/download.json', fields: ['status'] }
         ]
+    },
+    // The v3.5.0 spec, vendored from the release. Fixtures are the maintainer's live v3.5.0.
+    grimmory: {
+        spec: 'specs/grimmory.json',
+        dependencies: [
+            { path: '/api/v1/healthcheck', fixture: 'test/fixtures/grimmory/healthcheck.json', fields: ['data.version'] },
+            { path: '/api/v1/libraries', fixture: 'test/fixtures/grimmory/libraries.json', fields: ['id', 'name', 'watch'] },
+            // A bare id-to-boolean map, so there is no named field to contract.
+            { path: '/api/v1/libraries/health', fixture: 'test/fixtures/grimmory/libraries-health.json', fields: [] },
+            { path: '/api/v1/app/books', fixture: 'test/fixtures/grimmory/app-books-page.json', fields: ['content', 'hasNext', 'totalElements', 'totalPages', 'content.id', 'content.title', 'content.authors', 'content.primaryFileType', 'content.fileSizeKb', 'content.primaryFileId', 'content.addedOn'] },
+            { path: '/api/v1/app/books/search', fixture: 'test/fixtures/grimmory/app-books-search.json', fields: ['content', 'hasNext', 'totalElements', 'content.id', 'content.title', 'content.authors', 'content.publishedDate'] },
+            {
+                // `metadata.asin` is read too, but the captured book has none (absent, not null).
+                path: '/api/v1/books/{bookId}',
+                fixture: 'test/fixtures/grimmory/book.json',
+                fields: [
+                    'libraryId',
+                    'libraryName',
+                    'addedOn',
+                    'alternativeFormats',
+                    'metadataMatchScore',
+                    'metadata.title',
+                    'metadata.authors',
+                    'metadata.publishedDate',
+                    'metadata.seriesName',
+                    'metadata.seriesNumber',
+                    'metadata.isbn13',
+                    'primaryFile.fileName',
+                    'primaryFile.fileSizeKb',
+                    'primaryFile.bookType'
+                ]
+            },
+            { path: '/api/v1/bookdrop/notification', fixture: 'test/fixtures/grimmory/bookdrop-notification.json', fields: ['pendingCount'] },
+            // `createdAt` is read here but not contracted: the captured Bookdrop was empty.
+            { path: '/api/v1/bookdrop/files', fixture: 'test/fixtures/grimmory/bookdrop-files-pending.json', fields: ['content'] },
+            { path: '/api/v1/version', fixture: 'test/fixtures/grimmory/version.json', fields: ['current', 'latest'] }
+        ]
     }
 };
 

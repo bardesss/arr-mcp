@@ -116,9 +116,11 @@ export async function buildResolvedMediaDetails(
         // this user's episodes, so it can only ever *add* `seasons` to items
         // another source already returned. It can never be why a title was not
         // found, and saying it might be is a hedge against nothing. The same
-        // goes for the secondary media server, whose rows never enter the join.
+        // goes for the secondary media server, whose rows never enter the join,
+        // and for a book-only source: a book can never be the answer here.
         const secondary = loader.secondaryMediaServerId;
-        const unreachable = servicesOnly(degraded).filter(id => id !== secondary);
+        const books = loader.bookSourceIds ?? [];
+        const unreachable = servicesOnly(degraded).filter(id => id !== secondary && !books.includes(id));
         const hedge =
             unreachable.length === 0
                 ? ''
@@ -221,9 +223,10 @@ export function registerGetMediaDetails(
              * but `service: "lidarr"` plus an artist id answers with one, and it
              * is the route every artist refusal names for album ids. Without it
              * here the SDK rejects the result and the caller never sees it.
+             * `book` is Grimmory's, by `service` plus `id` only.
              */
             outputSchema: z.looseObject({
-                kind: z.enum(['movie', 'series', 'item', 'artist']),
+                kind: z.enum(['movie', 'series', 'item', 'artist', 'book']),
                 title: z.string()
             }),
             inputSchema: toolInput({
@@ -259,7 +262,9 @@ export function registerGetMediaDetails(
                       (result.episodes === undefined
                           ? ''
                           : ` ${result.episodes.length} of ${result.episodeCount ?? result.episodes.length} episode(s).`)
-                    : `${result.kind} from ${result.service}` +
+                    : result.kind === 'book'
+                      ? `book from ${result.service}${result.book === undefined ? '.' : `, in ${result.book.library}; ${result.book.formats.length === 0 ? 'no files.' : `formats: ${result.book.formats.map(f => f.format).join(', ')}.`}`}`
+                      : `${result.kind} from ${result.service}` +
                       // `episodes` is only fetched at detail: full. Reporting
                       // "0 of 62" below that read as an empty series rather
                       // than as episodes nobody asked for.

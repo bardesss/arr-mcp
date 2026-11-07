@@ -699,3 +699,33 @@ describe('LibraryIndex and music', () => {
         });
     });
 });
+
+describe('LibraryIndex and books', () => {
+    const book = (id: string, title = 'Example Book 58 by Example Author 1'): IndexInput => ({
+        kind: 'book',
+        title: fenceText(title, { service: 'grimmory', field: 'title' }),
+        ids: {},
+        acquisition: { service: 'grimmory', id, monitored: false, hasFile: true, quality: 'EPUB' }
+    });
+
+    it('books never merge and read presence unknown', () => {
+        // Same title, no shared id: two copies of one book are two rows, and a
+        // healthy media server read must not make either one `arr_only`.
+        const index = LibraryIndex.build([book('58'), book('59')], { playbackGathered: true, musicGathered: true });
+        expect(index.all()).toHaveLength(2);
+        expect(index.all().map(i => i.presence)).toEqual(['unknown', 'unknown']);
+    });
+
+    it('a film wins over a book of the same title, and a book alone is refused with the Grimmory route', () => {
+        const film = arr({ title: 'Example Book 58' });
+        const both = LibraryIndex.build([book('58', 'Example Book 58'), film]);
+        expect(filmOrSeriesMatch(both.search('Example Book 58'), 'Example Book 58')?.kind).toBe('movie');
+
+        const booksOnly = LibraryIndex.build([book('58')]);
+        const refusal = (): unknown => filmOrSeriesMatch(booksOnly.search('Example Book 58'), 'Example Book 58');
+        expect(refusal).toThrow(/Grimmory book/);
+        expect(refusal).toThrow(/service: "grimmory"/);
+        expect(refusal).toThrow(/id: "58"/);
+        expect(refusal).not.toThrow(/Lidarr/);
+    });
+});

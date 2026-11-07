@@ -85,7 +85,9 @@ export const ICONS: Record<ServiceId, string> = {
     // A TV: the category is live TV.
     dispatcharr: draw('<rect x="3" y="6" width="18" height="12" rx="2"/><path d="m8 2 4 4 4-4"/>'),
     // An open book: the category is books.
-    shelfmark: draw('<path d="M12 7c-2-2-5-2.5-9-2.5v14c4 0 7 .5 9 2.5 2-2 5-2.5 9-2.5v-14c-4 0-7 .5-9 2.5Z"/><path d="M12 7v14"/>')
+    shelfmark: draw('<path d="M12 7c-2-2-5-2.5-9-2.5v14c4 0 7 .5 9 2.5 2-2 5-2.5 9-2.5v-14c-4 0-7 .5-9 2.5Z"/><path d="M12 7v14"/>'),
+    // An open book on a shelf: the category is a book library.
+    grimmory: draw('<path d="M12 4c-1.5-1.5-3.5-2-6.5-2v11c3 0 5 .5 6.5 2 1.5-1.5 3.5-2 6.5-2V2c-3 0-5 .5-6.5 2Z"/><path d="M12 4v11"/><path d="M3 18.5h18"/><path d="M5 22v-3.5M19 22v-3.5"/>')
 };
 
 /**

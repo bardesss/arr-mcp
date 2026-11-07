@@ -23,6 +23,9 @@ prowlarr https://raw.githubusercontent.com/Prowlarr/Prowlarr/develop/src/Prowlar
 jellyfin https://api.jellyfin.org/openapi/jellyfin-openapi-stable.json
 seerr https://raw.githubusercontent.com/seerr-team/seerr/develop/seerr-api.yml
 profilarr https://raw.githubusercontent.com/Dictionarry-Hub/profilarr/v2.2.0/src/lib/api/v1.openapi.json
+# A release asset pinned to the tested tag, as Profilarr's is. It redirects to
+# objects.githubusercontent.com, which the curl -L below follows.
+grimmory https://github.com/grimmory-tools/grimmory/releases/download/v3.5.0/openapi.json
 "
 
 # Trapped rather than removed at the end of the loop: `set -e` means a failed

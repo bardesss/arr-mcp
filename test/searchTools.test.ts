@@ -1,3 +1,4 @@
+import { McpServer } from '@modelcontextprotocol/server';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { KeyedServiceConfig, MultiUserServiceConfig } from '../src/config/schema.ts';
 import type { IdentityResolver } from '../src/core/identity.ts';
@@ -9,7 +10,8 @@ import { RadarrAdapter } from '../src/services/radarr.ts';
 import { SeerrAdapter } from '../src/services/seerr.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
 import { buildDiscoverMedia } from '../src/tools/discoverMedia.ts';
-import { buildGetMediaDetails, resolveMediaDetails } from '../src/tools/getMediaDetails.ts';
+import { buildGetMediaDetails, registerGetMediaDetails, resolveMediaDetails } from '../src/tools/getMediaDetails.ts';
+import { GrimmoryAdapter } from '../src/services/grimmory.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
 import { buildLookupMedia } from '../src/tools/lookupMedia.ts';
 import { buildSearchMedia } from '../src/tools/searchMedia.ts';
@@ -551,6 +553,70 @@ describe('get_media_details', () => {
         expect(result).toMatchObject({ title: RESOLVED.title, presence: 'arr_only' });
     });
 
+    it('never answers a title query with a Grimmory book, and points a book-only match at its id', async () => {
+        const book = (title: string) => ({
+            kind: 'book' as const,
+            title: `<<untrusted:grimmory.title>>${title}<</untrusted>>`,
+            ids: {},
+            acquisition: { service: 'grimmory', id: '58', monitored: false, hasFile: true }
+        });
+        const withBooks = (books: unknown[]) =>
+            new LibraryLoader(
+                [
+                    {
+                        id: 'radarr',
+                        testConnection: async () => ({ ok: true, service: 'radarr', latency_ms: 1 }),
+                        getVersion: async () => '1.0.0',
+                        listLibrary: async () => [RESOLVED]
+                    } as unknown as ServiceAdapter,
+                    {
+                        id: 'grimmory',
+                        type: 'grimmory',
+                        testConnection: async () => ({ ok: true, service: 'grimmory', latency_ms: 1 }),
+                        getVersion: async () => '3.5.0',
+                        listLibrary: async () => books
+                    } as unknown as ServiceAdapter
+                ],
+                undefined
+            );
+
+        // A book named like the film, listed first: the film still answers.
+        const film = await resolveMediaDetails([], withBooks([book('The Matrix')]), { ...query, query: 'the matrix' });
+        expect(film).toMatchObject({ kind: 'movie', ids: { tmdb: 603 } });
+
+        const only = resolveMediaDetails([], withBooks([book('Example Book 58 by Example Author 1')]), { ...query, query: 'Example Book 58' });
+        await expect(only).rejects.toThrow(/Grimmory book/);
+        await expect(only).rejects.toThrow(/service: "grimmory" and id: "58"/);
+        await expect(only).rejects.toThrow(/search_media/);
+    });
+
+    it('does not hedge a title miss on a Grimmory outage, since a book is never the answer', async () => {
+        const grimmoryDown = new LibraryLoader(
+            [
+                {
+                    id: 'radarr',
+                    type: 'radarr',
+                    testConnection: async () => ({ ok: true, service: 'radarr', latency_ms: 1 }),
+                    getVersion: async () => '1.0.0',
+                    listLibrary: async () => [RESOLVED]
+                } as unknown as ServiceAdapter,
+                {
+                    id: 'grimmory',
+                    type: 'grimmory',
+                    testConnection: async () => ({ ok: true, service: 'grimmory', latency_ms: 1 }),
+                    getVersion: async () => '3.5.0',
+                    listLibrary: async () => {
+                        throw new Error('grimmory down');
+                    }
+                } as unknown as ServiceAdapter
+            ],
+            undefined
+        );
+        const err = (await resolveMediaDetails([], grimmoryDown, { ...query, query: 'zzzz' }).catch((e: unknown) => e)) as Error;
+        expect(err.message).toMatch(/nothing in your library matches/i);
+        expect(err.message).not.toMatch(/grimmory|could not be reached|incomplete/i);
+    });
+
     it('matches through a leading article the caller omitted', async () => {
         const result = await resolveMediaDetails([], loader(), { ...query, query: 'the matrix' });
         expect(result).toMatchObject({ ids: { tmdb: 603 } });
@@ -776,6 +842,39 @@ describe('get_media_details', () => {
             expect(result.episodes).toBeUndefined();
         });
     });
+
+    it('get_media_details accepts kind book for grimmory', async () => {
+        const fetchImpl = (async (input: string | URL | Request, init?: RequestInit) => {
+            const path = new URL(String(input)).pathname;
+            if (init?.method === 'POST') return jsonResponse({ accessToken: 't', refreshToken: 'r', expires: 7200 });
+            if (path === '/api/v1/books/58') {
+                return jsonResponse({
+                    id: 58,
+                    libraryName: 'Example Library 1',
+                    metadata: { title: 'Example Book 58', authors: ['Example Author 1'] },
+                    primaryFile: { bookType: 'EPUB', fileName: 'a.epub', fileSizeKb: 1 },
+                    alternativeFormats: [{ bookType: 'PDF', fileName: 'a.pdf', fileSizeKb: 2 }]
+                });
+            }
+            return jsonResponse({}, 404);
+        }) as unknown as typeof fetch;
+        const grimmory = new GrimmoryAdapter({ url: 'http://grimmory:6060', username: 'u', password: 'p', timeout_ms: 10_000 } as never, fetchImpl);
+
+        let registered: { cfg: { outputSchema: { safeParse(v: unknown): { success: boolean } } }; handler: (a: Record<string, unknown>) => Promise<{ content: { text: string }[]; structuredContent: unknown }> } | undefined;
+        const server = {
+            registerTool: (_n: string, cfg: never, handler: never) => {
+                registered = { cfg, handler };
+            }
+        } as unknown as McpServer;
+        registerGetMediaDetails(server, [grimmory], new LibraryLoader([grimmory], undefined));
+
+        const out = await registered!.handler({ service: 'grimmory', id: '58', detail: 'standard', limit: 50 });
+        expect(registered!.cfg.outputSchema.safeParse(out.structuredContent).success).toBe(true);
+        expect(out.content[0]!.text).toContain('book from grimmory');
+        expect(out.content[0]!.text).toContain('Example Library 1');
+        expect(out.content[0]!.text).toContain('formats: EPUB, PDF');
+    });
+
 });
 
 describe('discover_media', () => {

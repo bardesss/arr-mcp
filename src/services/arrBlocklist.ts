@@ -1,6 +1,6 @@
 import { fenceText } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
-import type { LibraryKind } from '../core/resolver.ts';
+import type { ArrKind } from '../core/resolver.ts';
 import { pageArr } from './arrPaging.ts';
 import { mediaIdOf, protocolName } from './arrRecord.ts';
 import type { BlocklistEntry } from './types.ts';
@@ -31,7 +31,7 @@ type RawBlocklist = {
 export async function readArrBlocklist(
     http: ServiceHttp,
     service: string,
-    kind: LibraryKind
+    kind: ArrKind
 ): Promise<BlocklistEntry[]> {
     const records = await pageArr<RawBlocklist>(http, `${http.apiRoot}/blocklist`);
     const fence = (value: string, field: string) => fenceText(value, { service, field });

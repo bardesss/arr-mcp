@@ -97,6 +97,16 @@ export class LibraryLoader {
     }
 
     /**
+     * The library sources that hold books only (Grimmory). A failed read of one
+     * belongs in `get_library`'s `degraded`, but it can never be why a film or
+     * series title was not found, so the film-and-series readers leave it out
+     * of their hedges, as they do the secondary media server.
+     */
+    get bookSourceIds(): readonly string[] {
+        return this.#adapters.filter(a => a.type === 'grimmory' && hasLibrary(a)).map(a => a.id);
+    }
+
+    /**
      * Whether an IMDb rating is *obtainable* here, which is not the same
      * question as whether one was found.
      *
@@ -335,6 +345,10 @@ export class LibraryLoader {
         if (secondary !== undefined) {
             const secondaryIndex = secondaryRead ? LibraryIndex.build(secondaryRows) : undefined;
             for (const item of index.all()) {
+                // A book is never stamped: no media server reads books, so any
+                // `present` here would be a claim about a read that never ran,
+                // and `missing_from` would list every book in the library.
+                if (item.kind === 'book') continue;
                 // An artist is stamped from the music read and a film or series
                 // from the film one, because the two reads fail separately. A
                 // `present: false` derived from a read that never ran would make

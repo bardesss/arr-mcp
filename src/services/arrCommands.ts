@@ -1,6 +1,6 @@
 import { ServiceError } from '../core/errors.ts';
 import type { ServiceHttp } from '../core/http.ts';
-import type { LibraryKind } from '../core/resolver.ts';
+import type { ArrKind } from '../core/resolver.ts';
 import { mediaIdsParam } from './arrRecord.ts';
 import type { CommandHandle, CommandStatus } from './types.ts';
 
@@ -125,7 +125,7 @@ export async function readArrCommands(
 
 /** Refused before the POST: Radarr and Sonarr accept an id they cannot
  *  resolve and report a queued command that runs against nothing. */
-export function arrItemId(service: string, resource: LibraryKind, value: string): number {
+export function arrItemId(service: string, resource: ArrKind, value: string): number {
     const id = Number(value);
     if (!Number.isInteger(id) || id <= 0) {
         throw new ServiceError('NotFound', service, `"${value}" is not a ${service} ${resource} id`, {
@@ -147,12 +147,12 @@ const RENAME = {
     movie: 'RenameMovie',
     series: 'RenameSeries',
     artist: 'RenameArtist'
-} as const satisfies Record<LibraryKind, string>;
+} as const satisfies Record<ArrKind, string>;
 
 export async function refreshArrItem(
     http: ServiceHttp,
     service: string,
-    resource: LibraryKind,
+    resource: ArrKind,
     id: string
 ): Promise<CommandHandle> {
     return postArrCommand(http, service, REFRESH[resource](arrItemId(service, resource, id)));
@@ -161,7 +161,7 @@ export async function refreshArrItem(
 export async function renameArrItem(
     http: ServiceHttp,
     service: string,
-    resource: LibraryKind,
+    resource: ArrKind,
     id: string
 ): Promise<CommandHandle> {
     return postArrCommand(http, service, {

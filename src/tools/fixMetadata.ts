@@ -329,6 +329,13 @@ export function registerFixMetadata(
 
         async plan({ service, query, id, user }): Promise<WritePlan> {
             if (id === undefined && query === undefined) throw new Error('Name a film or series as `query`, or give its `id`.');
+            // Before any request: Grimmory can read a book by id, and the generic
+            // path would fetch it only to say it is not a film or series.
+            if (service === 'grimmory' || id === 'grimmory' || id?.startsWith('grimmory:') === true) {
+                throw new ServiceError('NotFound', 'grimmory', 'books are not repaired here: Grimmory manages its own metadata.', {
+                    remedy: 'Use get_media_details with service "grimmory" and the book id for its details.'
+                });
+            }
             const { adapter, identity } = chooseServer(servers, service, id);
             const viewer = await identity.resolve(user);
             const series = id !== undefined ? await resolveById(loader, id, adapter) : await resolve(loader, query ?? '', adapter, adapter.id === servers.secondary?.adapter.id);

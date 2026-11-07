@@ -15,7 +15,7 @@ import {
     type CrossCheckProfile,
     type CrossCheckSubject
 } from '../src/tools/crossChecks.ts';
-import type { LibraryLoader } from '../src/tools/library.ts';
+import { LibraryLoader } from '../src/tools/library.ts';
 
 type Source<T> = T | Error | Promise<T>;
 type World = {
@@ -326,6 +326,25 @@ describe('cross-checks — delete', () => {
         const show: CrossCheckSubject = { kind: 'series', label: 'Severance', ids: { tvdb: 371980 } };
         const series = await check(show, 'delete', { library: item({ kind: 'series', ids: { tvdb: 371980 } }), degraded });
         expect(series.unchecked).toEqual(['jellyfin', 'sonarr', 'sonarr/4k', 'whisparr']);
+    });
+
+    it('a Grimmory outage is not an unchecked gap for a film delete', async () => {
+        // A real loader, so the snapshot's own `degraded` carries `grimmory`.
+        const film = { kind: 'movie' as const, title: 'Alien', year: 1979, ids: { tmdb: 348 }, acquisition: { service: 'radarr', id: '5', monitored: true, hasFile: true } };
+        const run = async (grimmory: () => Promise<unknown[]>) => {
+            const adapters = [stub('radarr', { listLibrary: async () => [film] }), stub('grimmory', { listLibrary: grimmory })];
+            const loader = new LibraryLoader(adapters, undefined);
+            return { degraded: (await loader.load()).degraded, advice: await buildCrossChecker(adapters, loader)(subject, 'delete') };
+        };
+        const healthy = await run(async () => []);
+        const down = await run(async () => {
+            throw new Error('grimmory down');
+        });
+
+        expect(down.degraded).toContain('grimmory');
+        expect(down.advice.unchecked).not.toContain('grimmory');
+        // Everything else the check says is what it says with Grimmory up.
+        expect(down.advice).toEqual(healthy.advice);
     });
 
     it('reports the library as unchecked when the watch state could not be read', async () => {

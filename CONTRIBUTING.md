@@ -335,6 +335,24 @@ small, shaped change, and a service in no slot at all is a different product.
   `get_releases`, `grab_release`, `remove_queue_item`, `retry_download` and
   `get_history` with no new tool. Ebooks only so far.
 
+- **Grimmory — writes.** The adapter has shipped, read-only, by maintainer waiver
+  on 2026-11-07. It missed three checks above: the project is eight months old
+  (first release 2026-03-20), only the maintainer asked for it, and a book never
+  passes through the chain `diagnose` walks, so `diagnose` refuses one. The age
+  miss is the one Chaptarr was turned down on, so the reason is written down.
+  Grimmory is the one book library with a management API to build on: Calibre's
+  content server has an undocumented JSON interface with no version policy, and
+  BookOrbit has no management API to speak of. It carries BookLore's older
+  codebase and release numbering, and the maintainer runs it, so every change gets
+  tested against a live v3.5.0. The rest of the waiver is Shelfmark's: the books
+  the stack downloads have to land somewhere, and without the library half
+  `stack_health` can see a download finish and never see where it went. The risk
+  class holds, since it stores a username and password as Transmission and
+  qBittorrent do, and talks only to the configured host. The waiver covers
+  Grimmory alone. A Chaptarr request still waits for its date. Rescanning a
+  library and deleting a book need their own case: deleting removes the files
+  from disk.
+
 Named and **not** accepted, so nobody spends a weekend finding out:
 
 - **Readarr.** Archived upstream. Nothing to track.
@@ -372,7 +390,9 @@ Dispatcharr is the exception: the maintainer runs it, and its fixtures were
 captured from a live 0.33.0. So is Shelfmark, captured from a live v1.6.1 with no
 authentication, including a real grab; it has had no failed download there, and
 its key handling and its stopped and failed paths are tested on captured bodies
-with those answers constructed.
+with those answers constructed. So is Grimmory, captured from a live v3.5.0 as
+the admin account; its Bookdrop was empty, so a pending file is tested on a
+constructed one, and so are its 403 answers.
 Whichever you take on, your testing is the only
 testing it gets before it ships.
 
@@ -425,7 +445,7 @@ around them.
    be configured, because `get_library`'s `presence` join needs a single
    counterparty.
 6. **Decide whether it can be configured twice**, and say so in the adapter.
-   Nine of the eighteen services can be, so this is the common case rather than the
+   Nine of the nineteen services can be, so this is the common case rather than the
    exotic one — but copying `jellyfin.ts` gets you `readonly id: string =
    '<type>'`, which is the *single*-instance shape. That is the safe default
    (a service that simply cannot be configured twice, rather than two adapters
@@ -487,13 +507,13 @@ implementations learned this the hard way: Radarr runs three tasks whose names
 contain "Refresh", only one of which is the library scan, and Jellyfin's task
 names are localised — a Dutch server returns "Mediabibliotheek scannen".
 
-Eight of the eighteen services publish no usable OpenAPI spec, and two more
+Eight of the nineteen services publish no usable OpenAPI spec, and two more
 have hand-written adapters anyway, so the adapter
 interface is defined by us and must stay hand-writable. Code generation is an
 implementation detail inside an adapter, never the shape of the contract.
 
 That also decides what the nightly drift job can watch. `openapi-drift.yml`
-re-fetches the eight published specs and regenerates types from them, so it
+re-fetches the nine published specs and regenerates types from them, so it
 catches an upstream change before a user does. A spec-less service has nothing
 to fetch: its contract is the fields declared in `test/contract.test.ts`,
 checked against committed fixtures. That catches us breaking our own adapter,
@@ -582,7 +602,7 @@ does both and opens a PR when either changes, so **review `specs/` in that
 diff** — the generated files are output, not source, and are not meant to be
 read by hand.
 
-Radarr, Sonarr, Whisparr, Lidarr, Prowlarr, Jellyfin, Seerr and Profilarr are generated.
+Radarr, Sonarr, Whisparr, Lidarr, Prowlarr, Jellyfin, Seerr, Profilarr and Grimmory are generated.
 Bazarr, SABnzbd, NZBGet, Transmission, qBittorrent, Plex and Cleanuparr publish no usable spec
 and are hand-written against recorded fixtures. Reclaimerr publishes OpenAPI at
 `/api/v1/openapi.json`, but its adapter reads seven endpoints and is

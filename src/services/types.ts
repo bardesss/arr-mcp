@@ -680,10 +680,10 @@ export interface QueueCapable {
      * What the queue's rows are downloads of, set by the *arrs. Absent on a
      * download client, whose rows can be anything. Lets a caller that only
      * wants films and series leave Lidarr's queue out without naming it.
-     * `book` is Shelfmark's: books are in no library this server indexes, so it
-     * is not a `LibraryKind`.
+     * `book` is Shelfmark's: what it downloads are books, the kind Grimmory's
+     * library rows carry.
      */
-    readonly queueKind?: LibraryKind | 'book';
+    readonly queueKind?: LibraryKind;
 }
 
 export const hasQueue = (a: ServiceAdapter): a is ServiceAdapter & QueueCapable =>
@@ -1101,7 +1101,7 @@ export type SeasonMonitoring = { season: number; monitored: boolean };
 
 export type MediaDetails = {
     service: string;
-    kind: 'movie' | 'series' | 'item' | 'artist';
+    kind: 'movie' | 'series' | 'item' | 'artist' | 'book';
     id: string;
     title: string;
     year?: number;
@@ -1128,6 +1128,18 @@ export type MediaDetails = {
     albumsTruncated?: boolean;
     /** Series only. Sonarr's per-season monitoring, as reported by Sonarr. */
     seasons?: SeasonMonitoring[];
+    /** Books only (Grimmory). Every free-text field here is fenced. */
+    book?: {
+        authors: string[];
+        series?: string;
+        seriesNumber?: number;
+        library: string;
+        formats: { format: string; fileName: string; sizeBytes?: number }[];
+        isbn13?: string;
+        asin?: string;
+        matchScore?: number;
+        addedOn?: string;
+    };
 };
 
 /**

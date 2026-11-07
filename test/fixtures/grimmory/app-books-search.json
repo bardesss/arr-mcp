@@ -1,0 +1,90 @@
+{
+  "content": [
+    {
+      "id": 57,
+      "title": "Example Book 57",
+      "authors": [
+        "Example Author 1"
+      ],
+      "thumbnailUrl": "/api/books/57/cover",
+      "libraryId": 1,
+      "addedOn": "2026-11-06T11:29:14Z",
+      "primaryFileId": 57,
+      "primaryFileType": "EPUB",
+      "primaryFileName": "Example Book 57.epub",
+      "coverUpdatedOn": "2026-11-06T11:29:14Z",
+      "isPhysical": false,
+      "publisher": "",
+      "categories": [
+        "Example Category 1",
+        "Example Category 2",
+        "Example Category 3",
+        "Example Category 4",
+        "Example Category 5"
+      ],
+      "tags": [],
+      "moods": [],
+      "language": "en",
+      "isbn13": "9780000000057",
+      "publishedDate": "2000-01-01",
+      "metadataMatchScore": 62.3656,
+      "fileSizeKb": 2048,
+      "allMetadataLocked": false
+    },
+    {
+      "id": 42,
+      "title": "Example Book 42",
+      "authors": [
+        "Example Author 2"
+      ],
+      "thumbnailUrl": "/api/books/42/cover",
+      "libraryId": 1,
+      "addedOn": "2026-11-06T11:29:12Z",
+      "primaryFileId": 42,
+      "primaryFileType": "EPUB",
+      "primaryFileName": "Example Book 42.epub",
+      "coverUpdatedOn": "2026-11-06T11:29:12Z",
+      "isPhysical": false,
+      "publisher": "",
+      "categories": [],
+      "tags": [],
+      "moods": [],
+      "language": "en",
+      "isbn13": "9780000000042",
+      "metadataMatchScore": 48.3871,
+      "fileSizeKb": 2048,
+      "allMetadataLocked": false
+    },
+    {
+      "id": 44,
+      "title": "Example Book 44",
+      "authors": [
+        "Example Author 3"
+      ],
+      "thumbnailUrl": "/api/books/44/cover",
+      "libraryId": 1,
+      "addedOn": "2026-11-06T11:29:12Z",
+      "primaryFileId": 44,
+      "primaryFileType": "EPUB",
+      "primaryFileName": "Example Book 44.epub",
+      "coverUpdatedOn": "2026-11-06T11:29:12Z",
+      "isPhysical": false,
+      "publisher": "",
+      "categories": [],
+      "tags": [],
+      "moods": [],
+      "language": "en",
+      "isbn13": "9780000000044",
+      "publishedDate": "2000-01-01",
+      "metadataMatchScore": 51.6129,
+      "fileSizeKb": 2048,
+      "allMetadataLocked": false
+    }
+  ],
+  "page": 0,
+  "size": 3,
+  "totalElements": 25,
+  "totalPages": 9,
+  "hasNext": true,
+  "hasPrevious": false
+}

@@ -28,9 +28,9 @@ services:
     password: "…"
 ```
 
-All eighteen service ids: `radarr`, `sonarr`, `whisparr`, `lidarr`, `prowlarr`, `bazarr`,
+All nineteen service ids: `radarr`, `sonarr`, `whisparr`, `lidarr`, `prowlarr`, `bazarr`,
 `jellyfin`, `seerr`, `sabnzbd`, `nzbget`, `transmission`, `qbittorrent`, `plex`,
-`profilarr`, `cleanuparr`, `reclaimerr`, `dispatcharr`, `shelfmark`. Configure only what you run —
+`profilarr`, `cleanuparr`, `reclaimerr`, `dispatcharr`, `shelfmark`, `grimmory`. Configure only what you run —
 anything you leave out is simply absent, not broken. Running both torrent
 clients at once is supported; their queues merge, each item labelled with the
 client it came from.
@@ -72,9 +72,9 @@ in a browser; a trailing slash makes no difference.
 If the proxy asks for a username and password, put them in the URL:
 `http://user:pass@192.168.1.20:6767/bazarr`. They go out as a Basic
 `Authorization` header, not in the address. Services that send their own
-`Authorization` header (Jellyfin, and Transmission with a username set) keep
-theirs, so this can't stack with those. Percent-encode `@`, `:` or `%` itself
-(as `%25`) in either part. The config page shows the URL without them, and
+`Authorization` header (Jellyfin, Grimmory, and Transmission with a username
+set) keep theirs, so this can't stack with those. Percent-encode `@`, `:` or
+`%` itself (as `%25`) in either part. The config page shows the URL without them, and
 saving that URL unchanged keeps them; to change them, type a URL that has
 its own `user:pass@`.
 
@@ -453,6 +453,46 @@ you want. arr-mcp writes three things: queueing a release and retrying a downloa
 with `safe_write` on, and cancelling a download with `destructive` on. Single instance only, because one Shelfmark holds one download
 queue. Needs Shelfmark 1.5.0 or newer, the first with `/api/stats`.
 
+## Grimmory
+
+```yaml
+services:
+  grimmory:
+    url: http://192.168.1.20:6061
+    username: "arr-mcp"
+    password: "…"
+```
+
+Grimmory has no API key. arr-mcp signs in with a username and password and keeps
+the access token in memory only. Any Grimmory user works, and the first request
+that needs one triggers the login. Reading books, libraries, the Bookdrop and the
+version needs a user who can see the libraries; the Bookdrop also needs
+`canAccessBookdrop`. A read the account is not allowed shows up in `stack_health`
+as a notice naming it, and nothing else is affected.
+
+An admin account works and is the simplest, but an admin token can do everything
+in Grimmory, including creating users and deleting libraries. arr-mcp calls only
+the read routes today. If you would rather give it less, create a user with access
+to your libraries and `canAccessBookdrop`. When writes arrive, `canManageLibrary`
+will cover rescans and `canDeleteBook` deletes. Grimmory requires an email address
+for a new user, but only checks that it is well formed, so `arr-mcp@localhost`
+passes as long as nothing in Grimmory needs to send mail to it.
+
+Grimmory counts failed logins per client IP and allows five in 15 minutes. Behind
+a reverse proxy that IP can be the proxy's, so a wrong password here could lock
+your own browser out too. After a rejected login (401, 403 or 429, or a 200 with
+no token), arr-mcp stops trying for 15 minutes and reports the credentials as
+wrong, so it can never be the one that locks the account out. Fixing the password
+in the config clears it. Other failures, such as a 5xx, fail that request without
+the wait. arr-mcp does not refresh tokens: on v3.5.0 the refresh route answered
+401 to a refresh token straight from a fresh login, and a failed refresh counts
+against the same limit. It logs in again once an access token expires, about
+every two hours of use.
+
+Single instance only, because `get_library` needs one book source. Needs
+Grimmory 3.5.0 or newer, the version the adapter was written against. It reads
+only; there are no Grimmory writes yet.
+
 ## Several instances of one service
 
 Running an HD and a 4K Radarr side by side is a common setup, and arr-mcp reads
@@ -495,7 +535,7 @@ is deliberate, and it only affects writes.
 a configuration you can express — each entry carries its own `permissions`
 block.
 
-**Nine services stay single.** Jellyfin and Plex because each is one server,
+**Ten services stay single.** Jellyfin and Plex because each is one server,
 and [running both](#plex-and-jellyfin-together) is a different thing from
 running two of one. Seerr because a request carries the identity of the person
 who made it, and a second Seerr makes "which one do I ask" a guess with an
@@ -505,7 +545,8 @@ Profilarr because it is the one place that owns profile config, so two of them
 would mean two sources of truth. Cleanuparr because one instance cleans one
 stack, Reclaimerr because one instance owns one library's cleanup rules,
 Dispatcharr because one instance serves one set of playlists, and Shelfmark
-because one instance holds one download queue.
+because one instance holds one download queue. Grimmory stays single because
+`get_library` reads books from one source.
 
 Everything else takes a list: Radarr, Sonarr, Lidarr, Bazarr, Prowlarr, SABnzbd,
 NZBGet, Transmission and qBittorrent.

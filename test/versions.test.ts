@@ -161,7 +161,8 @@ describe('assertVersionSupported against captured evidence', () => {
         cleanuparr: (read('test/fixtures/cleanuparr/status.json') as { application: { version: string } }).application.version,
         reclaimerr: (read('test/fixtures/reclaimerr/system.json') as { version: string }).version,
         dispatcharr: (read('test/fixtures/dispatcharr/version.json') as { version: string }).version,
-        shelfmark: (read('test/fixtures/shelfmark/config.json') as { release_version: string }).release_version
+        shelfmark: (read('test/fixtures/shelfmark/config.json') as { release_version: string }).release_version,
+        grimmory: (read('test/fixtures/grimmory/healthcheck.json') as { data: { version: string } }).data.version.replace(/^v/, '')
     };
 
     for (const [service, version] of Object.entries(captured)) {

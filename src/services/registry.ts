@@ -14,6 +14,7 @@ import { QbittorrentAdapter } from './qbittorrent.ts';
 import { RadarrAdapter } from './radarr.ts';
 import { SabnzbdAdapter } from './sabnzbd.ts';
 import { SeerrAdapter } from './seerr.ts';
+import { GrimmoryAdapter } from './grimmory.ts';
 import { ShelfmarkAdapter } from './shelfmark.ts';
 import { SonarrAdapter } from './sonarr.ts';
 import { TransmissionAdapter } from './transmission.ts';
@@ -80,6 +81,8 @@ function buildAdapter(instance: ServiceInstance): ServiceAdapter {
             return new SeerrAdapter(instance.config);
         case 'shelfmark':
             return new ShelfmarkAdapter(instance.config);
+        case 'grimmory':
+            return new GrimmoryAdapter(instance.config);
         case 'sonarr':
             return new SonarrAdapter(instance.config);
         case 'transmission':
