@@ -72,7 +72,7 @@ export function registerSetMonitoring(
         name: 'set_monitoring',
         title: 'Start or stop monitoring',
         description:
-            'Turns monitoring on or off. Sonarr and Whisparr: a whole series, one season, or specific episodes. Lidarr takes `level` — `album` monitors or unmonitors one whole album, and `artist` sets the artist-level policy: `monitor_new_items` is the rule Lidarr applies to albums it discovers later, and `none` is the only value that stops the wanted list growing by itself. Omit `artists` on the artist level to reach every artist in that Lidarr. **The artist flag is not the album flag.** An artist can read `monitored: false` while an album under it stays `monitored: true`, so setting the artist flag does not empty a wanted list — write the album flag with `level: "album"` for that. Safe tier — nothing is deleted and the service can undo it, so `safe_write` is enough. `season` and `episodes` are mutually exclusive and refused on any Lidarr level, because an album is monitored whole. Unmonitoring **before** deleting files is what stops Sonarr immediately re-downloading them — see delete_episode_files. Takes ids, never a title: take them from `acquisition.id` on a get_library or get_media_details record. An album id for `level: "album"` comes from `get_media_details` on the artist, which lists them, because the library rows on artists. Previews by default and the preview reports the state it found — new-album policy and monitor flag across the artists it would touch — so the current policy is read before it is changed rather than assumed; call again with the returned `confirm` token to apply. A season this series does not have, an episode id that cannot be resolved, or an artist id Lidarr does not have is refused rather than written: those endpoints accept a write matching nothing and report success, and you would go on believing the item was unmonitored. The refusal names the seasons that do exist, so retry with one of those rather than assuming the series is unreachable.',
+            'Turns monitoring on or off. Sonarr and Whisparr: a whole series, one season, or specific episodes. Lidarr takes `level` — `album` monitors or unmonitors one whole album, and `artist` sets the artist-level policy: `monitor_new_items` is the rule Lidarr applies to albums it discovers later, and `none` is the only value that stops the wanted list growing by itself. Omit `artists` on the artist level to reach every artist in that Lidarr. **The artist flag is not the album flag.** An artist can read `monitored: false` while an album under it stays `monitored: true`. Lidarr leaves every album of an unmonitored artist out of its wanted lists, its calendar, its RSS sync and its missing and cutoff searches, so `get_wanted` stops listing them (a search for one album started by hand still runs), but each album keeps its own flag and the monitored ones come back with the artist — write the album flag with `level: "album"` to stop wanting one album for good. Safe tier — nothing is deleted and the service can undo it, so `safe_write` is enough. `season` and `episodes` are mutually exclusive and refused on any Lidarr level, because an album is monitored whole. Unmonitoring **before** deleting files is what stops Sonarr immediately re-downloading them — see delete_episode_files. Takes ids, never a title: take them from `acquisition.id` on a get_library or get_media_details record. An album id for `level: "album"` comes from `get_media_details` on the artist, which lists them, because the library rows on artists, or from a `get_wanted` row\'s `albumId`. Previews by default and the preview reports the state it found — new-album policy and monitor flag across the artists it would touch — so the current policy is read before it is changed rather than assumed; call again with the returned `confirm` token to apply. A season this series does not have, an episode id that cannot be resolved, or an artist id Lidarr does not have is refused rather than written: those endpoints accept a write matching nothing and report success, and you would go on believing the item was unmonitored. The refusal names the seasons that do exist, so retry with one of those rather than assuming the series is unreachable.',
         inputSchema: z.object({
             service: ServiceIdSchema.describe('sonarr, whisparr or lidarr.'),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
@@ -87,7 +87,7 @@ export function registerSetMonitoring(
                 .boolean()
                 .optional()
                 .describe(
-                    'true to monitor, false to stop. Required except on the lidarr artist level, where it is the bulk switch over each artist\'s existing albums and may be given alone or with `monitor_new_items`.'
+                    'true to monitor, false to stop. Required except on the lidarr artist level, where it sets each artist\'s own flag, which decides whether Lidarr wants any of its albums, and may be given alone or with `monitor_new_items`.'
                 ),
             level: z
                 .enum(['album', 'artist'])
@@ -205,13 +205,18 @@ export function registerSetMonitoring(
                     // The artist flag is not the album flag, and this was checked
                     // rather than assumed: a live library was found with an artist
                     // reading `monitored: false` while one album under it stayed
-                    // `monitored: true`. Claiming this empties a wanted list would
-                    // send a caller away believing nothing is being searched for,
-                    // so the album level is named as the way to do that.
+                    // `monitored: true`. Lidarr's wanted lists, calendar, RSS sync
+                    // and missing and cutoff searches skip such an album
+                    // (`MissingController`, `CutoffController`, `AlbumsBetweenDates`,
+                    // `MonitoredAlbumSpecification` and `AlbumSearchService` check
+                    // the artist too; a search for one album by hand does not), but
+                    // its own flag is unchanged and comes back with the artist, so
+                    // the album level is named as the way to stop wanting one for
+                    // good.
                     effects.push(
                         monitored
-                            ? `Lidarr sets the artist-level monitor flag on ${scope}. This is not the album flag: an artist can read unmonitored while its albums stay monitored, so empty a wanted list with level "album".`
-                            : `Lidarr clears the artist-level monitor flag on ${scope}. Albums already monitored under these artists stay monitored — use level "album" to stop searching for one. Files on disk are untouched either way.`
+                            ? `Lidarr sets the artist-level monitor flag on ${scope}. This is not the album flag: each album keeps its own, and the monitored ones come back into Lidarr's wanted lists, calendar and automatic searches.`
+                            : `Lidarr clears the artist-level monitor flag on ${scope}. Their albums keep their own flags, but Lidarr leaves all of them out of its wanted lists, calendar and automatic searches until the artist is monitored again — use level "album" to stop wanting one album for good. Files on disk are untouched either way.`
                     );
                 }
                 effects.push(`State found before the change: ${tally(targets)}.`);

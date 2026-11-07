@@ -11,8 +11,9 @@ import { readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
 import { readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
 import { readArrHistory } from './arrHistory.ts';
 import { listArrImportCandidates, runArrManualImport } from './arrManualImport.ts';
-import { readArrQueue, removeArrQueueItem } from './arrQueue.ts';
+import { lidarrCalendarPath, readArrQueue, readLidarrCalendar, removeArrQueueItem } from './arrQueue.ts';
 import { arrDiskSpace, arrFailedHealthChecks, arrScanState, arrStartLibraryScan, arrVersion } from './arrSystem.ts';
+import { readArrWanted } from './arrWanted.ts';
 import {
     diagnoseConnection,
     type ArtistMonitorCapable,
@@ -20,6 +21,8 @@ import {
     type ArtistMonitorPolicy,
     type BlocklistCapable,
     type BlocklistEntry,
+    type CalendarCapable,
+    type CalendarEntry,
     type CommandHandle,
     type CommandStatus,
     type CommandStatusCapable,
@@ -53,6 +56,9 @@ import {
     type SearchHit,
     type SearchSource,
     type ServiceAdapter,
+    type WantedCapable,
+    type WantedItem,
+    type WantedScope,
     type Window
 } from './types.ts';
 
@@ -192,6 +198,11 @@ const LIBRARY_SCAN_TASK = 'RescanFolders';
  * scan, through the shared `arrDiskSpace`, `arrFailedHealthChecks` and
  * `arrScanState`.
  *
+ * `WantedCapable` and `CalendarCapable` are `get_wanted`'s and
+ * `get_calendar`'s: albums, through the shared `readArrWanted` with
+ * `kind: 'artist'`, and through `readLidarrCalendar`, next to the Radarr and
+ * Sonarr calendar readers in `arrQueue.ts`.
+ *
  * An artist is the row rather than a track or an album, for the reason Radarr
  * and Sonarr row on a film and a series: it is the level a person asks about,
  * it is what joins to a media server on the MusicBrainz artist id, and Lidarr
@@ -222,7 +233,9 @@ export class LidarrAdapter
         CommandStatusCapable,
         DiskSpaceCapable,
         HealthCheckCapable,
-        ScanStateCapable
+        ScanStateCapable,
+        WantedCapable,
+        CalendarCapable
 {
     readonly type: ServiceId = 'lidarr';
     readonly instance: string | undefined;
@@ -355,10 +368,10 @@ export class LidarrAdapter
      * One artist, with the albums under it.
      *
      * The library rows on artists, so this is where an album id comes from —
-     * `set_monitoring` needs one for `level: "album"`, and nothing else in the
-     * tool surface returns an album id once the library stopped rowing on
-     * albums. Albums are only read at `detail: "full"`, matching episodes on a
-     * series, and capped by the same limit.
+     * `set_monitoring` needs one for `level: "album"` — though a `get_wanted`
+     * row's `albumId` and a Lidarr `get_calendar` row's `id` name albums too.
+     * Albums are only read at `detail: "full"`, matching episodes on a series,
+     * and capped by the same limit.
      */
     async getMediaDetails(
         id: string,
@@ -565,6 +578,22 @@ export class LidarrAdapter
 
     async listCommands(): Promise<CommandStatus[]> {
         return readArrCommands(this.#http, this.id);
+    }
+
+    /**
+     * Albums Lidarr is still looking for, or holds below the cutoff. Each row
+     * names the artist as `id`, and the album as `albumId` and `albumTitle`.
+     */
+    async readWanted(scope: WantedScope, want?: number): Promise<Window<WantedItem>> {
+        return readArrWanted(this.#http, this.id, 'artist', scope, want);
+    }
+
+    /** Albums released in the window, each with its artist. Monitored only, as Lidarr's own calendar is. */
+    async getCalendar(range: { start: Date; end: Date }): Promise<CalendarEntry[]> {
+        const albums = await this.#http.get<Parameters<typeof readLidarrCalendar>[0]>(
+            lidarrCalendarPath(this.#http.apiRoot, range)
+        );
+        return readLidarrCalendar(albums, this.id);
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {

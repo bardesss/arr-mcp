@@ -797,12 +797,20 @@ export type WantedScope = 'missing' | 'upgradable';
  */
 export type WantedItem = {
     service: string;
-    kind: 'movie' | 'series';
+    /**
+     * The thing `id` names, which is what `get_media_details` takes: a Sonarr
+     * row is `series` though it lists an episode, and a Lidarr row is `artist`
+     * though it lists an album, which `albumId` and `albumTitle` name.
+     */
+    kind: LibraryKind;
     id: string;
     title: string; // fenced
     season?: number;
     episode?: number;
     episodeTitle?: string; // fenced
+    /** Lidarr only: the album's own id, which `set_monitoring` takes with `level: "album"`. */
+    albumId?: string;
+    albumTitle?: string; // fenced
     airDate?: string;
     monitored: boolean;
 };
@@ -963,10 +971,13 @@ export const hasBlocklist = (a: ServiceAdapter): a is ServiceAdapter & Blocklist
 
 export type CalendarEntry = {
     service: string;
-    kind: 'movie' | 'episode';
+    /** `album` is Lidarr's: `id` and `title` are the album's, and `artist` names who made it. */
+    kind: 'movie' | 'episode' | 'album';
     id: number;
     title: string;
     seriesTitle?: string;
+    /** Lidarr only, fenced: the album's artist, as `seriesTitle` is an episode's series. */
+    artist?: string;
     season?: number;
     episode?: number;
     /** ISO 8601. When the item becomes available, whatever the service calls it. */

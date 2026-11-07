@@ -1355,8 +1355,8 @@ folded into `mediaId`.
 `get_library` can say a movie is missing — `monitored` with no file — but a
 season's aggregate counts cannot say *which* episodes of a show are missing,
 and neither tool can say what already has a file but not yet the quality a
-profile wants. `get_wanted` answers both, straight from Radarr and Sonarr's
-own wanted lists.
+profile wants. `get_wanted` answers both, straight from Radarr, Sonarr and
+Lidarr's own wanted lists.
 
 `scope` is required, with no default: `missing` is monitored items with no
 file at all; `upgradable` is monitored items that have a file but sit below
@@ -1370,14 +1370,25 @@ though the episode is what the row is actually about. `title` names the show;
 `season`, `episode` and `episodeTitle` describe which episode of it. Radarr
 rows never set the three episode fields.
 
-Sonarr's missing list is monitored-only, which matches what "wanted" means
-here — an unmonitored gap is not something anyone asked for, and it will not
-appear in this list.
+Lidarr's rows are albums, with Sonarr's trap one level up: Lidarr's own `id`
+on the row is the album, so the row is `kind: "artist"`, `id` names the
+**artist** and `title` its name, and `albumId` and `albumTitle` say which
+album. `albumId` is what `set_monitoring` takes with `level: "album"`, so "stop
+wanting this album" goes straight from a row to a write. `airDate` is the
+album's release date, left out when Lidarr reports its year-one "no date"
+(`0001-01-01`, .NET's `DateTime.MinValue`). On Lidarr, `missing` is a released
+album with any track lacking a file, not only one with none, so a partly
+downloaded album can be in both lists. Both leave out every album of an
+unmonitored artist, as Lidarr's own wanted lists do.
 
-`detail: "minimal"` drops `episodeTitle` and `airDate`, keeping the identity,
-`season`/`episode` and `monitored`. Neither field is grab-plumbing the way
-`get_history`'s `guid` is — there is nothing to trim between `standard` and
-`full` here, since every field is one a reader wants.
+Sonarr's and Lidarr's missing lists are monitored-only, which matches what
+"wanted" means here — an unmonitored gap is not something anyone asked for,
+and it will not appear in this list.
+
+`detail: "minimal"` drops `episodeTitle`, `albumTitle` and `airDate`, keeping
+the identity, `season`/`episode`, `albumId` and `monitored`. None of the three
+is grab-plumbing the way `get_history`'s `guid` is — there is nothing to trim
+between `standard` and `full` here, since every field is one a reader wants.
 
 ## `get_releases`
 

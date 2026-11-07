@@ -3,7 +3,7 @@ import { fenceText } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
 import type { ArrKind } from '../core/resolver.ts';
 import { pageArr } from './arrPaging.ts';
-import { mediaIdOf, protocolName } from './arrRecord.ts';
+import { lidarrDate, mediaIdOf, protocolName } from './arrRecord.ts';
 import type { CalendarEntry, DeleteMediaOptions, QueueItem, RemoveQueueOptions } from './types.ts';
 
 /**
@@ -248,6 +248,64 @@ export function readSonarrCalendar(
         }));
 }
 
+type RawCalendarAlbum = {
+    id?: number;
+    title?: string;
+    releaseDate?: string | null;
+    monitored?: boolean;
+    /**
+     * All three count the tracks of the album's selected release
+     * (`ArtistStatisticsRepository`, Lidarr 3.1.0). `totalTrackCount` is every
+     * one of them. `trackCount` counts only the tracks Lidarr expects, those of
+     * a monitored, released album, plus any already on disk, so it shrinks to
+     * the files present on an unmonitored album and cannot measure "complete".
+     */
+    statistics?: { trackFileCount?: number; trackCount?: number; totalTrackCount?: number };
+    /** Asked for with `includeArtist=true`; see `lidarrCalendarPath`. */
+    artist?: { artistName?: string };
+};
+
+/**
+ * Whether the whole album is on disk: at least one track, and every track of
+ * the selected release (`totalTrackCount`). A calendar's "has a file" is the
+ * question "do I have it", and half an album does not answer yes, or
+ * `missingFiles` would count a partial download as done. `trackCount` is only
+ * the fallback when Lidarr sends no total: on an unmonitored album it equals
+ * the files present, so it would call any partial album complete.
+ */
+const albumComplete = (stats: RawCalendarAlbum['statistics']): boolean => {
+    const have = stats?.trackFileCount ?? 0;
+    const need = stats?.totalTrackCount ?? stats?.trackCount ?? 0;
+    return have > 0 && have >= need;
+};
+
+/**
+ * Lidarr's calendar is a list of albums. One with no release date, or with
+ * Lidarr's year-one "no date", has nothing to place on a calendar and is
+ * dropped, as an undated film is. `hasFile` means every track of the album is
+ * on disk, not merely one of them.
+ */
+export function readLidarrCalendar(albums: RawCalendarAlbum[], service: string): CalendarEntry[] {
+    return albums
+        .map(a => ({ a, date: lidarrDate(a.releaseDate) }))
+        .filter((row): row is { a: RawCalendarAlbum & { id: number }; date: string } =>
+            typeof row.a.id === 'number' && row.date !== undefined
+        )
+        .map(({ a, date }) => ({
+            service,
+            kind: 'album' as const,
+            id: a.id,
+            title: fenceText(a.title ?? '', { service, field: 'title' }),
+            // An empty name is no name: it would print as an empty slot in the line.
+            ...(typeof a.artist?.artistName === 'string' && a.artist.artistName !== ''
+                ? { artist: fenceText(a.artist.artistName, { service, field: 'artist.artistName' }) }
+                : {}),
+            date,
+            hasFile: albumComplete(a.statistics),
+            monitored: a.monitored ?? false
+        }));
+}
+
 export const calendarPath = (apiRoot: string, range: { start: Date; end: Date }): string =>
     `${apiRoot}/calendar?start=${range.start.toISOString()}&end=${range.end.toISOString()}`;
 
@@ -259,3 +317,11 @@ export const calendarPath = (apiRoot: string, range: { start: Date; end: Date })
  */
 export const sonarrCalendarPath = (apiRoot: string, range: { start: Date; end: Date }): string =>
     `${calendarPath(apiRoot, range)}&includeSeries=true`;
+
+/**
+ * Sends `includeArtist=true`, the documented way to ask for each album's
+ * artist (`CalendarController` defaults it to false). Lidarr embeds the artist
+ * anyway; `readArrWanted` in `arrWanted.ts` says why the flag is still sent.
+ */
+export const lidarrCalendarPath = (apiRoot: string, range: { start: Date; end: Date }): string =>
+    `${calendarPath(apiRoot, range)}&includeArtist=true`;

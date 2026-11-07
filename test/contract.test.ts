@@ -465,7 +465,37 @@ const CONTRACTS: Record<string, ServiceContract> = {
             // The shared `arr*` system reads `stack_health` makes.
             { path: '/api/v1/diskspace', method: 'get', fixture: 'test/fixtures/lidarr/diskspace.json', fields: ['path', 'label', 'freeSpace', 'totalSpace'] },
             { path: '/api/v1/health', method: 'get', fixture: 'test/fixtures/lidarr/health.json', fields: ['source', 'type', 'message'] },
-            { path: '/api/v1/system/task', method: 'get', fixture: 'test/fixtures/lidarr/system-task.json', fields: ['taskName', 'lastExecution'] }
+            { path: '/api/v1/system/task', method: 'get', fixture: 'test/fixtures/lidarr/system-task.json', fields: ['taskName', 'lastExecution'] },
+            {
+                // `readArrWanted` with `kind: 'artist'`. `id` is the album and
+                // `artistId` the artist, Sonarr's episode/series trap one level up.
+                path: '/api/v1/wanted/missing',
+                method: 'get',
+                fixture: 'test/fixtures/lidarr/wanted-missing.json',
+                fields: ['records.id', 'records.artistId', 'records.title', 'records.releaseDate', 'records.monitored', 'records.artist.artistName']
+            },
+            {
+                path: '/api/v1/wanted/cutoff',
+                method: 'get',
+                fixture: 'test/fixtures/lidarr/wanted-cutoff.json',
+                fields: ['records.id', 'records.artistId', 'records.title', 'records.releaseDate', 'records.monitored', 'records.artist.artistName']
+            },
+            {
+                path: '/api/v1/calendar',
+                method: 'get',
+                fixture: 'test/fixtures/lidarr/calendar.json',
+                // `hasFile` reads all three counts: `readLidarrCalendar` says why.
+                fields: [
+                    'id',
+                    'title',
+                    'releaseDate',
+                    'monitored',
+                    'statistics.trackFileCount',
+                    'statistics.totalTrackCount',
+                    'statistics.trackCount',
+                    'artist.artistName'
+                ]
+            }
         ]
     },
     prowlarr: {

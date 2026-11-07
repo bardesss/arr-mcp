@@ -11,8 +11,9 @@ export type GetCalendarResult = {
     offset: number;
     truncated: boolean;
     degraded: string[];
-    /** How many returned items have no file yet. Counted before the detail
-     *  projection, which drops `hasFile` at `minimal`. */
+    /** How many returned items have no file yet, an album until every track is
+     *  on disk. Counted before the detail projection, which drops `hasFile` at
+     *  `minimal`. */
     missingFiles: number;
     /**
      * Keyed by **adapter id**, not by service type: a named instance reports
@@ -47,23 +48,31 @@ const project = (c: CalendarEntry, detail: DetailLevel): CalendarEntry => {
     return c;
 };
 
+/** What a calendar row is called: an episode with its series and numbering, an album with its artist. */
+const entryName = (entry: CalendarEntry, numbering: string): string => {
+    if (entry.seriesTitle !== undefined) return `${entry.seriesTitle}${numbering} ${entry.title}`;
+    if (entry.artist !== undefined) return `${entry.artist} — ${entry.title}`;
+    return entry.title;
+};
+
 /**
  * One calendar row as a line, led by the date: this list answers "what is
  * coming", so the thing being sorted on is the thing to read first.
  *
  * An episode prints its series and SxxEyy, a film just its title, because a
- * film has no numbering to report and an empty `S00E00` would read as one.
+ * film has no numbering to report and an empty `S00E00` would read as one. An
+ * album prints its artist first, as an episode prints its series.
  */
 export function calendarLine(entry: CalendarEntry): string {
     const numbering =
         entry.season === undefined || entry.episode === undefined
             ? ''
             : ` S${String(entry.season).padStart(2, '0')}E${String(entry.episode).padStart(2, '0')}`;
-    const name =
-        entry.seriesTitle === undefined ? entry.title : `${entry.seriesTitle}${numbering} ${entry.title}`;
+    const name = entryName(entry, numbering);
 
     const facts = [`${entry.service}:${entry.id}`];
-    if (!entry.hasFile) facts.push('no file');
+    // An album's `hasFile` is the whole album, so one with some tracks is not "no file".
+    if (!entry.hasFile) facts.push(entry.kind === 'album' ? 'incomplete' : 'no file');
     if (!entry.monitored) facts.push('unmonitored');
 
     return `${entry.date} — ${name} — ${facts.join(', ')}`;
@@ -110,12 +119,12 @@ export function registerGetCalendar(server: McpServer, adapters: readonly Servic
             title: 'Upcoming releases',
             annotations: READ_ONLY,
             description:
-                'Films and episodes due in a date window, merged from Radarr, Sonarr and Whisparr and sorted by date. Covers both upcoming releases and recently aired items, with whether each already has a file.',
+                'Films, episodes and albums due in a date window, merged from Radarr, Sonarr, Whisparr and Lidarr and sorted by date. Covers both upcoming releases and recently aired items, with whether each already has a file (an album only once every track is on disk).',
             outputSchema: PagedOutputSchema.extend({
                 missingFiles: z
                     .number()
                     .describe(
-                        'How many of the returned items have no file yet. Counted before the detail projection, so it is right at every detail level.'
+                        'How many of the returned items have no file yet, an album until every track is on disk. Counted before the detail projection, so it is right at every detail level.'
                     )
             }),
             inputSchema: toolInput({
@@ -135,9 +144,13 @@ export function registerGetCalendar(server: McpServer, adapters: readonly Servic
                 daysAhead: days_ahead
             });
             const missing = result.missingFiles;
+            // An album counts until every track is on disk, so with albums in the
+            // list "without a file" would be false for one that has some. `kind`
+            // survives every detail level; `hasFile` does not.
+            const unit = result.items.some(i => i.kind === 'album') ? 'not yet complete' : 'without a file';
             const summary =
                 `${result.returned} of ${result.total} item(s) between ${days_back} days back and ${days_ahead} ahead` +
-                (missing > 0 ? `, ${missing} without a file` : '') +
+                (missing > 0 ? `, ${missing} ${unit}` : '') +
                 (result.degraded.length > 0 ? `; ${result.degraded.join(', ')} unreachable.` : '.');
 
             return { content: [{ type: 'text', text: listText(summary, result.items, calendarLine) }], structuredContent: result };

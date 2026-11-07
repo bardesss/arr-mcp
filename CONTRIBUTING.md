@@ -220,7 +220,7 @@ small, shaped change, and a service in no slot at all is a different product.
 
 **Managed — what decides something should exist**
 
-- **Lidarr — the rest of it.** The adapter has shipped, with seventeen capabilities. `LibraryCapable` and `SearchCapable`, so
+- **Lidarr — the rest of it.** The adapter has shipped, with nineteen capabilities. `LibraryCapable` and `SearchCapable`, so
   `get_library` lists artists and `search_media` finds them.
   `MediaDetailCapable`, so `get_media_details` lists an artist's albums and the
   album ids a write needs. `MonitoringCapable`, so `set_monitoring` writes an
@@ -239,14 +239,16 @@ small, shaped change, and a service in no slot at all is a different product.
   commands it queues. `DiskSpaceCapable`, `HealthCheckCapable` and
   `ScanStateCapable` are the shared `arr*` system reads, so `stack_health` also
   reports Lidarr's disks, failing health checks and last `RescanFolders` (its
-  disk scan). What it still lacks is a wanted list and a release search, and
-  that is the work accepted today. All 21 capture endpoints were exercised
-  against a live Lidarr 3.1.6.5079 and the fixtures are committed, but four
-  still have no rows: wanted cutoff, release, tag and indexer are empty on a
-  fresh instance. Those row shapes need a capture against a library with real
-  activity before a read adapter can claim them, and `/wanted/missing` is the
-  one populated paged route if one is wanted next. The two write responses were
-  captured separately, on a throwaway 2.1.3.3927 instance.
+  disk scan). `WantedCapable` and `CalendarCapable`, so `get_wanted` and
+  `get_calendar` list albums: a wanted row names its artist as `id` and the
+  album as `albumId`, and the wanted cutoff fixture was captured from Lidarr
+  3.1.0.4875. What it still lacks is a release search, and that is the work
+  accepted today. All 21 capture endpoints were exercised against a live Lidarr
+  3.1.6.5079 and the fixtures are committed, but three still have no rows:
+  release, tag and indexer are empty on a fresh instance. Those row shapes need
+  a capture against a library with real activity before a read adapter can
+  claim them. The two write responses were captured separately, on a throwaway
+  2.1.3.3927 instance.
 
   **The design constraint.** Music sits in the merged index as its own `kind`,
   `artist`, and joins because its identity is a MusicBrainz MBID: a GUID, where
@@ -372,8 +374,8 @@ finding out afterwards.
 **You will have to test it yourself, properly.** The maintainer runs neither
 Lidarr, Plex, qBittorrent nor Cleanuparr. Lidarr's read fixtures came from a live 3.1.6
 library with 1,578 artists and no download activity, and its two write fixtures
-from a temporary 2.1.3.3927 instance. Its queue, history and blocklist
-fixtures came later, from a 3.1.0.4875 library with real download activity.
+from a temporary 2.1.3.3927 instance. Its queue, history, blocklist and wanted
+cutoff fixtures came later, from a 3.1.0.4875 library with real download activity.
 Plex has an adapter
 and, as of a volunteer tester's report on [issue #180](../../issues/180), has
 been exercised against a real instance. [qBittorrent](../../issues/147) has an
