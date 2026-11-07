@@ -4,14 +4,21 @@ import { ServiceError } from '../core/errors.ts';
 import type { IndexInput } from '../core/resolver.ts';
 import { fenceText } from '../core/fence.ts';
 import { ServiceHttp } from '../core/http.ts';
+import { parseEventStream } from '../core/eventStream.ts';
 import { compareVersions, parseVersion } from './versions.ts';
 import {
     diagnoseConnection,
     type ConnectionDiagnosis,
     type HealthCheck,
     type BookLibrary,
+    type BookCandidate,
+    type BookField,
+    type BookFields,
+    type BookMetadataCapable,
     type BookMetadataIssue,
     type BookMetadataIssueCapable,
+    type BookMetadataState,
+    type BookSearch,
     type BookDeleteCapable,
     type BookDeletion,
     type BookReadState,
@@ -121,6 +128,67 @@ const auditTime = (v: unknown): string | undefined => {
 /** `since` as an instant: a date or an offset-free time is UTC. */
 const auditInstant = (since: string): number => Date.parse(NO_OFFSET.test(since) ? `${since}Z` : since);
 
+/**
+ * How long a metadata lookup may take. Grimmory asks every enabled provider in
+ * turn and streams the answers, and the call ends only when the last one has.
+ */
+export const PROSPECTIVE_TIMEOUT_MS = 60_000;
+const BOOK_TEXT_FIELDS = [
+    'title',
+    'subtitle',
+    'publisher',
+    'publishedDate',
+    'seriesName',
+    'isbn13',
+    'isbn10',
+    'asin',
+    'language',
+    'goodreadsId',
+    'googleId',
+    'hardcoverId',
+    'openlibraryId'
+] as const satisfies readonly BookField[];
+const BOOK_NUMBER_FIELDS = ['seriesNumber', 'pageCount'] as const satisfies readonly BookField[];
+const BOOK_LIST_FIELDS = ['authors', 'categories'] as const satisfies readonly BookField[];
+/** Every book field, in the order locks are listed. */
+const BOOK_FIELD_ORDER: readonly BookField[] = [
+    'title',
+    'subtitle',
+    'authors',
+    'publisher',
+    'publishedDate',
+    'seriesName',
+    'seriesNumber',
+    'isbn13',
+    'isbn10',
+    'asin',
+    'language',
+    'pageCount',
+    'categories',
+    'goodreadsId',
+    'googleId',
+    'hardcoverId',
+    'openlibraryId'
+];
+
+/** A book's metadata, or one provider's candidate, as `BookFields`. Empty strings and lists are absent. */
+function bookFields(meta: Raw): BookFields {
+    const out: Record<string, unknown> = {};
+    for (const key of BOOK_TEXT_FIELDS) {
+        const v = str(meta[key]);
+        if (v !== undefined) out[key] = v;
+    }
+    for (const key of BOOK_NUMBER_FIELDS) {
+        const v = num(meta[key]);
+        if (v !== undefined) out[key] = v;
+    }
+    for (const key of BOOK_LIST_FIELDS) {
+        const v = (Array.isArray(meta[key]) ? (meta[key] as unknown[]) : []).filter((a): a is string => typeof a === 'string' && a !== '');
+        if (v.length > 0) out[key] = v;
+    }
+    return out;
+}
+
 type RawHealth = { data?: { version?: unknown } };
 
 /**
@@ -128,7 +196,7 @@ type RawHealth = { data?: { version?: unknown } };
  * and password and answers with a JWT; the healthcheck is the one route that
  * takes no token.
  */
-export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, SearchCapable, MediaDetailCapable, LibraryCapable, BookLibraryScanCapable, BookDeleteCapable, BookReadStatusCapable, QueueCapable, QueueRemoveCapable, HistoryCapable, BookMetadataIssueCapable {
+export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, SearchCapable, MediaDetailCapable, LibraryCapable, BookLibraryScanCapable, BookDeleteCapable, BookReadStatusCapable, QueueCapable, QueueRemoveCapable, HistoryCapable, BookMetadataIssueCapable, BookMetadataCapable {
     readonly type: ServiceId = 'grimmory';
     readonly id = 'grimmory';
     readonly queueKind = 'book';
@@ -439,6 +507,71 @@ export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, Sear
     async setBookReadStatus(id: string, status: 'READ' | 'UNREAD'): Promise<void> {
         await this.#write('change read status', 'access to that book', `book ${id}`, () =>
             this.#http.post<unknown>('/api/v1/books/status', { bookIds: [Number(id)], status }, true)
+        );
+    }
+
+    /** A book's metadata, which fields are locked, and whether all of them are. */
+    async readBookMetadata(id: string): Promise<BookMetadataState> {
+        const book = obj(
+            await this.#write('read book metadata', 'canEditMetadata', `book ${id}`, () => this.#http.get<unknown>(`/api/v1/books/${encodeURIComponent(id)}`))
+        );
+        const meta = obj(book.metadata);
+        const fields = bookFields(meta);
+        return {
+            id,
+            label: this.#bookTitle(fields.title, fields.authors ?? []),
+            fields,
+            locked: BOOK_FIELD_ORDER.filter(key => meta[`${key}Locked`] === true),
+            allLocked: meta.allMetadataLocked === true
+        };
+    }
+
+    /**
+     * Asks every enabled metadata provider about one book. Read-only on
+     * Grimmory's side, though it answers as an event stream, read whole.
+     */
+    async findBookCandidates(id: string, search: BookSearch): Promise<BookCandidate[]> {
+        const providers = list(
+            await this.#write('look up book metadata', 'canEditMetadata', `book ${id}`, () => this.#http.get<unknown>('/api/v1/metadata/providers'))
+        )
+            .filter(p => p.enabled === true)
+            .flatMap(p => str(p.name) ?? []);
+        if (providers.length === 0) {
+            throw new ServiceError('NotFound', this.id, 'Grimmory has no metadata provider enabled', { remedy: "Turn one on in Grimmory's metadata settings." });
+        }
+        const body = {
+            bookId: Number(id),
+            providers,
+            ...(search.isbn === undefined ? {} : { isbn: search.isbn }),
+            ...(search.title === undefined ? {} : { title: search.title }),
+            ...(search.author === undefined ? {} : { author: search.author })
+        };
+        const text = await this.#write('look up book metadata', 'canEditMetadata', `book ${id}`, () =>
+            this.#http.postText(`/api/v1/books/${encodeURIComponent(id)}/metadata/prospective`, body, { timeoutMs: PROSPECTIVE_TIMEOUT_MS })
+        );
+        return parseEventStream(text).flatMap(value => {
+            const raw = obj(value);
+            if (Object.keys(raw).length === 0) return [];
+            const provider = str(raw.provider);
+            return [{ ...(provider === undefined ? {} : { provider }), fields: bookFields(raw) }];
+        });
+    }
+
+    /**
+     * Sets the given fields and clears the `clear` ones. The server skips a
+     * locked field, and with REPLACE_WHEN_PROVIDED leaves every absent one as it is.
+     */
+    async writeBookMetadata(id: string, fields: BookFields, clear: BookField[] = []): Promise<void> {
+        const body = { metadata: { bookId: Number(id), ...fields }, clearFlags: Object.fromEntries(clear.map(f => [f, true])) };
+        await this.#write('edit book metadata', 'canEditMetadata', `book ${id}`, () =>
+            this.#http.put<unknown>(`/api/v1/books/${encodeURIComponent(id)}/metadata?replaceMode=REPLACE_WHEN_PROVIDED&mergeCategories=false`, body, true)
+        );
+    }
+
+    async setBookFieldLocks(id: string, fields: BookField[], lock: boolean): Promise<void> {
+        const fieldActions = Object.fromEntries(fields.map(f => [`${f}Locked`, lock ? 'LOCK' : 'UNLOCK']));
+        await this.#write('lock book metadata', 'canEditMetadata', `book ${id}`, () =>
+            this.#http.put<unknown>('/api/v1/books/metadata/toggle-field-locks', { bookIds: [Number(id)], fieldActions }, true)
         );
     }
 

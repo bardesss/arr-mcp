@@ -9,6 +9,7 @@ import type { ServiceInstance } from '../config/instances.ts';
 import { permissionSourceFrom } from '../core/permissions.ts';
 import { SeerrAdapter } from '../services/seerr.ts';
 import {
+    hasBookMetadata,
     hasBookMetadataIssues,
     hasIndexers,
     hasSubtitles,
@@ -226,7 +227,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
         [context.mediaServers.primary, context.mediaServers.secondary].find(c => c?.adapter.type === 'jellyfin')?.identity,
         bothIds(context.mediaServers)
     );
-    registerFixMetadata(server, write, context.mediaServers, library);
+    registerFixMetadata(server, write, context.mediaServers, library, undefined, adapters.find(hasBookMetadata));
     registerRemoveBlocklistItem(server, write, adapters);
     registerManageIndexer(server, write, adapters);
 }

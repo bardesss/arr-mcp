@@ -1988,6 +1988,66 @@ export interface BookMetadataIssueCapable {
 export const hasBookMetadataIssues = (a: ServiceAdapter): a is ServiceAdapter & BookMetadataIssueCapable =>
     typeof (a as Partial<BookMetadataIssueCapable>).listBookMetadataIssues === 'function';
 
+/** The metadata of a book that `fix_metadata` and `update_media` read, compare and write. Values are raw, never fenced. */
+export type BookFields = {
+    title?: string;
+    subtitle?: string;
+    authors?: string[];
+    publisher?: string;
+    publishedDate?: string;
+    seriesName?: string;
+    seriesNumber?: number;
+    isbn13?: string;
+    isbn10?: string;
+    asin?: string;
+    language?: string;
+    pageCount?: number;
+    categories?: string[];
+    goodreadsId?: string;
+    googleId?: string;
+    hardcoverId?: string;
+    openlibraryId?: string;
+};
+export type BookField = keyof BookFields;
+
+/** One book's metadata as it is now, with the fields locked against change. */
+export type BookMetadataState = {
+    id: string;
+    /** fenced */
+    label: string;
+    /** raw */
+    fields: BookFields;
+    locked: BookField[];
+    /** Every field is locked, so no write changes anything. */
+    allLocked: boolean;
+};
+
+/** One provider's answer to a metadata lookup. */
+export type BookCandidate = {
+    provider?: string;
+    /** raw */
+    fields: BookFields;
+};
+
+/** What a metadata lookup searches by: an ISBN, else a title and author. */
+export type BookSearch = { isbn?: string; title?: string; author?: string };
+
+/**
+ * A book library whose metadata can be looked up from its providers and
+ * written back. The server skips a locked field on its own; callers still
+ * leave locked fields out so a preview never promises a change that will not land.
+ */
+export interface BookMetadataCapable {
+    readBookMetadata(id: string): Promise<BookMetadataState>;
+    findBookCandidates(id: string, search: BookSearch): Promise<BookCandidate[]>;
+    /** Sets the given fields and clears the `clear` ones; anything absent is left alone. */
+    writeBookMetadata(id: string, fields: BookFields, clear?: BookField[]): Promise<void>;
+    setBookFieldLocks(id: string, fields: BookField[], lock: boolean): Promise<void>;
+}
+
+export const hasBookMetadata = (a: ServiceAdapter): a is ServiceAdapter & BookMetadataCapable =>
+    typeof (a as Partial<BookMetadataCapable>).writeBookMetadata === 'function';
+
 /**
  * A media server's music half.
  *

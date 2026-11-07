@@ -279,6 +279,17 @@ export const artistRefusal = (name: string): Error =>
         `"${name}" is a Lidarr artist, and this tool reads the film and series chain. For its albums and their ids, use get_media_details with service: "lidarr", the artist id and detail: "full". get_library with kind: "artist" lists artists with their album count, profile and file state.`
     );
 
+/** A book refusal that keeps the book id, so a tool that repairs books by id can name it. */
+export class BookTitleRefusal extends Error {
+    /** The Grimmory book id the title matched, when the row carried one. */
+    readonly bookId: string | undefined;
+
+    constructor(message: string, bookId: string | undefined) {
+        super(message);
+        this.bookId = bookId;
+    }
+}
+
 /**
  * The refusal for a book that reached a film-and-series reader by title.
  *
@@ -287,8 +298,9 @@ export const artistRefusal = (name: string): Error =>
  * library yet is what someone asking this tool may well have meant.
  */
 export const bookRefusal = (name: string, id: string | undefined): Error =>
-    new Error(
-        `"${name}" matches only a Grimmory book in your library, and this tool reads the film and series chain. For the book, use get_media_details with service: "grimmory"${id === undefined ? ' and its id' : ` and id: "${id}"`}. A film or series of that name not in your library yet is found by search_media.`
+    new BookTitleRefusal(
+        `"${name}" matches only a Grimmory book in your library, and this tool reads the film and series chain. For the book, use get_media_details with service: "grimmory"${id === undefined ? ' and its id' : ` and id: "${id}"`}. A film or series of that name not in your library yet is found by search_media.`,
+        id
     );
 
 /**

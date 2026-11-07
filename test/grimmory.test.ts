@@ -5,7 +5,7 @@ import { fenceText } from '../src/core/fence.ts';
 import { ConfigSchema } from '../src/config/schema.ts';
 import { LibraryIndex } from '../src/core/resolver.ts';
 import { GRIMMORY_HISTORY_ACTIONS, GrimmoryAdapter, MAX_AUDIT_PAGES, MAX_LIBRARY_PAGES, BOOK_MATCH_THRESHOLD } from '../src/services/grimmory.ts';
-import { grimmoryServer } from './helpers/grimmory.ts';
+import { grimmoryServer, sse } from './helpers/grimmory.ts';
 
 const config = ConfigSchema.parse({
     auth: { bearer_token: 'a'.repeat(64) },
@@ -701,5 +701,99 @@ describe('GrimmoryAdapter book metadata issues', () => {
         const { issues } = await adapter.listBookMetadataIssues(BOOK_MATCH_THRESHOLD);
         expect(issues.map(i => [i.id, i.allLocked])).toEqual([['1', true], ['2', false], ['3', false]]);
         expect(seen.some(k => k.startsWith('GET /api/v1/books/'))).toBe(false);
+    });
+});
+
+describe('GrimmoryAdapter book metadata', () => {
+    const PROVIDERS = fixture('metadata-providers');
+    const BOOK = fixture('book-read') as { metadata: Record<string, unknown> };
+    const adapterFor = (routes: Record<string, Reply | Reply[]>) => {
+        const server = grimmoryServer({ 'GET /api/v1/metadata/providers': json(PROVIDERS), 'GET /api/v1/books/58': json(BOOK), ...routes });
+        return { adapter: new GrimmoryAdapter(config, server.fetch), sent: server.sent };
+    };
+
+    it('findBookCandidates asks only the enabled providers and maps each candidate', async () => {
+        const { adapter, sent } = adapterFor({ 'POST /api/v1/books/58/metadata/prospective': sse(fixture('metadata-prospective') as unknown[]) });
+        const candidates = await adapter.findBookCandidates('58', { isbn: '9780000000000' });
+        const post = sent.find(s => s.method === 'POST' && s.path === '/api/v1/books/58/metadata/prospective');
+        expect(post?.body).toEqual({ bookId: 58, providers: ['OpenLibrary', 'Amazon', 'Hardcover', 'Google', 'GoodReads'], isbn: '9780000000000' });
+        expect(candidates).toHaveLength(7);
+        expect(candidates[0]).toEqual({
+            provider: 'Hardcover',
+            fields: {
+                title: 'Example Book 0',
+                publishedDate: '2000-01-01',
+                seriesName: 'Example Series 1',
+                seriesNumber: 1,
+                isbn13: '9780000000000',
+                isbn10: '0000000000',
+                pageCount: 300,
+                language: 'en',
+                hardcoverId: 'example-hardcover-0',
+                authors: ['Example Author 1'],
+                categories: Array.from({ length: 10 }, (_, i) => `Example Category ${i + 1}`)
+            }
+        });
+        expect(candidates[2]!.fields).toMatchObject({ openlibraryId: 'example-openlibrary-0', asin: 'example-asin-0', goodreadsId: 'example-goodreads-0' });
+    });
+
+    it('sends a title and author search when there is no ISBN', async () => {
+        const { adapter, sent } = adapterFor({ 'POST /api/v1/books/58/metadata/prospective': sse([]) });
+        expect(await adapter.findBookCandidates('58', { title: 'T', author: 'A' })).toEqual([]);
+        expect(sent.find(s => s.method === 'POST' && s.path.endsWith('/prospective'))?.body).toMatchObject({ bookId: 58, title: 'T', author: 'A' });
+    });
+
+    it('refuses when no provider is enabled', async () => {
+        const { adapter, sent } = adapterFor({ 'GET /api/v1/metadata/providers': json([{ name: 'Google', enabled: false }]) });
+        const error = (await adapter.findBookCandidates('58', { isbn: '9780000000000' }).catch((e: unknown) => e)) as ServiceError;
+        expect(error).toBeInstanceOf(ServiceError);
+        expect(error).toMatchObject({ kind: 'NotFound', detail: 'Grimmory has no metadata provider enabled', remedy: "Turn one on in Grimmory's metadata settings." });
+        expect(sent.some(s => s.path.endsWith('/prospective'))).toBe(false);
+    });
+
+    it('readBookMetadata reads the fields and the locks', async () => {
+        const locked = { ...BOOK, metadata: { ...BOOK.metadata, seriesNameLocked: true, authorsLocked: true } };
+        const { adapter } = adapterFor({ 'GET /api/v1/books/58': json(locked) });
+        const state = await adapter.readBookMetadata('58');
+        expect(state.id).toBe('58');
+        expect(state.label).toBe(fenceText('Example Book 45 by Example Author 1', { service: 'grimmory', field: 'title' }));
+        expect(state.fields).toEqual({
+            title: 'Example Book 45',
+            publishedDate: '2000-01-01',
+            isbn13: '9780000000045',
+            language: 'en',
+            googleId: 'example-google-45',
+            authors: ['Example Author 1'],
+            categories: ['Example Category 1', 'Example Category 2', 'Example Category 3', 'Example Category 4', 'Example Category 5']
+        });
+        expect(state.locked).toEqual(['authors', 'seriesName']);
+        expect(state.allLocked).toBe(false);
+    });
+
+    it('readBookMetadata reads allMetadataLocked', async () => {
+        const { adapter } = adapterFor({ 'GET /api/v1/books/58': json({ ...BOOK, metadata: { ...BOOK.metadata, allMetadataLocked: true } }) });
+        expect((await adapter.readBookMetadata('58')).allLocked).toBe(true);
+    });
+
+    it('writeBookMetadata sends only the given fields, replacing when provided', async () => {
+        const { adapter, sent } = adapterFor({ 'PUT /api/v1/books/58/metadata': json({}) });
+        await adapter.writeBookMetadata('58', { title: 'New', seriesNumber: 2 }, ['subtitle']);
+        const put = sent.find(s => s.method === 'PUT');
+        expect(put?.path).toBe('/api/v1/books/58/metadata');
+        expect(put?.query).toBe('replaceMode=REPLACE_WHEN_PROVIDED&mergeCategories=false');
+        expect(put?.body).toEqual({ metadata: { bookId: 58, title: 'New', seriesNumber: 2 }, clearFlags: { subtitle: true } });
+    });
+
+    it('setBookFieldLocks toggles the named field locks', async () => {
+        const { adapter, sent } = adapterFor({ 'PUT /api/v1/books/metadata/toggle-field-locks': json({}) });
+        await adapter.setBookFieldLocks('58', ['title'], true);
+        const put = sent.find(s => s.method === 'PUT');
+        expect(put?.path).toBe('/api/v1/books/metadata/toggle-field-locks');
+        expect(put?.body).toEqual({ bookIds: [58], fieldActions: { titleLocked: 'LOCK' } });
+    });
+
+    it('names canEditMetadata on a 403', async () => {
+        const { adapter } = adapterFor({ 'PUT /api/v1/books/58/metadata': json({}, 403) });
+        await expect(adapter.writeBookMetadata('58', { title: 'X' })).rejects.toMatchObject({ kind: 'AuthFailed', remedy: expect.stringContaining('canEditMetadata') as unknown });
     });
 });
