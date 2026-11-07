@@ -1,1 +1,223 @@
-[]
+[
+  {
+    "guid": "lidarr-guid-1",
+    "quality": {
+      "quality": {
+        "id": 1,
+        "name": "Quality 1"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "qualityWeight": 0,
+    "age": 10,
+    "ageHours": 240.5,
+    "ageMinutes": 14430.5,
+    "size": 100000000,
+    "indexerId": 101,
+    "indexer": "Indexer 1",
+    "releaseGroup": "Group 1",
+    "releaseHash": "",
+    "title": "lidarr item 1",
+    "discography": false,
+    "sceneSource": false,
+    "artistName": "Artist 1",
+    "albumTitle": "Album 1",
+    "approved": true,
+    "temporarilyRejected": false,
+    "rejected": false,
+    "rejections": [],
+    "publishDate": "2024-01-01T00:00:00Z",
+    "commentUrl": "https://indexer.example.test/",
+    "downloadUrl": "https://indexer.example.test/",
+    "infoUrl": "https://indexer.example.test/",
+    "downloadAllowed": true,
+    "releaseWeight": 0,
+    "customFormats": [],
+    "customFormatScore": 0,
+    "protocol": "UsenetDownloadProtocol",
+    "indexerFlags": 0
+  },
+  {
+    "guid": "lidarr-guid-2",
+    "quality": {
+      "quality": {
+        "id": 2,
+        "name": "Quality 2"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "qualityWeight": 1,
+    "age": 20,
+    "ageHours": 481.0,
+    "ageMinutes": 28861.0,
+    "size": 200000000,
+    "indexerId": 102,
+    "indexer": "Indexer 2",
+    "releaseHash": "",
+    "title": "lidarr item 2",
+    "discography": false,
+    "sceneSource": false,
+    "artistName": "Artist 1",
+    "albumTitle": "Album 1",
+    "approved": true,
+    "temporarilyRejected": false,
+    "rejected": false,
+    "rejections": [],
+    "publishDate": "2024-01-02T00:00:00Z",
+    "commentUrl": "https://indexer.example.test/",
+    "downloadUrl": "https://indexer.example.test/",
+    "infoUrl": "https://indexer.example.test/",
+    "downloadAllowed": true,
+    "releaseWeight": 1,
+    "customFormats": [],
+    "customFormatScore": 0,
+    "protocol": "UsenetDownloadProtocol",
+    "indexerFlags": 0
+  },
+  {
+    "guid": "lidarr-guid-3",
+    "quality": {
+      "quality": {
+        "id": 2,
+        "name": "Quality 2"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "qualityWeight": 2,
+    "age": 30,
+    "ageHours": 721.5,
+    "ageMinutes": 43291.5,
+    "size": 300000000,
+    "indexerId": 103,
+    "indexer": "Indexer 3",
+    "releaseGroup": "Group 3",
+    "releaseHash": "",
+    "title": "lidarr item 3",
+    "discography": false,
+    "sceneSource": false,
+    "artistName": "Artist 1",
+    "albumTitle": "Album 1",
+    "approved": true,
+    "temporarilyRejected": false,
+    "rejected": false,
+    "rejections": [],
+    "publishDate": "2024-01-03T00:00:00Z",
+    "commentUrl": "https://indexer.example.test/",
+    "downloadUrl": "https://indexer.example.test/",
+    "infoUrl": "https://indexer.example.test/",
+    "downloadAllowed": true,
+    "releaseWeight": 2,
+    "customFormats": [],
+    "customFormatScore": 0,
+    "magnetUrl": "",
+    "infoHash": "0000000000000000000000000000000000000003",
+    "seeders": 23,
+    "leechers": 3,
+    "protocol": "TorrentDownloadProtocol",
+    "indexerFlags": 0
+  },
+  {
+    "guid": "lidarr-guid-4",
+    "quality": {
+      "quality": {
+        "id": 3,
+        "name": "Quality 3"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "qualityWeight": 3,
+    "age": 40,
+    "ageHours": 962.0,
+    "ageMinutes": 57722.0,
+    "size": 400000000,
+    "indexerId": 104,
+    "indexer": "Indexer 4",
+    "releaseGroup": "Group 4",
+    "releaseHash": "",
+    "title": "lidarr item 4",
+    "discography": false,
+    "sceneSource": false,
+    "artistName": "Artist 1",
+    "albumTitle": "Album 1",
+    "approved": false,
+    "temporarilyRejected": false,
+    "rejected": true,
+    "rejections": [
+      "Fixture rejection 1"
+    ],
+    "publishDate": "2024-01-04T00:00:00Z",
+    "commentUrl": "https://indexer.example.test/",
+    "downloadUrl": "https://indexer.example.test/",
+    "infoUrl": "https://indexer.example.test/",
+    "downloadAllowed": true,
+    "releaseWeight": 3,
+    "customFormats": [],
+    "customFormatScore": 0,
+    "protocol": "UsenetDownloadProtocol",
+    "indexerFlags": 0
+  },
+  {
+    "guid": "lidarr-guid-5",
+    "quality": {
+      "quality": {
+        "id": 3,
+        "name": "Quality 3"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "qualityWeight": 4,
+    "age": 50,
+    "ageHours": 1202.5,
+    "ageMinutes": 72152.5,
+    "size": 500000000,
+    "indexerId": 105,
+    "indexer": "Indexer 5",
+    "releaseHash": "",
+    "title": "lidarr item 5",
+    "discography": true,
+    "sceneSource": false,
+    "artistName": "Artist 1",
+    "albumTitle": "Album 1",
+    "approved": false,
+    "temporarilyRejected": false,
+    "rejected": true,
+    "rejections": [
+      "Fixture rejection 1",
+      "Fixture rejection 2"
+    ],
+    "publishDate": "2024-01-05T00:00:00Z",
+    "commentUrl": "https://indexer.example.test/",
+    "downloadUrl": "https://indexer.example.test/",
+    "infoUrl": "https://indexer.example.test/",
+    "downloadAllowed": true,
+    "releaseWeight": 4,
+    "customFormats": [],
+    "customFormatScore": 0,
+    "magnetUrl": "",
+    "infoHash": "0000000000000000000000000000000000000005",
+    "seeders": 25,
+    "leechers": 5,
+    "protocol": "TorrentDownloadProtocol",
+    "indexerFlags": 0
+  }
+]

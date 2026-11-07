@@ -24,7 +24,7 @@ off until you turn them on — see [writes](writes.md).
 | `get_requests` | What has been requested, and what is still pending |
 | `lookup_media` | Tell me about this, without adding it; books too, with Shelfmark |
 | `discover_media` | What exists in this genre, year, or rating band |
-| `trigger_search` | Go look for this again — the whole thing, one season, or specific episodes |
+| `trigger_search` | Go look for this again — the whole thing, one season, or specific episodes; on Lidarr, an artist or some of its albums |
 | `trigger_scan` | Refresh and rescan a library or one item, rename one item, import a download that never landed, put a mislabeled Sonarr file on the right episode, rerun NZBGet's post-processing, or rescan a Grimmory library or its Bookdrop |
 | `trigger_subtitle_search` | Go and find the subtitles this is missing, now |
 | `grab_release` | Not that one — grab this release from `get_releases` instead; on Shelfmark, the most-downloaded file unless you name one |
@@ -294,8 +294,12 @@ as asked beats a film that merely starts with or contains the name. The chain is
   merely shares the artist's name is not blamed on the artist; an orphaned Lidarr
   row is still matched by its release name.
 - `file` means any track on disk, as `has_file` does for a series. A missing one
-  has no `trigger_search` step, because this server cannot start a Lidarr search:
-  the remedy is to search in Lidarr itself.
+  suggests `trigger_search` on the artist. Lidarr grabs only releases of a
+  monitored album, so the albums are read first: with none monitored, the step
+  is `set_monitoring` on its only album, or `get_media_details` to choose from
+  several, and with no albums at all it is `trigger_scan` to refresh the artist.
+  A failed album read is `lidarr:albums` under `degraded` and leaves the search
+  step in place.
 - `library` follows the music read, not the film read. It is `unknown` when that
   read failed. When the read worked and the server lacks the artist (including a
   server with no music library, or an artist with no MusicBrainz id on the
@@ -317,7 +321,7 @@ hold ids, `download_id`, and, for a lookup, the words you gave as `query`.
 
 | Verdict | `next_steps` |
 |---|---|
-| `file`, no cleanup removal | `trigger_search` with the managing service and id; none for an artist, which is searched in Lidarr itself |
+| `file`, no cleanup removal | `trigger_search` with the managing service and id; for an artist with no monitored album, `set_monitoring` on its only album or `get_media_details` to choose one, and with no albums `trigger_scan` with its id |
 | `file`, removed by a cleanup rule | none: protect the title in Reclaimerr |
 | `managed`, not monitored and removed by a cleanup rule | none: monitoring would search for it again. Protect the title in Reclaimerr first; the summary names the removal |
 | `managed`, in Radarr | `update_media` with `monitored: true` (`set_monitoring` refuses Radarr) |
@@ -741,9 +745,9 @@ and, under `playback`, `itemId` — the media server's own id, which is what
 
 **An artist's `acquisition.id` is Lidarr's artist id**, which `set_monitoring`
 takes with `level: "artist"`. An album id is not on a library row at all: take it
-from `get_media_details` on the artist, and pass it with `level: "album"`. Lidarr
-cannot search releases here, so neither id works with `get_releases` or
-`grab_release`.
+from `get_media_details` on the artist, and pass it with `level: "album"`.
+`trigger_search`, `get_releases` and `grab_release` take the artist id as `id`,
+with album ids in `albums` or `album` to narrow the search.
 
 Before this, a caller had the external ids and nothing a write would accept,
 so answering "delete this" meant a second `search_media(source: "library")` hop
@@ -1508,11 +1512,21 @@ returned 339 releases in 58 seconds, where a season could not fit in the
 timeout. Retry is already off for this call, so a timeout means one sweep ran
 out of time, not two.
 
+On **Lidarr**, `id` is the artist and `album` narrows the search to one of its
+albums, from `get_media_details` at `detail: "full"`. The album is read first
+and must be the artist's: Lidarr searches an album by its id alone, so a
+mismatched pair would list releases for an artist nobody named. A whole-artist
+search returns every release matching the artist's name, and ran past a
+thousand rows live, so pass `album` when you know it. `season` and `episode`
+are refused. Lidarr 3.1.6 names the protocol by its class
+(`UsenetDownloadProtocol`), and rows read `usenet` or `torrent` as Radarr's and
+Sonarr's do.
+
 ## `grab_release`
 
 The write half of `get_releases`. Takes `guid` and `indexer_id` from a
-`get_releases` row verbatim and tells Radarr, Sonarr, Whisparr or Shelfmark to grab
-that one release — "not that one, the 1080p remux". On Shelfmark both can be left
+`get_releases` row verbatim and tells Radarr, Sonarr, Whisparr, Lidarr or
+Shelfmark to grab that one release — "not that one, the 1080p remux". On Shelfmark both can be left
 out, and the most-downloaded file is taken, named in the preview first.
 
 Safe tier, not destructive: a grab starts a download, and a download comes
@@ -1527,9 +1541,14 @@ offer, call get_releases again"*. And it puts the release's real name in the
 preview: "grab release abc" is not something a person can approve.
 
 Pass the same `season` or `episode` `get_releases` was called with, so that
-re-search covers the scope you actually searched rather than the whole series.
-Both are refused alongside `magnet`, which never goes through an *arr
-and so has no scope to narrow.
+re-search covers the scope you actually searched rather than the whole series,
+and on Lidarr the same `album`. All three are refused alongside `magnet`, which
+never goes through an *arr and so has no scope to narrow.
+
+A Lidarr grab answers only once Lidarr has handed the release to the download
+client, which ran past the 10s default live, so it gets the release-search
+timeout. A grab that still times out says it may have gone through: check
+`get_queue` or `get_history` before grabbing again, or it may download twice.
 
 The confirmation token binds to **both** `guid` and `indexer_id`. That pair
 is what identifies a release, and the candidate list is written by indexers,

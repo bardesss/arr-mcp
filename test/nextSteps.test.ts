@@ -11,6 +11,7 @@ import type { CleanupRemoval, CleanupStatus, QueueItem, ServiceAdapter, Subtitle
 import { buildChain as chain, type Diagnosis, type Evidence } from '../src/tools/diagnose/chain.ts';
 import { removalSentence } from '../src/tools/cleanupStatus.ts';
 import { registerDiagnose } from '../src/tools/diagnose/index.ts';
+import { registerGetMediaDetails } from '../src/tools/getMediaDetails.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
 import { registerLookupMedia } from '../src/tools/lookupMedia.ts';
 import { registerRemoveQueueItem } from '../src/tools/removeQueueItem.ts';
@@ -278,9 +279,39 @@ const CASES: Case[] = [
     },
     {
         name: 'file, an artist',
-        // Lidarr has no search trigger here: trigger_search refuses it
+        // the artist id alone: a whole-artist search covers its monitored albums
         diagnosis: () => buildChain(QUERY, healthy({ item: artist() })),
-        expected: undefined
+        expected: { tool: 'trigger_search', arguments: { service: 'lidarr', id: '7' } }
+    },
+    {
+        name: 'file, an artist whose only album is not monitored',
+        // a search would grab nothing, so the album is monitored first
+        diagnosis: () =>
+            buildChain(QUERY, healthy({ item: artist(), albums: { list: [{ id: '70', title: 'Some Album', monitored: false, hasFile: false }], truncated: false } })),
+        expected: { tool: 'set_monitoring', arguments: { service: 'lidarr', level: 'album', id: '70', monitored: true } }
+    },
+    {
+        name: 'file, an artist none of whose albums is monitored',
+        diagnosis: () =>
+            buildChain(
+                QUERY,
+                healthy({
+                    item: artist(),
+                    albums: {
+                        list: [
+                            { id: '70', title: 'Some Album', monitored: false, hasFile: false },
+                            { id: '71', title: 'Other Album', monitored: false, hasFile: false }
+                        ],
+                        truncated: false
+                    }
+                })
+            ),
+        expected: { tool: 'get_media_details', arguments: { service: 'lidarr', id: '7', detail: 'full' } }
+    },
+    {
+        name: 'file, an artist Lidarr lists no albums for',
+        diagnosis: () => buildChain(QUERY, healthy({ item: artist(), albums: { list: [], truncated: false } })),
+        expected: { tool: 'trigger_scan', arguments: { service: 'lidarr', action: 'scan', id: '7' } }
     },
     {
         name: 'queue, import pending on an artist',
@@ -562,9 +593,26 @@ const radarrStub = (id: string) =>
         startLibraryScan: async () => ({ commandId: 1 })
     });
 
-/** Lidarr as the real adapter has it: an artist policy and an importer, and no `triggerSearch`. */
+/** Lidarr as the real adapter has it: an artist policy, an importer and an artist search. */
 const lidarrStub = () =>
     stub('lidarr', {
+        getMediaDetails: async (id: string) => ({
+            service: 'lidarr',
+            kind: 'artist',
+            id,
+            title: 'Daft Punk',
+            monitored: true,
+            hasFile: false,
+            ids: {},
+            albums: [{ id: '70', title: 'Some Album', monitored: true, hasFile: false }],
+            albumsTruncated: false
+        }),
+        triggerSearch: async () => ({ name: 'ArtistSearch' }),
+        getMonitorState: async () => ({ label: 'Some Album', monitored: false }),
+        refusePartialSelection: () => undefined,
+        refreshItem: async () => ({ name: 'RefreshArtist' }),
+        renameItem: async () => ({ name: 'RenameArtist' }),
+        startLibraryScan: async () => ({ name: 'RefreshArtist' }),
         listArtistMonitorPolicies: async () => [{ artistId: '7', artistName: 'Daft Punk', monitored: false, monitorNewItems: 'all' }],
         setArtistMonitorPolicy: async () => undefined,
         setMonitoring: async () => undefined,
@@ -633,6 +681,7 @@ function realTools(adapters: ServiceAdapter[] = world(), identity: Partial<Ident
     registerRemoveQueueItem(server, write, adapters);
     registerRespondToRequest(server, write, adapters, identity as IdentityResolver);
     registerLookupMedia(server, adapters);
+    registerGetMediaDetails(server, adapters, new LibraryLoader(adapters, undefined));
     return tools;
 }
 
@@ -648,7 +697,7 @@ describe('the real tool accepts every suggested call', () => {
             expect(tool).toBeDefined();
 
             // A read has no preview; a write is driven through its own `plan`.
-            const isRead = step?.tool === 'lookup_media';
+            const isRead = step?.tool === 'lookup_media' || step?.tool === 'get_media_details';
             const result = await tool?.call({ ...step?.arguments, ...(isRead ? {} : { dry_run: true }) });
 
             if (!isRead) {
@@ -665,8 +714,7 @@ describe('the real tool accepts every suggested call', () => {
         );
     });
 
-    it('refuses what the artist rows leave out: a search on Lidarr, and an id at the artist level', async () => {
-        await expect(tools.get('trigger_search')?.call({ service: 'lidarr', id: '7', dry_run: true })).rejects.toThrow();
+    it('refuses what the artist rows leave out: an id at the artist level', async () => {
         await expect(
             tools.get('set_monitoring')?.call({ service: 'lidarr', level: 'artist', id: '7', artists: ['7'], monitored: true, dry_run: true })
         ).rejects.toThrow(/takes `artists`, not `id`/);

@@ -496,6 +496,22 @@ const CONTRACTS: Record<string, ServiceContract> = {
                     'statistics.trackCount',
                     'artist.artistName'
                 ]
+            },
+            {
+                // `get_releases` and `grab_release`. `seeders` is on the torrent
+                // rows only, which is why it is optional in `ReleaseCandidate`.
+                path: '/api/v1/release',
+                method: 'get',
+                fixture: 'test/fixtures/lidarr/release.json',
+                fields: ['guid', 'indexerId', 'indexer', 'title', 'size', 'seeders', 'age', 'quality.quality.name', 'protocol', 'rejected', 'rejections']
+            },
+            {
+                // Read before an album's release search, to check the album is
+                // the artist's: Lidarr searches an album by its id alone.
+                path: '/api/v1/album/{id}',
+                method: 'get',
+                fixture: 'test/fixtures/lidarr/album.json',
+                fields: ['id', 'artistId']
             }
         ]
     },

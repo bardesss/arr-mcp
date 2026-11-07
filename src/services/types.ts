@@ -865,11 +865,16 @@ export type ReleaseCandidate = {
     rejections?: string[];
 };
 
+/** The item a release search is for, and the part of it to search: see `findReleases`. */
+export type ReleaseScope = { id: string; season?: number; episode?: string; album?: string };
+
 export interface ReleaseSearchCapable {
     /** `season` and `episode` (an episode id) are Sonarr-only and mutually
-     *  exclusive; a Radarr adapter refuses rather than ignoring them. Slow
-     *  upstream — see `RELEASE_SEARCH_TIMEOUT_MS`. */
-    findReleases(opts: { id: string; season?: number; episode?: string }): Promise<ReleaseCandidate[]>;
+     *  exclusive; a Radarr adapter refuses rather than ignoring them. `album`
+     *  (one album id of the artist `id`) is Lidarr-only: the others refuse it,
+     *  and Lidarr refuses `season` and `episode`. Slow upstream — see
+     *  `RELEASE_SEARCH_TIMEOUT_MS`. */
+    findReleases(opts: ReleaseScope): Promise<ReleaseCandidate[]>;
 }
 
 export const hasReleaseSearch = (a: ServiceAdapter): a is ServiceAdapter & ReleaseSearchCapable =>
@@ -1265,6 +1270,9 @@ export type SearchTarget = {
     season?: number;
     /** Specific episodes, as integer strings. */
     episodes?: string[];
+    /** Lidarr only: specific albums of the artist, as integer strings. Omit to
+     *  search the whole artist. */
+    albums?: string[];
 };
 
 export interface SearchTriggerCapable {

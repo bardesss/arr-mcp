@@ -19,6 +19,7 @@ import {
     type QueueRemoveCapable,
     type ReleaseCandidate,
     type ReleaseGrabCapable,
+    type ReleaseScope,
     type ReleaseSearchCapable,
     type RemoveQueueOptions,
     type RetryCapable,
@@ -344,8 +345,9 @@ export class ShelfmarkAdapter
      * indexer's API key. Most downloads first, and a row with no count last: a
      * source that counts nothing says nothing against the file.
      */
-    async findReleases(opts: { id: string; season?: number; episode?: string }): Promise<ReleaseCandidate[]> {
+    async findReleases(opts: ReleaseScope): Promise<ReleaseCandidate[]> {
         if (opts.season !== undefined || opts.episode !== undefined) throw new Error('`season` and `episode` are for series. A book has neither.');
+        if (opts.album !== undefined) throw new Error('`album` is for a Lidarr artist. A book has none.');
         const ranked = [...(await this.#rawReleases(opts.id))].sort((a, b) => (downloadsOf(b) ?? -1) - (downloadsOf(a) ?? -1));
         return ranked.map(raw => {
             const language = str(raw.language);

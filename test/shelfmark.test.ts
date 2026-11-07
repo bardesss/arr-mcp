@@ -227,6 +227,12 @@ describe('finding a book', () => {
         await expect(shelfmark.findReleases({ id: '42' })).rejects.toMatchObject({ kind: 'NotFound' });
         await expect(shelfmark.findReleases({ id: ID, season: 1 })).rejects.toThrow(/series/);
     });
+
+    it('refuses an album rather than searching the whole book', async () => {
+        const fetchImpl = server();
+        await expect(adapter(fetchImpl as typeof fetch).findReleases({ id: ID, album: '15' })).rejects.toThrow(/Lidarr artist/);
+        expect(fetchImpl.mock.calls).toHaveLength(0);
+    });
 });
 
 describe('grabbing a release', () => {
@@ -317,6 +323,13 @@ describe('the most-downloaded release by default', () => {
         expect(structuredContent.applied).toBe(false);
         expect(JSON.stringify(structuredContent)).toContain('most');
         expect(JSON.stringify(structuredContent)).toContain('900 downloads');
+        expect(h.sent()).toEqual([]);
+    });
+
+    it('refuses an album or a season rather than taking the top release of the whole book', async () => {
+        const h = tool();
+        await expect(h.call({ service: 'shelfmark', id: ID, album: '15' })).rejects.toThrow(/Lidarr artist/);
+        await expect(h.call({ service: 'shelfmark', id: ID, season: 1 })).rejects.toThrow(/for series/);
         expect(h.sent()).toEqual([]);
     });
 

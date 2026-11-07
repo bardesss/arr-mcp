@@ -5,7 +5,17 @@ import { unfenced } from '../../core/titleMatch.ts';
 import { currentStrikes } from '../cleanuparrQueue.ts';
 import type { MergedItem } from '../../core/resolver.ts';
 import { fenceText } from '../../core/fence.ts';
-import type { CleanupRemoval, CleanupStatus, HistoryEntry, IndexerRejection, QueueItem, RequestStatus, ScanState, SubtitleGap } from '../../services/types.ts';
+import type {
+    AlbumSummary,
+    CleanupRemoval,
+    CleanupStatus,
+    HistoryEntry,
+    IndexerRejection,
+    QueueItem,
+    RequestStatus,
+    ScanState,
+    SubtitleGap
+} from '../../services/types.ts';
 import { removalSentence, upcomingSentence } from '../cleanupStatus.ts';
 import { instanceArgs } from '../resolveInstance.ts';
 
@@ -71,6 +81,13 @@ export type Evidence = {
     cleanupUnread?: string;
     /** The managing *arr's latest import of this item, read only when there is a removal to weigh it against. */
     lastImportAt?: string;
+    /**
+     * An artist's albums, read only when it has no track on disk, because a
+     * search for it grabs only releases of a monitored album. `truncated` when
+     * the list stopped at 500. Absent when not read; a failed read is
+     * `<lidarr>:albums` in `degraded`.
+     */
+    albums?: { list: AlbumSummary[]; truncated: boolean };
     /**
      * Download-history rows whose release name matches the query, read only
      * when the query resolved to nothing: an item removed from Radarr whose
@@ -514,7 +531,11 @@ function queueStep(ev: Evidence, item: MergedItem): QueueResult {
     // library-read failure alone made this stage report unknown even when
     // every download client had answered in full.
     const services = queueServicesFor(item);
-    const effectivePartial = [...new Set([...partial, ...ev.degraded.filter(s => services.some(t => s === t || s.startsWith(`${t}/`)))])];
+    // Services only: a source-scoped id such as `lidarr/one:albums` or
+    // `radarr/hd:history` is a read that failed beside the queue, not the queue.
+    const effectivePartial = [
+        ...new Set([...partial, ...servicesOnly(ev.degraded).filter(s => services.some(t => s === t || s.startsWith(`${t}/`)))])
+    ];
     const mine = queueRowsFor(items, item);
     // A file on disk means whatever Cleanuparr removed was replaced since.
     const removals = item.acquisition?.hasFile === true ? [] : (ev.cleanuparr ?? []).filter(e => e.event === 'deleted' || e.event === 'stopped');
@@ -824,20 +845,44 @@ function libraryRemedy(stage: 'library' | 'scan', server: string): string {
  * decide "not configured" and `'unknown'` decides "unreachable"; a service
  * gets credit for being checked only when neither applies.
  */
-function fileRemedy(service: string, ev: Evidence, queueStatus: StepStatus, indexerStatus: StepStatus, item: MergedItem): string {
+function fileRemedy(service: string, ev: Evidence, queueStatus: StepStatus, indexerStatus: StepStatus): string {
     const uncheckable: string[] = [];
     if (!ev.queueConfigured) uncheckable.push('no download client is configured');
     else if (queueStatus === 'unknown') uncheckable.push('the download client(s) could not be fully checked');
     if (!ev.prowlarrConfigured) uncheckable.push('no indexer manager is configured');
     else if (indexerStatus === 'unknown') uncheckable.push('Prowlarr could not be reached');
 
-    // This server has no Lidarr search to call, so an artist is searched for in
-    // Lidarr's own interface rather than with a tool.
-    const search = item.kind === 'artist' ? `Search in ${service} itself, which this server cannot search for you` : `Trigger a search in ${service}`;
+    const search = `Trigger a search in ${service}`;
     if (uncheckable.length === 0) {
         return `${search} — nothing is downloading and no indexer reported a failure.`;
     }
     return `${search} (${uncheckable.join(' and ')}, so that could not be ruled out).`;
+}
+
+/**
+ * Why a search for an artist with no tracks would grab nothing, when its albums
+ * were read and say so. A Lidarr search asks only for the monitored albums
+ * (`ReleaseSearchService.ArtistSearch`) and rejects every release outside them
+ * (`AlbumRequestedSpecification`). A list cut off at 500 says nothing about the
+ * albums it left out, so it decides nothing.
+ */
+function unsearchable(ev: Evidence): 'no albums' | 'none monitored' | undefined {
+    if (ev.item?.kind !== 'artist' || ev.albums === undefined || ev.albums.truncated) return undefined;
+    if (ev.albums.list.length === 0) return 'no albums';
+    return ev.albums.list.some(a => a.monitored) ? undefined : 'none monitored';
+}
+
+function unsearchableRemedy(ev: Evidence, service: string): string | undefined {
+    const why = unsearchable(ev);
+    if (why === 'no albums') {
+        return `${service} lists no albums for it, so a search has nothing to grab. Refresh the artist with trigger_scan so ${service} fetches them, or check its metadata profile, which decides which albums ${service} adds.`;
+    }
+    if (why === 'none monitored') {
+        const count = ev.albums?.list.length ?? 0;
+        const which = count === 1 ? 'Its one album is not monitored' : `None of its ${count} albums is monitored`;
+        return `${which} in ${service}, and a search grabs only releases of a monitored album, so it would grab nothing. Monitor the albums you want with set_monitoring at \`level: "album"\`, then search.`;
+    }
+    return undefined;
 }
 
 /**
@@ -1163,13 +1208,13 @@ export function buildChain(query: string, ev: Evidence, byWords: boolean): Diagn
               // pushed on the branch where `acquisition` is defined.
               ? removedOnPurpose
                   ? `A cleanup rule removed it on purpose. Protect it in ${ev.cleanup?.service ?? 'the cleanup service'} first, or the same rule will remove it again, then search for it in ${blocking.service as string}.`
-                  : fileRemedy(
+                  : (unsearchableRemedy(ev, blocking.service as string) ??
+                    fileRemedy(
                         blocking.service as string,
                         ev,
                         byStage.get('queue')?.status ?? 'unknown',
-                        byStage.get('indexers')?.status ?? 'unknown',
-                        item
-                    )
+                        byStage.get('indexers')?.status ?? 'unknown'
+                    ))
               : blocking.stage === 'library' || blocking.stage === 'scan'
                 ? libraryRemedy(blocking.stage, ev.mediaServer as string)
                 : blocking.stage === 'managed' && item.kind === 'artist'
@@ -1235,21 +1280,47 @@ function nextStepsFor(
             // Monitoring would search for, and so re-download, what a rule deleted on purpose: the file step withholds its search for this reason.
             if (!acquisition.hasFile && wholeRemoval(ev.cleanup, ev.lastImportAt) !== undefined) return [];
             return monitorStep(acquisition, item);
-        case 'file':
-            // Lidarr has no search trigger: trigger_search refuses it.
-            if (item?.kind === 'artist') return [];
+        case 'file': {
             if (acquisition?.id === undefined || (!acquisition.hasFile && wholeRemoval(ev.cleanup, ev.lastImportAt) !== undefined)) return [];
+            const target = instanceArgs(acquisition.service);
+            const why = unsearchable(ev);
+            if (why === 'no albums') {
+                return [
+                    {
+                        tool: 'trigger_scan',
+                        arguments: { ...target, action: 'scan', id: acquisition.id },
+                        why: `Refreshes the artist from the metadata provider, so ${acquisition.service} lists its albums.`
+                    }
+                ];
+            }
+            if (why === 'none monitored') {
+                const only = ev.albums?.list.length === 1 ? ev.albums.list[0] : undefined;
+                return [
+                    only === undefined
+                        ? {
+                              tool: 'get_media_details',
+                              arguments: { ...target, id: acquisition.id, detail: 'full' },
+                              why: 'Lists its albums and their ids, to choose which to monitor with set_monitoring at `level: "album"`.'
+                          }
+                        : {
+                              tool: 'set_monitoring',
+                              arguments: { ...target, level: 'album', id: only.id, monitored: true },
+                              why: 'Monitors its only album, so a search has something to grab.'
+                          }
+                ];
+            }
             return [
                 {
                     tool: 'trigger_search',
-                    arguments: { ...instanceArgs(acquisition.service), id: acquisition.id },
-                    why: `Searches ${acquisition.service} for the missing file.${
+                    arguments: { ...target, id: acquisition.id },
+                    why: `Searches ${acquisition.service} for ${item?.kind === 'artist' ? "the artist's monitored albums" : 'the missing file'}.${
                         ev.cleanupUnread === undefined
                             ? ''
                             : ` ${ev.cleanupUnread} could not be read, so check it for a cleanup rule before searching again.`
                     }`
                 }
             ];
+        }
         case 'queue':
             return queueNext === undefined ? [] : [queueNext];
         case 'library':
