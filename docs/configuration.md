@@ -538,7 +538,8 @@ Profilarr because it is the one place that owns profile config, so two of them
 would mean two sources of truth. Cleanuparr because one instance cleans one
 stack, Reclaimerr because one instance owns one library's cleanup rules,
 Dispatcharr because one instance serves one set of playlists, and Shelfmark
-because one instance holds one download queue, and Grimmory because `get_library` needs one book source.
+because one instance holds one download queue. Grimmory stays single because
+`get_library` reads books from one source.
 
 Everything else takes a list: Radarr, Sonarr, Lidarr, Bazarr, Prowlarr, SABnzbd,
 NZBGet, Transmission and qBittorrent.

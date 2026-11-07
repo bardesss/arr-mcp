@@ -347,8 +347,7 @@ small, shaped change, and a service in no slot at all is a different product.
   `stack_health` can see a download finish and never see where it went. The risk
   class holds, since it stores a username and password as Transmission and
   qBittorrent do, and talks only to the configured host. The waiver covers
-  Grimmory, not the book library slot, so a Chaptarr request still waits for its
-  date. Rescanning a library and deleting a book need their own case: deleting
+  Grimmory alone. A Chaptarr request still waits for its date. Rescanning a library and deleting a book need their own case: deleting
   removes the files from disk.
 
 Named and **not** accepted, so nobody spends a weekend finding out:

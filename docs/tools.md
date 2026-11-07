@@ -660,7 +660,7 @@ With Grimmory configured, its findings cover the library and the Bookdrop:
 The notice for a read names which one failed and, for a 403, says "this account
 may not read" it, so a user without `canAccessBookdrop` loses the Bookdrop
 finding and nothing else. The update notice only appears when the latest release
-is newer than the running one. Grimmory is read only here.
+is newer than the running one.
 
 ### Did that command finish?
 
@@ -845,7 +845,7 @@ Grimmory. `get_media_details` takes `service: "grimmory"` and that id, and answe
 with the book's library, authors, series, ISBN and ASIN when it has them, its
 metadata match score, when it was added, and each file with its format and size.
 Asking by title alone does not reach a book, and the refusal points to the
-`service` and `id` form. Reading progress is left out.
+`service` and `id` form.
 
 ### Sorting
 
