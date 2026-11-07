@@ -38,7 +38,9 @@ const findAdapter = (adapters: readonly ServiceAdapter[], service: ServiceId, in
  * A search skips Lidarr's monitored check (`MonitoredAlbumSpecification`:
  * nothing sets `MonitoredEpisodesOnly`), so a named album is grabbed whether it
  * is monitored or not, the opposite of the caution the Radarr and Sonarr
- * preview gives. And an album missing a track skips the upgrade and cutoff
+ * preview gives. That early accept comes before the artist's own flag is read,
+ * so an unmonitored artist, whose albums Lidarr leaves out of its automatic
+ * searches, is still grabbed for here. And an album missing a track skips the upgrade and cutoff
  * checks (`UpgradeDiskSpecification`, `UpgradeAllowedSpecification`,
  * `CutoffSpecification`), so any quality the profile allows can be grabbed for
  * it, though the import replaces a track on disk only with a better one
@@ -49,14 +51,21 @@ const REPLACES =
 
 function lidarrEffects(
     label: string,
-    details: Pick<MediaDetails, 'albums' | 'albumsTruncated' | 'hasFile'>,
+    details: Pick<MediaDetails, 'albums' | 'albumsTruncated' | 'hasFile' | 'monitored'>,
     named: readonly AlbumSummary[],
     byAlbum: boolean
 ): string[] {
+    const artistFlag =
+        details.monitored === false
+            ? [
+                  `${label} is not monitored in Lidarr, which keeps its albums out of Lidarr's own automatic searches. A search started here skips that check, so the artist's flag does not stop it grabbing.`
+              ]
+            : [];
     if (byAlbum) {
         const unmonitored = named.filter(a => !a.monitored).length;
         const withFiles = named.filter(a => a.hasFile === true).length;
         return [
+            ...artistFlag,
             ...(unmonitored === 0
                 ? []
                 : [
@@ -80,7 +89,7 @@ function lidarrEffects(
                         ? ' A discography release counts as every album it spans, so it can bring unmonitored ones along.'
                         : ''
                 }`;
-    return [coverage, ...(details.hasFile === true ? [`Some of its albums already have tracks. ${REPLACES}`] : [])];
+    return [coverage, ...artistFlag, ...(details.hasFile === true ? [`Some of its albums already have tracks. ${REPLACES}`] : [])];
 }
 
 export function registerTriggerSearch(
