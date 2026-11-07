@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.69.0](https://github.com/bardesss/arr-mcp/compare/v1.68.0...v1.69.0) (2026-11-07)
+
+
+### Features
+
+* **grimmory:** add book writes and the reads they need ([#501](https://github.com/bardesss/arr-mcp/issues/501)) ([75041ba](https://github.com/bardesss/arr-mcp/commit/75041baa982be7699f0c75b86e84ef72fc524108))
+
 ## [1.68.0](https://github.com/bardesss/arr-mcp/compare/v1.67.2...v1.68.0) (2026-11-07)
 
 
