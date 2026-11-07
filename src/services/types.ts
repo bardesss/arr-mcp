@@ -1552,6 +1552,21 @@ export interface MediaDeleteCapable {
     deleteMedia(id: string, opts: DeleteMediaOptions): Promise<void>;
 }
 
+export type BookDeletion = {
+    /** Whether Grimmory reports the book as deleted. */
+    deleted: boolean;
+    /** The book is gone but Grimmory could not delete its files from disk. */
+    filesLeft: boolean;
+};
+
+/** Deletes a book and, always, its files: Grimmory has no keep-files option. */
+export interface BookDeleteCapable {
+    deleteBook(id: string): Promise<BookDeletion>;
+}
+
+export const hasBookDelete = (a: ServiceAdapter): a is ServiceAdapter & BookDeleteCapable =>
+    typeof (a as Partial<BookDeleteCapable>).deleteBook === 'function';
+
 export const hasMediaDelete = (a: ServiceAdapter): a is ServiceAdapter & MediaDeleteCapable =>
     typeof (a as Partial<MediaDeleteCapable>).deleteMedia === 'function';
 

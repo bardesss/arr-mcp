@@ -10,6 +10,8 @@ import {
     type ConnectionDiagnosis,
     type HealthCheck,
     type BookLibrary,
+    type BookDeleteCapable,
+    type BookDeletion,
     type BookLibraryScanCapable,
     type HealthCheckCapable,
     type LibraryCapable,
@@ -82,7 +84,7 @@ type RawHealth = { data?: { version?: unknown } };
  * and password and answers with a JWT; the healthcheck is the one route that
  * takes no token.
  */
-export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, SearchCapable, MediaDetailCapable, LibraryCapable, BookLibraryScanCapable {
+export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, SearchCapable, MediaDetailCapable, LibraryCapable, BookLibraryScanCapable, BookDeleteCapable {
     readonly type: ServiceId = 'grimmory';
     readonly id = 'grimmory';
     readonly #http: ServiceHttp;
@@ -295,6 +297,21 @@ export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, Sear
     }
 
     /**
+     * Grimmory's bulk delete takes `ids` and always deletes the files. It
+     * answers with the ids it deleted and the ones whose files it could not.
+     */
+    async deleteBook(id: string): Promise<BookDeletion> {
+        const body = await this.#write('delete books', 'canDeleteBook', `book ${id}`, () =>
+            this.#http.deleteForBody<unknown>(`/api/v1/books?ids=${encodeURIComponent(id)}`)
+        );
+        const holds = (key: string) => {
+            const ids = obj(body)[key];
+            return Array.isArray(ids) && ids.some(v => Number(v) === Number(id));
+        };
+        return { deleted: holds('deleted'), filesLeft: holds('failedFileDeletions') };
+    }
+
+    /**
      * Runs one write and turns the two refusals a Grimmory account can meet
      * into an answer that names what to change. Every Grimmory write goes
      * through here, so a 403 always names the permission that was missing and a
@@ -304,7 +321,7 @@ export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, Sear
      * @param permission the Grimmory user permission that allows it
      * @param missing what a 404 means is absent, as in "library 3"
      */
-    async #write<T>(what: string, permission: string, missing: string, call: () => Promise<T>): Promise<T> {
+    async #write<T>(what: string, permission: string, missing: string, call: () => Promise<T>, remedy?: string): Promise<T> {
         try {
             return await call();
         } catch (error) {
@@ -316,7 +333,9 @@ export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, Sear
             }
             if (error instanceof ServiceError && error.kind === 'NotFound') {
                 throw new ServiceError('NotFound', this.id, `Grimmory has no ${missing}`, {
-                    remedy: 'A book id is `acquisition.id` on get_library; a library is listed by stack_health and get_library.',
+                    remedy:
+                        remedy ??
+                        'A book id is `acquisition.id` on get_library; a library is listed by stack_health and get_library.',
                     cause: error
                 });
             }

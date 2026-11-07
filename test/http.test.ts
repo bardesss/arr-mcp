@@ -310,6 +310,24 @@ describe('ServiceHttp put and deleteWithBody', () => {
         expect(calls).toBe(1);
     });
 
+    it('deleteForBody reads the JSON body and is not retried on timeout', async () => {
+        const seen: { method?: string; url: string }[] = [];
+        const client = http(async (input: string, init?: RequestInit) => {
+            seen.push({ url: String(input), ...(init?.method === undefined ? {} : { method: init.method }) });
+            return json({ deleted: [58], failedFileDeletions: [] });
+        });
+        expect(await client.deleteForBody('/api/v1/books?ids=58')).toEqual({ deleted: [58], failedFileDeletions: [] });
+        expect(seen).toEqual([{ method: 'DELETE', url: 'http://192.168.1.20:7878/api/v1/books?ids=58' }]);
+
+        let calls = 0;
+        const slow = http(async () => {
+            calls += 1;
+            throw timeoutError();
+        });
+        await expect(slow.deleteForBody('/x')).rejects.toThrow(/timed out/);
+        expect(calls).toBe(1);
+    });
+
     it('sends deleteWithBody as a DELETE carrying the body, and discards the response', async () => {
         const seen: { method?: string; url: string; body?: unknown }[] = [];
         const client = http(async (input: string, init?: RequestInit) => {

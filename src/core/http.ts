@@ -224,6 +224,11 @@ export class ServiceHttp {
         await this.#request<unknown>('DELETE', path, { json: body }, false, 'none');
     }
 
+    /** A DELETE whose JSON answer matters, such as Grimmory's list of what it did delete. Never retried. */
+    async deleteForBody<T>(path: string): Promise<T> {
+        return this.#request<T>('DELETE', path, undefined, false, 'json');
+    }
+
     // --- internals ---
 
     async #request<T>(
