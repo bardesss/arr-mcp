@@ -65,6 +65,8 @@ export type MetadataIssue = {
     languages?: number;
     /** A book's own match score (0-100) from its library; only books carry one. */
     matchScore?: number;
+    /** Why a book is listed: a low match score, no ISBN or catalogue id, or both. Only books carry one. */
+    reason?: string;
     remedy: Remedy;
     /** What to actually run. */
     fix: string;
@@ -141,10 +143,10 @@ const project = (issue: MetadataIssue, detail: DetailLevel): MetadataIssue => {
 
 const EXAMPLE_LIMIT = 3;
 
-const bookFix = (id: string, allLocked: boolean): string =>
+const bookFix = (id: string, allLocked: boolean, reason: string): string =>
     allLocked
         ? `Every metadata field on this book is locked, so a refresh changes nothing. Unlock the fields on the book in Grimmory, then run fix_metadata with id "grimmory:${id}".`
-        : `fix_metadata with id "grimmory:${id}" — the book has a low match score or no identifier, and re-fetching its metadata can fill that in.`;
+        : `fix_metadata with id "grimmory:${id}" — listed for: ${reason}. Re-fetching its metadata can fill that in.`;
 
 /**
  * One metadata issue as a line. `fix` is carried verbatim because it is the
@@ -153,7 +155,12 @@ const bookFix = (id: string, allLocked: boolean): string =>
  * no remedy.
  */
 export function metadataIssueLine(issue: MetadataIssue): string {
-    const facts = [issue.kind, `${issue.service}:${issue.itemId}`, `${issue.mismatches} mismatch(es)`, issue.remedy];
+    const facts = [
+        issue.kind,
+        `${issue.service}:${issue.itemId}`,
+        issue.reason === undefined ? `${issue.mismatches} mismatch(es)` : issue.reason,
+        issue.remedy
+    ];
     return `${issue.title} — ${facts.join(', ')} — ${issue.fix}`;
 }
 
@@ -162,7 +169,7 @@ type Sweep = { issues: MetadataIssue[]; degraded: string[]; scanned: number; ski
 /** The books half: one adapter call, and a failure only degrades it by name. */
 async function sweepBooks(books: ServiceAdapter & BookMetadataIssueCapable): Promise<Sweep> {
     try {
-        const { issues, scanned } = await books.listBookMetadataIssues(BOOK_MATCH_THRESHOLD);
+        const { issues, scanned, skipped } = await books.listBookMetadataIssues(BOOK_MATCH_THRESHOLD);
         return {
             issues: issues.map(b => ({
                 service: books.id,
@@ -171,12 +178,13 @@ async function sweepBooks(books: ServiceAdapter & BookMetadataIssueCapable): Pro
                 title: b.title,
                 mismatches: 1,
                 ...(b.matchScore === undefined ? {} : { matchScore: b.matchScore }),
+                reason: b.reason,
                 remedy: b.allLocked ? ('unlock_fields' as const) : ('refresh_metadata' as const),
-                fix: bookFix(b.id, b.allLocked)
+                fix: bookFix(b.id, b.allLocked, b.reason)
             })),
             degraded: [],
             scanned,
-            skipped: 0,
+            skipped: skipped ?? 0,
             notComparable: []
         };
     } catch (err) {
@@ -194,7 +202,7 @@ export async function buildGetMetadataIssues(
     const issues = [...media.issues, ...(books?.issues ?? [])];
     const degraded = [...media.degraded, ...(books?.degraded ?? [])];
     const scanned = media.scanned + (books?.scanned ?? 0);
-    const skipped = media.skipped;
+    const skipped = media.skipped + (books?.skipped ?? 0);
     const notComparable = media.notComparable;
 
     // Worst first: numbering findings outrank title ones, then sheer count,

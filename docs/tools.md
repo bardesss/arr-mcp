@@ -1345,7 +1345,7 @@ and tasks are never read.
 
 | Audit action | `event` | What a row means |
 | --- | --- | --- |
-| `BOOK_DELETED` | `deleted` | A book was deleted. The title is the description Grimmory logged, fenced. The row has no `mediaId`, because Grimmory logs no book id for a delete |
+| `BOOK_DELETED` | `deleted` | A book was deleted. The title is the description Grimmory logged, fenced. On 3.5.0 that is a count such as "Deleted 1 book(s)", which names no book. The row has no book id and no `mediaId`, because Grimmory logs none for a delete |
 | `METADATA_UPDATED` | `metadata` | A book's metadata was changed. `mediaId` is the book id |
 | `LIBRARY_SCANNED` | `scanned` | A library was scanned. The title reads `library <id>` unless Grimmory logged a description |
 
@@ -1820,12 +1820,15 @@ a different one.
 
 With Grimmory configured, the sweep also lists books. It takes the lowest-scoring
 books, under a match score of 45, and any book with no ISBN and none of the
-catalogue ids Grimmory holds for it (ASIN, Goodreads, Google,
-Hardcover, Open Library or Comic Vine). A book with no ISBN costs one extra read
-to check those ids, and Grimmory's list is read 200 books to a page.
+catalogue ids Grimmory holds for it (ASIN, Goodreads, Google, Hardcover,
+Hardcover book, Open Library, Comic Vine, Douban, Lubimyczytac, Ranobedb,
+Audible or Apple Books). A book with no ISBN costs one extra read to check those
+ids, and Grimmory's list is read 200 books to a page. A book whose read fails
+is skipped and counted in `itemsSkipped`, and the rest of the sweep carries on.
 
 A book row has `kind: "book"`, prints its item as `grimmory:<book id>`, carries
-`matchScore` when Grimmory has one, and counts one mismatch. Its `remedy` is
+`matchScore` when Grimmory has one, and counts one mismatch. Its `reason` says
+why it is listed: `low match score (N)`, `no ISBN or catalogue id`, or both. Its `remedy` is
 `refresh_metadata`, whose `fix` is `fix_metadata` with that id, or
 `unlock_fields` when every metadata field on the book is locked. `itemsScanned`
 counts the books read. A Grimmory that cannot be read lands in `degraded` and
@@ -2424,7 +2427,8 @@ Grimmory takes two actions.
 - `action: "scan"` rescans every library, or one with `library`, by name or by
   id as `stack_health` and `get_library` show it. A name is matched ignoring
   case. If a name and an id pick different libraries the call is refused and the
-  refusal lists them. A library that does not exist is refused, listing the ones
+  refusal lists them. So is a name that matches two libraries differing only in
+  case. A library that does not exist is refused, listing the ones
   that do.
 - `action: "bookdrop"` has Grimmory look in its Bookdrop folder again for new
   files. It imports nothing: the files wait there until someone finalises them

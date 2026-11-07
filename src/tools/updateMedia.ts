@@ -88,7 +88,14 @@ type BookArgs = {
  * out. A locked field is refused here rather than skipped by the server, so
  * the preview never promises a change that will not land.
  */
-async function planBook(book: ServiceAdapter & BookMetadataCapable, id: string, args: BookArgs): Promise<WritePlan> {
+async function planBook(book: ServiceAdapter & BookMetadataCapable, rawId: string, args: BookArgs): Promise<WritePlan> {
+    // `58` or `grimmory:58`; anything else is refused before a request is made.
+    const id = rawId.replace(/^grimmory:/, '');
+    if (!/^\d+$/.test(id)) {
+        throw new ServiceError('NotFound', book.type, `"${rawId}" is not a Grimmory book id`, {
+            remedy: 'Pass the book id as digits, as in 58 or grimmory:58: `acquisition.id` on a get_library record.'
+        });
+    }
     const { title, authors, series, series_number, tags } = args;
     const lock = [...new Set(args.lock_fields ?? [])].map(n => BOOK_FIELD_OF[n]);
     const unlock = [...new Set(args.unlock_fields ?? [])].map(n => BOOK_FIELD_OF[n]);

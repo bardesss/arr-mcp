@@ -593,7 +593,7 @@ describe('get_metadata_issues with two media servers', () => {
 
 describe('books in get_metadata_issues', () => {
     const fenced = '<<<untrusted:grimmory:title>>>Example Book 58<<<end>>>';
-    const issue = (over: Partial<BookMetadataIssue> = {}): BookMetadataIssue => ({ id: '58', title: fenced, matchScore: 38.2, hasIdentifier: true, allLocked: false, ...over });
+    const issue = (over: Partial<BookMetadataIssue> = {}): BookMetadataIssue => ({ id: '58', title: fenced, matchScore: 38.2, hasIdentifier: true, reason: 'low match score (38.2)', allLocked: false, ...over });
     const books = (issues: BookMetadataIssue[], scanned = 12): ServiceAdapter =>
         ({ id: 'grimmory', type: 'grimmory', listBookMetadataIssues: vi.fn(async () => ({ issues, scanned })) }) as unknown as ServiceAdapter;
     const sweepBooks = (b: ServiceAdapter, detail: 'full' | 'minimal' = 'full', media?: ServiceAdapter) =>
@@ -623,6 +623,21 @@ describe('books in get_metadata_issues', () => {
         const line = metadataIssueLine(result.items[0]!);
         expect(line).toContain('grimmory:58');
         expect(line).toContain('fix_metadata');
+    });
+
+    it('shows why a book is listed in its row and its text line', async () => {
+        const both = issue({ hasIdentifier: false, reason: 'low match score (38.2) and no ISBN or catalogue id' });
+        const result = await sweepBooks(books([both]));
+        expect(result.items[0]?.reason).toBe('low match score (38.2) and no ISBN or catalogue id');
+        const line = metadataIssueLine(result.items[0]!);
+        expect(line).toContain('low match score (38.2) and no ISBN or catalogue id');
+    });
+
+    it('counts books the adapter skipped', async () => {
+        const skipping = { id: 'grimmory', type: 'grimmory', listBookMetadataIssues: async () => ({ issues: [issue()], scanned: 3, skipped: 2 }) } as unknown as ServiceAdapter;
+        const result = await sweepBooks(skipping);
+        expect(result.itemsSkipped).toBe(2);
+        expect(result.degraded).toEqual([]);
     });
 
     it('a fully locked book points at unlocking in Grimmory', async () => {

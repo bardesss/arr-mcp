@@ -81,8 +81,31 @@ const LIBRARY_PAGE_SIZE = 200;
 export const MAX_LIBRARY_PAGES = 100;
 /** A book scoring under this is listed by get_metadata_issues. */
 export const BOOK_MATCH_THRESHOLD = 45;
-/** The catalogue ids on a book's metadata; any one of them means it was identified. */
-const BOOK_CATALOGUE_IDS = ['asin', 'goodreadsId', 'googleId', 'hardcoverId', 'openlibraryId', 'comicvineId'] as const;
+/**
+ * The catalogue ids on a book's metadata; any one of them means it was
+ * identified. Every `*Id` the spec's BookMetadata declares, bar `bookId`
+ * (Grimmory's own row id), plus `asin`.
+ */
+const BOOK_CATALOGUE_IDS = [
+    'asin',
+    'goodreadsId',
+    'googleId',
+    'hardcoverId',
+    'hardcoverBookId',
+    'openlibraryId',
+    'comicvineId',
+    'doubanId',
+    'lubimyczytacId',
+    'ranobedbId',
+    'audibleId',
+    'applebooksId'
+] as const;
+/**
+ * Grimmory has one login for the whole server and no viewer identity, so a
+ * book row carries this fixed label. The configured username is half of the
+ * login and never reaches output.
+ */
+const BOOK_ACCOUNT_LABEL = 'grimmory account';
 /** Bookdrop files per page of the queue read. */
 const BOOKDROP_PAGE_SIZE = 100;
 /** The most pages one Bookdrop read follows: 1,000 files, then it fails by name rather than loop. */
@@ -207,11 +230,9 @@ export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, Sear
     readonly #public: ServiceHttp;
 
     readonly #now: () => number;
-    readonly #username: string;
 
     constructor(config: ConfigByService['grimmory'], fetchImpl: typeof fetch = fetch, opts: { now?: () => number } = {}) {
         this.#now = opts.now ?? Date.now;
-        this.#username = config.username;
         this.#http = new ServiceHttp(
             this.id,
             config,
@@ -352,7 +373,7 @@ export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, Sear
                     ...(libraryName === undefined ? {} : { library: this.#fence(libraryName, 'library_name') }),
                     ids: {},
                     // Absent `readStatus` is UNSET; only READ counts as watched.
-                    playback: { user: this.#username, watched: book.readStatus === 'READ' },
+                    playback: { user: BOOK_ACCOUNT_LABEL, watched: book.readStatus === 'READ' },
                     acquisition: {
                         service: this.id,
                         id: String(id),
@@ -398,9 +419,10 @@ export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, Sear
      * time and only for a row with no ISBN. A book with no score is not listed
      * for a low one.
      */
-    async listBookMetadataIssues(threshold: number): Promise<{ issues: BookMetadataIssue[]; scanned: number }> {
+    async listBookMetadataIssues(threshold: number): Promise<{ issues: BookMetadataIssue[]; scanned: number; skipped: number }> {
         const issues: BookMetadataIssue[] = [];
         let scanned = 0;
+        let skipped = 0;
         for await (const rows of this.#bookPages()) {
             for (const book of rows) {
                 const id = num(book.id);
@@ -412,21 +434,29 @@ export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, Sear
                 // On the list row itself; absent means not fully locked.
                 const allLocked = book.allMetadataLocked === true;
                 if (!hasIdentifier) {
-                    const meta = obj(obj(await this.#http.get<unknown>(`/api/v1/books/${encodeURIComponent(String(id))}`)).metadata);
-                    hasIdentifier = BOOK_CATALOGUE_IDS.some(key => str(meta[key]) !== undefined);
+                    try {
+                        const meta = obj(obj(await this.#http.get<unknown>(`/api/v1/books/${encodeURIComponent(String(id))}`)).metadata);
+                        hasIdentifier = BOOK_CATALOGUE_IDS.some(key => str(meta[key]) !== undefined);
+                    } catch {
+                        // One book that cannot be read (deleted since the list, a timeout) is skipped, not the sweep.
+                        skipped += 1;
+                        continue;
+                    }
                 }
                 if (!low && hasIdentifier) continue;
+                const reasons = [...(low ? [`low match score (${score})`] : []), ...(hasIdentifier ? [] : ['no ISBN or catalogue id'])];
                 const authors = (Array.isArray(book.authors) ? book.authors : []).filter((a): a is string => typeof a === 'string' && a !== '');
                 issues.push({
                     id: String(id),
                     title: this.#bookTitle(str(book.title), authors),
                     ...(score === undefined ? {} : { matchScore: score }),
                     hasIdentifier,
+                    reason: reasons.join(' and '),
                     allLocked
                 });
             }
         }
-        return { issues, scanned };
+        return { issues, scanned, skipped };
     }
 
     async getMediaDetails(id: string): Promise<MediaDetails> {
@@ -685,7 +715,8 @@ export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, Sear
             at,
             event: GRIMMORY_HISTORY_ACTIONS[action],
             rawEvent: action,
-            // A deleted book is named only here, and on a live server it is the real title.
+            // Grimmory's own description. On 3.5.0 a delete logs a count ("Deleted 1 book(s)"), not the
+            // title, and the row has no book id, so it names no book.
             title: description === undefined ? plain : this.#fence(description, 'description'),
             ...(onBook ? { mediaId: String(entityId) } : {})
         };

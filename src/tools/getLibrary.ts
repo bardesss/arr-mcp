@@ -238,7 +238,7 @@ function rejectFilmFiltersOnBooks(opts: LibraryQuery): void {
         opts.monitored !== undefined
     ) {
         throw new Error(
-            'A Grimmory book carries no rating, no monitoring and no media-server presence, only the read status of the one account arr-mcp signs in as, Drop min_rating, rating_source, sort: "rating", watched_by, presence and monitored.'
+            'A Grimmory book carries no rating, no monitoring and no media-server presence, only the read status of the one account arr-mcp signs in as. Drop min_rating, rating_source, sort: "rating", watched_by, presence and monitored.'
         );
     }
 }

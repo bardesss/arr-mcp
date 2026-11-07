@@ -607,6 +607,7 @@ describe('fix_metadata on a book', () => {
         expect(structuredContent.noop).toBe(true);
         expect(structuredContent.confirm_token).toBeUndefined();
         expect(structuredContent.summary).toMatch(/nothing to apply/i);
+        expect(structuredContent.summary).toMatch(/ISBN match, or the title and first author together/);
         expect(puts()).toEqual([]);
     });
 
@@ -838,6 +839,17 @@ describe('update_media on a book', () => {
         expect(other.structuredContent.applied).toBe(false);
         expect(other.structuredContent.confirm_error).toBeDefined();
         expect(puts()).toEqual([]);
+    });
+
+    it('refuses a book id that is not digits before any request, and takes the grimmory: prefix', async () => {
+        const { call, server } = editTool();
+        for (const id of ['abc', 'grimmory:abc', '58/metadata']) {
+            await expect(call({ service: 'grimmory', id, title: 'New' })).rejects.toThrow();
+        }
+        expect(server.sent.some(s => s.path.startsWith('/api/v1/books'))).toBe(false);
+        const { structuredContent } = await call({ service: 'grimmory', id: 'grimmory:58', title: 'New' });
+        expect(structuredContent.target).toBe('grimmory:58');
+        expect(structuredContent.confirm_token).toBeDefined();
     });
 
     it('refuses film settings on a book and book fields on Radarr', async () => {

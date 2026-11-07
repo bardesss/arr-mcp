@@ -48,6 +48,16 @@ describe('bestCandidate', () => {
         expect(bestCandidate([other, title], book, { isbn: '9780140449136' })).toBe(title);
     });
 
+    it('breaks a tie by provider name, then title, whatever the stream order', () => {
+        const a = { provider: 'Amazon', fields: { title: 'The Odyssey', authors: ['Homer'], pageCount: 1 } };
+        const b = { provider: 'Google', fields: { title: 'The Odyssey', authors: ['Homer'], pageCount: 2 } };
+        expect(bestCandidate([a, b], book, {})).toBe(a);
+        expect(bestCandidate([b, a], book, {})).toBe(a);
+        const t1 = { provider: 'Google', fields: { title: 'The odyssey', authors: ['Homer'] } };
+        const t2 = { provider: 'Google', fields: { title: 'The Odyssey', authors: ['Homer'] } };
+        expect(bestCandidate([t2, t1], book, {})).toBe(bestCandidate([t1, t2], book, {}));
+    });
+
     it('never takes a title match by another author, or with no author', () => {
         const otherAuthor = { provider: 'Google', fields: { title: 'The Odyssey', authors: ['Someone Else'] } };
         const noAuthor = { provider: 'GoodReads', fields: { title: 'The Odyssey' } };
@@ -72,10 +82,11 @@ describe('bestCandidate', () => {
         expect(bestCandidate([title, both], book, {})).toBe(both);
     });
 
-    it('keeps stream order on a tie', () => {
+    it('picks the same candidate on a tie in either stream order', () => {
         const first = { provider: 'Hardcover', fields: { title: 'The Odyssey', authors: ['Homer'] } };
         const second = { provider: 'Google', fields: { title: 'The Odyssey', authors: ['Homer'] } };
-        expect(bestCandidate([first, second], book, {})).toBe(first);
+        expect(bestCandidate([first, second], book, {})).toBe(second);
+        expect(bestCandidate([second, first], book, {})).toBe(second);
     });
 
     it('normalises a typed ISBN before comparing it', () => {

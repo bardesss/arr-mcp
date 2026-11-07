@@ -365,7 +365,7 @@ async function planBookFix(
     if (best === undefined) {
         return {
             target,
-            summary: `Nothing to apply: none of the ${candidates.length} answers from Grimmory's providers is ${book.label} by ISBN or title.`,
+            summary: `Nothing to apply: none of the ${candidates.length} answers from Grimmory's providers is ${book.label}. A match is an ISBN match, or the title and first author together.`,
             effects: [isbn === undefined ? 'Pass `isbn` to search by an ISBN you know.' : 'Pass `isbn` to search by a different ISBN.'],
             noop: true
         };

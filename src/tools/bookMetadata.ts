@@ -45,6 +45,9 @@ export function normaliseIsbn(raw: string): string | undefined {
 const sameText = (a: string | undefined, b: string | undefined): boolean =>
     a !== undefined && b !== undefined && normaliseTitle(a) !== '' && normaliseTitle(a) === normaliseTitle(b);
 
+const tieOrder = (a: BookCandidate, b: BookCandidate): number =>
+    (a.provider ?? '').localeCompare(b.provider ?? '', 'en') || (a.fields.title ?? '').localeCompare(b.fields.title ?? '', 'en');
+
 /**
  * The candidate a lookup should take, or undefined when none is the book.
  *
@@ -52,7 +55,9 @@ const sameText = (a: string | undefined, b: string | undefined): boolean =>
  * on both its title and its first author equalling the book's. A title alone
  * never qualifies: another author's book of the same name would replace this
  * one's identifiers. Among qualifiers an ISBN match scores 4, a title match 2
- * and a first-author match 1; a tie keeps stream order.
+ * and a first-author match 1. A tie goes to the provider name, then the
+ * candidate title, so the pick does not depend on the order the provider
+ * streams arrive in.
  */
 export function bestCandidate(candidates: readonly BookCandidate[], book: BookFields, search: BookSearch): BookCandidate | undefined {
     const isbn = search.isbn === undefined ? undefined : normaliseIsbn(search.isbn);
@@ -66,7 +71,7 @@ export function bestCandidate(candidates: readonly BookCandidate[], book: BookFi
         const authorMatch = sameText(fields.authors?.[0], book.authors?.[0]);
         if (!isbnMatch && !(titleMatch && authorMatch)) continue;
         const score = (isbnMatch ? 4 : 0) + (titleMatch ? 2 : 0) + (authorMatch ? 1 : 0);
-        if (score > bestScore) {
+        if (score > bestScore || (score === bestScore && best !== undefined && tieOrder(candidate, best) < 0)) {
             best = candidate;
             bestScore = score;
         }

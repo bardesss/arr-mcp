@@ -1972,7 +1972,9 @@ export type BookMetadataIssue = {
     matchScore?: number;
     /** An ISBN or a catalogue id is on the book. */
     hasIdentifier: boolean;
-    /** Every metadata field is locked, so no refresh changes anything. Known only where the detail was read. */
+    /** Why the book is listed: "low match score (N)", "no ISBN or catalogue id", or both joined by "and". */
+    reason: string;
+    /** Every metadata field is locked, so no refresh changes anything. Known only where the list row says so. */
     allLocked: boolean;
 };
 
@@ -1982,7 +1984,7 @@ export type BookMetadataIssue = {
  * `scanned` is every book looked at, listed or not.
  */
 export interface BookMetadataIssueCapable {
-    listBookMetadataIssues(threshold: number): Promise<{ issues: BookMetadataIssue[]; scanned: number }>;
+    listBookMetadataIssues(threshold: number): Promise<{ issues: BookMetadataIssue[]; scanned: number; skipped?: number }>;
 }
 
 export const hasBookMetadataIssues = (a: ServiceAdapter): a is ServiceAdapter & BookMetadataIssueCapable =>

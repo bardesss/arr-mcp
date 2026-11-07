@@ -99,7 +99,7 @@ export function registerRemoveQueueItem(
                 adapter.discardsFile === true
                     ? `Discards ${item.title} from Grimmory's Bookdrop, which deletes the file from disk. It is not imported, and this cannot be undone.`
                     : adapter.cancelOnly === true
-                    ?`Cancels it in ${adapter.id}, stopping it if it has started. get_history then shows it as stopped, and retry_download can usually start it again.`
+                    ? `Cancels it in ${adapter.id}, stopping it if it has started. get_history then shows it as stopped, and retry_download can usually start it again.`
                     : remove_from_client
                       ? `Removes it from ${adapter.id} and deletes any partial data already downloaded.`
                       : `Removes it from ${adapter.id}'s queue but leaves the download itself alone.`

@@ -1051,7 +1051,7 @@ if (config.services?.grimmory !== undefined) {
             const metadata = await grimmory.readBookMetadata(firstId);
             readBook = `read status ${status.readStatus}, ${metadata.locked.length} locked field(s)`;
         }
-        details += `, ${history}, ${queue.length} pending, ${libraries.length} librar${libraries.length === 1 ? 'y' : 'ies'}, ${issues.issues.length} low-scoring, ${readBook}`;
+        details += `, ${history}, ${queue.length} pending, ${libraries.length} librar${libraries.length === 1 ? 'y' : 'ies'}, ${issues.issues.filter(i => i.matchScore !== undefined && i.matchScore < BOOK_MATCH_THRESHOLD).length} under ${BOOK_MATCH_THRESHOLD}, ${issues.issues.filter(i => !i.hasIdentifier).length} with no identifier, ${issues.skipped} skipped, ${readBook}`;
         const ms = Math.round(performance.now() - started);
         console.log(`PASS grimmory ${connection.version ?? '?'}: ${findings.length} finding(s), ${hits.length} search hit(s), ${rows.length} book(s), ${details} (${ms}ms)`);
         for (const f of findings) console.log(`     ${f.type} ${f.source}`);

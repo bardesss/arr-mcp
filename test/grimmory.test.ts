@@ -359,7 +359,7 @@ describe('GrimmoryAdapter library', () => {
             title: fenced('Example Book 58 by Example Author 1'),
             library: fenceText('Example Library 1', { service: 'grimmory', field: 'library_name' }),
             ids: {},
-            playback: { user: 'reader', watched: false },
+            playback: { user: 'grimmory account', watched: false },
             acquisition: {
                 service: 'grimmory',
                 id: '58',
@@ -374,7 +374,7 @@ describe('GrimmoryAdapter library', () => {
             kind: 'book',
             title: fenced('Bare'),
             ids: {},
-            playback: { user: 'reader', watched: false },
+            playback: { user: 'grimmory account', watched: false },
             acquisition: { service: 'grimmory', id: '9', monitored: false, hasFile: false }
         });
     });
@@ -467,7 +467,7 @@ describe('GrimmoryAdapter read status', () => {
 
         for (const row of rows) {
             const source = body.content.find(b => String(b.id) === row.acquisition?.id)!;
-            expect(row.playback).toEqual({ user: 'reader', watched: source.readStatus === 'READ' });
+            expect(row.playback).toEqual({ user: 'grimmory account', watched: source.readStatus === 'READ' });
         }
         expect(rows.filter(r => r.playback?.watched === true)).toHaveLength(read.content.length);
         expect(rows.find(r => r.acquisition?.id === '99')?.playback?.watched).toBe(false);
@@ -659,6 +659,7 @@ describe('GrimmoryAdapter book metadata issues', () => {
             title: fenceText('Book 1 by Ann', { service: 'grimmory', field: 'title' }),
             matchScore: 37.6,
             hasIdentifier: true,
+            reason: 'low match score (37.6)',
             allLocked: false
         });
     });
@@ -679,6 +680,39 @@ describe('GrimmoryAdapter book metadata issues', () => {
         expect(issues[0]).toMatchObject({ matchScore: 70, hasIdentifier: false });
         expect(issues[1]!.matchScore).toBeUndefined();
         expect(seen.filter(k => k.startsWith('GET /api/v1/books/'))).toHaveLength(3);
+    });
+
+    it('does not list a book that has only a hardcoverBookId (or any other catalogue id) for missing ids', async () => {
+        const ids = ['hardcoverBookId', 'doubanId', 'lubimyczytacId', 'ranobedbId', 'audibleId', 'applebooksId'];
+        const { adapter } = serve(
+            ids.map((_, i) => bookRow(i + 1, { metadataMatchScore: 70 })),
+            Object.fromEntries(ids.map((key, i) => [i + 1, detail(i + 1, { [key]: 'x' })]))
+        );
+        expect((await adapter.listBookMetadataIssues(BOOK_MATCH_THRESHOLD)).issues).toEqual([]);
+    });
+
+    it('carries the reason on each row', async () => {
+        const { adapter } = serve(
+            [
+                bookRow(1, { isbn13: '9780000000001', metadataMatchScore: 30 }),
+                bookRow(2, { metadataMatchScore: 70 }),
+                bookRow(3, { metadataMatchScore: 20 })
+            ],
+            { 2: detail(2, {}), 3: detail(3, {}) }
+        );
+        const { issues } = await adapter.listBookMetadataIssues(BOOK_MATCH_THRESHOLD);
+        expect(issues.map(i => i.reason)).toEqual(['low match score (30)', 'no ISBN or catalogue id', 'low match score (20) and no ISBN or catalogue id']);
+    });
+
+    it('skips a book whose detail read fails and lists the rest', async () => {
+        const { adapter } = serve(
+            [bookRow(1, { metadataMatchScore: 70 }), bookRow(2, { metadataMatchScore: 70 }), bookRow(3, { isbn13: '9780000000003', metadataMatchScore: 10 })],
+            { 1: json({ message: 'gone' }, 404), 2: detail(2, {}) }
+        );
+        const result = await adapter.listBookMetadataIssues(BOOK_MATCH_THRESHOLD);
+        expect(result.issues.map(i => i.id)).toEqual(['2', '3']);
+        expect(result.skipped).toBe(1);
+        expect(result.scanned).toBe(3);
     });
 
     it('does not list a book with no score and an ISBN', async () => {
