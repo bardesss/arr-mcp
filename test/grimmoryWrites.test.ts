@@ -819,6 +819,13 @@ describe('update_media on a book', () => {
         expect(same.puts()).toEqual([]);
     });
 
+    it('refuses a title, author or series that is only spaces', async () => {
+        const { call } = editTool();
+        await expect(call({ service: 'grimmory', id: '58', title: '   ' })).rejects.toThrow(/blank/);
+        await expect(call({ service: 'grimmory', id: '58', authors: ['Example Author 1', ' '] })).rejects.toThrow(/blank/);
+        await expect(call({ service: 'grimmory', id: '58', series: '  ' })).rejects.toThrow(/blank/);
+    });
+
     it('refuses to lock and unlock the same field', async () => {
         const { call } = editTool();
         await expect(call({ service: 'grimmory', id: '58', lock_fields: ['title'], unlock_fields: ['title'] })).rejects.toThrow(/both/);

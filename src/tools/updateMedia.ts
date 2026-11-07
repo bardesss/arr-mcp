@@ -111,6 +111,11 @@ async function planBook(book: ServiceAdapter & BookMetadataCapable, id: string, 
     if (tags?.some(t => t.trim() === '')) {
         throw new Error('A tag cannot be blank. Pass [] to clear the categories.');
     }
+    if (title !== undefined && title.trim() === '') throw new Error('The title cannot be blank.');
+    if (authors?.some(a => a.trim() === '')) throw new Error('An author cannot be blank.');
+    if (series !== undefined && series !== '' && series.trim() === '') {
+        throw new Error('The series cannot be blank. Pass "" to clear it.');
+    }
 
     const state = await book.readBookMetadata(id);
     const wanted: BookFields = {
