@@ -118,6 +118,35 @@ describe('what the list form refuses', () => {
     });
 });
 
+// Not "Invalid input" at the service, which is all a union failing both
+// branches says.
+describe('a refusal names the field, in either form', () => {
+    const refusals = (services: unknown): string[] =>
+        (ConfigSchema.safeParse({ auth: AUTH, services }).error?.issues ?? []).map(i => `${i.path.join('.')}: ${i.message}`);
+    const block = (type: string) => {
+        const { name: _n, ...rest } = instanceOf(type, 'hd', 7878);
+        return rest;
+    };
+
+    it.each(MULTI_INSTANCE)('names the missing field in a single %s block', type => {
+        const { url: _u, ...noUrl } = block(type);
+        expect(refusals({ [type]: noUrl })).toEqual([`services.${type}.url: Invalid input: expected string, received undefined`]);
+    });
+
+    it.each(MULTI_INSTANCE)('names a wrong-typed field in a single %s block', type => {
+        expect(refusals({ [type]: { ...block(type), timeout_ms: 'fast' } })).toEqual([
+            `services.${type}.timeout_ms: Invalid input: expected number, received string`
+        ]);
+    });
+
+    it.each(MULTI_INSTANCE)('names the entry and the field in a %s list', type => {
+        const { url: _u, ...noUrl } = instanceOf(type, '4k', 7879);
+        expect(refusals({ [type]: [instanceOf(type, 'hd', 7878), noUrl] })).toEqual([
+            `services.${type}.1.url: Invalid input: expected string, received undefined`
+        ]);
+    });
+});
+
 describe('adapters', () => {
     it('builds one adapter per instance, each with a distinct id and a shared type', () => {
         const config = parse({ radarr: [entry('hd', 7878), entry('4k', 7879)] });

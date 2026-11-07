@@ -491,10 +491,10 @@ describe('lidarr', () => {
         });
 
         expect(result.success).toBe(false);
-        // The failure is the entry's missing name, not some other parse error.
-        const issues = JSON.stringify(result.error?.issues);
-        expect(issues).toMatch(/"path":\[0,"name"\]/);
-        expect(issues).toMatch(/"path":\[0,"name"\],"message":"Invalid input: expected string, received undefined"/);
+        // The failure is the entry's missing name, and the only one.
+        expect(result.error?.issues.map(i => [i.path.join('.'), i.message])).toEqual([
+            ['services.lidarr.0.name', 'Invalid input: expected string, received undefined']
+        ]);
     });
 });
 
