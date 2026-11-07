@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { ServiceError } from './errors.ts';
 import { fenceText } from './fence.ts';
 
@@ -304,6 +305,29 @@ class GrimmoryRejected extends Error {}
  * failures would count toward the same lockout. An expired token is replaced
  * by logging in again.
  */
+/**
+ * Lockout deadlines for Grimmory logins, shared by every session instance.
+ * The config page's Test button, the management API test and a config reload
+ * all build a fresh adapter, and each would otherwise get its own login
+ * attempt against a password Grimmory already refused. Keyed by origin,
+ * username and a hash of the password, so a changed password still gets its
+ * one attempt.
+ */
+const grimmoryLockouts = new Map<string, number>();
+
+/** Test-only: forget every Grimmory lockout. */
+export function resetGrimmoryLockouts(): void {
+    grimmoryLockouts.clear();
+}
+
+function grimmoryLockKey(url: string, username: string, password: string): string {
+    const origin = new URL(url).origin;
+    const digest = createHash('sha256').update(password).digest('hex');
+    return `${origin}
+${username}
+${digest}`;
+}
+
 export function grimmorySession(creds: {
     id: string;
     url: string;
@@ -316,11 +340,12 @@ export function grimmorySession(creds: {
     const doFetch = creds.fetchImpl ?? fetch;
     const now = creds.now ?? Date.now;
     let session: { token: string; validUntil: number } | undefined;
-    let lockedUntil = 0;
+    const lockKey = grimmoryLockKey(creds.url, creds.username, creds.password);
+    const lockedUntil = (): number => grimmoryLockouts.get(lockKey) ?? 0;
     let inFlight: Promise<{ token: string; validUntil: number }> | undefined;
 
     const locked = (): ServiceError => {
-        const at = new Date(lockedUntil);
+        const at = new Date(lockedUntil());
         const hhmm = `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
         return new ServiceError('AuthFailed', creds.id, 'login refused', {
             remedy: `Grimmory rejected the username or password. arr-mcp will not try again until ${hhmm}, so a wrong password cannot lock you out of Grimmory.`
@@ -334,7 +359,7 @@ export function grimmorySession(creds: {
             return { token: result.token, validUntil: started + (result.expiresS - GRIMMORY_EXPIRY_MARGIN_S) * 1000 };
         } catch (err) {
             if (err instanceof GrimmoryRejected) {
-                lockedUntil = now() + LOGIN_LOCKOUT_MS;
+                grimmoryLockouts.set(lockKey, now() + LOGIN_LOCKOUT_MS);
                 throw locked();
             }
             throw err;
@@ -349,7 +374,7 @@ export function grimmorySession(creds: {
         async recover(response) {
             // A 403 is a permission answer, not a stale token.
             if (response.status !== 401) return false;
-            if (inFlight === undefined && now() < lockedUntil) throw locked();
+            if (inFlight === undefined && now() < lockedUntil()) throw locked();
 
             inFlight ??= login().finally(() => {
                 inFlight = undefined;
@@ -366,6 +391,10 @@ async function grimmoryLogin(
 ): Promise<{ token: string; expiresS: number }> {
     const base = new URL(creds.url);
     const url = new URL(base.pathname.replace(/\/+$/, '') + GRIMMORY_LOGIN_PATH, base);
+    // fetch refuses a URL with credentials and its error would carry them.
+    // The bearer token owns the Authorization header, so proxy Basic auth is
+    // dropped here, as the url cannot carry it.
+    takeUserinfo(url);
 
     let response: Response;
     try {

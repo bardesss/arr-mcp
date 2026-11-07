@@ -155,7 +155,7 @@ export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, Sear
             const have = typeof current === 'string' ? parseVersion(current) : undefined;
             const newest = typeof latest === 'string' ? parseVersion(latest) : undefined;
             if (typeof current === 'string' && typeof latest === 'string' && have !== undefined && newest !== undefined && compareVersions(newest, have) > 0) {
-                out.push(check('update', 'notice', `Grimmory ${latest} is out; this is ${current}.`));
+                out.push(check('update', 'notice', `Grimmory ${newest.join('.')} is out; this is ${have.join('.')}.`));
             }
         }
         return out;
@@ -252,9 +252,9 @@ export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, Sear
         const files = [...(primary === undefined ? [] : [primary]), ...list(book.alternativeFormats)];
         const formats = files.map(f => {
             const sizeKb = num(f.fileSizeKb);
-            const format = str(f.bookType) ?? str(f.extension)?.toUpperCase() ?? 'UNKNOWN';
+            const format = fileType(f.bookType) ?? fileType(str(f.extension)?.toUpperCase()) ?? 'UNKNOWN';
             return {
-                format: format.length > 20 ? 'UNKNOWN' : format,
+                format,
                 fileName: this.#fence(str(f.fileName) ?? 'unnamed', 'file_name'),
                 ...(sizeKb === undefined ? {} : { sizeBytes: sizeKb * 1024 })
             };

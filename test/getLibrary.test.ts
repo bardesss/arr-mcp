@@ -1087,4 +1087,10 @@ describe('books from Grimmory', () => {
         expect((await buildGetLibrary(loader, { ...base, watched: false })).items.map(i => i.kind)).toEqual(['movie']);
         expect((await buildGetLibrary(loader, { ...base, presence: 'unknown' })).items).toEqual([]);
     });
+
+    it('without kind, monitored: false leaves books out', async () => {
+        const unmonitored = film({ acquisition: { service: 'radarr', monitored: false, hasFile: true } });
+        const loader = bookLoader([book(58)], [unmonitored]);
+        expect((await buildGetLibrary(loader, { ...base, monitored: false })).items.map(i => i.kind)).toEqual(['movie']);
+    });
 });

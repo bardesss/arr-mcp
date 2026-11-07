@@ -764,8 +764,15 @@ describe('the add dialog', () => {
         }
     });
 
+    it('the add dialog does not call the username optional', async () => {
+        await signIn();
+        const page = await (await call('/ui/config?tab=services')).text();
+        expect(page).not.toContain('Username (optional)');
+        expect(page).toContain('Grimmory needs one.');
+    });
+
     it('grimmory card asks for username and password, not a key', async () => {
-        await seed('  grimmory:\n    url: http://192.0.2.10:6060\n    username: reader\n    password: saved\n');
+        await seed('  grimmory:\n    url: http://192.0.2.10:6060\n    username: reader\n    password: s3cr3tpw\n');
         await signIn();
         const page = await (await call('/ui/config?tab=services')).text();
         const card = page.split('<details class="svc"').find(c => c.includes('192.0.2.10:6060'))?.split('</details>')[0] ?? '';

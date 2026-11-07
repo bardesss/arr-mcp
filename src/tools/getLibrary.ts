@@ -372,6 +372,8 @@ export async function buildGetLibrary(loader: LibraryLoader, opts: LibraryQuery)
         if (opts.kind !== undefined && item.kind !== opts.kind) return false;
         if (opts.year !== undefined && item.year !== opts.year) return false;
         if (genre !== undefined && !(item.genres ?? []).some(g => unfenced(g).toLowerCase() === genre)) return false;
+        // Books carry monitored: false by type, but nothing monitors them.
+        if (opts.monitored !== undefined && item.kind === 'book') return false;
         if (opts.monitored !== undefined && (item.acquisition?.monitored ?? false) !== opts.monitored) return false;
         /**
          * Strict, and deliberately **unlike** `monitored` directly above.

@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { GRIMMORY_LOGIN_PATH, LOGIN_LOCKOUT_MS, grimmorySession } from '../src/core/auth.ts';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { GRIMMORY_LOGIN_PATH, LOGIN_LOCKOUT_MS, grimmorySession, resetGrimmoryLockouts } from '../src/core/auth.ts';
 import { ServiceError } from '../src/core/errors.ts';
 
 interface Call {
@@ -55,6 +55,8 @@ async function rejection(p: Promise<unknown>): Promise<ServiceError> {
 }
 
 describe('grimmorySession', () => {
+    beforeEach(() => resetGrimmoryLockouts());
+
     it('does not log in before the first request', () => {
         const s = setup();
         expect(s.header()).toBeNull();
@@ -180,5 +182,61 @@ describe('grimmorySession', () => {
         const s = setup();
         await expect(s.auth.recover?.(new Response(null, { status: 403 }))).resolves.toBe(false);
         expect(s.calls).toHaveLength(0);
+    });
+
+    it('shares the lockout between separate session instances', async () => {
+        const first = setup({ replies: [unauthorized] });
+        await rejection(Promise.resolve(first.auth.recover?.(unauthorized())));
+        expect(first.calls).toHaveLength(1);
+
+        // A fresh instance, as the Test button or a config reload builds.
+        const second = setup({ replies: [unauthorized] });
+        second.advance(LOCKOUT_S - 1);
+        const err = await rejection(Promise.resolve(second.auth.recover?.(unauthorized())));
+        expect(err.kind).toBe('AuthFailed');
+        expect(err.remedy).toMatch(/username or password/);
+        expect(second.calls).toHaveLength(0);
+    });
+
+    it('lets a changed password have its own attempt', async () => {
+        const first = setup({ replies: [unauthorized] });
+        await rejection(Promise.resolve(first.auth.recover?.(unauthorized())));
+        const calls: string[] = [];
+        const other = grimmorySession({
+            id: 'grimmory',
+            url: 'http://h:6060',
+            username: 'u',
+            password: 'different',
+            timeoutMs: 1000,
+            fetchImpl: (async (url: string) => {
+                calls.push(url);
+                return new Response(JSON.stringify({ accessToken: 'X', expires: 7200 }), { status: 200 });
+            }) as unknown as typeof fetch,
+            now: () => 1_000_000
+        });
+        await expect(other.recover?.(unauthorized())).resolves.toBe(true);
+        expect(calls).toHaveLength(1);
+    });
+
+    it('never puts url userinfo into a request or an error', async () => {
+        const calls: string[] = [];
+        const strict = (async (url: string) => {
+            calls.push(url);
+            // What real fetch does with a url that carries credentials.
+            if (url.includes('@')) throw new TypeError(`Request cannot be constructed from a URL that includes credentials: ${url}`);
+            return new Response(JSON.stringify({ accessToken: 'X', expires: 7200 }), { status: 200 });
+        }) as unknown as typeof fetch;
+        const auth = grimmorySession({
+            id: 'grimmory',
+            url: 'http://proxyuser:s3kr1tproxy@h:6060/',
+            username: 'u',
+            password: 'p',
+            timeoutMs: 1000,
+            fetchImpl: strict,
+            now: () => 1_000_000
+        });
+        await expect(auth.recover?.(unauthorized())).resolves.toBe(true);
+        expect(calls).toEqual([`http://h:6060${GRIMMORY_LOGIN_PATH}`]);
+        for (const c of calls) expect(c).not.toContain('s3kr1tproxy');
     });
 });

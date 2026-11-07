@@ -6,7 +6,7 @@ const DIR = join(process.cwd(), 'test', 'fixtures', 'grimmory');
 const PATH_KEYS = new Set(['filePath', 'path', 'fileSubPath']);
 /** Row ids of Grimmory itself, not catalogue ids. */
 const STRUCTURAL_IDS = new Set(['id', 'bookId', 'libraryId', 'primaryFileId', 'libraryPathId', 'fileId']);
-const FORBIDDEN_KEYS =new Set(['email', 'accessToken', 'refreshToken']);
+const FORBIDDEN_KEYS = new Set(['email', 'accessToken', 'refreshToken']);
 
 /** Every `[key, value]` pair at every depth, with the object that held it. */
 function* walk(value: unknown, holder?: Record<string, unknown>, key?: string): Generator<{ key: string | undefined; value: unknown; holder?: Record<string, unknown> }> {

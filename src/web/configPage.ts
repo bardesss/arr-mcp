@@ -554,7 +554,8 @@ function addDialog(
                 : html`${field({
                       id: 'add.username',
                       name: 'username',
-                      label: 'Username (optional)',
+                      label: 'Username',
+                      note: 'Optional for Transmission, qBittorrent and NZBGet. Grimmory needs one.',
                       only: NO_API_KEY_IDS
                   })}
                   ${field({

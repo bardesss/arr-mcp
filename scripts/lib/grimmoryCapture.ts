@@ -5,8 +5,9 @@
  * A library is someone's reading history, so what names a book, an author, a
  * series, a library or a file on disk is replaced by a numbered stand-in, and
  * every other key keeps the shape the adapter reads. Catalogue ids, ISBNs,
- * ratings and counts become synthetic, since they resolve to the real book. A book's number is its id,
- * so the same book reads the same in the page, the search and the detail.
+ * ratings and counts become synthetic, since they resolve to the real book. A
+ * book's number is its id, so the same book reads the same in the page, the
+ * search and the detail.
  * Contact details and tokens are dropped outright.
  */
 import { isRow, type Row } from './redact.ts';
