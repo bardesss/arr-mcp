@@ -18,7 +18,7 @@ const read = (path: string): unknown => JSON.parse(readFileSync(join(ROOT, path)
 type Dependency = {
     /** OpenAPI path, when the service publishes a spec. */
     path?: string;
-    method?: 'get' | 'post';
+    method?: 'get' | 'post' | 'delete';
     fixture: string;
     /** Dotted paths the adapter reads. */
     fields: string[];
@@ -1055,7 +1055,43 @@ const CONTRACTS: Record<string, ServiceContract> = {
             { path: '/api/v1/bookdrop/notification', fixture: 'test/fixtures/grimmory/bookdrop-notification.json', fields: ['pendingCount'] },
             // `createdAt` is read here but not contracted: the captured Bookdrop was empty.
             { path: '/api/v1/bookdrop/files', fixture: 'test/fixtures/grimmory/bookdrop-files-pending.json', fields: ['content'] },
-            { path: '/api/v1/version', fixture: 'test/fixtures/grimmory/version.json', fields: ['current', 'latest'] }
+            { path: '/api/v1/version', fixture: 'test/fixtures/grimmory/version.json', fields: ['current', 'latest'] },
+            // Admin-only. `content.userId` is null in the capture and the adapter does not read it.
+            {
+                path: '/api/v1/audit-logs',
+                fixture: 'test/fixtures/grimmory/audit-logs.json',
+                fields: ['content', 'page.totalElements', 'page.totalPages', 'content.action', 'content.entityType', 'content.entityId', 'content.description', 'content.createdAt']
+            },
+            { path: '/api/v1/metadata/providers', fixture: 'test/fixtures/grimmory/metadata-providers.json', fields: ['name', 'enabled'] },
+            {
+                path: '/api/v1/app/books',
+                fixture: 'test/fixtures/grimmory/app-books-read.json',
+                fields: ['content.readStatus', 'content.libraryId', 'content.metadataMatchScore', 'content.isbn13', 'content.allMetadataLocked']
+            },
+            {
+                // `metadata.allMetadataLocked` is read too (absent counts as not locked), but the live book detail omits it; the spec declares it.
+                path: '/api/v1/books/{bookId}',
+                fixture: 'test/fixtures/grimmory/book-read.json',
+                fields: [
+                    'readStatus',
+                    'metadata.titleLocked',
+                    'metadata.authorsLocked',
+                    'metadata.seriesNameLocked',
+                    'metadata.seriesNumberLocked',
+                    'metadata.categoriesLocked'
+                ]
+            },
+            // Read-only server-side, but it fans out to external providers: never called by the integration run.
+            {
+                path: '/api/v1/books/{bookId}/metadata/prospective',
+                method: 'post',
+                fixture: 'test/fixtures/grimmory/metadata-prospective.json',
+                fields: ['title', 'authors', 'isbn13', 'provider']
+            },
+            // The two write responses below are hand-made mocks: no live book was deleted or changed.
+            { path: '/api/v1/books', method: 'delete', fixture: 'test/fixtures/grimmory/mock-books-delete.json', fields: ['deleted', 'failedFileDeletions'] },
+            { path: '/api/v1/books/status', method: 'post', fixture: 'test/fixtures/grimmory/mock-books-status.json', fields: ['bookId', 'readStatus'] },
+            { path: '/api/v1/bookdrop/files', fixture: 'test/fixtures/grimmory/mock-bookdrop-files-pending.json', fields: ['content.id', 'content.fileName', 'content.createdAt'] }
         ]
     }
 };
@@ -1091,6 +1127,59 @@ describe('adapter contracts', () => {
             }
         });
     }
+});
+
+/** The `application/json` request body schema of an operation, or undefined when the spec declares none. */
+function resolveRequestSchema(spec: unknown, path: string, method: string): unknown {
+    const doc = spec as Record<string, never>;
+    const operation = (doc.paths as Record<string, never> | undefined)?.[path]?.[method];
+    if (operation === undefined) return undefined;
+
+    const body = deref(doc, (operation as Record<string, never>).requestBody) as Record<string, never> | undefined;
+    const content = body?.content as Record<string, never> | undefined;
+    const media = content?.['application/json'] ?? Object.values(content ?? {})[0];
+    return (media as Record<string, never> | undefined)?.schema;
+}
+
+describe('grimmory request bodies', () => {
+    const spec = read('specs/grimmory.json');
+    const bodies: Array<[string, string, string[]]> = [
+        ['post', '/api/v1/books/{bookId}/metadata/prospective', ['bookId', 'providers', 'isbn', 'title', 'author']],
+        [
+            'put',
+            '/api/v1/books/{bookId}/metadata',
+            ['metadata', 'clearFlags', 'metadata.title', 'metadata.authors', 'metadata.seriesName', 'metadata.seriesNumber', 'metadata.categories', 'clearFlags.categories', 'clearFlags.seriesName']
+        ],
+        ['put', '/api/v1/books/metadata/toggle-field-locks', ['bookIds', 'fieldActions']],
+        ['post', '/api/v1/bookdrop/files/discard', ['selectAll', 'selectedIds', 'excludedIds']],
+        ['post', '/api/v1/books/status', ['bookIds', 'status']]
+    ];
+
+    for (const [method, path, fields] of bodies) {
+        it(`${method} ${path} still declares the body fields the adapter sends`, () => {
+            const schema = resolveRequestSchema(spec, path, method);
+            expect(schema, `no JSON request body for ${method} ${path}`).toBeDefined();
+            const missing = fields.filter(f => !specDeclaresField(spec, schema, f));
+            expect(missing, 'upstream renamed or removed a field we send').toEqual([]);
+        });
+    }
+
+    it('every Grimmory route the adapter writes to exists with that method', () => {
+        const doc = spec as { paths: Record<string, Record<string, unknown>> };
+        const routes: Array<[string, string]> = [
+            ['put', '/api/v1/libraries/{libraryId}/refresh'],
+            ['post', '/api/v1/bookdrop/rescan'],
+            ...bodies.map(([method, path]): [string, string] => [method, path])
+        ];
+        const missing = routes.filter(([method, path]) => doc.paths[path]?.[method] === undefined).map(([method, path]) => `${method} ${path}`);
+        expect(missing).toEqual([]);
+    });
+
+    it('the audit-log query takes action and from', () => {
+        const doc = spec as { paths: Record<string, Record<string, { parameters?: Array<{ name: string }> }>> };
+        const names = (doc.paths['/api/v1/audit-logs']?.get?.parameters ?? []).map(p => p.name);
+        expect(names).toEqual(expect.arrayContaining(['action', 'from']));
+    });
 });
 
 describe('fixtureHasField', () => {
