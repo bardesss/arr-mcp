@@ -37,7 +37,8 @@ test a branch, ask for a preview image (see
 [Adding a service adapter](#adding-a-service-adapter)).
 
 Adapters I would accept but will not build myself, because I don't run them:
-Emby, Deluge, Maintainerr ([#441](../../issues/441)), Sportarr
+Emby ([#500](../../issues/500)), Deluge ([#499](../../issues/499)),
+Maintainerr ([#441](../../issues/441)), Sportarr
 ([#431](../../issues/431)) and Listenarr ([#432](../../issues/432)). Listenarr
 also needs an argument for a stability waiver, since every release so far is
 beta or canary.
@@ -304,7 +305,7 @@ small, shaped change, and a service in no slot at all is a different product.
 
 **Downloaded — where a grab actually lands**
 
-- **Deluge.** The last mainstream client this server cannot talk to. Same slot
+- **Deluge** ([#499](../../issues/499)). The last mainstream client this server cannot talk to. Same slot
   as SABnzbd, NZBGet, Transmission and qBittorrent, documented JSON-RPC, no new
   tool.
   Its one wrinkle is that the Web UI talks to a separate daemon, so a reachable
@@ -313,7 +314,7 @@ small, shaped change, and a service in no slot at all is a different product.
 
 **Imported and played — the library a person opens**
 
-- **Emby.** Jellyfin's ancestor, near-identical API, and therefore the cheapest
+- **Emby** ([#500](../../issues/500)). Jellyfin's ancestor, near-identical API, and therefore the cheapest
   adapter on this list — plausibly a variant of the Jellyfin one rather than a
   new file.
 - **Plex — more testers.** The adapter has shipped and has been verified against a live Plex Media
