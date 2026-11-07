@@ -249,6 +249,18 @@ fenced as data rather than instruction. [Security](docs/security.md) walks all
 of it against the OWASP MCP Top 10 — and is equally explicit about what it does
 not solve. Found something? [SECURITY.md](SECURITY.md).
 
+## Contributors
+
+Everyone who has had a pull request merged into arr-mcp. The grid updates on its
+own as new contributors land.
+
+[![Contributors](https://contrib.rocks/image?repo=Bardesss/arr-mcp)](https://github.com/Bardesss/arr-mcp/graphs/contributors)
+
+Testing counts as much as code here, because I cannot test a service I do not
+run. Plex is verified because of [@Svnow132](https://github.com/Svnow132)
+([#180](../../issues/180)) and [@davidgibbons](https://github.com/davidgibbons)
+([#312](../../issues/312)).
+
 ## Thanks
 
 arr-mcp is glue; the hard parts belong to other people. Nearly every service it
