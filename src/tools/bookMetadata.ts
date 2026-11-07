@@ -49,8 +49,10 @@ const sameText = (a: string | undefined, b: string | undefined): boolean =>
  * The candidate a lookup should take, or undefined when none is the book.
  *
  * A candidate qualifies on its ISBN (13 or 10) equalling the searched one, or
- * on its title equalling the book's. Among qualifiers an ISBN match scores 4,
- * a title match 2 and a first-author match 1; a tie keeps stream order.
+ * on both its title and its first author equalling the book's. A title alone
+ * never qualifies: another author's book of the same name would replace this
+ * one's identifiers. Among qualifiers an ISBN match scores 4, a title match 2
+ * and a first-author match 1; a tie keeps stream order.
  */
 export function bestCandidate(candidates: readonly BookCandidate[], book: BookFields, search: BookSearch): BookCandidate | undefined {
     const isbn = search.isbn === undefined ? undefined : normaliseIsbn(search.isbn);
@@ -61,8 +63,9 @@ export function bestCandidate(candidates: readonly BookCandidate[], book: BookFi
         const isbnMatch =
             isbn !== undefined && [fields.isbn13, fields.isbn10].some(v => v !== undefined && normaliseIsbn(v) === isbn);
         const titleMatch = sameText(fields.title, book.title);
-        if (!isbnMatch && !titleMatch) continue;
-        const score = (isbnMatch ? 4 : 0) + (titleMatch ? 2 : 0) + (sameText(fields.authors?.[0], book.authors?.[0]) ? 1 : 0);
+        const authorMatch = sameText(fields.authors?.[0], book.authors?.[0]);
+        if (!isbnMatch && !(titleMatch && authorMatch)) continue;
+        const score = (isbnMatch ? 4 : 0) + (titleMatch ? 2 : 0) + (authorMatch ? 1 : 0);
         if (score > bestScore) {
             best = candidate;
             bestScore = score;

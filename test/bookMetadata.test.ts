@@ -42,10 +42,22 @@ describe('bestCandidate', () => {
         expect(bestCandidate([ten], {}, { isbn: '014044913X' })).toBe(ten);
     });
 
-    it('takes a title match when no ISBN matches', () => {
-        const other = { provider: 'Google', fields: { title: 'Iliad', isbn13: '9780000000001' } };
-        const title = { provider: 'GoodReads', fields: { title: 'the odyssey!', isbn13: '9780000000002' } };
+    it('takes a title and first-author match when no ISBN matches', () => {
+        const other = { provider: 'Google', fields: { title: 'Iliad', authors: ['Homer'], isbn13: '9780000000001' } };
+        const title = { provider: 'GoodReads', fields: { title: 'the odyssey!', authors: ['homer'], isbn13: '9780000000002' } };
         expect(bestCandidate([other, title], book, { isbn: '9780140449136' })).toBe(title);
+    });
+
+    it('never takes a title match by another author, or with no author', () => {
+        const otherAuthor = { provider: 'Google', fields: { title: 'The Odyssey', authors: ['Someone Else'] } };
+        const noAuthor = { provider: 'GoodReads', fields: { title: 'The Odyssey' } };
+        expect(bestCandidate([otherAuthor, noAuthor], book, {})).toBeUndefined();
+        expect(bestCandidate([otherAuthor], book, { isbn: '9780140449136' })).toBeUndefined();
+    });
+
+    it('takes no title match for a book with no author', () => {
+        const title = { provider: 'Google', fields: { title: 'The Odyssey', authors: ['Homer'] } };
+        expect(bestCandidate([title], { title: 'The Odyssey' }, {})).toBeUndefined();
     });
 
     it('returns undefined when nothing qualifies', () => {
