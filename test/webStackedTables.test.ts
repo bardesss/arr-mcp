@@ -111,7 +111,9 @@ describe('what a person reads', () => {
     });
 
     it('still escapes what the fence was holding', () => {
-        const page = dashboard([{ service: 'dispatcharr', source: 'epg', type: 'error', message: `EPG source ${fenced} failed` }]);
+        const source = fenceText('URL <Fetching>', { service: 'sabnzbd', field: 'origin' });
+        const page = dashboard([{ service: 'dispatcharr', source, type: 'error', message: `EPG source ${fenced} failed` }]);
+        expect(page).toContain('URL &lt;Fetching&gt;');
         expect(page).toContain('EPG source Line &lt;Queen&gt; failed');
         expect(page).not.toContain('untrusted');
     });

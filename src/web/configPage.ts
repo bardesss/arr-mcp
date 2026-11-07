@@ -10,6 +10,7 @@ import {
     type Theme
 } from '../config/schema.ts';
 import type { StoredManagementKey } from '../core/managementKey.ts';
+import { unfence } from '../core/fence.ts';
 import { fingerprint, isExpired, type StoredToken } from '../core/mcpTokens.ts';
 import { WEBHOOK_SERVICES, WEBHOOK_USERNAME } from '../services/arrWebhook.ts';
 import type { ConnectionDiagnosis } from '../services/types.ts';
@@ -215,7 +216,7 @@ function testResult(d: ConnectionDiagnosis): SafeHtml {
     }
 
     return html`<div class="msg err" style="margin:.75rem 0 0">
-        ${d.error?.detail ?? 'Unreachable.'}${d.error?.remedy === undefined ? raw('') : html`\n${d.error.remedy}`}
+        ${d.error === undefined ? 'Unreachable.' : unfence(d.error.detail)}${d.error?.remedy === undefined ? raw('') : html`\n${unfence(d.error.remedy)}`}
     </div>`;
 }
 
