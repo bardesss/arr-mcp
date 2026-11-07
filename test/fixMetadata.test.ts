@@ -176,6 +176,22 @@ describe('fix_metadata', () => {
         expect(h.requested).toEqual([]);
     });
 
+    it('fix_metadata refuses a Grimmory book matched by title, before any request', async () => {
+        const book = {
+            kind: 'book',
+            title: '<<untrusted:grimmory.title>>Example Book 58 by Example Author 1<</untrusted>>',
+            ids: {},
+            acquisition: { service: 'grimmory', id: '58', monitored: false, hasFile: true },
+            presence: 'unknown'
+        } as MergedItem;
+        const h = harness({ item: book });
+        const err = (await h.call({ query: 'Example Book 58' }).catch((e: unknown) => e)) as Error;
+        expect(err.message).toMatch(/Grimmory book/);
+        expect(err.message).toContain('get_media_details');
+        expect(h.wrote).toEqual([]);
+        expect(h.requested.filter(r => r !== 'GET /Users')).toEqual([]);
+    });
+
     it('sends a lone server that could not be read to stack_health, not to default_user', async () => {
         const h = harness({ item: seriesItem({ playback: { user: 'Sam' } }), degraded: ['jellyfin'] });
 

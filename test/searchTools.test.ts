@@ -554,6 +554,43 @@ describe('get_media_details', () => {
         expect(result).toMatchObject({ title: RESOLVED.title, presence: 'arr_only' });
     });
 
+    it('never answers a title query with a Grimmory book, and points a book-only match at its id', async () => {
+        const book = (title: string) => ({
+            kind: 'book' as const,
+            title: `<<untrusted:grimmory.title>>${title}<</untrusted>>`,
+            ids: {},
+            acquisition: { service: 'grimmory', id: '58', monitored: false, hasFile: true }
+        });
+        const withBooks = (books: unknown[]) =>
+            new LibraryLoader(
+                [
+                    {
+                        id: 'radarr',
+                        testConnection: async () => ({ ok: true, service: 'radarr', latency_ms: 1 }),
+                        getVersion: async () => '1.0.0',
+                        listLibrary: async () => [RESOLVED]
+                    } as unknown as ServiceAdapter,
+                    {
+                        id: 'grimmory',
+                        type: 'grimmory',
+                        testConnection: async () => ({ ok: true, service: 'grimmory', latency_ms: 1 }),
+                        getVersion: async () => '3.5.0',
+                        listLibrary: async () => books
+                    } as unknown as ServiceAdapter
+                ],
+                undefined
+            );
+
+        // A book named like the film, listed first: the film still answers.
+        const film = await resolveMediaDetails([], withBooks([book('The Matrix')]), { ...query, query: 'the matrix' });
+        expect(film).toMatchObject({ kind: 'movie', ids: { tmdb: 603 } });
+
+        const only = resolveMediaDetails([], withBooks([book('Example Book 58 by Example Author 1')]), { ...query, query: 'Example Book 58' });
+        await expect(only).rejects.toThrow(/Grimmory book/);
+        await expect(only).rejects.toThrow(/service: "grimmory" and id: "58"/);
+        await expect(only).rejects.toThrow(/search_media/);
+    });
+
     it('matches through a leading article the caller omitted', async () => {
         const result = await resolveMediaDetails([], loader(), { ...query, query: 'the matrix' });
         expect(result).toMatchObject({ ids: { tmdb: 603 } });

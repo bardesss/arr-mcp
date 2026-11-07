@@ -3,7 +3,7 @@ import { ServiceError } from '../../core/errors.ts';
 import { gather, type Gathered } from '../../core/gather.ts';
 import { logger } from '../../core/logger.ts';
 import { rankTitle, RANK_NONE } from '../../core/titleMatch.ts';
-import { isFilmOrSeries, type ExternalIds, type LibraryKind, type MergedItem } from '../../core/resolver.ts';
+import { isArrItem, isFilmOrSeries, type ArrItem, type ExternalIds, type LibraryKind } from '../../core/resolver.ts';
 import {
     hasCleanup,
     hasCleanuparr,
@@ -98,7 +98,7 @@ async function resolveItem(
     target: DiagnoseTarget,
     degraded: string[],
     libraryDegraded: string[]
-): Promise<MergedItem | undefined> {
+): Promise<ArrItem | undefined> {
     // the gate lives in the loader's identity resolver, and a refusal
     // propagates out of diagnose rather than becoming a degraded stage — this
     // call is deliberately not wrapped in `probe`.
@@ -163,7 +163,7 @@ async function resolveItem(
         const joined = snapshot.index.find(details.ids, searchKind);
         // An unknown kind scans every keyspace, and music is not what a media
         // server's `item` was asked about; a known `artist` only finds artists.
-        if (joined !== undefined && (searchKind === 'artist' || isFilmOrSeries(joined))) return joined;
+        if (joined !== undefined && isArrItem(joined) && (searchKind === 'artist' || isFilmOrSeries(joined))) return joined;
 
         // The id was valid and the index does not contain it — a real state,
         // not an error: the service holding it may be the one that failed to
@@ -212,8 +212,12 @@ async function resolveItem(
     // Only among the hits that rank best, though: a film that merely contains
     // the name must not outrank the artist who is exactly it.
     const query = target.query;
-    const hits = snapshot.index.search(query);
-    const rankOf = (h: MergedItem): number => rankTitle(h.title, query);
+    // Books never enter the chain: none is requested, downloaded or scanned by
+    // this stack. Dropped before ranking, so a book named like the film being
+    // asked about cannot stand in for it, and a film not in the library yet
+    // still reaches the lookup step rather than resolving to the book.
+    const hits = snapshot.index.search(query).filter(isArrItem);
+    const rankOf = (h: ArrItem): number => rankTitle(h.title, query);
     const best = hits.reduce((lowest, h) => Math.min(lowest, rankOf(h)), RANK_NONE);
     const top = hits.filter(h => rankOf(h) === best);
     // Then one Lidarr knows: a server-only artist with no MusicBrainz id can rank
@@ -299,7 +303,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
     // Lidarr cannot leave its queue "only partially known"; an artist is read
     // against Lidarr's alone, and `queueRowsFor` counts a client row for it only
     // through a Lidarr row's download id, so a film's grab is never its own.
-    const queueKinds: readonly (LibraryKind | 'book')[] = isArtist ? ['artist'] : ['movie', 'series'];
+    const queueKinds: readonly LibraryKind[] = isArtist ? ['artist'] : ['movie', 'series'];
     const queueAdapters = deps.adapters
         .filter(hasQueue)
         .filter(a => a.queueKind === undefined || queueKinds.includes(a.queueKind));

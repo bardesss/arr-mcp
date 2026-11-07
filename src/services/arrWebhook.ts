@@ -1,6 +1,6 @@
 import type { ServiceId } from '../config/schema.ts';
 import { fenceText } from '../core/fence.ts';
-import type { LibraryKind } from '../core/resolver.ts';
+import type { ArrKind } from '../core/resolver.ts';
 import type { WebhookEntry } from '../core/webhookEvents.ts';
 import type { HistoryEventType } from './types.ts';
 
@@ -9,7 +9,7 @@ import type { HistoryEventType } from './types.ts';
  * a 404: a shape nobody has seen would be stored as guesses. Whisparr is also out
  * because titles are stored, and on Whisparr the titles are the sensitive part.
  */
-export const WEBHOOK_SERVICES: Partial<Record<ServiceId, LibraryKind>> = { radarr: 'movie', sonarr: 'series' };
+export const WEBHOOK_SERVICES: Partial<Record<ServiceId, ArrKind>> = { radarr: 'movie', sonarr: 'series' };
 
 /** What the config page tells people to type. Any username is accepted. */
 export const WEBHOOK_USERNAME = 'arr-mcp';
@@ -69,7 +69,7 @@ function reasonOf(body: Row): string | undefined {
  * `eventType`. `kind` decides whether the title is under `movie` or `series`,
  * because an instance's type is known and the payload's claim need not be trusted.
  */
-export function parseArrWebhook(instance: string, kind: LibraryKind, body: unknown, receivedAt: string): WebhookEntry | undefined {
+export function parseArrWebhook(instance: string, kind: ArrKind, body: unknown, receivedAt: string): WebhookEntry | undefined {
     const payload = rowOf(body);
     const eventType = payload.eventType;
     if (typeof eventType !== 'string' || !EVENT_NAME.test(eventType) || eventType === 'Test') return undefined;

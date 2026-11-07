@@ -174,6 +174,7 @@ function rejectImpossibleFilters(opts: LibraryQuery): void {
         );
     }
     rejectFilmFiltersOnMusic(opts);
+    rejectFilmFiltersOnBooks(opts);
 }
 
 /**
@@ -207,6 +208,40 @@ function rejectFilmFiltersOnMusic(opts: LibraryQuery): void {
         );
     }
 }
+
+/**
+ * The same refusal for books, asked only when the caller named `kind: "book"`.
+ *
+ * Unlike an artist, a book also refuses `presence`: no media server reads
+ * books, so every book reads `unknown` and the filter could only ever answer
+ * all of them or none. Without a kind, all of these drop books through the
+ * normal path in `buildGetLibrary`.
+ */
+function rejectFilmFiltersOnBooks(opts: LibraryQuery): void {
+    if (opts.kind !== 'book') return;
+
+    if (
+        opts.quality !== undefined ||
+        opts.rating_source !== undefined ||
+        opts.min_rating !== undefined ||
+        opts.sort === 'rating' ||
+        opts.watched !== undefined ||
+        opts.watched_by !== undefined ||
+        opts.presence !== undefined
+    ) {
+        throw new Error(
+            'A Grimmory book carries no rating, no watch state and no media-server presence, and its file format is not a film quality. Drop quality, min_rating, rating_source, sort: "rating", watched, watched_by and presence.'
+        );
+    }
+}
+
+/** A book's size, small enough that a whole-megabyte figure would read as nothing. */
+const bookSize = (bytes: number): string =>
+    bytes >= 1024 ** 3
+        ? `${(bytes / 1024 ** 3).toFixed(1)} GB`
+        : bytes >= 1024 ** 2
+          ? `${(bytes / 1024 ** 2).toFixed(1)} MB`
+          : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 
 /**
  * Applied **before** `applyLimit` — ordering after truncation is the same bug
@@ -312,6 +347,12 @@ export function libraryLine(item: MergedItem): string {
     }
     if (item.acquisition?.hasFile === false) facts.push('no file');
     if (item.playback?.watched === true) facts.push('watched');
+    // A book's format and size are what tell two copies of it apart. Never its
+    // `monitored`, which is always false: Grimmory has no monitoring.
+    if (item.kind === 'book') {
+        if (item.acquisition?.quality !== undefined) facts.push(item.acquisition.quality);
+        if (item.acquisition?.sizeBytes !== undefined) facts.push(bookSize(item.acquisition.sizeBytes));
+    }
 
     if (item.albumCount !== undefined) facts.push(`${item.albumCount} albums`);
     return `${item.title}${item.year === undefined ? '' : ` (${item.year})`} — ${facts.join(', ')}`;
@@ -354,9 +395,13 @@ export async function buildGetLibrary(loader: LibraryLoader, opts: LibraryQuery)
         // 1,600 rows of the whole music collection. Left out, as they are for
         // rating and quality. With `kind: "artist"` named, rejecting the filter
         // says so instead; this is the unnamed case.
-        if ((opts.watched !== undefined || opts.watched_by !== undefined) && item.kind === 'artist') return false;
+        //
+        // A book has no watch state either, and no presence: every book reads
+        // `unknown`, so `presence: "unknown"` would otherwise answer with the
+        // whole book library as if a media server were down.
+        if ((opts.watched !== undefined || opts.watched_by !== undefined) && (item.kind === 'artist' || item.kind === 'book')) return false;
         if (opts.watched !== undefined && (item.playback?.watched ?? false) !== opts.watched) return false;
-        if (opts.presence !== undefined && item.presence !== opts.presence) return false;
+        if (opts.presence !== undefined && (item.kind === 'book' || item.presence !== opts.presence)) return false;
         if (opts.missing_from !== undefined && item.media_servers?.[opts.missing_from]?.present !== false) return false;
         if (quality !== undefined) {
             // Series are excluded rather than compared: they have no
@@ -435,7 +480,7 @@ export function registerGetLibrary(server: McpServer, loader: LibraryLoader, med
             title: 'Library',
             annotations: READ_ONLY,
             description:
-                'Your library, joined across Radarr, Sonarr, Whisparr, Lidarr and your media server on shared external ids. A Lidarr artist is its own kind `artist`: it carries the MusicBrainz artist id, `albumCount`, Lidarr’s own status and quality profile, and file state. It joins to the media server’s music read on that id, so `presence` is a real answer for an artist. `monitored` on an artist is Lidarr’s **artist-level** flag and it is not the album flag: an artist can read monitored while an album under it is unmonitored, so for what is actually pending use `set_monitoring` with `level: "album"`. The albums are one call down: `get_media_details` with `service: "lidarr"`, the artist id from `acquisition.id` and `detail: "full"` returns them, each with the album id that `level: "album"` takes. No library row carries an album id. `presence` is what no single service can tell you — but only when the absent half’s service actually answered: `arr_only` with a file means the media server *was reachable and* cannot see a file the *arr believes is on disk (a likely broken import); `jellyfin_only` means the media server has it and no *arr manages it, read the same way — it assumes Radarr/Sonarr answered too, and (unlike `arr_only`) is not yet hedged against their own outage. (The value is spelled `jellyfin_only` regardless of which media server is configured — it is a frozen output contract, not a claim about which one answered.) If the media server is degraded, an item Radarr/Sonarr manages reports `unknown` instead of `arr_only`, and the top-level `degraded` list names it. If no media server is configured at all, `unknown` fires the same way but `degraded` stays empty — there is nothing to name as degraded — and the top-level `note` says so; report that reason rather than describing the library as unwatched. `has_file: false` with `monitored: true` is "what am I still waiting for" — for an artist, `has_file` means any track of any of its albums is on disk, so an artist with one track imported reads as present. Three limits: `quality` applies to films only (a series’ quality is per-episode, and an artist has none), an artist carries no rating so `min_rating`, `rating_source` and `sort: "rating"` leave music out, and `watched` and `watched_by` leave music out too, because no music watch state is read — naming those filters with `kind: "artist"` is a stated refusal rather than an empty list. A series carries Sonarr’s one flat TVDB rating plus an IMDb rating **only when the IMDb dataset is enabled** — nothing else in this stack has a series’ IMDb number, so with the dataset off `rating_source: "imdb"` on a series matches nothing. `rating_source` still defaults to `tvdb` for a series, so ask for `imdb` explicitly. A rating filter also reports how much of the library that source actually covers; if that count is zero because the dataset is off or still ingesting, `ratingCoverage.note` says so — report that reason rather than telling the user their library is unrated or that the question cannot be answered. A series at `detail: "full"` also carries `seasons`: per season, how many episodes you have watched (`watched`), how many are on disk (`onDisk`), how many have aired (`aired`), and how many exist in total (`total`, which is TVDB\'s count via Sonarr). `complete` is true only when every episode of the season has been watched — and is **absent, not false**, when either half is unknown: a series no *arr manages has no `total`, and one the media server has never seen has no `watched`. Season 0 is specials and is reported like any other season. `seasons` is omitted below `detail: "full"`. Each season row also carries `monitored`, Sonarr’s own per-season flag — the same field `get_media_details` reports — absent rather than false when no Sonarr manages the series.' +
+                'Your library, joined across Radarr, Sonarr, Whisparr, Lidarr and your media server on shared external ids. A Lidarr artist is its own kind `artist`: it carries the MusicBrainz artist id, `albumCount`, Lidarr’s own status and quality profile, and file state. It joins to the media server’s music read on that id, so `presence` is a real answer for an artist. `monitored` on an artist is Lidarr’s **artist-level** flag and it is not the album flag: an artist can read monitored while an album under it is unmonitored, so for what is actually pending use `set_monitoring` with `level: "album"`. The albums are one call down: `get_media_details` with `service: "lidarr"`, the artist id from `acquisition.id` and `detail: "full"` returns them, each with the album id that `level: "album"` takes. No library row carries an album id. A Grimmory book is its own kind `book`, one row per book: `acquisition.quality` is its file format, it has no rating, watch state or `monitored` of its own, and its `presence` is always `unknown` because no media server reads books. `presence` is what no single service can tell you — but only when the absent half’s service actually answered: `arr_only` with a file means the media server *was reachable and* cannot see a file the *arr believes is on disk (a likely broken import); `jellyfin_only` means the media server has it and no *arr manages it, read the same way — it assumes Radarr/Sonarr answered too, and (unlike `arr_only`) is not yet hedged against their own outage. (The value is spelled `jellyfin_only` regardless of which media server is configured — it is a frozen output contract, not a claim about which one answered.) If the media server is degraded, an item Radarr/Sonarr manages reports `unknown` instead of `arr_only`, and the top-level `degraded` list names it. If no media server is configured at all, `unknown` fires the same way but `degraded` stays empty — there is nothing to name as degraded — and the top-level `note` says so; report that reason rather than describing the library as unwatched. `has_file: false` with `monitored: true` is "what am I still waiting for" — for an artist, `has_file` means any track of any of its albums is on disk, so an artist with one track imported reads as present. Three limits: `quality` applies to films only (a series’ quality is per-episode, and an artist has none), an artist carries no rating so `min_rating`, `rating_source` and `sort: "rating"` leave music out, and `watched` and `watched_by` leave music out too, because no music watch state is read — naming those filters with `kind: "artist"` is a stated refusal rather than an empty list. A series carries Sonarr’s one flat TVDB rating plus an IMDb rating **only when the IMDb dataset is enabled** — nothing else in this stack has a series’ IMDb number, so with the dataset off `rating_source: "imdb"` on a series matches nothing. `rating_source` still defaults to `tvdb` for a series, so ask for `imdb` explicitly. A rating filter also reports how much of the library that source actually covers; if that count is zero because the dataset is off or still ingesting, `ratingCoverage.note` says so — report that reason rather than telling the user their library is unrated or that the question cannot be answered. A series at `detail: "full"` also carries `seasons`: per season, how many episodes you have watched (`watched`), how many are on disk (`onDisk`), how many have aired (`aired`), and how many exist in total (`total`, which is TVDB\'s count via Sonarr). `complete` is true only when every episode of the season has been watched — and is **absent, not false**, when either half is unknown: a series no *arr manages has no `total`, and one the media server has never seen has no `watched`. Season 0 is specials and is reported like any other season. `seasons` is omitted below `detail: "full"`. Each season row also carries `monitored`, Sonarr’s own per-season flag — the same field `get_media_details` reports — absent rather than false when no Sonarr manages the series.' +
                 withBoth(
                     mediaServerIds,
                     'With two media servers, `presence`, `playback` and `seasons` describe the primary, and `media_servers` says per server whether it has the item and under which `itemId`; a server missing from that map was not read. The non-primary server is matched on tmdb, tvdb or imdb ids, so an item it holds without any reads `present: false`. Items only the non-primary server has do not appear here; search_media finds them.'
@@ -450,7 +495,7 @@ export function registerGetLibrary(server: McpServer, loader: LibraryLoader, med
                     )
             }),
             inputSchema: toolInput({
-                kind: z.enum(['movie', 'series', 'artist']).optional().describe('Films, series, or Lidarr artists. Omit for all three.'),
+                kind: z.enum(['movie', 'series', 'artist', 'book']).optional().describe('Films, series, Lidarr artists or Grimmory books. Omit for all.'),
                 year: z.number().int().optional(),
                 genre: z.string().min(1).optional().describe('Matched case-insensitively against the *arr genres.'),
                 monitored: z.boolean().optional(),

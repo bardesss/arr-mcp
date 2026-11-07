@@ -809,13 +809,21 @@ describe('diagnose', () => {
         });
 
         it('is not matched by a title', async () => {
-            // Diagnose by title reads the film, series and artist index only; Grimmory
-            // has no listLibrary, so a book's title resolves to nothing.
-            seen.length = 0;
-            const adapters = [stub('radarr', { listLibrary: async () => [FILM] }), grimmory()];
-            const d = await buildDiagnose({ adapters, library: new LibraryLoader(adapters, undefined) }, { query: 'Example Book 58' });
+            // The book is in the index: Grimmory lists it for get_library. Diagnose
+            // by title reads the film, series and artist rows only, so it still
+            // resolves to nothing rather than to the book.
+            const BOOK: IndexInput = {
+                kind: 'book',
+                title: '<<untrusted:grimmory.title>>Example Book 58 by Example Author 1<</untrusted>>',
+                ids: {},
+                acquisition: { service: 'grimmory', id: '58', monitored: false, hasFile: true, quality: 'EPUB' }
+            };
+            const adapters = [stub('radarr', { listLibrary: async () => [FILM] }), stub('grimmory', { listLibrary: async () => [BOOK] })];
+            const library = new LibraryLoader(adapters, undefined);
+            expect((await library.load()).index.search('Example Book 58').map(i => i.kind)).toEqual(['book']);
+
+            const d = await buildDiagnose({ adapters, library }, { query: 'Example Book 58' });
             expect(d.resolved).toBeUndefined();
-            expect(seen).toEqual([]);
         });
     });
 });

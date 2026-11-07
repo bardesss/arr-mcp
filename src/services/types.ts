@@ -680,10 +680,10 @@ export interface QueueCapable {
      * What the queue's rows are downloads of, set by the *arrs. Absent on a
      * download client, whose rows can be anything. Lets a caller that only
      * wants films and series leave Lidarr's queue out without naming it.
-     * `book` is Shelfmark's: books are in no library this server indexes, so it
-     * is not a `LibraryKind`.
+     * `book` is Shelfmark's: what it downloads are books, the kind Grimmory's
+     * library rows carry.
      */
-    readonly queueKind?: LibraryKind | 'book';
+    readonly queueKind?: LibraryKind;
 }
 
 export const hasQueue = (a: ServiceAdapter): a is ServiceAdapter & QueueCapable =>

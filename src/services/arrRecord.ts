@@ -1,4 +1,4 @@
-import type { LibraryKind } from '../core/resolver.ts';
+import type { ArrKind } from '../core/resolver.ts';
 
 /**
  * What Radarr, Sonarr and Lidarr rows share, read the same way wherever they
@@ -10,20 +10,20 @@ export const MEDIA_ID_FIELD = {
     movie: 'movieId',
     series: 'seriesId',
     artist: 'artistId'
-} as const satisfies Record<LibraryKind, string>;
+} as const satisfies Record<ArrKind, string>;
 
-type MediaIdField = (typeof MEDIA_ID_FIELD)[LibraryKind];
+type MediaIdField = (typeof MEDIA_ID_FIELD)[ArrKind];
 
 /**
  * The row's media id, or `undefined` when it has none. `null` reads as none
  * too: the generated spec types these ids as `number | null`, so a build that
  * serialises the null instead of omitting the key must read the same.
  */
-export const mediaIdOf = (record: Partial<Record<MediaIdField, number | null>>, kind: LibraryKind): number | undefined =>
+export const mediaIdOf = (record: Partial<Record<MediaIdField, number | null>>, kind: ArrKind): number | undefined =>
     record[MEDIA_ID_FIELD[kind]] ?? undefined;
 
 /** The filter for one item's rows: `movieIds`, `seriesIds` or `artistIds`. */
-export const mediaIdsParam = (kind: LibraryKind): string => `${MEDIA_ID_FIELD[kind]}s`;
+export const mediaIdsParam = (kind: ArrKind): string => `${MEDIA_ID_FIELD[kind]}s`;
 
 /**
  * Lidarr 3.1.6 names the protocol by its class, `UsenetDownloadProtocol` or

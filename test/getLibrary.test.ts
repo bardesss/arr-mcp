@@ -3,7 +3,8 @@ import { LibraryIndex, type IndexInput, type MergedItem } from '../src/core/reso
 import { IdentityResolver } from '../src/core/identity.ts';
 import { ImdbDataset } from '../src/metadata/imdbDataset.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
-import { buildGetLibrary } from '../src/tools/getLibrary.ts';
+import { buildGetLibrary, libraryLine } from '../src/tools/getLibrary.ts';
+import { fenceText } from '../src/core/fence.ts';
 import { PlexAdapter } from '../src/services/plex.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
 import { repeat } from './helpers/bigFixture.ts';
@@ -977,5 +978,111 @@ describe('music from Lidarr', () => {
         const result = await buildGetLibrary(musicLoader([film(), artist()]), { ...base, watched_by: 'Someone' });
 
         expect(result.items.map(i => i.kind)).toEqual(['movie']);
+    });
+});
+
+describe('books from Grimmory', () => {
+    const grimmoryStub = (items: IndexInput[]): ServiceAdapter =>
+        ({
+            id: 'grimmory',
+            type: 'grimmory',
+            testConnection: async () => ({ ok: true, service: 'grimmory', latency_ms: 1 }),
+            getVersion: async () => '3.5.0',
+            listLibrary: async () => items
+        }) as unknown as ServiceAdapter;
+    const book = (id: number, over: Partial<NonNullable<IndexInput['acquisition']>> = {}): IndexInput => ({
+        kind: 'book',
+        title: fenceText(`Example Book ${id} by Example Author 1`, { service: 'grimmory', field: 'title' }),
+        ids: {},
+        acquisition: {
+            service: 'grimmory',
+            id: String(id),
+            monitored: false,
+            hasFile: true,
+            quality: 'EPUB',
+            sizeBytes: 2048 * 1024,
+            addedAt: '2026-11-06T12:47:31Z',
+            ...over
+        }
+    });
+    const bookLoader = (books: IndexInput[], films: IndexInput[] = [film()]) =>
+        new LibraryLoader([stub('radarr', films), grimmoryStub(books), jellyfinStub()], healthyJellyfinIdentity);
+
+    it('kind book returns only books', async () => {
+        const result = await buildGetLibrary(bookLoader([book(58), book(56)]), { ...base, kind: 'book' });
+        expect(result.items.map(i => i.kind)).toEqual(['book', 'book']);
+        expect(result.items.map(i => i.acquisition?.id)).toEqual(['58', '56']);
+    });
+
+    it.each([
+        ['quality', { quality: 'EPUB' }],
+        ['min_rating', { min_rating: 8 }],
+        ['rating_source', { rating_source: 'imdb' as const }],
+        ['sort: rating', { sort: 'rating' as const }],
+        ['watched', { watched: true }],
+        ['watched_by', { watched_by: 'Someone' }],
+        ['presence', { presence: 'unknown' as const }]
+    ])('refuses film filters on books: %s', async (_label, filter) => {
+        const run = buildGetLibrary(bookLoader([book(58)]), { ...base, kind: 'book', ...filter });
+        await expect(run).rejects.toThrow(/book/i);
+        await expect(run).rejects.toThrow(/quality, min_rating, rating_source, sort: "rating", watched, watched_by and presence/);
+    });
+
+    it('sort added works for books', async () => {
+        const books = [
+            book(1, { addedAt: '2026-01-01T00:00:00Z' }),
+            book(2, { addedAt: '2026-11-06T00:00:00Z' }),
+            book(3, { addedAt: '2026-05-01T00:00:00Z' })
+        ];
+        const result = await buildGetLibrary(bookLoader(books), { ...base, kind: 'book', sort: 'added' });
+        expect(result.items.map(i => i.acquisition?.id)).toEqual(['2', '3', '1']);
+    });
+
+    it('a book row shows format and size, never monitored', async () => {
+        const result = await buildGetLibrary(bookLoader([book(58)]), { ...base, kind: 'book' });
+        const line = libraryLine(result.items[0]!);
+        expect(line).toContain('EPUB');
+        expect(line).toContain('2.0 MB');
+        expect(line).toContain('grimmory:58');
+        expect(line).not.toMatch(/monitored/i);
+        // A book with no file says so, and still never says monitored.
+        const bare = libraryLine({ ...book(9, { hasFile: false }), presence: 'unknown' });
+        expect(bare).toContain('no file');
+        expect(bare).not.toMatch(/monitored/i);
+    });
+
+    it('without kind, books are listed and never counted missing from a media server', async () => {
+        const plexStub = {
+            id: 'plex',
+            type: 'plex',
+            testConnection: async () => ({ ok: true, service: 'plex', latency_ms: 1 }),
+            getVersion: async () => '1.0.0',
+            listUserLibrary: async () => []
+        } as unknown as ServiceAdapter;
+        const loader = new LibraryLoader(
+            [stub('radarr', [film()]), grimmoryStub([book(58)]), jellyfinStub(), plexStub],
+            healthyJellyfinIdentity,
+            undefined,
+            undefined,
+            { primaryId: 'jellyfin', secondary: { id: 'plex', identity: healthyJellyfinIdentity } }
+        );
+
+        const all = await buildGetLibrary(loader, base);
+        expect(all.items.map(i => i.kind).sort()).toEqual(['book', 'movie']);
+        const row = all.items.find(i => i.kind === 'book');
+        expect(row?.presence).toBe('unknown');
+        expect(row).not.toHaveProperty('media_servers');
+
+        // The film is missing from both servers; the book is never in that answer.
+        for (const server of ['jellyfin', 'plex']) {
+            const missing = await buildGetLibrary(loader, { ...base, missing_from: server });
+            expect(missing.items.map(i => i.kind)).toEqual(['movie']);
+        }
+    });
+
+    it('without kind, watched and presence filters leave books out', async () => {
+        const loader = bookLoader([book(58)]);
+        expect((await buildGetLibrary(loader, { ...base, watched: false })).items.map(i => i.kind)).toEqual(['movie']);
+        expect((await buildGetLibrary(loader, { ...base, presence: 'unknown' })).items).toEqual([]);
     });
 });

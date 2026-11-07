@@ -1,6 +1,7 @@
 import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import { grimmorySession, noAuth } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
+import type { IndexInput } from '../core/resolver.ts';
 import { fenceText } from '../core/fence.ts';
 import { ServiceHttp } from '../core/http.ts';
 import { compareVersions, parseVersion } from './versions.ts';
@@ -9,6 +10,7 @@ import {
     type ConnectionDiagnosis,
     type HealthCheck,
     type HealthCheckCapable,
+    type LibraryCapable,
     type MediaDetailCapable,
     type MediaDetails,
     type SearchCapable,
@@ -46,6 +48,17 @@ const identifier = (v: unknown): string | undefined => {
     return s !== undefined && /^[0-9A-Za-z-]{1,20}$/.test(s) ? s : undefined;
 };
 const SEARCH_SIZE = 20;
+/** Books per library page: Grimmory's own app list allows this many in one read. */
+const LIBRARY_PAGE_SIZE = 200;
+/** A file type is a short word such as EPUB or CBZ; anything else is not one. */
+const fileType = (v: unknown): string | undefined => {
+    const s = str(v);
+    return s !== undefined && /^[A-Za-z0-9_]{1,20}$/.test(s) ? s : undefined;
+};
+const isoDate = (v: unknown): string | undefined => {
+    const s = str(v);
+    return s !== undefined && Number.isFinite(Date.parse(s)) ? s : undefined;
+};
 
 type RawHealth = { data?: { version?: unknown } };
 
@@ -54,7 +67,7 @@ type RawHealth = { data?: { version?: unknown } };
  * and password and answers with a JWT; the healthcheck is the one route that
  * takes no token.
  */
-export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, SearchCapable, MediaDetailCapable {
+export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, SearchCapable, MediaDetailCapable, LibraryCapable {
     readonly type: ServiceId = 'grimmory';
     readonly id = 'grimmory';
     readonly #http: ServiceHttp;
@@ -167,6 +180,47 @@ export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, Sear
                 }
             ];
         });
+    }
+
+    /**
+     * Every book, one row each, for `get_library`. Paged until Grimmory says
+     * there is no next page; an empty page stops it too, so a server that keeps
+     * claiming one cannot loop this forever.
+     *
+     * `monitored: false` because Grimmory has no monitoring; `get_library` does
+     * not print it for a book. A book has no external id, so `ids` is empty and
+     * it never merges with another row.
+     */
+    async listLibrary(): Promise<IndexInput[]> {
+        const out: IndexInput[] = [];
+        for (let page = 0; ; page += 1) {
+            const params = new URLSearchParams({ page: String(page), size: String(LIBRARY_PAGE_SIZE) });
+            const body = obj(await this.#http.get<unknown>(`/api/v1/app/books?${params.toString()}`));
+            const rows = list(body.content);
+            for (const book of rows) {
+                const id = num(book.id);
+                if (id === undefined) continue;
+                const authors = (Array.isArray(book.authors) ? book.authors : []).filter((a): a is string => typeof a === 'string' && a !== '');
+                const quality = fileType(book.primaryFileType);
+                const sizeKb = num(book.fileSizeKb);
+                const addedAt = isoDate(book.addedOn);
+                out.push({
+                    kind: 'book',
+                    title: this.#bookTitle(str(book.title), authors),
+                    ids: {},
+                    acquisition: {
+                        service: this.id,
+                        id: String(id),
+                        monitored: false,
+                        hasFile: book.primaryFileId !== undefined && book.primaryFileId !== null,
+                        ...(quality === undefined ? {} : { quality }),
+                        ...(sizeKb === undefined ? {} : { sizeBytes: sizeKb * 1024 }),
+                        ...(addedAt === undefined ? {} : { addedAt })
+                    }
+                });
+            }
+            if (body.hasNext !== true || rows.length === 0) return out;
+        }
     }
 
     async getMediaDetails(id: string): Promise<MediaDetails> {

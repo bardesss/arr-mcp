@@ -1,7 +1,7 @@
 import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
-import type { LibraryKind } from '../core/resolver.ts';
+import type { ArrKind } from '../core/resolver.ts';
 import { pageArr } from './arrPaging.ts';
 import { mediaIdOf, protocolName } from './arrRecord.ts';
 import type { CalendarEntry, DeleteMediaOptions, QueueItem, RemoveQueueOptions } from './types.ts';
@@ -74,7 +74,7 @@ const INCLUDE_UNKNOWN = {
 export async function readArrQueue(
     http: ServiceHttp,
     service: string,
-    kind: LibraryKind
+    kind: ArrKind
 ): Promise<QueueItem[]> {
     // Off upstream by default, which hides records whose movie, series or
     // artist was deleted — stuck at importBlocked forever, and invisible here.

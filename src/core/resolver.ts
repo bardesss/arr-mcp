@@ -6,8 +6,21 @@ export type ExternalIds = { tmdb?: number; tvdb?: number; imdb?: string; mbid?: 
  * What a merged row can be. `artist` is Lidarr's, and it joins to a media server
  * on the MusicBrainz artist id, which is why a music row can carry `presence`
  * like a film or a series.
+ *
+ * `book` is Grimmory's. A book carries no external id, so it never merges, and
+ * no media server reads books, so its `presence` is always `unknown`.
  */
-export type LibraryKind = 'movie' | 'series' | 'artist';
+export type LibraryKind = 'movie' | 'series' | 'artist' | 'book';
+
+/**
+ * The kinds an *arr manages and the acquisition chain reads: everything but a
+ * book. The *arr helpers key their tables on this, and `diagnose` reads only
+ * these rows.
+ */
+export type ArrKind = Exclude<LibraryKind, 'book'>;
+
+/** A merged row the *arr chain can read. See `isArrItem`. */
+export type ArrItem = MergedItem & { kind: ArrKind };
 
 /**
  * A merged row with a kind the film-and-series readers accept. Narrower than
@@ -250,6 +263,8 @@ function mergeInto(target: MergedItem, input: IndexInput): void {
 export const isFilmOrSeries = (item: MergedItem): item is FilmOrSeries =>
     item.kind === 'movie' || item.kind === 'series';
 
+export const isArrItem = (item: MergedItem): item is ArrItem => item.kind !== 'book';
+
 /**
  * The refusal for an artist that reached a film-and-series reader.
  *
@@ -260,6 +275,18 @@ export const isFilmOrSeries = (item: MergedItem): item is FilmOrSeries =>
 export const artistRefusal = (name: string): Error =>
     new Error(
         `"${name}" is a Lidarr artist, and this tool reads the film and series chain. For its albums and their ids, use get_media_details with service: "lidarr", the artist id and detail: "full". get_library with kind: "artist" lists artists with their album count, profile and file state.`
+    );
+
+/**
+ * The refusal for a book that reached a film-and-series reader by title.
+ *
+ * The book is in the library, so "nothing matches" would be false. It still
+ * points at `search_media`, because a film of the same name that is not in the
+ * library yet is what someone asking this tool may well have meant.
+ */
+export const bookRefusal = (name: string, id: string | undefined): Error =>
+    new Error(
+        `"${name}" matches only a Grimmory book in your library, and this tool reads the film and series chain. For the book, use get_media_details with service: "grimmory"${id === undefined ? ' and its id' : ` and id: "${id}"`}. A film or series of that name not in your library yet is found by search_media.`
     );
 
 /**
@@ -274,8 +301,11 @@ export const artistRefusal = (name: string): Error =>
  * has just read the artist from.
  */
 export function filmOrSeriesMatch(hits: readonly MergedItem[], query: string): FilmOrSeries | undefined {
-    const best = hits.find(isFilmOrSeries) ?? hits[0];
+    // An artist outranks a book for the refusal: its message is the one that
+    // names a route holding something to read on this chain's side.
+    const best = hits.find(isFilmOrSeries) ?? hits.find(isArrItem) ?? hits[0];
     if (best === undefined) return undefined;
+    if (best.kind === 'book') throw bookRefusal(query, best.acquisition?.id);
     if (!isFilmOrSeries(best)) throw artistRefusal(query);
     return best;
 }
@@ -292,6 +322,8 @@ const presenceVerdict = (
     playbackGathered: boolean,
     musicGathered: boolean
 ): MergedItem['presence'] => {
+    // No media server reads books, so neither half of `both` or `arr_only` can be asserted.
+    if (item.kind === 'book') return 'unknown';
     const managed = item.acquisition !== undefined;
     // An artist's server half is the music read, not the film one.
     const serverGathered = item.kind === 'artist' ? musicGathered : playbackGathered;
@@ -362,7 +394,8 @@ export class LibraryIndex {
             ].filter(m => live.has(m));
 
             if (matches.length === 0) {
-                const created: MergedItem = { ...input, presence: 'arr_only' };
+                // Recomputed by `presenceVerdict` below; a book is `unknown` from the start.
+                const created: MergedItem = { ...input, presence: input.kind === 'book' ? 'unknown' : 'arr_only' };
                 items.push(created);
                 live.add(created);
                 for (const key of keys) byKey.set(key, created);

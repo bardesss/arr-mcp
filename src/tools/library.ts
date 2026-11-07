@@ -335,6 +335,10 @@ export class LibraryLoader {
         if (secondary !== undefined) {
             const secondaryIndex = secondaryRead ? LibraryIndex.build(secondaryRows) : undefined;
             for (const item of index.all()) {
+                // A book is never stamped: no media server reads books, so any
+                // `present` here would be a claim about a read that never ran,
+                // and `missing_from` would list every book in the library.
+                if (item.kind === 'book') continue;
                 // An artist is stamped from the music read and a film or series
                 // from the film one, because the two reads fail separately. A
                 // `present: false` derived from a read that never ran would make
