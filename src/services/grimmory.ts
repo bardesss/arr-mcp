@@ -226,6 +226,15 @@ export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, Sear
      * it never merges with another row.
      */
     async listLibrary(): Promise<IndexInput[]> {
+        // Read once, before the pages: a book names its library by id only. A
+        // failure here fails the read rather than leaving every book unlabelled,
+        // which a `library` filter would then answer as "none".
+        const libraryNames = new Map<number, string>();
+        for (const lib of list(await this.#http.get<unknown>(LIBRARIES_PATH))) {
+            const id = num(lib.id);
+            const name = str(lib.name);
+            if (id !== undefined && name !== undefined) libraryNames.set(id, name);
+        }
         const out: IndexInput[] = [];
         for (let page = 0; ; page += 1) {
             if (page >= MAX_LIBRARY_PAGES) {
@@ -245,9 +254,12 @@ export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, Sear
                 const quality = fileType(book.primaryFileType);
                 const sizeKb = num(book.fileSizeKb);
                 const addedAt = isoDate(book.addedOn);
+                const libraryId = num(book.libraryId);
+                const libraryName = libraryId === undefined ? undefined : libraryNames.get(libraryId);
                 out.push({
                     kind: 'book',
                     title: this.#bookTitle(str(book.title), authors),
+                    ...(libraryName === undefined ? {} : { library: this.#fence(libraryName, 'library_name') }),
                     ids: {},
                     // Absent `readStatus` is UNSET; only READ counts as watched.
                     playback: { user: this.#username, watched: book.readStatus === 'READ' },

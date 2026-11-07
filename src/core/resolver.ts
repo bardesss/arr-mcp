@@ -94,6 +94,8 @@ export type MergedItem = {
      * instead, and `get_media_details` is where the albums themselves are.
      */
     albumCount?: number;
+    /** Books only: the Grimmory library the book is in, fenced. */
+    library?: string;
     /**
      * Absent from the record and required because `genre` is a `get_library`
      * filter, and no other field in the merged shape could answer one.

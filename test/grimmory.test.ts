@@ -340,7 +340,7 @@ describe('GrimmoryAdapter library', () => {
         // The last page: one bare row, so every absent field is left out rather than set.
         const last = { content: [{ id: 9, title: 'Bare' }], page: 1, size: 200, totalElements: 4, totalPages: 2, hasNext: false, hasPrevious: true };
         const urls: string[] = [];
-        const inner = stub({ 'POST /api/v1/auth/login': json(TOKENS), 'GET /api/v1/app/books': [json(first), json(last)] });
+        const inner = stub({ 'POST /api/v1/auth/login': json(TOKENS), 'GET /api/v1/libraries': json(fixture('libraries')), 'GET /api/v1/app/books': [json(first), json(last)] });
         const fetchImpl = (async (input: string | URL | Request, init?: RequestInit) => {
             urls.push(String(input));
             return inner(input, init);
@@ -356,6 +356,7 @@ describe('GrimmoryAdapter library', () => {
         expect(rows[0]).toEqual({
             kind: 'book',
             title: fenced('Example Book 58 by Example Author 1'),
+            library: fenceText('Example Library 1', { service: 'grimmory', field: 'library_name' }),
             ids: {},
             playback: { user: 'reader', watched: false },
             acquisition: {
@@ -380,7 +381,7 @@ describe('GrimmoryAdapter library', () => {
     it('stops on a page that says there is no next one, even a short first page', async () => {
         const seen: string[] = [];
         const only = { content: [], page: 0, size: 200, totalElements: 0, totalPages: 0, hasNext: false, hasPrevious: false };
-        const adapter = new GrimmoryAdapter(config, stub({ 'POST /api/v1/auth/login': json(TOKENS), 'GET /api/v1/app/books': json(only) }, seen));
+        const adapter = new GrimmoryAdapter(config, stub({ 'POST /api/v1/auth/login': json(TOKENS), 'GET /api/v1/libraries': json(fixture('libraries')), 'GET /api/v1/app/books': json(only) }, seen));
         expect(await adapter.listLibrary()).toEqual([]);
         expect(seen.filter(s => s === 'GET /api/v1/app/books')).toHaveLength(1);
     });
@@ -388,7 +389,7 @@ describe('GrimmoryAdapter library', () => {
     it('stops on an empty page that still claims a next one', async () => {
         const seen: string[] = [];
         const lying = { content: [], hasNext: true };
-        const adapter = new GrimmoryAdapter(config, stub({ 'POST /api/v1/auth/login': json(TOKENS), 'GET /api/v1/app/books': json(lying) }, seen));
+        const adapter = new GrimmoryAdapter(config, stub({ 'POST /api/v1/auth/login': json(TOKENS), 'GET /api/v1/libraries': json(fixture('libraries')), 'GET /api/v1/app/books': json(lying) }, seen));
         expect(await adapter.listLibrary()).toEqual([]);
         expect(seen.filter(s => s === 'GET /api/v1/app/books')).toHaveLength(1);
     });
@@ -398,14 +399,14 @@ describe('GrimmoryAdapter library', () => {
             content: [{ id: 3, title: 'T', primaryFileId: 3, primaryFileType: hostile, addedOn: hostile }],
             hasNext: false
         };
-        const adapter = new GrimmoryAdapter(config, stub({ 'POST /api/v1/auth/login': json(TOKENS), 'GET /api/v1/app/books': json(body) }));
+        const adapter = new GrimmoryAdapter(config, stub({ 'POST /api/v1/auth/login': json(TOKENS), 'GET /api/v1/libraries': json(fixture('libraries')), 'GET /api/v1/app/books': json(body) }));
         const [row] = await adapter.listLibrary();
         expect(row?.acquisition).toEqual({ service: 'grimmory', id: '3', monitored: false, hasFile: true, ...(hostile === '2020' ? { quality: '2020' } : {}) });
     });
 
     it('keeps an offset timestamp', async () => {
         const body = { content: [{ id: 3, title: 'T', addedOn: '2026-11-06T12:47:31.5+01:00' }], hasNext: false };
-        const adapter = new GrimmoryAdapter(config, stub({ 'POST /api/v1/auth/login': json(TOKENS), 'GET /api/v1/app/books': json(body) }));
+        const adapter = new GrimmoryAdapter(config, stub({ 'POST /api/v1/auth/login': json(TOKENS), 'GET /api/v1/libraries': json(fixture('libraries')), 'GET /api/v1/app/books': json(body) }));
         const [row] = await adapter.listLibrary();
         expect(row?.acquisition?.addedAt).toBe('2026-11-06T12:47:31.5+01:00');
     });
@@ -414,7 +415,7 @@ describe('GrimmoryAdapter library', () => {
         const seen: string[] = [];
         // A server that ignores `page`: the same full page, always claiming another.
         const endless = { content: [{ id: 1, title: 'Same' }], hasNext: true };
-        const adapter = new GrimmoryAdapter(config, stub({ 'POST /api/v1/auth/login': json(TOKENS), 'GET /api/v1/app/books': json(endless) }, seen));
+        const adapter = new GrimmoryAdapter(config, stub({ 'POST /api/v1/auth/login': json(TOKENS), 'GET /api/v1/libraries': json(fixture('libraries')), 'GET /api/v1/app/books': json(endless) }, seen));
         const err = (await adapter.listLibrary().catch((e: unknown) => e)) as ServiceError;
         expect(err).toBeInstanceOf(ServiceError);
         expect(err.kind).toBe('UpstreamError');
@@ -425,9 +426,33 @@ describe('GrimmoryAdapter library', () => {
     it('stops at the page count the server reported', async () => {
         const seen: string[] = [];
         const page = { content: [{ id: 1, title: 'Same' }], hasNext: true, totalPages: 3 };
-        const adapter = new GrimmoryAdapter(config, stub({ 'POST /api/v1/auth/login': json(TOKENS), 'GET /api/v1/app/books': json(page) }, seen));
+        const adapter = new GrimmoryAdapter(config, stub({ 'POST /api/v1/auth/login': json(TOKENS), 'GET /api/v1/libraries': json(fixture('libraries')), 'GET /api/v1/app/books': json(page) }, seen));
         expect(await adapter.listLibrary()).toHaveLength(3);
         expect(seen.filter(s => s === 'GET /api/v1/app/books')).toHaveLength(3);
+    });
+});
+
+describe('GrimmoryAdapter library names', () => {
+    const books = { content: [{ id: 1, title: 'A', libraryId: 1 }, { id: 2, title: 'B', libraryId: 7 }, { id: 3, title: 'C' }], hasNext: false };
+
+    it('a book row names its library, fenced', async () => {
+        const adapter = new GrimmoryAdapter(
+            config,
+            stub({ 'POST /api/v1/auth/login': json(TOKENS), 'GET /api/v1/libraries': json(fixture('libraries')), 'GET /api/v1/app/books': json(books) })
+        );
+        const rows = await adapter.listLibrary();
+        expect(rows[0]?.library).toBe(fenceText('Example Library 1', { service: 'grimmory', field: 'library_name' }));
+        // A library the list does not know, and a book with no library id, carry none.
+        expect(rows[1]).not.toHaveProperty('library');
+        expect(rows[2]).not.toHaveProperty('library');
+    });
+
+    it('the library list fails the read when libraries cannot be read', async () => {
+        const adapter = new GrimmoryAdapter(
+            config,
+            stub({ 'POST /api/v1/auth/login': json(TOKENS), 'GET /api/v1/libraries': json({}, 500), 'GET /api/v1/app/books': json(books) })
+        );
+        await expect(adapter.listLibrary()).rejects.toBeInstanceOf(ServiceError);
     });
 });
 
@@ -436,7 +461,7 @@ describe('GrimmoryAdapter read status', () => {
         const read = fixture('app-books-read') as { content: Record<string, unknown>[] };
         expect(read.content.length).toBeGreaterThan(0);
         const body = { ...read, content: [...read.content, { id: 99, title: 'Never opened' }, { id: 98, title: 'Mid', readStatus: 'READING' }], hasNext: false };
-        const adapter = new GrimmoryAdapter(config, stub({ 'POST /api/v1/auth/login': json(TOKENS), 'GET /api/v1/app/books': json(body) }));
+        const adapter = new GrimmoryAdapter(config, stub({ 'POST /api/v1/auth/login': json(TOKENS), 'GET /api/v1/libraries': json([]), 'GET /api/v1/app/books': json(body) }));
         const rows = await adapter.listLibrary();
 
         for (const row of rows) {
