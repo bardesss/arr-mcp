@@ -192,7 +192,8 @@ export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, Sear
         const isbn13 = identifier(meta.isbn13);
         const asin = identifier(meta.asin);
         const score = num(book.metadataMatchScore);
-        const addedOn = str(book.addedOn);
+        const added = str(book.addedOn);
+        const addedOn = added !== undefined && Number.isFinite(Date.parse(added)) ? added : undefined;
         return {
             service: this.id,
             kind: 'book',

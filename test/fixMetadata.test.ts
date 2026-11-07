@@ -87,10 +87,12 @@ function harness(
 ) {
     const config = opts.config ?? jellyfinConfig();
     const wrote: { method: string; path: string; query: string; body?: unknown }[] = [];
+    const requested: string[] = [];
 
     const impl = (async (input: string | URL | Request, init?: RequestInit) => {
         const url = new URL(input instanceof Request ? input.url : String(input));
         const method = init?.method ?? 'GET';
+        requested.push(`${method} ${url.pathname}`);
 
         if (url.pathname === '/Users') return jsonResponse([{ Id: 'user-sam', Name: 'Sam' }]);
 
@@ -159,10 +161,21 @@ function harness(
         instant()
     );
 
-    return { call: (a: Record<string, unknown>) => call(a), wrote };
+    return { call: (a: Record<string, unknown>) => call(a), wrote, requested };
 }
 
 describe('fix_metadata', () => {
+    it('fix_metadata refuses a Grimmory book without a request', async () => {
+        const h = harness();
+        for (const id of ['grimmory:58', 'grimmory']) {
+            const err = (await h.call({ id }).catch((e: unknown) => e)) as ServiceError;
+            expect(err).toBeInstanceOf(ServiceError);
+            expect(err.detail).toMatch(/books are not repaired here/);
+            expect(err.remedy).toContain('get_media_details');
+        }
+        expect(h.requested).toEqual([]);
+    });
+
     it('sends a lone server that could not be read to stack_health, not to default_user', async () => {
         const h = harness({ item: seriesItem({ playback: { user: 'Sam' } }), degraded: ['jellyfin'] });
 
