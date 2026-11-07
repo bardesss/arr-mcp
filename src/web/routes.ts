@@ -8,6 +8,7 @@ import { addManagementKey, revokeManagementKey, setImdb, setMcpEndpoint, setPrim
 import { ConfigUnloadableError, saveConfig } from '../config/save.ts';
 import { OAuthSchema, ServiceIdSchema, ThemeSchema, type Config, type OAuthConfig, type Theme } from '../config/schema.ts';
 import type { WriteAudit } from '../core/audit.ts';
+import { unfence } from '../core/fence.ts';
 import { logger } from '../core/logger.ts';
 import { LoginThrottle } from '../core/loginThrottle.ts';
 import { managementKeyField } from '../core/managementKey.ts';
@@ -840,7 +841,21 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
             const diagnosis = await adapter.testConnection();
             logger.info({ ...originOf(c), service: target, ok: diagnosis.ok }, 'connection tested from the config UI');
 
-            if (wantsJson) return c.json(diagnosis, 200);
+            if (wantsJson) {
+                return c.json(
+                    diagnosis.error === undefined
+                        ? diagnosis
+                        : {
+                              ...diagnosis,
+                              error: {
+                                  ...diagnosis.error,
+                                  detail: unfence(diagnosis.error.detail),
+                                  ...(diagnosis.error.remedy === undefined ? {} : { remedy: unfence(diagnosis.error.remedy) })
+                              }
+                          },
+                    200
+                );
+            }
             return render(200, isAdd ? { testedAdd: diagnosis } : { tested: { instance: target, diagnosis } });
         } catch (err) {
             // A config that will not even build — a URL that is not a URL, a

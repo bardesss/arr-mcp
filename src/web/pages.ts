@@ -366,7 +366,7 @@ export function dashboardPage(opts: {
                       ${opts.failures.map(
                           f => html`<tr>
                               <td>${f.service}</td>
-                              <td>${f.source}</td>
+                              <td>${unfence(f.source)}</td>
                               <td>${f.type}</td>
                               <td>${unfence(f.message)}</td>
                           </tr>`

@@ -1070,6 +1070,44 @@ describe('testing a connection', () => {
         expect(await res.text()).toContain('msg err');
     });
 
+    it('unfences a failed login body on the card and in the add dialog JSON response', async () => {
+        await seed('  qbittorrent:\n    url: http://192.0.2.10:8080\n    username: admin\n    password: saved\n');
+        globalThis.fetch = (async (input: string | URL | Request) =>
+            String(input).includes('/auth/login')
+                ? new Response('Fails. <bad>', { status: 200 })
+                : new Response('Forbidden', { status: 403 })) as typeof fetch;
+        await signIn();
+
+        const pageRes = await call(
+            '/ui/config/test',
+            form({ csrf: await csrfFrom(), instance: 'qbittorrent', url: 'http://192.0.2.10:8080', username: 'admin', password: 'wrong' })
+        );
+        const page = await pageRes.text();
+        expect(page).toContain('login returned Fails. &lt;bad&gt;');
+        expect(page).not.toContain('untrusted');
+
+        const jsonRes = await call(
+            '/ui/config/test',
+            {
+                method: 'POST',
+                headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' },
+                body: new URLSearchParams({
+                    csrf: await csrfFrom(),
+                    type: 'qbittorrent',
+                    name: 'second',
+                    rename_existing_to: 'first',
+                    url: 'http://192.0.2.20:8080',
+                    username: 'admin',
+                    password: 'wrong'
+                }).toString()
+            }
+        );
+        const body = (await jsonRes.json()) as { ok: boolean; error?: { detail: string } };
+        expect(body.ok).toBe(false);
+        expect(body.error?.detail).toContain('login returned Fails. <bad>');
+        expect(body.error?.detail).not.toContain('untrusted');
+    });
+
     it('will not test the stored key against a new host, and keeps the card open', async () => {
         await seed(RADARR);
         let fetched = false;
