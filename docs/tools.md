@@ -1819,17 +1819,23 @@ a different one.
 
 ### Books that need a repair
 
-With Grimmory configured, the sweep also lists books. It takes the lowest-scoring
-books, under a match score of 45, and any book with no ISBN and none of the
-catalogue ids Grimmory holds for it (ASIN, Goodreads, Google, Hardcover,
-Hardcover book, Open Library, Comic Vine, Douban, Lubimyczytac, Ranobedb,
-Audible or Apple Books). A book with no ISBN costs one extra read to check those
-ids, and Grimmory's list is read 200 books to a page. A book whose read fails
-is skipped and counted in `itemsSkipped`, and the rest of the sweep carries on.
+With Grimmory configured, the sweep also lists books whose match score is under
+45. A book with a good score but no ISBN is not listed: its metadata matched, it
+only lacks an id, and `fix_metadata` still takes it by `grimmory:<id>`. A book
+with no score is not listed either.
+
+A listed book with no ISBN costs one extra read to check the catalogue ids
+Grimmory holds for it (ASIN, Goodreads, Google, Hardcover, Hardcover book, Open
+Library, Comic Vine, Douban, Lubimyczytac, Ranobedb, Audible or Apple Books).
+With none of them, `fix_metadata` can only search by title and author, and the
+row says so. When that read fails the book is still listed for its score. A
+login or connection failure ends the sweep, and Grimmory lands in `degraded`.
+Grimmory's list is read 200 books to a page.
 
 A book row has `kind: "book"`, prints its item as `grimmory:<book id>`, carries
 `matchScore` when Grimmory has one, and counts one mismatch. Its `reason` says
-why it is listed: `low match score (N)`, `no ISBN or catalogue id`, or both. Its `remedy` is
+why it is listed: `low match score (N)`, plus `and no ISBN or catalogue id` when it has
+neither. Its `remedy` is
 `refresh_metadata`, whose `fix` is `fix_metadata` with that id, or
 `unlock_fields` when every metadata field on the book is locked. `itemsScanned`
 counts the books read. A Grimmory that cannot be read lands in `degraded` and

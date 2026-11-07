@@ -673,66 +673,54 @@ describe('GrimmoryAdapter book metadata issues', () => {
         });
     });
 
-    it('lists a book with no ISBN and no catalogue id, reading its detail only then', async () => {
+    it('does not list a good score with no ISBN, and reads a detail only for a low score with no ISBN', async () => {
         const { adapter, seen } = serve(
-            [
-                bookRow(1, { isbn13: '9780000000001', metadataMatchScore: 70 }),
-                bookRow(2, { metadataMatchScore: 70 }),
-                bookRow(3, { metadataMatchScore: 70 }),
-                bookRow(4, { isbn10: '0000000004', metadataMatchScore: 70 }),
-                bookRow(5)
-            ],
-            { 2: detail(2, { goodreadsId: 'g2' }), 3: detail(3, {}), 5: detail(5, { asin: '' }) }
-        );
-        const { issues } = await adapter.listBookMetadataIssues(BOOK_MATCH_THRESHOLD);
-        expect(issues.map(i => i.id)).toEqual(['3', '5']);
-        expect(issues[0]).toMatchObject({ matchScore: 70, hasIdentifier: false });
-        expect(issues[1]!.matchScore).toBeUndefined();
-        expect(seen.filter(k => k.startsWith('GET /api/v1/books/'))).toHaveLength(3);
-    });
-
-    it('does not list a book that has only a hardcoverBookId (or any other catalogue id) for missing ids', async () => {
-        const ids = ['hardcoverBookId', 'doubanId', 'lubimyczytacId', 'ranobedbId', 'audibleId', 'applebooksId'];
-        const { adapter } = serve(
-            ids.map((_, i) => bookRow(i + 1, { metadataMatchScore: 70 })),
-            Object.fromEntries(ids.map((key, i) => [i + 1, detail(i + 1, { [key]: 'x' })]))
-        );
-        expect((await adapter.listBookMetadataIssues(BOOK_MATCH_THRESHOLD)).issues).toEqual([]);
-    });
-
-    it('carries the reason on each row', async () => {
-        const { adapter } = serve(
             [
                 bookRow(1, { isbn13: '9780000000001', metadataMatchScore: 30 }),
                 bookRow(2, { metadataMatchScore: 70 }),
-                bookRow(3, { metadataMatchScore: 20 })
+                bookRow(3, { metadataMatchScore: 30 }),
+                bookRow(4, { metadataMatchScore: 30 }),
+                bookRow(5)
             ],
-            { 2: detail(2, {}), 3: detail(3, {}) }
+            { 3: detail(3, { goodreadsId: 'g3' }), 4: detail(4, { asin: '' }) }
         );
         const { issues } = await adapter.listBookMetadataIssues(BOOK_MATCH_THRESHOLD);
-        expect(issues.map(i => i.reason)).toEqual(['low match score (30)', 'no ISBN or catalogue id', 'low match score (20) and no ISBN or catalogue id']);
+        expect(issues.map(i => [i.id, i.hasIdentifier])).toEqual([
+            ['1', true],
+            ['3', true],
+            ['4', false]
+        ]);
+        expect(seen.filter(k => k.startsWith('GET /api/v1/books/'))).toEqual(['GET /api/v1/books/3', 'GET /api/v1/books/4']);
     });
 
-    it('skips a book whose detail read fails and lists the rest', async () => {
+    it('counts any catalogue id, a hardcoverBookId included, as an identifier', async () => {
+        const ids = ['hardcoverBookId', 'doubanId', 'lubimyczytacId', 'ranobedbId', 'audibleId', 'applebooksId'];
         const { adapter } = serve(
-            [bookRow(1, { metadataMatchScore: 70 }), bookRow(2, { metadataMatchScore: 70 }), bookRow(3, { isbn13: '9780000000003', metadataMatchScore: 10 })],
-            { 1: json({ message: 'gone' }, 404), 2: detail(2, {}) }
+            ids.map((_, i) => bookRow(i + 1, { metadataMatchScore: 30 })),
+            Object.fromEntries(ids.map((key, i) => [i + 1, detail(i + 1, { [key]: 'x' })]))
         );
-        const result = await adapter.listBookMetadataIssues(BOOK_MATCH_THRESHOLD);
-        expect(result.issues.map(i => i.id)).toEqual(['2', '3']);
-        expect(result.skipped).toBe(1);
-        expect(result.scanned).toBe(3);
+        const { issues } = await adapter.listBookMetadataIssues(BOOK_MATCH_THRESHOLD);
+        expect(issues.every(i => i.hasIdentifier)).toBe(true);
+    });
+
+    it('carries the reason on each row', async () => {
+        const { adapter } = serve([bookRow(1, { isbn13: '9780000000001', metadataMatchScore: 30 }), bookRow(2, { metadataMatchScore: 20 })], { 2: detail(2, {}) });
+        const { issues } = await adapter.listBookMetadataIssues(BOOK_MATCH_THRESHOLD);
+        expect(issues.map(i => i.reason)).toEqual(['low match score (30)', 'low match score (20) and no ISBN or catalogue id']);
     });
 
     it('still lists a low-scoring book whose detail read fails, without claiming it has no ids', async () => {
-        const { adapter } = serve([bookRow(1, { metadataMatchScore: 20 })], { 1: json({ message: 'gone' }, 404) });
+        const { adapter } = serve([bookRow(1, { metadataMatchScore: 20 }), bookRow(2, { isbn13: '9780000000002', metadataMatchScore: 10 })], { 1: json({ message: 'gone' }, 404) });
         const result = await adapter.listBookMetadataIssues(BOOK_MATCH_THRESHOLD);
-        expect(result.issues.map(i => [i.id, i.reason])).toEqual([['1', 'low match score (20)']]);
-        expect(result.skipped).toBe(0);
+        expect(result.issues.map(i => [i.id, i.reason])).toEqual([
+            ['1', 'low match score (20)'],
+            ['2', 'low match score (10)']
+        ]);
+        expect(result).not.toHaveProperty('skipped');
     });
 
-    it('ends the sweep on a login failure instead of skipping book after book', async () => {
-        const { adapter } = serve([bookRow(1, { metadataMatchScore: 70 }), bookRow(2, { metadataMatchScore: 70 })], {
+    it('ends the sweep on a login failure instead of carrying on book after book', async () => {
+        const { adapter } = serve([bookRow(1, { metadataMatchScore: 20 }), bookRow(2, { metadataMatchScore: 20 })], {
             1: json({ message: 'no' }, 401),
             2: json({ message: 'no' }, 401)
         });

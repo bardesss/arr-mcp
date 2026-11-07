@@ -65,7 +65,7 @@ export type MetadataIssue = {
     languages?: number;
     /** A book's own match score (0-100) from its library; only books carry one. */
     matchScore?: number;
-    /** Why a book is listed: a low match score, no ISBN or catalogue id, or both. Only books carry one. */
+    /** Why a book is listed: a low match score, and whether it also has no ISBN or catalogue id. Only books carry one. */
     reason?: string;
     remedy: Remedy;
     /** What to actually run. */
@@ -368,7 +368,7 @@ export function registerGetMetadataIssues(
             description:
                 'Sweeps the whole media-server library for series whose metadata does not describe the files on disk, and says which fix each one needs. This is the discovery `fix_metadata` cannot do: that tool needs a title you already suspect, and the point here is finding the ones you do not. Each row splits `numbering` findings (the path\'s own season/episode disagrees with the server — the confident signal) from `titleOnly` ones (the words disagree — advisory), and carries a `remedy`: `refresh_metadata` when the server never matched those episodes and a refresh can fill them in, `rename_files` when the server matched them and the filename is the outlier, which no metadata refresh moves, or `unlock_fields` when the disagreeing field is locked on the item, which no repair overwrites. Each row\'s `service:itemId` can be passed to `fix_metadata` as `id`. **This is slow**: it reads every series\' episodes, one call each, so a large library takes a while. It writes nothing.' +
                 withBoth(bothIds(servers), 'With two media servers configured, `service` picks one; it defaults to the primary.') +
-                ' When a book library is configured it also lists books whose match score is under 45 or that have no ISBN or catalogue id, with the `grimmory:<id>` that `fix_metadata` takes. Titles and paths come from the media server or book library and are fenced as untrusted data.',
+                ' When a book library is configured it also lists books whose match score is under 45, with the `grimmory:<id>` that `fix_metadata` takes. Titles and paths come from the media server or book library and are fenced as untrusted data.',
             outputSchema: PagedOutputSchema,
             inputSchema: toolInput({ detail: DetailSchema, limit: LimitSchema, offset: OffsetSchema, ...serviceInput(bothIds(servers)) })
         },

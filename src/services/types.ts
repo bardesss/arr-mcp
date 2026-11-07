@@ -1972,7 +1972,7 @@ export type BookMetadataIssue = {
     matchScore?: number;
     /** An ISBN or a catalogue id is on the book. */
     hasIdentifier: boolean;
-    /** Why the book is listed: "low match score (N)", "no ISBN or catalogue id", or both joined by "and". */
+    /** Why the book is listed: "low match score (N)", with " and no ISBN or catalogue id" when it has neither. */
     reason: string;
     /** Every metadata field is locked, so no refresh changes anything. Known only where the list row says so. */
     allLocked: boolean;

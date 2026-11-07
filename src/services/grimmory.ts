@@ -416,57 +416,50 @@ export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, Sear
     }
 
     /**
-     * Books worth a look: a match score under `threshold`, or no ISBN and no
-     * catalogue id. The list rows carry the score and the ISBNs; the catalogue
-     * ids live on the book itself, so that is read one book at a
-     * time and only for a row with no ISBN. A book with no score is not listed
-     * for a low one.
+     * Books worth a look: a match score under `threshold`. A book with a fine
+     * score but no ISBN is complete enough to read and is not listed; its
+     * metadata matched, it just lacks an id. For a listed book with no ISBN on
+     * its list row, the book itself is read once to check the catalogue ids,
+     * so the row can say `fix_metadata` will search by title and author. A
+     * book with no score is not listed.
      */
-    async listBookMetadataIssues(threshold: number): Promise<{ issues: BookMetadataIssue[]; scanned: number; skipped: number }> {
+    async listBookMetadataIssues(threshold: number): Promise<{ issues: BookMetadataIssue[]; scanned: number }> {
         const issues: BookMetadataIssue[] = [];
         let scanned = 0;
-        let skipped = 0;
         for await (const rows of this.#bookPages()) {
             for (const book of rows) {
                 const id = num(book.id);
                 if (id === undefined) continue;
                 scanned += 1;
                 const score = num(book.metadataMatchScore);
-                const low = score !== undefined && score < threshold;
+                if (score === undefined || score >= threshold) continue;
                 let hasIdentifier = str(book.isbn13) !== undefined || str(book.isbn10) !== undefined;
-                // On the list row itself; absent means not fully locked.
-                const allLocked = book.allMetadataLocked === true;
                 let idsUnknown = false;
                 if (!hasIdentifier) {
                     try {
                         const meta = obj(obj(await this.#http.get<unknown>(`/api/v1/books/${encodeURIComponent(String(id))}`)).metadata);
                         hasIdentifier = BOOK_CATALOGUE_IDS.some(key => str(meta[key]) !== undefined);
                     } catch (err) {
-                        // A login or connection failure ends the sweep; one book that cannot be read
-                        // (deleted since the list, a timeout) does not.
+                        // A login or connection failure ends the sweep. One book that cannot be read
+                        // (deleted since the list, a timeout) is still listed for its score.
                         if (!(err instanceof ServiceError) || !PER_BOOK_FAILURES.has(err.kind)) throw err;
                         idsUnknown = true;
-                        // A low score already lists the book, so only an unread book with a fine score is skipped.
-                        if (!low) {
-                            skipped += 1;
-                            continue;
-                        }
                     }
                 }
-                if (!low && hasIdentifier) continue;
-                const reasons = [...(low ? [`low match score (${score})`] : []), ...(hasIdentifier || idsUnknown ? [] : ['no ISBN or catalogue id'])];
+                const reason = `low match score (${score})` + (hasIdentifier || idsUnknown ? '' : ' and no ISBN or catalogue id');
                 const authors = (Array.isArray(book.authors) ? book.authors : []).filter((a): a is string => typeof a === 'string' && a !== '');
                 issues.push({
                     id: String(id),
                     title: this.#bookTitle(str(book.title), authors),
-                    ...(score === undefined ? {} : { matchScore: score }),
+                    matchScore: score,
                     hasIdentifier,
-                    reason: reasons.join(' and '),
-                    allLocked
+                    reason,
+                    // On the list row itself; absent means not fully locked.
+                    allLocked: book.allMetadataLocked === true
                 });
             }
         }
-        return { issues, scanned, skipped };
+        return { issues, scanned };
     }
 
     async getMediaDetails(id: string): Promise<MediaDetails> {
