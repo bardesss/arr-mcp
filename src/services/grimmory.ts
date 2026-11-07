@@ -20,6 +20,10 @@ import {
     type RemoveQueueOptions,
     type BookLibraryScanCapable,
     type HealthCheckCapable,
+    type HistoryCapable,
+    type HistoryEntry,
+    type HistoryQuery,
+    type Window,
     type LibraryCapable,
     type MediaDetailCapable,
     type MediaDetails,
@@ -89,6 +93,28 @@ const isoDate = (v: unknown): string | undefined => {
         : undefined;
 };
 
+const AUDIT_PATH = '/api/v1/audit-logs';
+/** Audit rows per page; the most Grimmory's audit log is asked for at once. */
+const AUDIT_PAGE_SIZE = 100;
+/** The most pages one audit action is followed: 1,000 rows, newest first. */
+export const MAX_AUDIT_PAGES = 10;
+/** The audit actions get_history reads, and the event each becomes. Logins, users, settings and tasks are not history. */
+export const GRIMMORY_HISTORY_ACTIONS = { BOOK_DELETED: 'deleted', METADATA_UPDATED: 'metadata', LIBRARY_SCANNED: 'scanned' } as const;
+type GrimmoryAuditAction = keyof typeof GRIMMORY_HISTORY_ACTIONS;
+const isBookEntity = (v: unknown): boolean => typeof v === 'string' && v.toUpperCase() === 'BOOK';
+/** A Java LocalDateTime has no offset; the ones Grimmory sends are read as UTC. */
+const NO_OFFSET = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$/;
+const WITH_OFFSET = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
+/** An audit `createdAt` as ISO with an offset: a bare one gets `Z`; anything else is not a time. */
+const auditTime = (v: unknown): string | undefined => {
+    const s = str(v);
+    if (s === undefined) return undefined;
+    const iso = NO_OFFSET.test(s) ? `${s}Z` : WITH_OFFSET.test(s) ? s : undefined;
+    return iso !== undefined && Number.isFinite(Date.parse(iso)) ? iso : undefined;
+};
+/** `since` as an instant: a date or an offset-free time is UTC. */
+const auditInstant = (since: string): number => Date.parse(NO_OFFSET.test(since) ? `${since}Z` : since);
+
 type RawHealth = { data?: { version?: unknown } };
 
 /**
@@ -96,7 +122,7 @@ type RawHealth = { data?: { version?: unknown } };
  * and password and answers with a JWT; the healthcheck is the one route that
  * takes no token.
  */
-export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, SearchCapable, MediaDetailCapable, LibraryCapable, BookLibraryScanCapable, BookDeleteCapable, BookReadStatusCapable, QueueCapable, QueueRemoveCapable {
+export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, SearchCapable, MediaDetailCapable, LibraryCapable, BookLibraryScanCapable, BookDeleteCapable, BookReadStatusCapable, QueueCapable, QueueRemoveCapable, HistoryCapable {
     readonly type: ServiceId = 'grimmory';
     readonly id = 'grimmory';
     readonly queueKind = 'book';
@@ -390,6 +416,90 @@ export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, Sear
             }
             throw error;
         }
+    }
+
+    /**
+     * Deleted books, metadata changes and library scans, read from the audit
+     * log (admin only). Logins, users, settings and tasks are never asked for.
+     * Each action is paged on its own, so the newest rows of a quiet action are
+     * not crowded out by a busy one. `since` is sent as an offset-free UTC
+     * `from`; Grimmory reads a LocalDateTime in its own zone, which a Docker
+     * image keeps at UTC unless TZ says otherwise. `id` scopes to one book and
+     * answers an array, though a deleted-book row names no id (its entity is
+     * null), so a delete never matches.
+     */
+    async readHistory(opts: HistoryQuery): Promise<HistoryEntry[] | Window<HistoryEntry>> {
+        const scoped = opts.id !== undefined;
+        const actions = (Object.keys(GRIMMORY_HISTORY_ACTIONS) as GrimmoryAuditAction[]).filter(
+            action => (opts.eventType === undefined || GRIMMORY_HISTORY_ACTIONS[action] === opts.eventType) && !(scoped && action === 'LIBRARY_SCANNED')
+        );
+        if (actions.length === 0) return [];
+        const sinceMs = opts.since === undefined ? undefined : auditInstant(opts.since);
+        const from = sinceMs === undefined || !Number.isFinite(sinceMs) ? undefined : new Date(sinceMs).toISOString().slice(0, 19);
+        const size = Math.min(opts.want ?? AUDIT_PAGE_SIZE, AUDIT_PAGE_SIZE);
+
+        const reads = await Promise.all(actions.map(action => this.#auditRows(action, { from, size, want: opts.want, id: opts.id, sinceMs })));
+        const entries = reads.flatMap(r => r.entries).sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+        if (scoped) return entries;
+        return { items: opts.want === undefined ? entries : entries.slice(0, opts.want), total: reads.reduce((sum, r) => sum + r.total, 0) };
+    }
+
+    /** One action's rows, newest first, paged until `want` are kept, the pages run out or `MAX_AUDIT_PAGES` is reached. */
+    async #auditRows(
+        action: GrimmoryAuditAction,
+        o: { from: string | undefined; size: number; want: number | undefined; id: string | undefined; sinceMs: number | undefined }
+    ): Promise<{ entries: HistoryEntry[]; total: number }> {
+        const entries: HistoryEntry[] = [];
+        let total = 0;
+        for (let page = 0; page < MAX_AUDIT_PAGES; page += 1) {
+            const params = new URLSearchParams({ action, page: String(page), size: String(o.size) });
+            if (o.from !== undefined) params.set('from', o.from);
+            let body: Raw;
+            try {
+                body = obj(await this.#http.get<unknown>(`${AUDIT_PATH}?${params.toString()}`));
+            } catch (error) {
+                if (error instanceof ServiceError && error.detail.startsWith('HTTP 403')) {
+                    throw new ServiceError('AuthFailed', this.id, 'this Grimmory account may not read the audit log', {
+                        remedy: 'The audit log needs a Grimmory admin account.',
+                        cause: error
+                    });
+                }
+                throw error;
+            }
+            const rows = list(body.content);
+            const info = obj(body.page);
+            if (page === 0) total = num(info.totalElements) ?? rows.length;
+            for (const raw of rows) {
+                const entry = this.#auditEntry(action, raw);
+                if (entry === undefined) continue;
+                if (o.sinceMs !== undefined && Date.parse(entry.at) < o.sinceMs) continue;
+                if (o.id !== undefined && !(isBookEntity(raw.entityType) && String(raw.entityId) === o.id)) continue;
+                entries.push(entry);
+            }
+            const totalPages = num(info.totalPages);
+            if (rows.length === 0 || totalPages === undefined || page + 1 >= totalPages || (o.want !== undefined && entries.length >= o.want)) break;
+        }
+        return { entries, total };
+    }
+
+    #auditEntry(action: GrimmoryAuditAction, raw: Raw): HistoryEntry | undefined {
+        const id = num(raw.id);
+        const at = auditTime(raw.createdAt);
+        if (id === undefined || at === undefined) return undefined;
+        const entityId = num(raw.entityId);
+        const description = str(raw.description);
+        const onBook = action !== 'LIBRARY_SCANNED' && isBookEntity(raw.entityType) && entityId !== undefined;
+        const plain = action === 'LIBRARY_SCANNED' ? `library ${entityId ?? ''}`.trim() : onBook ? `book ${entityId}` : 'book';
+        return {
+            service: this.id,
+            id: String(id),
+            at,
+            event: GRIMMORY_HISTORY_ACTIONS[action],
+            rawEvent: action,
+            // A deleted book is named only here, and on a live server it is the real title.
+            title: description === undefined ? plain : this.#fence(description, 'description'),
+            ...(onBook ? { mediaId: String(entityId) } : {})
+        };
     }
 
     async listBookLibraries(): Promise<BookLibrary[]> {

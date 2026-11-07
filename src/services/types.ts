@@ -709,7 +709,9 @@ export const HISTORY_EVENT_TYPES = [
     'recovered',
     'recategorised',
     'scheduled',
-    'protected'
+    'protected',
+    'metadata',
+    'scanned'
 ] as const;
 export type HistoryEventType = (typeof HISTORY_EVENT_TYPES)[number];
 
