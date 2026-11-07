@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.67.1](https://github.com/bardesss/arr-mcp/compare/v1.67.0...v1.67.1) (2026-11-07)
+
+
+### Bug Fixes
+
+* **config:** name the failing field in a service that takes a list ([#489](https://github.com/bardesss/arr-mcp/issues/489)) ([677a242](https://github.com/bardesss/arr-mcp/commit/677a2426f3fcd56d45158646046f73643c9caa78))
+* **repair:** redact the config error on the read-only page ([#490](https://github.com/bardesss/arr-mcp/issues/490)) ([8b98aee](https://github.com/bardesss/arr-mcp/commit/8b98aee01a9e616640cd8c410ff7d2fe794a1064))
+
 ## [1.67.0](https://github.com/bardesss/arr-mcp/compare/v1.66.0...v1.67.0) (2026-11-06)
 
 
