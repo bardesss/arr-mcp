@@ -149,13 +149,40 @@ describe('GrimmoryAdapter findings', () => {
         expect(out).toEqual([{ service: 'grimmory', source: 'update', type: 'notice', message: 'Grimmory v3.6.0 is out; this is v3.5.0.' }]);
     });
 
-    it('a 403 on the Bookdrop drops only that finding', async () => {
+    it('a 403 on the Bookdrop is named as a notice', async () => {
         const out = await adapterWith({
             'GET /api/v1/bookdrop/notification': json({}, 403),
             'GET /api/v1/libraries/health': json({ '1': false }),
             'GET /api/v1/version': json({ current: 'v3.5.0', latest: 'v3.6.0' })
         }).getFailedHealthChecks();
-        expect(out.map(f => f.source).sort()).toEqual(['library', 'update']);
+        expect(out.map(f => f.source).sort()).toEqual(['bookdrop', 'library', 'update']);
+        expect(out.find(f => f.source === 'bookdrop')).toEqual({
+            service: 'grimmory',
+            source: 'bookdrop',
+            type: 'notice',
+            message: 'This Grimmory account may not read bookdrop, so it is left out.'
+        });
+    });
+
+    it('a 403 on only the pending files read is named too', async () => {
+        const out = await adapterWith({ ...pending(2, ago(30)), 'GET /api/v1/bookdrop/files': json({}, 403) }).getFailedHealthChecks();
+        expect(out).toHaveLength(1);
+        expect(out[0]).toMatchObject({ source: 'bookdrop', type: 'notice' });
+    });
+
+    it('a 500 on libraries health is named as a notice', async () => {
+        const out = await adapterWith({ 'GET /api/v1/libraries/health': json({}, 500) }).getFailedHealthChecks();
+        expect(out).toEqual([
+            { service: 'grimmory', source: 'library health', type: 'notice', message: "Grimmory's library health could not be read (HTTP 500), so it is left out." }
+        ]);
+    });
+
+    it('no notice when latest is older', async () => {
+        expect(await adapterWith({ 'GET /api/v1/version': json({ current: 'v3.5.0', latest: 'v3.4.0' }) }).getFailedHealthChecks()).toEqual([]);
+    });
+
+    it('no notice when latest is absent', async () => {
+        expect(await adapterWith({ 'GET /api/v1/version': json({ current: 'v3.5.0' }) }).getFailedHealthChecks()).toEqual([]);
     });
 
     it('fences user-supplied text', async () => {
