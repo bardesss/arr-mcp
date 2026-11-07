@@ -282,6 +282,138 @@ async function qbittorrentLogin(
     return offered;
 }
 
+export const GRIMMORY_LOGIN_PATH = '/api/v1/auth/login';
+
+/**
+ * Grimmory locks an account after 5 failed attempts in 15 minutes, so after a
+ * rejected login nothing tries again for that long.
+ */
+export const LOGIN_LOCKOUT_MS = 15 * 60_000;
+
+/** Renew this long before the token's stated expiry. */
+const GRIMMORY_EXPIRY_MARGIN_S = 60;
+
+/**
+ * Grimmory's JWT login. The token goes out as a Bearer header; nothing logs in
+ * ahead of time, a 401 triggers it (same shape as qbittorrentSession).
+ *
+ * `/api/v1/auth/refresh` is never called: it is broken on v3.5.0, and its
+ * failures would count toward the same lockout. An expired token is replaced
+ * by logging in again.
+ */
+export function grimmorySession(creds: {
+    id: string;
+    url: string;
+    username: string;
+    password: string;
+    timeoutMs: number;
+    fetchImpl?: typeof fetch;
+    now?: () => number;
+}): AuthStrategy {
+    const doFetch = creds.fetchImpl ?? fetch;
+    const now = creds.now ?? Date.now;
+    let session: { token: string; validUntil: number } | undefined;
+    let lockedUntil = 0;
+    let inFlight: Promise<{ token: string; validUntil: number }> | undefined;
+
+    const locked = (): ServiceError => {
+        const at = new Date(lockedUntil);
+        const hhmm = `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
+        return new ServiceError('AuthFailed', creds.id, 'login refused', {
+            remedy: `Grimmory rejected the username or password. arr-mcp will not try again until ${hhmm}, so a wrong password cannot lock you out of Grimmory.`
+        });
+    };
+
+    const login = async (): Promise<{ token: string; validUntil: number }> => {
+        const started = now();
+        try {
+            const result = await grimmoryLogin(creds, doFetch);
+            return { token: result.token, validUntil: started + (result.expiresS - GRIMMORY_EXPIRY_MARGIN_S) * 1000 };
+        } catch (err) {
+            if (err instanceof GrimmoryRejected) {
+                lockedUntil = now() + LOGIN_LOCKOUT_MS;
+                throw locked();
+            }
+            throw err;
+        }
+    };
+
+    return {
+        id: 'grimmory-session',
+        apply(ctx) {
+            if (session !== undefined && now() < session.validUntil) ctx.headers.set('Authorization', `Bearer ${session.token}`);
+        },
+        async recover(response) {
+            // A 403 is a permission answer, not a stale token.
+            if (response.status !== 401) return false;
+            if (inFlight === undefined && now() < lockedUntil) throw locked();
+
+            inFlight ??= login().finally(() => {
+                inFlight = undefined;
+            });
+            session = await inFlight;
+            return true;
+        }
+    };
+}
+
+/** The server answered the login and said no; distinct from a transport failure. */
+class GrimmoryRejected extends Error {}
+
+async function grimmoryLogin(
+    creds: { id: string; url: string; username: string; password: string; timeoutMs: number },
+    doFetch: typeof fetch
+): Promise<{ token: string; expiresS: number }> {
+    const base = new URL(creds.url);
+    const url = new URL(base.pathname.replace(/\/+$/, '') + GRIMMORY_LOGIN_PATH, base);
+
+    let response: Response;
+    try {
+        response = await doFetch(url.toString(), {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', accept: 'application/json' },
+            body: JSON.stringify({ username: creds.username, password: creds.password }),
+            signal: AbortSignal.timeout(creds.timeoutMs),
+            // The body carries the password: never follow a redirect with it.
+            redirect: 'manual'
+        });
+    } catch (err) {
+        throw new ServiceError('AuthFailed', creds.id, 'the login request failed', { cause: err });
+    }
+
+    const text = await response.text();
+
+    const location = response.status >= 300 && response.status < 400 ? response.headers.get('location') : null;
+    if (location !== null) {
+        let origin: string | undefined;
+        try {
+            origin = new URL(location, url).origin;
+        } catch {
+            // Unparseable: name no address at all.
+        }
+        const elsewhere = origin !== undefined && origin !== url.origin;
+        throw new ServiceError('AuthFailed', creds.id, elsewhere ? `login redirected to ${origin}` : 'login was redirected', {
+            remedy: elsewhere
+                ? 'Set its url in the config to the address Grimmory redirects the login to.'
+                : 'Check the Grimmory url: its login redirected instead of answering. A reverse proxy or a path prefix is the usual cause.'
+        });
+    }
+
+    if (response.status === 200) {
+        try {
+            const parsed: unknown = JSON.parse(text);
+            const token = (parsed as { accessToken?: unknown } | null)?.accessToken;
+            const expires = (parsed as { expires?: unknown } | null)?.expires;
+            if (typeof token === 'string' && token !== '') {
+                return { token, expiresS: typeof expires === 'number' && Number.isFinite(expires) ? expires : 3600 };
+            }
+        } catch {
+            // Not JSON: treated as a rejection below.
+        }
+    }
+    throw new GrimmoryRejected();
+}
+
 /** `SID` up to 5.1, `QBT_SID_<webui-port>` from 5.2. */
 const QB_SESSION_COOKIE = /(?:^|,\s*)(QBT_SID(?:_\d+)?|SID)=([^;,\s]+)/;
 
