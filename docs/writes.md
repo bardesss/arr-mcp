@@ -269,7 +269,9 @@ preview says what Lidarr will actually grab:
   so it passes while any of those is monitored and brings the unmonitored ones
   along.
 - A search skips Lidarr's monitored check, so a named album is grabbed even when
-  it is not monitored.
+  it is not monitored. That check is also where the artist's own flag is read,
+  so an unmonitored artist, whose albums Lidarr leaves out of its automatic
+  searches, is still grabbed for, and the preview says so.
 - For a complete album with tracks on disk, a search grabs only an upgrade.
   When a track is missing, Lidarr skips its upgrade and cutoff checks, so any
   quality the profile allows can be grabbed: it fills the missing tracks, and

@@ -323,6 +323,23 @@ describe('trigger_search on Lidarr', () => {
         expect(structuredContent.effects.join(' ')).toContain('can still grab it');
     });
 
+    // `MonitoredAlbumSpecification` accepts during a search before it reads the
+    // artist's flag, so an unmonitored artist is still grabbed for, though
+    // Lidarr leaves its albums out of its own automatic searches.
+    it("says an unmonitored artist's flag does not stop the search, for the artist and for named albums", async () => {
+        const off = { ...library, '/api/v1/artist/4': { ...ARTIST, monitored: false } };
+        const note =
+            "is not monitored in Lidarr, which keeps its albums out of Lidarr's own automatic searches. A search started here skips that check, so the artist's flag does not stop it grabbing.";
+
+        const whole = await triggerSearch([lidarr(off).adapter])({ service: 'lidarr', id: '4', dry_run: true });
+        expect(whole.structuredContent.effects.join(' ')).toContain(note);
+        const named = await triggerSearch([lidarr(off).adapter])({ service: 'lidarr', id: '4', albums: ['15'], dry_run: true });
+        expect(named.structuredContent.effects.join(' ')).toContain(note);
+
+        const on = await triggerSearch([lidarr(library).adapter])({ service: 'lidarr', id: '4', dry_run: true });
+        expect(on.structuredContent.effects.join(' ')).not.toContain("artist's flag");
+    });
+
     it('says an upgrade may replace tracks already on disk, for the artist and for named albums', async () => {
         const had = { ...library, '/api/v1/artist/4': { ...ARTIST, statistics: { trackFileCount: 5, albumCount: 3 } } };
         const withTracks = { ...had, '/api/v1/album?artistId=4': ALBUMS.map(a => (a.id === 15 ? { ...a, statistics: { trackFileCount: 5 } } : a)) };
