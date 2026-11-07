@@ -1206,6 +1206,8 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         { name: 'm3u-accounts', path: '/api/m3u/accounts/', anonymise: anonymiseDispatcharr },
         { name: 'epg-sources', path: '/api/epg/sources/', anonymise: anonymiseDispatcharr }
     ],
+    // Behind a login the capture script cannot do yet; filled in with the reads.
+    grimmory: [],
     // Capture with no key or the admin key: the read-only key reaches only /api/stats.
     shelfmark: [
         { name: 'health', path: '/api/health' },

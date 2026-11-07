@@ -113,7 +113,7 @@ const withPrimary = (config: Config, services: Record<string, unknown>): Config 
 };
 
 export const MULTI_USER: ReadonlySet<ServiceId> = new Set<ServiceId>(['jellyfin', 'plex', 'seerr']);
-export const NO_API_KEY: ReadonlySet<ServiceId> = new Set<ServiceId>(['transmission', 'qbittorrent', 'nzbget']);
+export const NO_API_KEY: ReadonlySet<ServiceId> = new Set<ServiceId>(['transmission', 'qbittorrent', 'nzbget', 'grimmory']);
 /** Takes an `api_key`, and works without one: Shelfmark has no authentication until it is set up. */
 export const API_KEY_OPTIONAL: ReadonlySet<ServiceId> = new Set<ServiceId>(['shelfmark']);
 

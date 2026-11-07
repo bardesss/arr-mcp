@@ -72,7 +72,9 @@ export const MINIMUM_VERSIONS: Record<ServiceId, string> = {
     // (upstream #1419, 2026-10-03). Only an admin key can read the version, so
     // a read-only key connects with this floor unchecked; a server too old for
     // /api/stats is refused on the 404 instead.
-    shelfmark: '1.5.0'
+    shelfmark: '1.5.0',
+    // Written against tag v3.5.0 and captured live on v3.5.0 (2026-11-07).
+    grimmory: '3.5.0'
 };
 
 /** Digits only; a build suffix such as Transmission's "(838877323f)" is dropped. */

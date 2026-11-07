@@ -5,6 +5,8 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { hashToken } from '../src/core/mcpTokens.ts';
 import { ConfigSchema } from '../src/config/schema.ts';
+import { appResource } from '../src/api/resources.ts';
+import { listInstances } from '../src/config/instances.ts';
 import { loadConfig } from '../src/config/load.ts';
 import { saveConfig, writeConfigAtomic } from '../src/config/save.ts';
 
@@ -545,6 +547,33 @@ describe('shelfmark', () => {
 
     it('refuses a list of shelfmark instances', () => {
         expect(() => ConfigSchema.parse({ auth: AUTH, services: { shelfmark: [{ url: 'http://a:8084' }] } })).toThrow(/single block/);
+    });
+});
+
+describe('grimmory', () => {
+    const url = 'http://grimmory:6060';
+
+    it('accepts url, username and password', () => {
+        const parsed = ConfigSchema.parse({ auth: AUTH, services: { grimmory: { url, username: 'reader', password: 'pw' } } });
+        expect(parsed.services.grimmory?.username).toBe('reader');
+        expect(parsed.services.grimmory?.password).toBe('pw');
+    });
+
+    it('refuses a grimmory block without a password', () => {
+        const result = ConfigSchema.safeParse({ auth: AUTH, services: { grimmory: { url, username: 'reader' } } });
+        expect(result.success).toBe(false);
+        expect(result.error?.issues.some(i => i.path.includes('password'))).toBe(true);
+    });
+
+    it('refuses a list of grimmory instances', () => {
+        expect(() => ConfigSchema.parse({ auth: AUTH, services: { grimmory: [{ url, username: 'u', password: 'p' }] } })).toThrow(/single block/);
+    });
+
+    it('keeps the password out of the redacted config', () => {
+        const parsed = ConfigSchema.parse({ auth: AUTH, services: { grimmory: { url, username: 'reader', password: 'hunter2' } } });
+        const resource = appResource(listInstances(parsed).find(i => i.type === 'grimmory')!);
+        expect(resource).toMatchObject({ username: 'reader', passwordSet: true });
+        expect(JSON.stringify(resource)).not.toContain('hunter2');
     });
 });
 

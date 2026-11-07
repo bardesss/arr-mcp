@@ -19,7 +19,8 @@ export const ServiceIdSchema = z.enum([
     'cleanuparr',
     'reclaimerr',
     'dispatcharr',
-    'shelfmark'
+    'shelfmark',
+    'grimmory'
 ]);
 export type ServiceId = z.infer<typeof ServiceIdSchema>;
 
@@ -71,6 +72,14 @@ export type KeyedServiceConfig = z.infer<typeof KeyedServiceSchema>;
  */
 const OptionalKeyServiceSchema = z.strictObject({ ...BaseServiceShape, api_key: ApiKeyShape.api_key.optional() });
 export type OptionalKeyServiceConfig = z.infer<typeof OptionalKeyServiceSchema>;
+
+/** Grimmory has no API key: it signs in with a username and password and gets a JWT back. */
+const GrimmoryServiceSchema = z.strictObject({
+    ...BaseServiceShape,
+    username: z.string().min(1),
+    password: z.string().min(1)
+});
+export type GrimmoryServiceConfig = z.infer<typeof GrimmoryServiceSchema>;
 
 /**
  * Which services may appear more than once.
@@ -295,6 +304,7 @@ export type ConfigByService = {
     reclaimerr: For<'reclaimerr', KeyedServiceConfig>;
     dispatcharr: For<'dispatcharr', KeyedServiceConfig>;
     shelfmark: For<'shelfmark', OptionalKeyServiceConfig>;
+    grimmory: For<'grimmory', GrimmoryServiceConfig>;
 };
 
 /**
@@ -352,7 +362,9 @@ const ServicesSchema = z
         // Single only: one Dispatcharr serves one set of playlists.
         dispatcharr: singleOnly(ReadOnlyKeyedServiceSchema).optional(),
         // Single only: one Shelfmark holds one download queue and one set of requests.
-        shelfmark: singleOnly(OptionalKeyServiceSchema).optional()
+        shelfmark: singleOnly(OptionalKeyServiceSchema).optional(),
+        // Single only: one Grimmory is the book library, and get_library's book rows need one source.
+        grimmory: singleOnly(GrimmoryServiceSchema).optional()
     })
     .superRefine((services, ctx) => {
         /**

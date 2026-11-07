@@ -760,8 +760,19 @@ describe('the add dialog', () => {
 
         for (const field of ['username', 'password']) {
             const only = new RegExp(`data-only="([^"]*)"[^>]*>\\s*<label for="add\\.${field}"`).exec(page)?.[1];
-            expect(only?.split(' ').sort()).toEqual(['nzbget', 'qbittorrent', 'transmission']);
+            expect(only?.split(' ').sort()).toEqual(['grimmory', 'nzbget', 'qbittorrent', 'transmission']);
         }
+    });
+
+    it('grimmory card asks for username and password, not a key', async () => {
+        await seed('  grimmory:\n    url: http://192.0.2.10:6060\n    username: reader\n    password: saved\n');
+        await signIn();
+        const page = await (await call('/ui/config?tab=services')).text();
+        const card = page.split('<details class="svc"').find(c => c.includes('192.0.2.10:6060'))?.split('</details>')[0] ?? '';
+        expect(card).toMatch(/name="username"/);
+        expect(card).toMatch(/name="password"/);
+        expect(card).not.toMatch(/name="api_key"/);
+        expect(card).not.toContain('s3cr3tpw');
     });
 
     /** Offering a service that can only have one instance, when it already has

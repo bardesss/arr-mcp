@@ -1,0 +1,85 @@
+import { describe, expect, it } from 'vitest';
+import { ConfigSchema } from '../src/config/schema.ts';
+import { GrimmoryAdapter } from '../src/services/grimmory.ts';
+
+const config = ConfigSchema.parse({
+    auth: { bearer_token: 'a'.repeat(64) },
+    services: { grimmory: { url: 'http://grimmory:6060', username: 'reader', password: 'hunter2' } }
+}).services.grimmory as never;
+
+const HEALTH = { data: { status: 'UP', message: 'ok', timestamp: '2026-11-07T10:00:00Z', version: 'v3.5.0' }, message: 'Pong', status: 200 };
+const TOKENS = { accessToken: 'tok', refreshToken: 'ref', expires: 7200 };
+
+type Reply = () => Response;
+const json = (body: unknown, status = 200): Reply => () => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+
+/** Answers by `METHOD path`, each route a list of replies used in turn (the last repeats). `seen` records every request. */
+function stub(routes: Record<string, Reply | Reply[]>, seen: string[] = []): typeof fetch {
+    const used: Record<string, number> = {};
+    return (async (input: string | URL | Request, init?: RequestInit) => {
+        const key = `${init?.method ?? 'GET'} ${new URL(String(input)).pathname}`;
+        seen.push(key);
+        const route = routes[key];
+        if (route === undefined) return new Response('not found', { status: 404 });
+        const list = Array.isArray(route) ? route : [route];
+        const n = used[key] ?? 0;
+        used[key] = n + 1;
+        return list[Math.min(n, list.length - 1)]!();
+    }) as unknown as typeof fetch;
+}
+
+describe('GrimmoryAdapter connection', () => {
+    it('reads the version from the healthcheck without logging in', async () => {
+        const seen: string[] = [];
+        const adapter = new GrimmoryAdapter(config, stub({ 'GET /api/v1/healthcheck': json(HEALTH) }, seen));
+        expect(await adapter.getVersion()).toBe('3.5.0');
+        expect(seen).toEqual(['GET /api/v1/healthcheck']);
+    });
+
+    it('testConnection logs in and reads libraries', async () => {
+        const seen: string[] = [];
+        const adapter = new GrimmoryAdapter(
+            config,
+            stub(
+                {
+                    'GET /api/v1/healthcheck': json(HEALTH),
+                    'GET /api/v1/libraries': [json({}, 401), json([])],
+                    'POST /api/v1/auth/login': json(TOKENS)
+                },
+                seen
+            )
+        );
+        const result = await adapter.testConnection();
+        expect(result.ok).toBe(true);
+        expect(result.version).toBe('3.5.0');
+        expect(seen).toEqual(['GET /api/v1/healthcheck', 'GET /api/v1/libraries', 'POST /api/v1/auth/login', 'GET /api/v1/libraries']);
+    });
+
+    it('testConnection names wrong credentials', async () => {
+        const adapter = new GrimmoryAdapter(
+            config,
+            stub({
+                'GET /api/v1/healthcheck': json(HEALTH),
+                'GET /api/v1/libraries': json({}, 401),
+                'POST /api/v1/auth/login': json({}, 401)
+            })
+        );
+        const result = await adapter.testConnection();
+        expect(result.ok).toBe(false);
+        expect(result.error?.kind).toBe('AuthFailed');
+        expect(result.error?.remedy).toMatch(/username or password/);
+        expect(result.version).toBe('3.5.0');
+    });
+
+    it('testConnection reports unreachable before credentials', async () => {
+        const seen: string[] = [];
+        const fetchImpl = (async (input: string | URL | Request, init?: RequestInit) => {
+            seen.push(`${init?.method ?? 'GET'} ${new URL(String(input)).pathname}`);
+            throw Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error('refused'), { code: 'ECONNREFUSED' }) });
+        }) as unknown as typeof fetch;
+        const result = await new GrimmoryAdapter(config, fetchImpl).testConnection();
+        expect(result.ok).toBe(false);
+        expect(result.error?.kind).toBe('Unreachable');
+        expect(seen.some(s => s.startsWith('POST'))).toBe(false);
+    });
+});

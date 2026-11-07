@@ -61,8 +61,10 @@ export const SERVICE_IDS_ALPHABETICAL: readonly ServiceId[] = [...SERVICE_IDS].s
 const MULTI_USER: ReadonlySet<string> = new Set(['jellyfin', 'plex', 'seerr']);
 /** The media servers; when both are configured, one is primary. */
 const MEDIA_SERVERS: readonly ServiceId[] = ['jellyfin', 'plex'];
-const NO_API_KEY_IDS: readonly ServiceId[] = ['transmission', 'qbittorrent', 'nzbget'];
+const NO_API_KEY_IDS: readonly ServiceId[] = ['transmission', 'qbittorrent', 'nzbget', 'grimmory'];
 const NO_API_KEY: ReadonlySet<string> = new Set(NO_API_KEY_IDS);
+/** The ones that cannot connect without a username: the rest accept an unauthenticated install. */
+const REQUIRED_LOGIN: ReadonlySet<string> = new Set(['grimmory']);
 
 type AnyService = {
     url: string;
@@ -165,7 +167,7 @@ function serviceFields(
     const service = instance.config as AnyService;
 
     return html`${NO_API_KEY.has(type)
-        ? html`${field({ id: `${prefix}.username`, name: 'username', label: 'Username (optional)', value: service.username ?? '' })}
+        ? html`${field({ id: `${prefix}.username`, name: 'username', label: REQUIRED_LOGIN.has(type) ? 'Username' : 'Username (optional)', value: service.username ?? '' })}
           ${field({
               id: `${prefix}.password`,
               name: 'password',
