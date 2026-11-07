@@ -43,6 +43,7 @@ import { CleanuparrAdapter } from '../src/services/cleanuparr.ts';
 import { ReclaimerrAdapter } from '../src/services/reclaimerr.ts';
 import { DispatcharrAdapter } from '../src/services/dispatcharr.ts';
 import { ShelfmarkAdapter } from '../src/services/shelfmark.ts';
+import { GrimmoryAdapter } from '../src/services/grimmory.ts';
 import { hostsOf, redactHosts, secretsOf } from './lib/redact.ts';
 import { callTool as rpcCallTool, type ToolCallResult } from './lib/rpc.ts';
 
@@ -1009,6 +1010,39 @@ if (config.services?.shelfmark !== undefined) {
     }
 } else {
     console.log('SKIP shelfmark — not configured.');
+}
+
+/**
+ * Grimmory, read only: the connection test, its health findings, a library
+ * search, the whole library listing and the details of its first book. It
+ * prints counts and statuses and never a title. A rejected login locks the
+ * client IP out for 15 minutes, so the first failure stops the cases.
+ */
+if (config.services?.grimmory !== undefined) {
+    const started = performance.now();
+    try {
+        const grimmory = new GrimmoryAdapter(config.services.grimmory);
+        const connection = await grimmory.testConnection();
+        if (!connection.ok) throw new Error(`${connection.error?.detail ?? 'connection failed'} — ${connection.error?.remedy ?? ''}`);
+        const findings = await grimmory.getFailedHealthChecks();
+        const hits = await grimmory.search('the', 'library');
+        const rows = await grimmory.listLibrary();
+        const firstId = rows[0]?.acquisition?.id;
+        let details = 'no books to read';
+        if (firstId !== undefined) {
+            const book = await grimmory.getMediaDetails(firstId);
+            details = `details read, ${book.book?.formats.length ?? 0} format(s)`;
+        }
+        const ms = Math.round(performance.now() - started);
+        console.log(`PASS grimmory ${connection.version ?? '?'}: ${findings.length} finding(s), ${hits.length} search hit(s), ${rows.length} book(s), ${details} (${ms}ms)`);
+        for (const f of findings) console.log(`     ${f.type} ${f.source}`);
+        passes += 1;
+    } catch (err) {
+        console.error(`FAIL grimmory — ${redactHosts((err as Error).message, hosts)}`);
+        failures += 1;
+    }
+} else {
+    console.log('SKIP grimmory — not configured.');
 }
 
 /**
