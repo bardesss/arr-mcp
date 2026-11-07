@@ -715,6 +715,21 @@ describe('GrimmoryAdapter book metadata issues', () => {
         expect(result.scanned).toBe(3);
     });
 
+    it('still lists a low-scoring book whose detail read fails, without claiming it has no ids', async () => {
+        const { adapter } = serve([bookRow(1, { metadataMatchScore: 20 })], { 1: json({ message: 'gone' }, 404) });
+        const result = await adapter.listBookMetadataIssues(BOOK_MATCH_THRESHOLD);
+        expect(result.issues.map(i => [i.id, i.reason])).toEqual([['1', 'low match score (20)']]);
+        expect(result.skipped).toBe(0);
+    });
+
+    it('ends the sweep on a login failure instead of skipping book after book', async () => {
+        const { adapter } = serve([bookRow(1, { metadataMatchScore: 70 }), bookRow(2, { metadataMatchScore: 70 })], {
+            1: json({ message: 'no' }, 401),
+            2: json({ message: 'no' }, 401)
+        });
+        await expect(adapter.listBookMetadataIssues(BOOK_MATCH_THRESHOLD)).rejects.toMatchObject({ kind: 'AuthFailed' });
+    });
+
     it('does not list a book with no score and an ISBN', async () => {
         const { adapter, seen } = serve([bookRow(1, { isbn13: '9780000000001' })]);
         expect((await adapter.listBookMetadataIssues(BOOK_MATCH_THRESHOLD)).issues).toEqual([]);
