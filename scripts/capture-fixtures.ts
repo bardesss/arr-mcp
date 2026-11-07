@@ -19,6 +19,7 @@ import {
     basicAuth,
     embyToken,
     plexToken,
+    grimmorySession,
     qbittorrentSession,
     noAuth,
     queryParamKey,
@@ -40,6 +41,7 @@ import {
     LIDARR_STATIC_PATHS
 } from './lib/lidarrCapture.ts';
 import { anonymiseDispatcharr } from './lib/dispatcharrCapture.ts';
+import { anonymiseGrimmory } from './lib/grimmoryCapture.ts';
 import { anonymiseShelfmarkConfig, anonymiseShelfmarkHistory, anonymiseShelfmarkReleases, anonymiseShelfmarkSearch, anonymiseShelfmarkSnapshot, anonymiseShelfmarkStatus } from './lib/shelfmarkCapture.ts';
 import {
     anonymiseArrLog,
@@ -1206,8 +1208,27 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         { name: 'm3u-accounts', path: '/api/m3u/accounts/', anonymise: anonymiseDispatcharr },
         { name: 'epg-sources', path: '/api/epg/sources/', anonymise: anonymiseDispatcharr }
     ],
-    // Behind a login the capture script cannot do yet; filled in with the reads.
-    grimmory: [],
+    // Behind a login that grimmorySession does once. Never captured: /api/v1/users/me (the account's
+    // email) and /api/v1/app/libraries (answers 500 at v3.5.0). Scrubbed in lib/grimmoryCapture.ts.
+    grimmory: [
+        { name: 'healthcheck', path: '/api/v1/healthcheck' },
+        { name: 'version', path: '/api/v1/version' },
+        { name: 'libraries', path: '/api/v1/libraries', anonymise: anonymiseGrimmory },
+        { name: 'libraries-health', path: '/api/v1/libraries/health' },
+        { name: 'bookdrop-notification', path: '/api/v1/bookdrop/notification' },
+        { name: 'bookdrop-files-pending', path: '/api/v1/bookdrop/files?status=pending&page=0&size=3', anonymise: anonymiseGrimmory },
+        { name: 'app-books-page', path: '/api/v1/app/books?page=0&size=3', anonymise: anonymiseGrimmory },
+        { name: 'app-books-search', path: '/api/v1/app/books/search?q=the&page=0&size=3', anonymise: anonymiseGrimmory },
+        {
+            name: 'book',
+            // The first book of the page captured above: a made-up id would capture a 404.
+            path: captured => {
+                const id = (captured.get('app-books-page') as { content?: { id?: unknown }[] } | undefined)?.content?.[0]?.id;
+                return typeof id === 'number' ? `/api/v1/books/${id}` : undefined;
+            },
+            anonymise: anonymiseGrimmory
+        }
+    ],
     // Capture with no key or the admin key: the read-only key reaches only /api/stats.
     shelfmark: [
         { name: 'health', path: '/api/health' },
@@ -1358,6 +1379,10 @@ function strategyFor(id: ServiceId, service: NonNullable<Config['services'][Serv
             ...(q.username === undefined ? {} : { username: q.username }),
             ...(q.password === undefined ? {} : { password: q.password })
         });
+    }
+    if (id === 'grimmory') {
+        const g = service as { url: string; timeout_ms: number; username: string; password: string };
+        return grimmorySession({ id, url: g.url, timeoutMs: g.timeout_ms, username: g.username, password: g.password });
     }
     if (id === 'shelfmark' && (service as { api_key?: string }).api_key === undefined) return noAuth;
     const key = (service as { api_key: string }).api_key;

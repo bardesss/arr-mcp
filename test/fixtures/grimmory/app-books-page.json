@@ -1,0 +1,114 @@
+{
+  "content": [
+    {
+      "id": 58,
+      "title": "Example Book 58",
+      "authors": [
+        "Example Author 1"
+      ],
+      "thumbnailUrl": "/api/books/58/cover",
+      "seriesName": "Example Series 1",
+      "seriesNumber": 1,
+      "libraryId": 1,
+      "addedOn": "2026-11-06T12:47:31Z",
+      "primaryFileId": 58,
+      "primaryFileType": "EPUB",
+      "primaryFileName": "Example Book 58.epub",
+      "coverUpdatedOn": "2026-11-06T12:47:32Z",
+      "isPhysical": false,
+      "publisher": "",
+      "categories": [
+        "Example Category 1",
+        "Example Category 2",
+        "Example Category 3",
+        "Example Category 4",
+        "Example Category 5",
+        "Example Category 6",
+        "Example Category 7",
+        "Example Category 8",
+        "Example Category 9",
+        "Example Category 10"
+      ],
+      "tags": [],
+      "moods": [],
+      "language": "en",
+      "isbn13": "9780000000058",
+      "isbn10": "0000000058",
+      "publishedDate": "2000-01-01",
+      "pageCount": 300,
+      "metadataMatchScore": 79.5699,
+      "fileSizeKb": 2048,
+      "goodreadsRating": 4,
+      "goodreadsReviewCount": 100,
+      "allMetadataLocked": false
+    },
+    {
+      "id": 56,
+      "title": "Example Book 56",
+      "authors": [
+        "Example Author 2"
+      ],
+      "thumbnailUrl": "/api/books/56/cover",
+      "libraryId": 1,
+      "addedOn": "2026-11-06T11:29:14Z",
+      "primaryFileId": 56,
+      "primaryFileType": "EPUB",
+      "primaryFileName": "Example Book 56.epub",
+      "coverUpdatedOn": "2026-11-06T11:29:14Z",
+      "isPhysical": false,
+      "publisher": "",
+      "categories": [
+        "Example Category 11",
+        "Example Category 12",
+        "Example Category 13",
+        "Example Category 14",
+        "Example Category 15"
+      ],
+      "tags": [],
+      "moods": [],
+      "language": "en",
+      "isbn13": "9780000000056",
+      "publishedDate": "2000-01-01",
+      "metadataMatchScore": 62.3656,
+      "fileSizeKb": 2048,
+      "allMetadataLocked": false
+    },
+    {
+      "id": 57,
+      "title": "Example Book 57",
+      "authors": [
+        "Example Author 3"
+      ],
+      "thumbnailUrl": "/api/books/57/cover",
+      "libraryId": 1,
+      "addedOn": "2026-11-06T11:29:14Z",
+      "primaryFileId": 57,
+      "primaryFileType": "EPUB",
+      "primaryFileName": "Example Book 57.epub",
+      "coverUpdatedOn": "2026-11-06T11:29:14Z",
+      "isPhysical": false,
+      "publisher": "",
+      "categories": [
+        "Example Category 12",
+        "Example Category 13",
+        "Example Category 14",
+        "Example Category 15",
+        "Example Category 16"
+      ],
+      "tags": [],
+      "moods": [],
+      "language": "en",
+      "isbn13": "9780000000057",
+      "publishedDate": "2000-01-01",
+      "metadataMatchScore": 62.3656,
+      "fileSizeKb": 2048,
+      "allMetadataLocked": false
+    }
+  ],
+  "page": 0,
+  "size": 3,
+  "totalElements": 48,
+  "totalPages": 16,
+  "hasNext": true,
+  "hasPrevious": false
+}

@@ -1,0 +1,11 @@
+{
+  "data": {
+    "status": "UP",
+    "message": "Application is running smoothly.",
+    "timestamp": "2026-11-07T14:07:14.390838929",
+    "version": "v3.5.0"
+  },
+  "message": "Pong",
+  "status": 200,
+  "timestamp": "2026-11-07T14:07:14.390870727"
+}

@@ -162,8 +162,7 @@ describe('assertVersionSupported against captured evidence', () => {
         reclaimerr: (read('test/fixtures/reclaimerr/system.json') as { version: string }).version,
         dispatcharr: (read('test/fixtures/dispatcharr/version.json') as { version: string }).version,
         shelfmark: (read('test/fixtures/shelfmark/config.json') as { release_version: string }).release_version,
-        // Healthcheck's `data.version` is 'v3.5.0'; the fixture lands with the reads.
-        grimmory: '3.5.0'
+        grimmory: (read('test/fixtures/grimmory/healthcheck.json') as { data: { version: string } }).data.version.replace(/^v/, '')
     };
 
     for (const [service, version] of Object.entries(captured)) {

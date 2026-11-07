@@ -1,0 +1,15 @@
+[
+  {
+    "id": 1,
+    "name": "Example Library 1",
+    "watch": false,
+    "paths": [
+      {
+        "id": 1,
+        "path": "/books"
+      }
+    ],
+    "formatPriority": [],
+    "allowedFormats": []
+  }
+]
