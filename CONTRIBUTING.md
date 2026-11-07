@@ -15,6 +15,34 @@ Maintainers with a real stack refresh the recorded fixtures with
 *exercises* a live stack, calling every tool and reporting pass or fail per
 tool, without recording anything.
 
+## Testing, no code needed
+
+If you run one of these, the most useful thing you can do is point arr-mcp at
+it and tell me what happened. Please only test a service you actually run:
+a report from a real instance is worth more than one from a stack set up for
+the test.
+
+- **qBittorrent.** Only login and health have been confirmed on a real server
+  ([#195](../../issues/195)). Everything else is untested.
+- **Plex.** Other versions and library layouts, especially managed user tokens.
+- **Whisparr V2.** History, wanted, manual import and a few others are missing
+  because they need captures from a live instance.
+- **Cleanuparr with Transmission.** Only tested with qBittorrent so far.
+- **Proxmox installer.** One person has reported a working install, and arm64
+  is untested.
+
+Open an issue either way. "It worked on version X" is a useful report, and so
+is feedback that isn't a bug. Quote the version from `/healthz`. If you want to
+test a branch, ask for a preview image (see
+[Adding a service adapter](#adding-a-service-adapter)).
+
+Adapters I would accept but will not build myself, because I don't run them:
+Emby ([#500](../../issues/500)), Deluge ([#499](../../issues/499)),
+Maintainerr ([#441](../../issues/441)), Sportarr
+([#431](../../issues/431)) and Listenarr ([#432](../../issues/432)). Listenarr
+also needs an argument for a stability waiver, since every release so far is
+beta or canary.
+
 ## The three gates
 
 CI runs exactly what you can run locally. Please make all three pass before
@@ -277,7 +305,7 @@ small, shaped change, and a service in no slot at all is a different product.
 
 **Downloaded — where a grab actually lands**
 
-- **Deluge.** The last mainstream client this server cannot talk to. Same slot
+- **Deluge** ([#499](../../issues/499)). The last mainstream client this server cannot talk to. Same slot
   as SABnzbd, NZBGet, Transmission and qBittorrent, documented JSON-RPC, no new
   tool.
   Its one wrinkle is that the Web UI talks to a separate daemon, so a reachable
@@ -286,7 +314,7 @@ small, shaped change, and a service in no slot at all is a different product.
 
 **Imported and played — the library a person opens**
 
-- **Emby.** Jellyfin's ancestor, near-identical API, and therefore the cheapest
+- **Emby** ([#500](../../issues/500)). Jellyfin's ancestor, near-identical API, and therefore the cheapest
   adapter on this list — plausibly a variant of the Jellyfin one rather than a
   new file.
 - **Plex — more testers.** The adapter has shipped and has been verified against a live Plex Media
