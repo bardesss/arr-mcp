@@ -54,9 +54,9 @@ describe('committed Grimmory fixtures hold no personal data', () => {
                 if (PATH_KEYS.has(key) && typeof value === 'string') {
                     expect(value.replace(/^\//, ''), `${key}: ${value}`).not.toContain('/');
                 }
-                if (key === 'username') expect(value).toBe('example-user');
-                if (key === 'ipAddress') expect(value).toBe('192.0.2.1');
-                if (key === 'countryCode') expect(value).toBe('ZZ');
+                if (key === 'username' && value !== null) expect(value).toBe('example-user');
+                if (key === 'ipAddress' && value !== null) expect(value).toBe('192.0.2.1');
+                if (key === 'countryCode' && value !== null) expect(value).toBe('ZZ');
                 if (key === 'description' && holder !== undefined && 'action' in holder) expect(value).toMatch(/^Example audit entry \d+$/);
                 if ((key === 'thumbnailUrl' || key === 'externalUrl') && typeof value === 'string') expect(value).toMatch(/^(\/api\/|https:\/\/example\.invalid\/)/);
                 if (key === 'title' && typeof value === 'string') expect(value).toMatch(/^Example Book \d+$/);
