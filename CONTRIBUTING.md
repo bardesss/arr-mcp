@@ -363,8 +363,9 @@ small, shaped change, and a service in no slot at all is a different product.
   `get_releases`, `grab_release`, `remove_queue_item`, `retry_download` and
   `get_history` with no new tool. Ebooks only so far.
 
-- **Grimmory — writes.** The adapter has shipped, read-only, by maintainer waiver
-  on 2026-11-07. It missed three checks above: the project is eight months old
+- **Grimmory.** The adapter and its writes are in, by maintainer waiver on
+  2026-11-07. The writes cover rescans, deletes, the Bookdrop, read status and
+  metadata. It missed three checks above: the project is eight months old
   (first release 2026-03-20), only the maintainer asked for it, and a book never
   passes through the chain `diagnose` walks, so `diagnose` refuses one. The age
   miss is the one Chaptarr was turned down on, so the reason is written down.
@@ -377,9 +378,7 @@ small, shaped change, and a service in no slot at all is a different product.
   `stack_health` can see a download finish and never see where it went. The risk
   class holds, since it stores a username and password as Transmission and
   qBittorrent do, and talks only to the configured host. The waiver covers
-  Grimmory alone. A Chaptarr request still waits for its date. Rescanning a
-  library and deleting a book need their own case: deleting removes the files
-  from disk.
+  Grimmory alone. A Chaptarr request still waits for its date.
 
 Named and **not** accepted, so nobody spends a weekend finding out:
 
