@@ -7,10 +7,10 @@ off until you turn them on — see [writes](writes.md).
 | --- | --- |
 | `diagnose` | Why is this not playable? |
 | `stack_health` | Is anything broken, out of disk, or not scanning? |
-| `search_media` | What do I have, what exists, what can I get? |
-| `get_media_details` | Everything about one item; on Lidarr, one artist and the albums under it |
+| `search_media` | What do I have, what exists, what can I get? Books in Grimmory too, from the library |
+| `get_media_details` | Everything about one item; on Lidarr, one artist and the albums under it; on Grimmory, one book and its files |
 | `get_metadata_issues` | Which films and series have metadata that does not describe their files |
-| `get_library` | What's in my library — joined across Radarr, Sonarr, Lidarr and your media server, and where they disagree; Lidarr artists are their own kind, joined by MusicBrainz id |
+| `get_library` | What's in my library — joined across Radarr, Sonarr, Lidarr and your media server, and where they disagree; Lidarr artists are their own kind, joined by MusicBrainz id; Grimmory books are their own kind too |
 | `get_profile_issues` | Which quality profiles and custom formats are misconfigured, and where Profilarr has drifted from Radarr/Sonarr |
 | `get_queue` | What is downloading, across the *arr queues and every download client |
 | `get_history` | Why did last night's download fail — grabbed, imported, failed, deleted, and what SABnzbd, NZBGet, Bazarr, Cleanuparr, Reclaimerr and Shelfmark did |
@@ -270,6 +270,12 @@ paging, so it is the one read that grows with the size of the library, and it
 adds Bazarr to `degraded` when it fails. Only the first Bazarr is read, as with
 Cleanuparr. An item with no id to match gaps by is `unknown`, not `ok`.
 
+**Books.** A book never passes through the chain, so `diagnose` refuses one,
+including `service: "grimmory"`, before reading anything. The refusal points to
+`get_media_details` for the book and `stack_health` for Grimmory itself. A book
+with the same name as a film is skipped when a title is resolved, and a Grimmory
+outage does not lower `certain`.
+
 **Lidarr artists.** `diagnose` walks an artist as it does a film: by name, or with
 `service: "lidarr"` and the artist id. A film or series of the same name wins over
 the artist only when it matches the name as well as the artist does: an artist named exactly
@@ -360,7 +366,8 @@ no more a fault than a grant is.
 Sonarr, Whisparr, Lidarr, Prowlarr and Bazarr report their own health checks,
 NZBGet its `systemhealth` alerts (v26 and later), and Cleanuparr, Reclaimerr,
 Dispatcharr and Shelfmark their own status (see [Dispatcharr](#dispatcharr) and
-[Shelfmark](#shelfmark) below).
+[Shelfmark](#shelfmark) below). Grimmory reports unreachable libraries, old
+Bookdrop files and a newer release (see [Grimmory](#grimmory) below).
 
 SABnzbd reports the warnings and errors from its log, and only those from the
 last 24 hours. Its warnings list is a log rather than a state: it keeps every
@@ -639,6 +646,22 @@ row Shelfmark marks as not retryable. Shelfmark's history has no per-book scope,
 `diagnose` leaves Shelfmark out, because a book is not on the film and series
 chain it walks.
 
+### Grimmory
+
+With Grimmory configured, its findings cover the library and the Bookdrop:
+
+| Finding | Level |
+|---|---|
+| A library whose folder cannot be reached, by name | error |
+| Books left in the Bookdrop for more than a day, with the count and the date of the oldest | warning |
+| A newer Grimmory release than the one running | notice |
+| A read it could not do: libraries, library health, version or Bookdrop | notice |
+
+The notice for a read names which one failed and, for a 403, says "this account
+may not read" it, so a user without `canAccessBookdrop` loses the Bookdrop
+finding and nothing else. The update notice only appears when the latest release
+is newer than the running one. Grimmory is read only here.
+
 ### Did that command finish?
 
 `commands` is every **followable** task a service has queued or running, plus
@@ -791,6 +814,38 @@ not row on albums.
 any Daft Punk" is a library question, and the artist row answers it.
 `source: "discover"` returns nothing from Lidarr: its lookup endpoints answer
 with artists to add, and nothing here adds music.
+
+### Books, from Grimmory
+
+Grimmory adds a fourth `kind`, `book`. Its rows are their own source: a book has
+no external id, so it never merges with another row, and no media server reads
+books, so `presence` is always `unknown`.
+
+| Field | Meaning for a book |
+| --- | --- |
+| `title` | `<title> by <authors>`, fenced like every other service string |
+| `acquisition.id` | Grimmory's book id, which `get_media_details` takes with `service: "grimmory"` |
+| `acquisition.quality` | The format of the primary file, such as `EPUB` |
+| `acquisition.sizeBytes` | The size of the primary file |
+| `acquisition.addedAt` | When Grimmory added the book, so `sort: "added"` works |
+| `acquisition.hasFile` | Whether the book has a primary file |
+
+A book carries no rating, watch state or monitoring. `quality`, `min_rating`,
+`rating_source`, `sort: "rating"`, `watched`, `watched_by`, `presence` and
+`monitored` are refused when `kind: "book"` names the question. Without a kind
+they drop books, as they do artists.
+
+Books are read 200 to a page. A library of more than 20,000 books fails with an
+error instead of paging on. An unreachable Grimmory lands in `degraded`, and does
+not make a film or series answer less certain.
+
+`search_media` with `source: "library"` finds a book by title or author, and
+returns up to 20 hits with the book id. `source: "discover"` returns nothing from
+Grimmory. `get_media_details` takes `service: "grimmory"` and that id, and answers
+with the book's library, authors, series, ISBN and ASIN when it has them, its
+metadata match score, when it was added, and each file with its format and size.
+Asking by title alone does not reach a book, and the refusal points to the
+`service` and `id` form. Reading progress is left out.
 
 ### Sorting
 
@@ -1705,6 +1760,9 @@ replaces it when it does not. The case it exists for: a file named
 `Specials/Episode 101 Videl's Crisis…` displayed as S1E1 *Prologue to Battle!*,
 which a scan reports as perfectly fine because the file is exactly where it
 should be.
+
+`fix_metadata` refuses a Grimmory book up front and points to
+`get_media_details`, because Grimmory manages its own metadata.
 
 Give a film or series title as `query`, resolved through the library index the
 same way `get_media_details` resolves one, or the `id` that
