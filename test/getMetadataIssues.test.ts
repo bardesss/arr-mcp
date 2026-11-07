@@ -7,8 +7,8 @@ import { IdentityResolver } from '../src/core/identity.ts';
 import { permissionSourceFrom } from '../src/core/permissions.ts';
 import type { AnyServiceConfig } from '../src/config/schema.ts';
 import { instancesOf } from './helpers/instances.ts';
-import { buildGetMetadataIssues, registerGetMetadataIssues } from '../src/tools/getMetadataIssues.ts';
-import type { ServiceAdapter } from '../src/services/types.ts';
+import { buildGetMetadataIssues, metadataIssueLine, registerGetMetadataIssues } from '../src/tools/getMetadataIssues.ts';
+import type { BookMetadataIssue, ServiceAdapter } from '../src/services/types.ts';
 import type { LibraryLoader } from '../src/tools/library.ts';
 import { PlexAdapter } from '../src/services/plex.ts';
 import { serving } from './helpers/serve.ts';
@@ -588,5 +588,71 @@ describe('get_metadata_issues with two media servers', () => {
             registerGetMetadataIssues(s, { primary: { adapter: tagged('jellyfin', 'jellyfin') as never, identity: ident } })
         );
         expect(Object.keys(tools.get_metadata_issues!.inputSchema.shape)).not.toContain('service');
+    });
+});
+
+describe('books in get_metadata_issues', () => {
+    const fenced = '<<<untrusted:grimmory:title>>>Example Book 58<<<end>>>';
+    const issue = (over: Partial<BookMetadataIssue> = {}): BookMetadataIssue => ({ id: '58', title: fenced, matchScore: 38.2, hasIdentifier: true, allLocked: false, ...over });
+    const books = (issues: BookMetadataIssue[], scanned = 12): ServiceAdapter =>
+        ({ id: 'grimmory', type: 'grimmory', listBookMetadataIssues: vi.fn(async () => ({ issues, scanned })) }) as unknown as ServiceAdapter;
+    const sweepBooks = (b: ServiceAdapter, detail: 'full' | 'minimal' = 'full', media?: ServiceAdapter) =>
+        buildGetMetadataIssues(media === undefined ? [] : [media], media === undefined ? undefined : identity, {
+            detail,
+            limit: 50,
+            offset: 0,
+            books: b as never
+        });
+
+    it('books join with no media server configured', async () => {
+        const result = await sweepBooks(books([issue()]));
+        expect(result.itemsScanned).toBe(12);
+        expect(result.degraded).toEqual([]);
+        expect(result.items[0]).toMatchObject({ service: 'grimmory', itemId: '58', kind: 'book', mismatches: 1, remedy: 'refresh_metadata', matchScore: 38.2, title: fenced });
+
+        const server = new McpServer({ name: 'test', version: '0' });
+        registerGetMetadataIssues(server, {}, undefined, undefined, books([issue()]) as never);
+        const tools = (server as unknown as { _registeredTools: Record<string, { handler: (a: Record<string, unknown>, e: Record<string, unknown>) => Promise<{ content: { text: string }[] }> }> })._registeredTools;
+        const out = await tools.get_metadata_issues!.handler({ detail: 'standard', limit: 50, offset: 0 }, {});
+        expect(out.content[0]!.text).not.toContain('nothing was compared');
+        expect(out.content[0]!.text).toContain('1 of 12');
+    });
+
+    it('a book row hands fix_metadata its grimmory id', async () => {
+        const result = await sweepBooks(books([issue()]));
+        const line = metadataIssueLine(result.items[0]!);
+        expect(line).toContain('grimmory:58');
+        expect(line).toContain('fix_metadata');
+    });
+
+    it('a fully locked book points at unlocking in Grimmory', async () => {
+        const result = await sweepBooks(books([issue({ allLocked: true })]));
+        expect(result.items[0]?.remedy).toBe('unlock_fields');
+        expect(result.items[0]?.fix).toContain('Grimmory');
+        expect(result.items[0]?.fix).toContain('Unlock the fields');
+    });
+
+    it('a Grimmory outage lands in degraded and keeps the media-server rows', async () => {
+        const down = {
+            id: 'grimmory',
+            type: 'grimmory',
+            listBookMetadataIssues: async () => {
+                throw new Error('down');
+            }
+        } as unknown as ServiceAdapter;
+        const result = await sweepBooks(down, 'full', adapterWith({ DTF: [healthy(1), unmatched(4)] }));
+        expect(result.degraded).toEqual(['grimmory']);
+        expect(result.items.map(i => i.kind)).toEqual(['series']);
+    });
+
+    it('minimal detail keeps matchScore', async () => {
+        const result = await sweepBooks(books([issue()]), 'minimal');
+        expect(result.items[0]?.matchScore).toBe(38.2);
+    });
+
+    it('leaves series rows without a matchScore', async () => {
+        const result = await sweepBooks(books([]), 'full', adapterWith({ DTF: [unmatched(4)] }));
+        expect(result.items[0]).not.toHaveProperty('matchScore');
+        expect(result.itemsScanned).toBe(13);
     });
 });

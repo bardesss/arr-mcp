@@ -1963,6 +1963,31 @@ export interface LibraryCapable {
 export const hasLibrary = (a: ServiceAdapter): a is ServiceAdapter & LibraryCapable =>
     typeof (a as Partial<LibraryCapable>).listLibrary === 'function';
 
+/** One book `get_metadata_issues` flags. `title` is fenced; `id` is what `fix_metadata` takes after `grimmory:`. */
+export type BookMetadataIssue = {
+    id: string;
+    /** fenced */
+    title: string;
+    /** Grimmory's own 0-100 score of how well the metadata matches; absent on some books. */
+    matchScore?: number;
+    /** An ISBN or a catalogue id is on the book. */
+    hasIdentifier: boolean;
+    /** Every metadata field is locked, so no refresh changes anything. Known only where the detail was read. */
+    allLocked: boolean;
+};
+
+/**
+ * A book library's metadata sweep. The adapter decides what is worth reading
+ * per book; `threshold` is the match score below which a book is listed.
+ * `scanned` is every book looked at, listed or not.
+ */
+export interface BookMetadataIssueCapable {
+    listBookMetadataIssues(threshold: number): Promise<{ issues: BookMetadataIssue[]; scanned: number }>;
+}
+
+export const hasBookMetadataIssues = (a: ServiceAdapter): a is ServiceAdapter & BookMetadataIssueCapable =>
+    typeof (a as Partial<BookMetadataIssueCapable>).listBookMetadataIssues === 'function';
+
 /**
  * A media server's music half.
  *

@@ -9,6 +9,7 @@ import type { ServiceInstance } from '../config/instances.ts';
 import { permissionSourceFrom } from '../core/permissions.ts';
 import { SeerrAdapter } from '../services/seerr.ts';
 import {
+    hasBookMetadataIssues,
     hasIndexers,
     hasSubtitles,
     type ServiceAdapter
@@ -189,7 +190,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerGetPlayback(server, context.mediaServers);
     registerGetRequests(server, seerr, seerrIdentity);
     registerGetMediaDetails(server, adapters, library, dataset, bothIds(context.mediaServers));
-    registerGetMetadataIssues(server, context.mediaServers, write.permissions, library);
+    registerGetMetadataIssues(server, context.mediaServers, write.permissions, library, adapters.find(hasBookMetadataIssues));
     registerGetLibrary(server, library, bothIds(context.mediaServers));
     registerGetProfileIssues(server, adapters, instances);
     registerSearchMedia(server, adapters, dataset);

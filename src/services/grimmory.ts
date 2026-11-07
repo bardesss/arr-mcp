@@ -10,6 +10,8 @@ import {
     type ConnectionDiagnosis,
     type HealthCheck,
     type BookLibrary,
+    type BookMetadataIssue,
+    type BookMetadataIssueCapable,
     type BookDeleteCapable,
     type BookDeletion,
     type BookReadState,
@@ -70,6 +72,10 @@ const LIBRARY_PAGE_SIZE = 200;
  * server that ignores `page` would otherwise answer `hasNext: true` forever.
  */
 export const MAX_LIBRARY_PAGES = 100;
+/** A book scoring under this is listed by get_metadata_issues. */
+export const BOOK_MATCH_THRESHOLD = 45;
+/** The catalogue ids on a book's metadata; any one of them means it was identified. */
+const BOOK_CATALOGUE_IDS = ['asin', 'goodreadsId', 'googleId', 'hardcoverId', 'openlibraryId', 'comicvineId'] as const;
 /** Bookdrop files per page of the queue read. */
 const BOOKDROP_PAGE_SIZE = 100;
 /** The most pages one Bookdrop read follows: 1,000 files, then it fails by name rather than loop. */
@@ -122,7 +128,7 @@ type RawHealth = { data?: { version?: unknown } };
  * and password and answers with a JWT; the healthcheck is the one route that
  * takes no token.
  */
-export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, SearchCapable, MediaDetailCapable, LibraryCapable, BookLibraryScanCapable, BookDeleteCapable, BookReadStatusCapable, QueueCapable, QueueRemoveCapable, HistoryCapable {
+export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, SearchCapable, MediaDetailCapable, LibraryCapable, BookLibraryScanCapable, BookDeleteCapable, BookReadStatusCapable, QueueCapable, QueueRemoveCapable, HistoryCapable, BookMetadataIssueCapable {
     readonly type: ServiceId = 'grimmory';
     readonly id = 'grimmory';
     readonly queueKind = 'book';
@@ -262,17 +268,7 @@ export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, Sear
             if (id !== undefined && name !== undefined) libraryNames.set(id, name);
         }
         const out: IndexInput[] = [];
-        for (let page = 0; ; page += 1) {
-            if (page >= MAX_LIBRARY_PAGES) {
-                throw new ServiceError(
-                    'UpstreamError',
-                    this.id,
-                    `the book list did not end within ${MAX_LIBRARY_PAGES} pages of ${LIBRARY_PAGE_SIZE} (${MAX_LIBRARY_PAGES * LIBRARY_PAGE_SIZE} books)`
-                );
-            }
-            const params = new URLSearchParams({ page: String(page), size: String(LIBRARY_PAGE_SIZE) });
-            const body = obj(await this.#http.get<unknown>(`/api/v1/app/books?${params.toString()}`));
-            const rows = list(body.content);
+        for await (const rows of this.#bookPages()) {
             for (const book of rows) {
                 const id = num(book.id);
                 if (id === undefined) continue;
@@ -300,9 +296,70 @@ export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, Sear
                     }
                 });
             }
-            const totalPages = num(body.totalPages);
-            if (body.hasNext !== true || rows.length === 0 || (totalPages !== undefined && page + 1 >= totalPages)) return out;
         }
+        return out;
+    }
+
+    /**
+     * Every page of the app book list, one array of rows per page. Stops when
+     * Grimmory says there is no next page, the page count it reported is
+     * reached, or a page comes back empty. Past `MAX_LIBRARY_PAGES` it throws.
+     */
+    async *#bookPages(): AsyncGenerator<Raw[]> {
+        for (let page = 0; ; page += 1) {
+            if (page >= MAX_LIBRARY_PAGES) {
+                throw new ServiceError(
+                    'UpstreamError',
+                    this.id,
+                    `the book list did not end within ${MAX_LIBRARY_PAGES} pages of ${LIBRARY_PAGE_SIZE} (${MAX_LIBRARY_PAGES * LIBRARY_PAGE_SIZE} books)`
+                );
+            }
+            const params = new URLSearchParams({ page: String(page), size: String(LIBRARY_PAGE_SIZE) });
+            const body = obj(await this.#http.get<unknown>(`/api/v1/app/books?${params.toString()}`));
+            const rows = list(body.content);
+            yield rows;
+            const totalPages = num(body.totalPages);
+            if (body.hasNext !== true || rows.length === 0 || (totalPages !== undefined && page + 1 >= totalPages)) return;
+        }
+    }
+
+    /**
+     * Books worth a look: a match score under `threshold`, or no ISBN and no
+     * catalogue id. The list rows carry the score and the ISBNs; the catalogue
+     * ids and locks live on the book itself, so that is read one book at a
+     * time and only for a row with no ISBN. A book with no score is not listed
+     * for a low one.
+     */
+    async listBookMetadataIssues(threshold: number): Promise<{ issues: BookMetadataIssue[]; scanned: number }> {
+        const issues: BookMetadataIssue[] = [];
+        let scanned = 0;
+        for await (const rows of this.#bookPages()) {
+            for (const book of rows) {
+                const id = num(book.id);
+                if (id === undefined) continue;
+                scanned += 1;
+                const score = num(book.metadataMatchScore);
+                const low = score !== undefined && score < threshold;
+                let hasIdentifier = str(book.isbn13) !== undefined || str(book.isbn10) !== undefined;
+                let allLocked = false;
+                if (!hasIdentifier) {
+                    const meta = obj(obj(await this.#http.get<unknown>(`/api/v1/books/${encodeURIComponent(String(id))}`)).metadata);
+                    hasIdentifier = BOOK_CATALOGUE_IDS.some(key => str(meta[key]) !== undefined);
+                    const locks = Object.entries(meta).filter(([key]) => key.endsWith('Locked'));
+                    allLocked = locks.length > 0 && locks.every(([, v]) => v === true);
+                }
+                if (!low && hasIdentifier) continue;
+                const authors = (Array.isArray(book.authors) ? book.authors : []).filter((a): a is string => typeof a === 'string' && a !== '');
+                issues.push({
+                    id: String(id),
+                    title: this.#bookTitle(str(book.title), authors),
+                    ...(score === undefined ? {} : { matchScore: score }),
+                    hasIdentifier,
+                    allLocked
+                });
+            }
+        }
+        return { issues, scanned };
     }
 
     async getMediaDetails(id: string): Promise<MediaDetails> {

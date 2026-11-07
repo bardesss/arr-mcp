@@ -4,7 +4,7 @@ import { ServiceError } from '../src/core/errors.ts';
 import { fenceText } from '../src/core/fence.ts';
 import { ConfigSchema } from '../src/config/schema.ts';
 import { LibraryIndex } from '../src/core/resolver.ts';
-import { GRIMMORY_HISTORY_ACTIONS, GrimmoryAdapter, MAX_AUDIT_PAGES, MAX_LIBRARY_PAGES } from '../src/services/grimmory.ts';
+import { GRIMMORY_HISTORY_ACTIONS, GrimmoryAdapter, MAX_AUDIT_PAGES, MAX_LIBRARY_PAGES, BOOK_MATCH_THRESHOLD } from '../src/services/grimmory.ts';
 import { grimmoryServer } from './helpers/grimmory.ts';
 
 const config = ConfigSchema.parse({
@@ -631,5 +631,73 @@ describe('GrimmoryAdapter history', () => {
             detail: 'this Grimmory account may not read the audit log',
             remedy: 'The audit log needs a Grimmory admin account.'
         });
+    });
+});
+
+describe('GrimmoryAdapter book metadata issues', () => {
+    const bookRow = (id: number, extra: Record<string, unknown> = {}) => ({ id, title: `Book ${id}`, authors: ['Ann'], ...extra });
+    const pageOf = (rows: unknown[]) => ({ content: rows, page: 0, size: 200, totalElements: rows.length, totalPages: 1, hasNext: false, hasPrevious: false });
+    const detail = (id: number, metadata: Record<string, unknown>) => json({ id, metadata: { bookId: id, ...metadata } });
+    const serve = (rows: unknown[], details: Record<number, Reply> = {}) => {
+        const seen: string[] = [];
+        const routes: Record<string, Reply> = { 'POST /api/v1/auth/login': json(TOKENS), 'GET /api/v1/app/books': json(pageOf(rows)) };
+        for (const [id, reply] of Object.entries(details)) routes[`GET /api/v1/books/${id}`] = reply;
+        return { adapter: new GrimmoryAdapter(config, stub(routes, seen)), seen };
+    };
+
+    it('lists books scoring under the threshold', async () => {
+        const { adapter } = serve([
+            bookRow(1, { isbn13: '9780000000001', metadataMatchScore: 37.6 }),
+            bookRow(2, { isbn13: '9780000000002', metadataMatchScore: 44.9 }),
+            bookRow(3, { isbn13: '9780000000003', metadataMatchScore: 45 }),
+            bookRow(4, { isbn13: '9780000000004', metadataMatchScore: 79.6 })
+        ]);
+        const { issues } = await adapter.listBookMetadataIssues(BOOK_MATCH_THRESHOLD);
+        expect(issues.map(i => i.id)).toEqual(['1', '2']);
+        expect(issues[0]).toEqual({
+            id: '1',
+            title: fenceText('Book 1 by Ann', { service: 'grimmory', field: 'title' }),
+            matchScore: 37.6,
+            hasIdentifier: true,
+            allLocked: false
+        });
+    });
+
+    it('lists a book with no ISBN and no catalogue id, reading its detail only then', async () => {
+        const { adapter, seen } = serve(
+            [
+                bookRow(1, { isbn13: '9780000000001', metadataMatchScore: 70 }),
+                bookRow(2, { metadataMatchScore: 70 }),
+                bookRow(3, { metadataMatchScore: 70 }),
+                bookRow(4, { isbn10: '0000000004', metadataMatchScore: 70 }),
+                bookRow(5)
+            ],
+            { 2: detail(2, { goodreadsId: 'g2' }), 3: detail(3, {}), 5: detail(5, { asin: '' }) }
+        );
+        const { issues } = await adapter.listBookMetadataIssues(BOOK_MATCH_THRESHOLD);
+        expect(issues.map(i => i.id)).toEqual(['3', '5']);
+        expect(issues[0]).toMatchObject({ matchScore: 70, hasIdentifier: false });
+        expect(issues[1]!.matchScore).toBeUndefined();
+        expect(seen.filter(k => k.startsWith('GET /api/v1/books/'))).toHaveLength(3);
+    });
+
+    it('does not list a book with no score and an ISBN', async () => {
+        const { adapter, seen } = serve([bookRow(1, { isbn13: '9780000000001' })]);
+        expect((await adapter.listBookMetadataIssues(BOOK_MATCH_THRESHOLD)).issues).toEqual([]);
+        expect(seen.some(k => k.startsWith('GET /api/v1/books/'))).toBe(false);
+    });
+
+    it('counts every book scanned', async () => {
+        const { adapter } = serve([bookRow(1, { isbn13: '1', metadataMatchScore: 80 }), bookRow(2, { isbn13: '2', metadataMatchScore: 10 }), bookRow(3, { isbn13: '3' })]);
+        expect((await adapter.listBookMetadataIssues(BOOK_MATCH_THRESHOLD)).scanned).toBe(3);
+    });
+
+    it('marks a fully locked book', async () => {
+        const { adapter } = serve([bookRow(1), bookRow(2)], {
+            1: detail(1, { titleLocked: true, authorsLocked: true, coverLocked: true }),
+            2: detail(2, { titleLocked: true, authorsLocked: false })
+        });
+        const { issues } = await adapter.listBookMetadataIssues(BOOK_MATCH_THRESHOLD);
+        expect(issues.map(i => [i.id, i.allLocked])).toEqual([['1', true], ['2', false]]);
     });
 });
