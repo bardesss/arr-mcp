@@ -50,14 +50,27 @@ const identifier = (v: unknown): string | undefined => {
 const SEARCH_SIZE = 20;
 /** Books per library page: Grimmory's own app list allows this many in one read. */
 const LIBRARY_PAGE_SIZE = 200;
+/**
+ * The most pages one library read follows: 20,000 books. Past it the read
+ * fails by name rather than looping, since it runs on every library load and a
+ * server that ignores `page` would otherwise answer `hasNext: true` forever.
+ */
+export const MAX_LIBRARY_PAGES = 100;
 /** A file type is a short word such as EPUB or CBZ; anything else is not one. */
 const fileType = (v: unknown): string | undefined => {
     const s = str(v);
     return s !== undefined && /^[A-Za-z0-9_]{1,20}$/.test(s) ? s : undefined;
 };
+/**
+ * An ISO 8601 timestamp and nothing else. `Date.parse` alone accepts free text
+ * that ends in a year, which would reach a row unfenced and scramble the
+ * string sort `sort: 'added'` relies on.
+ */
 const isoDate = (v: unknown): string | undefined => {
     const s = str(v);
-    return s !== undefined && Number.isFinite(Date.parse(s)) ? s : undefined;
+    return s !== undefined && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/.test(s) && Number.isFinite(Date.parse(s))
+        ? s
+        : undefined;
 };
 
 type RawHealth = { data?: { version?: unknown } };
@@ -184,8 +197,8 @@ export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, Sear
 
     /**
      * Every book, one row each, for `get_library`. Paged until Grimmory says
-     * there is no next page; an empty page stops it too, so a server that keeps
-     * claiming one cannot loop this forever.
+     * there is no next page, the page count it reported is reached, or a page
+     * comes back empty. Past `MAX_LIBRARY_PAGES` it throws rather than loop.
      *
      * `monitored: false` because Grimmory has no monitoring; `get_library` does
      * not print it for a book. A book has no external id, so `ids` is empty and
@@ -194,6 +207,13 @@ export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, Sear
     async listLibrary(): Promise<IndexInput[]> {
         const out: IndexInput[] = [];
         for (let page = 0; ; page += 1) {
+            if (page >= MAX_LIBRARY_PAGES) {
+                throw new ServiceError(
+                    'UpstreamError',
+                    this.id,
+                    `the book list did not end within ${MAX_LIBRARY_PAGES} pages of ${LIBRARY_PAGE_SIZE} (${MAX_LIBRARY_PAGES * LIBRARY_PAGE_SIZE} books)`
+                );
+            }
             const params = new URLSearchParams({ page: String(page), size: String(LIBRARY_PAGE_SIZE) });
             const body = obj(await this.#http.get<unknown>(`/api/v1/app/books?${params.toString()}`));
             const rows = list(body.content);
@@ -219,7 +239,8 @@ export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, Sear
                     }
                 });
             }
-            if (body.hasNext !== true || rows.length === 0) return out;
+            const totalPages = num(body.totalPages);
+            if (body.hasNext !== true || rows.length === 0 || (totalPages !== undefined && page + 1 >= totalPages)) return out;
         }
     }
 
@@ -246,8 +267,7 @@ export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, Sear
         const isbn13 = identifier(meta.isbn13);
         const asin = identifier(meta.asin);
         const score = num(book.metadataMatchScore);
-        const added = str(book.addedOn);
-        const addedOn = added !== undefined && Number.isFinite(Date.parse(added)) ? added : undefined;
+        const addedOn = isoDate(book.addedOn);
         return {
             service: this.id,
             kind: 'book',

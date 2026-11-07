@@ -97,6 +97,16 @@ export class LibraryLoader {
     }
 
     /**
+     * The library sources that hold books only (Grimmory). A failed read of one
+     * belongs in `get_library`'s `degraded`, but it can never be why a film or
+     * series title was not found, so the film-and-series readers leave it out
+     * of their hedges, as they do the secondary media server.
+     */
+    get bookSourceIds(): readonly string[] {
+        return this.#adapters.filter(a => a.type === 'grimmory' && hasLibrary(a)).map(a => a.id);
+    }
+
+    /**
      * Whether an IMDb rating is *obtainable* here, which is not the same
      * question as whether one was found.
      *

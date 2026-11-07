@@ -1021,11 +1021,13 @@ describe('books from Grimmory', () => {
         ['sort: rating', { sort: 'rating' as const }],
         ['watched', { watched: true }],
         ['watched_by', { watched_by: 'Someone' }],
-        ['presence', { presence: 'unknown' as const }]
+        ['presence', { presence: 'unknown' as const }],
+        ['monitored', { monitored: false }],
+        ['monitored true', { monitored: true }]
     ])('refuses film filters on books: %s', async (_label, filter) => {
         const run = buildGetLibrary(bookLoader([book(58)]), { ...base, kind: 'book', ...filter });
         await expect(run).rejects.toThrow(/book/i);
-        await expect(run).rejects.toThrow(/quality, min_rating, rating_source, sort: "rating", watched, watched_by and presence/);
+        await expect(run).rejects.toThrow(/quality, min_rating, rating_source, sort: "rating", watched, watched_by, presence and monitored/);
     });
 
     it('sort added works for books', async () => {

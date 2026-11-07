@@ -111,7 +111,12 @@ async function resolveItem(
     // The secondary's rows never enter the join, so its outage leaves the
     // primary's answer complete.
     const secondary = deps.library.secondaryMediaServerId;
-    for (const id of snapshot.degraded) if (id !== secondary && !libraryDegraded.includes(id)) libraryDegraded.push(id);
+    // Nor do books: diagnose never reads a book row, so a Grimmory outage
+    // leaves its film, series and artist answer complete.
+    const books = deps.library.bookSourceIds ?? [];
+    for (const id of snapshot.degraded) {
+        if (id !== secondary && !books.includes(id) && !libraryDegraded.includes(id)) libraryDegraded.push(id);
+    }
 
     // The explicit id wins: it is unambiguous and a title is not.
     if (target.service !== undefined && target.id !== undefined) {

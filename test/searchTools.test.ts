@@ -591,6 +591,33 @@ describe('get_media_details', () => {
         await expect(only).rejects.toThrow(/search_media/);
     });
 
+    it('does not hedge a title miss on a Grimmory outage, since a book is never the answer', async () => {
+        const grimmoryDown = new LibraryLoader(
+            [
+                {
+                    id: 'radarr',
+                    type: 'radarr',
+                    testConnection: async () => ({ ok: true, service: 'radarr', latency_ms: 1 }),
+                    getVersion: async () => '1.0.0',
+                    listLibrary: async () => [RESOLVED]
+                } as unknown as ServiceAdapter,
+                {
+                    id: 'grimmory',
+                    type: 'grimmory',
+                    testConnection: async () => ({ ok: true, service: 'grimmory', latency_ms: 1 }),
+                    getVersion: async () => '3.5.0',
+                    listLibrary: async () => {
+                        throw new Error('grimmory down');
+                    }
+                } as unknown as ServiceAdapter
+            ],
+            undefined
+        );
+        const err = (await resolveMediaDetails([], grimmoryDown, { ...query, query: 'zzzz' }).catch((e: unknown) => e)) as Error;
+        expect(err.message).toMatch(/nothing in your library matches/i);
+        expect(err.message).not.toMatch(/grimmory|could not be reached|incomplete/i);
+    });
+
     it('matches through a leading article the caller omitted', async () => {
         const result = await resolveMediaDetails([], loader(), { ...query, query: 'the matrix' });
         expect(result).toMatchObject({ ids: { tmdb: 603 } });

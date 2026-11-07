@@ -116,9 +116,11 @@ export async function buildResolvedMediaDetails(
         // this user's episodes, so it can only ever *add* `seasons` to items
         // another source already returned. It can never be why a title was not
         // found, and saying it might be is a hedge against nothing. The same
-        // goes for the secondary media server, whose rows never enter the join.
+        // goes for the secondary media server, whose rows never enter the join,
+        // and for a book-only source: a book can never be the answer here.
         const secondary = loader.secondaryMediaServerId;
-        const unreachable = servicesOnly(degraded).filter(id => id !== secondary);
+        const books = loader.bookSourceIds ?? [];
+        const unreachable = servicesOnly(degraded).filter(id => id !== secondary && !books.includes(id));
         const hedge =
             unreachable.length === 0
                 ? ''

@@ -214,7 +214,8 @@ function rejectFilmFiltersOnMusic(opts: LibraryQuery): void {
  *
  * Unlike an artist, a book also refuses `presence`: no media server reads
  * books, so every book reads `unknown` and the filter could only ever answer
- * all of them or none. Without a kind, all of these drop books through the
+ * all of them or none. `monitored` the same way: Grimmory has no monitoring,
+ * so every book reads `false`. Without a kind, all of these drop books through the
  * normal path in `buildGetLibrary`.
  */
 function rejectFilmFiltersOnBooks(opts: LibraryQuery): void {
@@ -227,10 +228,11 @@ function rejectFilmFiltersOnBooks(opts: LibraryQuery): void {
         opts.sort === 'rating' ||
         opts.watched !== undefined ||
         opts.watched_by !== undefined ||
-        opts.presence !== undefined
+        opts.presence !== undefined ||
+        opts.monitored !== undefined
     ) {
         throw new Error(
-            'A Grimmory book carries no rating, no watch state and no media-server presence, and its file format is not a film quality. Drop quality, min_rating, rating_source, sort: "rating", watched, watched_by and presence.'
+            'A Grimmory book carries no rating, no watch state, no monitoring and no media-server presence, and its file format is not a film quality. Drop quality, min_rating, rating_source, sort: "rating", watched, watched_by, presence and monitored.'
         );
     }
 }

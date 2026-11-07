@@ -825,6 +825,22 @@ describe('diagnose', () => {
             const d = await buildDiagnose({ adapters, library }, { query: 'Example Book 58' });
             expect(d.resolved).toBeUndefined();
         });
+
+        it('a Grimmory outage does not hedge a film answer', async () => {
+            const down = stub('grimmory', {
+                listLibrary: async () => {
+                    throw new Error('grimmory down');
+                }
+            });
+            const adapters = [stub('radarr', { listLibrary: async () => [FILM] }), down];
+            const library = new LibraryLoader(adapters, undefined);
+            expect((await library.load()).degraded).toContain('grimmory');
+
+            const missing = await buildDiagnose({ adapters, library }, { query: 'No Such Film' });
+            expect(missing.resolved).toBeUndefined();
+            expect(missing.verdict.certain).toBe(true);
+            expect(missing.degraded).not.toContain('grimmory');
+        });
     });
 });
 
