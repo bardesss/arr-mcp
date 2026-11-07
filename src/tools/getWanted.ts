@@ -21,15 +21,15 @@ export type GetWantedResult = {
 const WantedScopeSchema = z
     .enum(['missing', 'upgradable'])
     .describe(
-        '`missing`: monitored items with no file at all. `upgradable`: monitored items that have a file but not yet at the quality profile\'s cutoff. Required — the two answer different questions, and a default would silently hide one of them.'
+        '`missing`: monitored items with no file at all (on Lidarr, an album with any track missing). `upgradable`: monitored items that have a file but not yet at the quality profile\'s cutoff. Required — the two answer different questions, and a default would silently hide one of them.'
     );
 
 /**
  * Unlike get_history and get_releases, nothing here is grab-plumbing to hide
  * below `full` — every field is something a reader would want. `minimal`
  * still exists for the same reason every other tool has one: the identity
- * and the one flag ("wanted") a quick scan needs, dropping `episodeTitle`
- * and `airDate` as the two fields most useful only when reading closely.
+ * and the one flag ("wanted") a quick scan needs, dropping `episodeTitle`,
+ * `albumTitle` and `airDate`, the fields most useful only to a close reading.
  */
 const project = (w: WantedItem, detail: DetailLevel): WantedItem => {
     if (detail === 'minimal') {
@@ -40,7 +40,9 @@ const project = (w: WantedItem, detail: DetailLevel): WantedItem => {
             title: w.title,
             monitored: w.monitored,
             ...(w.season === undefined ? {} : { season: w.season }),
-            ...(w.episode === undefined ? {} : { episode: w.episode })
+            ...(w.episode === undefined ? {} : { episode: w.episode }),
+            // Identity, like season and episode: the album a Lidarr row is about.
+            ...(w.albumId === undefined ? {} : { albumId: w.albumId })
         };
     }
     return w;
@@ -51,7 +53,8 @@ const project = (w: WantedItem, detail: DetailLevel): WantedItem => {
  *
  * `id` names the **series** on Sonarr's rows, never the episode — the same
  * contract `WantedItem` documents — so the line prints the episode numbering
- * for a human to read and the series id for a tool to act on.
+ * for a human to read and the series id for a tool to act on. A Lidarr row
+ * prints the album after the artist, and its album id beside the artist id.
  */
 export function wantedLine(item: WantedItem): string {
     const numbering =
@@ -59,12 +62,14 @@ export function wantedLine(item: WantedItem): string {
             ? ''
             : ` S${String(item.season).padStart(2, '0')}E${String(item.episode).padStart(2, '0')}`;
     const episode = item.episodeTitle === undefined ? '' : ` ${item.episodeTitle}`;
+    const album = item.albumTitle === undefined ? '' : ` — ${item.albumTitle}`;
 
     const facts = [item.kind, `${item.service}:${item.id}`];
+    if (item.albumId !== undefined) facts.push(`album ${item.albumId}`);
     if (item.airDate !== undefined && item.airDate !== '') facts.push(item.airDate);
     if (!item.monitored) facts.push('unmonitored');
 
-    return `${item.title}${numbering}${episode} — ${facts.join(', ')}`;
+    return `${item.title}${album}${numbering}${episode} — ${facts.join(', ')}`;
 }
 
 export async function buildGetWanted(
@@ -89,7 +94,7 @@ export async function buildGetWanted(
         // than "this service cannot answer that".
         if (!hasWanted(adapter)) {
             throw new ServiceError('NotFound', adapter.id, `${adapter.id} has no wanted list to return`, {
-                remedy: 'Only radarr and sonarr can answer get_wanted.'
+                remedy: 'Only radarr, sonarr and lidarr can answer get_wanted.'
             });
         }
         scoped = [adapter];
@@ -124,7 +129,7 @@ export function registerGetWanted(server: McpServer, adapters: readonly ServiceA
             title: 'Missing and upgradable',
             annotations: READ_ONLY,
             description:
-                '`get_library` can say a movie is missing (`monitored` with no file), but not which episodes of a show are missing, and neither tool can say what already has a file but not yet the wanted quality. `get_wanted` answers both, from Radarr and Sonarr\'s own wanted lists. `scope: "missing"` is monitored items with no file; `scope: "upgradable"` is monitored items with a file below the quality profile\'s cutoff — both required, since a default would hide one. Sonarr rows carry `season`, `episode` and the episode\'s own `episodeTitle`, with `title` naming the show; Radarr rows are movies, and only ever set `title`. Sonarr\'s missing list is monitored-only, matching what "wanted" means here — an unmonitored gap will not appear. `detail: "minimal"` drops `episodeTitle` and `airDate`, keeping the identity and whether it is monitored.',
+                '`get_library` can say a movie is missing (`monitored` with no file), but not which episodes of a show are missing, and neither tool can say what already has a file but not yet the wanted quality. `get_wanted` answers both, from Radarr, Sonarr and Lidarr\'s own wanted lists. `scope: "missing"` is monitored items with no file; `scope: "upgradable"` is monitored items with a file below the quality profile\'s cutoff — both required, since a default would hide one. Sonarr rows carry `season`, `episode` and the episode\'s own `episodeTitle`, with `title` naming the show; Radarr rows are movies, and only ever set `title`. Lidarr rows are `kind: "artist"`: `id` and `title` name the artist, and `albumId` and `albumTitle` the album that is missing or below cutoff — `albumId` is what `set_monitoring` takes with `level: "album"`, and its `airDate` is the album\'s release date. On Lidarr, `missing` is a released album with any track lacking a file, so a partly downloaded album can be in both lists, and both lists leave out every album of an unmonitored artist. Sonarr\'s and Lidarr\'s missing lists are monitored-only, matching what "wanted" means here — an unmonitored gap will not appear. `detail: "minimal"` drops `episodeTitle`, `albumTitle` and `airDate`, keeping the identity (including `albumId`) and whether it is monitored.',
             outputSchema: PagedOutputSchema,
             inputSchema: toolInput({
                 scope: WantedScopeSchema,

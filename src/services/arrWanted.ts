@@ -1,6 +1,8 @@
 import { fenceText } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
+import type { LibraryKind } from '../core/resolver.ts';
 import { pageSizeFor, readArrPages, readTotal } from './arrPaging.ts';
+import { lidarrDate } from './arrRecord.ts';
 import type { WantedItem, WantedScope, Window } from './types.ts';
 
 type RawWantedMovie = {
@@ -19,6 +21,16 @@ type RawWantedEpisode = {
     monitored?: boolean;
     /** Present only with `includeSeries=true`. */
     series?: { title?: string };
+};
+
+type RawWantedAlbum = {
+    id?: number; // the album, not the artist — the same trap as Sonarr's episode
+    artistId?: number;
+    title?: string; // the album's own title
+    releaseDate?: string | null;
+    monitored?: boolean;
+    /** Asked for with `includeArtist=true`; see `readArrWanted`. */
+    artist?: { artistName?: string };
 };
 
 /**
@@ -41,11 +53,24 @@ type RawWantedEpisode = {
  * With `want`, it stops once it has that many rows and takes `total` from the
  * service (#293). The series is embedded in every episode row, so a cutoff
  * list read to the end ran to 100 MB.
+ *
+ * Lidarr's are album objects, so it has Sonarr's trap one level up: `id` is
+ * the album, and the artist, which `get_media_details` and `set_monitoring`'s
+ * `artists` take, is in `artistId`. The row names the artist and carries the
+ * album as `albumId` and `albumTitle`. Both lists are monitored-only by
+ * default, as Sonarr's missing list is.
+ *
+ * Lidarr embeds the artist on every album row even without `includeArtist`:
+ * `AlbumResourceMapper` sets it from the album's lazily loaded artist, and a
+ * live 2.1.3.3927 answered with it either way, as the committed 3.1.6
+ * capture (taken without the flag) does. The flag is still sent, because it
+ * is the documented way to ask for the artist, and the row must not depend on
+ * an implementation detail to say whose album it is.
  */
 export async function readArrWanted(
     http: ServiceHttp,
     service: string,
-    kind: 'movie' | 'series',
+    kind: LibraryKind,
     scope: WantedScope,
     want?: number
 ): Promise<Window<WantedItem>> {
@@ -65,6 +90,28 @@ export async function readArrWanted(
                 title: fence(r.title ?? '', 'title'),
                 monitored: r.monitored ?? false
             }));
+        return { items, total: readTotal(read, items.length) };
+    }
+
+    if (kind === 'artist') {
+        const read = await readArrPages<RawWantedAlbum>(http, path, 'includeArtist=true', paging);
+        const items = read.records
+            .filter((r): r is RawWantedAlbum & { id: number; artistId: number } =>
+                typeof r.id === 'number' && typeof r.artistId === 'number'
+            )
+            .map(r => {
+                const released = lidarrDate(r.releaseDate);
+                return {
+                    service,
+                    kind: 'artist' as const,
+                    id: String(r.artistId),
+                    title: fence(r.artist?.artistName ?? '', 'artist.artistName'),
+                    albumId: String(r.id),
+                    ...(r.title === undefined ? {} : { albumTitle: fence(r.title, 'album.title') }),
+                    ...(released === undefined ? {} : { airDate: released }),
+                    monitored: r.monitored ?? false
+                };
+            });
         return { items, total: readTotal(read, items.length) };
     }
 
