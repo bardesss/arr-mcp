@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.67.2](https://github.com/bardesss/arr-mcp/compare/v1.67.1...v1.67.2) (2026-11-07)
+
+
+### Bug Fixes
+
+* **web:** unfence health check sources and config connection test errors ([#492](https://github.com/bardesss/arr-mcp/issues/492)) ([cabd0c2](https://github.com/bardesss/arr-mcp/commit/cabd0c23893a4f03d57252738870f57534f97689))
+
 ## [1.67.1](https://github.com/bardesss/arr-mcp/compare/v1.67.0...v1.67.1) (2026-11-07)
 
 
