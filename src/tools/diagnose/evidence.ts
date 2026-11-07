@@ -267,6 +267,16 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
         );
     }
 
+    // A book is not requested, downloaded, indexed or scanned by this stack: it
+    // sits in a library or it does not. Refused before any probe runs, because
+    // Grimmory can read a book by id and the chain would otherwise walk it as
+    // a film that has no file.
+    if (target.service === 'grimmory') {
+        throw new ServiceError('NotFound', 'grimmory', 'A book never passes through the diagnose chain (requested, managed, downloaded, indexed, imported, scanned).', {
+            remedy: 'Use get_media_details with service "grimmory" and the book id to see its files and library, or stack_health for Grimmory itself.'
+        });
+    }
+
     const degraded: string[] = [];
     // `string[]`, not `ServiceId[]`: what arrives here is `LibrarySnapshot`'s
     // own `degraded`, which is keyed by **source**, so it can hold

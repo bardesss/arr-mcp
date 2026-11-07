@@ -221,9 +221,10 @@ export function registerGetMediaDetails(
              * but `service: "lidarr"` plus an artist id answers with one, and it
              * is the route every artist refusal names for album ids. Without it
              * here the SDK rejects the result and the caller never sees it.
+             * `book` is Grimmory's, by `service` plus `id` only.
              */
             outputSchema: z.looseObject({
-                kind: z.enum(['movie', 'series', 'item', 'artist']),
+                kind: z.enum(['movie', 'series', 'item', 'artist', 'book']),
                 title: z.string()
             }),
             inputSchema: toolInput({
@@ -259,7 +260,9 @@ export function registerGetMediaDetails(
                       (result.episodes === undefined
                           ? ''
                           : ` ${result.episodes.length} of ${result.episodeCount ?? result.episodes.length} episode(s).`)
-                    : `${result.kind} from ${result.service}` +
+                    : result.kind === 'book'
+                      ? `book from ${result.service}${result.book === undefined ? '.' : `, in ${result.book.library}; ${result.book.formats.length === 0 ? 'no files.' : `formats: ${result.book.formats.map(f => f.format).join(', ')}.`}`}`
+                      : `${result.kind} from ${result.service}` +
                       // `episodes` is only fetched at detail: full. Reporting
                       // "0 of 62" below that read as an empty series rather
                       // than as episodes nobody asked for.

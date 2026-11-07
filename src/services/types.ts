@@ -1090,7 +1090,7 @@ export type SeasonMonitoring = { season: number; monitored: boolean };
 
 export type MediaDetails = {
     service: string;
-    kind: 'movie' | 'series' | 'item' | 'artist';
+    kind: 'movie' | 'series' | 'item' | 'artist' | 'book';
     id: string;
     title: string;
     year?: number;
@@ -1117,6 +1117,18 @@ export type MediaDetails = {
     albumsTruncated?: boolean;
     /** Series only. Sonarr's per-season monitoring, as reported by Sonarr. */
     seasons?: SeasonMonitoring[];
+    /** Books only (Grimmory). Every free-text field here is fenced. */
+    book?: {
+        authors: string[];
+        series?: string;
+        seriesNumber?: number;
+        library: string;
+        formats: { format: string; fileName: string; sizeBytes?: number }[];
+        isbn13?: string;
+        asin?: string;
+        matchScore?: number;
+        addedOn?: string;
+    };
 };
 
 /**

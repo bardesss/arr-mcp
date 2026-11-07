@@ -1,3 +1,4 @@
+import { McpServer } from '@modelcontextprotocol/server';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { KeyedServiceConfig, MultiUserServiceConfig } from '../src/config/schema.ts';
 import type { IdentityResolver } from '../src/core/identity.ts';
@@ -10,6 +11,8 @@ import { SeerrAdapter } from '../src/services/seerr.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
 import { buildDiscoverMedia } from '../src/tools/discoverMedia.ts';
 import { buildGetMediaDetails, resolveMediaDetails } from '../src/tools/getMediaDetails.ts';
+import { GrimmoryAdapter } from '../src/services/grimmory.ts';
+import { registerGetMediaDetails } from '../src/tools/getMediaDetails.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
 import { buildLookupMedia } from '../src/tools/lookupMedia.ts';
 import { buildSearchMedia } from '../src/tools/searchMedia.ts';
@@ -776,6 +779,39 @@ describe('get_media_details', () => {
             expect(result.episodes).toBeUndefined();
         });
     });
+
+    it('get_media_details accepts kind book for grimmory', async () => {
+        const fetchImpl = (async (input: string | URL | Request, init?: RequestInit) => {
+            const path = new URL(String(input)).pathname;
+            if (init?.method === 'POST') return jsonResponse({ accessToken: 't', refreshToken: 'r', expires: 7200 });
+            if (path === '/api/v1/books/58') {
+                return jsonResponse({
+                    id: 58,
+                    libraryName: 'Example Library 1',
+                    metadata: { title: 'Example Book 58', authors: ['Example Author 1'] },
+                    primaryFile: { bookType: 'EPUB', fileName: 'a.epub', fileSizeKb: 1 },
+                    alternativeFormats: [{ bookType: 'PDF', fileName: 'a.pdf', fileSizeKb: 2 }]
+                });
+            }
+            return jsonResponse({}, 404);
+        }) as unknown as typeof fetch;
+        const grimmory = new GrimmoryAdapter({ url: 'http://grimmory:6060', username: 'u', password: 'p', timeout_ms: 10_000 } as never, fetchImpl);
+
+        let registered: { cfg: { outputSchema: { safeParse(v: unknown): { success: boolean } } }; handler: (a: Record<string, unknown>) => Promise<{ content: { text: string }[]; structuredContent: unknown }> } | undefined;
+        const server = {
+            registerTool: (_n: string, cfg: never, handler: never) => {
+                registered = { cfg, handler };
+            }
+        } as unknown as McpServer;
+        registerGetMediaDetails(server, [grimmory], new LibraryLoader([grimmory], undefined));
+
+        const out = await registered!.handler({ service: 'grimmory', id: '58', detail: 'standard', limit: 50 });
+        expect(registered!.cfg.outputSchema.safeParse(out.structuredContent).success).toBe(true);
+        expect(out.content[0]!.text).toContain('book from grimmory');
+        expect(out.content[0]!.text).toContain('Example Library 1');
+        expect(out.content[0]!.text).toContain('formats: EPUB, PDF');
+    });
+
 });
 
 describe('discover_media', () => {

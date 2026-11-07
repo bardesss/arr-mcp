@@ -9,6 +9,7 @@ import { buildChain as chain, type Diagnosis, type Evidence } from '../src/tools
 import { collectEvidence } from '../src/tools/diagnose/evidence.ts';
 import { buildDiagnose, type DiagnoseDeps } from '../src/tools/diagnose/index.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
+import { GrimmoryAdapter } from '../src/services/grimmory.ts';
 import { LidarrAdapter } from '../src/services/lidarr.ts';
 import type { ServiceAdapter, UserDirectoryCapable } from '../src/services/types.ts';
 
@@ -785,6 +786,37 @@ describe('diagnose', () => {
         await expect(buildDiagnose({ adapters, library }, { query: 'some film', user: 'bob' })).rejects.toThrow(
             /not permitted/i
         );
+    });
+    describe('a Grimmory book', () => {
+        const seen: string[] = [];
+        const grimmory = (): GrimmoryAdapter =>
+            new GrimmoryAdapter(
+                { url: 'http://grimmory:6060', username: 'reader', password: 'pw', timeout_ms: 10_000 } as never,
+                (async (input: string | URL | Request) => {
+                    seen.push(String(input));
+                    return new Response('{}', { status: 200 });
+                }) as unknown as typeof fetch
+            );
+
+        it('is refused before the chain is walked', async () => {
+            seen.length = 0;
+            const adapters = [stub('radarr', { listLibrary: async () => [FILM] }), grimmory()];
+            const run = buildDiagnose({ adapters, library: new LibraryLoader(adapters, undefined) }, { service: 'grimmory', id: '58' });
+            await expect(run).rejects.toThrow(/never passes through the diagnose chain/);
+            await expect(run).rejects.toThrow(/get_media_details/);
+            await expect(run).rejects.toThrow(/stack_health/);
+            expect(seen).toEqual([]);
+        });
+
+        it('is not matched by a title', async () => {
+            // Diagnose by title reads the film, series and artist index only; Grimmory
+            // has no listLibrary, so a book's title resolves to nothing.
+            seen.length = 0;
+            const adapters = [stub('radarr', { listLibrary: async () => [FILM] }), grimmory()];
+            const d = await buildDiagnose({ adapters, library: new LibraryLoader(adapters, undefined) }, { query: 'Example Book 58' });
+            expect(d.resolved).toBeUndefined();
+            expect(seen).toEqual([]);
+        });
     });
 });
 

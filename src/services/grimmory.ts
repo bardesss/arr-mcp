@@ -4,7 +4,18 @@ import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
 import { ServiceHttp } from '../core/http.ts';
 import { compareVersions, parseVersion } from './versions.ts';
-import { diagnoseConnection, type ConnectionDiagnosis, type HealthCheck, type HealthCheckCapable, type ServiceAdapter } from './types.ts';
+import {
+    diagnoseConnection,
+    type ConnectionDiagnosis,
+    type HealthCheck,
+    type HealthCheckCapable,
+    type MediaDetailCapable,
+    type MediaDetails,
+    type SearchCapable,
+    type SearchHit,
+    type SearchSource,
+    type ServiceAdapter
+} from './types.ts';
 
 /** The Grimmory this adapter was written against and captured on. */
 export const TESTED_VERSION = '3.5.0';
@@ -27,6 +38,15 @@ function unreadable(name: string, reason: unknown): string {
     return `Grimmory's ${name} could not be read (${why}), so it is left out.`;
 }
 
+const str = (v: unknown): string | undefined => (typeof v === 'string' && v.trim() !== '' ? v : undefined);
+const num = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
+/** An ISBN or ASIN is short and plain; anything else in that field is not an identifier. */
+const identifier = (v: unknown): string | undefined => {
+    const s = str(v);
+    return s !== undefined && /^[0-9A-Za-z-]{1,20}$/.test(s) ? s : undefined;
+};
+const SEARCH_SIZE = 20;
+
 type RawHealth = { data?: { version?: unknown } };
 
 /**
@@ -34,7 +54,7 @@ type RawHealth = { data?: { version?: unknown } };
  * and password and answers with a JWT; the healthcheck is the one route that
  * takes no token.
  */
-export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable {
+export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, SearchCapable, MediaDetailCapable {
     readonly type: ServiceId = 'grimmory';
     readonly id = 'grimmory';
     readonly #http: ServiceHttp;
@@ -113,6 +133,88 @@ export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable {
             }
         }
         return out;
+    }
+
+    #fence(value: string, field: string): string {
+        return fenceText(value, { service: this.id, field });
+    }
+
+    /** `<title> by <authors>`, fenced; the one place a book's display title is built. */
+    #bookTitle(title: string | undefined, authors: string[]): string {
+        const name = title ?? 'untitled';
+        return this.#fence(authors.length === 0 ? name : `${name} by ${authors.join(', ')}`, 'title');
+    }
+
+    /** Books you own, so `library` only. */
+    async search(query: string, source: SearchSource): Promise<SearchHit[]> {
+        if (source !== 'library') return [];
+        const params = new URLSearchParams({ q: query, page: '0', size: String(SEARCH_SIZE) });
+        const page = obj(await this.#http.get<unknown>(`/api/v1/app/books/search?${params.toString()}`));
+        return list(page.content).flatMap(book => {
+            const id = num(book.id);
+            if (id === undefined) return [];
+            const authors = (Array.isArray(book.authors) ? book.authors : []).filter((a): a is string => typeof a === 'string' && a !== '');
+            const year = /^(\d{4})/.exec(str(book.publishedDate) ?? '')?.[1];
+            return [
+                {
+                    service: this.id,
+                    source,
+                    kind: 'book' as const,
+                    id: String(id),
+                    title: this.#bookTitle(str(book.title), authors),
+                    ...(year === undefined ? {} : { year: Number(year) }),
+                    ids: {}
+                }
+            ];
+        });
+    }
+
+    async getMediaDetails(id: string): Promise<MediaDetails> {
+        const book = obj(await this.#http.get<unknown>(`/api/v1/books/${encodeURIComponent(id)}`));
+        const meta = obj(book.metadata);
+        const authors = (Array.isArray(meta.authors) ? meta.authors : []).filter((a): a is string => typeof a === 'string' && a !== '');
+        const primary = book.primaryFile === undefined ? undefined : obj(book.primaryFile);
+        const files = [...(primary === undefined ? [] : [primary]), ...list(book.alternativeFormats)];
+        const formats = files.map(f => {
+            const sizeKb = num(f.fileSizeKb);
+            const format = str(f.bookType) ?? str(f.extension)?.toUpperCase() ?? 'UNKNOWN';
+            return {
+                format: format.length > 20 ? 'UNKNOWN' : format,
+                fileName: this.#fence(str(f.fileName) ?? 'unnamed', 'file_name'),
+                ...(sizeKb === undefined ? {} : { sizeBytes: sizeKb * 1024 })
+            };
+        });
+        const year = /^(\d{4})/.exec(str(meta.publishedDate) ?? '')?.[1];
+        const primaryPath = str(primary?.filePath) ?? str(primary?.fileName);
+        const primarySize = num(primary?.fileSizeKb);
+        const series = str(meta.seriesName);
+        const seriesNumber = num(meta.seriesNumber);
+        const isbn13 = identifier(meta.isbn13);
+        const asin = identifier(meta.asin);
+        const score = num(book.metadataMatchScore);
+        const addedOn = str(book.addedOn);
+        return {
+            service: this.id,
+            kind: 'book',
+            id: String(book.id ?? id),
+            title: this.#fence(str(meta.title) ?? 'untitled', 'title'),
+            ...(year === undefined ? {} : { year: Number(year) }),
+            hasFile: primary !== undefined,
+            ...(primarySize === undefined ? {} : { sizeBytes: primarySize * 1024 }),
+            ...(primaryPath === undefined ? {} : { path: this.#fence(primaryPath.split(/[\\/]/).pop() ?? primaryPath, 'path') }),
+            ids: {},
+            book: {
+                authors: authors.map(a => this.#fence(a, 'author')),
+                ...(series === undefined ? {} : { series: this.#fence(series, 'series') }),
+                ...(seriesNumber === undefined ? {} : { seriesNumber }),
+                library: this.#fence(str(book.libraryName) ?? `#${String(book.libraryId ?? '')}`, 'library_name'),
+                formats,
+                ...(isbn13 === undefined ? {} : { isbn13 }),
+                ...(asin === undefined ? {} : { asin }),
+                ...(score === undefined ? {} : { matchScore: score }),
+                ...(addedOn === undefined ? {} : { addedOn })
+            }
+        };
     }
 
     async #bookdropFinding(): Promise<HealthCheck | undefined> {
