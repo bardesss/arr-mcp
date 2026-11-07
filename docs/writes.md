@@ -67,19 +67,29 @@ clients and Shelfmark have no blocklist of their own; ask for one there and the
 preview tells you it is being ignored rather than silently accepting a flag that
 does nothing. On Shelfmark it only cancels a queued or running book, and refuses
 `remove_from_client: false`, because Shelfmark has no way to leave the download
-alone.
+alone. On Grimmory it discards a file waiting in the Bookdrop, which deletes the
+file from disk with no undo. It refuses `remove_from_client: false`, since
+Grimmory cannot discard a file and keep it, and `blocklist` is ignored there.
+
+`delete_media` on a Grimmory book always deletes the files. Grimmory has no
+keep-files option, so the call needs `delete_files: true` and is refused
+without it.
 
 `fix_metadata` is destructive without deleting a single byte, which is the
 clearest statement of where the line actually is: it replaces every metadata
 field the media server held, including anything corrected by hand there, and
 the previous values are not recoverable. Unrecoverable is the test, not
-whether files were removed.
+whether files were removed. On a Grimmory book it replaces the fields where the
+best provider match differs and the field is not locked, except categories. It
+may write the change into the book file and move the file to match its naming
+pattern, and there is no undo.
 
 `set_watched` is safe rather than destructive, but it is the one safe write
 whose undo is not perfectly clean: unmarking and re-marking restores the
 watched flag and nothing else. The original play date and resume position are
 gone, and Jellyfin has no way to put them back. The preview says so before you
-confirm.
+confirm. On a Grimmory book the equivalent is the finish date: marking it read
+sets it to now, marking it unread clears it, and an earlier one is not restored.
 
 `update_media` is safe, including when it changes the root folder — which asks
 the service to **move the files on disk**. Nothing is lost by a move: the undo
@@ -87,6 +97,11 @@ is moving them back, and the service does the moving itself. That puts it
 alongside `add_media`, which starts multi-gigabyte downloads and is safe for
 the same reason. The preview names the source and the destination, because
 "change the root folder" reads cheaper than it is.
+
+On a Grimmory book `update_media` edits the title, authors, series and
+categories, and Grimmory may write the change into the book file and move it to
+match its naming pattern. The preview shows the old values, and the same call
+sets them back. The file rewrite is Grimmory's own and arr-mcp cannot undo it.
 
 `trigger_scan`'s `rename` action is safe on the same reading: it renames files
 within the library to the service's own scheme, and renaming again puts them

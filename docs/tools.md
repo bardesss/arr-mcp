@@ -13,7 +13,7 @@ off until you turn them on — see [writes](writes.md).
 | `get_library` | What's in my library — joined across Radarr, Sonarr, Lidarr and your media server, and where they disagree; Lidarr artists are their own kind, joined by MusicBrainz id; Grimmory books are their own kind too |
 | `get_profile_issues` | Which quality profiles and custom formats are misconfigured, and where Profilarr has drifted from Radarr/Sonarr |
 | `get_queue` | What is downloading, across the *arr queues and every download client, and what waits in Grimmory's Bookdrop |
-| `get_history` | Why did last night's download fail — grabbed, imported, failed, deleted, and what SABnzbd, NZBGet, Bazarr, Cleanuparr, Reclaimerr and Shelfmark did; on Grimmory, deleted books, metadata changes and scans |
+| `get_history` | Why did last night's download fail: grabbed, imported, failed, deleted, and what SABnzbd, NZBGet, Bazarr, Cleanuparr, Reclaimerr and Shelfmark did; on Grimmory, deleted books, metadata changes and scans |
 | `get_wanted` | Which episodes of a show are missing, and what has a file below cutoff |
 | `get_releases` | What an interactive search actually found, rejects included; on Shelfmark, the files on offer for a book |
 | `get_blocklist` | Why does it keep finding the same release and never downloading it |
@@ -1159,7 +1159,9 @@ With Grimmory configured, the files waiting in its Bookdrop are queue rows. Each
 has `status: "pending review"`, the file name as its title, and `addedAt` when it
 arrived. They are not downloads: arr-mcp has no progress or ETA for them, and
 they leave the queue when someone finalises them in Grimmory. Reading the
-Bookdrop needs `canAccessBookdrop` on a non-admin account.
+Bookdrop needs `canAccessBookdrop` on a non-admin account. It is read 100 files
+to a page, and a Bookdrop of more than 1,000 files fails with an error instead
+of paging on.
 
 `remove_queue_item` with `service: "grimmory"` and the row's `id` discards the
 file. Grimmory deletes it from disk and does not import it, so there is no undo,
@@ -1266,10 +1268,11 @@ imports, or its file gets deleted, it leaves the queue and `get_queue` has
 nothing to say about it. `trigger_search` cannot fill that gap either: it hands
 back a command handle, and Radarr and Sonarr do not report a search's outcome
 through it. `get_history` merges Radarr's, Sonarr's and Lidarr's own history logs with SABnzbd's,
-NZBGet's, Bazarr's, Cleanuparr's, Reclaimerr's and Shelfmark's, plus Grimmory's audit log, and is the only tool that can answer "why did last
-night's download fail".
+NZBGet's, Bazarr's, Cleanuparr's, Reclaimerr's and Shelfmark's, plus Grimmory's
+audit log, and is the only tool that can answer "why did last night's download
+fail".
 
-Both services' events are normalised to one vocabulary — `grabbed`,
+Radarr's and Sonarr's events are normalised to one vocabulary: `grabbed`,
 `imported`, `failed`, `deleted`, `renamed`, `ignored` — because they mostly
 already agree: both spell a grab `grabbed` and an import
 `downloadFolderImported`. The one place they diverge is deletion,
@@ -1747,7 +1750,8 @@ sweeping 101 series turned up two problems nobody had noticed beside the one
 that prompted the work.
 
 Covers films and series, and Grimmory books in a sweep of their own (see
-[Books that need a repair](#books-that-need-a-repair) below). Films cost one request for the whole library, because
+[Books that need a repair](#books-that-need-a-repair) below). Films cost one
+request for the whole library, because
 they need no per-title read; series cost one each, which is why this is
 deliberately **not** folded into `get_library` where every caller would pay for
 it. A real library of 101 series and 118 films sweeps in seconds.
@@ -1864,8 +1868,8 @@ which a scan reports as perfectly fine because the file is exactly where it
 should be.
 
 A Grimmory book is repaired too, by its id and through Grimmory's own metadata
-providers; see [A Grimmory book](#a-grimmory-book) below. A title that matches only a book is
-refused, and the refusal names the id form.
+providers; see [A Grimmory book](#a-grimmory-book) below. A title that matches
+only a book is refused, and the refusal names the id form.
 
 Give a film or series title as `query`, resolved through the library index the
 same way `get_media_details` resolves one, or the `id` that
