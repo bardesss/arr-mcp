@@ -100,8 +100,9 @@ the same reason. The preview names the source and the destination, because
 
 On a Grimmory book `update_media` edits the title, authors, series and
 categories, and Grimmory may write the change into the book file and move it to
-match its naming pattern. The preview shows the old values, and the same call
-sets them back. The file rewrite is Grimmory's own and arr-mcp cannot undo it.
+match its naming pattern. It stays safe for the same reason as a root folder
+move. The preview shows the old values, and setting them back with the same
+tool makes Grimmory write them into the file and rename it again.
 
 `trigger_scan`'s `rename` action is safe on the same reading: it renames files
 within the library to the service's own scheme, and renaming again puts them
