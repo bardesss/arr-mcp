@@ -326,7 +326,7 @@ export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, Sear
     /**
      * Books worth a look: a match score under `threshold`, or no ISBN and no
      * catalogue id. The list rows carry the score and the ISBNs; the catalogue
-     * ids and locks live on the book itself, so that is read one book at a
+     * ids live on the book itself, so that is read one book at a
      * time and only for a row with no ISBN. A book with no score is not listed
      * for a low one.
      */
@@ -341,12 +341,11 @@ export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, Sear
                 const score = num(book.metadataMatchScore);
                 const low = score !== undefined && score < threshold;
                 let hasIdentifier = str(book.isbn13) !== undefined || str(book.isbn10) !== undefined;
-                let allLocked = false;
+                // On the list row itself; absent means not fully locked.
+                const allLocked = book.allMetadataLocked === true;
                 if (!hasIdentifier) {
                     const meta = obj(obj(await this.#http.get<unknown>(`/api/v1/books/${encodeURIComponent(String(id))}`)).metadata);
                     hasIdentifier = BOOK_CATALOGUE_IDS.some(key => str(meta[key]) !== undefined);
-                    const locks = Object.entries(meta).filter(([key]) => key.endsWith('Locked'));
-                    allLocked = locks.length > 0 && locks.every(([, v]) => v === true);
                 }
                 if (!low && hasIdentifier) continue;
                 const authors = (Array.isArray(book.authors) ? book.authors : []).filter((a): a is string => typeof a === 'string' && a !== '');

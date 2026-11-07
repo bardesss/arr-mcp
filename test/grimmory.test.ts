@@ -692,12 +692,14 @@ describe('GrimmoryAdapter book metadata issues', () => {
         expect((await adapter.listBookMetadataIssues(BOOK_MATCH_THRESHOLD)).scanned).toBe(3);
     });
 
-    it('marks a fully locked book', async () => {
-        const { adapter } = serve([bookRow(1), bookRow(2)], {
-            1: detail(1, { titleLocked: true, authorsLocked: true, coverLocked: true }),
-            2: detail(2, { titleLocked: true, authorsLocked: false })
-        });
+    it('marks a fully locked book from the list row, low score with an ISBN included, with no detail read', async () => {
+        const { adapter, seen } = serve([
+            bookRow(1, { isbn13: '9780000000001', metadataMatchScore: 40, allMetadataLocked: true }),
+            bookRow(2, { isbn13: '9780000000002', metadataMatchScore: 40, allMetadataLocked: false }),
+            bookRow(3, { isbn13: '9780000000003', metadataMatchScore: 40 })
+        ]);
         const { issues } = await adapter.listBookMetadataIssues(BOOK_MATCH_THRESHOLD);
-        expect(issues.map(i => [i.id, i.allLocked])).toEqual([['1', true], ['2', false]]);
+        expect(issues.map(i => [i.id, i.allLocked])).toEqual([['1', true], ['2', false], ['3', false]]);
+        expect(seen.some(k => k.startsWith('GET /api/v1/books/'))).toBe(false);
     });
 });
