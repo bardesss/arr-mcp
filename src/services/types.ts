@@ -1290,6 +1290,33 @@ export interface LibraryScanCapable {
 export const hasLibraryScan = (a: ServiceAdapter): a is ServiceAdapter & LibraryScanCapable =>
     typeof (a as Partial<LibraryScanCapable>).startLibraryScan === 'function';
 
+/** One Grimmory library, as `trigger_scan` needs it. */
+export type BookLibrary = {
+    id: string;
+    /** The name as Grimmory holds it: raw, for matching only. Never print it. */
+    name: string;
+    /** The name fenced as untrusted, for anything a model reads. */
+    label: string;
+    /** A library with `watch` on is rescanned by Grimmory's own file watcher. */
+    watch: boolean;
+};
+
+/**
+ * Grimmory's rescans: one library, or the Bookdrop folder. Separate from
+ * `LibraryScanCapable` because there is no single "scan everything" call: a
+ * whole-instance rescan is one refresh per library.
+ */
+export interface BookLibraryScanCapable {
+    listBookLibraries(): Promise<BookLibrary[]>;
+    /** Queues a rescan of one library and returns. */
+    refreshBookLibrary(id: string): Promise<void>;
+    /** Asks Grimmory to look in the Bookdrop folder again. */
+    rescanBookdrop(): Promise<void>;
+}
+
+export const hasBookLibraryScan = (a: ServiceAdapter): a is ServiceAdapter & BookLibraryScanCapable =>
+    typeof (a as Partial<BookLibraryScanCapable>).refreshBookLibrary === 'function';
+
 /**
  * The per-item half of the same idea: reconcile one thing with what is on
  * disk, rather than the whole library. Separate from `LibraryScanCapable`

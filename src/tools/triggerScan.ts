@@ -5,6 +5,7 @@ import { ServiceError } from '../core/errors.ts';
 import type { NextStep } from '../core/nextStep.ts';
 import {
     hasCommandStatus,
+    hasBookLibraryScan,
     hasEpisodeRemap,
     hasLibraryMaintenance,
     hasLibraryScan,
@@ -12,6 +13,8 @@ import {
     hasMediaDetails,
     hasPostProcess,
     hasUserLibrary,
+    type BookLibrary,
+    type BookLibraryScanCapable,
     type EpisodeRemapCapable,
     type LibraryMaintenanceCapable,
     type ImportMapping,
@@ -49,7 +52,7 @@ const findAdapter = (
         // has no library to scan, and reporting success for an action that
         // could never happen is how a model concludes the scan is done.
         throw new ServiceError('NotFound', service, `${service} has no library to scan`, {
-            remedy: 'Only radarr, sonarr, whisparr, lidarr, jellyfin and plex manage a library, and prowlarr syncs its indexers to them. For "it downloaded but will not play", the media server — jellyfin or plex — is almost always the one you want.'
+            remedy: 'Only radarr, sonarr, whisparr, lidarr, jellyfin, plex and grimmory manage a library, and prowlarr syncs its indexers to them. For "it downloaded but will not play", the media server — jellyfin or plex — is almost always the one you want.'
         });
     }
 
@@ -149,6 +152,117 @@ const toImportMapping = (mapping: MappingInput[] | undefined): ImportMapping[] |
         ...(m.episodes === undefined ? {} : { episodes: m.episodes })
     }));
 
+/** `library` and `action: "bookdrop"` are Grimmory's; on any other service they are refused, not ignored. */
+const refuseGrimmoryOnly = (service: ServiceId, library: string | undefined, action: string): void => {
+    if (library === undefined && action !== 'bookdrop') return;
+    throw new ServiceError('NotFound', service, `${service} has no ${library === undefined ? 'Bookdrop' : 'library to pick by name'}`, {
+        remedy: '`library` and action "bookdrop" are for grimmory. Other services scan their whole library, or one item with `id`.'
+    });
+};
+
+const libraryList = (libraries: readonly BookLibrary[]): string =>
+    libraries.map(l => `${l.label} (id ${l.id})`).join(', ');
+
+/**
+ * The library `library` names. A match is by id or by name, ignoring case, and
+ * both count at once: a library named "2" and the library with id 2 are two
+ * answers, and two answers is a refusal that lists them, never a pick.
+ */
+function resolveBookLibrary(service: ServiceId, libraries: readonly BookLibrary[], wanted: string): BookLibrary {
+    const lower = wanted.toLowerCase();
+    const matches = libraries.filter(l => l.id === wanted || l.name.toLowerCase() === lower);
+
+    if (matches.length === 1) return matches[0] as BookLibrary;
+
+    if (matches.length > 1) {
+        throw new ServiceError('NotFound', service, `"${wanted}" matches ${matches.length} libraries in ${service}`, {
+            remedy: `They are ${libraryList(matches)}. Pass the numeric id of the one you mean as \`library\`.`
+        });
+    }
+
+    throw new ServiceError('NotFound', service, `${service} has no library "${wanted}"`, {
+        remedy: libraries.length === 0 ? `${service} has no libraries.` : `Its libraries are ${libraryList(libraries)}. Pass a name or an id.`
+    });
+}
+
+async function planBookScan(
+    adapter: ServiceAdapter & BookLibraryScanCapable,
+    args: { service: ServiceId; instance: string | undefined; action: string; id: string | undefined; library: string | undefined }
+): Promise<WritePlan> {
+    const { service, instance, action, id, library } = args;
+    const bound = (libraryIds: string[]) => ({ service, action, libraryIds, ...(instance === undefined ? {} : { instance }) });
+
+    if (id !== undefined) {
+        throw new ServiceError('NotFound', service, `${service} cannot scan one item by id`, {
+            remedy: 'On grimmory `id` is a book. To rescan one library pass `library`, with its name or id.'
+        });
+    }
+    if (action !== 'scan' && action !== 'bookdrop') {
+        throw new ServiceError('NotFound', service, `${service} cannot ${action}`, {
+            remedy: 'grimmory takes action "scan" (all libraries, or one with `library`) and "bookdrop".'
+        });
+    }
+
+    if (action === 'bookdrop') {
+        if (library !== undefined) {
+            throw new Error('action "bookdrop" rescans the Bookdrop folder, not a library: drop `library`, or use action "scan".');
+        }
+        return {
+            target: `${adapter.id}:bookdrop`,
+            summary: `Ask ${adapter.id} to rescan its Bookdrop folder.`,
+            effects: [
+                `Has ${adapter.id} look in the Bookdrop folder again for files added since it last looked.`,
+                'Imports nothing by itself: new files wait in the Bookdrop until they are finalised in Grimmory.',
+                'Runs in the background.'
+            ],
+            args: bound([])
+        };
+    }
+
+    const all = await adapter.listBookLibraries();
+    const chosen = library === undefined ? [...all] : [resolveBookLibrary(service, all, library)];
+    const scanned = chosen.filter(l => !l.watch);
+    const skips = chosen
+        .filter(l => l.watch)
+        .map(l => `Skips ${l.label}: its watch is on, so Grimmory's file watcher already picks up changes there.`);
+    const target = library === undefined ? `${adapter.id}:libraries` : `${adapter.id}:library/${chosen[0]?.id ?? ''}`;
+
+    if (scanned.length === 0) {
+        return {
+            target,
+            summary:
+                chosen.length === 0
+                    ? `${adapter.id} has no libraries to rescan.`
+                    : `Nothing to rescan in ${adapter.id}: the file watcher already picks up changes in ${chosen.length === 1 ? 'that library' : 'every library'}.`,
+            effects: skips,
+            noop: true
+        };
+    }
+
+    return {
+        target,
+        summary: `Ask ${adapter.id} to rescan ${scanned.length === 1 ? 'one library' : `${scanned.length} libraries`}.`,
+        effects: [
+            ...scanned.map(l => `Rescans ${l.label} (id ${l.id}) for books added, moved or removed on disk since the last scan.`),
+            ...skips,
+            'Runs in the background, one library after another.'
+        ],
+        args: bound(scanned.map(l => l.id))
+    };
+}
+
+async function applyBookScan(adapter: ServiceAdapter & BookLibraryScanCapable, plan: WritePlan): Promise<string> {
+    if (plan.args?.action === 'bookdrop') {
+        await adapter.rescanBookdrop();
+        return `${adapter.id} is rescanning its Bookdrop folder. It runs in the background: new files show under the Bookdrop in Grimmory, and stack_health reports any left waiting.`;
+    }
+
+    const ids = (plan.args?.libraryIds as string[] | undefined) ?? [];
+    for (const id of ids) await adapter.refreshBookLibrary(id);
+
+    return `${adapter.id} is rescanning ${ids.length === 1 ? '1 library' : `${ids.length} libraries`}. It runs in the background: check get_library in a few minutes rather than expecting the books to be there now.`;
+}
+
 export function registerTriggerScan(
     server: McpServer,
     context: WriteContext,
@@ -158,17 +272,17 @@ export function registerTriggerScan(
         name: 'trigger_scan',
         title: 'Refresh and scan a library',
         description:
-            'Asks a service to reconcile itself with what is on disk — the "it downloaded but still will not play" family of actions, and the usual fix for what `diagnose` reports as a stale scan. With no `id`, it rescans the whole library of Radarr, Sonarr, Whisparr, Lidarr, Jellyfin or Plex; the media server is the one that matters when something is missing from what you can actually watch. On Prowlarr there is no library, and this pushes its indexer list to Radarr and Sonarr instead — the fix for "the app is using an indexer Prowlarr no longer has". On Radarr, Sonarr, Whisparr and Lidarr a scan is the service\'s refresh command: it re-reads titles and air dates from the metadata provider, then rescans the folders. With an `id`, it does that for just that item, which is far cheaper on a big library (on Lidarr only the refresh narrows to one artist: the rescan still reads every root folder), and it is the fix for an import refused over an episode title the service has not caught up with ("TBA"): scan the series, wait for `stack_health` to show it finished, then import again. On Jellyfin and Plex a scan only looks for changed files; `fix_metadata` is the repair for wrong metadata there. `action: "rename"` renames one item\'s files to the service\'s own naming scheme and needs an `id`. `action: "import"` takes a finished download stuck at importBlocked; when the service matched a file to the wrong movie or episodes, or to none, `mapping` says what each file is and the service judges it again (not on Lidarr, whose files belong to albums and tracks: fix a wrong album match in Lidarr itself). `action: "remap"` tells Sonarr which episode an already-imported file really is, for a mislabel every automatic signal agrees with; follow it with rename, then a media-server rescan. `action: "postprocess"` on NZBGet reruns its post-processing (repair, unpack and your own scripts) on a finished download, for one a broken script left unimportable: take `downloadId` from the stuck get_queue row; it works only while the download\'s folder still exists. Everything else here queues a command and returns immediately; `stack_health` lists what is still running under `commands`, so check there rather than assuming it is done; Whisparr is not reported there. `remap` and `postprocess` wait for their own result instead, and a rerun still going shows in get_queue, not `commands`. Previews by default — call again with the returned `confirm` token to actually run it.',
+            'Asks a service to reconcile itself with what is on disk — the "it downloaded but still will not play" family of actions, and the usual fix for what `diagnose` reports as a stale scan. With no `id`, it rescans the whole library of Radarr, Sonarr, Whisparr, Lidarr, Jellyfin or Plex; on Grimmory it refreshes every library that is not watched, or one with `library` (a name or an id), and `action: "bookdrop"` rescans its Bookdrop folder; the media server is the one that matters when something is missing from what you can actually watch. On Prowlarr there is no library, and this pushes its indexer list to Radarr and Sonarr instead — the fix for "the app is using an indexer Prowlarr no longer has". On Radarr, Sonarr, Whisparr and Lidarr a scan is the service\'s refresh command: it re-reads titles and air dates from the metadata provider, then rescans the folders. With an `id`, it does that for just that item, which is far cheaper on a big library (on Lidarr only the refresh narrows to one artist: the rescan still reads every root folder), and it is the fix for an import refused over an episode title the service has not caught up with ("TBA"): scan the series, wait for `stack_health` to show it finished, then import again. On Jellyfin and Plex a scan only looks for changed files; `fix_metadata` is the repair for wrong metadata there. `action: "rename"` renames one item\'s files to the service\'s own naming scheme and needs an `id`. `action: "import"` takes a finished download stuck at importBlocked; when the service matched a file to the wrong movie or episodes, or to none, `mapping` says what each file is and the service judges it again (not on Lidarr, whose files belong to albums and tracks: fix a wrong album match in Lidarr itself). `action: "remap"` tells Sonarr which episode an already-imported file really is, for a mislabel every automatic signal agrees with; follow it with rename, then a media-server rescan. `action: "postprocess"` on NZBGet reruns its post-processing (repair, unpack and your own scripts) on a finished download, for one a broken script left unimportable: take `downloadId` from the stuck get_queue row; it works only while the download\'s folder still exists. Everything else here queues a command and returns immediately; `stack_health` lists what is still running under `commands`, so check there rather than assuming it is done; Whisparr is not reported there. `remap` and `postprocess` wait for their own result instead, and a rerun still going shows in get_queue, not `commands`. Previews by default — call again with the returned `confirm` token to actually run it.',
         inputSchema: z.object({
             service: ServiceIdSchema.describe(
-                'radarr, sonarr, whisparr, lidarr, jellyfin or plex — or prowlarr, to sync its indexers to the apps, or nzbget for action: "postprocess".'
+                'radarr, sonarr, whisparr, lidarr, jellyfin, plex or grimmory — or prowlarr, to sync its indexers to the apps, or nzbget for action: "postprocess".'
             ),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             action: z
-                .enum(['scan', 'rename', 'import', 'remap', 'postprocess'])
+                .enum(['scan', 'rename', 'import', 'remap', 'postprocess', 'bookdrop'])
                 .default('scan')
                 .describe(
-                    'scan rescans the library, or just one item when `id` is given (on Lidarr only the refresh narrows to one artist: the rescan still reads every root folder); on Radarr, Sonarr, Whisparr and Lidarr it refreshes metadata from the provider first. rename renames one item\'s files to the service\'s own naming scheme, and requires `id`. import takes a finished download the service never picked up, and requires `download_id`; add `mapping` when the service cannot tell what a file is. remap reassigns already-imported Sonarr files to the episodes a person has confirmed they are, and requires `id` and `reassignments`. postprocess reruns NZBGet\'s post-processing on a finished download, and requires `download_id`.'
+                    'scan rescans the library, or just one item when `id` is given (on Lidarr only the refresh narrows to one artist: the rescan still reads every root folder); on Radarr, Sonarr, Whisparr and Lidarr it refreshes metadata from the provider first. rename renames one item\'s files to the service\'s own naming scheme, and requires `id`. import takes a finished download the service never picked up, and requires `download_id`; add `mapping` when the service cannot tell what a file is. remap reassigns already-imported Sonarr files to the episodes a person has confirmed they are, and requires `id` and `reassignments`. postprocess reruns NZBGet\'s post-processing on a finished download, and requires `download_id`. bookdrop rescans Grimmory\'s Bookdrop folder for new files.'
                 ),
             id: z
                 .string()
@@ -176,6 +290,13 @@ export function registerTriggerScan(
                 .optional()
                 .describe(
                     'One movie, series or Lidarr artist id — `acquisition.id` on a get_library record. Omit with action: "scan" to scan the whole library.'
+                ),
+            library: z
+                .string()
+                .min(1)
+                .optional()
+                .describe(
+                    'Grimmory only: one library, by name or by id as stack_health and get_library show it. Omit to rescan every library.'
                 ),
             download_id: z
                 .string()
@@ -231,7 +352,13 @@ export function registerTriggerScan(
         operation: 'trigger_scan',
         tier: 'safe',
 
-        async plan({ service, instance, action, id, download_id, reassignments, mapping }): Promise<WritePlan> {
+        async plan({ service, instance, action, id, library, download_id, reassignments, mapping }): Promise<WritePlan> {
+            const resolved = resolveInstance(adapters, service, instance);
+            if (hasBookLibraryScan(resolved)) {
+                return planBookScan(resolved, { service, instance, action, id, library });
+            }
+            refuseGrimmoryOnly(service, library, action);
+
             if (action === 'remap') {
                 if (id === undefined || reassignments === undefined) {
                     throw new Error(
@@ -476,6 +603,9 @@ export function registerTriggerScan(
         },
 
         async apply(plan, { service, instance, action, id, download_id, reassignments, mapping }) {
+            const resolved = resolveInstance(adapters, service, instance);
+            if (hasBookLibraryScan(resolved)) return applyBookScan(resolved, plan);
+
             if (action === 'remap' && id !== undefined && reassignments !== undefined) {
                 const remapper = findRemapAdapter(adapters, service, instance);
                 const { renamed, blocked, caughtInWindow } = await remapper.runEpisodeRemap(id, reassignments);

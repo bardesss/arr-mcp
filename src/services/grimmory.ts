@@ -9,6 +9,8 @@ import {
     diagnoseConnection,
     type ConnectionDiagnosis,
     type HealthCheck,
+    type BookLibrary,
+    type BookLibraryScanCapable,
     type HealthCheckCapable,
     type LibraryCapable,
     type MediaDetailCapable,
@@ -80,7 +82,7 @@ type RawHealth = { data?: { version?: unknown } };
  * and password and answers with a JWT; the healthcheck is the one route that
  * takes no token.
  */
-export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, SearchCapable, MediaDetailCapable, LibraryCapable {
+export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, SearchCapable, MediaDetailCapable, LibraryCapable, BookLibraryScanCapable {
     readonly type: ServiceId = 'grimmory';
     readonly id = 'grimmory';
     readonly #http: ServiceHttp;
@@ -290,6 +292,57 @@ export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, Sear
                 ...(addedOn === undefined ? {} : { addedOn })
             }
         };
+    }
+
+    /**
+     * Runs one write and turns the two refusals a Grimmory account can meet
+     * into an answer that names what to change. Every Grimmory write goes
+     * through here, so a 403 always names the permission that was missing and a
+     * 404 the thing that was not found.
+     *
+     * @param what what the account tried to do, as in "may not rescan a library"
+     * @param permission the Grimmory user permission that allows it
+     * @param missing what a 404 means is absent, as in "library 3"
+     */
+    async #write<T>(what: string, permission: string, missing: string, call: () => Promise<T>): Promise<T> {
+        try {
+            return await call();
+        } catch (error) {
+            if (error instanceof ServiceError && error.detail.startsWith('HTTP 403')) {
+                throw new ServiceError('AuthFailed', this.id, `this Grimmory account may not ${what}`, {
+                    remedy: `Give it ${permission} in Grimmory's user settings, or use an admin account.`,
+                    cause: error
+                });
+            }
+            if (error instanceof ServiceError && error.kind === 'NotFound') {
+                throw new ServiceError('NotFound', this.id, `Grimmory has no ${missing}`, {
+                    remedy: 'A book id is `acquisition.id` on get_library; a library is listed by stack_health and get_library.',
+                    cause: error
+                });
+            }
+            throw error;
+        }
+    }
+
+    async listBookLibraries(): Promise<BookLibrary[]> {
+        return list(await this.#http.get<unknown>(LIBRARIES_PATH)).flatMap(lib => {
+            const id = num(lib.id);
+            if (id === undefined) return [];
+            const name = str(lib.name) ?? `#${String(id)}`;
+            return [{ id: String(id), name, label: this.#fence(name, 'library_name'), watch: lib.watch === true }];
+        });
+    }
+
+    async refreshBookLibrary(id: string): Promise<void> {
+        await this.#write('rescan a library', 'canManageLibrary', `library ${id}`, () =>
+            this.#http.put<unknown>(`${LIBRARIES_PATH}/${encodeURIComponent(id)}/refresh`, undefined, true)
+        );
+    }
+
+    async rescanBookdrop(): Promise<void> {
+        await this.#write('rescan the Bookdrop', 'canAccessBookdrop', 'Bookdrop', () =>
+            this.#http.post<unknown>('/api/v1/bookdrop/rescan', undefined, true)
+        );
     }
 
     async #bookdropFinding(): Promise<HealthCheck | undefined> {
