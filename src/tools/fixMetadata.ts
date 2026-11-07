@@ -16,15 +16,19 @@ import { fenceText } from '../core/fence.ts';
 import { logger } from '../core/logger.ts';
 import { unfenced } from '../core/titleMatch.ts';
 import type { IdentityResolver } from '../core/identity.ts';
-import { isFilmOrSeries, type FilmOrSeries } from '../core/resolver.ts';
+import { BookTitleRefusal, isFilmOrSeries, type FilmOrSeries } from '../core/resolver.ts';
 import {
     hasMediaDetails,
     hasMetadataInspect,
     hasMetadataRepair,
+    type BookFields,
+    type BookMetadataCapable,
+    type BookSearch,
     type MetadataInspectCapable,
     type MetadataRepairCapable,
     type ServiceAdapter
 } from '../services/types.ts';
+import { bestCandidate, describeBookChange, diffBookFields, FIX_FIELDS, normaliseIsbn } from './bookMetadata.ts';
 import { buildResolvedMediaDetails } from './getMediaDetails.ts';
 import type { LibraryLoader } from './library.ts';
 import { bothIds, itemIdOn, pickMediaServer, serviceInput, withBoth, type MediaServers } from './mediaServers.ts';
@@ -180,7 +184,19 @@ const pinnedProvider = (
  * different film rather than the same one worded differently.
  */
 async function resolve(loader: LibraryLoader, query: string, adapter: ServiceAdapter, isSecondary: boolean): Promise<Resolved> {
-    const best = await buildResolvedMediaDetails(loader, query);
+    let best: FilmOrSeries;
+    try {
+        best = await buildResolvedMediaDetails(loader, query);
+    } catch (err) {
+        // This tool does repair a book, but by id, so point there rather than at get_media_details.
+        if (err instanceof BookTitleRefusal) {
+            throw new Error(
+                `"${query}" matches only a Grimmory book in your library. fix_metadata repairs a book by its id: pass id: "grimmory:${err.bookId ?? '<book id>'}"${err.bookId === undefined ? ', with the acquisition.id of its get_library row' : ''}.`,
+                { cause: err }
+            );
+        }
+        throw err;
+    }
 
     const itemId = itemIdOn(best, adapter.id);
     if (itemId === undefined) {
@@ -283,6 +299,110 @@ export async function withLocks<T extends EpisodeRecord | MovieRecord>(
     return { rows: merged, mismatches: find(merged) };
 }
 
+type BookLibrary = ServiceAdapter & BookMetadataCapable;
+
+/** A provider name is one plain word; anything else is not printed as one. */
+const providerName = (v: string | undefined): string => (v !== undefined && /^[A-Za-z]{1,20}$/.test(v) ? v : 'a provider');
+
+/**
+ * A book's repair: look it up with Grimmory's own providers and replace the
+ * fields where the best match differs. Runs again on confirm, so a provider
+ * that answers differently by then changes the bound `changes` and the token
+ * is refused with a fresh preview rather than writing what nobody saw.
+ */
+async function planBookFix(
+    books: BookLibrary | undefined,
+    id: string,
+    o: { service: string | undefined; user: string | undefined; isbn: string | undefined }
+): Promise<WritePlan> {
+    const bookId = /^grimmory:(\d+)$/.exec(id)?.[1];
+    if (bookId === undefined) {
+        throw new ServiceError('NotFound', 'grimmory', `"${id}" is not a Grimmory book id`, {
+            remedy: 'Give a book as grimmory:<book id>, the id get_metadata_issues prints for it.'
+        });
+    }
+    if (books === undefined) {
+        throw new ServiceError('NotFound', 'grimmory', 'no Grimmory is configured', {
+            remedy: 'Add a services.grimmory block to config.yaml and restart.'
+        });
+    }
+    if (o.service !== undefined) throw new Error('`service` picks a media server; drop it for a Grimmory book.');
+    if (o.user !== undefined) throw new Error('`user` picks whose media-server view to read; a Grimmory book has none, so drop it.');
+    const typed = o.isbn === undefined ? undefined : normaliseIsbn(o.isbn);
+    if (o.isbn !== undefined && typed === undefined) {
+        throw new Error('`isbn` is not an ISBN: it needs 10 or 13 digits, and an ISBN-10 may end in X.');
+    }
+
+    const book = await books.readBookMetadata(bookId);
+    const target = `grimmory:${bookId}`;
+    if (book.allLocked) {
+        return {
+            target,
+            summary: `Every metadata field of ${book.label} is locked in Grimmory, so a repair changes nothing. Unlock the fields on the book in Grimmory first.`,
+            effects: [],
+            noop: true
+        };
+    }
+
+    const own = book.fields.isbn13 ?? book.fields.isbn10;
+    const isbn = typed ?? (own === undefined ? undefined : normaliseIsbn(own));
+    const author = book.fields.authors?.[0];
+    const search: BookSearch =
+        isbn !== undefined
+            ? { isbn }
+            : { ...(book.fields.title === undefined ? {} : { title: book.fields.title }), ...(author === undefined ? {} : { author }) };
+    if (search.isbn === undefined && search.title === undefined) {
+        return {
+            target,
+            summary: `Nothing to apply: ${book.label} has no ISBN or title to search Grimmory's providers by. Pass \`isbn\` to search by one.`,
+            effects: [],
+            noop: true
+        };
+    }
+
+    const candidates = await books.findBookCandidates(bookId, search);
+    const best = bestCandidate(candidates, book.fields, search);
+    if (best === undefined) {
+        return {
+            target,
+            summary: `Nothing to apply: none of the ${candidates.length} answers from Grimmory's providers is ${book.label}. A match is an ISBN match, or the title and first author together.`,
+            effects: [isbn === undefined ? 'Pass `isbn` to search by an ISBN you know.' : 'Pass `isbn` to search by a different ISBN.'],
+            noop: true
+        };
+    }
+
+    const provider = providerName(best.provider);
+    const { changes, keptLocked } = diffBookFields(book.fields, best.fields, book.locked, FIX_FIELDS);
+    const changed = Object.keys(changes) as (keyof BookFields)[];
+    const lockedLine =
+        keptLocked.length === 0 ? [] : [`Left alone because ${keptLocked.length === 1 ? 'it is' : 'they are'} locked in Grimmory: ${keptLocked.join(', ')}.`];
+    if (changed.length === 0) {
+        return {
+            target,
+            summary:
+                keptLocked.length === 0
+                    ? `${book.label} already matches ${provider}'s match; nothing to apply.`
+                    : `Nothing to apply to ${book.label}: every field where ${provider}'s match differs is locked in Grimmory.`,
+            effects: lockedLine,
+            noop: true
+        };
+    }
+
+    return {
+        target,
+        summary: `Replace ${changed.length} field${changed.length === 1 ? '' : 's'} of ${book.label} with ${provider}'s match.`,
+        effects: [
+            ...changed.map(f => describeBookChange(f, book.fields[f], changes[f])),
+            ...lockedLine,
+            'The cover and description are left alone.',
+            'Grimmory may also write the new metadata into the book file, and move it to match its naming pattern, when its metadata settings say so.'
+        ],
+        // The changes themselves are bound, not a count: a provider that
+        // answers differently on confirm must not write values nobody saw.
+        args: { server: books.id, itemId: bookId, kind: 'book', changes }
+    };
+}
+
 /** Errors a server gives while it rebuilds an item: Plex answers 503 mid-refresh. */
 const STILL_SETTLING = new Set(['UpstreamError', 'Timeout', 'Unreachable', 'NotFound']);
 
@@ -291,14 +411,15 @@ export function registerFixMetadata(
     context: WriteContext,
     servers: MediaServers,
     loader: LibraryLoader,
-    timing: RepairTiming = DEFAULT_TIMING
+    timing: RepairTiming = DEFAULT_TIMING,
+    books?: BookLibrary
 ): void {
     const adapters = [servers.primary?.adapter, servers.secondary?.adapter].filter(a => a !== undefined);
     registerWriteTool(server, { ...context, permissions: withPlexGate(context.permissions, adapters) }, {
         name: 'fix_metadata',
         title: 'Repair wrong metadata',
         description:
-            'Finds and repairs films and series whose media-server metadata does not describe the file on disk — the case where a file named `Episode 101 …` is shown as S1E1 with a completely different title. Works on Jellyfin and Plex. This is not `trigger_scan`: a scan checks whether a file is on disk and never replaces a wrong title. Give a film or series title as `query`, or the `id` get_metadata_issues printed for it. The preview lists the mismatching files themselves, split into `numbering` findings (the season or episode number the path states disagrees with the server, high confidence) and `title` findings (the filename and the title share no words, advisory — a romanised filename against an English title is a legitimate disagreement). A film is judged on its **year** and title rather than on episode numbering: a year that disagrees means the server matched a different film. **Destructive**: the repair re-identifies the item against TVDB for a series or TMDB for a film and replaces all of its metadata, including anything corrected by hand. On Jellyfin there is no undo; on Plex, Fix Match or Unmatch on the item in Plex is the way back. It has a known limit, stated in the preview rather than discovered afterwards: a refresh does not re-derive an episode\'s season, number or title from its file, so episodes matched to a specific provider episode will not move. When the preview says that, the repair that works is `trigger_scan` with `action: "rename"` on the Sonarr series followed by a media server rescan. On Jellyfin **the repair is slow**: the server holds the request open while it rebuilds the item, so a long wait is not a hang — do not retry. On Plex the repair can be switched off (`services.plex.allow_metadata_repair: false`), needs a library on the Plex TV Series or Plex Movie agent, and refreshes in the background, so applying waits up to 30 seconds for the result to settle. A locked field, or on Jellyfin a locked item, is never overwritten on either server, and the preview says when that is what disagrees. Previews by default — call again with the returned `confirm` token to apply it.' +
+            'Finds and repairs films and series whose media-server metadata does not describe the file on disk — the case where a file named `Episode 101 …` is shown as S1E1 with a completely different title. Works on Jellyfin and Plex. This is not `trigger_scan`: a scan checks whether a file is on disk and never replaces a wrong title. Give a film or series title as `query`, or the `id` get_metadata_issues printed for it. The preview lists the mismatching files themselves, split into `numbering` findings (the season or episode number the path states disagrees with the server, high confidence) and `title` findings (the filename and the title share no words, advisory — a romanised filename against an English title is a legitimate disagreement). A film is judged on its **year** and title rather than on episode numbering: a year that disagrees means the server matched a different film. **Destructive**: the repair re-identifies the item against TVDB for a series or TMDB for a film and replaces all of its metadata, including anything corrected by hand. On Jellyfin there is no undo; on Plex, Fix Match or Unmatch on the item in Plex is the way back. It has a known limit, stated in the preview rather than discovered afterwards: a refresh does not re-derive an episode\'s season, number or title from its file, so episodes matched to a specific provider episode will not move. When the preview says that, the repair that works is `trigger_scan` with `action: "rename"` on the Sonarr series followed by a media server rescan. On Jellyfin **the repair is slow**: the server holds the request open while it rebuilds the item, so a long wait is not a hang — do not retry. On Plex the repair can be switched off (`services.plex.allow_metadata_repair: false`), needs a library on the Plex TV Series or Plex Movie agent, and refreshes in the background, so applying waits up to 30 seconds for the result to settle. A locked field, or on Jellyfin a locked item, is never overwritten on either server, and the preview says when that is what disagrees. A Grimmory book is repaired too: give its `id` as `grimmory:<book id>`, as get_metadata_issues prints it. Grimmory asks its enabled metadata providers by the book\'s ISBN (or `isbn`, to search by another), else its title and author, and the preview lists every field the best match would change. Locked fields are never sent and are named; categories, the cover and the description are left alone; and Grimmory may write the change into the book file and rename it to its naming pattern. Previews by default — call again with the returned `confirm` token to apply it.' +
             withBoth(
                 bothIds(servers),
                 'With two media servers configured, `service` picks one; it defaults to the primary, and an `id` prefixed `plex:` or `jellyfin:` picks that server.'
@@ -314,28 +435,31 @@ export function registerFixMetadata(
                 .string()
                 .min(1)
                 .optional()
-                .describe('The media server item id, as get_metadata_issues prints it (`plex:119962`) or bare. Wins over `query`.'),
+                .describe('The media server item id, as get_metadata_issues prints it (`plex:119962`) or bare, or a Grimmory book as `grimmory:<book id>`. Wins over `query`.'),
             user: z
                 .string()
                 .optional()
                 .describe(
                     "Whose view of the library to read the episodes through. Defaults to the media server's default_user; on Jellyfin, naming anyone else needs services.jellyfin.allow_other_users."
-                )
+                ),
+            isbn: z
+                .string()
+                .min(10)
+                .max(17)
+                .optional()
+                .describe("Books only: search Grimmory's providers by this ISBN instead of the book's own.")
         }),
         // `service` is enum-checked against the configured ids, so this cannot throw.
-        service: ({ service, id }) => pickMediaServer(servers, service ?? prefixed(servers, id))?.adapter.id ?? 'jellyfin',
+        service: ({ service, id }) =>
+            id?.startsWith('grimmory:') === true ? (books?.id ?? 'grimmory') : (pickMediaServer(servers, service ?? prefixed(servers, id))?.adapter.id ?? 'jellyfin'),
         operation: 'fix_metadata',
         tier: 'destructive',
 
-        async plan({ service, query, id, user }): Promise<WritePlan> {
+        async plan({ service, query, id, user, isbn }): Promise<WritePlan> {
             if (id === undefined && query === undefined) throw new Error('Name a film or series as `query`, or give its `id`.');
-            // Before any request: Grimmory can read a book by id, and the generic
-            // path would fetch it only to say it is not a film or series.
-            if (service === 'grimmory' || id === 'grimmory' || id?.startsWith('grimmory:') === true) {
-                throw new ServiceError('NotFound', 'grimmory', 'books are not repaired here: Grimmory manages its own metadata.', {
-                    remedy: 'Use get_media_details with service "grimmory" and the book id for its details.'
-                });
-            }
+            // Before any media-server request: a book never reaches that path.
+            if (id === 'grimmory' || id?.startsWith('grimmory:') === true) return planBookFix(books, id, { service, user, isbn });
+            if (isbn !== undefined) throw new Error('`isbn` is for a book: give the book as `id: "grimmory:<book id>"`.');
             const { adapter, identity } = chooseServer(servers, service, id);
             const viewer = await identity.resolve(user);
             const series = id !== undefined ? await resolveById(loader, id, adapter) : await resolve(loader, query ?? '', adapter, adapter.id === servers.secondary?.adapter.id);
@@ -534,6 +658,8 @@ export function registerFixMetadata(
         // The verdict, not just "Applied": a client that drops
         // structuredContent (#234) could not tell a repair from a failure.
         applied(outcome, plan) {
+            const changed = (outcome as { changed?: string[] } | undefined)?.changed;
+            if (changed !== undefined) return `Applied. ${plan.summary} Changed: ${changed.join(', ')}.`;
             const note = (outcome as { note?: string } | undefined)?.note;
             return note === undefined ? undefined : `Applied. ${plan.summary}
 
@@ -548,9 +674,16 @@ ${note}`;
             const bound = plan.args as {
                 server: string;
                 itemId: string;
-                kind: 'movie' | 'series';
+                kind: 'movie' | 'series' | 'book';
                 providerId?: { tvdbId?: number; tmdbId?: number };
+                changes?: BookFields;
             };
+            if (bound.kind === 'book') {
+                if (books === undefined) throw new ServiceError('NotFound', 'grimmory', 'no Grimmory is configured');
+                const changes = bound.changes ?? {};
+                await books.writeBookMetadata(bound.itemId, changes);
+                return { changed: Object.keys(changes) };
+            }
             const { adapter, identity } = chooseServer(servers, bound.server, undefined);
             const viewer = await identity.resolve(user);
             const series = { itemId: bound.itemId, kind: bound.kind, title: plan.summary };

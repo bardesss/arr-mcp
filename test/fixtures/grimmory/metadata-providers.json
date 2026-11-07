@@ -1,0 +1,46 @@
+[
+  {
+    "name": "OpenLibrary",
+    "enabled": true
+  },
+  {
+    "name": "Amazon",
+    "enabled": true
+  },
+  {
+    "name": "Audible",
+    "enabled": false
+  },
+  {
+    "name": "AppleBooks",
+    "enabled": false
+  },
+  {
+    "name": "Hardcover",
+    "enabled": true
+  },
+  {
+    "name": "Lubimyczytac",
+    "enabled": false
+  },
+  {
+    "name": "Google",
+    "enabled": true
+  },
+  {
+    "name": "Comicvine",
+    "enabled": false
+  },
+  {
+    "name": "GoodReads",
+    "enabled": true
+  },
+  {
+    "name": "Douban",
+    "enabled": false
+  },
+  {
+    "name": "Ranobedb",
+    "enabled": false
+  }
+]

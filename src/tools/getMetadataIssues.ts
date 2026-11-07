@@ -14,10 +14,11 @@ import type { IdentityResolver } from '../core/identity.ts';
 import type { PermissionSource } from '../core/permissions.ts';
 import { unfenced } from '../core/titleMatch.ts';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
-import { hasMetadataInspect, hasUserLibrary, type ServiceAdapter } from '../services/types.ts';
+import { hasMetadataInspect, hasUserLibrary, type BookMetadataIssueCapable, type ServiceAdapter } from '../services/types.ts';
 import { bothIds, pickMediaServer, serviceInput, withBoth, type MediaServers } from './mediaServers.ts';
 import { managedFolders, mergedHow, plexRepairAllowed, unlockHow, withLocks } from './fixMetadata.ts';
 import type { LibraryLoader } from './library.ts';
+import { BOOK_MATCH_THRESHOLD } from '../services/grimmory.ts';
 
 /**
  * The discovery half of `fix_metadata`.
@@ -38,7 +39,7 @@ export type MetadataIssue = {
     itemId: string;
     /** Which kind of item this row is about. Films have no episode numbering,
      *  so their confident signal is the year instead. */
-    kind: 'movie' | 'series';
+    kind: 'movie' | 'series' | 'book';
     title: string;
     mismatches: number;
     /**
@@ -62,6 +63,10 @@ export type MetadataIssue = {
     shifted?: number;
     specials?: number;
     languages?: number;
+    /** A book's own match score (0-100) from its library; only books carry one. */
+    matchScore?: number;
+    /** Why a book is listed: a low match score, and whether it also has no ISBN or catalogue id. Only books carry one. */
+    reason?: string;
     remedy: Remedy;
     /** What to actually run. */
     fix: string;
@@ -75,7 +80,7 @@ export type GetMetadataIssuesResult = {
     offset: number;
     truncated: boolean;
     degraded: string[];
-    /** How many films and series were read, so a small `total` can be read as
+    /** How many films, series and books were read, so a small `total` can be read as
      *  "few problems" rather than "few looked at". */
     itemsScanned: number;
     /**
@@ -138,6 +143,11 @@ const project = (issue: MetadataIssue, detail: DetailLevel): MetadataIssue => {
 
 const EXAMPLE_LIMIT = 3;
 
+const bookFix = (id: string, allLocked: boolean, reason: string): string =>
+    allLocked
+        ? `Every metadata field on this book is locked, so a refresh changes nothing. Unlock the fields on the book in Grimmory, then run fix_metadata with id "grimmory:${id}".`
+        : `fix_metadata with id "grimmory:${id}" — listed for: ${reason}. Re-fetching its metadata can fill that in.`;
+
 /**
  * One metadata issue as a line. `fix` is carried verbatim because it is the
  * whole point of the row — it names the call that repairs this item, and a
@@ -145,22 +155,83 @@ const EXAMPLE_LIMIT = 3;
  * no remedy.
  */
 export function metadataIssueLine(issue: MetadataIssue): string {
-    const facts = [issue.kind, `${issue.service}:${issue.itemId}`, `${issue.mismatches} mismatch(es)`, issue.remedy];
+    const facts = [
+        issue.kind,
+        `${issue.service}:${issue.itemId}`,
+        issue.reason === undefined ? `${issue.mismatches} mismatch(es)` : issue.reason,
+        issue.remedy
+    ];
     return `${issue.title} — ${facts.join(', ')} — ${issue.fix}`;
+}
+
+type Sweep = { issues: MetadataIssue[]; degraded: string[]; scanned: number; skipped: number; notComparable: string[] };
+
+/** The books half: one adapter call, and a failure only degrades it by name. */
+async function sweepBooks(books: ServiceAdapter & BookMetadataIssueCapable): Promise<Sweep> {
+    try {
+        const { issues, scanned, skipped } = await books.listBookMetadataIssues(BOOK_MATCH_THRESHOLD);
+        return {
+            issues: issues.map(b => ({
+                service: books.id,
+                itemId: b.id,
+                kind: 'book' as const,
+                title: b.title,
+                mismatches: 1,
+                ...(b.matchScore === undefined ? {} : { matchScore: b.matchScore }),
+                reason: b.reason,
+                remedy: b.allLocked ? ('unlock_fields' as const) : ('refresh_metadata' as const),
+                fix: bookFix(b.id, b.allLocked, b.reason)
+            })),
+            degraded: [],
+            scanned,
+            skipped: skipped ?? 0,
+            notComparable: []
+        };
+    } catch (err) {
+        logger.warn({ service: books.id, err }, 'metadata sweep could not read books');
+        return { issues: [], degraded: [books.id], scanned: 0, skipped: 0, notComparable: [] };
+    }
 }
 
 export async function buildGetMetadataIssues(
     adapters: readonly ServiceAdapter[],
     identity: IdentityResolver | undefined,
-    opts: { detail: DetailLevel; limit: number; offset: number; user?: string; permissions?: PermissionSource; library?: LibraryLoader }
+    opts: { detail: DetailLevel; limit: number; offset: number; user?: string; permissions?: PermissionSource; library?: LibraryLoader; books?: ServiceAdapter & BookMetadataIssueCapable }
 ): Promise<GetMetadataIssuesResult> {
+    const [media, books] = await Promise.all([sweepMedia(adapters, identity, opts), opts.books === undefined ? undefined : sweepBooks(opts.books)]);
+    const issues = [...media.issues, ...(books?.issues ?? [])];
+    const degraded = [...media.degraded, ...(books?.degraded ?? [])];
+    const scanned = media.scanned + (books?.scanned ?? 0);
+    const skipped = media.skipped + (books?.skipped ?? 0);
+    const notComparable = media.notComparable;
+
+    // Worst first: numbering findings outrank title ones, then sheer count,
+    // then the lowest book score. Sorted before projection, where `numbering`
+    // is always present.
+    issues.sort((a, b) => (b.numbering ?? 0) - (a.numbering ?? 0) || b.mismatches - a.mismatches || (a.matchScore ?? 0) - (b.matchScore ?? 0));
+
+    const paged = applyLimit(issues, opts.limit, opts.offset);
+    return {
+        ...paged,
+        items: paged.items.map(i => project(i, opts.detail)),
+        degraded,
+        itemsScanned: scanned,
+        ...(skipped === 0 ? {} : { itemsSkipped: skipped }),
+        ...(notComparable.length === 0 ? {} : { notComparable })
+    };
+}
+
+async function sweepMedia(
+    adapters: readonly ServiceAdapter[],
+    identity: IdentityResolver | undefined,
+    opts: { user?: string; permissions?: PermissionSource; library?: LibraryLoader }
+): Promise<Sweep> {
     const adapter = adapters.find(a => hasMetadataInspect(a) && hasUserLibrary(a));
-    const empty = { items: [], total: 0, returned: 0, offset: 0, truncated: false, itemsScanned: 0 };
 
     if (adapter === undefined || !hasMetadataInspect(adapter) || !hasUserLibrary(adapter) || identity === undefined) {
         // Not an error: no media server is a configuration, not a failure, and
         // `degraded` is for things that were asked and did not answer.
-        return { ...empty, degraded: [] };
+        return { issues: [], degraded: [], scanned: 0, skipped: 0, notComparable: [] };
     }
 
     const viewer = await identity.resolve(opts.user);
@@ -279,26 +350,15 @@ export async function buildGetMetadataIssues(
         }
     }
 
-    // Worst first: numbering findings outrank title ones, then sheer count.
-    // Sorted before projection, where `numbering` is always present.
-    issues.sort((a, b) => (b.numbering ?? 0) - (a.numbering ?? 0) || b.mismatches - a.mismatches);
-
-    const paged = applyLimit(issues, opts.limit, opts.offset);
-    return {
-        ...paged,
-        items: paged.items.map(i => project(i, opts.detail)),
-        degraded,
-        itemsScanned: scanned,
-        ...(skipped === 0 ? {} : { itemsSkipped: skipped }),
-        ...(notComparable.length === 0 ? {} : { notComparable })
-    };
+    return { issues, degraded, scanned, skipped, notComparable };
 }
 
 export function registerGetMetadataIssues(
     server: McpServer,
     servers: MediaServers,
     permissions?: PermissionSource,
-    library?: LibraryLoader
+    library?: LibraryLoader,
+    books?: ServiceAdapter & BookMetadataIssueCapable
 ): void {
     server.registerTool(
         'get_metadata_issues',
@@ -308,34 +368,40 @@ export function registerGetMetadataIssues(
             description:
                 'Sweeps the whole media-server library for series whose metadata does not describe the files on disk, and says which fix each one needs. This is the discovery `fix_metadata` cannot do: that tool needs a title you already suspect, and the point here is finding the ones you do not. Each row splits `numbering` findings (the path\'s own season/episode disagrees with the server — the confident signal) from `titleOnly` ones (the words disagree — advisory), and carries a `remedy`: `refresh_metadata` when the server never matched those episodes and a refresh can fill them in, `rename_files` when the server matched them and the filename is the outlier, which no metadata refresh moves, or `unlock_fields` when the disagreeing field is locked on the item, which no repair overwrites. Each row\'s `service:itemId` can be passed to `fix_metadata` as `id`. **This is slow**: it reads every series\' episodes, one call each, so a large library takes a while. It writes nothing.' +
                 withBoth(bothIds(servers), 'With two media servers configured, `service` picks one; it defaults to the primary.') +
-                ' Titles and paths come from the media server and are fenced as untrusted data.',
+                ' When a book library is configured it also lists books whose match score is under 45, with the `grimmory:<id>` that `fix_metadata` takes. Titles and paths come from the media server or book library and are fenced as untrusted data.',
             outputSchema: PagedOutputSchema,
             inputSchema: toolInput({ detail: DetailSchema, limit: LimitSchema, offset: OffsetSchema, ...serviceInput(bothIds(servers)) })
         },
         async ({ detail, limit, offset, service }) => {
             const chosen = pickMediaServer(servers, service);
-            const result = await buildGetMetadataIssues(chosen === undefined ? [] : [chosen.adapter], chosen?.identity, { detail, limit, offset, ...(permissions === undefined ? {} : { permissions }), ...(library === undefined ? {} : { library }) });
+            const result = await buildGetMetadataIssues(chosen === undefined ? [] : [chosen.adapter], chosen?.identity, { detail, limit, offset, ...(permissions === undefined ? {} : { permissions }), ...(library === undefined ? {} : { library }), ...(books === undefined ? {} : { books }) });
 
-            const rename = result.items.filter(i => i.remedy === 'rename_files').length;
-            const look = result.items.filter(i => i.remedy === 'inspect').length;
-            const summary =
-                result.itemsScanned === 0
-                    ? 'No media server library could be read, so nothing was compared — this is not a clean result.'
-                    : `${result.total} of ${result.itemsScanned} items have metadata that disagrees with their files` +
-                      (result.total === 0
-                          ? '.'
-                          : `; ${rename} ${rename === 1 ? 'needs' : 'need'} a rename rather than a metadata refresh` +
-                            (look === 0 ? '.' : `, and ${look} ${look === 1 ? 'needs' : 'need'} a look because this cannot tell which side is wrong.`)) +
-                      (result.degraded.length > 0
-                          ? ` ${result.itemsSkipped ?? 0} could not be read at all (${result.degraded.join(', ')}), so the count above is out of fewer than the library holds.`
-                          : '') +
-                      // Said out loud, because it is the difference between a
-                      // quiet library and one nothing could be compared in.
-                      (result.notComparable === undefined
-                          ? ''
-                          : ` ${result.notComparable.length} series had no file paths to compare, so nothing is claimed about them.`);
-
-            return { content: [{ type: 'text', text: listText(summary, result.items, metadataIssueLine) }], structuredContent: result };
+            return { content: [{ type: 'text', text: listText(metadataIssuesSummary(result), result.items, metadataIssueLine) }], structuredContent: result };
         }
+    );
+}
+
+/** The line above the rows: what was compared, what disagrees, and what could not be read. */
+export function metadataIssuesSummary(result: GetMetadataIssuesResult): string {
+    if (result.itemsScanned === 0) return 'No media server library could be read, so nothing was compared — this is not a clean result.';
+    const rename = result.items.filter(i => i.remedy === 'rename_files').length;
+    const look = result.items.filter(i => i.remedy === 'inspect').length;
+    const skipped = result.itemsSkipped ?? 0;
+    return (
+        `${result.total} of ${result.itemsScanned} items have metadata that disagrees with their files` +
+        (result.total === 0
+            ? '.'
+            : `; ${rename} ${rename === 1 ? 'needs' : 'need'} a rename rather than a metadata refresh` +
+              (look === 0 ? '.' : `, and ${look} ${look === 1 ? 'needs' : 'need'} a look because this cannot tell which side is wrong.`)) +
+        // A skip with nothing degraded is a lone book (or series) that could not
+        // be read; it still shrinks the count, so it is said here too.
+        (result.degraded.length > 0
+            ? ` ${skipped} could not be read at all (${result.degraded.join(', ')}), so the count above is out of fewer than the library holds.`
+            : skipped > 0
+              ? ` ${skipped} could not be read, so the count above is out of fewer than the library holds.`
+              : '') +
+        // Said out loud, because it is the difference between a
+        // quiet library and one nothing could be compared in.
+        (result.notComparable === undefined ? '' : ` ${result.notComparable.length} series had no file paths to compare, so nothing is claimed about them.`)
     );
 }

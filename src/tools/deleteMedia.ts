@@ -3,7 +3,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
-import { hasMediaDelete, hasMediaDetails, type ServiceAdapter } from '../services/types.ts';
+import { hasBookDelete, hasMediaDelete, hasMediaDetails, type BookDeleteCapable, type ServiceAdapter } from '../services/types.ts';
 import { arrSubject } from './crossChecks.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 
@@ -28,13 +28,61 @@ function humanSize(bytes: number | undefined): string | undefined {
 
 const findAdapter = (adapters: readonly ServiceAdapter[], service: ServiceId, instance?: string) => {
     const adapter = resolveInstance(adapters, service, instance);
-    if (!hasMediaDelete(adapter)) {
+    if (!hasMediaDelete(adapter) && !hasBookDelete(adapter)) {
         throw new ServiceError('NotFound', service, `${service} has no media to delete`, {
-            remedy: 'Only radarr, sonarr, and whisparr manage media that delete_media can remove.'
+            remedy: 'Only radarr, sonarr, whisparr and grimmory manage media that delete_media can remove.'
         });
     }
     return adapter;
 };
+
+/** `58` or `grimmory:58`; a book is addressed by its integer id and nothing else. */
+function bookIdOf(id: string): string {
+    const bare = id.replace(/^grimmory:/, '');
+    if (!/^\d+$/.test(bare)) {
+        throw new ServiceError('NotFound', 'grimmory', `"${id}" is not a Grimmory book id`, {
+            remedy: 'Pass the book id as digits, as in 58 or grimmory:58: `acquisition.id` on a get_library record.'
+        });
+    }
+    return bare;
+}
+
+async function planBook(
+    adapter: ServiceAdapter & BookDeleteCapable,
+    id: string,
+    deleteFiles: boolean,
+    addImportExclusion: boolean
+): Promise<WritePlan> {
+    const bookId = bookIdOf(id);
+    if (!deleteFiles) {
+        throw new ServiceError('PermissionDenied', adapter.id, 'Grimmory has no keep-files option: deleting a book always deletes its files', {
+            remedy: 'Pass delete_files: true to delete it.'
+        });
+    }
+    if (addImportExclusion) {
+        throw new ServiceError('PermissionDenied', adapter.id, 'Grimmory has no import exclusions to add', {
+            remedy: 'Leave add_import_exclusion off for a book.'
+        });
+    }
+    if (!hasMediaDetails(adapter)) {
+        throw new ServiceError('NotFound', adapter.id, `${adapter.id} cannot describe its own items`);
+    }
+    // Read first, so a bad id fails legibly and the preview names what goes.
+    const details = await adapter.getMediaDetails(bookId, { includeEpisodes: false, episodeLimit: 0 });
+    const formats = details.book?.formats ?? [];
+    const sized = formats.reduce((sum, f) => sum + (f.sizeBytes ?? 0), 0);
+    const size = humanSize(sized > 0 ? sized : details.sizeBytes);
+    const kinds = [...new Set(formats.map(f => f.format))].join(', ');
+    return {
+        target: `${adapter.id}:${bookId}`,
+        summary: `Delete ${details.title} from Grimmory, deleting ${size ?? 'its files'} from disk.`,
+        effects: [
+            `Deletes ${size ?? 'its files'} from disk${kinds === '' ? '' : `: ${kinds}`}. This cannot be undone.`,
+            `Removes ${details.title} from Grimmory with its metadata, shelves and reading progress.`
+        ],
+        args: { service: 'grimmory', id: bookId, deleteFiles: true }
+    };
+}
 
 export function registerDeleteMedia(
     server: McpServer,
@@ -43,11 +91,11 @@ export function registerDeleteMedia(
 ): void {
     registerWriteTool(server, context, {
         name: 'delete_media',
-        title: 'Delete a film or series',
+        title: 'Delete a film, series or book',
         description:
-            'Removes a film from Radarr or a whole series (or Whisparr site) from Sonarr or Whisparr, optionally deleting its files from disk. Destructive and not undoable — files are gone, not moved to a recycle bin unless the service itself is configured for one. Takes `service` and `id`, never a title: take `id` from `acquisition.id` on a get_library or get_media_details record. Sonarr and Whisparr delete the entire series/site; to remove one season\'s files or specific episodes, use delete_episode_files instead. Previews by default — call again with the returned `confirm` token to actually delete.',
+            'Removes a film from Radarr, a whole series (or Whisparr site) from Sonarr or Whisparr, or a book from Grimmory, optionally deleting its files from disk. Grimmory always deletes the files of a book, so it needs `delete_files: true` and takes no import exclusion. Destructive and not undoable — files are gone, not moved to a recycle bin unless the service itself is configured for one. Takes `service` and `id`, never a title: take `id` from `acquisition.id` on a get_library or get_media_details record. Sonarr and Whisparr delete the entire series/site; to remove one season\'s files or specific episodes, use delete_episode_files instead. Previews by default — call again with the returned `confirm` token to actually delete.',
         inputSchema: z.object({
-            service: ServiceIdSchema.describe('radarr, sonarr, or whisparr.'),
+            service: ServiceIdSchema.describe('radarr, sonarr, whisparr, or grimmory.'),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             id: z.string().min(1).describe("The item's id within that service, as an integer string."),
             delete_files: z
@@ -73,6 +121,9 @@ export function registerDeleteMedia(
 
         async plan({ service, instance, id, delete_files, add_import_exclusion }): Promise<WritePlan> {
             const adapter = findAdapter(adapters, service, instance);
+            if (!hasMediaDelete(adapter)) {
+                return planBook(adapter, id, delete_files, add_import_exclusion);
+            }
             if (!hasMediaDetails(adapter)) {
                 throw new ServiceError('NotFound', service, `${service} cannot describe its own items`);
             }
@@ -133,11 +184,27 @@ export function registerDeleteMedia(
 
         async apply(_plan, { service, instance, id, delete_files, add_import_exclusion }) {
             const adapter = findAdapter(adapters, service, instance);
+            if (!hasMediaDelete(adapter)) {
+                const bookId = bookIdOf(id);
+                const outcome = await adapter.deleteBook(bookId);
+                if (!outcome.deleted) {
+                    throw new ServiceError('UpstreamError', adapter.id, `Grimmory did not delete book ${bookId}`, {
+                        remedy: 'It answered without listing the book as deleted. Check the book still exists, then try again.'
+                    });
+                }
+                return { deleted: `${adapter.id}:${bookId}`, filesLeft: outcome.filesLeft };
+            }
             await adapter.deleteMedia(id, {
                 deleteFiles: delete_files,
                 addImportExclusion: add_import_exclusion
             });
             return { deleted: `${adapter.id}:${id}` };
+        },
+
+        applied(outcome, plan) {
+            if ((outcome as { filesLeft?: boolean }).filesLeft !== true) return undefined;
+            const title = plan.summary.replace(/^Delete (.*) from Grimmory, deleting .*$/, '$1');
+            return `Applied, but Grimmory could not delete its files from disk; they are still in the library folder. Book removed: ${title}.`;
         }
     });
 }

@@ -471,12 +471,22 @@ version needs a user who can see the libraries; the Bookdrop also needs
 as a notice naming it, and nothing else is affected.
 
 An admin account works and is the simplest, but an admin token can do everything
-in Grimmory, including creating users and deleting libraries. arr-mcp calls only
-the read routes today. If you would rather give it less, create a user with access
-to your libraries and `canAccessBookdrop`. When writes arrive, `canManageLibrary`
-will cover rescans and `canDeleteBook` deletes. Grimmory requires an email address
-for a new user, but only checks that it is well formed, so `arr-mcp@localhost`
-passes as long as nothing in Grimmory needs to send mail to it.
+in Grimmory, including creating users and deleting libraries. arr-mcp calls no
+route for those. If you would rather give it less, create a user with access to
+your libraries and `canAccessBookdrop`, then add the permissions for the writes you
+turn on. A write is off until you grant its tier in `permissions`:
+
+| Permission in arr-mcp | Grimmory writes it turns on | Grimmory permission for a non-admin account |
+| --- | --- | --- |
+| `safe_write` | `trigger_scan` (library, Bookdrop), `set_watched`, `update_media` | `canManageLibrary`, `canAccessBookdrop`, `canEditMetadata` |
+| `destructive` | `delete_media`, `remove_queue_item` (Bookdrop discard), `fix_metadata` | `canDeleteBook`, `canAccessBookdrop`, `canEditMetadata` |
+
+Read status is set for the account arr-mcp signs in as, and needs no permission
+beyond access to the book. `get_history` reads Grimmory's audit log, which needs
+an admin account. A write the account may not do fails with an error naming the
+permission it lacks. Grimmory requires an email address for a new user, but only
+checks that it is well formed, so `arr-mcp@localhost` passes as long as nothing in
+Grimmory needs to send mail to it.
 
 Grimmory counts failed logins per client IP and allows five in 15 minutes. Behind
 a reverse proxy that IP can be the proxy's, so a wrong password here could lock
@@ -490,8 +500,7 @@ against the same limit. It logs in again once an access token expires, about
 every two hours of use.
 
 Single instance only, because `get_library` needs one book source. Needs
-Grimmory 3.5.0 or newer, the version the adapter was written against. It reads
-only; there are no Grimmory writes yet.
+Grimmory 3.5.0 or newer, the version the adapter was written against.
 
 ## Several instances of one service
 

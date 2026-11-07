@@ -36,9 +36,9 @@ export function registerRemoveQueueItem(
         name: 'remove_queue_item',
         title: 'Remove a queue item',
         description:
-            'Removes one item from a download queue — the stuck-at-0%, wrong-release, or stalled download. Works against Radarr, Sonarr, Whisparr, Lidarr, SABnzbd, NZBGet, Transmission, qBittorrent and Shelfmark; take `service` and `id` from get_queue. Optionally deletes partial data and, on Radarr, Sonarr, Whisparr and Lidarr only, blocklists the release so it will not be grabbed again. On NZBGet, keeping the data parks the download in its history rather than deleting it. On Shelfmark it cancels a queued or running book, and a failed one has nothing to cancel. Previews by default — call again with the returned `confirm` token to actually remove it.',
+            'Removes one item from a download queue — the stuck-at-0%, wrong-release, or stalled download. Works against Radarr, Sonarr, Whisparr, Lidarr, SABnzbd, NZBGet, Transmission, qBittorrent, Shelfmark and Grimmory; take `service` and `id` from get_queue. Optionally deletes partial data and, on Radarr, Sonarr, Whisparr and Lidarr only, blocklists the release so it will not be grabbed again. On NZBGet, keeping the data parks the download in its history rather than deleting it. On Shelfmark it cancels a queued or running book, and a failed one has nothing to cancel. On Grimmory it discards a file waiting in the Bookdrop, which deletes the file from disk (so `remove_from_client: false` is refused). Previews by default — call again with the returned `confirm` token to actually remove it.',
         inputSchema: z.object({
-            service: ServiceIdSchema.describe('radarr, sonarr, whisparr, lidarr, sabnzbd, nzbget, transmission, qbittorrent or shelfmark.'),
+            service: ServiceIdSchema.describe('radarr, sonarr, whisparr, lidarr, sabnzbd, nzbget, transmission, qbittorrent, shelfmark or grimmory.'),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             id: z.string().min(1).describe('The queue item id, exactly as get_queue reported it.'),
             remove_from_client: z
@@ -89,8 +89,16 @@ export function registerRemoveQueueItem(
                 });
             }
 
+            if (adapter.discardsFile === true && !remove_from_client) {
+                throw new ServiceError('NotFound', adapter.id, `${adapter.id} deletes the file when it discards one, so it cannot leave the file alone`, {
+                    remedy: 'Leave out remove_from_client: discarding always deletes the file.'
+                });
+            }
+
             const effects = [
-                adapter.cancelOnly === true
+                adapter.discardsFile === true
+                    ? `Discards ${item.title} from Grimmory's Bookdrop, which deletes the file from disk. It is not imported, and this cannot be undone.`
+                    : adapter.cancelOnly === true
                     ? `Cancels it in ${adapter.id}, stopping it if it has started. get_history then shows it as stopped, and retry_download can usually start it again.`
                     : remove_from_client
                       ? `Removes it from ${adapter.id} and deletes any partial data already downloaded.`

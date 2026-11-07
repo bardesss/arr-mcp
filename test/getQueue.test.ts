@@ -7,7 +7,7 @@ import { SonarrAdapter } from '../src/services/sonarr.ts';
 import { QbittorrentAdapter } from '../src/services/qbittorrent.ts';
 import { TransmissionAdapter } from '../src/services/transmission.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
-import { buildGetQueue } from '../src/tools/getQueue.ts';
+import { buildGetQueue, queueLine } from '../src/tools/getQueue.ts';
 import { repeat } from './helpers/bigFixture.ts';
 import { expectWithinBudget } from './helpers/budget.ts';
 import { jsonResponse, serving, servingModes } from './helpers/serve.ts';
@@ -505,5 +505,12 @@ describe('both torrent clients configured', () => {
     it('sorts across both by ETA rather than by adapter order', async () => {
         const result = await buildGetQueue([transmission(), qbittorrent()], opts);
         expect(result.items.map(i => i.etaSeconds)).toEqual([300, 900]);
+    });
+});
+
+describe('queueLine', () => {
+    it('a row with addedAt says how long it has waited', () => {
+        const line = queueLine({ service: 'grimmory', id: '3', title: 'Example Book 3.epub', status: 'pending review', addedAt: '2026-11-01T09:00:00Z' });
+        expect(line).toContain('waiting since 2026-11-01');
     });
 });

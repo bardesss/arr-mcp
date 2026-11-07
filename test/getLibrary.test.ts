@@ -1,9 +1,11 @@
+import { McpServer } from '@modelcontextprotocol/server';
 import { afterEach, describe, expect, it } from 'vitest';
+import type * as z from 'zod/v4';
 import { LibraryIndex, type IndexInput, type MergedItem } from '../src/core/resolver.ts';
 import { IdentityResolver } from '../src/core/identity.ts';
 import { ImdbDataset } from '../src/metadata/imdbDataset.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
-import { buildGetLibrary, libraryLine } from '../src/tools/getLibrary.ts';
+import { buildGetLibrary, libraryLine, registerGetLibrary } from '../src/tools/getLibrary.ts';
 import { fenceText } from '../src/core/fence.ts';
 import { PlexAdapter } from '../src/services/plex.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
@@ -1015,11 +1017,9 @@ describe('books from Grimmory', () => {
     });
 
     it.each([
-        ['quality', { quality: 'EPUB' }],
         ['min_rating', { min_rating: 8 }],
         ['rating_source', { rating_source: 'imdb' as const }],
         ['sort: rating', { sort: 'rating' as const }],
-        ['watched', { watched: true }],
         ['watched_by', { watched_by: 'Someone' }],
         ['presence', { presence: 'unknown' as const }],
         ['monitored', { monitored: false }],
@@ -1027,7 +1027,30 @@ describe('books from Grimmory', () => {
     ])('refuses film filters on books: %s', async (_label, filter) => {
         const run = buildGetLibrary(bookLoader([book(58)]), { ...base, kind: 'book', ...filter });
         await expect(run).rejects.toThrow(/book/i);
-        await expect(run).rejects.toThrow(/quality, min_rating, rating_source, sort: "rating", watched, watched_by, presence and monitored/);
+        await expect(run).rejects.toThrow(/min_rating, rating_source, sort: "rating", watched_by, presence and monitored/);
+    });
+
+    const read = (b: IndexInput, watched: boolean): IndexInput => ({ ...b, playback: { user: 'reader', watched } });
+
+    it('watched filters books by read status', async () => {
+        const loader = bookLoader([read(book(1), true), read(book(2), false)]);
+        const yes = await buildGetLibrary(loader, { ...base, kind: 'book', watched: true });
+        expect(yes.items.map(i => i.acquisition?.id)).toEqual(['1']);
+        const no = await buildGetLibrary(loader, { ...base, kind: 'book', watched: false });
+        expect(no.items.map(i => i.acquisition?.id)).toEqual(['2']);
+    });
+
+    it('watched without kind includes books', async () => {
+        const loader = bookLoader([read(book(1), true), read(book(2), false)]);
+        const yes = await buildGetLibrary(loader, { ...base, watched: true });
+        expect(yes.items.filter(i => i.kind === 'book').map(i => i.acquisition?.id)).toEqual(['1']);
+        const no = await buildGetLibrary(loader, { ...base, watched: false });
+        expect(no.items.filter(i => i.kind === 'book').map(i => i.acquisition?.id)).toEqual(['2']);
+    });
+
+    it('user still refuses books', async () => {
+        const run = buildGetLibrary(bookLoader([book(58)]), { ...base, kind: 'book', watched_by: 'Someone' });
+        await expect(run).rejects.toThrow(/watched_by/);
     });
 
     it('sort added works for books', async () => {
@@ -1051,6 +1074,79 @@ describe('books from Grimmory', () => {
         const bare = libraryLine({ ...book(9, { hasFile: false }), presence: 'unknown' });
         expect(bare).toContain('no file');
         expect(bare).not.toMatch(/monitored/i);
+    });
+
+    const inLibrary = (b: IndexInput, name: string): IndexInput => ({ ...b, library: fenceText(name, { service: 'grimmory', field: 'library_name' }) });
+    const idsOf = (r: { items: MergedItem[] }) => r.items.map(i => i.acquisition?.id);
+
+    it('quality matches a book format, case-insensitively', async () => {
+        const loader = bookLoader([book(1, { quality: 'EPUB' }), book(2, { quality: 'PDF' })]);
+        const result = await buildGetLibrary(loader, { ...base, kind: 'book', quality: 'epub' });
+        expect(idsOf(result)).toEqual(['1']);
+    });
+
+    it('quality without kind still leaves series out and now keeps books', async () => {
+        const loader = bookLoader([book(1, { quality: 'EPUB' })], [film({ acquisition: { service: 'radarr', monitored: true, hasFile: true, quality: 'EPUB' } })]);
+        const all = await buildGetLibrary(loader, { ...base, quality: 'EPUB' });
+        expect(all.items.map(i => i.kind).sort()).toEqual(['book', 'movie']);
+        const withSeries = new LibraryLoader([stub('sonarr', [series()]), grimmoryStub([book(1)]), jellyfinStub()], healthyJellyfinIdentity);
+        const mixed = await buildGetLibrary(withSeries, { ...base, quality: 'EPUB' });
+        expect(mixed.items.map(i => i.kind)).toEqual(['book']);
+    });
+
+    it('library matches a book by name, case-insensitively, through the fence', async () => {
+        const loader = bookLoader([inLibrary(book(1), 'Comics'), inLibrary(book(2), 'Novels'), book(3)]);
+        const result = await buildGetLibrary(loader, { ...base, library: 'comics' });
+        expect(idsOf(result)).toEqual(['1']);
+        const kinded = await buildGetLibrary(loader, { ...base, kind: 'book', library: 'NOVELS' });
+        expect(idsOf(kinded)).toEqual(['2']);
+    });
+
+    it('library refuses another kind', async () => {
+        await expect(buildGetLibrary(bookLoader([book(1)]), { ...base, kind: 'movie', library: 'x' })).rejects.toThrow(/library.*books/i);
+    });
+
+    it('added_since keeps rows added on or after the date and drops undated ones', async () => {
+        const dated = film({ ids: { tmdb: 1 }, title: 'Dated', acquisition: { service: 'radarr', monitored: true, hasFile: true, addedAt: '2026-06-01T00:00:00Z' } });
+        const undated: IndexInput = { kind: 'movie', title: 'Jellyfin only', ids: { tmdb: 2 } };
+        const loader = new LibraryLoader(
+            [
+                stub('radarr', [dated, undated]),
+                grimmoryStub([book(1, { addedAt: '2026-05-31T23:59:59Z' }), book(2, { addedAt: '2026-06-01T00:00:00Z' }), book(3, { addedAt: '2026-11-06T00:00:00Z' })]),
+                jellyfinStub()
+            ],
+            healthyJellyfinIdentity
+        );
+        const result = await buildGetLibrary(loader, { ...base, added_since: '2026-06-01' });
+        expect(result.items.map(i => i.title).filter(t => !t.includes('Example Book'))).toEqual(['Dated']);
+        expect(idsOf({ items: result.items.filter(i => i.kind === 'book') })).toEqual(['2', '3']);
+    });
+
+    it('added_since keeps an undated-by-the-arr film out even when Jellyfin has it', async () => {
+        const jelly: IndexInput = { kind: 'movie', title: 'Jellyfin only', ids: { tmdb: 2 }, playback: { user: 'Someone', itemId: 'j1' } };
+        const result = await buildGetLibrary(loaderOf([jelly]), { ...base, added_since: '2000-01-01' });
+        expect(result.items).toEqual([]);
+    });
+
+    it('added_since refuses text that is not a date', async () => {
+        const server = new McpServer({ name: 'test', version: '0' });
+        registerGetLibrary(server, bookLoader([book(1)]));
+        const registered = (server as unknown as { _registeredTools: Record<string, { inputSchema: { shape: Record<string, z.ZodType> } }> })._registeredTools.get_library!.inputSchema.shape;
+        expect(registered.library!.description).toBeDefined();
+        expect(registered.added_since!.description).toBeDefined();
+        expect(registered.added_since!.safeParse('last week').success).toBe(false);
+        expect(registered.added_since!.safeParse('2026-06-01').success).toBe(true);
+        expect(registered.added_since!.safeParse('2026-06-01T00:00:00Z').success).toBe(true);
+        // Refused before anything is fetched: the loader would fail with another message.
+        const untouched = { load: async () => { throw new Error('fetched'); } } as unknown as LibraryLoader;
+        await expect(buildGetLibrary(untouched, { ...base, added_since: 'last week' })).rejects.toThrow(/added_since/);
+    });
+
+    it('a book line names its library', () => {
+        const line = libraryLine({ ...inLibrary(book(1), 'Comics'), presence: 'unknown' });
+        expect(line).toContain('in ');
+        expect(line).toContain('Comics');
+        expect(libraryLine({ ...book(1), presence: 'unknown' })).not.toContain(', in ');
     });
 
     it('without kind, books are listed and never counted missing from a media server', async () => {
@@ -1082,9 +1178,9 @@ describe('books from Grimmory', () => {
         }
     });
 
-    it('without kind, watched and presence filters leave books out', async () => {
+    it('without kind, watched_by and presence filters leave books out', async () => {
         const loader = bookLoader([book(58)]);
-        expect((await buildGetLibrary(loader, { ...base, watched: false })).items.map(i => i.kind)).toEqual(['movie']);
+        expect((await buildGetLibrary(loader, { ...base, watched_by: 'Someone' })).items.map(i => i.kind)).toEqual(['movie']);
         expect((await buildGetLibrary(loader, { ...base, presence: 'unknown' })).items).toEqual([]);
     });
 

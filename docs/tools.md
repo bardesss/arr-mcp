@@ -9,11 +9,11 @@ off until you turn them on — see [writes](writes.md).
 | `stack_health` | Is anything broken, out of disk, or not scanning? |
 | `search_media` | What do I have, what exists, what can I get? Books in Grimmory too, from the library |
 | `get_media_details` | Everything about one item; on Lidarr, one artist and the albums under it; on Grimmory, one book and its files |
-| `get_metadata_issues` | Which films and series have metadata that does not describe their files |
+| `get_metadata_issues` | Which films and series have metadata that does not describe their files; which Grimmory books have a low match score or no identifier |
 | `get_library` | What's in my library — joined across Radarr, Sonarr, Lidarr and your media server, and where they disagree; Lidarr artists are their own kind, joined by MusicBrainz id; Grimmory books are their own kind too |
 | `get_profile_issues` | Which quality profiles and custom formats are misconfigured, and where Profilarr has drifted from Radarr/Sonarr |
-| `get_queue` | What is downloading, across the *arr queues and every download client |
-| `get_history` | Why did last night's download fail — grabbed, imported, failed, deleted, and what SABnzbd, NZBGet, Bazarr, Cleanuparr, Reclaimerr and Shelfmark did |
+| `get_queue` | What is downloading, across the *arr queues and every download client, and what waits in Grimmory's Bookdrop |
+| `get_history` | Why did last night's download fail: grabbed, imported, failed, deleted, and what SABnzbd, NZBGet, Bazarr, Cleanuparr, Reclaimerr and Shelfmark did; on Grimmory, deleted books, metadata changes and scans |
 | `get_wanted` | Which episodes of a show are missing, and what has a file below cutoff |
 | `get_releases` | What an interactive search actually found, rejects included; on Shelfmark, the files on offer for a book |
 | `get_blocklist` | Why does it keep finding the same release and never downloading it |
@@ -25,24 +25,24 @@ off until you turn them on — see [writes](writes.md).
 | `lookup_media` | Tell me about this, without adding it; books too, with Shelfmark |
 | `discover_media` | What exists in this genre, year, or rating band |
 | `trigger_search` | Go look for this again — the whole thing, one season, or specific episodes |
-| `trigger_scan` | Refresh and rescan a library or one item, rename one item, import a download that never landed, put a mislabeled Sonarr file on the right episode, or rerun NZBGet's post-processing |
+| `trigger_scan` | Refresh and rescan a library or one item, rename one item, import a download that never landed, put a mislabeled Sonarr file on the right episode, rerun NZBGet's post-processing, or rescan a Grimmory library or its Bookdrop |
 | `trigger_subtitle_search` | Go and find the subtitles this is missing, now |
 | `grab_release` | Not that one — grab this release from `get_releases` instead; on Shelfmark, the most-downloaded file unless you name one |
 | `set_monitoring` | Turn monitoring on or off: a whole series, one season, specific episodes; on Lidarr, `level: "album"` for one album or `level: "artist"` with `artists` and `monitor_new_items` for a policy over the set |
 | `retry_download` | Try this failed usenet download again, with its password if it needs one, or a failed or cancelled Shelfmark book |
 | `pause_downloads` | Pause, resume or throttle a download client, or one item in its queue |
-| `remove_queue_item` | Get rid of this stuck or wrong download |
+| `remove_queue_item` | Get rid of this stuck or wrong download; on Grimmory, discard a file waiting in the Bookdrop |
 | `remove_blocklist_item` | Let this blocklisted release be grabbed again |
 | `clean_queue` | Clear out completed downloads whose film, series or artist no longer exists |
-| `delete_media` | Remove this film or series, optionally from disk |
+| `delete_media` | Remove this film or series, optionally from disk; on Grimmory, delete a book and its files |
 | `delete_episode_files` | Free disk from one season or a handful of episodes, without touching the series |
 | `respond_to_request` | Approve or decline what someone asked for |
 | `delete_request` | Drop a request record entirely |
 | `request_media` | Ask Seerr for this, through its approval queue and quotas |
 | `add_media` | Add this film or series and start looking for it |
-| `update_media` | Change the profile, folder, monitoring or tags of something already there |
-| `fix_metadata` | Repair one item whose metadata does not describe its files |
-| `set_watched` | Mark this watched or unwatched in Jellyfin |
+| `update_media` | Change the profile, folder, monitoring or tags of something already there; on Grimmory, a book's title, authors, series and categories |
+| `fix_metadata` | Repair one item whose metadata does not describe its files; on Grimmory, a book, from its metadata providers |
+| `set_watched` | Mark this watched or unwatched in Jellyfin; on Grimmory, mark a book read or unread |
 | `sync_database` | Have Profilarr pull its database from git again |
 | `manage_indexer` | Add a public indexer, change its priority, profile, tags or seeding, stop grabbing from it, or delete it |
 
@@ -764,7 +764,8 @@ to chase.
 
 ### Filters that are films only, and why
 
-`quality` is films only — a series has no series-level quality.
+`quality` is for films and books. A series has no series-level quality. On a
+book it is the file format, such as `EPUB`.
 
 Rating filters are mostly films only too, because Sonarr carries one flat TVDB
 rating rather than per-source scores. The exception is `imdb`, which the
@@ -827,13 +828,29 @@ books, so `presence` is always `unknown`.
 | `acquisition.id` | Grimmory's book id, which `get_media_details` takes with `service: "grimmory"` |
 | `acquisition.quality` | The format of the primary file, such as `EPUB` |
 | `acquisition.sizeBytes` | The size of the primary file |
-| `acquisition.addedAt` | When Grimmory added the book, so `sort: "added"` works |
+| `acquisition.addedAt` | When Grimmory added the book, so `sort: "added"` and `added_since` work |
 | `acquisition.hasFile` | Whether the book has a primary file |
+| `playback.watched` | Whether the Grimmory account arr-mcp signs in as has marked the book READ. Unread, unset and never opened all read `false` |
+| `library` | The name of the Grimmory library the book sits in, fenced |
 
-A book carries no rating, watch state or monitoring. `quality`, `min_rating`,
-`rating_source`, `sort: "rating"`, `watched`, `watched_by`, `presence` and
-`monitored` are refused when `kind: "book"` names the question. Without a kind
-they drop books, as they do artists.
+A book carries no rating or monitoring. `min_rating`, `rating_source`,
+`sort: "rating"`, `watched_by`, `presence` and `monitored` are refused when
+`kind: "book"` names the question. Without a kind they drop books, as they do
+artists.
+
+Three filters are for books:
+
+- `library` names a Grimmory library, matched ignoring case. It is refused with
+  any `kind` other than `book`, and without a kind it drops everything that is
+  not a book.
+- `quality` matches the format of the primary file, such as `EPUB` or `CBZ`.
+- `added_since` takes an ISO 8601 date or timestamp and keeps the books added at
+  or after it.
+
+`watched` reads a book's status for the one Grimmory account arr-mcp signs in
+as. READ is watched, and every other status, or none, is unwatched. `watched_by`
+cannot ask about anyone else and is refused for a book. `set_watched` changes the
+status, with `item_id: "grimmory:<book id>"`.
 
 Books are read 200 to a page. A library of more than 20,000 books fails with an
 error instead of paging on. An unreachable Grimmory lands in `degraded`, and does
@@ -1136,6 +1153,23 @@ tell a retry apart from a dead end: "Series title mismatch" or an unknown
 episode fails the same way every time, so `trigger_scan`'s `import` will not
 help. Past ten lines the rest are counted, not listed.
 
+### Grimmory's Bookdrop
+
+With Grimmory configured, the files waiting in its Bookdrop are queue rows. Each
+has `status: "pending review"`, the file name as its title, and `addedAt` when it
+arrived. They are not downloads: arr-mcp has no progress or ETA for them, and
+they leave the queue when someone finalises them in Grimmory. Reading the
+Bookdrop needs `canAccessBookdrop` on a non-admin account. It is read 100 files
+to a page, and a Bookdrop of more than 1,000 files fails with an error instead
+of paging on.
+
+`remove_queue_item` with `service: "grimmory"` and the row's `id` discards the
+file. Grimmory deletes it from disk and does not import it, so there is no undo,
+and `remove_from_client: false` is refused because there is no way to discard
+and keep it. The preview names the file and says so. It is `destructive` and
+needs `canAccessBookdrop` on a non-admin account. `blocklist` does nothing here,
+and the preview says it is ignored.
+
 ### Seeding, at `detail: "full"`
 
 Torrent rows carry `private` when the client says, and a finished torrent
@@ -1234,10 +1268,11 @@ imports, or its file gets deleted, it leaves the queue and `get_queue` has
 nothing to say about it. `trigger_search` cannot fill that gap either: it hands
 back a command handle, and Radarr and Sonarr do not report a search's outcome
 through it. `get_history` merges Radarr's, Sonarr's and Lidarr's own history logs with SABnzbd's,
-NZBGet's, Bazarr's, Cleanuparr's, Reclaimerr's and Shelfmark's, and is the only tool that can answer "why did last
-night's download fail".
+NZBGet's, Bazarr's, Cleanuparr's, Reclaimerr's and Shelfmark's, plus Grimmory's
+audit log, and is the only tool that can answer "why did last night's download
+fail".
 
-Both services' events are normalised to one vocabulary — `grabbed`,
+Radarr's and Sonarr's events are normalised to one vocabulary: `grabbed`,
 `imported`, `failed`, `deleted`, `renamed`, `ignored` — because they mostly
 already agree: both spell a grab `grabbed` and an import
 `downloadFolderImported`. The one place they diverge is deletion,
@@ -1302,6 +1337,36 @@ Shelfmark contributes its book downloads: `imported` for a finished one, `failed
 with its reason, and `stopped` for a cancelled one, with Shelfmark's own word in
 `rawEvent`. See [Shelfmark](#shelfmark) under `stack_health` for how much it reads
 and what `at` means on its rows. Passing `id` with `service: shelfmark` is refused.
+
+### Grimmory
+
+Grimmory contributes four actions from its audit log. Logins, users, settings
+and tasks are never read.
+
+| Audit action | `event` | What a row means |
+| --- | --- | --- |
+| `BOOK_UPLOADED` | `added` | A book was uploaded to Grimmory. `mediaId` is the book id when Grimmory logs one. No live upload row has been captured yet, so this shape follows Grimmory's API description |
+| `BOOK_DELETED` | `deleted` | A book was deleted. The title is the description Grimmory logged, fenced. On 3.5.0 that is a count such as "Deleted 1 book(s)", which names no book. The row has no book id and no `mediaId`, because Grimmory logs none for a delete |
+| `METADATA_UPDATED` | `metadata` | A book's metadata was changed. `mediaId` is the book id |
+| `LIBRARY_SCANNED` | `scanned` | A library was scanned. The title reads `library <id>` unless Grimmory logged a description |
+
+`rawEvent` holds the audit action. `event_type` can be `added`, `deleted`, `metadata`
+or `scanned`. Each action is read on its own, newest first, up to 1,000 rows, so a
+busy action does not push out the rows of a quiet one.
+
+The audit log needs a Grimmory admin account. A non-admin account gets an
+`AuthFailed` error that says so, and Grimmory lands in `degraded`. No other
+permission opens it.
+
+`since` is sent to Grimmory as a UTC time, and a date or a time without an offset
+is read as UTC. Grimmory reads that time in its own zone, which a Docker image
+keeps at UTC unless `TZ` says otherwise. Audit times that arrive without an
+offset are read as UTC too. Rows older than `since` are dropped on arr-mcp's side
+as well.
+
+`id` with `service: "grimmory"` is a book id. It keeps the `metadata` rows for
+that book and leaves out scans. A `deleted` row never matches, since it names no
+id.
 
 ### The services below the *arrs
 
@@ -1637,7 +1702,7 @@ sync clears it; `trigger_scan` on Prowlarr runs one.
 ## `set_watched`
 
 The write half of `get_playback`. Marks a film, series, season or episode
-watched or unwatched in Jellyfin.
+watched or unwatched in Jellyfin, or a Grimmory book read or unread.
 
 `item_id` is a **Jellyfin** item id, and that constraint is deliberate rather
 than incidental. Jellyfin's own ids never enter the library index —
@@ -1661,6 +1726,19 @@ position. That history is not recoverable.
 `user` names whose watch state changes; anyone but `default_user` needs
 `services.jellyfin.allow_other_users`.
 
+### Grimmory
+
+`item_id: "grimmory:<book id>"` marks a book, with the id from `acquisition.id`
+on a `get_library` book row. `watched: true` sets the status READ and `false`
+sets UNREAD, for the one Grimmory account arr-mcp signs in as. `user` and
+`season` are refused, because a book has one reader and no seasons. A bare number
+is a Radarr or Sonarr id and is refused as before.
+
+The preview says what changes. Marking a book read sets its finish date to now.
+Marking it unread clears the finish date, and an earlier one is not restored. A
+book already in the status asked for is a no-op. Safe tier. A non-admin account
+needs no permission beyond access to the book.
+
 **Plex is read-only here, by design.** `get_playback` reads Plex watch state,
 but `set_watched` never writes it. With only Plex configured the tool refuses
 and says to add Jellyfin alongside Plex; it does not suggest replacing Plex.
@@ -1672,7 +1750,9 @@ suspect, and on a real library you mostly do not know which to suspect —
 sweeping 101 series turned up two problems nobody had noticed beside the one
 that prompted the work.
 
-Covers films and series. Films cost one request for the whole library, because
+Covers films and series, and Grimmory books in a sweep of their own (see
+[Books that need a repair](#books-that-need-a-repair) below). Films cost one
+request for the whole library, because
 they need no per-title read; series cost one each, which is why this is
 deliberately **not** folded into `get_library` where every caller would pay for
 it. A real library of 101 series and 118 films sweeps in seconds.
@@ -1737,6 +1817,31 @@ Each row prints its item as `service:itemId`. Pass that to `fix_metadata` as
 `id` to repair exactly the item that was flagged, since a title can resolve to
 a different one.
 
+### Books that need a repair
+
+With Grimmory configured, the sweep also lists books whose match score is under
+45. A book with a good score but no ISBN is not listed: its metadata matched, it
+only lacks an id, and `fix_metadata` still takes it by `grimmory:<id>`. A book
+with no score is not listed either.
+
+A listed book with no ISBN costs one extra read to check the catalogue ids
+Grimmory holds for it (ASIN, Goodreads, Google, Hardcover, Hardcover book, Open
+Library, Comic Vine, Douban, Lubimyczytac, Ranobedb, Audible or Apple Books).
+With none of them, `fix_metadata` can only search by title and author, and the
+row says so. When that read fails the book is still listed for its score. A
+login or connection failure ends the sweep, and Grimmory lands in `degraded`.
+Grimmory's list is read 200 books to a page.
+
+A book row has `kind: "book"`, prints its item as `grimmory:<book id>`, carries
+`matchScore` when Grimmory has one, and counts one mismatch. Its `reason` says
+why it is listed: `low match score (N)`, plus `and no ISBN or catalogue id` when it has
+neither. Its `remedy` is
+`refresh_metadata`, whose `fix` is `fix_metadata` with that id, or
+`unlock_fields` when every metadata field on the book is locked. `itemsScanned`
+counts the books read. A Grimmory that cannot be read lands in `degraded` and
+the films and series still answer. Reading needs a user who can see the
+libraries, and no other Grimmory permission.
+
 ### `remedy` is the field that matters
 
 A title mismatch says the file and the server disagree. It does not say which
@@ -1772,8 +1877,9 @@ replaces it when it does not. The case it exists for: a file named
 which a scan reports as perfectly fine because the file is exactly where it
 should be.
 
-`fix_metadata` refuses a Grimmory book up front and points to
-`get_media_details`, because Grimmory manages its own metadata.
+A Grimmory book is repaired too, by its id and through Grimmory's own metadata
+providers; see [A Grimmory book](#a-grimmory-book) below. A title that matches
+only a book is refused, and the refusal names the id form.
 
 Give a film or series title as `query`, resolved through the library index the
 same way `get_media_details` resolves one, or the `id` that
@@ -1918,6 +2024,35 @@ clean bill of health.** "Nothing was compared" and "nothing is wrong" arrive at
 the same count of zero, and reporting the first as the second is the
 reassuring lie the preview exists to prevent. Jellyfin returns `Path` only to
 a read that asks for it and only for a user who may see it.
+
+### A Grimmory book
+
+`id: "grimmory:<book id>"` repairs a book, as `get_metadata_issues` prints it.
+`isbn` searches the providers by that ISBN instead of the book's own. It takes 10
+or 13 digits, and an ISBN-10 may end in X. `isbn` is refused with any other id,
+and `service` and `user` are refused for a book.
+
+The preview asks every metadata provider enabled in Grimmory about the book and
+saves nothing. It searches by the ISBN, the one passed or the one the book holds,
+and otherwise by title and first author. A candidate is taken only when its ISBN
+equals the one searched, or when its title and its first author both equal the
+book's. A title alone never qualifies, because another author's book of the same
+name would replace this one's identifiers. An ISBN match beats a title match. If
+no candidate qualifies, the preview is a no-op that says how many answers came
+back and suggests passing `isbn`. With no provider enabled the call is refused.
+
+The preview lists each field the best match would change, old value to new.
+Every field is considered except categories, and the cover and the description
+are left alone. A locked field is never sent, and the preview names the ones it
+left. A book with every field locked is a no-op that says to unlock it in
+Grimmory first.
+
+Grimmory may also write the change into the book file and move it to match its
+naming pattern, when its metadata settings say so. There is no undo. Applying
+looks the providers up again, so a provider that now answers differently gives a
+fresh preview and the token is refused.
+
+`destructive` tier. A non-admin account needs `canEditMetadata`.
 
 ### Waiting on a queued refresh
 
@@ -2221,7 +2356,7 @@ rejects the call without it.
 
 ## `trigger_scan`
 
-Five actions, one idea: make a service reconcile itself with what is on disk
+Six actions, one idea: make a service reconcile itself with what is on disk
 and, on the *arrs, with its metadata provider.
 
 | Call | What it does |
@@ -2232,6 +2367,7 @@ and, on the *arrs, with its metadata provider.
 | `action: "import"` + `download_id` | Imports a finished download the service never picked up. |
 | `action: "remap"` + `id` + `reassignments` | Tells Sonarr which episode an already-imported file really is, and renames those files to match. |
 | `action: "postprocess"` + `download_id` | Reruns NZBGet's post-processing on a finished download that is still in its history. |
+| `action: "bookdrop"` | Has Grimmory look in its Bookdrop folder again. With `action: "scan"`, `library` rescans one Grimmory library. See [On Grimmory](#on-grimmory). |
 
 Everything here queues a command and returns, except `remap` and `postprocess` — see below.
 `stack_health`'s `commands` list says whether it has finished; do not assume it
@@ -2290,6 +2426,30 @@ an error, because then nothing is.
 Plex returns no command id, so there is nothing in `commands` to poll. It
 reports the scan through each library's own `refreshing` flag instead, which is
 what `stack_health` and `diagnose` already read.
+
+### On Grimmory
+
+Grimmory takes two actions.
+
+- `action: "scan"` rescans every library, or one with `library`, by name or by
+  id as `stack_health` and `get_library` show it. A name is matched ignoring
+  case. If a name and an id pick different libraries the call is refused and the
+  refusal lists them. So is a name that matches two libraries differing only in
+  case. A library that does not exist is refused, listing the ones
+  that do.
+- `action: "bookdrop"` has Grimmory look in its Bookdrop folder again for new
+  files. It imports nothing: the files wait there until someone finalises them
+  in Grimmory, and `get_queue` lists them. Pass no `library` with it.
+
+A library with `watch` on is skipped, since Grimmory's file watcher already picks
+up changes there. The preview names each library it will rescan and each one it
+skips, and a call that would rescan nothing is a no-op. Libraries are rescanned
+one after another, in the background. `id` is refused, because a book cannot be
+scanned on its own, and `library` and `bookdrop` are refused on any other
+service.
+
+Safe tier. A non-admin account needs `canManageLibrary` for a library and
+`canAccessBookdrop` for the Bookdrop.
 
 ### Importing a download that never landed
 
@@ -2484,6 +2644,28 @@ format. The preview cannot always tell which case it is: what Sonarr will name
 a file is known only once the reassignment is applied, so it says when the
 format would change rather than promising it will not.
 
+## `delete_media`
+
+Removes a film from Radarr, a series or site from Sonarr or Whisparr, or a book
+from Grimmory. It takes `service` and `id`, never a title, with `id` from
+`acquisition.id` on a `get_library` or `get_media_details` record. `destructive`
+tier, and the preview comes first.
+
+### Grimmory
+
+`service: "grimmory"` deletes a book. `id` is the book id, as `58` or
+`grimmory:58`. Grimmory deletes a book's files with it and has no keep-files
+option, so `delete_files: true` is required and a call without it is refused.
+`add_import_exclusion` is refused too, since Grimmory has no exclusions.
+
+The preview reads the book first, so a wrong id fails with a clear error. It
+names the book, the size and formats of the files it will delete from disk, and
+says the book goes from Grimmory with its metadata, shelves and reading progress.
+There is no undo. If Grimmory removes the book but cannot delete a file, the
+answer says the book is gone and the files are still in the library folder.
+
+A non-admin account needs `canDeleteBook`.
+
 ## `update_media`
 
 `add_media`'s counterpart: it changes what something already in Radarr or Sonarr
@@ -2512,6 +2694,39 @@ tag.
 Safe tier. Every field is one the same tool sets back, and a move loses
 nothing: the undo is moving it back. A request that would change nothing is a
 no-op, and a request naming no field at all is refused rather than previewed.
+
+### Grimmory
+
+`service: "grimmory"` edits a book by hand, with `id` from `acquisition.id` on a
+`get_library` book row. It takes these fields:
+
+| Parameter | Sets |
+| --- | --- |
+| `title` | The title |
+| `authors` | The authors; the list replaces the old one |
+| `series` | The series name; `""` clears it |
+| `series_number` | The book's number in its series, above zero |
+| `tags` | The book's categories, as free text that need not exist yet; the list replaces the old one, and `[]` clears it |
+| `lock_fields` | Fields to lock after writing, so a metadata refresh leaves them alone |
+| `unlock_fields` | Fields to unlock before writing |
+
+`lock_fields` and `unlock_fields` take `title`, `authors`, `series`,
+`series_number` and `tags`. Only the fields named are sent. A blank title, author,
+tag or series is refused, and a series is cleared with `""` and the categories
+with `[]`. Naming no field is refused. `quality_profile`, `root_folder`,
+`monitored`, `minimum_availability` and `series_type` are refused for a book, and
+the book fields are refused for a film or series.
+
+A locked field is refused unless the same call unlocks it. A book with every
+field locked is refused, with the advice to unlock it in Grimmory, since
+`unlock_fields` releases single fields. Locking and unlocking one field in the
+same call is refused. The preview lists each field, old value to new, says what it
+unlocks first and what it locks afterwards, and calls a request that changes
+nothing a no-op.
+
+Grimmory may write the change into the book file and move it to match its naming
+pattern, when its metadata settings say so, and the preview says that. Safe tier.
+A non-admin account needs `canEditMetadata`.
 
 ## Prompts and resources
 

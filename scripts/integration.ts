@@ -43,7 +43,8 @@ import { CleanuparrAdapter } from '../src/services/cleanuparr.ts';
 import { ReclaimerrAdapter } from '../src/services/reclaimerr.ts';
 import { DispatcharrAdapter } from '../src/services/dispatcharr.ts';
 import { ShelfmarkAdapter } from '../src/services/shelfmark.ts';
-import { GrimmoryAdapter } from '../src/services/grimmory.ts';
+import { BOOK_MATCH_THRESHOLD, GrimmoryAdapter } from '../src/services/grimmory.ts';
+import { ServiceError } from '../src/core/errors.ts';
 import { hostsOf, redactHosts, secretsOf } from './lib/redact.ts';
 import { callTool as rpcCallTool, type ToolCallResult } from './lib/rpc.ts';
 
@@ -1033,6 +1034,24 @@ if (config.services?.grimmory !== undefined) {
             const book = await grimmory.getMediaDetails(firstId);
             details = `details read, ${book.book?.formats.length ?? 0} format(s)`;
         }
+        // Reads only: no write, no trigger_scan, and no prospective fetch (it POSTs to external providers).
+        let history = 'history skipped (403)';
+        try {
+            const read = await grimmory.readHistory({ want: 5 });
+            history = `${Array.isArray(read) ? read.length : read.items.length} history row(s)`;
+        } catch (err) {
+            if (!(err instanceof ServiceError && err.kind === 'AuthFailed')) throw err;
+        }
+        const queue = await grimmory.getQueue();
+        const libraries = await grimmory.listBookLibraries();
+        const issues = await grimmory.listBookMetadataIssues(BOOK_MATCH_THRESHOLD);
+        let readBook = 'no books to read';
+        if (firstId !== undefined) {
+            const status = await grimmory.readBookReadStatus(firstId);
+            const metadata = await grimmory.readBookMetadata(firstId);
+            readBook = `read status ${status.readStatus}, ${metadata.locked.length} locked field(s)`;
+        }
+        details += `, ${history}, ${queue.length} pending, ${libraries.length} librar${libraries.length === 1 ? 'y' : 'ies'}, ${issues.issues.length} under ${BOOK_MATCH_THRESHOLD} (${issues.issues.filter(i => !i.hasIdentifier).length} with no identifier), ${readBook}`;
         const ms = Math.round(performance.now() - started);
         console.log(`PASS grimmory ${connection.version ?? '?'}: ${findings.length} finding(s), ${hits.length} search hit(s), ${rows.length} book(s), ${details} (${ms}ms)`);
         for (const f of findings) console.log(`     ${f.type} ${f.source}`);

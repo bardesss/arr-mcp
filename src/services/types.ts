@@ -354,6 +354,8 @@ export type QueueItem = {
     downloadId?: string;
     /** Why Radarr or Sonarr will not import it, one line per reason. */
     statusMessages?: string[];
+    /** ISO 8601, when the item arrived. Grimmory's Bookdrop rows only. */
+    addedAt?: string;
     /** Torrent clients only. Absent when the client did not say. */
     private?: boolean;
     /** Torrent clients only, and only once the download has finished. */
@@ -707,7 +709,9 @@ export const HISTORY_EVENT_TYPES = [
     'recovered',
     'recategorised',
     'scheduled',
-    'protected'
+    'protected',
+    'metadata',
+    'scanned'
 ] as const;
 export type HistoryEventType = (typeof HISTORY_EVENT_TYPES)[number];
 
@@ -1290,6 +1294,33 @@ export interface LibraryScanCapable {
 export const hasLibraryScan = (a: ServiceAdapter): a is ServiceAdapter & LibraryScanCapable =>
     typeof (a as Partial<LibraryScanCapable>).startLibraryScan === 'function';
 
+/** One Grimmory library, as `trigger_scan` needs it. */
+export type BookLibrary = {
+    id: string;
+    /** The name as Grimmory holds it: raw, for matching only. Never print it. */
+    name: string;
+    /** The name fenced as untrusted, for anything a model reads. */
+    label: string;
+    /** A library with `watch` on is rescanned by Grimmory's own file watcher. */
+    watch: boolean;
+};
+
+/**
+ * Grimmory's rescans: one library, or the Bookdrop folder. Separate from
+ * `LibraryScanCapable` because there is no single "scan everything" call: a
+ * whole-instance rescan is one refresh per library.
+ */
+export interface BookLibraryScanCapable {
+    listBookLibraries(): Promise<BookLibrary[]>;
+    /** Queues a rescan of one library and returns. */
+    refreshBookLibrary(id: string): Promise<void>;
+    /** Asks Grimmory to look in the Bookdrop folder again. */
+    rescanBookdrop(): Promise<void>;
+}
+
+export const hasBookLibraryScan = (a: ServiceAdapter): a is ServiceAdapter & BookLibraryScanCapable =>
+    typeof (a as Partial<BookLibraryScanCapable>).refreshBookLibrary === 'function';
+
 /**
  * The per-item half of the same idea: reconcile one thing with what is on
  * disk, rather than the whole library. Separate from `LibraryScanCapable`
@@ -1525,6 +1556,21 @@ export interface MediaDeleteCapable {
     deleteMedia(id: string, opts: DeleteMediaOptions): Promise<void>;
 }
 
+export type BookDeletion = {
+    /** Whether Grimmory reports the book as deleted. */
+    deleted: boolean;
+    /** The book is gone but Grimmory could not delete its files from disk. */
+    filesLeft: boolean;
+};
+
+/** Deletes a book and, always, its files: Grimmory has no keep-files option. */
+export interface BookDeleteCapable {
+    deleteBook(id: string): Promise<BookDeletion>;
+}
+
+export const hasBookDelete = (a: ServiceAdapter): a is ServiceAdapter & BookDeleteCapable =>
+    typeof (a as Partial<BookDeleteCapable>).deleteBook === 'function';
+
 export const hasMediaDelete = (a: ServiceAdapter): a is ServiceAdapter & MediaDeleteCapable =>
     typeof (a as Partial<MediaDeleteCapable>).deleteMedia === 'function';
 
@@ -1655,6 +1701,8 @@ export interface QueueRemoveCapable {
     /** Shelfmark's: it can only stop what is queued or running, so a failed row has nothing to
      *  remove and `removeFromClient: false` cannot be honoured. `remove_queue_item` refuses both. */
     readonly cancelOnly?: boolean;
+    /** Removing deletes the file itself, so `removeFromClient: false` cannot be honoured. Grimmory's Bookdrop. */
+    readonly discardsFile?: boolean;
 }
 
 export const hasQueueRemove = (a: ServiceAdapter): a is ServiceAdapter & QueueRemoveCapable =>
@@ -1915,6 +1963,93 @@ export interface LibraryCapable {
 export const hasLibrary = (a: ServiceAdapter): a is ServiceAdapter & LibraryCapable =>
     typeof (a as Partial<LibraryCapable>).listLibrary === 'function';
 
+/** One book `get_metadata_issues` flags. `title` is fenced; `id` is what `fix_metadata` takes after `grimmory:`. */
+export type BookMetadataIssue = {
+    id: string;
+    /** fenced */
+    title: string;
+    /** Grimmory's own 0-100 score of how well the metadata matches; absent on some books. */
+    matchScore?: number;
+    /** An ISBN or a catalogue id is on the book. */
+    hasIdentifier: boolean;
+    /** Why the book is listed: "low match score (N)", with " and no ISBN or catalogue id" when it has neither. */
+    reason: string;
+    /** Every metadata field is locked, so no refresh changes anything. Known only where the list row says so. */
+    allLocked: boolean;
+};
+
+/**
+ * A book library's metadata sweep. The adapter decides what is worth reading
+ * per book; `threshold` is the match score below which a book is listed.
+ * `scanned` is every book looked at, listed or not.
+ */
+export interface BookMetadataIssueCapable {
+    listBookMetadataIssues(threshold: number): Promise<{ issues: BookMetadataIssue[]; scanned: number; skipped?: number }>;
+}
+
+export const hasBookMetadataIssues = (a: ServiceAdapter): a is ServiceAdapter & BookMetadataIssueCapable =>
+    typeof (a as Partial<BookMetadataIssueCapable>).listBookMetadataIssues === 'function';
+
+/** The metadata of a book that `fix_metadata` and `update_media` read, compare and write. Values are raw, never fenced. */
+export type BookFields = {
+    title?: string;
+    subtitle?: string;
+    authors?: string[];
+    publisher?: string;
+    publishedDate?: string;
+    seriesName?: string;
+    seriesNumber?: number;
+    isbn13?: string;
+    isbn10?: string;
+    asin?: string;
+    language?: string;
+    pageCount?: number;
+    categories?: string[];
+    goodreadsId?: string;
+    googleId?: string;
+    hardcoverId?: string;
+    openlibraryId?: string;
+};
+export type BookField = keyof BookFields;
+
+/** One book's metadata as it is now, with the fields locked against change. */
+export type BookMetadataState = {
+    id: string;
+    /** fenced */
+    label: string;
+    /** raw */
+    fields: BookFields;
+    locked: BookField[];
+    /** Every field is locked, so no write changes anything. */
+    allLocked: boolean;
+};
+
+/** One provider's answer to a metadata lookup. */
+export type BookCandidate = {
+    provider?: string;
+    /** raw */
+    fields: BookFields;
+};
+
+/** What a metadata lookup searches by: an ISBN, else a title and author. */
+export type BookSearch = { isbn?: string; title?: string; author?: string };
+
+/**
+ * A book library whose metadata can be looked up from its providers and
+ * written back. The server skips a locked field on its own; callers still
+ * leave locked fields out so a preview never promises a change that will not land.
+ */
+export interface BookMetadataCapable {
+    readBookMetadata(id: string): Promise<BookMetadataState>;
+    findBookCandidates(id: string, search: BookSearch): Promise<BookCandidate[]>;
+    /** Sets the given fields and clears the `clear` ones; anything absent is left alone. */
+    writeBookMetadata(id: string, fields: BookFields, clear?: BookField[]): Promise<void>;
+    setBookFieldLocks(id: string, fields: BookField[], lock: boolean): Promise<void>;
+}
+
+export const hasBookMetadata = (a: ServiceAdapter): a is ServiceAdapter & BookMetadataCapable =>
+    typeof (a as Partial<BookMetadataCapable>).writeBookMetadata === 'function';
+
 /**
  * A media server's music half.
  *
@@ -2024,6 +2159,27 @@ export interface WatchStateCapable {
 
 export const hasWatchState = (a: ServiceAdapter): a is ServiceAdapter & WatchStateCapable =>
     typeof (a as Partial<WatchStateCapable>).setWatched === 'function';
+
+/** A book's read state for the account arr-mcp logs in as. */
+export type BookReadState = {
+    id: string;
+    /** fenced */
+    title: string;
+    /** READ, READING, UNREAD, or UNSET when the book carries none. */
+    readStatus: string;
+};
+
+/**
+ * Read status on a book library, which `set_watched` treats as watched. Only
+ * the one account the adapter signs in as is visible, so there is no user.
+ */
+export interface BookReadStatusCapable {
+    readBookReadStatus(id: string): Promise<BookReadState>;
+    setBookReadStatus(id: string, status: 'READ' | 'UNREAD'): Promise<void>;
+}
+
+export const hasBookReadStatus = (a: ServiceAdapter): a is ServiceAdapter & BookReadStatusCapable =>
+    typeof (a as Partial<BookReadStatusCapable>).setBookReadStatus === 'function';
 
 export interface DiscoverCapable {
     discover(opts: {

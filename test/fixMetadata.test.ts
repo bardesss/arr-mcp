@@ -165,13 +165,14 @@ function harness(
 }
 
 describe('fix_metadata', () => {
-    it('fix_metadata refuses a Grimmory book without a request', async () => {
+    it('a bare "grimmory" id is refused before any request', async () => {
         const h = harness();
-        for (const id of ['grimmory:58', 'grimmory']) {
+        // With no Grimmory configured, `grimmory:58` is refused the same way.
+        for (const id of ['grimmory', 'grimmory:58', 'grimmory:abc']) {
             const err = (await h.call({ id }).catch((e: unknown) => e)) as ServiceError;
             expect(err).toBeInstanceOf(ServiceError);
-            expect(err.detail).toMatch(/books are not repaired here/);
-            expect(err.remedy).toContain('get_media_details');
+            expect(err.kind).toBe('NotFound');
+            expect(err.service).toBe('grimmory');
         }
         expect(h.requested).toEqual([]);
     });
@@ -187,7 +188,7 @@ describe('fix_metadata', () => {
         const h = harness({ item: book });
         const err = (await h.call({ query: 'Example Book 58' }).catch((e: unknown) => e)) as Error;
         expect(err.message).toMatch(/Grimmory book/);
-        expect(err.message).toContain('get_media_details');
+        expect(err.message).toContain('grimmory:58');
         expect(h.wrote).toEqual([]);
         expect(h.requested.filter(r => r !== 'GET /Users')).toEqual([]);
     });

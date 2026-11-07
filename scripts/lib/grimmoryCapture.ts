@@ -13,7 +13,10 @@
 import { isRow, type Row } from './redact.ts';
 
 /** Never kept: contact details and credentials. */
-const DROPPED_KEYS = new Set(['email', 'accessToken', 'refreshToken']);
+const DROPPED_KEYS = new Set(['email', 'accessToken', 'refreshToken', 'bookReviews', 'comicMetadata', 'audiobookMetadata']);
+
+/** Who did it and from where, at any depth: an audit row names the person and their address. */
+const STAND_INS: Record<string, string> = { username: 'example-user', ipAddress: '192.0.2.1', countryCode: 'ZZ' };
 
 /** Free text the adapter never reads and a person wrote. */
 const BLANKED_KEYS = new Set(['description', 'subtitle', 'publisher', 'comment', 'narrator']);
@@ -56,11 +59,16 @@ function scrub(value: unknown, names: Names, bookNumber: number | undefined): un
     const bookTitle = `Example Book ${own ?? 0}`;
     const isLibrary = Array.isArray(row.paths);
 
+    const isAudit = typeof row.action === 'string' && 'entityType' in row;
+
     const out: Row = {};
     for (const [key, v] of Object.entries(row)) {
         if (DROPPED_KEYS.has(key)) continue;
         if (typeof v === 'string') {
-            if (key === 'title') out[key] = bookTitle;
+            if (key in STAND_INS) out[key] = STAND_INS[key] ?? v;
+            else if (key === 'description' && isAudit) out[key] = `Example audit entry ${String(row.id)}`;
+            else if ((key === 'thumbnailUrl' || key === 'externalUrl') && v.startsWith('http')) out[key] = `https://example.invalid/${key}/${own ?? 0}`;
+            else if (key === 'title') out[key] = bookTitle;
             else if (key === 'libraryName' || (key === 'name' && isLibrary)) out[key] = `Example Library ${typeof row.libraryId === 'number' ? row.libraryId : typeof row.id === 'number' ? row.id : 1}`;
             else if (key === 'fileName' || key === 'primaryFileName') out[key] = fileNameFor(bookTitle, v);
             else if (key === 'filePath') out[key] = fileNameFor(bookTitle, v.slice(v.lastIndexOf('/') + 1));

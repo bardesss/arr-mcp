@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { ServiceError } from '../src/core/errors.ts';
 import { fenceText } from '../src/core/fence.ts';
 import { ConfigSchema } from '../src/config/schema.ts';
-import { GrimmoryAdapter, MAX_LIBRARY_PAGES } from '../src/services/grimmory.ts';
+import { LibraryIndex } from '../src/core/resolver.ts';
+import { GRIMMORY_HISTORY_ACTIONS, GrimmoryAdapter, MAX_AUDIT_PAGES, MAX_LIBRARY_PAGES, BOOK_MATCH_THRESHOLD } from '../src/services/grimmory.ts';
+import { grimmoryServer, sse } from './helpers/grimmory.ts';
 
 const config = ConfigSchema.parse({
     auth: { bearer_token: 'a'.repeat(64) },
@@ -339,7 +341,7 @@ describe('GrimmoryAdapter library', () => {
         // The last page: one bare row, so every absent field is left out rather than set.
         const last = { content: [{ id: 9, title: 'Bare' }], page: 1, size: 200, totalElements: 4, totalPages: 2, hasNext: false, hasPrevious: true };
         const urls: string[] = [];
-        const inner = stub({ 'POST /api/v1/auth/login': json(TOKENS), 'GET /api/v1/app/books': [json(first), json(last)] });
+        const inner = stub({ 'POST /api/v1/auth/login': json(TOKENS), 'GET /api/v1/libraries': json(fixture('libraries')), 'GET /api/v1/app/books': [json(first), json(last)] });
         const fetchImpl = (async (input: string | URL | Request, init?: RequestInit) => {
             urls.push(String(input));
             return inner(input, init);
@@ -355,7 +357,9 @@ describe('GrimmoryAdapter library', () => {
         expect(rows[0]).toEqual({
             kind: 'book',
             title: fenced('Example Book 58 by Example Author 1'),
+            library: fenceText('Example Library 1', { service: 'grimmory', field: 'library_name' }),
             ids: {},
+            playback: { user: 'grimmory account', watched: false },
             acquisition: {
                 service: 'grimmory',
                 id: '58',
@@ -370,6 +374,7 @@ describe('GrimmoryAdapter library', () => {
             kind: 'book',
             title: fenced('Bare'),
             ids: {},
+            playback: { user: 'grimmory account', watched: false },
             acquisition: { service: 'grimmory', id: '9', monitored: false, hasFile: false }
         });
     });
@@ -377,7 +382,7 @@ describe('GrimmoryAdapter library', () => {
     it('stops on a page that says there is no next one, even a short first page', async () => {
         const seen: string[] = [];
         const only = { content: [], page: 0, size: 200, totalElements: 0, totalPages: 0, hasNext: false, hasPrevious: false };
-        const adapter = new GrimmoryAdapter(config, stub({ 'POST /api/v1/auth/login': json(TOKENS), 'GET /api/v1/app/books': json(only) }, seen));
+        const adapter = new GrimmoryAdapter(config, stub({ 'POST /api/v1/auth/login': json(TOKENS), 'GET /api/v1/libraries': json(fixture('libraries')), 'GET /api/v1/app/books': json(only) }, seen));
         expect(await adapter.listLibrary()).toEqual([]);
         expect(seen.filter(s => s === 'GET /api/v1/app/books')).toHaveLength(1);
     });
@@ -385,7 +390,7 @@ describe('GrimmoryAdapter library', () => {
     it('stops on an empty page that still claims a next one', async () => {
         const seen: string[] = [];
         const lying = { content: [], hasNext: true };
-        const adapter = new GrimmoryAdapter(config, stub({ 'POST /api/v1/auth/login': json(TOKENS), 'GET /api/v1/app/books': json(lying) }, seen));
+        const adapter = new GrimmoryAdapter(config, stub({ 'POST /api/v1/auth/login': json(TOKENS), 'GET /api/v1/libraries': json(fixture('libraries')), 'GET /api/v1/app/books': json(lying) }, seen));
         expect(await adapter.listLibrary()).toEqual([]);
         expect(seen.filter(s => s === 'GET /api/v1/app/books')).toHaveLength(1);
     });
@@ -395,14 +400,14 @@ describe('GrimmoryAdapter library', () => {
             content: [{ id: 3, title: 'T', primaryFileId: 3, primaryFileType: hostile, addedOn: hostile }],
             hasNext: false
         };
-        const adapter = new GrimmoryAdapter(config, stub({ 'POST /api/v1/auth/login': json(TOKENS), 'GET /api/v1/app/books': json(body) }));
+        const adapter = new GrimmoryAdapter(config, stub({ 'POST /api/v1/auth/login': json(TOKENS), 'GET /api/v1/libraries': json(fixture('libraries')), 'GET /api/v1/app/books': json(body) }));
         const [row] = await adapter.listLibrary();
         expect(row?.acquisition).toEqual({ service: 'grimmory', id: '3', monitored: false, hasFile: true, ...(hostile === '2020' ? { quality: '2020' } : {}) });
     });
 
     it('keeps an offset timestamp', async () => {
         const body = { content: [{ id: 3, title: 'T', addedOn: '2026-11-06T12:47:31.5+01:00' }], hasNext: false };
-        const adapter = new GrimmoryAdapter(config, stub({ 'POST /api/v1/auth/login': json(TOKENS), 'GET /api/v1/app/books': json(body) }));
+        const adapter = new GrimmoryAdapter(config, stub({ 'POST /api/v1/auth/login': json(TOKENS), 'GET /api/v1/libraries': json(fixture('libraries')), 'GET /api/v1/app/books': json(body) }));
         const [row] = await adapter.listLibrary();
         expect(row?.acquisition?.addedAt).toBe('2026-11-06T12:47:31.5+01:00');
     });
@@ -411,7 +416,7 @@ describe('GrimmoryAdapter library', () => {
         const seen: string[] = [];
         // A server that ignores `page`: the same full page, always claiming another.
         const endless = { content: [{ id: 1, title: 'Same' }], hasNext: true };
-        const adapter = new GrimmoryAdapter(config, stub({ 'POST /api/v1/auth/login': json(TOKENS), 'GET /api/v1/app/books': json(endless) }, seen));
+        const adapter = new GrimmoryAdapter(config, stub({ 'POST /api/v1/auth/login': json(TOKENS), 'GET /api/v1/libraries': json(fixture('libraries')), 'GET /api/v1/app/books': json(endless) }, seen));
         const err = (await adapter.listLibrary().catch((e: unknown) => e)) as ServiceError;
         expect(err).toBeInstanceOf(ServiceError);
         expect(err.kind).toBe('UpstreamError');
@@ -422,8 +427,419 @@ describe('GrimmoryAdapter library', () => {
     it('stops at the page count the server reported', async () => {
         const seen: string[] = [];
         const page = { content: [{ id: 1, title: 'Same' }], hasNext: true, totalPages: 3 };
-        const adapter = new GrimmoryAdapter(config, stub({ 'POST /api/v1/auth/login': json(TOKENS), 'GET /api/v1/app/books': json(page) }, seen));
+        const adapter = new GrimmoryAdapter(config, stub({ 'POST /api/v1/auth/login': json(TOKENS), 'GET /api/v1/libraries': json(fixture('libraries')), 'GET /api/v1/app/books': json(page) }, seen));
         expect(await adapter.listLibrary()).toHaveLength(3);
         expect(seen.filter(s => s === 'GET /api/v1/app/books')).toHaveLength(3);
+    });
+});
+
+describe('GrimmoryAdapter library names', () => {
+    const books = { content: [{ id: 1, title: 'A', libraryId: 1 }, { id: 2, title: 'B', libraryId: 7 }, { id: 3, title: 'C' }], hasNext: false };
+
+    it('a book row names its library, fenced', async () => {
+        const adapter = new GrimmoryAdapter(
+            config,
+            stub({ 'POST /api/v1/auth/login': json(TOKENS), 'GET /api/v1/libraries': json(fixture('libraries')), 'GET /api/v1/app/books': json(books) })
+        );
+        const rows = await adapter.listLibrary();
+        expect(rows[0]?.library).toBe(fenceText('Example Library 1', { service: 'grimmory', field: 'library_name' }));
+        // A library the list does not know, and a book with no library id, carry none.
+        expect(rows[1]).not.toHaveProperty('library');
+        expect(rows[2]).not.toHaveProperty('library');
+    });
+
+    it('the library list fails the read when libraries cannot be read', async () => {
+        const adapter = new GrimmoryAdapter(
+            config,
+            stub({ 'POST /api/v1/auth/login': json(TOKENS), 'GET /api/v1/libraries': json({}, 500), 'GET /api/v1/app/books': json(books) })
+        );
+        await expect(adapter.listLibrary()).rejects.toBeInstanceOf(ServiceError);
+    });
+});
+
+describe('GrimmoryAdapter read status', () => {
+    it('a book row carries its read status as watched', async () => {
+        const read = fixture('app-books-read') as { content: Record<string, unknown>[] };
+        expect(read.content.length).toBeGreaterThan(0);
+        const body = { ...read, content: [...read.content, { id: 99, title: 'Never opened' }, { id: 98, title: 'Mid', readStatus: 'READING' }], hasNext: false };
+        const adapter = new GrimmoryAdapter(config, stub({ 'POST /api/v1/auth/login': json(TOKENS), 'GET /api/v1/libraries': json([]), 'GET /api/v1/app/books': json(body) }));
+        const rows = await adapter.listLibrary();
+
+        for (const row of rows) {
+            const source = body.content.find(b => String(b.id) === row.acquisition?.id)!;
+            expect(row.playback).toEqual({ user: 'grimmory account', watched: source.readStatus === 'READ' });
+        }
+        expect(rows.filter(r => r.playback?.watched === true)).toHaveLength(read.content.length);
+        expect(rows.find(r => r.acquisition?.id === '99')?.playback?.watched).toBe(false);
+        expect(rows.find(r => r.acquisition?.id === '98')?.playback?.watched).toBe(false);
+
+        // The Jellyfin half is not asked, so presence stays unknown.
+        const index = LibraryIndex.build(rows);
+        expect(index.all().map(i => i.presence)).toEqual(rows.map(() => 'unknown'));
+    });
+});
+
+describe('GrimmoryAdapter history', () => {
+    type Row = { id: number; action: string; entityType: string | null; entityId: number | null; description: string; createdAt: string };
+    const row = (id: number, action: string, createdAt: string, extra: Partial<Row> = {}): Row => ({
+        id,
+        action,
+        entityType: null,
+        entityId: null,
+        description: `Example audit entry ${id}`,
+        createdAt,
+        ...extra
+    });
+    const page = (content: Row[], totalElements = content.length, number = 0, totalPages = 1) => ({ content, page: { size: 100, number, totalElements, totalPages } });
+
+    /** Answers each audit request by its `action` parameter: a page, a list of pages used in turn, or a Response. */
+    function serve(byAction: Record<string, unknown>) {
+        const used: Record<string, number> = {};
+        const server = grimmoryServer({});
+        const inner = server.fetch;
+        const fetchImpl = (async (input: string | URL | Request, init?: RequestInit) => {
+            const url = new URL(String(input));
+            if (url.pathname !== '/api/v1/audit-logs') return inner(input, init);
+            server.sent.push({ method: 'GET', path: url.pathname, query: url.search.replace(/^\?/, ''), body: undefined });
+            const action = url.searchParams.get('action') ?? '';
+            const reply = byAction[action];
+            if (typeof reply === 'function') return (reply as () => Response)();
+            const replies = Array.isArray(reply) ? reply : [reply ?? page([])];
+            const n = used[action] ?? 0;
+            used[action] = n + 1;
+            return new Response(JSON.stringify(replies[Math.min(n, replies.length - 1)]), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }) as unknown as typeof fetch;
+        return { adapter: new GrimmoryAdapter(config, fetchImpl), sent: server.sent };
+    }
+    const auditSent = (sent: { path: string; query: string }[]) => sent.filter(s => s.path === '/api/v1/audit-logs').map(s => new URLSearchParams(s.query));
+    type Out = { items: Record<string, unknown>[]; total: number };
+
+    it('asks for each kept action and nothing else', async () => {
+        const { adapter, sent } = serve({});
+        await adapter.readHistory({});
+        expect(auditSent(sent).map(q => q.get('action')).sort()).toEqual(['BOOK_DELETED', 'BOOK_UPLOADED', 'LIBRARY_SCANNED', 'METADATA_UPDATED']);
+        expect(GRIMMORY_HISTORY_ACTIONS).toEqual({ BOOK_UPLOADED: 'added', BOOK_DELETED: 'deleted', METADATA_UPDATED: 'metadata', LIBRARY_SCANNED: 'scanned' });
+    });
+
+    it('maps a deleted book, a metadata change and a scan', async () => {
+        const fx = fixture('audit-logs') as { content: Row[] };
+        const deleted = fx.content.find(r => r.action === 'BOOK_DELETED')!;
+        const { adapter } = serve({
+            BOOK_DELETED: page([deleted]),
+            METADATA_UPDATED: page([
+                row(5, 'METADATA_UPDATED', '2026-11-07T12:00:00', { entityType: 'BOOK', entityId: 58 }),
+                row(6, 'METADATA_UPDATED', '2026-11-07T11:00:00', { entityType: 'BOOK', entityId: 59, description: '' })
+            ]),
+            LIBRARY_SCANNED: page([row(7, 'LIBRARY_SCANNED', '2026-11-07T10:00:00', { entityType: 'LIBRARY', entityId: 1, description: '' })])
+        });
+        const { items } = (await adapter.readHistory({ want: 10 })) as Out;
+        const by = (raw: string) => items.filter(i => i.rawEvent === raw);
+        const fenced = (text: string) => fenceText(text, { service: 'grimmory', field: 'description' });
+        expect(by('BOOK_DELETED')).toEqual([
+            { service: 'grimmory', id: String(deleted.id), at: `${deleted.createdAt}Z`, event: 'deleted', rawEvent: 'BOOK_DELETED', title: fenced(deleted.description) }
+        ]);
+        expect(by('METADATA_UPDATED').map(r => [r.event, r.mediaId, r.title])).toEqual([
+            ['metadata', '58', fenced('Example audit entry 5')],
+            ['metadata', '59', 'book 59']
+        ]);
+        expect(by('LIBRARY_SCANNED').map(r => [r.event, r.title])).toEqual([['scanned', 'library 1']]);
+        expect(by('LIBRARY_SCANNED')[0]).not.toHaveProperty('mediaId');
+    });
+
+    it('returns the newest want rows and the sum of the totals', async () => {
+        const { adapter } = serve({
+            BOOK_DELETED: page([row(1, 'BOOK_DELETED', '2026-11-07T09:00:00'), row(2, 'BOOK_DELETED', '2026-11-07T05:00:00')], 40),
+            METADATA_UPDATED: page([row(3, 'METADATA_UPDATED', '2026-11-07T08:00:00', { entityType: 'BOOK', entityId: 1 })], 30),
+            LIBRARY_SCANNED: page([row(4, 'LIBRARY_SCANNED', '2026-11-07T07:00:00', { entityType: 'LIBRARY', entityId: 1 })], 3)
+        });
+        const out = (await adapter.readHistory({ want: 3 })) as Out;
+        expect(out.total).toBe(73);
+        expect(out.items.map(i => i.id)).toEqual(['1', '3', '4']);
+    });
+
+    it('an event type Grimmory never records sends nothing', async () => {
+        const { adapter, sent } = serve({});
+        expect(await adapter.readHistory({ eventType: 'grabbed' })).toEqual([]);
+        expect(auditSent(sent)).toHaveLength(0);
+    });
+
+    it('maps an uploaded book to added, with its book id', async () => {
+        const { adapter, sent } = serve({ BOOK_UPLOADED: page([row(8, 'BOOK_UPLOADED', '2026-11-07T13:00:00', { entityType: 'BOOK', entityId: 60, description: '' })]) });
+        const { items } = (await adapter.readHistory({ want: 10 })) as Out;
+        expect(items.map(r => [r.event, r.rawEvent, r.mediaId, r.title])).toEqual([['added', 'BOOK_UPLOADED', '60', 'book 60']]);
+        sent.length = 0;
+        await adapter.readHistory({ eventType: 'added' });
+        expect(auditSent(sent).map(q => q.get('action'))).toEqual(['BOOK_UPLOADED']);
+    });
+
+    it('an event type maps to its one action', async () => {
+        const { adapter, sent } = serve({});
+        await adapter.readHistory({ eventType: 'metadata' });
+        expect(auditSent(sent).map(q => q.get('action'))).toEqual(['METADATA_UPDATED']);
+    });
+
+    it('scopes to one book by id across deletes and metadata changes', async () => {
+        const { adapter, sent } = serve({
+            BOOK_DELETED: page([row(1, 'BOOK_DELETED', '2026-11-07T09:00:00', { entityType: 'BOOK', entityId: 58 })]),
+            METADATA_UPDATED: page([
+                row(2, 'METADATA_UPDATED', '2026-11-07T08:00:00', { entityType: 'BOOK', entityId: 58 }),
+                row(3, 'METADATA_UPDATED', '2026-11-07T07:00:00', { entityType: 'BOOK', entityId: 59 }),
+                row(4, 'METADATA_UPDATED', '2026-11-07T06:00:00', { entityType: 'LIBRARY', entityId: 58 })
+            ])
+        });
+        const out = await adapter.readHistory({ id: '58' });
+        expect(Array.isArray(out)).toBe(true);
+        expect((out as { id: string }[]).map(r => r.id).sort()).toEqual(['1', '2']);
+        expect(auditSent(sent).map(q => q.get('action')).sort()).toEqual(['BOOK_DELETED', 'BOOK_UPLOADED', 'METADATA_UPDATED']);
+    });
+
+    it('sends since as an offset-free UTC from', async () => {
+        for (const [since, from] of [
+            ['2026-08-01', '2026-08-01T00:00:00'],
+            ['2026-08-01T10:00:00+02:00', '2026-08-01T08:00:00']
+        ] as const) {
+            const { adapter, sent } = serve({});
+            await adapter.readHistory({ since });
+            const queries = auditSent(sent);
+            expect(queries).toHaveLength(4);
+            for (const q of queries) expect(q.get('from')).toBe(from);
+        }
+    });
+
+    it('drops rows older than since', async () => {
+        const { adapter } = serve({ BOOK_DELETED: page([row(1, 'BOOK_DELETED', '2026-11-07T09:00:00'), row(2, 'BOOK_DELETED', '2026-11-06T09:00:00')]) });
+        const out = (await adapter.readHistory({ since: '2026-11-07', eventType: 'deleted', want: 10 })) as Out;
+        expect(out.items.map(i => i.id)).toEqual(['1']);
+    });
+
+    it('reads a createdAt with no offset as UTC', async () => {
+        const { adapter } = serve({
+            BOOK_DELETED: page([row(1, 'BOOK_DELETED', '2026-11-07T10:00:00'), row(2, 'BOOK_DELETED', '2026-11-07T09:00:00.123456'), row(3, 'BOOK_DELETED', '2026-11-07T08:00:00+02:00')])
+        });
+        const out = (await adapter.readHistory({ eventType: 'deleted', want: 10 })) as Out;
+        expect(out.items.map(i => [i.id, i.at])).toEqual([
+            ['1', '2026-11-07T10:00:00Z'],
+            ['2', '2026-11-07T09:00:00.123456Z'],
+            ['3', '2026-11-07T08:00:00+02:00']
+        ]);
+    });
+
+    it('stops at MAX_AUDIT_PAGES', async () => {
+        const { adapter, sent } = serve({ BOOK_DELETED: page([row(1, 'BOOK_DELETED', '2026-11-07T09:00:00')], 5000, 0, 500) });
+        await adapter.readHistory({ eventType: 'deleted', want: 1000 });
+        expect(auditSent(sent)).toHaveLength(MAX_AUDIT_PAGES);
+        expect(auditSent(sent)[3]!.get('page')).toBe('3');
+        expect(auditSent(sent)[0]!.get('size')).toBe('100');
+    });
+
+    it('names a non-admin account on a 403', async () => {
+        const { adapter } = serve({ BOOK_DELETED: () => new Response('no', { status: 403 }) });
+        await expect(adapter.readHistory({})).rejects.toMatchObject({
+            kind: 'AuthFailed',
+            service: 'grimmory',
+            detail: 'this Grimmory account may not read the audit log',
+            remedy: 'The audit log needs a Grimmory admin account.'
+        });
+    });
+});
+
+describe('GrimmoryAdapter book metadata issues', () => {
+    const bookRow = (id: number, extra: Record<string, unknown> = {}) => ({ id, title: `Book ${id}`, authors: ['Ann'], ...extra });
+    const pageOf = (rows: unknown[]) => ({ content: rows, page: 0, size: 200, totalElements: rows.length, totalPages: 1, hasNext: false, hasPrevious: false });
+    const detail = (id: number, metadata: Record<string, unknown>) => json({ id, metadata: { bookId: id, ...metadata } });
+    const serve = (rows: unknown[], details: Record<number, Reply> = {}) => {
+        const seen: string[] = [];
+        const routes: Record<string, Reply> = { 'POST /api/v1/auth/login': json(TOKENS), 'GET /api/v1/app/books': json(pageOf(rows)) };
+        for (const [id, reply] of Object.entries(details)) routes[`GET /api/v1/books/${id}`] = reply;
+        return { adapter: new GrimmoryAdapter(config, stub(routes, seen)), seen };
+    };
+
+    it('lists books scoring under the threshold', async () => {
+        const { adapter } = serve([
+            bookRow(1, { isbn13: '9780000000001', metadataMatchScore: 37.6 }),
+            bookRow(2, { isbn13: '9780000000002', metadataMatchScore: 44.9 }),
+            bookRow(3, { isbn13: '9780000000003', metadataMatchScore: 45 }),
+            bookRow(4, { isbn13: '9780000000004', metadataMatchScore: 79.6 })
+        ]);
+        const { issues } = await adapter.listBookMetadataIssues(BOOK_MATCH_THRESHOLD);
+        expect(issues.map(i => i.id)).toEqual(['1', '2']);
+        expect(issues[0]).toEqual({
+            id: '1',
+            title: fenceText('Book 1 by Ann', { service: 'grimmory', field: 'title' }),
+            matchScore: 37.6,
+            hasIdentifier: true,
+            reason: 'low match score (37.6)',
+            allLocked: false
+        });
+    });
+
+    it('does not list a good score with no ISBN, and reads a detail only for a low score with no ISBN', async () => {
+        const { adapter, seen } = serve(
+            [
+                bookRow(1, { isbn13: '9780000000001', metadataMatchScore: 30 }),
+                bookRow(2, { metadataMatchScore: 70 }),
+                bookRow(3, { metadataMatchScore: 30 }),
+                bookRow(4, { metadataMatchScore: 30 }),
+                bookRow(5)
+            ],
+            { 3: detail(3, { goodreadsId: 'g3' }), 4: detail(4, { asin: '' }) }
+        );
+        const { issues } = await adapter.listBookMetadataIssues(BOOK_MATCH_THRESHOLD);
+        expect(issues.map(i => [i.id, i.hasIdentifier])).toEqual([
+            ['1', true],
+            ['3', true],
+            ['4', false]
+        ]);
+        expect(seen.filter(k => k.startsWith('GET /api/v1/books/'))).toEqual(['GET /api/v1/books/3', 'GET /api/v1/books/4']);
+    });
+
+    it('counts any catalogue id, a hardcoverBookId included, as an identifier', async () => {
+        const ids = ['hardcoverBookId', 'doubanId', 'lubimyczytacId', 'ranobedbId', 'audibleId', 'applebooksId'];
+        const { adapter } = serve(
+            ids.map((_, i) => bookRow(i + 1, { metadataMatchScore: 30 })),
+            Object.fromEntries(ids.map((key, i) => [i + 1, detail(i + 1, { [key]: 'x' })]))
+        );
+        const { issues } = await adapter.listBookMetadataIssues(BOOK_MATCH_THRESHOLD);
+        expect(issues.every(i => i.hasIdentifier)).toBe(true);
+    });
+
+    it('carries the reason on each row', async () => {
+        const { adapter } = serve([bookRow(1, { isbn13: '9780000000001', metadataMatchScore: 30 }), bookRow(2, { metadataMatchScore: 20 })], { 2: detail(2, {}) });
+        const { issues } = await adapter.listBookMetadataIssues(BOOK_MATCH_THRESHOLD);
+        expect(issues.map(i => i.reason)).toEqual(['low match score (30)', 'low match score (20) and no ISBN or catalogue id']);
+    });
+
+    it('still lists a low-scoring book whose detail read fails, without claiming it has no ids', async () => {
+        const { adapter } = serve([bookRow(1, { metadataMatchScore: 20 }), bookRow(2, { isbn13: '9780000000002', metadataMatchScore: 10 })], { 1: json({ message: 'gone' }, 404) });
+        const result = await adapter.listBookMetadataIssues(BOOK_MATCH_THRESHOLD);
+        expect(result.issues.map(i => [i.id, i.reason])).toEqual([
+            ['1', 'low match score (20)'],
+            ['2', 'low match score (10)']
+        ]);
+        expect(result).not.toHaveProperty('skipped');
+    });
+
+    it('ends the sweep on a login failure instead of carrying on book after book', async () => {
+        const { adapter } = serve([bookRow(1, { metadataMatchScore: 20 }), bookRow(2, { metadataMatchScore: 20 })], {
+            1: json({ message: 'no' }, 401),
+            2: json({ message: 'no' }, 401)
+        });
+        await expect(adapter.listBookMetadataIssues(BOOK_MATCH_THRESHOLD)).rejects.toMatchObject({ kind: 'AuthFailed' });
+    });
+
+    it('does not list a book with no score and an ISBN', async () => {
+        const { adapter, seen } = serve([bookRow(1, { isbn13: '9780000000001' })]);
+        expect((await adapter.listBookMetadataIssues(BOOK_MATCH_THRESHOLD)).issues).toEqual([]);
+        expect(seen.some(k => k.startsWith('GET /api/v1/books/'))).toBe(false);
+    });
+
+    it('counts every book scanned', async () => {
+        const { adapter } = serve([bookRow(1, { isbn13: '1', metadataMatchScore: 80 }), bookRow(2, { isbn13: '2', metadataMatchScore: 10 }), bookRow(3, { isbn13: '3' })]);
+        expect((await adapter.listBookMetadataIssues(BOOK_MATCH_THRESHOLD)).scanned).toBe(3);
+    });
+
+    it('marks a fully locked book from the list row, low score with an ISBN included, with no detail read', async () => {
+        const { adapter, seen } = serve([
+            bookRow(1, { isbn13: '9780000000001', metadataMatchScore: 40, allMetadataLocked: true }),
+            bookRow(2, { isbn13: '9780000000002', metadataMatchScore: 40, allMetadataLocked: false }),
+            bookRow(3, { isbn13: '9780000000003', metadataMatchScore: 40 })
+        ]);
+        const { issues } = await adapter.listBookMetadataIssues(BOOK_MATCH_THRESHOLD);
+        expect(issues.map(i => [i.id, i.allLocked])).toEqual([['1', true], ['2', false], ['3', false]]);
+        expect(seen.some(k => k.startsWith('GET /api/v1/books/'))).toBe(false);
+    });
+});
+
+describe('GrimmoryAdapter book metadata', () => {
+    const PROVIDERS = fixture('metadata-providers');
+    const BOOK = fixture('book-read') as { metadata: Record<string, unknown> };
+    const adapterFor = (routes: Record<string, Reply | Reply[]>) => {
+        const server = grimmoryServer({ 'GET /api/v1/metadata/providers': json(PROVIDERS), 'GET /api/v1/books/58': json(BOOK), ...routes });
+        return { adapter: new GrimmoryAdapter(config, server.fetch), sent: server.sent };
+    };
+
+    it('findBookCandidates asks only the enabled providers and maps each candidate', async () => {
+        const { adapter, sent } = adapterFor({ 'POST /api/v1/books/58/metadata/prospective': sse(fixture('metadata-prospective') as unknown[]) });
+        const candidates = await adapter.findBookCandidates('58', { isbn: '9780000000000' });
+        const post = sent.find(s => s.method === 'POST' && s.path === '/api/v1/books/58/metadata/prospective');
+        expect(post?.body).toEqual({ bookId: 58, providers: ['OpenLibrary', 'Amazon', 'Hardcover', 'Google', 'GoodReads'], isbn: '9780000000000' });
+        expect(candidates).toHaveLength(7);
+        expect(candidates[0]).toEqual({
+            provider: 'Hardcover',
+            fields: {
+                title: 'Example Book 0',
+                publishedDate: '2000-01-01',
+                seriesName: 'Example Series 1',
+                seriesNumber: 1,
+                isbn13: '9780000000000',
+                isbn10: '0000000000',
+                pageCount: 300,
+                language: 'en',
+                hardcoverId: 'example-hardcover-0',
+                authors: ['Example Author 1'],
+                categories: Array.from({ length: 10 }, (_, i) => `Example Category ${i + 1}`)
+            }
+        });
+        expect(candidates[2]!.fields).toMatchObject({ openlibraryId: 'example-openlibrary-0', asin: 'example-asin-0', goodreadsId: 'example-goodreads-0' });
+    });
+
+    it('sends a title and author search when there is no ISBN', async () => {
+        const { adapter, sent } = adapterFor({ 'POST /api/v1/books/58/metadata/prospective': sse([]) });
+        expect(await adapter.findBookCandidates('58', { title: 'T', author: 'A' })).toEqual([]);
+        expect(sent.find(s => s.method === 'POST' && s.path.endsWith('/prospective'))?.body).toMatchObject({ bookId: 58, title: 'T', author: 'A' });
+    });
+
+    it('refuses when no provider is enabled', async () => {
+        const { adapter, sent } = adapterFor({ 'GET /api/v1/metadata/providers': json([{ name: 'Google', enabled: false }]) });
+        const error = (await adapter.findBookCandidates('58', { isbn: '9780000000000' }).catch((e: unknown) => e)) as ServiceError;
+        expect(error).toBeInstanceOf(ServiceError);
+        expect(error).toMatchObject({ kind: 'NotFound', detail: 'Grimmory has no metadata provider enabled', remedy: "Turn one on in Grimmory's metadata settings." });
+        expect(sent.some(s => s.path.endsWith('/prospective'))).toBe(false);
+    });
+
+    it('readBookMetadata reads the fields and the locks', async () => {
+        const locked = { ...BOOK, metadata: { ...BOOK.metadata, seriesNameLocked: true, authorsLocked: true } };
+        const { adapter } = adapterFor({ 'GET /api/v1/books/58': json(locked) });
+        const state = await adapter.readBookMetadata('58');
+        expect(state.id).toBe('58');
+        expect(state.label).toBe(fenceText('Example Book 45 by Example Author 1', { service: 'grimmory', field: 'title' }));
+        expect(state.fields).toEqual({
+            title: 'Example Book 45',
+            publishedDate: '2000-01-01',
+            isbn13: '9780000000045',
+            language: 'en',
+            googleId: 'example-google-45',
+            authors: ['Example Author 1'],
+            categories: ['Example Category 1', 'Example Category 2', 'Example Category 3', 'Example Category 4', 'Example Category 5']
+        });
+        expect(state.locked).toEqual(['authors', 'seriesName']);
+        expect(state.allLocked).toBe(false);
+    });
+
+    it('readBookMetadata reads allMetadataLocked', async () => {
+        const { adapter } = adapterFor({ 'GET /api/v1/books/58': json({ ...BOOK, metadata: { ...BOOK.metadata, allMetadataLocked: true } }) });
+        expect((await adapter.readBookMetadata('58')).allLocked).toBe(true);
+    });
+
+    it('writeBookMetadata sends only the given fields, replacing when provided', async () => {
+        const { adapter, sent } = adapterFor({ 'PUT /api/v1/books/58/metadata': json({}) });
+        await adapter.writeBookMetadata('58', { title: 'New', seriesNumber: 2 }, ['subtitle']);
+        const put = sent.find(s => s.method === 'PUT');
+        expect(put?.path).toBe('/api/v1/books/58/metadata');
+        expect(put?.query).toBe('replaceMode=REPLACE_WHEN_PROVIDED&mergeCategories=false');
+        expect(put?.body).toEqual({ metadata: { bookId: 58, title: 'New', seriesNumber: 2 }, clearFlags: { subtitle: true } });
+    });
+
+    it('setBookFieldLocks toggles the named field locks', async () => {
+        const { adapter, sent } = adapterFor({ 'PUT /api/v1/books/metadata/toggle-field-locks': json({}) });
+        await adapter.setBookFieldLocks('58', ['title'], true);
+        const put = sent.find(s => s.method === 'PUT');
+        expect(put?.path).toBe('/api/v1/books/metadata/toggle-field-locks');
+        expect(put?.body).toEqual({ bookIds: [58], fieldActions: { titleLocked: 'LOCK' } });
+    });
+
+    it('names canEditMetadata on a 403', async () => {
+        const { adapter } = adapterFor({ 'PUT /api/v1/books/58/metadata': json({}, 403) });
+        await expect(adapter.writeBookMetadata('58', { title: 'X' })).rejects.toMatchObject({ kind: 'AuthFailed', remedy: expect.stringContaining('canEditMetadata') as unknown });
     });
 });

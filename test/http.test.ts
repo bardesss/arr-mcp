@@ -310,6 +310,24 @@ describe('ServiceHttp put and deleteWithBody', () => {
         expect(calls).toBe(1);
     });
 
+    it('deleteForBody reads the JSON body and is not retried on timeout', async () => {
+        const seen: { method?: string; url: string }[] = [];
+        const client = http(async (input: string, init?: RequestInit) => {
+            seen.push({ url: String(input), ...(init?.method === undefined ? {} : { method: init.method }) });
+            return json({ deleted: [58], failedFileDeletions: [] });
+        });
+        expect(await client.deleteForBody('/api/v1/books?ids=58')).toEqual({ deleted: [58], failedFileDeletions: [] });
+        expect(seen).toEqual([{ method: 'DELETE', url: 'http://192.168.1.20:7878/api/v1/books?ids=58' }]);
+
+        let calls = 0;
+        const slow = http(async () => {
+            calls += 1;
+            throw timeoutError();
+        });
+        await expect(slow.deleteForBody('/x')).rejects.toThrow(/timed out/);
+        expect(calls).toBe(1);
+    });
+
     it('sends deleteWithBody as a DELETE carrying the body, and discards the response', async () => {
         const seen: { method?: string; url: string; body?: unknown }[] = [];
         const client = http(async (input: string, init?: RequestInit) => {
@@ -691,6 +709,23 @@ describe('ServiceHttp body encoding and response reading', () => {
     it('reads a bare string body without trying to parse it as JSON', async () => {
         const client = http(async () => new Response('v5.0.4\n', { status: 200 }));
         expect(await client.getText('/api/v2/app/version')).toBe('v5.0.4');
+    });
+
+    it('postText sends the body as JSON, accepts any type and returns the raw text', async () => {
+        let seen: { method?: string; type: string | null; accept: string | null; body?: unknown } | undefined;
+        const client = http(async (_i: string, init?: RequestInit) => {
+            const headers = new Headers(init?.headers);
+            seen = { ...(init?.method === undefined ? {} : { method: init.method }), type: headers.get('content-type'), accept: headers.get('accept'), body: init?.body };
+            return new Response('data:{"title":"A"}\n\n', { status: 200, headers: { 'content-type': 'text/event-stream' } });
+        });
+
+        const text = await client.postText('/api/v1/books/58/metadata/prospective', { providers: ['Amazon'] });
+        expect(seen?.method).toBe('POST');
+        expect(seen?.type).toBe('application/json');
+        expect(seen?.accept).toBe('*/*');
+        expect(seen?.body).toBe('{"providers":["Amazon"]}');
+        // The text reader trims the end, so the last event arrives without its blank line.
+        expect(text).toBe('data:{"title":"A"}');
     });
 
     it('awaits an async recovery before replaying the request', async () => {
