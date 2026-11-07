@@ -105,6 +105,11 @@ stripped of the source it quotes (`src/config/load.ts`), and `/healthz` is read
 by the Docker healthcheck, so an unstripped one would sit in the container's
 health log for `docker inspect` to print.
 
+A schema error can quote the file too: an unknown key is named in it, and a
+mis-indented value can end up in key position. All three drop every quoted
+literal, so that reads `Unrecognized key: "…"`, with the path after it. The
+startup log keeps the key, so it can hold a secret written that way.
+
 ## The library event log
 
 Off by default. While it's off, `/webhooks/*` answers 404 to everyone. While it's

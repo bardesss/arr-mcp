@@ -83,11 +83,11 @@ export function buildRepairApp(deps: RepairDeps): Hono {
      * belongs makes that key a secret. Paths survive, because
      * `prettifyError` writes them unquoted after `→ at`.
      *
-     * Only the two machine-facing routes are redacted, not the pages: the
-     * editor is authenticated, and the read-only page is reachable only when
-     * `auth` itself failed to parse, where an unrecognized key is one of
-     * `auth`'s own names rather than anything secret. The split is by audience,
-     * not by the flavour of the operator's mistake.
+     * Everything served without a session is redacted: `/healthz`, `/mcp` and
+     * the read-only page, whose reason covers the whole file and not only the
+     * `auth` block that put it there. The editor is not, because it is
+     * authenticated and already shows the file. The split is by audience, not by
+     * the flavour of the operator's mistake. The startup log keeps the full reason.
      */
     const publicReason = (): string => detail.replace(/"[^"]*"/g, '"…"');
 
@@ -109,7 +109,7 @@ export function buildRepairApp(deps: RepairDeps): Hono {
     // No credential can exist, so nothing below runs.
     app.use('*', async (c, next) => {
         if (authBlock !== undefined) return next();
-        return c.html(unreadableAuthPage({ version, detail }), 503);
+        return c.html(unreadableAuthPage({ version, detail: publicReason() }), 503);
     });
 
     // Past the gate above there is an auth block, so the rest of the file can
