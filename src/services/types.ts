@@ -2071,6 +2071,27 @@ export interface WatchStateCapable {
 export const hasWatchState = (a: ServiceAdapter): a is ServiceAdapter & WatchStateCapable =>
     typeof (a as Partial<WatchStateCapable>).setWatched === 'function';
 
+/** A book's read state for the account arr-mcp logs in as. */
+export type BookReadState = {
+    id: string;
+    /** fenced */
+    title: string;
+    /** READ, READING, UNREAD, or UNSET when the book carries none. */
+    readStatus: string;
+};
+
+/**
+ * Read status on a book library, which `set_watched` treats as watched. Only
+ * the one account the adapter signs in as is visible, so there is no user.
+ */
+export interface BookReadStatusCapable {
+    readBookReadStatus(id: string): Promise<BookReadState>;
+    setBookReadStatus(id: string, status: 'READ' | 'UNREAD'): Promise<void>;
+}
+
+export const hasBookReadStatus = (a: ServiceAdapter): a is ServiceAdapter & BookReadStatusCapable =>
+    typeof (a as Partial<BookReadStatusCapable>).setBookReadStatus === 'function';
+
 export interface DiscoverCapable {
     discover(opts: {
         mediaType: 'movie' | 'tv';

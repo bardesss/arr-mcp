@@ -12,6 +12,8 @@ import {
     type BookLibrary,
     type BookDeleteCapable,
     type BookDeletion,
+    type BookReadState,
+    type BookReadStatusCapable,
     type QueueCapable,
     type QueueItem,
     type QueueRemoveCapable,
@@ -94,7 +96,7 @@ type RawHealth = { data?: { version?: unknown } };
  * and password and answers with a JWT; the healthcheck is the one route that
  * takes no token.
  */
-export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, SearchCapable, MediaDetailCapable, LibraryCapable, BookLibraryScanCapable, BookDeleteCapable, QueueCapable, QueueRemoveCapable {
+export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, SearchCapable, MediaDetailCapable, LibraryCapable, BookLibraryScanCapable, BookDeleteCapable, BookReadStatusCapable, QueueCapable, QueueRemoveCapable {
     readonly type: ServiceId = 'grimmory';
     readonly id = 'grimmory';
     readonly queueKind = 'book';
@@ -105,9 +107,11 @@ export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, Sear
     readonly #public: ServiceHttp;
 
     readonly #now: () => number;
+    readonly #username: string;
 
     constructor(config: ConfigByService['grimmory'], fetchImpl: typeof fetch = fetch, opts: { now?: () => number } = {}) {
         this.#now = opts.now ?? Date.now;
+        this.#username = config.username;
         this.#http = new ServiceHttp(
             this.id,
             config,
@@ -245,6 +249,8 @@ export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, Sear
                     kind: 'book',
                     title: this.#bookTitle(str(book.title), authors),
                     ids: {},
+                    // Absent `readStatus` is UNSET; only READ counts as watched.
+                    playback: { user: this.#username, watched: book.readStatus === 'READ' },
                     acquisition: {
                         service: this.id,
                         id: String(id),
@@ -322,6 +328,24 @@ export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, Sear
             return Array.isArray(ids) && ids.some(v => Number(v) === Number(id));
         };
         return { deleted: holds('deleted'), filesLeft: holds('failedFileDeletions') };
+    }
+
+    /** The read status of one book, for the account this adapter signs in as. */
+    async readBookReadStatus(id: string): Promise<BookReadState> {
+        const book = obj(
+            await this.#write('read books', 'library access', `book ${id}`, () => this.#http.get<unknown>(`/api/v1/books/${encodeURIComponent(id)}`))
+        );
+        const authors = (Array.isArray(obj(book.metadata).authors) ? (obj(book.metadata).authors as unknown[]) : []).filter(
+            (a): a is string => typeof a === 'string' && a !== ''
+        );
+        return { id, title: this.#bookTitle(str(obj(book.metadata).title), authors), readStatus: str(book.readStatus) ?? 'UNSET' };
+    }
+
+    /** READ sets the finish date to now; UNREAD clears it. */
+    async setBookReadStatus(id: string, status: 'READ' | 'UNREAD'): Promise<void> {
+        await this.#write('change read status', 'access to that book', `book ${id}`, () =>
+            this.#http.post<unknown>('/api/v1/books/status', { bookIds: [Number(id)], status }, true)
+        );
     }
 
     /**

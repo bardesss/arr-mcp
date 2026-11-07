@@ -6,6 +6,7 @@ import { RadarrAdapter } from '../src/services/radarr.ts';
 import { registerTriggerScan } from '../src/tools/triggerScan.ts';
 import { registerDeleteMedia } from '../src/tools/deleteMedia.ts';
 import { registerRemoveQueueItem } from '../src/tools/removeQueueItem.ts';
+import { registerSetWatched } from '../src/tools/setWatched.ts';
 import { fixture, grimmoryConfig, grimmoryServer, json, writeTool, type Reply } from './helpers/grimmory.ts';
 
 beforeEach(resetGrimmoryLockouts);
@@ -387,5 +388,124 @@ describe('remove_queue_item on the Bookdrop', () => {
         const error = await call({ ...DISCARD, confirm: 'any-token' }).catch((e: unknown) => e);
         expect(error).toMatchObject({ kind: 'PermissionDenied' });
         expect(discards()).toEqual([]);
+    });
+});
+
+function watchedTool(status: string | undefined, routes: Record<string, Reply | Reply[]> = {}, perms: { safe_write?: boolean; destructive?: boolean } = { safe_write: true }) {
+    const base = fixture('book-read') as Record<string, unknown>;
+    const { readStatus: _drop, ...rest } = base;
+    const book = { ...rest, id: 58, ...(status === undefined ? {} : { readStatus: status }) };
+    const server = grimmoryServer({
+        'GET /api/v1/books/58': json(book),
+        'POST /api/v1/books/status': json(fixture('mock-books-status')),
+        ...routes
+    });
+    const adapter = new GrimmoryAdapter(grimmoryConfig(perms), server.fetch);
+    const call = writeTool((s, context) => registerSetWatched(s, context, [adapter], undefined), perms);
+    const posts = () => server.sent.filter(s => s.method === 'POST' && s.path === '/api/v1/books/status');
+    return { call, server, posts };
+}
+
+describe('set_watched on grimmory', () => {
+    it('marks a book read for the configured account', async () => {
+        const { call, posts } = watchedTool(undefined);
+        const preview = await call({ item_id: 'grimmory:58', watched: true });
+        expect(preview.structuredContent.summary).toContain('<<untrusted:grimmory.title>>');
+        expect(preview.structuredContent.target).toBe('grimmory:58');
+        expect(preview.structuredContent.effects.join('\n')).toContain('READ');
+        expect(posts()).toEqual([]);
+
+        const done = await call({ item_id: 'grimmory:58', watched: true, confirm: preview.structuredContent.confirm_token });
+        expect(done.structuredContent.applied).toBe(true);
+        expect(posts().map(p => p.body)).toEqual([{ bookIds: [58], status: 'READ' }]);
+    });
+
+    it('says READ sets the finish date and UNREAD clears it', async () => {
+        const { call } = watchedTool(undefined);
+        const read = (await call({ item_id: 'grimmory:58', watched: true })).structuredContent.effects.join('\n');
+        expect(read).toMatch(/finish date/);
+        const unread = watchedTool('READ');
+        const text = (await unread.call({ item_id: 'grimmory:58', watched: false })).structuredContent.effects.join('\n');
+        expect(text).toMatch(/finish date/);
+        expect(text).toContain('UNREAD');
+    });
+
+    it('is a no-op when already READ, or unwatched when UNREAD or UNSET', async () => {
+        const already = watchedTool('READ');
+        const a = await already.call({ item_id: 'grimmory:58', watched: true });
+        expect(a.structuredContent.noop).toBe(true);
+        for (const status of ['UNREAD', undefined]) {
+            const { call } = watchedTool(status);
+            const n = await call({ item_id: 'grimmory:58', watched: false });
+            expect(n.structuredContent.noop).toBe(true);
+        }
+        expect(already.posts()).toEqual([]);
+    });
+
+    it('marks a READING book unread', async () => {
+        const { call, posts } = watchedTool('READING');
+        const preview = await call({ item_id: 'grimmory:58', watched: false });
+        expect(preview.structuredContent.noop).not.toBe(true);
+        await call({ item_id: 'grimmory:58', watched: false, confirm: preview.structuredContent.confirm_token });
+        expect(posts().map(p => p.body)).toEqual([{ bookIds: [58], status: 'UNREAD' }]);
+    });
+
+    it('refuses user and season on a book', async () => {
+        const { call, server } = watchedTool(undefined);
+        for (const extra of [{ user: 'Someone' }, { season: 1 }]) {
+            const error = (await call({ item_id: 'grimmory:58', watched: true, ...extra }).catch((e: unknown) => e)) as Error;
+            expect(error.message).toMatch(/book/i);
+        }
+        expect(server.sent.some(s => s.path === '/api/v1/books/58')).toBe(false);
+    });
+
+    it('refuses a grimmory id with no Grimmory configured', async () => {
+        const call = writeTool((s, context) => registerSetWatched(s, context, [], undefined), { safe_write: true });
+        const error = (await call({ item_id: 'grimmory:58', watched: true }).catch((e: unknown) => e)) as { kind: string; detail: string };
+        expect(error).toMatchObject({ kind: 'NotFound' });
+        expect(error.detail).toMatch(/grimmory/i);
+    });
+
+    it('refuses grimmory: with a non-numeric id', async () => {
+        const { call, server } = watchedTool(undefined);
+        for (const id of ['grimmory:abc', 'grimmory:', 'grimmory:58/x']) {
+            const error = (await call({ item_id: id, watched: true }).catch((e: unknown) => e)) as Error;
+            expect(error.message).toMatch(/grimmory:<book id>|numeric|digits/i);
+        }
+        expect(server.sent.some(s => s.path.startsWith('/api/v1/books'))).toBe(false);
+    });
+
+    it('names a 404 on the book', async () => {
+        const { call } = watchedTool(undefined, { 'GET /api/v1/books/58': json({}, 404) });
+        const error = await call({ item_id: 'grimmory:58', watched: true }).catch((e: unknown) => e);
+        expect(error).toMatchObject({ kind: 'NotFound' });
+        expect((error as { detail: string }).detail).toContain('book 58');
+    });
+
+    it('names a 403 on the status write', async () => {
+        const { call } = watchedTool(undefined, { 'POST /api/v1/books/status': json({}, 403) });
+        const preview = await call({ item_id: 'grimmory:58', watched: true });
+        const denied = await call({ item_id: 'grimmory:58', watched: true, confirm: preview.structuredContent.confirm_token }).catch((e: unknown) => e);
+        expect(denied).toMatchObject({ kind: 'AuthFailed', detail: 'this Grimmory account may not change read status' });
+    });
+
+    it('is checked against grimmory permissions, not jellyfin', async () => {
+        const { call, posts } = watchedTool(undefined);
+        const preview = await call({ item_id: 'grimmory:58', watched: true });
+        const done = await call({ item_id: 'grimmory:58', watched: true, confirm: preview.structuredContent.confirm_token });
+        expect(done.structuredContent.applied).toBe(true);
+        expect(posts()).toHaveLength(1);
+
+        const locked = watchedTool(undefined, {}, {});
+        const error = await locked.call({ item_id: 'grimmory:58', watched: true, confirm: 'any-token' }).catch((e: unknown) => e);
+        expect(error).toMatchObject({ kind: 'PermissionDenied', service: 'grimmory' });
+        expect(locked.posts()).toEqual([]);
+    });
+
+    it('a Jellyfin id still goes to Jellyfin', async () => {
+        const { call, server } = watchedTool(undefined);
+        const error = (await call({ item_id: '65cbd491b1ecb02fdb3d7cbaefab5353', watched: true }).catch((e: unknown) => e)) as { kind?: string; service?: string };
+        expect(error).toMatchObject({ kind: 'NotFound', service: 'jellyfin' });
+        expect(server.sent.some(s => s.path.startsWith('/api/v1/books'))).toBe(false);
     });
 });

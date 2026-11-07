@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { ServiceError } from '../src/core/errors.ts';
 import { fenceText } from '../src/core/fence.ts';
 import { ConfigSchema } from '../src/config/schema.ts';
+import { LibraryIndex } from '../src/core/resolver.ts';
 import { GrimmoryAdapter, MAX_LIBRARY_PAGES } from '../src/services/grimmory.ts';
 
 const config = ConfigSchema.parse({
@@ -356,6 +357,7 @@ describe('GrimmoryAdapter library', () => {
             kind: 'book',
             title: fenced('Example Book 58 by Example Author 1'),
             ids: {},
+            playback: { user: 'reader', watched: false },
             acquisition: {
                 service: 'grimmory',
                 id: '58',
@@ -370,6 +372,7 @@ describe('GrimmoryAdapter library', () => {
             kind: 'book',
             title: fenced('Bare'),
             ids: {},
+            playback: { user: 'reader', watched: false },
             acquisition: { service: 'grimmory', id: '9', monitored: false, hasFile: false }
         });
     });
@@ -425,5 +428,27 @@ describe('GrimmoryAdapter library', () => {
         const adapter = new GrimmoryAdapter(config, stub({ 'POST /api/v1/auth/login': json(TOKENS), 'GET /api/v1/app/books': json(page) }, seen));
         expect(await adapter.listLibrary()).toHaveLength(3);
         expect(seen.filter(s => s === 'GET /api/v1/app/books')).toHaveLength(3);
+    });
+});
+
+describe('GrimmoryAdapter read status', () => {
+    it('a book row carries its read status as watched', async () => {
+        const read = fixture('app-books-read') as { content: Record<string, unknown>[] };
+        expect(read.content.length).toBeGreaterThan(0);
+        const body = { ...read, content: [...read.content, { id: 99, title: 'Never opened' }, { id: 98, title: 'Mid', readStatus: 'READING' }], hasNext: false };
+        const adapter = new GrimmoryAdapter(config, stub({ 'POST /api/v1/auth/login': json(TOKENS), 'GET /api/v1/app/books': json(body) }));
+        const rows = await adapter.listLibrary();
+
+        for (const row of rows) {
+            const source = body.content.find(b => String(b.id) === row.acquisition?.id)!;
+            expect(row.playback).toEqual({ user: 'reader', watched: source.readStatus === 'READ' });
+        }
+        expect(rows.filter(r => r.playback?.watched === true)).toHaveLength(read.content.length);
+        expect(rows.find(r => r.acquisition?.id === '99')?.playback?.watched).toBe(false);
+        expect(rows.find(r => r.acquisition?.id === '98')?.playback?.watched).toBe(false);
+
+        // The Jellyfin half is not asked, so presence stays unknown.
+        const index = LibraryIndex.build(rows);
+        expect(index.all().map(i => i.presence)).toEqual(rows.map(() => 'unknown'));
     });
 });

@@ -1019,7 +1019,6 @@ describe('books from Grimmory', () => {
         ['min_rating', { min_rating: 8 }],
         ['rating_source', { rating_source: 'imdb' as const }],
         ['sort: rating', { sort: 'rating' as const }],
-        ['watched', { watched: true }],
         ['watched_by', { watched_by: 'Someone' }],
         ['presence', { presence: 'unknown' as const }],
         ['monitored', { monitored: false }],
@@ -1027,7 +1026,30 @@ describe('books from Grimmory', () => {
     ])('refuses film filters on books: %s', async (_label, filter) => {
         const run = buildGetLibrary(bookLoader([book(58)]), { ...base, kind: 'book', ...filter });
         await expect(run).rejects.toThrow(/book/i);
-        await expect(run).rejects.toThrow(/quality, min_rating, rating_source, sort: "rating", watched, watched_by, presence and monitored/);
+        await expect(run).rejects.toThrow(/min_rating, rating_source, sort: "rating", watched_by, presence and monitored/);
+    });
+
+    const read = (b: IndexInput, watched: boolean): IndexInput => ({ ...b, playback: { user: 'reader', watched } });
+
+    it('watched filters books by read status', async () => {
+        const loader = bookLoader([read(book(1), true), read(book(2), false)]);
+        const yes = await buildGetLibrary(loader, { ...base, kind: 'book', watched: true });
+        expect(yes.items.map(i => i.acquisition?.id)).toEqual(['1']);
+        const no = await buildGetLibrary(loader, { ...base, kind: 'book', watched: false });
+        expect(no.items.map(i => i.acquisition?.id)).toEqual(['2']);
+    });
+
+    it('watched without kind includes books', async () => {
+        const loader = bookLoader([read(book(1), true), read(book(2), false)]);
+        const yes = await buildGetLibrary(loader, { ...base, watched: true });
+        expect(yes.items.filter(i => i.kind === 'book').map(i => i.acquisition?.id)).toEqual(['1']);
+        const no = await buildGetLibrary(loader, { ...base, watched: false });
+        expect(no.items.filter(i => i.kind === 'book').map(i => i.acquisition?.id)).toEqual(['2']);
+    });
+
+    it('user still refuses books', async () => {
+        const run = buildGetLibrary(bookLoader([book(58)]), { ...base, kind: 'book', watched_by: 'Someone' });
+        await expect(run).rejects.toThrow(/watched_by/);
     });
 
     it('sort added works for books', async () => {
@@ -1082,9 +1104,9 @@ describe('books from Grimmory', () => {
         }
     });
 
-    it('without kind, watched and presence filters leave books out', async () => {
+    it('without kind, watched_by and presence filters leave books out', async () => {
         const loader = bookLoader([book(58)]);
-        expect((await buildGetLibrary(loader, { ...base, watched: false })).items.map(i => i.kind)).toEqual(['movie']);
+        expect((await buildGetLibrary(loader, { ...base, watched_by: 'Someone' })).items.map(i => i.kind)).toEqual(['movie']);
         expect((await buildGetLibrary(loader, { ...base, presence: 'unknown' })).items).toEqual([]);
     });
 
