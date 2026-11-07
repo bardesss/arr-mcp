@@ -111,7 +111,7 @@ username and a password of at least 12 characters.
 > page first owns the instance — and it holds every service's API key.
 
 **3. Add your services** — **Add a service**, paste its URL and API key (for Plex,
-its `X-Plex-Token`; for NZBGet, Transmission and qBittorrent, its username and password; a Shelfmark with no authentication needs no key), save. It applies immediately; there is
+its `X-Plex-Token`; for NZBGet, Transmission, qBittorrent and Grimmory, its username and password; a Shelfmark with no authentication needs no key), save. It applies immediately; there is
 no restart. Configure only what you run. A config file that will not parse no
 longer takes the container down: arr-mcp serves a repair page with the error and
 an editor instead.
