@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.70.0](https://github.com/bardesss/arr-mcp/compare/v1.69.0...v1.70.0) (2026-11-07)
+
+
+### Features
+
+* **lidarr:** search the indexers for an artist or its albums ([#503](https://github.com/bardesss/arr-mcp/issues/503)) ([43f1323](https://github.com/bardesss/arr-mcp/commit/43f132358179259d828045a9a55b870e1dbd57fd))
+
+
+### Bug Fixes
+
+* **lidarr:** say an unmonitored artist does not stop a search ([#505](https://github.com/bardesss/arr-mcp/issues/505)) ([8047aea](https://github.com/bardesss/arr-mcp/commit/8047aea6045a36c1a6012605d3755a1cbfbf7872))
+
 ## [1.69.0](https://github.com/bardesss/arr-mcp/compare/v1.68.0...v1.69.0) (2026-11-07)
 
 
