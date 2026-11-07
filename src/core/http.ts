@@ -171,6 +171,11 @@ export class ServiceHttp {
         );
     }
 
+    /** A POST with a JSON body whose response is not JSON, such as an event stream. Never retried. */
+    async postText(path: string, body: unknown, opts?: { timeoutMs?: number }): Promise<string> {
+        return this.#request<string>('POST', path, { json: body }, false, 'text', opts?.timeoutMs);
+    }
+
     /** qBittorrent's writes are form-encoded POSTs. Never auto-retried. */
     async postForm<T>(path: string, fields: Record<string, string>, discardBody = false): Promise<T> {
         return this.#request<T>('POST', path, { form: fields }, false, discardBody ? 'none' : 'json');

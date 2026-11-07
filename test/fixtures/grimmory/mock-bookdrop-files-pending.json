@@ -1,0 +1,18 @@
+{
+  "content": [
+    {
+      "id": 3,
+      "fileName": "Example Book 3.epub",
+      "filePath": "Example Book 3.epub",
+      "fileSize": 2048,
+      "createdAt": "2026-11-01T09:00:00Z",
+      "status": "PENDING_REVIEW"
+    }
+  ],
+  "page": {
+    "size": 50,
+    "number": 0,
+    "totalElements": 1,
+    "totalPages": 1
+  }
+}

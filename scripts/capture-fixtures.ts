@@ -26,6 +26,7 @@ import {
     transmissionRpc,
     type AuthStrategy
 } from '../src/core/auth.ts';
+import { parseEventStream } from '../src/core/eventStream.ts';
 import { ServiceHttp } from '../src/core/http.ts';
 import { parseServiceFilter } from './lib/captureArgs.ts';
 import {
@@ -1209,7 +1210,8 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         { name: 'epg-sources', path: '/api/epg/sources/', anonymise: anonymiseDispatcharr }
     ],
     // Behind a login that grimmorySession does once. Never captured: /api/v1/users/me (the account's
-    // email) and /api/v1/app/libraries (answers 500 at v3.5.0). Scrubbed in lib/grimmoryCapture.ts.
+    // email) and /api/v1/app/libraries (answers 500 at v3.5.0). The audit log is admin only. Scrubbed
+    // in lib/grimmoryCapture.ts.
     grimmory: [
         { name: 'healthcheck', path: '/api/v1/healthcheck' },
         { name: 'version', path: '/api/v1/version' },
@@ -1225,6 +1227,42 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
             path: captured => {
                 const id = (captured.get('app-books-page') as { content?: { id?: unknown }[] } | undefined)?.content?.[0]?.id;
                 return typeof id === 'number' ? `/api/v1/books/${id}` : undefined;
+            },
+            anonymise: anonymiseGrimmory
+        },
+        { name: 'audit-logs', path: '/api/v1/audit-logs?page=0&size=20', anonymise: anonymiseGrimmory },
+        { name: 'metadata-providers', path: '/api/v1/metadata/providers', anonymise: anonymiseGrimmory },
+        { name: 'app-books-read', path: '/api/v1/app/books?page=0&size=3&status=READ', anonymise: anonymiseGrimmory },
+        {
+            name: 'book-read',
+            // A book with a read status, for the status and date finished the adapter reads.
+            path: captured => {
+                const id = (captured.get('app-books-read') as { content?: { id?: unknown }[] } | undefined)?.content?.[0]?.id;
+                return typeof id === 'number' ? `/api/v1/books/${id}` : undefined;
+            },
+            anonymise: anonymiseGrimmory
+        },
+        {
+            name: 'metadata-prospective',
+            // A POST that only reads (v3.5.0 saves nothing: the service is readOnly and no parser writes).
+            // It answers an event stream, and every enabled provider is searched, which outlasts the default timeout.
+            fetch: async (http, captured) => {
+                const book = captured.get('book') as
+                    | { id?: unknown; metadata?: { isbn13?: string; isbn10?: string; title?: string; authors?: string[] } }
+                    | undefined;
+                const providers = (captured.get('metadata-providers') as { name?: string; enabled?: boolean }[] | undefined)
+                    ?.filter(p => p.enabled === true && typeof p.name === 'string')
+                    .map(p => p.name as string);
+                if (typeof book?.id !== 'number' || providers === undefined || providers.length === 0) return undefined;
+                const meta = book.metadata;
+                const isbn = meta?.isbn13 ?? meta?.isbn10;
+                const search =
+                    isbn !== undefined
+                        ? { isbn }
+                        : { ...(meta?.title === undefined ? {} : { title: meta.title }), ...(meta?.authors?.[0] === undefined ? {} : { author: meta.authors[0] }) };
+                const path = `/api/v1/books/${book.id}/metadata/prospective`;
+                const text = await http.postText(path, { bookId: book.id, providers, ...search }, { timeoutMs: 60_000 });
+                return { path, body: parseEventStream(text) };
             },
             anonymise: anonymiseGrimmory
         }

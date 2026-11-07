@@ -6,7 +6,7 @@ const DIR = join(process.cwd(), 'test', 'fixtures', 'grimmory');
 const PATH_KEYS = new Set(['filePath', 'path', 'fileSubPath']);
 /** Row ids of Grimmory itself, not catalogue ids. */
 const STRUCTURAL_IDS = new Set(['id', 'bookId', 'libraryId', 'primaryFileId', 'libraryPathId', 'fileId']);
-const FORBIDDEN_KEYS = new Set(['email', 'accessToken', 'refreshToken']);
+const FORBIDDEN_KEYS = new Set(['email', 'accessToken', 'refreshToken', 'bookReviews', 'comicMetadata', 'audiobookMetadata']);
 
 /** Every `[key, value]` pair at every depth, with the object that held it. */
 function* walk(value: unknown, holder?: Record<string, unknown>, key?: string): Generator<{ key: string | undefined; value: unknown; holder?: Record<string, unknown> }> {
@@ -21,17 +21,25 @@ function* walk(value: unknown, holder?: Record<string, unknown>, key?: string): 
 describe('committed Grimmory fixtures hold no personal data', () => {
     const files = readdirSync(DIR).filter(f => f.endsWith('.json'));
 
-    it('has the nine captured fixtures', () => {
+    it('has the captured and hand-made fixtures', () => {
         expect(files.sort()).toEqual(
             [
                 'app-books-page.json',
+                'app-books-read.json',
                 'app-books-search.json',
+                'audit-logs.json',
+                'book-read.json',
                 'book.json',
                 'bookdrop-files-pending.json',
                 'bookdrop-notification.json',
                 'healthcheck.json',
                 'libraries-health.json',
                 'libraries.json',
+                'metadata-prospective.json',
+                'metadata-providers.json',
+                'mock-bookdrop-files-pending.json',
+                'mock-books-delete.json',
+                'mock-books-status.json',
                 'version.json'
             ].sort()
         );
@@ -46,6 +54,11 @@ describe('committed Grimmory fixtures hold no personal data', () => {
                 if (PATH_KEYS.has(key) && typeof value === 'string') {
                     expect(value.replace(/^\//, ''), `${key}: ${value}`).not.toContain('/');
                 }
+                if (key === 'username') expect(value).toBe('example-user');
+                if (key === 'ipAddress') expect(value).toBe('192.0.2.1');
+                if (key === 'countryCode') expect(value).toBe('ZZ');
+                if (key === 'description' && holder !== undefined && 'action' in holder) expect(value).toMatch(/^Example audit entry \d+$/);
+                if ((key === 'thumbnailUrl' || key === 'externalUrl') && typeof value === 'string') expect(value).toMatch(/^(\/api\/|https:\/\/example\.invalid\/)/);
                 if (key === 'title' && typeof value === 'string') expect(value).toMatch(/^Example Book \d+$/);
                 if (key === 'name' && typeof value === 'string' && holder !== undefined && 'paths' in holder) expect(value).toMatch(/^Example Library \d+$/);
                 if (key === 'authors' && Array.isArray(value)) for (const a of value) expect(a).toMatch(/^Example Author \d+$/);
@@ -69,4 +82,17 @@ describe('committed Grimmory fixtures hold no personal data', () => {
             }
         });
     }
+
+    const read = (file: string): Record<string, unknown> => JSON.parse(readFileSync(join(DIR, file), 'utf8')) as Record<string, unknown>;
+
+    it('app-books-read holds a book with a read status', () => {
+        const content = read('app-books-read.json').content as { readStatus?: unknown }[];
+        expect(typeof content[0]?.readStatus).toBe('string');
+    });
+
+    it('book-read carries readStatus and field locks', () => {
+        const book = read('book-read.json') as { readStatus?: unknown; metadata?: { titleLocked?: unknown } };
+        expect(typeof book.readStatus).toBe('string');
+        expect(typeof book.metadata?.titleLocked).toBe('boolean');
+    });
 });

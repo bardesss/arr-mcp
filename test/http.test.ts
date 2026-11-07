@@ -693,6 +693,23 @@ describe('ServiceHttp body encoding and response reading', () => {
         expect(await client.getText('/api/v2/app/version')).toBe('v5.0.4');
     });
 
+    it('postText sends the body as JSON, accepts any type and returns the raw text', async () => {
+        let seen: { method?: string; type: string | null; accept: string | null; body?: unknown } | undefined;
+        const client = http(async (_i: string, init?: RequestInit) => {
+            const headers = new Headers(init?.headers);
+            seen = { ...(init?.method === undefined ? {} : { method: init.method }), type: headers.get('content-type'), accept: headers.get('accept'), body: init?.body };
+            return new Response('data:{"title":"A"}\n\n', { status: 200, headers: { 'content-type': 'text/event-stream' } });
+        });
+
+        const text = await client.postText('/api/v1/books/58/metadata/prospective', { providers: ['Amazon'] });
+        expect(seen?.method).toBe('POST');
+        expect(seen?.type).toBe('application/json');
+        expect(seen?.accept).toBe('*/*');
+        expect(seen?.body).toBe('{"providers":["Amazon"]}');
+        // The text reader trims the end, so the last event arrives without its blank line.
+        expect(text).toBe('data:{"title":"A"}');
+    });
+
     it('awaits an async recovery before replaying the request', async () => {
         let calls = 0;
         const auth = {
