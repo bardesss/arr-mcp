@@ -1,0 +1,182 @@
+[
+  {
+    "title": "Example Book 0",
+    "publisher": "",
+    "publishedDate": "2000-01-01",
+    "description": "",
+    "seriesName": "Example Series 1",
+    "seriesNumber": 1,
+    "seriesTotal": 6,
+    "isbn13": "9780000000000",
+    "isbn10": "0000000000",
+    "pageCount": 300,
+    "language": "en",
+    "hardcoverId": "example-hardcover-0",
+    "hardcoverBookId": "example-hardcoverbook-0",
+    "hardcoverRating": 4,
+    "hardcoverReviewCount": 100,
+    "externalUrl": "https://example.invalid/externalUrl/0",
+    "authors": [
+      "Example Author 1"
+    ],
+    "categories": [
+      "Example Category 1",
+      "Example Category 2",
+      "Example Category 3",
+      "Example Category 4",
+      "Example Category 5",
+      "Example Category 6",
+      "Example Category 7",
+      "Example Category 8",
+      "Example Category 9",
+      "Example Category 10"
+    ],
+    "moods": [
+      "Example Mood 1",
+      "Example Mood 2",
+      "Example Mood 3",
+      "Example Mood 4",
+      "Example Mood 5"
+    ],
+    "tags": [
+      "Example Tag 1",
+      "Example Tag 2",
+      "Example Tag 3",
+      "Example Tag 4",
+      "Example Tag 5",
+      "Example Tag 6",
+      "Example Tag 7",
+      "Example Tag 8",
+      "Example Tag 9",
+      "Example Tag 10"
+    ],
+    "provider": "Hardcover",
+    "thumbnailUrl": "https://example.invalid/thumbnailUrl/0"
+  },
+  {
+    "title": "Example Book 0",
+    "publisher": "",
+    "publishedDate": "2000-01-01",
+    "description": "",
+    "isbn13": "9780000000000",
+    "isbn10": "0000000000",
+    "language": "en",
+    "googleId": "example-google-0",
+    "externalUrl": "https://example.invalid/externalUrl/0",
+    "authors": [
+      "Example Author 2"
+    ],
+    "categories": [
+      "Example Category 11"
+    ],
+    "provider": "Google",
+    "thumbnailUrl": "https://example.invalid/thumbnailUrl/0"
+  },
+  {
+    "title": "Example Book 0",
+    "publisher": "",
+    "description": "",
+    "seriesName": "Example Series 1",
+    "isbn13": "9780000000000",
+    "isbn10": "0000000000",
+    "pageCount": 300,
+    "openlibraryId": "example-openlibrary-0",
+    "asin": "example-asin-0",
+    "goodreadsId": "example-goodreads-0",
+    "externalUrl": "https://example.invalid/externalUrl/0",
+    "authors": [
+      "Example Author 2"
+    ],
+    "provider": "OpenLibrary",
+    "thumbnailUrl": "https://example.invalid/thumbnailUrl/0"
+  },
+  {
+    "title": "Example Book 0",
+    "publisher": "",
+    "publishedDate": "2000-01-01",
+    "description": "",
+    "seriesName": "Example Series 1",
+    "seriesNumber": 1,
+    "isbn13": "9780000000000",
+    "isbn10": "0000000000",
+    "pageCount": 300,
+    "language": "en",
+    "goodreadsId": "example-goodreads-0",
+    "goodreadsRating": 4,
+    "goodreadsReviewCount": 100,
+    "externalUrl": "https://example.invalid/externalUrl/0",
+    "authors": [
+      "Example Author 1"
+    ],
+    "categories": [
+      "Example Category 1",
+      "Example Category 4",
+      "Example Category 12",
+      "Example Category 6",
+      "Example Category 8",
+      "Example Category 9",
+      "Example Category 13",
+      "Example Category 14",
+      "Example Category 11",
+      "Example Category 15"
+    ],
+    "provider": "GoodReads",
+    "thumbnailUrl": "https://example.invalid/thumbnailUrl/0"
+  },
+  {
+    "title": "Example Book 0",
+    "publisher": "",
+    "publishedDate": "2000-01-01",
+    "description": "",
+    "isbn13": "9780000000000",
+    "isbn10": "0000000000",
+    "pageCount": 300,
+    "language": "en",
+    "goodreadsId": "example-goodreads-0",
+    "goodreadsRating": 4,
+    "goodreadsReviewCount": 100,
+    "externalUrl": "https://example.invalid/externalUrl/0",
+    "authors": [
+      "Example Author 1"
+    ],
+    "categories": [],
+    "provider": "GoodReads",
+    "thumbnailUrl": "https://example.invalid/thumbnailUrl/0"
+  },
+  {
+    "title": "Example Book 0",
+    "publisher": "",
+    "publishedDate": "2000-01-01",
+    "description": "",
+    "pageCount": 300,
+    "language": "en",
+    "goodreadsId": "example-goodreads-0",
+    "goodreadsRating": 4,
+    "goodreadsReviewCount": 100,
+    "externalUrl": "https://example.invalid/externalUrl/0",
+    "authors": [
+      "Example Author 3"
+    ],
+    "categories": [],
+    "provider": "GoodReads",
+    "thumbnailUrl": "https://example.invalid/thumbnailUrl/0"
+  },
+  {
+    "title": "Example Book 0",
+    "publisher": "",
+    "publishedDate": "2000-01-01",
+    "description": "",
+    "pageCount": 300,
+    "language": "en",
+    "goodreadsId": "example-goodreads-0",
+    "goodreadsRating": 4,
+    "goodreadsReviewCount": 100,
+    "externalUrl": "https://example.invalid/externalUrl/0",
+    "authors": [
+      "Example Author 4"
+    ],
+    "categories": [],
+    "provider": "GoodReads",
+    "thumbnailUrl": "https://example.invalid/thumbnailUrl/0"
+  }
+]

@@ -1,0 +1,69 @@
+{
+  "content": [
+    {
+      "id": 45,
+      "title": "Example Book 45",
+      "authors": [
+        "Example Author 1"
+      ],
+      "thumbnailUrl": "/api/books/45/cover",
+      "readStatus": "READ",
+      "libraryId": 1,
+      "addedOn": "2026-11-06T11:29:12Z",
+      "primaryFileId": 45,
+      "primaryFileType": "EPUB",
+      "primaryFileName": "Example Book 45.epub",
+      "coverUpdatedOn": "2026-11-06T11:29:12Z",
+      "isPhysical": false,
+      "publisher": "",
+      "categories": [
+        "Example Category 1",
+        "Example Category 2",
+        "Example Category 3",
+        "Example Category 4",
+        "Example Category 5"
+      ],
+      "tags": [],
+      "moods": [],
+      "language": "en",
+      "isbn13": "9780000000045",
+      "publishedDate": "2000-01-01",
+      "metadataMatchScore": 62.3656,
+      "fileSizeKb": 2048,
+      "allMetadataLocked": false
+    },
+    {
+      "id": 16,
+      "title": "Example Book 16",
+      "authors": [
+        "Example Author 2"
+      ],
+      "thumbnailUrl": "/api/books/16/cover",
+      "readStatus": "READ",
+      "libraryId": 1,
+      "addedOn": "2026-11-06T11:29:06Z",
+      "lastReadTime": "2026-11-06T11:35:44Z",
+      "readProgress": 0.0534556,
+      "primaryFileId": 16,
+      "primaryFileType": "EPUB",
+      "primaryFileName": "Example Book 16.epub",
+      "coverUpdatedOn": "2026-11-06T11:29:06Z",
+      "isPhysical": false,
+      "publisher": "",
+      "categories": [],
+      "tags": [],
+      "moods": [],
+      "language": "en",
+      "publishedDate": "2000-01-01",
+      "metadataMatchScore": 48.3871,
+      "fileSizeKb": 2048,
+      "allMetadataLocked": false
+    }
+  ],
+  "page": 0,
+  "size": 3,
+  "totalElements": 2,
+  "totalPages": 1,
+  "hasNext": false,
+  "hasPrevious": false
+}
