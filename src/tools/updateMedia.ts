@@ -4,12 +4,17 @@ import * as z from 'zod/v4';
 import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import {
+    hasBookMetadata,
     hasMediaAdd,
     hasMediaUpdate,
+    type BookField,
+    type BookFields,
+    type BookMetadataCapable,
     type MediaAddCapable,
     type MediaUpdateCapable,
     type ServiceAdapter
 } from '../services/types.ts';
+import { describeBookChange, diffBookFields } from './bookMetadata.ts';
 import { chooseOne, freeSpace, FOLDER_MATCH, PROFILE_MATCH, TAG_MATCH } from './chooseOne.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 
@@ -40,6 +45,134 @@ const findAdapter = (
     return adapter;
 };
 
+/** The book fields `update_media` can lock or unlock, by the name a caller uses. */
+const LOCKABLE = ['title', 'authors', 'series', 'series_number', 'tags'] as const;
+type Lockable = (typeof LOCKABLE)[number];
+const BOOK_FIELD_OF: Record<Lockable, BookField> = {
+    title: 'title',
+    authors: 'authors',
+    series: 'seriesName',
+    series_number: 'seriesNumber',
+    tags: 'categories'
+};
+const NAME_OF: Partial<Record<BookField, Lockable>> = Object.fromEntries(
+    Object.entries(BOOK_FIELD_OF).map(([name, field]) => [field, name])
+);
+const nameOf = (field: BookField): string => NAME_OF[field] ?? field;
+
+const BOOK_ONLY = 'Grimmory books only. ';
+
+/** The book library `service`/`instance` names, or undefined when it is not one. */
+const bookLibrary = (
+    adapters: readonly ServiceAdapter[],
+    service: ServiceId,
+    instance?: string
+): (ServiceAdapter & BookMetadataCapable) | undefined => {
+    const adapter = resolveInstance(adapters, service, instance);
+    return hasBookMetadata(adapter) ? adapter : undefined;
+};
+
+type BookArgs = {
+    title?: string | undefined;
+    authors?: string[] | undefined;
+    series?: string | undefined;
+    series_number?: number | undefined;
+    tags?: string[] | undefined;
+    lock_fields?: Lockable[] | undefined;
+    unlock_fields?: Lockable[] | undefined;
+};
+
+/**
+ * A hand edit to one book. Only the fields named are sent, and a field is
+ * blanked only by an explicit `series: ""` or `tags: []`, never by leaving it
+ * out. A locked field is refused here rather than skipped by the server, so
+ * the preview never promises a change that will not land.
+ */
+async function planBook(book: ServiceAdapter & BookMetadataCapable, id: string, args: BookArgs): Promise<WritePlan> {
+    const { title, authors, series, series_number, tags } = args;
+    const lock = [...new Set(args.lock_fields ?? [])].map(n => BOOK_FIELD_OF[n]);
+    const unlock = [...new Set(args.unlock_fields ?? [])].map(n => BOOK_FIELD_OF[n]);
+
+    if (
+        title === undefined &&
+        authors === undefined &&
+        series === undefined &&
+        series_number === undefined &&
+        tags === undefined &&
+        lock.length === 0 &&
+        unlock.length === 0
+    ) {
+        throw new Error('Nothing to change. Name at least one of title, authors, series, series_number, tags, lock_fields or unlock_fields.');
+    }
+    const both = lock.filter(f => unlock.includes(f));
+    if (both.length > 0) {
+        throw new Error(`Cannot lock and unlock the same field in one call: ${both.map(nameOf).join(', ')} is in both lock_fields and unlock_fields.`);
+    }
+    if (tags?.some(t => t.trim() === '')) {
+        throw new Error('A tag cannot be blank. Pass [] to clear the categories.');
+    }
+
+    const state = await book.readBookMetadata(id);
+    const wanted: BookFields = {
+        ...(title === undefined ? {} : { title }),
+        ...(authors === undefined ? {} : { authors }),
+        ...(series === undefined || series === '' ? {} : { seriesName: series }),
+        ...(series_number === undefined ? {} : { seriesNumber: series_number }),
+        ...(tags === undefined || tags.length === 0 ? {} : { categories: tags })
+    };
+    // Explicit blanking, and only where there is something to blank.
+    const clear: BookField[] = [
+        ...(series === '' && state.fields.seriesName !== undefined ? (['seriesName'] as const) : []),
+        ...(tags?.length === 0 && (state.fields.categories?.length ?? 0) > 0 ? (['categories'] as const) : [])
+    ];
+
+    const stillLocked = state.locked.filter(f => !unlock.includes(f));
+    const { changes, keptLocked } = diffBookFields(state.fields, wanted, stillLocked, Object.keys(wanted) as BookField[]);
+    const blocked = [...keptLocked, ...clear.filter(f => stillLocked.includes(f))];
+    if (blocked.length > 0) {
+        const it = blocked.length === 1 ? 'it' : 'them';
+        throw new ServiceError('NotFound', book.type, `${blocked.map(nameOf).join(', ')} ${blocked.length === 1 ? 'is' : 'are'} locked in Grimmory`, {
+            remedy: `Add ${it} to unlock_fields in this same call to edit ${it}, or leave ${it} out.`
+        });
+    }
+    const changed = [...(Object.keys(changes) as BookField[]), ...clear];
+    if (changed.length > 0 && state.allLocked) {
+        throw new ServiceError('NotFound', book.type, `${state.label} has every metadata field locked in Grimmory`, {
+            remedy: 'Unlock the book in Grimmory first; unlock_fields only releases single fields.'
+        });
+    }
+
+    // A lock already in the wanted state is not a change.
+    const lockNow = lock.filter(f => !state.locked.includes(f));
+    const unlockNow = unlock.filter(f => state.locked.includes(f));
+
+    const target = `grimmory:${id}`;
+    if (changed.length === 0 && lockNow.length === 0 && unlockNow.length === 0) {
+        return { target, summary: `${state.label} already has those values and locks in Grimmory.`, effects: [], noop: true };
+    }
+
+    const effects = [
+        ...(Object.keys(changes) as BookField[]).map(f => describeBookChange(f, state.fields[f], changes[f])),
+        ...clear.map(f => describeBookChange(f, state.fields[f], undefined)),
+        ...(unlockNow.length === 0 ? [] : [`Unlocks ${unlockNow.map(nameOf).join(', ')} first, so the edit can land.`]),
+        ...(lockNow.length === 0
+            ? []
+            : [`Locks ${lockNow.map(nameOf).join(', ')} afterwards, so a later metadata refresh leaves ${lockNow.length === 1 ? 'it' : 'them'} alone.`]),
+        ...(changed.length === 0
+            ? []
+            : ['Grimmory may also write the new metadata into the book file, and move it to match its naming pattern, when its metadata settings say so.'])
+    ];
+    const parts = [...(changed.length === 0 ? [] : [changed.map(nameOf).join(', ')]), ...(lockNow.length + unlockNow.length === 0 ? [] : ['field locks'])];
+
+    return {
+        target,
+        summary: `Change the ${parts.join(' and ')} of ${state.label} in Grimmory.`,
+        effects,
+        // The changes themselves are bound, not the strings that were asked for.
+        args: { service: 'grimmory', id, fields: changes, clear, lock: lockNow, unlock: unlockNow }
+    };
+}
+
 export function registerUpdateMedia(
     server: McpServer,
     context: WriteContext,
@@ -49,9 +182,9 @@ export function registerUpdateMedia(
         name: 'update_media',
         title: 'Change what a library item is set to',
         description:
-            'Changes settings on something already in Radarr or Sonarr: quality profile, root folder, monitoring, tags, Radarr’s minimum availability, Sonarr’s series type. The counterpart to add_media, which only ever adds — and the only way to change a **Radarr** item’s monitoring, since set_monitoring is Sonarr’s per-season tool. Takes `service` and `id`, never a title: take `id` from `acquisition.id` on a get_library or get_media_details record. Changing `root_folder` asks the service to **move the files on disk**; pass `move_files: false` to leave them where they are, which reports them missing until the next scan. `tags` replaces the whole tag set rather than adding to it, and an unknown label is refused — nothing here creates a tag. `stack_health` at `detail: "full"` lists the profiles, root folders and tags each instance actually has. Previews by default — call again with the returned `confirm` token to apply.',
+            'Changes settings on something already in Radarr or Sonarr, or edits a Grimmory book by hand: quality profile, root folder, monitoring, tags, Radarr’s minimum availability, Sonarr’s series type. The counterpart to add_media, which only ever adds — and the only way to change a **Radarr** item’s monitoring, since set_monitoring is Sonarr’s per-season tool. Takes `service` and `id`, never a title: take `id` from `acquisition.id` on a get_library or get_media_details record. Changing `root_folder` asks the service to **move the files on disk**; pass `move_files: false` to leave them where they are, which reports them missing until the next scan. `tags` replaces the whole tag set rather than adding to it, and an unknown label is refused — nothing here creates a tag. `stack_health` at `detail: "full"` lists the profiles, root folders and tags each instance actually has. A Grimmory book takes `title`, `authors`, `series` (`""` clears the series name), `series_number` and `tags` (which sets its categories; `[]` clears them), and optionally `lock_fields` or `unlock_fields`. Only the fields named are sent; a locked field is refused unless the same call unlocks it. Grimmory may also write the change into the book file and rename it to its naming pattern. Previews by default — call again with the returned `confirm` token to apply.',
         inputSchema: z.object({
-            service: ServiceIdSchema.describe('radarr for a film, sonarr for a series.'),
+            service: ServiceIdSchema.describe('radarr for a film, sonarr for a series, grimmory for a book.'),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             id: z
                 .string()
@@ -74,7 +207,23 @@ export function registerUpdateMedia(
             tags: z
                 .array(z.string())
                 .optional()
-                .describe('Tag labels or ids that already exist. Replaces the whole set — pass [] to clear it.'),
+                .describe(
+                    'Tag labels or ids that already exist. Replaces the whole set — pass [] to clear it. On a Grimmory book these are its categories: free text that need not exist yet, replacing the set.'
+                ),
+            title: z.string().min(1).optional().describe(`${BOOK_ONLY}The new title.`),
+            authors: z.array(z.string().min(1)).min(1).optional().describe(`${BOOK_ONLY}The authors; replaces the list.`),
+            series: z.string().optional().describe(`${BOOK_ONLY}The series name. "" clears it.`),
+            series_number: z.number().positive().optional().describe(`${BOOK_ONLY}The book's number in its series.`),
+            lock_fields: z
+                .array(z.enum(LOCKABLE))
+                .min(1)
+                .optional()
+                .describe(`${BOOK_ONLY}Fields to lock after writing, so a metadata refresh leaves them alone.`),
+            unlock_fields: z
+                .array(z.enum(LOCKABLE))
+                .min(1)
+                .optional()
+                .describe(`${BOOK_ONLY}Fields to unlock before writing. A locked field is refused unless this call unlocks it.`),
             move_files: z
                 .boolean()
                 .default(true)
@@ -84,7 +233,7 @@ export function registerUpdateMedia(
         }),
         // The resolved instance id, not the bare type — permissions are
         // granted per instance.
-        service: ({ service, instance }) => findAdapter(adapters, service, instance).id,
+        service: ({ service, instance }) => (bookLibrary(adapters, service, instance) ?? findAdapter(adapters, service, instance)).id,
         operation: 'update_media',
         tier: 'safe',
 
@@ -98,8 +247,41 @@ export function registerUpdateMedia(
             minimum_availability,
             series_type,
             tags,
-            move_files
+            move_files,
+            title,
+            authors,
+            series,
+            series_number,
+            lock_fields,
+            unlock_fields
         }): Promise<WritePlan> {
+            const books = bookLibrary(adapters, service, instance);
+            if (books !== undefined) {
+                if (
+                    quality_profile !== undefined ||
+                    root_folder !== undefined ||
+                    monitored !== undefined ||
+                    minimum_availability !== undefined ||
+                    series_type !== undefined
+                ) {
+                    throw new ServiceError('NotFound', service, 'a book has no film or series settings', {
+                        remedy: 'Drop quality_profile, root_folder, monitored, minimum_availability and series_type. A book takes title, authors, series, series_number, tags, lock_fields and unlock_fields.'
+                    });
+                }
+                return planBook(books, id, { title, authors, series, series_number, tags, lock_fields, unlock_fields });
+            }
+            if (
+                title !== undefined ||
+                authors !== undefined ||
+                series !== undefined ||
+                series_number !== undefined ||
+                lock_fields !== undefined ||
+                unlock_fields !== undefined
+            ) {
+                throw new ServiceError('NotFound', service, 'title, authors, series, series_number and the field locks are Grimmory options', {
+                    remedy: 'Films and series are not edited by hand here. Drop them, or name a Grimmory book.'
+                });
+            }
             const adapter = findAdapter(adapters, service, instance);
 
             if (
@@ -244,6 +426,16 @@ export function registerUpdateMedia(
         },
 
         async apply(plan, { service, instance, id }) {
+            const books = bookLibrary(adapters, service, instance);
+            if (books !== undefined) {
+                // From the plan the token was verified against. Unlock first so
+                // the write can land, lock last so the new values are kept.
+                const bound = plan.args as { fields: BookFields; clear: BookField[]; lock: BookField[]; unlock: BookField[] };
+                if (bound.unlock.length > 0) await books.setBookFieldLocks(id, bound.unlock, false);
+                if (Object.keys(bound.fields).length > 0 || bound.clear.length > 0) await books.writeBookMetadata(id, bound.fields, bound.clear);
+                if (bound.lock.length > 0) await books.setBookFieldLocks(id, bound.lock, true);
+                return { changed: [...Object.keys(bound.fields), ...bound.clear] };
+            }
             const a = plan.args as {
                 qualityProfileId?: number;
                 rootFolderPath?: string;
