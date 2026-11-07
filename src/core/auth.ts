@@ -298,14 +298,6 @@ const GRIMMORY_EXPIRY_MARGIN_S = 60;
 class GrimmoryRejected extends Error {}
 
 /**
- * Grimmory's JWT login. The token goes out as a Bearer header; nothing logs in
- * ahead of time, a 401 triggers it (same shape as qbittorrentSession).
- *
- * `/api/v1/auth/refresh` is never called: it is broken on v3.5.0, and its
- * failures would count toward the same lockout. An expired token is replaced
- * by logging in again.
- */
-/**
  * Lockout deadlines for Grimmory logins, shared by every session instance.
  * The config page's Test button, the management API test and a config reload
  * all build a fresh adapter, and each would otherwise get its own login
@@ -328,6 +320,14 @@ ${username}
 ${digest}`;
 }
 
+/**
+ * Grimmory's JWT login. The token goes out as a Bearer header; nothing logs in
+ * ahead of time, a 401 triggers it (same shape as qbittorrentSession).
+ *
+ * `/api/v1/auth/refresh` is never called: it is broken on v3.5.0, and its
+ * failures would count toward the same lockout. An expired token is replaced
+ * by logging in again.
+ */
 export function grimmorySession(creds: {
     id: string;
     url: string;

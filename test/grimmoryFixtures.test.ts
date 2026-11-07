@@ -58,8 +58,8 @@ describe('committed Grimmory fixtures hold no personal data', () => {
                 // External catalogue ids resolve to a real book, so only synthetic ones may stay.
                 if (typeof value === 'string' && /Id$/.test(key) && !STRUCTURAL_IDS.has(key)) expect(value, key).toMatch(/^example-[a-z0-9]+-\d+$/);
                 if (key === 'asin' && typeof value === 'string') expect(value).toMatch(/^example-asin-\d+$/);
-                if (key === 'isbn13' && typeof value === 'string') expect(value).toMatch(/^978\d{10}$/);
-                if (key === 'isbn10' && typeof value === 'string') expect(value).toMatch(/^\d{10}$/);
+                if (key === 'isbn13' && typeof value === 'string') expect(value).toMatch(/^978000000\d{4}$/);
+                if (key === 'isbn10' && typeof value === 'string') expect(value).toMatch(/^000000\d{4}$/);
                 if (/Rating$/.test(key) && typeof value === 'number') expect(value, key).toBe(4);
                 if (/ReviewCount$/.test(key) && typeof value === 'number') expect(value, key).toBe(100);
                 if (key === 'pageCount' && typeof value === 'number') expect(value).toBe(300);
