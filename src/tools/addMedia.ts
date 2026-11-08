@@ -3,7 +3,15 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
-import { hasMediaAdd, type MediaAddCapable, type ServiceAdapter } from '../services/types.ts';
+import { MUSICBRAINZ_ID } from '../services/lidarr.ts';
+import {
+    hasMediaAdd,
+    hasMetadataProfiles,
+    type ArtistMonitorNewItems,
+    type MediaAddCapable,
+    type QualityProfile,
+    type ServiceAdapter
+} from '../services/types.ts';
 import { chooseOne, freeSpace, FOLDER_MATCH, PROFILE_MATCH, TAG_MATCH } from './chooseOne.ts';
 import { arrSubject } from './crossChecks.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
@@ -33,25 +41,175 @@ const findAdapter = (
     const adapter = resolveInstance(adapters, service, instance);
     if (!hasMediaAdd(adapter)) {
         throw new ServiceError('NotFound', service, `${service} cannot add media`, {
-            remedy: 'Only radarr (films, by TMDB id) and sonarr or whisparr (series or a site, by TVDB id) can.'
+            remedy: 'Only radarr (films, by TMDB id), sonarr or whisparr (series or a site, by TVDB id) and lidarr (artists, by MusicBrainz id) can.'
         });
     }
     return adapter;
 };
 
+/**
+ * Lidarr's monitored check is skipped during any search (nothing sets
+ * `MonitoredEpisodesOnly`) and otherwise rejects an unmonitored artist
+ * (`MonitoredAlbumSpecification`), so RSS sync skips one. Lidarr's own missing
+ * and cutoff searches leave it out in their queries (`AlbumSearchService`).
+ * `trigger_search` does neither, though a whole-artist search takes only the
+ * monitored albums (`ReleaseSearchService.ArtistSearch`).
+ */
+function monitoredEffect(monitored: boolean, lidarr: boolean, noAlbums: boolean): string {
+    if (!lidarr) {
+        return monitored
+            ? 'Monitors it, so it will be grabbed when a matching release appears.'
+            : 'Adds it unmonitored, so nothing will be grabbed until you monitor it.';
+    }
+    // An artist's own flag grabs nothing by itself: its albums carry their own,
+    // which the lines below this one describe.
+    if (monitored && noAlbums) return 'Monitors the artist, but the None metadata profile gives it no albums, so nothing is grabbed.';
+    if (monitored) return 'Monitors the artist, so Lidarr grabs its monitored albums when a matching release appears.';
+    const byHand = noAlbums
+        ? ''
+        : " A search started with trigger_search skips that check, so it can still grab the artist's monitored albums, or any album it names.";
+    return `Adds it unmonitored, so Lidarr's RSS sync and its own automatic searches grab nothing for it until you monitor it.${byHand}`;
+}
+
+/**
+ * Lidarr's search on add is `MissingAlbumSearchCommand` (`ArtistScannedHandler`),
+ * run after the album flags are set: monitored albums of a monitored artist,
+ * already released, with a track missing (`AlbumSearchService`,
+ * `AlbumsWithoutFilesBuilder`). `future` unmonitors every released album
+ * (`AlbumMonitoredService`), and with no `monitor` the `none` rule leaves
+ * every album unmonitored (see `lidarrInitialAlbums`), so either leaves that
+ * search nothing to look for.
+ */
+function searchEffect(
+    searchNow: boolean,
+    lidarr: boolean,
+    monitored: boolean,
+    monitor: string | undefined,
+    newItems: ArtistMonitorNewItems | undefined,
+    noAlbums: boolean
+): string {
+    if (noAlbums) return 'The None metadata profile gives the artist no albums, so nothing is searched.';
+    if (!searchNow) return 'Does not search yet. Use trigger_search when you want it to look.';
+    if (!lidarr) return 'Starts searching immediately — this may begin a download, using disk space and bandwidth.';
+    if (!monitored) return "Lidarr's search on add skips an unmonitored artist, so nothing is searched yet. Use trigger_search when you want it to look.";
+    if (monitor === 'future') {
+        return "Lidarr's search on add looks only for monitored albums already released, and `future` monitors none of those, so nothing is searched yet.";
+    }
+    if (monitor === undefined && newItems === 'none') {
+        return "Lidarr's search on add looks only for monitored albums, and none is monitored, so nothing is searched yet.";
+    }
+    return 'Starts searching for its monitored albums that are already released and missing a track — this may begin a download, using disk space and bandwidth.';
+}
+
+/** What each of Lidarr's rules for albums found later does, in the preview. */
+const NEW_ITEMS_EFFECT: Readonly<Record<ArtistMonitorNewItems, string>> = {
+    all: 'Albums Lidarr discovers later are monitored.',
+    new: 'Albums Lidarr discovers later are monitored only when released on or after the newest album it already has.',
+    none: 'Albums Lidarr discovers later are not monitored.'
+};
+
+/** `future` with the `none` rule, which replaces the preview's `future` line. */
+const NOTHING_MONITORED_FUTURE =
+    'Monitors no album, now or later: `future` unmonitors every released album and every album with files, and the rest start unmonitored by the `none` rule.';
+
+/**
+ * The rule for new albums also sets the albums an artist is added with: the
+ * first refresh adds every album, each flagged by `monitorNewItems`
+ * (`RefreshArtistService.ProcessChildren`, `MonitorNewAlbumService`, where
+ * `new` monitors an album when no album is there yet). `monitor` then
+ * overrides that, but `future`, `missing` and `existing` set only albums with
+ * files and released albums (`AlbumMonitoredService`: a release date on or
+ * before now), so an album with no files that is not yet released or has no
+ * date keeps the rule's flag. Omitted, the rule is the lookup's `all`.
+ */
+function lidarrInitialAlbums(monitor: string | undefined, newItems: ArtistMonitorNewItems | undefined): string | undefined {
+    if (monitor === undefined && newItems === 'none') {
+        return 'Monitors none of its albums: with no `monitor`, Lidarr sets the albums it is added with by `monitor_new_items` too.';
+    }
+    if (monitor === undefined && newItems === 'new') {
+        return 'Monitors every album it is added with: with no `monitor`, Lidarr sets those by `monitor_new_items` too, and for an artist being added every album counts as new.';
+    }
+    if (newItems === 'none' && monitor === 'future') return NOTHING_MONITORED_FUTURE;
+    if (monitor === 'missing' || monitor === 'existing') {
+        const rule = newItems ?? 'all';
+        const flag = rule === 'none' ? 'starts unmonitored' : 'stays monitored';
+        return `An album with no files that is not yet released or has no release date ${flag}, by the \`${rule}\` rule: \`${monitor}\` sets only albums with files and released ones.`;
+    }
+    return undefined;
+}
+
+/**
+ * Lidarr's reserved metadata profile, which every install has
+ * (`MetadataProfileService.NONE_PROFILE_NAME`, created at startup; no other
+ * profile may take the name). Its album type lists are empty, so an artist on
+ * it gets no albums at all (`SkyHookProxy.FilterAlbums`). It is chosen only
+ * when it is named, by `metadata_profile` or as the root folder's default.
+ */
+const NO_ALBUMS_PROFILE = 'None';
+
+/** Lidarr's metadata profile, for the preview's first line; nothing elsewhere. */
+function metadataProfileNote(profile: QualityProfile | undefined, fromFolder: boolean): string {
+    if (profile === undefined) return '';
+    const noAlbums = profile.name === NO_ALBUMS_PROFILE ? ', which gives the artist no albums' : '';
+    return `, metadata profile ${profile.display} (id ${profile.id})${fromFolder ? ", the root folder's default" : ''}${noAlbums}`;
+}
+
+/**
+ * Named, a metadata profile resolves like a quality profile; omitted, the root
+ * folder's own default stands in for the name, and failing that the
+ * one-or-refuse rule applies to every profile but `None`.
+ */
+function chooseMetadataProfile(
+    profiles: readonly QualityProfile[],
+    named: string | undefined,
+    folderDefault: QualityProfile | undefined,
+    service: ServiceId
+): QualityProfile {
+    const requested = named ?? (folderDefault === undefined ? undefined : String(folderDefault.id));
+    const options = requested === undefined ? profiles.filter(p => p.name !== NO_ALBUMS_PROFILE) : profiles;
+    if (options.length === 0 && profiles.length > 0) {
+        throw new ServiceError('NotFound', service, `${service} has only its reserved None metadata profile, which gives an artist no albums`, {
+            remedy: 'Add a metadata profile in Lidarr\'s own settings, or name `metadata_profile: "None"` to add the artist with no albums.'
+        });
+    }
+    return chooseOne(options, requested, PROFILE_MATCH, p => `${p.display} (id ${p.id})`, 'metadata profile', service);
+}
+
+/**
+ * The external id's shape, checked before any call: an integer for the
+ * services that add by TMDB or TVDB id, a GUID for Lidarr's MusicBrainz id.
+ * `Number()` alone would accept `1e2` or `0x10` and add whatever that is.
+ */
+function refuseMalformedId(service: ServiceId, type: ServiceId, externalId: string): void {
+    if (type === 'lidarr') {
+        if (MUSICBRAINZ_ID.test(externalId)) return;
+        throw new ServiceError('NotFound', service, `"${externalId}" is not a MusicBrainz artist id`, {
+            remedy: 'Lidarr adds an artist by its MusicBrainz id, a GUID. lookup_media returns one under `ids.mbid`.'
+        });
+    }
+    if (/^\d+$/.test(externalId) && Number(externalId) > 0) return;
+    // The same words `lookupArrForAdd` uses for the same refusal.
+    const provider = type === 'radarr' ? 'tmdb' : 'tvdb';
+    throw new ServiceError('NotFound', service, `"${externalId}" is not a ${provider} id`, {
+        remedy: `${service} adds by ${provider} id, which is a positive integer. lookup_media returns one under \`ids.${provider}\`.`
+    });
+}
+
 export function registerAddMedia(server: McpServer, context: WriteContext, adapters: readonly ServiceAdapter[]): void {
     registerWriteTool(server, context, {
         name: 'add_media',
-        title: 'Add a film or series',
+        title: 'Add a film, series, site or artist',
         description:
-            'Adds a film to Radarr or a series to Sonarr — or a site to Whisparr — and, by default, starts searching for it. Radarr takes a TMDB id, Sonarr and Whisparr take a TVDB id (Whisparr reuses that field for its own scene-database id, not TheTVDB) — get the right one from lookup_media, which returns both under `ids`. If the service has more than one quality profile or root folder you must name which, because guessing wrong is only discovered once the download finishes — `stack_health` at `detail: "full"` lists the profiles, root folders and tags each instance actually has. Sonarr and Whisparr also take `monitor` (which seasons: `future` is "only what has not aired yet"); `series_type` is Sonarr only, since a site has no numbering scheme. Radarr takes `minimum_availability`. An option sent to the wrong service is refused, not dropped. Previews by default — call again with the returned `confirm` token to actually add it.',
+            'Adds a film to Radarr or a series to Sonarr — or a site to Whisparr, or an artist to Lidarr — and, by default, starts searching for it. Radarr takes a TMDB id, Sonarr and Whisparr take a TVDB id (Whisparr reuses that field for its own scene-database id, not TheTVDB), Lidarr the artist\'s MusicBrainz id — get the right one from lookup_media, which returns them under `ids`. If the service has more than one quality profile or root folder you must name which, because guessing wrong is only discovered once the download finishes — `stack_health` at `detail: "full"` lists the profiles, root folders and tags each instance actually has. Sonarr and Whisparr also take `monitor` (which seasons: `future` is "only what has not aired yet"); `series_type` is Sonarr only, since a site has no numbering scheme. Radarr takes `minimum_availability`. Lidarr takes `monitor` (which albums: `first`, `latest` and the shared values), `monitor_new_items` (its rule for albums it discovers later) and `metadata_profile`, which may be omitted when the root folder names a default or there is only one besides Lidarr\'s reserved `None` (no albums, used only when named or as the root folder\'s default); `monitor: "none"` also adds the artist itself unmonitored, so it is refused unless `monitored: false` is given with it; Lidarr\'s search on add looks only for the monitored albums of a monitored artist that are released and missing a track. An option sent to the wrong service is refused, not dropped. Previews by default — call again with the returned `confirm` token to actually add it.',
         inputSchema: z.object({
-            service: ServiceIdSchema.describe('radarr for a film, sonarr for a series, whisparr for a site.'),
+            service: ServiceIdSchema.describe('radarr for a film, sonarr for a series, whisparr for a site, lidarr for an artist.'),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             external_id: z
                 .string()
                 .min(1)
-                .describe('TMDB id for radarr, TVDB id for sonarr or whisparr, as an integer string. From lookup_media.'),
+                .describe(
+                    'TMDB id for radarr, TVDB id for sonarr or whisparr, as an integer string; the MusicBrainz artist id, a GUID, for lidarr. From lookup_media.'
+                ),
             quality_profile: z
                 .string()
                 .optional()
@@ -62,10 +220,22 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
                 .describe('Root folder path, or any distinctive part of it. Optional only when the service has exactly one.'),
             monitored: z.boolean().default(true).describe('Monitor it for downloads. Defaults to true.'),
             monitor: z
-                .enum(['all', 'future', 'missing', 'existing', 'firstSeason', 'lastSeason', 'pilot', 'none'])
+                .enum(['all', 'future', 'missing', 'existing', 'firstSeason', 'lastSeason', 'pilot', 'first', 'latest', 'none'])
                 .optional()
                 .describe(
-                    'Sonarr or Whisparr only: which seasons to monitor. `future` is "only what has not aired yet", `all` is everything, `none` monitors the series but no season. `pilot` is Sonarr only — a site has no pilot scene. Omit for the service\'s own default. Radarr has no seasons — use `monitored` there.'
+                    'Sonarr or Whisparr: which seasons to monitor. `future` is "only what has not aired yet", `all` is everything, `none` monitors the series but no season. `pilot` is Sonarr only — a site has no pilot scene. Lidarr: which albums — `first` or `latest` album, or `all`, `future`, `missing`, `existing` or `none`; `firstSeason`, `lastSeason` and `pilot` are refused there, and `first` and `latest` everywhere else. Omit for the service\'s own default. Radarr has no seasons — use `monitored` there.'
+                ),
+            monitor_new_items: z
+                .enum(['all', 'none', 'new'])
+                .optional()
+                .describe(
+                    'Lidarr only: the rule for albums Lidarr discovers later — `all`, `new` (only ones released on or after the newest album it already has) or `none`, as on set_monitoring. With no `monitor`, it also sets the albums the artist is added with. Omitted, the artist gets `all`: the root folder\'s own default applies only to an artist Lidarr adds on import.'
+                ),
+            metadata_profile: z
+                .string()
+                .optional()
+                .describe(
+                    'Lidarr only: metadata profile name or id, which decides the album types and release statuses the artist gets. Optional when the root folder names a default, or when Lidarr has only one besides its reserved `None`, which gives an artist no albums and is used only when named or set as the root folder\'s default.'
                 ),
             minimum_availability: z
                 .enum(['announced', 'inCinemas', 'released'])
@@ -107,15 +277,47 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
             monitor,
             minimum_availability,
             series_type,
-            tags
+            tags,
+            monitor_new_items,
+            metadata_profile
         }): Promise<WritePlan> {
             const adapter = findAdapter(adapters, service, instance);
+            const lidarr = adapter.type === 'lidarr';
+            refuseMalformedId(service, adapter.type, external_id);
+
+            if (!lidarr && (metadata_profile !== undefined || monitor_new_items !== undefined)) {
+                throw new ServiceError(
+                    'NotFound',
+                    service,
+                    `${metadata_profile !== undefined ? 'metadata_profile' : 'monitor_new_items'} is a Lidarr option`,
+                    { remedy: 'Only an artist has a metadata profile or a rule for new albums. Drop it.' }
+                );
+            }
+            if (lidarr && (monitor === 'firstSeason' || monitor === 'lastSeason' || monitor === 'pilot')) {
+                throw new ServiceError('NotFound', service, `${monitor} is not a Lidarr monitor mode`, {
+                    remedy: 'An artist has albums, not seasons. Use `first` or `latest` for one album, or `all`, `future`, `missing`, `existing` or `none`.'
+                });
+            }
+            if ((adapter.type === 'sonarr' || adapter.type === 'whisparr') && (monitor === 'first' || monitor === 'latest')) {
+                throw new ServiceError('NotFound', service, `${monitor} is a Lidarr monitor mode`, {
+                    remedy: 'For a series, use `firstSeason` or `lastSeason`.'
+                });
+            }
+            // Lidarr's add turns `none` into an unmonitored artist as well as
+            // unmonitored albums (`AddArtistService`), against the default
+            // `monitored: true`. Refused rather than quietly overriding it, so
+            // the caller says which they meant.
+            if (lidarr && monitor === 'none' && monitored) {
+                throw new ServiceError('NotFound', service, 'monitor "none" also adds the artist itself unmonitored on Lidarr', {
+                    remedy: 'Pass `monitored: false` with it to add the artist unmonitored. To keep the artist monitored with no album yet, pick `future`, or set albums later with set_monitoring.'
+                });
+            }
 
             // Refused before any call, and named for the service that *does*
             // have the option: silently dropping one would add the series with
             // every season monitored against an explicit "future only".
-            if (monitor !== undefined && adapter.type !== 'sonarr' && adapter.type !== 'whisparr') {
-                throw new ServiceError('NotFound', service, 'monitor mode is a Sonarr or Whisparr option', {
+            if (monitor !== undefined && adapter.type !== 'sonarr' && adapter.type !== 'whisparr' && !lidarr) {
+                throw new ServiceError('NotFound', service, 'monitor mode is a Sonarr, Whisparr or Lidarr option', {
                     remedy: 'Films have no seasons. Use `monitored` on Radarr, and `minimum_availability` for how early it may grab.'
                 });
             }
@@ -129,12 +331,14 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
             }
             if (series_type !== undefined && adapter.type !== 'sonarr') {
                 throw new ServiceError('NotFound', service, 'series_type is a Sonarr option', {
-                    remedy: 'Films have no numbering scheme. Drop it.'
+                    remedy: lidarr ? 'An artist has no numbering scheme. Drop it.' : 'Films have no numbering scheme. Drop it.'
                 });
             }
             if (minimum_availability !== undefined && adapter.type !== 'radarr') {
                 throw new ServiceError('NotFound', service, 'minimum_availability is a Radarr option', {
-                    remedy: 'Sonarr grabs each episode as it airs. Use `monitor` to choose which seasons.'
+                    remedy: lidarr
+                        ? 'Lidarr has no availability threshold. Use `monitor` to choose which albums.'
+                        : 'Sonarr grabs each episode as it airs. Use `monitor` to choose which seasons.'
                 });
             }
 
@@ -142,11 +346,12 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
             // sequential round trips on a LAN service is needlessly slow. The
             // tag list is only read when tags were asked for — an add that
             // wants none must not fail because the tag endpoint is down.
-            const [candidate, profiles, folders, knownTags] = await Promise.all([
+            const [candidate, profiles, folders, knownTags, metadataProfiles] = await Promise.all([
                 adapter.lookupForAdd(external_id),
                 adapter.listQualityProfiles(),
                 adapter.listRootFolders(),
-                tags === undefined ? Promise.resolve([]) : adapter.listTags()
+                tags === undefined ? Promise.resolve([]) : adapter.listTags(),
+                hasMetadataProfiles(adapter) ? adapter.listMetadataProfiles() : Promise.resolve(undefined)
             ]);
 
             const label = `${candidate.title}${candidate.year === undefined ? '' : ` (${candidate.year})`}`;
@@ -180,26 +385,47 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
                 service
             );
 
+            // Lidarr's second profile; see `chooseMetadataProfile`.
+            const folderDefault = metadataProfiles?.find(p => p.id === folder.defaultMetadataProfileId);
+            const metadataProfile =
+                metadataProfiles === undefined ? undefined : chooseMetadataProfile(metadataProfiles, metadata_profile, folderDefault, service);
+
             // Resolved one at a time so the refusal names the label that
             // missed, not the whole list.
             const resolvedTags = (tags ?? []).map(requested =>
                 chooseOne(knownTags, requested, TAG_MATCH, t => `${t.display} (id ${t.id})`, 'tag', service)
             );
 
+            // The None profile gives the artist no albums, so no line about
+            // which albums are monitored applies.
+            const noAlbums = metadataProfile?.name === NO_ALBUMS_PROFILE;
             const effects = [
-                `Adds ${label} to ${service} under ${folder.display} (${freeSpace(folder)}), quality profile ${profile.display} (id ${profile.id}).`,
-                monitored
-                    ? 'Monitors it, so it will be grabbed when a matching release appears.'
-                    : 'Adds it unmonitored, so nothing will be grabbed until you monitor it.'
+                `Adds ${label} to ${service} under ${folder.display} (${freeSpace(folder)}), quality profile ${profile.display} (id ${profile.id})${metadataProfileNote(
+                    metadataProfile,
+                    metadata_profile === undefined && folderDefault !== undefined
+                )}.`,
+                monitoredEffect(monitored, lidarr, noAlbums)
             ];
 
-            if (monitor !== undefined) {
+            if (monitor !== undefined && lidarr) {
+                // `future` with `none` gets one line from `lidarrInitialAlbums` instead.
+                if (!noAlbums && lidarrInitialAlbums(monitor, monitor_new_items) !== NOTHING_MONITORED_FUTURE) {
+                    effects.push(
+                        monitor === 'none'
+                            ? 'Monitors no album.'
+                            : `Monitors the "${monitor}" set of albums — ${service} works out which those are.`
+                    );
+                }
+            } else if (monitor !== undefined) {
                 effects.push(
                     monitor === 'none'
                         ? 'Monitors no season, so nothing is grabbed until a season or episode is monitored.'
                         : `Monitors the "${monitor}" set of seasons — ${service} works out which those are.`
                 );
             }
+            if (monitor_new_items !== undefined && !noAlbums) effects.push(NEW_ITEMS_EFFECT[monitor_new_items]);
+            const initial = lidarr && !noAlbums ? lidarrInitialAlbums(monitor, monitor_new_items) : undefined;
+            if (initial !== undefined) effects.push(initial);
             if (minimum_availability !== undefined) {
                 effects.push(`Will not grab anything until the film is ${minimum_availability}.`);
             }
@@ -208,11 +434,7 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
                 effects.push(`Tags it ${resolvedTags.map(t => t.display).join(', ')}.`);
             }
 
-            effects.push(
-                search_now
-                    ? 'Starts searching immediately — this may begin a download, using disk space and bandwidth.'
-                    : 'Does not search yet. Use trigger_search when you want it to look.'
-            );
+            effects.push(searchEffect(search_now, lidarr, monitored, monitor, monitor_new_items, noAlbums));
 
             // Whisparr's wire name for "lastSeason" is "latestSeason" — the rename
             // happens here, at the boundary, so the tool keeps one vocabulary and
@@ -238,7 +460,9 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
                     ...(wireMonitor === undefined ? {} : { monitor: wireMonitor }),
                     ...(minimum_availability === undefined ? {} : { minimumAvailability: minimum_availability }),
                     ...(series_type === undefined ? {} : { seriesType: series_type }),
-                    ...(resolvedTags.length === 0 ? {} : { tagIds: resolvedTags.map(t => t.id) })
+                    ...(resolvedTags.length === 0 ? {} : { tagIds: resolvedTags.map(t => t.id) }),
+                    ...(metadataProfile === undefined ? {} : { metadataProfileId: metadataProfile.id }),
+                    ...(monitor_new_items === undefined ? {} : { monitorNewItems: monitor_new_items })
                 },
                 // Every id the lookup reported, so a series can reach Reclaimerr
                 // by TMDB as well as Seerr by TVDB. Not in the library yet, so
@@ -258,6 +482,8 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
                 minimumAvailability?: string;
                 seriesType?: string;
                 tagIds?: number[];
+                metadataProfileId?: number;
+                monitorNewItems?: ArtistMonitorNewItems;
             };
 
             // Taken from the plan rather than re-resolved from the arguments:
@@ -273,7 +499,9 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
                 ...(a.monitor === undefined ? {} : { monitor: a.monitor }),
                 ...(a.minimumAvailability === undefined ? {} : { minimumAvailability: a.minimumAvailability }),
                 ...(a.seriesType === undefined ? {} : { seriesType: a.seriesType }),
-                ...(a.tagIds === undefined ? {} : { tagIds: a.tagIds })
+                ...(a.tagIds === undefined ? {} : { tagIds: a.tagIds }),
+                ...(a.metadataProfileId === undefined ? {} : { metadataProfileId: a.metadataProfileId }),
+                ...(a.monitorNewItems === undefined ? {} : { monitorNewItems: a.monitorNewItems })
             });
         }
     });

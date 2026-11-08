@@ -823,7 +823,7 @@ const REMEDIES: Partial<Record<Stage, string>> = {
     // belong in a static per-stage map.
 };
 
-/** Nothing here adds music (lookup_media and add_media read Radarr and Sonarr), so adding the artist is done in Lidarr. */
+/** An artist nothing manages is added to Lidarr: add_media takes its MusicBrainz id, which lookup_media returns. */
 const ARTIST_MANAGED_REMEDY = 'Add it to Lidarr, or turn monitoring on for it.';
 
 /** `library`/`scan` remedies name the configured media server, so unlike the
@@ -1275,7 +1275,7 @@ function nextStepsFor(
                   ]
                 : [];
         case 'managed':
-            // Nothing here looks up or adds music, so an artist nothing manages has no lookup to offer.
+            // An artist nothing manages gets no lookup step; ARTIST_MANAGED_REMEDY names Lidarr instead.
             if (item === undefined || acquisition === undefined) return item?.kind === 'artist' ? [] : lookupStep(query, byWords);
             // Monitoring would search for, and so re-download, what a rule deleted on purpose: the file step withholds its search for this reason.
             if (!acquisition.hasFile && wholeRemoval(ev.cleanup, ev.lastImportAt) !== undefined) return [];

@@ -115,11 +115,12 @@ describe('LidarrAdapter', () => {
      * Listing the prototype covers all 46 guards; sampling a few of them stays
      * green when someone adds the one that was not sampled.
      */
-    it('claims library reads, search, monitoring, queue, history and blocklist reads and removals, trigger_scan, the stack_health reads, the wanted list and calendar, indexer search and grab, and nothing else', () => {
+    it('claims library reads, search, monitoring, queue, history and blocklist reads and removals, trigger_scan, the stack_health reads, the wanted list and calendar, indexer search and grab, adding, and nothing else', () => {
         const a = adapter({});
         const own = Object.getOwnPropertyNames(LidarrAdapter.prototype).filter(name => name !== 'constructor');
 
         expect(own.sort()).toEqual([
+            'addMedia',
             'findReleases',
             'getCalendar',
             'getDiskSpace',
@@ -135,6 +136,11 @@ describe('LidarrAdapter', () => {
             'listCommands',
             'listImportCandidates',
             'listLibrary',
+            'listMetadataProfiles',
+            'listQualityProfiles',
+            'listRootFolders',
+            'listTags',
+            'lookupForAdd',
             'readBlocklist',
             'readHistory',
             'readWanted',
@@ -225,12 +231,12 @@ describe('LidarrAdapter', () => {
         });
 
         it('answers nothing for a source it cannot serve', async () => {
-            // No lookup call either: an artist-to-add is not a library row, and
-            // nothing here can add music anyway.
+            // Lidarr has no indexer search behind `search_media`; its release
+            // search is `get_releases`.
             const seen: string[] = [];
             const a = adapter({ '/api/v1/artist': [ARTIST] }, seen);
 
-            expect(await a.search('daft punk', 'discover')).toEqual([]);
+            expect(await a.search('daft punk', 'indexers')).toEqual([]);
             expect(seen).toEqual([]);
         });
 

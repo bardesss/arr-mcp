@@ -385,6 +385,38 @@ several and you name none, **it refuses and lists them** rather than picking:
 > available: Any (id 1); HD-1080p (id 4); HD-2160p (id 5); … Not guessing,
 > because the wrong one is not obvious until the download finishes.
 
+Lidarr needs a third choice, the metadata profile, which decides the album types
+and release statuses an artist gets. `metadata_profile` names it; left out, the
+root folder's own default is used when it names one, and otherwise the same
+one-or-refuse rule applies, to every profile but `None`. Every Lidarr has that
+reserved profile, and it gives an artist no albums, so it is used only when it
+is named or is the root folder's default, and the preview then says so. Lidarr
+adds by the artist's MusicBrainz id, from `lookup_media`, and `external_id` is
+checked for that shape, as it is checked to be a plain integer on Radarr, Sonarr
+and Whisparr. `monitor` takes Lidarr's `first` and `latest` there, and
+`monitor_new_items` the rule for albums found later. `monitor: "none"` makes
+Lidarr add the artist itself unmonitored too, so it is refused unless
+`monitored: false` is given with it.
+
+Lidarr's search on add (`search_now`) looks only for the monitored albums of a
+monitored artist that are already released and missing a track, so the preview
+says when it will look for nothing: an artist added unmonitored, `monitor:
+"future"`, which leaves no released album monitored, no `monitor` with
+`monitor_new_items: "none"`, which leaves no album monitored at all, or the
+`None` metadata profile. An artist added unmonitored is skipped by RSS sync and
+Lidarr's own searches, but `trigger_search` skips that check, as on an artist
+already there, and the preview says so.
+
+`monitor_new_items` also sets the albums an artist is added with: Lidarr's first
+refresh flags every album by that rule, and `monitor` then overrides it. So with
+no `monitor`, `none` adds the artist with no album monitored and `new` with
+every album monitored, and `future`, `missing` and `existing`, which set only
+albums with files and released albums, leave an album with no files that is not
+yet released or has no release date to the rule: `future` with `none` monitors
+no album, now or later. Left out, the
+rule is `all`; the root folder's own default applies only to an artist Lidarr
+adds on import. The preview says each of these.
+
 ### With more than one instance, writes name one
 
 Adding a film with two Radarrs configured and no `instance` is refused, and the

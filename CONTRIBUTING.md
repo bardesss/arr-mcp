@@ -248,8 +248,12 @@ small, shaped change, and a service in no slot at all is a different product.
 
 **Managed — what decides something should exist**
 
-- **Lidarr — the rest of it.** The adapter has shipped, with twenty-two capabilities. `LibraryCapable` and `SearchCapable`, so
-  `get_library` lists artists and `search_media` finds them.
+- **Lidarr — the rest of it.** The adapter has shipped, with twenty-four capabilities. `LibraryCapable` and `SearchCapable`, so
+  `get_library` lists artists, `search_media` finds them, and its discover
+  source (`lookup_media`) finds artists to add. `MediaAddCapable` and
+  `MetadataProfileCapable`, so `add_media` adds one by its MusicBrainz id, with
+  the metadata profile beside the quality profile; the lookup and add fixtures
+  were captured on a 3.1.6.5079 test instance.
   `MediaDetailCapable`, so `get_media_details` lists an artist's albums and the
   album ids a write needs. `MonitoringCapable`, so `set_monitoring` writes an
   album's flag. `MonitorStateCapable`, so that flag is read before it is changed
@@ -274,13 +278,15 @@ small, shaped change, and a service in no slot at all is a different product.
   `ReleaseGrabCapable`, so `trigger_search` searches the indexers for an artist
   or some of its albums, and `get_releases` and `grab_release` list and grab the
   releases for the artist or one album; the release fixture was captured from
-  an album search on Lidarr 3.1.6.5079. What it still lacks is adding, deleting
-  and editing artists. All 21 capture endpoints were exercised against a live
+  an album search on Lidarr 3.1.6.5079. What it still lacks is deleting and
+  editing artists. All 21 capture endpoints were exercised against a live
   Lidarr 3.1.6.5079 and the fixtures are committed, but two still have no rows:
-  tag and indexer are empty on a fresh instance. Those row shapes need
-  a capture against a library with real activity before a read adapter can
-  claim them. The two write responses were captured separately, on a throwaway
-  2.1.3.3927 instance.
+  tag and indexer are empty on a fresh instance. Tags are read anyway, with the
+  shared `readTags` and the spec's `id` and `label`: `add_media` matches a tag
+  it is given, and `stack_health` lists them at `detail: "full"`. The indexer
+  row shape still needs a capture against a library with real activity before
+  a read adapter can claim it. The two monitoring write responses were
+  captured separately, on a throwaway 2.1.3.3927 instance.
 
   **The design constraint.** Music sits in the merged index as its own `kind`,
   `artist`, and joins because its identity is a MusicBrainz MBID: a GUID, where
@@ -404,7 +410,7 @@ finding out afterwards.
 
 **You will have to test it yourself, properly.** The maintainer runs neither
 Lidarr, Plex, qBittorrent nor Cleanuparr. Lidarr's read fixtures came from a live 3.1.6
-library with 1,578 artists and no download activity, and its two write fixtures
+library with 1,578 artists and no download activity, and its two monitoring write fixtures
 from a temporary 2.1.3.3927 instance. Its queue, history, blocklist and wanted
 cutoff fixtures came later, from a 3.1.0.4875 library with real download activity.
 Plex has an adapter

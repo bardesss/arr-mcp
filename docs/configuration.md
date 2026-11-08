@@ -301,6 +301,12 @@ discovers later, and `none` is the only value that stops the wanted list growing
 by itself. Both levels are written with Lidarr's bulk endpoints, which queued no
 `MoveArtist` job in the runs that were captured.
 
+`lookup_media` returns Lidarr's artist lookup, and `add_media` adds an artist by
+its MusicBrainz id, with a quality profile, a metadata profile (the root
+folder's default when none is named), and Lidarr's own `monitor` values and
+`monitor_new_items`. The lookup and add fixtures were captured on a 3.1.6.5079
+test instance.
+
 `trigger_scan` rescans the library or refreshes one artist (the rescan after it
 still reads every root folder), renames an artist's files, and imports a
 finished download by its id; see `docs/tools.md`. Its queue, history
@@ -329,12 +335,15 @@ and the album release search against 3.1.6.5079.
 
 Everything else is still out of reach: no delete. Of the 21 capture endpoints
 exercised against a live Lidarr 3.1.6.5079, two still have no rows behind them
-(tag and indexer), so nothing claims them.
+(tag and indexer). Nothing reads indexers. Tags are read by the spec's `id`
+and `label`: `add_media` matches a tag it is given, and `stack_health` lists
+them at `detail: "full"`.
 
-The version floor is 2.1.3. The two write endpoints were captured on 2.1.3.3927,
-and the read fixtures come from 3.1.6.5079, except the queue, history,
-blocklist and wanted cutoff ones above, from 3.1.0.4875. A volunteer exercised the adapter's
-reads and writes on 2.1.3.3927 and 3.1.0.4875.
+The version floor is 2.1.3. The two monitoring write endpoints were captured on
+2.1.3.3927, the add on 3.1.6.5079, and the read fixtures come from 3.1.6.5079,
+except the queue, history, blocklist and wanted cutoff ones above, from
+3.1.0.4875. A volunteer exercised the adapter's reads and writes on 2.1.3.3927
+and 3.1.0.4875.
 
 `CONTRIBUTING.md` lists the endpoints that still need a capture against a library
 with real activity before their row shapes are proven.

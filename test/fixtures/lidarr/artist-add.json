@@ -1,0 +1,52 @@
+{
+  "status": "continuing",
+  "ended": false,
+  "artistName": "Artist 1",
+  "foreignArtistId": "00000000-0000-4000-8000-000000000101",
+  "tadbId": 0,
+  "discogsId": 0,
+  "overview": "An artist.",
+  "artistType": "Group",
+  "disambiguation": "",
+  "links": [
+    {
+      "url": "https://indexer.example.test/",
+      "name": "link-1"
+    }
+  ],
+  "nextAlbum": null,
+  "lastAlbum": null,
+  "images": [],
+  "path": "/music/Artist 1",
+  "qualityProfileId": 1,
+  "metadataProfileId": 1,
+  "monitored": true,
+  "monitorNewItems": "none",
+  "rootFolderPath": "/music/",
+  "genres": [
+    "Genre 1"
+  ],
+  "cleanName": "artist1",
+  "sortName": "artist 1",
+  "tags": [],
+  "added": "2024-01-01T00:00:00Z",
+  "addOptions": {
+    "searchForMissingAlbums": false,
+    "monitor": "latest",
+    "albumsToMonitor": [],
+    "monitored": false
+  },
+  "ratings": {
+    "votes": 0,
+    "value": 0
+  },
+  "statistics": {
+    "albumCount": 0,
+    "trackFileCount": 0,
+    "trackCount": 0,
+    "totalTrackCount": 0,
+    "sizeOnDisk": 0,
+    "percentOfTracks": 0
+  },
+  "id": 101
+}

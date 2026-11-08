@@ -6,7 +6,7 @@ import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
 import { ServiceHttp } from '../core/http.ts';
 import type { IndexInput } from '../core/resolver.ts';
-import { readProfileNames } from './arrAdd.ts';
+import { readMetadataProfiles, readProfileNames, readQualityProfiles, readRootFolders, readTags } from './arrAdd.ts';
 import { readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
 import { postArrCommand, readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
 import { readArrHistory } from './arrHistory.ts';
@@ -17,6 +17,8 @@ import { arrDiskSpace, arrFailedHealthChecks, arrScanState, arrStartLibraryScan,
 import { readArrWanted } from './arrWanted.ts';
 import {
     diagnoseConnection,
+    type AddCandidate,
+    type AddMediaOptions,
     type ArtistMonitorCapable,
     type ArtistMonitorNewItems,
     type ArtistMonitorPolicy,
@@ -41,12 +43,15 @@ import {
     type LibraryMaintenanceCapable,
     type LibraryScanCapable,
     type ManualImportCapable,
+    type MediaAddCapable,
     type MediaDetailCapable,
     type MediaDetails,
+    type MetadataProfileCapable,
     type MonitoringCapable,
     type MonitoringTarget,
     type MonitorState,
     type MonitorStateCapable,
+    type QualityProfile,
     type QueueCapable,
     type QueueItem,
     type QueueRemoveCapable,
@@ -55,6 +60,7 @@ import {
     type ReleaseScope,
     type ReleaseSearchCapable,
     type RemoveQueueOptions,
+    type RootFolder,
     type ScanState,
     type ScanStateCapable,
     type SearchCapable,
@@ -63,6 +69,7 @@ import {
     type SearchTarget,
     type SearchTriggerCapable,
     type ServiceAdapter,
+    type Tag,
     type WantedCapable,
     type WantedItem,
     type WantedScope,
@@ -112,6 +119,12 @@ type RawArtist = {
     qualityProfileId?: number;
     statistics?: { trackFileCount?: number; sizeOnDisk?: number; albumCount?: number };
 };
+
+/**
+ * A MusicBrainz id, the only external id Lidarr adds by. `add_media` checks the
+ * same shape before any call; this is the adapter's own guard.
+ */
+export const MUSICBRAINZ_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const yearOf = (releaseDate: string | null | undefined): number | undefined => {
     if (typeof releaseDate !== 'string') return undefined;
@@ -216,6 +229,11 @@ const LIBRARY_SCAN_TASK = 'RescanFolders';
  * `AlbumSearch`, and the release search and grab for the artist or one album,
  * through the shared `postArrCommand` and `arrRelease.ts`.
  *
+ * `MediaAddCapable` and `MetadataProfileCapable` are `add_media`'s: an artist
+ * added by its MusicBrainz id, with a metadata profile beside the quality
+ * profile, root folder and tags. `stack_health` lists the last three at
+ * `detail: "full"`, as it does for the other services that add.
+ *
  * An artist is the row rather than a track or an album, for the reason Radarr
  * and Sonarr row on a film and a series: it is the level a person asks about,
  * it is what joins to a media server on the MusicBrainz artist id, and Lidarr
@@ -251,7 +269,9 @@ export class LidarrAdapter
         CalendarCapable,
         SearchTriggerCapable,
         ReleaseSearchCapable,
-        ReleaseGrabCapable
+        ReleaseGrabCapable,
+        MediaAddCapable,
+        MetadataProfileCapable
 {
     readonly type: ServiceId = 'lidarr';
     readonly instance: string | undefined;
@@ -351,15 +371,18 @@ export class LidarrAdapter
     }
 
     /**
-     * `library` only. Lidarr's lookup endpoints return artists to add, and
-     * nothing here adds music, so a discover search has no honest answer and
-     * returns none.
+     * `discover` is Lidarr's artist lookup, the list `add_media` adds from: a
+     * hit not yet in the library carries its MusicBrainz id as `id`, as a
+     * Radarr lookup carries its TMDB id, and in `ids.mbid` either way. Only
+     * artists: an artist is what Lidarr adds.
      *
-     * Matched on the artist name. Unlike Radarr and Sonarr there is no second
-     * field to try: "Do I have any Daft Punk" is a library question and the
-     * artist row is the answer. An album title is `get_media_details`'s read.
+     * `library` is matched on the artist name. Unlike Radarr and Sonarr there
+     * is no second field to try: "Do I have any Daft Punk" is a library
+     * question and the artist row is the answer. An album title is
+     * `get_media_details`'s read.
      */
     async search(query: string, source: SearchSource): Promise<SearchHit[]> {
+        if (source === 'discover') return this.#discover(query);
         if (source !== 'library') return [];
 
         const term = query.toLowerCase();
@@ -378,6 +401,40 @@ export class LidarrAdapter
                 hasFile: (a.statistics?.trackFileCount ?? 0) > 0,
                 monitored: a.monitored ?? false
             }));
+    }
+
+    /**
+     * A query naming another service's id (`imdb:tt…`, `tmdb:603`) is not an
+     * artist search. Lidarr has no such prefix and runs it as text: live on
+     * 3.1.6, `imdb:tt0133093` answered an artist called "imdb".
+     */
+    async #discover(query: string): Promise<SearchHit[]> {
+        if (/^\s*(?:imdb|tmdb|tvdb|tpdb):/i.test(query)) return [];
+        const found = await this.#http.get<unknown>(`/api/v1/artist/lookup?term=${encodeURIComponent(query)}`);
+        if (!Array.isArray(found)) {
+            throw new ServiceError('UpstreamError', this.id, '/api/v1/artist/lookup did not return an array');
+        }
+
+        return found
+            .filter((a): a is RawArtist => typeof a === 'object' && a !== null)
+            .filter(a => (a.id ?? 0) > 0 || (a.foreignArtistId ?? '') !== '')
+            .map(a => {
+                // `id` only for an artist already in the library: Lidarr 3.1.6
+                // leaves it out for one that is not, and a 0 must not read as one.
+                // No `hasFile`: the lookup maps the artist without its
+                // statistics (`ArtistLookupController`), which came back all
+                // zero on 2.1.3 and absent on 3.1.6 for an artist with tracks.
+                const inLibrary = (a.id ?? 0) > 0;
+                return {
+                    service: this.id,
+                    source: 'discover' as const,
+                    kind: 'artist' as const,
+                    id: inLibrary ? String(a.id) : (a.foreignArtistId ?? ''),
+                    title: fenceText(a.artistName ?? '', { service: this.id, field: 'title' }),
+                    ids: artistIds(a),
+                    ...(inLibrary ? { monitored: a.monitored ?? false } : {})
+                };
+            });
     }
 
     /**
@@ -650,6 +707,114 @@ export class LidarrAdapter
     /** Given the release-search timeout: see `grabLidarrRelease`. */
     async grabRelease(opts: { guid: string; indexerId: number }): Promise<void> {
         await grabLidarrRelease(this.#http, this.id, opts);
+    }
+
+    async listQualityProfiles(): Promise<QualityProfile[]> {
+        return readQualityProfiles(this.#http, this.id);
+    }
+
+    /** Each carries the metadata profile it names as its default, if any. */
+    async listRootFolders(): Promise<RootFolder[]> {
+        return readRootFolders(this.#http, this.id);
+    }
+
+    async listTags(): Promise<Tag[]> {
+        return readTags(this.#http, this.id);
+    }
+
+    async listMetadataProfiles(): Promise<QualityProfile[]> {
+        return readMetadataProfiles(this.#http, this.id);
+    }
+
+    async lookupForAdd(externalId: string): Promise<AddCandidate> {
+        const raw = await this.#lookupArtist(externalId);
+        return {
+            title: fenceText(raw.artistName ?? '', { service: this.id, field: 'title' }),
+            ...((raw.id ?? 0) > 0 ? { existingId: raw.id } : {}),
+            // An artist has neither a TMDB nor a TVDB id, and the cross-checks
+            // these feed speak for Radarr and Sonarr only.
+            ids: {}
+        };
+    }
+
+    /**
+     * The lookup body, posted back with this server's choices on top, as
+     * Radarr's and Sonarr's adds post theirs. `id` and `path` are dropped: the
+     * lookup's `path` is a guess that `rootFolderPath` replaces, and an `id`
+     * would read as an existing artist.
+     *
+     * `monitor: "none"` also adds the artist itself unmonitored
+     * (`AddArtistService`), which is why `add_media` refuses it unless
+     * `monitored: false` says so.
+     */
+    async addMedia(opts: AddMediaOptions): Promise<{ id: number; title: string }> {
+        if (opts.metadataProfileId === undefined) {
+            throw new ServiceError('NotFound', this.id, 'Lidarr needs a metadata profile to add an artist', {
+                remedy: 'Name one with `metadata_profile`.'
+            });
+        }
+
+        const raw = await this.#lookupArtist(opts.externalId);
+        if ((raw.id ?? 0) > 0) {
+            throw new ServiceError('UpstreamError', this.id, 'that artist is already in lidarr', {
+                remedy: 'It was added between the preview and the confirmation, so nothing was changed here.'
+            });
+        }
+
+        const { id: _id, path: _path, ...rest } = raw;
+        const created = await this.#http.post<RawArtist>('/api/v1/artist', {
+            ...rest,
+            qualityProfileId: opts.qualityProfileId,
+            metadataProfileId: opts.metadataProfileId,
+            rootFolderPath: opts.rootFolderPath,
+            monitored: opts.monitored,
+            ...(opts.monitorNewItems === undefined ? {} : { monitorNewItems: opts.monitorNewItems }),
+            tags: opts.tagIds ?? [],
+            addOptions: {
+                ...(opts.monitor === undefined ? {} : { monitor: opts.monitor }),
+                searchForMissingAlbums: opts.searchNow
+            }
+        });
+        if (typeof created.id !== 'number' || created.id <= 0) {
+            throw new ServiceError('UpstreamError', this.id, 'lidarr returned no id for the added artist', {
+                remedy: 'It may still have been added — check with search_media before trying again.'
+            });
+        }
+
+        this.#libraryCache.clear();
+        return { id: created.id, title: fenceText(created.artistName ?? '', { service: this.id, field: 'title' }) };
+    }
+
+    /**
+     * Lidarr's exact-id lookup, `lidarr:<mbid>`: it answers the library's own
+     * artist when there is one, carrying its `id`, and otherwise the metadata
+     * server's (`SkyHookProxy.SearchForNewArtist`). An unknown id answers `[]`.
+     */
+    async #lookupArtist(externalId: string): Promise<RawArtist> {
+        if (!MUSICBRAINZ_ID.test(externalId)) {
+            throw new ServiceError('NotFound', this.id, `"${externalId}" is not a MusicBrainz artist id`, {
+                remedy: 'Lidarr adds by MusicBrainz artist id, a GUID. lookup_media returns one under `ids.mbid`.'
+            });
+        }
+
+        const mbid = externalId.toLowerCase();
+        const found = await this.#http.get<unknown>(`/api/v1/artist/lookup?term=lidarr:${mbid}`);
+        const first: unknown = Array.isArray(found) ? found[0] : undefined;
+        const artist = typeof first === 'object' && first !== null ? (first as RawArtist) : undefined;
+        // The library's own artist also answers an id it used to have
+        // (`ArtistRepository.FindById` reads `OldForeignArtistIds`), under its
+        // current id. It is still that artist, so it is reported as already there.
+        const inLibrary = (artist?.id ?? 0) > 0;
+        if (
+            artist === undefined ||
+            typeof artist.artistName !== 'string' ||
+            (!inLibrary && (artist.foreignArtistId ?? '').toLowerCase() !== mbid)
+        ) {
+            throw new ServiceError('NotFound', this.id, `MusicBrainz artist ${mbid} matched nothing`, {
+                remedy: 'Check the id with lookup_media. An artist merged on MusicBrainz answers under its new id, so look it up again by name.'
+            });
+        }
+        return artist;
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {
