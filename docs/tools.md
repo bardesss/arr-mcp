@@ -211,7 +211,13 @@ never as a blocking stage. A secondary that is down does not lower `certain`.
 
 **It also works with services down.** Any step it could not check sets
 `certain: false`, and the summary names what was missed: a confident verdict
-across a hole is worse than no verdict.
+across a hole is worse than no verdict. When the title is found (in the media
+server, say) but no *arr claims it, and a Radarr, Sonarr, Whisparr or Lidarr
+that holds its kind could not be read, `managed` is `unknown` rather than
+"nothing is managing it": the verdict is `managed`, uncertain, and asks you to
+check that service and diagnose again, unless a blocked request comes first.
+A Jellyfin id gives no kind, nor does a Plex item that is not a film or a show,
+so there any *arr that could not be read counts.
 
 When Cleanuparr removed or stopped the download and nothing is in the queue,
 the queue stage says so, with the date, its reason and its strike count, and
@@ -327,7 +333,7 @@ hold ids, `download_id`, and, for a lookup, the words you gave as `query`.
 | `managed`, in Radarr | `update_media` with `monitored: true` (`set_monitoring` refuses Radarr) |
 | `managed`, in Sonarr or Whisparr | `set_monitoring` with `monitored: true` |
 | `managed`, in Lidarr | `set_monitoring` with `level: "artist"`, `artists: [id]` and `monitored: true`, never `id`: the artist flag only, each album keeps its own |
-| `managed` or `resolve`, nothing manages it | `lookup_media` with your `query`, only when you diagnosed by title; none for an artist, whose remedy says to add it to Lidarr; `add_media` takes the MusicBrainz id `lookup_media` returns |
+| `managed` or `resolve`, nothing manages it | `lookup_media` with your `query`, only when you diagnosed by title, and for `managed` not while an *arr of its kind (any *arr, for a media server's id with no kind) could not be read; an artist comes back among Lidarr's hits, each with the MusicBrainz id `add_media` takes as `ids.mbid` |
 | `request`, pending | `respond_to_request` with `verdict: "approve"`, only if you may act on that request (it is yours, or `allow_other_users` is on) |
 | `queue`, import pending | `trigger_scan` with `action: "import"` and the `download_id` of the *arr's row, on Radarr, Sonarr or Lidarr |
 | `queue`, fault | `remove_queue_item` with the row's service and id; it deletes partial data and does not blocklist |

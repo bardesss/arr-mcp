@@ -171,6 +171,17 @@ const CASES: Case[] = [
         expected: { tool: 'lookup_media', arguments: { query: QUERY } }
     },
     {
+        name: 'managed, an artist nothing manages',
+        diagnosis: () => buildChain(QUERY, healthy({ item: artist({ acquisition: undefined, presence: 'jellyfin_only' }) })),
+        expected: { tool: 'lookup_media', arguments: { query: QUERY } }
+    },
+    {
+        // `managed` is unknown, and a lookup would ask the Lidarr that is down.
+        name: 'managed, an artist nothing claims while a Lidarr could not be read',
+        diagnosis: () => buildChain(QUERY, healthy({ item: artist({ acquisition: undefined, presence: 'jellyfin_only' }), libraryDegraded: ['lidarr'] })),
+        expected: undefined
+    },
+    {
         name: 'resolve, nothing matches',
         diagnosis: () => buildChain(QUERY, healthy({ item: undefined })),
         expected: { tool: 'lookup_media', arguments: { query: QUERY } }

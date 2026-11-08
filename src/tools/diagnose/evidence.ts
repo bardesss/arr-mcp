@@ -97,7 +97,8 @@ async function resolveItem(
     deps: DiagnoseDeps,
     target: DiagnoseTarget,
     degraded: string[],
-    libraryDegraded: string[]
+    libraryDegraded: string[],
+    guessed: { kind: boolean }
 ): Promise<ArrItem | undefined> {
     // the gate lives in the loader's identity resolver, and a refusal
     // propagates out of diagnose rather than becoming a degraded stage — this
@@ -189,6 +190,7 @@ async function resolveItem(
         // The secondary's items are not in the primary's library, so naming
         // one must not read as "present in the primary".
         const isSecondary = isMediaServer && adapter.id === secondary;
+        guessed.kind = searchKind === undefined;
         return {
             kind: searchKind ?? 'movie',
             title: details.title,
@@ -293,7 +295,8 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
     // never enforced — the ids come in through a `string[]` parameter — so it
     // only claimed something untrue about what the array holds.
     const libraryDegraded: string[] = [];
-    const item = await resolveItem(deps, target, degraded, libraryDegraded);
+    const guessed = { kind: false };
+    const item = await resolveItem(deps, target, degraded, libraryDegraded, guessed);
 
     // Structural, not `instanceof SeerrAdapter`: every other capability here
     // (queue, indexers, scan, media details) is checked the same way, and
@@ -520,6 +523,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
     libraryDegraded.sort();
     return {
         item,
+        ...(guessed.kind ? { itemKindGuessed: true as const } : {}),
         request,
         queue,
         queueConfigured,
