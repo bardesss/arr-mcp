@@ -299,3 +299,147 @@ describe('quick while quick runs', () => {
         expect((await first).id).toBe(second.id);
     });
 });
+
+describe('matching against the config as it is now', () => {
+    it('view rematches the run against the config it is given', async () => {
+        const d = new Discovery({
+            catalog,
+            lookup,
+            probe: async (host, entries, source) => entries.map(e => ({ type: e.type, url: `http://${host}:${e.port}`, source }))
+        });
+        await d.quick('192.168.1.10', config);
+        expect((await d.view(config))?.rows.find(r => r.type === 'radarr')?.status).toBe('new');
+        const after = ConfigSchema.parse({
+            auth: AUTH,
+            services: { radarr: { url: 'http://192.168.1.10:7878', api_key: 'k', permissions: {} } }
+        });
+        expect((await d.view(after))?.rows.find(r => r.type === 'radarr')?.status).toBe('added');
+    });
+
+    it('view gives nothing before a run', async () => {
+        expect(await new Discovery({ catalog, lookup, probe: async () => [] }).view(config)).toBeUndefined();
+    });
+});
+
+describe('what a quick search says it tried', () => {
+    it('names the host and counts the container names that resolved', async () => {
+        const d = new Discovery({ catalog, lookup, probe: async () => [] });
+        const state = await d.quick('nas.lan:6060', config);
+        expect(state.hostTried).toBe('nas.lan');
+        expect(state.hostAddress).toBe('192.168.1.10');
+        // radarr resolves privately; sonarr resolves to a public address and is not counted
+        expect(state.containersResolved).toBe(1);
+        expect(state.failed).toBeUndefined();
+    });
+
+    it('leaves the host out when it was skipped', async () => {
+        const d = new Discovery({ catalog, lookup, probe: async () => [] });
+        const state = await d.quick('localhost:6060', config);
+        expect(state.hostTried).toBeUndefined();
+    });
+
+    it('flags a quick search that threw', async () => {
+        vi.spyOn(logger, 'error').mockImplementation(() => {});
+        const broken = {
+            get services(): never {
+                throw new Error('boom');
+            }
+        } as unknown as Config;
+        const d = new Discovery({ catalog, lookup, probe: async () => [] });
+        const state = await d.quick('nas.lan', broken);
+        expect(state.failed).toBe(true);
+    });
+
+    it('suggests the range of the private IPv4 when the host also has a public IPv6', async () => {
+        const d = new Discovery({
+            catalog,
+            lookup: async host => (host === 'fritz.box' ? ['2a02:8109:1234::1', '192.168.178.1'] : Promise.reject(new Error('ENOTFOUND'))),
+            probe: async () => []
+        });
+        const state = await d.quick('fritz.box', config);
+        expect(state.hostAddress).toBe('192.168.178.1');
+        expect(state.suggestedRange).toBe('192.168.178.0/24');
+    });
+});
+
+describe('slow lookups', () => {
+    it('finishes a quick search when a container lookup never settles, and drops that name', async () => {
+        const calls: string[] = [];
+        const d = new Discovery({
+            catalog,
+            lookup: host => (host === 'radarr' ? new Promise<string[]>(() => {}) : lookup(host)),
+            lookupTimeoutMs: 20,
+            probe: async host => {
+                calls.push(host);
+                return [];
+            }
+        });
+        const state = await d.quick('192.168.1.10', config);
+        expect(state.running).toBe(false);
+        expect(calls).not.toContain('radarr');
+        expect(calls).toContain('192.168.1.10');
+    });
+
+    it('finishes in a few seconds with the defaults when no container name ever resolves', async () => {
+        const many = Array.from({ length: 22 }, (_, i) => entry('radarr', 7878, [`name${i}`]));
+        const d = new Discovery({ catalog: many, lookup: () => new Promise<string[]>(() => {}), probe: async () => [] });
+        const started = Date.now();
+        const state = await d.quick('192.168.1.10', config);
+        expect(state.running).toBe(false);
+        expect(state.containersResolved).toBe(0);
+        expect(Date.now() - started).toBeLessThan(3000);
+    });
+});
+
+describe('timeouts', () => {
+    it('gives a quick probe 3000 ms and a sweep probe 800 ms', async () => {
+        const seen: { source: Found['source']; timeoutMs: number }[] = [];
+        const d = new Discovery({
+            catalog,
+            lookup,
+            probe: async (_h, _e, source, opts) => {
+                seen.push({ source, timeoutMs: opts.timeoutMs });
+                return [];
+            }
+        });
+        await d.quick('192.168.1.10', config);
+        d.startSweep('192.168.1.0/30', config);
+        await vi.waitFor(() => expect(d.current()?.running).toBe(false));
+        expect(seen.filter(s => s.source !== 'sweep').every(s => s.timeoutMs === 3000)).toBe(true);
+        expect(seen.filter(s => s.source === 'sweep').map(s => s.timeoutMs)).toEqual([800, 800, 800, 800]);
+    });
+});
+
+describe('a sweep after a quick search', () => {
+    it("keeps the quick search's rows, including one found only by container name", async () => {
+        const d = new Discovery({
+            catalog,
+            lookup,
+            probe: async (host, entries, source) => {
+                if (source === 'container') return entries.map(e => ({ type: e.type, url: `http://${host}:${e.port}`, source }));
+                if (source === 'sweep' && host === '192.168.1.2') return [{ type: 'sonarr', url: `http://${host}:8989`, source }];
+                return [];
+            }
+        });
+        await d.quick('192.168.1.10', config);
+        expect(d.current()?.rows.map(r => r.url)).toEqual(['http://radarr:7878']);
+        d.startSweep('192.168.1.0/30', config);
+        expect(d.current()?.rows.map(r => r.url)).toEqual(['http://radarr:7878']);
+        await vi.waitFor(() => expect(d.current()?.running).toBe(false));
+        expect(d.current()?.rows.map(r => r.url).sort()).toEqual(['http://192.168.1.2:8989', 'http://radarr:7878']);
+        expect((await d.view(config))?.rows.map(r => r.url).sort()).toEqual(['http://192.168.1.2:8989', 'http://radarr:7878']);
+    });
+
+    it('does not list an address twice when the sweep finds what the quick search found', async () => {
+        const d = new Discovery({
+            catalog,
+            lookup,
+            probe: async (host, entries, source) =>
+                host === '192.168.1.1' ? entries.map(e => ({ type: e.type, url: `http://${host}:${e.port}`, source })) : []
+        });
+        await d.quick('192.168.1.1', config);
+        d.startSweep('192.168.1.0/30', config);
+        await vi.waitFor(() => expect(d.current()?.running).toBe(false));
+        expect(d.current()?.rows.map(r => r.url).sort()).toEqual(['http://192.168.1.1:7878', 'http://192.168.1.1:8989']);
+    });
+});
