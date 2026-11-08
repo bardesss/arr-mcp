@@ -22,15 +22,26 @@ export function detachLogStore(): void {
 }
 
 /**
- * Writes to stdout **and** the ring buffer.
+ * stderr under `--stdio`, where stdout is the MCP connection and one stray log
+ * line corrupts it. Read from argv at module load rather than set by the entry
+ * point, because ES imports run first and a line logged while they load would
+ * otherwise already have gone to stdout.
+ */
+export const logStream = (argv: readonly string[]): NodeJS.WriteStream =>
+    argv.includes('--stdio') ? process.stderr : process.stdout;
+
+const out = logStream(process.argv);
+
+/**
+ * Writes to stdout (stderr under `--stdio`) **and** the ring buffer.
  *
- * stdout first and unconditionally: `docker logs` is the only way in before
+ * The stream first and unconditionally: `docker logs` is the only way in before
  * anyone has reached the UI, and a failing store must not cost a line there.
  * `LogStore.write` swallows its own errors for the same reason.
  */
 const destination = {
     write(line: string): void {
-        process.stdout.write(line);
+        out.write(line);
         sink?.write(line);
     }
 };
