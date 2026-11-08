@@ -316,6 +316,10 @@ so far.
   "trusted network" bypass, because "LAN-only" is a network assumption rather
   than a security control, and a home network contains guest phones and IoT
   devices.
+- [`--stdio`](configuration.md#over-stdio) takes no token, because nothing
+  crosses a network: the client is whoever could start the process. It is
+  read-only for that reason, with no setting to change it, so writes always go
+  through `/mcp` and a token's tier.
 - The tokens are read from the runtime on **every request**, so revoking or
   creating one takes effect immediately rather than at the next restart.
 - The config UI has its own scrypt-hashed password with a 12 character minimum

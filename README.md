@@ -133,6 +133,10 @@ supported. Clients that read the
 
 [![arr-mcp MCP server – quality and maintenance score on Glama](https://glama.ai/mcp/servers/bardesss/arr-mcp/badges/card.svg)](https://glama.ai/mcp/servers/bardesss/arr-mcp)
 
+A client that launches its servers as child processes can run arr-mcp
+[over stdio](docs/configuration.md#over-stdio) instead, with `--stdio`. That
+connection is read-only; writes need `/mcp` and a token.
+
 **Works with whatever you point at it.** A client asking for
 `Accept: application/json` — or sending no `Accept` at all — gets one JSON object
 back with a `Content-Length`, rather than a refusal for not also naming

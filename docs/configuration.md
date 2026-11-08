@@ -857,6 +857,31 @@ Plex has no equivalent: a Plex token is scoped to one account, so there is no
 second user to permit. `services.plex.allow_other_users: true` is refused at
 config load rather than accepted and ignored.
 
+### Over stdio
+
+`node dist/src/index.js --stdio` serves MCP on stdin and stdout instead of
+over HTTP, for a client that starts arr-mcp as a child process. It offers the
+same tools, prompts and resources as `/mcp`, and reads the same
+`ARR_MCP_CONFIG_DIR`. In the container:
+
+```bash
+docker run -i --rm -v ./config:/config ghcr.io/bardesss/arr-mcp:latest node dist/src/index.js --stdio
+```
+
+A stdio connection is **read-only**, whatever `config.yaml` permits. It presents
+no token, so there is no tier to cap it to, and whoever can start the process is
+the caller. A write is refused with a pointer to `/mcp`, and the audit trail
+records the caller as `stdio`. For writes, use the HTTP endpoint with a token of
+the write or destructive tier.
+
+There is no config UI and no HTTP listener in this mode. Set the services up
+first, in the UI of an HTTP instance or in `config.yaml` by hand, and point
+`--stdio` at the same directory. A missing `config.yaml` is created as on any
+first start, which gives a server with no services that still lists every tool.
+A `config.yaml` that will not load is fatal here, with the reason on stderr,
+because there is no repair page to fall back on. Log lines go to stderr, since
+stdout is the MCP connection.
+
 ### Editing `config.yaml` by hand
 
 Supported, and the comments you write in it are preserved when the config UI
