@@ -867,6 +867,14 @@ describe('update_media on a book', () => {
         await expect(film({ service: 'radarr', id: '1', title: 'x' })).rejects.toThrow(/Grimmory/);
     });
 
+    it('refuses a metadata profile on a book, sending nothing', async () => {
+        const { call, server } = editTool();
+        await expect(call({ service: 'grimmory', id: '58', metadata_profile: 'Standard' })).rejects.toThrow(
+            'a book has no film, series or artist settings'
+        );
+        expect(server.sent).toHaveLength(0);
+    });
+
     it('the nothing-to-change error names the book fields too', async () => {
         const { call } = editTool();
         await expect(call({ service: 'grimmory', id: '58' })).rejects.toThrow(/title.*authors.*series/);

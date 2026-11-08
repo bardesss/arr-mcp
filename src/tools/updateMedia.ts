@@ -7,29 +7,79 @@ import {
     hasBookMetadata,
     hasMediaAdd,
     hasMediaUpdate,
+    hasMetadataProfiles,
+    type ArtistMonitorNewItems,
     type BookField,
     type BookFields,
     type BookMetadataCapable,
     type MediaAddCapable,
     type MediaUpdateCapable,
+    type QualityProfile,
     type ServiceAdapter
 } from '../services/types.ts';
 import { describeBookChange, diffBookFields } from './bookMetadata.ts';
 import { chooseOne, freeSpace, FOLDER_MATCH, PROFILE_MATCH, TAG_MATCH } from './chooseOne.ts';
+import { NO_ALBUMS_PROFILE, SEARCH_AFTER_REFRESH } from './lidarrProfiles.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 
 /**
  * `add_media`'s counterpart, and the only way to change a **Radarr** item's
- * monitoring at all — `set_monitoring` is Sonarr's per-season tool and has
- * never covered films.
+ * monitoring at all — `set_monitoring` covers series and artists, never films.
  *
  * Safe tier. Every field here is one the same tool can set back, and the one
  * that touches disk — a root folder change — asks the service to *move* the
  * files, which loses nothing and is undone by moving them back. `add_media`,
  * which starts multi-gigabyte downloads, is safe on the same reasoning. The
  * preview still spells the move out, because "change the root folder" reads
- * cheaper than it is.
+ * cheaper than it is. A Lidarr metadata profile is the exception: switching
+ * back after a refresh brings the albums it removed in again as new albums,
+ * without their old flags (see `metadataProfileEffect`), so the preview says
+ * so rather than the tier changing.
  */
+
+/** What each of Lidarr's rules for new albums does with the albums a broader profile brings in. */
+const BROUGHT_IN: Readonly<Record<ArtistMonitorNewItems, string>> = {
+    all: `Albums it brings in are monitored (\`monitor_new_items\` is \`all\`). ${SEARCH_AFTER_REFRESH}`,
+    new: `Albums it brings in are monitored when released on or after the newest dated album the artist already has that the new profile also lists, and every one when there is none (\`monitor_new_items\` is \`new\`). ${SEARCH_AFTER_REFRESH}`,
+    none: 'Albums it brings in are not monitored (`monitor_new_items` is `none`).'
+};
+
+/**
+ * A metadata profile switch, which the Artist Editor does not apply: Lidarr
+ * does at the artist's next refresh (`ArtistService.UpdateArtists` publishes no
+ * `ArtistEditedEvent`). That refresh removes the albums the new profile leaves
+ * out unless they have files or were added by hand
+ * (`RefreshAlbumService.ShouldDelete`), and a switch back brings them in again
+ * as new albums, flagged by the artist's `monitorNewItems` rather than with
+ * their old flags (`RefreshArtistService.ProcessChildren`). So this is the one
+ * field here the same tool cannot always set back. The albums it brings in are
+ * flagged by that rule; `new` compares them with the artist's dated albums that
+ * the new profile also lists (`children.Updated`), and monitors every one when
+ * there is none (`MonitorNewAlbumService`).
+ */
+function metadataProfileEffect(from: string, to: QualityProfile, rule: ArtistMonitorNewItems | undefined): string {
+    const head = `Switches the metadata profile from ${from} to ${to.display} (id ${to.id}). Lidarr applies it at the artist's next refresh, which this does not start.`;
+    if (to.name === NO_ALBUMS_PROFILE) {
+        return `${head} None lists no albums for the artist, so that refresh removes every album without files that was not added by hand, and switching back later brings them in again as new albums, flagged by \`monitor_new_items\` rather than as they are now.`;
+    }
+    const brought = rule === undefined ? "Albums it brings in are flagged by the artist's rule for new albums, `monitor_new_items`." : BROUGHT_IN[rule];
+    return `${head} Albums the new profile leaves out are removed then, unless they have files or were added by hand, and switching back later brings them in again as new albums, without their old flags. ${brought}`;
+}
+
+/**
+ * The artist flag is not the album flag: an artist grabs only for its
+ * monitored albums, and this changes none of them. RSS sync and Lidarr's own
+ * searches skip an unmonitored artist, but `trigger_search` does not
+ * (`MonitoredAlbumSpecification`). That holds under `None` too: the editor
+ * starts no refresh, and a refresh keeps the albums with files or added by
+ * hand, so an artist on it can still have monitored albums.
+ */
+function artistMonitoredEffect(service: string, label: string, monitored: boolean): string {
+    if (monitored) {
+        return `${service} grabs automatically for ${label}, for the albums that are monitored. The albums keep their own flags; set_monitoring with \`level: "album"\` changes those.`;
+    }
+    return `${service} stops grabbing automatically for ${label}: RSS sync and its own searches skip it. The albums keep their own flags, trigger_search can still grab the monitored ones, and files already on disk are untouched.`;
+}
 
 const findAdapter = (
     adapters: readonly ServiceAdapter[],
@@ -39,7 +89,7 @@ const findAdapter = (
     const adapter = resolveInstance(adapters, service, instance);
     if (!hasMediaUpdate(adapter) || !hasMediaAdd(adapter)) {
         throw new ServiceError('NotFound', service, `${service} cannot update media`, {
-            remedy: 'Only radarr (films) and sonarr (series) manage what a library item is set to.'
+            remedy: 'Only radarr (films), sonarr (series) and lidarr (artists) manage what a library item is set to.'
         });
     }
     return adapter;
@@ -194,9 +244,9 @@ export function registerUpdateMedia(
         name: 'update_media',
         title: 'Change what a library item is set to',
         description:
-            'Changes settings on an item already in Radarr or Sonarr (quality profile, root folder, monitoring, tags, Radarr\'s minimum availability, Sonarr\'s series type), or edits a Grimmory book\'s title, authors, series, series number and tags, with `lock_fields` or `unlock_fields`. The only way to change a Radarr item\'s monitoring. Takes `service` and `id`. Changing `root_folder` **moves the files on disk** unless `move_files: false`. `tags` replaces the whole set and an unknown tag is refused; stack_health at `detail: "full"` lists profiles, folders and tags. [[grimmory: A locked book field is refused unless the same call unlocks it, and Grimmory may write the change into the book file and rename it.]] Previews first; confirm to apply. Field reference: arr://docs/update_media.',
+            'Changes settings on an item already in Radarr[[lidarr: , Lidarr]] or Sonarr (quality profile, root folder, monitoring, tags, Radarr\'s minimum availability, Sonarr\'s series type[[lidarr: , Lidarr\'s metadata profile]]), or edits a Grimmory book\'s title, authors, series, series number and tags, with `lock_fields` or `unlock_fields`. The only way to change a Radarr item\'s monitoring. [[lidarr: On Lidarr, `id` is an artist, `monitor_new_items` stays with set_monitoring, and a new metadata profile applies at the artist\'s next refresh, which can remove albums.]] Takes `service` and `id`. Changing `root_folder` **moves the files on disk** unless `move_files: false`. `tags` replaces the whole set and an unknown tag is refused; stack_health at `detail: "full"` lists profiles, folders and tags. [[grimmory: A locked book field is refused unless the same call unlocks it, and Grimmory may write the change into the book file and rename it.]] Previews first; confirm to apply. Field reference: arr://docs/update_media.',
         inputSchema: z.object({
-            service: serviceOf(['radarr', 'sonarr', 'grimmory']).describe('radarr for a film, sonarr for a series, grimmory for a book.'),
+            service: serviceOf(['radarr', 'sonarr', 'lidarr', 'grimmory']).describe('radarr for a film, sonarr for a series, lidarr for an artist, grimmory for a book.'),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             id: z
                 .string()
@@ -207,7 +257,10 @@ export function registerUpdateMedia(
                 .string()
                 .optional()
                 .describe('Root folder path, or any distinctive part of it. Moves the files there unless move_files is false.'),
-            monitored: z.boolean().optional().describe('Monitor it, or stop. Works on Radarr as well as Sonarr.'),
+            monitored: z
+                .boolean()
+                .optional()
+                .describe('Monitor it, or stop. Works on Radarr, Sonarr and Lidarr, where it is the artist’s own flag and the albums keep theirs.'),
             minimum_availability: z
                 .enum(['announced', 'inCinemas', 'released'])
                 .optional()
@@ -216,6 +269,12 @@ export function registerUpdateMedia(
                 .enum(['standard', 'daily', 'anime'])
                 .optional()
                 .describe('Sonarr only: the numbering scheme.'),
+            metadata_profile: z
+                .string()
+                .optional()
+                .describe(
+                    'Lidarr only: metadata profile name or id to switch to, which decides the album types and release statuses the artist gets. It applies at the artist’s next refresh, which this does not start. A name that matches none is refused, listing the ones the instance has.'
+                ),
             tags: z
                 .array(z.string())
                 .optional()
@@ -265,7 +324,8 @@ export function registerUpdateMedia(
             series,
             series_number,
             lock_fields,
-            unlock_fields
+            unlock_fields,
+            metadata_profile
         }): Promise<WritePlan> {
             const books = bookLibrary(adapters, service, instance);
             if (books !== undefined) {
@@ -274,10 +334,11 @@ export function registerUpdateMedia(
                     root_folder !== undefined ||
                     monitored !== undefined ||
                     minimum_availability !== undefined ||
-                    series_type !== undefined
+                    series_type !== undefined ||
+                    metadata_profile !== undefined
                 ) {
-                    throw new ServiceError('NotFound', service, 'a book has no film or series settings', {
-                        remedy: 'Drop quality_profile, root_folder, monitored, minimum_availability and series_type. A book takes title, authors, series, series_number, tags, lock_fields and unlock_fields.'
+                    throw new ServiceError('NotFound', service, 'a book has no film, series or artist settings', {
+                        remedy: 'Drop quality_profile, root_folder, monitored, minimum_availability, series_type and metadata_profile. A book takes title, authors, series, series_number, tags, lock_fields and unlock_fields.'
                     });
                 }
                 return planBook(books, id, { title, authors, series, series_number, tags, lock_fields, unlock_fields });
@@ -291,10 +352,11 @@ export function registerUpdateMedia(
                 unlock_fields !== undefined
             ) {
                 throw new ServiceError('NotFound', service, 'title, authors, series, series_number and the field locks are Grimmory options', {
-                    remedy: 'Films and series are not edited by hand here. Drop them, or name a Grimmory book.'
+                    remedy: 'Films, series and artists are not edited by hand here. Drop them, or name a Grimmory book.'
                 });
             }
             const adapter = findAdapter(adapters, service, instance);
+            const lidarr = adapter.type === 'lidarr';
 
             if (
                 quality_profile === undefined &&
@@ -302,10 +364,11 @@ export function registerUpdateMedia(
                 monitored === undefined &&
                 minimum_availability === undefined &&
                 series_type === undefined &&
-                tags === undefined
+                tags === undefined &&
+                metadata_profile === undefined
             ) {
                 throw new Error(
-                    'Nothing to change. Name at least one of quality_profile, root_folder, monitored, tags, minimum_availability or series_type.'
+                    'Nothing to change. Name at least one of quality_profile, root_folder, monitored, tags, minimum_availability, series_type or metadata_profile.'
                 );
             }
 
@@ -313,22 +376,30 @@ export function registerUpdateMedia(
             // have the option — same rule as add_media.
             if (series_type !== undefined && adapter.type !== 'sonarr') {
                 throw new ServiceError('NotFound', service, 'series_type is a Sonarr option', {
-                    remedy: 'Films have no numbering scheme. Drop it.'
+                    remedy: lidarr ? 'An artist has no numbering scheme. Drop it.' : 'Films have no numbering scheme. Drop it.'
                 });
             }
             if (minimum_availability !== undefined && adapter.type !== 'radarr') {
                 throw new ServiceError('NotFound', service, 'minimum_availability is a Radarr option', {
-                    remedy: 'Sonarr grabs each episode as it airs. Use set_monitoring to choose which seasons.'
+                    remedy: lidarr
+                        ? 'Lidarr has no availability threshold. Use set_monitoring to choose which albums.'
+                        : 'Sonarr grabs each episode as it airs. Use set_monitoring to choose which seasons.'
+                });
+            }
+            if (metadata_profile !== undefined && !lidarr) {
+                throw new ServiceError('NotFound', service, 'metadata_profile is a Lidarr option', {
+                    remedy: 'Only an artist has a metadata profile. Use quality_profile for a film or series.'
                 });
             }
 
             // Only the lists this call actually needs: an update of monitoring
             // alone must not fail because the tag endpoint is down.
-            const [current, profiles, folders, knownTags] = await Promise.all([
+            const [current, profiles, folders, knownTags, metadataProfiles] = await Promise.all([
                 adapter.readForUpdate(id),
                 quality_profile === undefined ? Promise.resolve([]) : adapter.listQualityProfiles(),
                 root_folder === undefined ? Promise.resolve([]) : adapter.listRootFolders(),
-                tags === undefined ? Promise.resolve([]) : adapter.listTags()
+                tags === undefined ? Promise.resolve([]) : adapter.listTags(),
+                metadata_profile === undefined || !hasMetadataProfiles(adapter) ? Promise.resolve([]) : adapter.listMetadataProfiles()
             ]);
 
             const label = `${current.title}${current.year === undefined ? '' : ` (${current.year})`}`;
@@ -340,6 +411,17 @@ export function registerUpdateMedia(
                 root_folder === undefined
                     ? undefined
                     : chooseOne(folders, root_folder, FOLDER_MATCH, f => `${f.display} (${freeSpace(f)})`, 'root folder', service);
+            const metadataProfile =
+                metadata_profile === undefined
+                    ? undefined
+                    : chooseOne(
+                          metadataProfiles,
+                          metadata_profile,
+                          PROFILE_MATCH,
+                          p => `${p.display} (id ${p.id})`,
+                          'metadata profile',
+                          service
+                      );
             const resolvedTags =
                 tags === undefined
                     ? undefined
@@ -362,6 +444,16 @@ export function registerUpdateMedia(
                 changes.push('quality profile');
             }
 
+            if (metadataProfile !== undefined && metadataProfile.id !== current.metadataProfileId) {
+                const from =
+                    current.metadataProfileId === undefined
+                        ? 'its current profile'
+                        : (metadataProfiles.find(p => p.id === current.metadataProfileId)?.display ??
+                          `profile id ${current.metadataProfileId}`);
+                effects.push(metadataProfileEffect(from, metadataProfile, current.monitorNewItems));
+                changes.push('metadata profile');
+            }
+
             if (folder !== undefined) {
                 effects.push(
                     move_files
@@ -373,9 +465,11 @@ export function registerUpdateMedia(
 
             if (monitored !== undefined && monitored !== current.monitored) {
                 effects.push(
-                    monitored
-                        ? `${service} will search for anything missing from ${label}.`
-                        : `${service} will stop searching for ${label}. Files already on disk are untouched.`
+                    lidarr
+                        ? artistMonitoredEffect(service, label, monitored)
+                        : monitored
+                          ? `${service} will search for anything missing from ${label}.`
+                          : `${service} will stop searching for ${label}. Files already on disk are untouched.`
                 );
                 changes.push('monitoring');
             }
@@ -432,7 +526,8 @@ export function registerUpdateMedia(
                     ...(monitored === undefined ? {} : { monitored }),
                     ...(minimum_availability === undefined ? {} : { minimumAvailability: minimum_availability }),
                     ...(series_type === undefined ? {} : { seriesType: series_type }),
-                    ...(tagIds === undefined ? {} : { tagIds })
+                    ...(tagIds === undefined ? {} : { tagIds }),
+                    ...(metadataProfile === undefined ? {} : { metadataProfileId: metadataProfile.id })
                 }
             };
         },
@@ -456,6 +551,7 @@ export function registerUpdateMedia(
                 minimumAvailability?: string;
                 seriesType?: string;
                 tagIds?: number[];
+                metadataProfileId?: number;
             };
 
             // From the plan rather than re-resolved: re-running `chooseOne`
@@ -468,6 +564,7 @@ export function registerUpdateMedia(
                 ...(a.minimumAvailability === undefined ? {} : { minimumAvailability: a.minimumAvailability }),
                 ...(a.seriesType === undefined ? {} : { seriesType: a.seriesType }),
                 ...(a.tagIds === undefined ? {} : { tagIds: a.tagIds }),
+                ...(a.metadataProfileId === undefined ? {} : { metadataProfileId: a.metadataProfileId }),
                 moveFiles: a.moveFiles ?? false
             });
 

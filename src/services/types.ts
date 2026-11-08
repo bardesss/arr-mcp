@@ -1884,7 +1884,8 @@ export const hasMetadataProfiles = (a: ServiceAdapter): a is ServiceAdapter & Me
  * Changing something already in the library. Every field is optional and
  * **absent means leave it alone** — Radarr and Sonarr both replace the whole
  * resource on PUT, so the adapter merges into what the service currently
- * holds rather than posting these values on their own.
+ * holds rather than posting these values on their own. Lidarr's Artist Editor
+ * sets only the fields it is sent, so its adapter sends just these.
  */
 export type MediaUpdateOptions = {
     qualityProfileId?: number;
@@ -1893,6 +1894,8 @@ export type MediaUpdateOptions = {
     minimumAvailability?: string;
     seriesType?: string;
     tagIds?: number[];
+    /** Lidarr only: its second profile, beside the quality profile. */
+    metadataProfileId?: number;
     /** Whether the service moves the files to the new root folder. Read only
      *  when `rootFolderPath` is set. */
     moveFiles: boolean;
@@ -1909,6 +1912,10 @@ export type MediaUpdateState = {
     tagIds: number[];
     minimumAvailability?: string;
     seriesType?: string;
+    /** Lidarr only. */
+    metadataProfileId?: number;
+    /** Lidarr only: the artist's rule for albums a refresh adds. */
+    monitorNewItems?: ArtistMonitorNewItems;
 };
 
 export interface MediaUpdateCapable {

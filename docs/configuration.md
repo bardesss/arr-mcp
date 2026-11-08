@@ -304,8 +304,11 @@ by itself. Both levels are written with Lidarr's bulk endpoints, which queued no
 `lookup_media` returns Lidarr's artist lookup, and `add_media` adds an artist by
 its MusicBrainz id, with a quality profile, a metadata profile (the root
 folder's default when none is named), and Lidarr's own `monitor` values and
-`monitor_new_items`. The lookup and add fixtures were captured on a 3.1.6.5079
-test instance.
+`monitor_new_items`. `update_media` changes an artist's quality profile,
+metadata profile, root folder, monitoring and tags through Lidarr's Artist
+Editor, which starts no refresh, so a new metadata profile applies at the
+artist's next one. The lookup, add and editor fixtures were captured on a
+3.1.6.5079 test instance.
 
 `trigger_scan` rescans the library or refreshes one artist (the rescan after it
 still reads every root folder), renames an artist's files, and imports a

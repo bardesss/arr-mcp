@@ -320,6 +320,7 @@ describe('add_media on Lidarr', () => {
         const all = await said('all');
         expect(all).toContain('every album that brings is monitored (`all`). Lidarr then searches the released ones while the artist is monitored');
         expect(all).toContain('in Lidarr newer than 3.2.0.5144, only those released in the last 180 days; older ones wait for RSS sync or trigger_search');
+        expect(all).toContain("at its next disk scan when Lidarr's 'Rescan Artist Folder after Refresh' setting skips that rescan");
         expect(await said('none')).toContain('the albums that brings are not monitored (`none`).');
         expect(noAlbums).not.toContain('it is added with');
         expect(noAlbums).toContain('The None metadata profile gives the artist no albums, so nothing is searched.');

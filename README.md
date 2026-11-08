@@ -188,16 +188,17 @@ Forty tools, but you never name them — you ask, and the model picks:
 - At least one supported service, LAN-reachable: Radarr 4.0+, Sonarr 4.0+,
   Whisparr 2.x (V2 only, not Eros), Prowlarr 1.0+, Bazarr 1.4+, Jellyfin 10.9+, Plex Media Server (no minimum enforced; verified on 1.43),
   Seerr 1.0+, SABnzbd 3.0+, NZBGet 21.0+, Transmission 3.0+, qBittorrent 4.1+, Profilarr 2.2.0+, Cleanuparr 2.10.0+, Reclaimerr 0.6.0+, Dispatcharr 0.33.0+, Shelfmark 1.5.0+, Grimmory 3.5.0+
-- Lidarr 2.1.3+ for reading, monitoring, adding artists, its queue, its wanted list and calendar, release search, `diagnose`, `trigger_scan` and `stack_health`:
+- Lidarr 2.1.3+ for reading, monitoring, adding and changing artists, its queue, its wanted list and calendar, release search, `diagnose`, `trigger_scan` and `stack_health`:
   `get_library` lists its artists with their album count, monitoring and file
   state, `get_media_details` lists an artist's albums, and `set_monitoring`
   writes one album's flag or an artist's policy. `lookup_media` finds artists to
-  add and `add_media` adds one by its MusicBrainz id. Artists join to Jellyfin
-  and Plex on the MusicBrainz artist id. `get_queue`, `get_history` and
+  add, `add_media` adds one by its MusicBrainz id, and `update_media` changes
+  its profiles, root folder, monitoring and tags. Artists join to Jellyfin and
+  Plex on the MusicBrainz artist id. `get_queue`, `get_history` and
   `get_blocklist` include Lidarr, `remove_queue_item` and `clean_queue` take a
   Lidarr download, and `trigger_scan` rescans, renames and imports for it.
-  `stack_health` reports its disks, failing health checks and last library
-  scan, and `get_wanted` and `get_calendar` list its albums. `trigger_search`,
+  `stack_health` reports its disks, failing health checks and last library scan,
+  and `get_wanted` and `get_calendar` list its albums. `trigger_search`,
   `get_releases` and `grab_release` search its indexers for an artist or its
   albums.
 - Docker, or Node 24+ to run from source
