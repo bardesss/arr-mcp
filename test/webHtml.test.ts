@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { BEARER_CALLER, type AuditRow } from '../src/core/audit.ts';
 import type { DiskSpace } from '../src/services/types.ts';
 import { JS } from '../src/web/assets.ts';
@@ -347,5 +347,64 @@ describe('the client script', () => {
     // the line break that ends the string it lives in.
     it('emits its newline separator as an escape, not as a line break', () => {
         expect(JS).toContain(String.raw`'\n' + err.remedy`);
+    });
+});
+
+/**
+ * The reload a running scan asks for, run against a stand-in document: just
+ * enough of one for the script's top level, with timers run by hand.
+ */
+describe('the scan reload', () => {
+    const start = (open: { dialog?: boolean; details?: boolean } = {}) => {
+        const listeners: Record<string, ((e: unknown) => void)[]> = {};
+        const timers: { fn: () => void; ms: number }[] = [];
+        const paused = { hidden: true };
+        const state = { dialog: open.dialog === true, details: open.details === true };
+        const document = {
+            addEventListener: (type: string, fn: (e: unknown) => void) => (listeners[type] ??= []).push(fn),
+            getElementById: () => null,
+            querySelector: (sel: string) => {
+                if (sel === '[data-reload]') return { dataset: { reload: '2' } };
+                if (sel === '[data-paused]') return paused;
+                if (sel === 'dialog[open], details[open]') return state.dialog || state.details ? {} : null;
+                return null;
+            }
+        };
+        const location = { reload: vi.fn() };
+        const setTimeout = (fn: () => void, ms: number) => timers.push({ fn, ms });
+        new Function('document', 'location', 'setTimeout', JS)(document, location, setTimeout);
+        const tick = () => timers.shift()?.fn();
+        const fire = (type: string) => (listeners[type] ?? []).forEach(fn => fn({ target: {} }));
+        return { location, timers, tick, fire, paused, state };
+    };
+
+    it('reloads after about two seconds when nothing is open or edited', () => {
+        const page = start();
+        expect(page.timers[0]?.ms).toBe(2000);
+        page.tick();
+        expect(page.location.reload).toHaveBeenCalledTimes(1);
+    });
+
+    it('waits while a dialog or a card is open, says so, and reloads once it closes', () => {
+        const page = start({ dialog: true });
+        page.tick();
+        expect(page.location.reload).not.toHaveBeenCalled();
+        expect(page.paused.hidden).toBe(false);
+        page.state.dialog = false;
+        page.state.details = true;
+        page.tick();
+        expect(page.location.reload).not.toHaveBeenCalled();
+        page.state.details = false;
+        page.tick();
+        expect(page.location.reload).toHaveBeenCalledTimes(1);
+    });
+
+    it('never reloads once a field has been edited', () => {
+        const page = start();
+        page.fire('input');
+        page.tick();
+        page.tick();
+        expect(page.location.reload).not.toHaveBeenCalled();
+        expect(page.paused.hidden).toBe(false);
     });
 });

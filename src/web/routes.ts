@@ -9,6 +9,7 @@ import { ConfigUnloadableError, saveConfig } from '../config/save.ts';
 import { OAuthSchema, ServiceIdSchema, ThemeSchema, type Config, type OAuthConfig, type ServiceId, type Theme } from '../config/schema.ts';
 import type { WriteAudit } from '../core/audit.ts';
 import { unfence } from '../core/fence.ts';
+import { resolvePrivate } from '../discovery/addresses.ts';
 import type { Discovery, RunState } from '../discovery/run.ts';
 import { logger } from '../core/logger.ts';
 import { LoginThrottle } from '../core/loginThrottle.ts';
@@ -41,7 +42,7 @@ import {
     type InstanceFields
 } from '../config/mutate.ts';
 import type { ExpiryChoice, TokenTier } from '../core/mcpTokens.ts';
-import { configPage, configTabForPost, configTabNamed, type OAuthDraft } from './configPage.ts';
+import { configPage, configTabForPost, configTabNamed, offerableTypes, type OAuthDraft } from './configPage.ts';
 import { probeJwks } from './jwksProbe.ts';
 import { apiEndpoint, mcpEndpoint, sameOrigin } from './origin.ts';
 import type { WebhookEvents } from '../core/webhookEvents.ts';
@@ -66,7 +67,7 @@ const EVENT_ROWS_SHOWN = 300;
 const MIN_PASSWORD = 12;
 
 /** What the config page needs of a discovery run; tests hand in a stub. */
-export type DiscoveryService = Pick<Discovery, 'quick' | 'startSweep' | 'current'>;
+export type DiscoveryService = Pick<Discovery, 'quick' | 'startSweep' | 'view'>;
 
 export type WebDeps = {
     runtime: Runtime;
@@ -410,12 +411,34 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         return found;
     };
 
+    /**
+     * A running scan reloads the services tab every two seconds, and asking
+     * for users can wait up to `USER_LOOKUP_MS` each time. So a plain view
+     * during a run asks once and reuses the answer until the run ends.
+     */
+    let usersForRun: { run: string; config: Config; users: Promise<Record<string, readonly string[]>> } | undefined;
+    const usersDuring = (run: RunState | undefined): Promise<Record<string, readonly string[]>> => {
+        if (run?.running !== true) {
+            usersForRun = undefined;
+            return usersByInstance();
+        }
+        // A save during the run changes the config, and with it whom to ask.
+        if (usersForRun?.run !== run.id || usersForRun.config !== runtime.config) {
+            usersForRun = { run: run.id, config: runtime.config, users: usersByInstance() };
+        }
+        return usersForRun.users;
+    };
+
     app.get('/ui/config', async c => {
         const session = guard(c);
         if (session === undefined) return c.redirect(entry(), 302);
         c.header('cache-control', 'no-store');
         const tab = configTabNamed(c.req.query('tab'));
-        const prefill = tab === 'services' ? addPrefillFrom(c.req.query('add_type'), c.req.query('add_url')) : undefined;
+        const prefill =
+            tab === 'services' ? await addPrefillFrom(c.req.query('add_type'), c.req.query('add_url'), runtime.config) : undefined;
+        // Matched against the config as it is now, so a service added from a
+        // row since the run started is not offered again.
+        const run = tab === 'services' ? await discovery.view(runtime.config) : undefined;
         return c.html(
             configPage({
                 tab,
@@ -424,9 +447,9 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                 csrf: runtime.sessions.csrfFor(session),
                 // Only the service cards suggest users, and asking waits on every
                 // user-aware service. The other tabs have no reason to.
-                users: tab === 'services' ? await usersByInstance() : {},
+                users: tab !== 'services' ? {} : prefill === undefined ? await usersDuring(run) : await usersByInstance(),
                 plaintextOnDisk: runtime.plaintextOnDisk,
-                ...(tab === 'services' ? discoveryOpts(discovery.current()) : {}),
+                ...discoveryOpts(run),
                 ...(prefill === undefined ? {} : { addPrefill: prefill, openAdd: true })
             })
         );
@@ -447,7 +470,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
             c.header('cache-control', 'no-store');
 
             const form = await c.req.parseBody();
-            const render = (message: { kind: 'ok' | 'err'; text: string }, status: 400 | 403) =>
+            const render = async (message: { kind: 'ok' | 'err'; text: string }, status: 400 | 403) =>
                 c.html(
                     configPage({
                         tab: 'services',
@@ -455,7 +478,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                         config: runtime.config,
                         csrf: runtime.sessions.csrfFor(session),
                         plaintextOnDisk: runtime.plaintextOnDisk,
-                        ...discoveryOpts(discovery.current()),
+                        ...discoveryOpts(await discovery.view(runtime.config)),
                         message
                     }),
                     status
@@ -960,19 +983,28 @@ const NO_STORE = { 'cache-control': 'no-store' };
 const discoveryOpts = (run: RunState | undefined): { discovery?: RunState } => (run === undefined ? {} : { discovery: run });
 
 /**
- * The Add link's type and address, or nothing. Only a known service and an
- * http(s) address are honoured; the rest of the page renders as if the link
- * had not been followed. No credential is ever prefilled.
+ * The Add link's type and address, or nothing. Only a type the add dialog
+ * offers and an http(s) address on a private host are honoured; the rest of
+ * the page renders as if the link had not been followed. No credential is
+ * ever prefilled.
  */
-export function addPrefillFrom(type: string | undefined, url: string | undefined): { type: ServiceId; url: string } | undefined {
+export async function addPrefillFrom(
+    type: string | undefined,
+    url: string | undefined,
+    config: Config,
+    lookup?: (host: string) => Promise<string[]>
+): Promise<{ type: ServiceId; url: string } | undefined> {
     const id = ServiceIdSchema.safeParse(type);
-    if (!id.success || url === undefined) return undefined;
+    if (!id.success || url === undefined || !offerableTypes(config).includes(id.data)) return undefined;
+    let parsed: URL;
     try {
-        const { protocol } = new URL(url);
-        return protocol === 'http:' || protocol === 'https:' ? { type: id.data, url } : undefined;
+        parsed = new URL(url);
     } catch {
         return undefined;
     }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return undefined;
+    const host = parsed.hostname.replace(/^\[|\]$/g, '');
+    return (await resolvePrivate(host, lookup)).ok ? { type: id.data, url } : undefined;
 }
 
 const str = (value: unknown): string => (typeof value === 'string' ? value : '');

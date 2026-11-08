@@ -59,6 +59,17 @@ const THEMES: readonly { key: Theme; label: string }[] = [
  *  and reads as arbitrary to anyone looking for their service in the list. */
 export const SERVICE_IDS_ALPHABETICAL: readonly ServiceId[] = [...SERVICE_IDS].sort();
 
+/**
+ * The types the add dialog offers. A service that cannot have a second
+ * instance and already has one is not a choice — offering it only to answer
+ * "already configured" wastes the click. The multi-instance types are always
+ * here, so this list is never empty.
+ */
+export function offerableTypes(config: Config): ServiceId[] {
+    const configured = new Set(listInstances(config).map(i => i.type));
+    return SERVICE_IDS_ALPHABETICAL.filter(id => MULTI_INSTANCE.includes(id) || !configured.has(id));
+}
+
 /** Which extra fields each service actually has, so a card matches the schema
  *  rather than showing eight identical boxes. */
 const MULTI_USER: ReadonlySet<string> = new Set(['jellyfin', 'plex', 'seerr']);
@@ -505,14 +516,7 @@ function addDialog(
 ): SafeHtml {
     const instances = listInstances(config);
     const configured = new Set(instances.map(i => i.type));
-
-    /** A service that cannot have a second instance and already has one is not
-     *  a choice — offering it only to answer "already configured" wastes the
-     *  click. The multi-instance types are always here, so this list is
-     *  never empty. */
-    const offerable = SERVICE_IDS_ALPHABETICAL.filter(
-        id => MULTI_INSTANCE.includes(id) || !configured.has(id)
-    );
+    const offerable = offerableTypes(config);
 
     const keyed = offerable.filter(id => !NO_API_KEY.has(id));
     const needsName = MULTI_INSTANCE.filter(t => configured.has(t));
@@ -855,23 +859,36 @@ function discoveryStatus(r: ResultRow): SafeHtml {
  * address filled in, and the credential stays empty.
  */
 function discoveryPanel(run: RunState, keys: SafeHtml, refreshing: boolean): SafeHtml {
-    const what = run.phase === 'sweep' ? `the range ${run.range ?? ''}` : 'this host and the usual container names';
-    return html`<div class="panel" id="discovery">
+    // A quick search tries one host and a handful of names, so a counter says
+    // nothing; it names its sources, and the Skipped list explains the rest.
+    const what =
+        run.phase === 'sweep'
+            ? html`the range ${run.range ?? ''}: ${run.tried} of ${run.total} addresses tried`
+            : html`${run.hostTried === undefined
+                  ? raw('')
+                  : html`this host (${run.hostAddress === undefined || run.hostAddress === run.hostTried
+                        ? run.hostTried
+                        : `${run.hostTried}, ${run.hostAddress}`}) and `}container names: ${run.containersResolved ?? 0} resolved`;
+    const reload = html`<a href="/ui/config?tab=services">Reload</a>`;
+    return html`<div class="panel" id="discovery"${refreshing ? raw(` data-reload="${DISCOVERY_REFRESH_SECONDS}"`) : raw('')}>
         <h3 style="margin:0 0 .75rem">Found services</h3>
         ${run.running
             ? html`<p class="note">
-                  Looking at ${what}: ${run.tried} of ${run.total} addresses tried.
+                  Looking at ${what}.
                   ${refreshing
-                      ? 'This page reloads until it is done.'
-                      : html`This page does not reload while a form is open. <a href="/ui/config?tab=services">Reload</a>`}
+                      ? html`This page reloads until it is done.
+                            <span data-paused hidden>It has stopped reloading while you have something open or typed in. ${reload}</span>`
+                      : html`This view does not reload by itself. ${reload}`}
               </p>`
-            : html`<p class="note">Looked at ${what}. ${run.tried} of ${run.total} addresses tried.</p>`}
-        ${run.rows.length === 0
-            ? run.running
-                ? raw('')
-                : html`<p class="note">
-                      Nothing found. Add a service by hand with the button above, or scan a range below.
-                  </p>`
+            : html`<p class="note">Looked at ${what}.</p>`}
+        ${run.failed === true
+            ? html`<p class="note">The search failed; the logs page has the error.</p>`
+            : run.rows.length === 0
+              ? run.running
+                  ? raw('')
+                  : html`<p class="note">
+                        Nothing found. Add a service by hand with the button above, or scan a range below.
+                    </p>`
             : html`<table class="stacked">
                   <thead><tr><th>Service</th><th>Address</th><th>Version</th><th></th></tr></thead>
                   <tbody>

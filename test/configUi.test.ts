@@ -3063,8 +3063,10 @@ describe('finding services', () => {
         state = undefined;
         quick.mockClear();
         startSweep.mockClear();
-        app = buildApp({ runtime, audit, logs, discovery: { quick, startSweep, current: () => state } });
+        app = buildApp({ runtime, audit, logs, discovery: stub() });
     });
+
+    const stub = () => ({ quick, startSweep, view: async () => state });
 
     const servicesPage = async (query = ''): Promise<string> =>
         (await call(`/ui/config?tab=services${query}`)).text();
@@ -3194,12 +3196,15 @@ describe('finding services', () => {
         await signIn();
         state = baseRun({ phase: 'sweep', running: true, range: '192.168.1.0/24', tried: 142, total: 256, rows: [row({})] });
         const running = await servicesPage();
-        expect(running).toContain('<meta http-equiv="refresh"');
+        expect(running).toContain('<noscript><meta http-equiv="refresh" content="2"></noscript>');
+        expect(running).toContain('data-reload="2"');
         expect(running).toContain('142 of 256 addresses tried');
         expect(running).toContain('5.3.6');
 
         state = { ...state, running: false, tried: 256 };
-        expect(await servicesPage()).not.toContain('<meta http-equiv="refresh"');
+        const done = await servicesPage();
+        expect(done).not.toContain('<meta http-equiv="refresh"');
+        expect(done).not.toContain('data-reload=');
     });
 
     it('does not reload a page whose add dialog is open, but still shows progress and a link', async () => {
@@ -3208,8 +3213,10 @@ describe('finding services', () => {
         const page = await servicesPage('&add_type=radarr&add_url=http%3A%2F%2F192.168.1.10%3A7878');
         expect(page).not.toContain('<meta http-equiv="refresh"');
         expect(page).toContain('<dialog id="add-service" open');
+        expect(page).not.toContain('data-reload=');
         expect(page).toContain('142 of 256 addresses tried');
         expect(page).toContain('<a href="/ui/config?tab=services">Reload</a>');
+        expect(page).not.toContain('while a form is open');
 
         expect(await servicesPage()).toContain('<meta http-equiv="refresh"');
     });
@@ -3257,6 +3264,96 @@ describe('finding services', () => {
         const page = await servicesPage();
         expect(page).toContain('&lt;script&gt;');
         expect(page).not.toContain('<script>alert(1)');
+    });
+
+    it('names what a quick search tried instead of counting addresses', async () => {
+        await signIn();
+        state = baseRun({ hostTried: '192.168.1.10', hostAddress: '192.168.1.10', containersResolved: 2, tried: 1, total: 1 });
+        const page = await servicesPage();
+        expect(page).not.toContain('addresses tried');
+        expect(page).toContain('this host (192.168.1.10)');
+        expect(page).toContain('container names: 2 resolved');
+
+        state = baseRun({ containersResolved: 0, tried: 0, total: 0, skipped: [{ what: 'localhost', reason: 'not a private address' }] });
+        const skipped = await servicesPage();
+        expect(skipped).not.toContain('this host (');
+        expect(skipped).toContain('container names: 0 resolved');
+        expect(skipped).not.toContain('0 of 0');
+    });
+
+    it('says a quick search failed rather than that it found nothing', async () => {
+        await signIn();
+        state = baseRun({ failed: true, containersResolved: 0 });
+        const page = await servicesPage();
+        expect(page).toContain('The search failed; the logs page has the error.');
+        expect(page).not.toContain('Nothing found');
+    });
+
+    it('ignores a prefill of a type the add dialog does not offer', async () => {
+        await seed('  whisparr:\n    url: http://192.0.2.10:6969\n    api_key: k\n');
+        app = buildApp({ runtime, audit, logs, discovery: stub() });
+        await signIn();
+        const page = await servicesPage('&add_type=whisparr&add_url=http%3A%2F%2F192.168.1.10%3A6969');
+        expect(page).not.toContain('<dialog id="add-service" open');
+        expect(page).not.toContain('192.168.1.10:6969');
+    });
+
+    it('ignores a prefill whose host is not a private address', async () => {
+        await signIn();
+        const page = await servicesPage('&add_type=radarr&add_url=http%3A%2F%2F8.8.8.8%3A7878');
+        expect(page).not.toContain('<dialog id="add-service" open');
+        expect(page).not.toContain('8.8.8.8');
+    });
+
+    it('marks a found service as already added once it is added, with no Add link', async () => {
+        const { Discovery } = await import('../src/discovery/run.ts');
+        const discovery = new Discovery({
+            catalog: [{ type: 'radarr', port: 7878, containerNames: [], path: '/', identify: () => ({ version: '5.3.6' }) }],
+            lookup: async () => {
+                throw new Error('ENOTFOUND');
+            },
+            probe: async (host, entries, source) => entries.map(e => ({ type: e.type, url: `http://${host}:${e.port}`, version: '5.3.6', source }))
+        });
+        app = buildApp({ runtime, audit, logs, discovery });
+        await signIn();
+        const post = form({ csrf: await csrfFrom() });
+        await call('/ui/config/discover', { ...post, headers: { ...(post.headers as Record<string, string>), host: '192.168.1.10:6060' } });
+        expect(await servicesPage()).toContain('add_type=radarr');
+
+        const added = await call(
+            '/ui/config/add',
+            form({ csrf: await csrfFrom(), type: 'radarr', url: 'http://192.168.1.10:7878', api_key: 'k' })
+        );
+        expect(added.status).toBe(200);
+
+        const page = await servicesPage();
+        expect(page).toContain('already added');
+        expect(page).not.toContain('add_type=radarr');
+    });
+
+    it('asks a user-aware service for its users once per run while a sweep reloads the page', async () => {
+        let asked = 0;
+        const realFetch = globalThis.fetch;
+        globalThis.fetch = (async (input: string | URL | Request) => {
+            if (String(input).includes('/Users')) {
+                asked += 1;
+                return new Response(JSON.stringify([{ Id: 'id-0', Name: 'bartus' }]), { headers: { 'content-type': 'application/json' } });
+            }
+            return new Response('{}', { headers: { 'content-type': 'application/json' } });
+        }) as typeof fetch;
+        try {
+            await seed('  jellyfin:\n    url: http://192.0.2.10:8096\n    api_key: k\n');
+            app = buildApp({ runtime, audit, logs, discovery: stub() });
+            await signIn();
+            state = baseRun({ phase: 'sweep', running: true, range: '192.168.1.0/24', tried: 10, total: 256 });
+            const first = await servicesPage();
+            await servicesPage();
+            await servicesPage();
+            expect(asked).toBe(1);
+            expect(first).toContain('bartus');
+        } finally {
+            globalThis.fetch = realFetch;
+        }
     });
 
     it('logs who started a scan', async () => {
