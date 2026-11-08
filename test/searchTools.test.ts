@@ -698,7 +698,7 @@ describe('get_media_details', () => {
     it('does not hedge a title miss on the secondary media server, which never enters the join', async () => {
         const fake = (degraded: string[]) =>
             ({
-                load: async () => ({ index: { search: () => [] }, degraded, counts: {} }),
+                load: async () => ({ index: { search: () => [], searchRanked: () => [] }, degraded, counts: {} }),
                 secondaryMediaServerId: 'plex'
             }) as unknown as LibraryLoader;
 
@@ -719,7 +719,7 @@ describe('get_media_details', () => {
     it('returns media_servers on a merged item resolved by title', async () => {
         const withServers = { ...RESOLVED, media_servers: { jellyfin: { present: true, itemId: 'j1' }, plex: { present: false } } };
         const fake = {
-            load: async () => ({ index: { search: () => [withServers] }, degraded: [], counts: {} }),
+            load: async () => ({ index: { search: () => [withServers], searchRanked: () => [{ item: withServers, rank: 0 }] }, degraded: [], counts: {} }),
             secondaryMediaServerId: 'plex'
         } as unknown as LibraryLoader;
         const result = await resolveMediaDetails([], fake, { ...query, query: 'matrix' });

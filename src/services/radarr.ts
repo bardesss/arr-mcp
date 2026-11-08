@@ -1,3 +1,4 @@
+import { aliasesOf } from '../core/titleMatch.ts';
 import { instanceId } from '../config/instances.ts';
 import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import { apiKeyHeader } from '../core/auth.ts';
@@ -94,6 +95,9 @@ import {
 type RawMovie = {
     id?: number;
     title?: string;
+    /** In the film's own language; `title` follows Radarr's metadata language. */
+    originalTitle?: string | null;
+    alternateTitles?: { title?: string | null }[] | null;
     year?: number;
     overview?: string;
     monitored?: boolean;
@@ -432,6 +436,9 @@ export class RadarrAdapter
         return movies.map(m => ({
             kind: 'movie' as const,
             title: fenceText(m.title ?? '', { service: this.id, field: 'title' }),
+            ...((aliases => (aliases.length === 0 ? {} : { aliases }))(
+                aliasesOf(m.title, [m.originalTitle, ...(m.alternateTitles ?? []).map(a => a.title)])
+            )),
             ...(m.year === undefined ? {} : { year: m.year }),
             ...(m.genres === undefined
                 ? {}

@@ -1,3 +1,4 @@
+import { aliasesOf } from '../core/titleMatch.ts';
 import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import type { EpisodeRecord, MovieRecord } from '../core/episodeMismatch.ts';
 import type { IndexInput } from '../core/resolver.ts';
@@ -41,6 +42,8 @@ export type RawPlexItem = {
     key?: string;
     type?: string;
     title?: string;
+    /** The title in the original language, when the agent knows one. */
+    originalTitle?: string;
     grandparentTitle?: string;
     parentIndex?: number;
     index?: number;
@@ -547,6 +550,7 @@ export class PlexAdapter
         return {
             kind,
             title: this.#fence('title', item.title ?? ''),
+            ...((aliases => (aliases.length === 0 ? {} : { aliases }))(aliasesOf(item.title, [item.originalTitle]))),
             ...(item.year === undefined ? {} : { year: item.year }),
             ...(item.Genre === undefined
                 ? {}

@@ -1,3 +1,4 @@
+import { aliasesOf } from '../core/titleMatch.ts';
 import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import type { EpisodeRecord, MovieRecord } from '../core/episodeMismatch.ts';
 import type { IndexInput } from '../core/resolver.ts';
@@ -125,6 +126,8 @@ const HISTORY_TYPES = new Set(['Episode', 'Movie']);
 type RawItemDetail = {
     Id?: string;
     Name?: string;
+    /** Only with `Fields=OriginalTitle`. */
+    OriginalTitle?: string | null;
     ProductionYear?: number;
     Overview?: string;
     Path?: string;
@@ -553,7 +556,7 @@ export class JellyfinAdapter
     async listUserLibrary(user: ServiceUser): Promise<IndexInput[]> {
         const page = await this.#http.get<{ Items?: RawItemDetail[] }>(
             `/Items?userId=${encodeURIComponent(user.id)}&Recursive=true&IncludeItemTypes=Movie,Series` +
-                '&Fields=ProviderIds,Genres&EnableUserData=true'
+                '&Fields=ProviderIds,Genres,OriginalTitle&EnableUserData=true'
         );
 
         return (page.Items ?? []).map(i => {
@@ -563,6 +566,7 @@ export class JellyfinAdapter
             return {
                 kind: i.Type === 'Series' ? ('series' as const) : ('movie' as const),
                 title: fenceText(i.Name ?? '', { service: this.id, field: 'Name' }),
+                ...((aliases => (aliases.length === 0 ? {} : { aliases }))(aliasesOf(i.Name, [i.OriginalTitle]))),
                 ...(i.ProductionYear === undefined ? {} : { year: i.ProductionYear }),
                 ...(i.Genres === undefined
                     ? {}

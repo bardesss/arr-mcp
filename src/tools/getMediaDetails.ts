@@ -4,7 +4,7 @@ import * as z from 'zod/v4';
 import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { servicesOnly } from '../core/gather.ts';
-import { filmOrSeriesMatch, type FilmOrSeries } from '../core/resolver.ts';
+import { filmOrSeriesMatch, isFilmOrSeries, type FilmOrSeries } from '../core/resolver.ts';
 import { DetailSchema, LimitSchema, READ_ONLY, toolInput, type DetailLevel } from '../core/shape.ts';
 import { logger } from '../core/logger.ts';
 import { enrichWithImdb } from '../metadata/enrich.ts';
@@ -87,11 +87,42 @@ export type MediaDetailsQuery = {
  * one specific item either produced that item or did not, and an empty success
  * would read as "the item does not exist".
  */
+/** Another film or series the title matched exactly as well as the answer did. */
+export type MatchCandidate = Pick<FilmOrSeries, 'kind' | 'title' | 'year' | 'ids'> & {
+    acquisition?: { service: string; id?: string };
+};
+
 export type ResolvedMediaDetails = FilmOrSeries & {
     episodes?: EpisodeSummary[];
     episodeCount?: number;
     episodesTruncated?: boolean;
+    /**
+     * Set when other films or series matched the title as well as this one
+     * did: the same tier of exact, prefix or substring, on any of their names.
+     * The record is still the best guess; `candidates` are the others, so a
+     * caller can name one by `service` and `id` instead (#517).
+     */
+    ambiguous?: true;
+    candidates?: MatchCandidate[];
 };
+
+/** Enough to tell the candidates apart and to ask for one by id. */
+const MAX_CANDIDATES = 5;
+
+const toCandidate = (item: FilmOrSeries): MatchCandidate => ({
+    kind: item.kind,
+    title: item.title,
+    ...(item.year === undefined ? {} : { year: item.year }),
+    ids: item.ids,
+    ...(item.acquisition === undefined
+        ? {}
+        : {
+              acquisition: {
+                  service: item.acquisition.service,
+                  ...(item.acquisition.id === undefined ? {} : { id: item.acquisition.id })
+              }
+          })
+});
 
 export async function buildResolvedMediaDetails(
     loader: LibraryLoader,
@@ -101,9 +132,13 @@ export async function buildResolvedMediaDetails(
     opts?: { adapters: readonly ServiceAdapter[]; detail: DetailLevel; limit: number }
 ): Promise<ResolvedMediaDetails> {
     const { index, degraded } = await loader.load();
-    const best = filmOrSeriesMatch(index.search(query), query);
+    const ranked = index.searchRanked(query);
+    const found = filmOrSeriesMatch(
+        ranked.map(h => h.item),
+        query
+    );
 
-    if (best === undefined) {
+    if (found === undefined) {
         // `diagnose` (via its own `resolve` step) and `get_library` both hedge
         // this exact claim across a degraded load; this is the third consumer
         // of the same `LibraryLoader` snapshot, and answering confidently
@@ -129,6 +164,18 @@ export async function buildResolvedMediaDetails(
             `Nothing in your library matches "${query}".${hedge} Try search_media, which also looks at what you do not have yet.`
         );
     }
+
+    // Only ties count: a title one item matches exactly and another merely
+    // contains ("Runner" against "Cyberpunk: Edgerunners") has a clear answer.
+    const bestRank = ranked.find(h => h.item === found)?.rank;
+    const others = ranked
+        .filter(h => h.item !== found && h.rank === bestRank)
+        .map(h => h.item)
+        .filter(isFilmOrSeries);
+    const best: ResolvedMediaDetails =
+        others.length === 0
+            ? found
+            : { ...found, ambiguous: true, candidates: others.slice(0, MAX_CANDIDATES).map(toCandidate) };
 
     if (opts === undefined || opts.detail !== 'full' || best.kind !== 'series') return best;
 
@@ -230,7 +277,13 @@ export function registerGetMediaDetails(
                 title: z.string()
             }),
             inputSchema: toolInput({
-                query: z.string().min(1).optional().describe('A title. Resolved through the library index.'),
+                query: z
+                    .string()
+                    .min(1)
+                    .optional()
+                    .describe(
+                        'A title, matched against every title the services know (original and alternate titles too). When other items match equally well, the answer carries `ambiguous: true` and their `candidates`.'
+                    ),
                 service: ServiceIdSchema.optional().describe('With `id`: one service’s own view.'),
                 instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
                 id: z.string().min(1).optional().describe("The item's id within that service."),
