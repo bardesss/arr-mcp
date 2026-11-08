@@ -129,7 +129,9 @@ already permits. See [`auth.oauth`](docs/configuration.md#authoauth). Everything
 the UI does is still just `config.yaml`, and editing that by hand remains
 supported. Clients that read the
 [MCP Registry](https://registry.modelcontextprotocol.io) find it there as
-`io.github.bardesss/arr-mcp`.
+`io.github.bardesss/arr-mcp`. It is also listed on Glama:
+
+[![arr-mcp MCP server – quality and maintenance score on Glama](https://glama.ai/mcp/servers/bardesss/arr-mcp/badges/card.svg)](https://glama.ai/mcp/servers/bardesss/arr-mcp)
 
 A client that launches its servers as child processes can run arr-mcp
 [over stdio](docs/configuration.md#over-stdio) instead, with `--stdio`. That
