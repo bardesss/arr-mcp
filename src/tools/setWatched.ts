@@ -3,6 +3,8 @@ import * as z from 'zod/v4';
 import { ServiceError } from '../core/errors.ts';
 import type { IdentityResolver } from '../core/identity.ts';
 import { hasBookReadStatus, hasWatchState, type BookReadStatusCapable, type ServiceAdapter, type WatchStateCapable, type WatchTarget } from '../services/types.ts';
+import { jellyfinIdByTitle } from './byTitle.ts';
+import type { LibraryLoader } from './library.ts';
 import { withBoth } from './mediaServers.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 
@@ -107,18 +109,39 @@ export function registerSetWatched(
     context: WriteContext,
     adapters: readonly ServiceAdapter[],
     identity: IdentityResolver | undefined,
-    mediaServerIds?: [string, string]
+    mediaServerIds?: [string, string],
+    /** Resolves `title`. Absent in tests that only ever pass an id. */
+    loader?: LibraryLoader
 ): void {
+    // One of the two, and a title is turned into the Jellyfin id the rest
+    // works with. Both preview and confirm run this, and the confirm token is
+    // bound to the resolved id, so a title that resolves differently between
+    // the two is refused rather than written.
+    const itemIdOf = async (item_id: string | undefined, title: string | undefined): Promise<string> => {
+        if ((item_id === undefined) === (title === undefined)) {
+            throw new Error('Pass either `item_id` or `title`, not both.');
+        }
+        if (item_id !== undefined) return item_id;
+        if (loader === undefined) throw new Error('`title` cannot be resolved here; pass `item_id`.');
+        return jellyfinIdByTitle(adapters, loader, title as string);
+    };
+
     registerWriteTool(server, context, {
         name: 'set_watched',
         title: 'Mark watched or unwatched',
         description:
-            'Marks a film, series, season or episode watched or unwatched in Jellyfin. `item_id` is the Jellyfin id: `playback.itemId` from get_library or get_media_details, or `itemId` from get_playback. A Radarr or Sonarr id is refused. A series id with `season` marks one season. [[grimmory: A Grimmory book is `grimmory:<book id>` (READ is watched; marking sets its finish date to now).]] Safe tier, but unmarking and re-marking loses the original play date and resume position. A `user` other than the default needs services.jellyfin.allow_other_users. Previews first; confirm to apply. Field reference: arr://docs/set_watched.' +
+            'Marks a film, series, season or episode watched or unwatched in Jellyfin. Give a `title`, or `item_id`, the Jellyfin id: `playback.itemId` from get_library or get_media_details, or `itemId` from get_playback. A Radarr or Sonarr id is refused. A series id with `season` marks one season. [[grimmory: A Grimmory book is `grimmory:<book id>` (READ is watched; marking sets its finish date to now).]] Safe tier, but unmarking and re-marking loses the original play date and resume position. A `user` other than the default needs services.jellyfin.allow_other_users. Previews first; confirm to apply. Field reference: arr://docs/set_watched.' +
             withBoth(mediaServerIds, 'When Plex is the primary media server, take it from `media_servers.jellyfin.itemId` instead: `playback.itemId` is then a Plex id.'),
         inputSchema: z.object({
+            title: z
+                .string()
+                .min(1)
+                .optional()
+                .describe('A film or series title, in place of `item_id`. Resolved as get_media_details does; a title two items match equally is refused with both ids.'),
             item_id: z
                 .string()
                 .min(1)
+                .optional()
                 .describe(
                     'The Jellyfin item id — 32 hex characters. `playback.itemId` on a get_library or get_media_details record, or the `itemId` get_playback reports.' +
                         withBoth(mediaServerIds, 'Or `media_servers.jellyfin.itemId` when Plex is the primary media server.') +
@@ -137,11 +160,12 @@ export function registerSetWatched(
                     'Whose watch state to change. Defaults to services.jellyfin.default_user; naming anyone else needs services.jellyfin.allow_other_users.'
                 )
         }),
-        service: ({ item_id }) => (isBookId(item_id) ? (adapters.find(hasBookReadStatus)?.id ?? 'grimmory') : 'jellyfin'),
+        service: ({ item_id }) => (item_id !== undefined && isBookId(item_id) ? (adapters.find(hasBookReadStatus)?.id ?? 'grimmory') : 'jellyfin'),
         operation: 'set_watched',
         tier: 'safe',
 
-        async plan({ item_id, season, watched, user }): Promise<WritePlan> {
+        async plan({ item_id: given, title, season, watched, user }): Promise<WritePlan> {
+            const item_id = await itemIdOf(given, title);
             if (isBookId(item_id)) {
                 refuseBookExtras({ user, season });
                 const id = bookId(item_id);
@@ -215,7 +239,8 @@ export function registerSetWatched(
             };
         },
 
-        async apply(_plan, { item_id, season, watched, user }) {
+        async apply(_plan, { item_id: given, title, season, watched, user }) {
+            const item_id = await itemIdOf(given, title);
             if (isBookId(item_id)) {
                 refuseBookExtras({ user, season });
                 const id = bookId(item_id);

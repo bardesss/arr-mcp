@@ -28,7 +28,7 @@ off until you turn them on — see [writes](writes.md).
 | `trigger_scan` | Refresh and rescan a library or one item, rename one item, import a download that never landed, put a mislabeled Sonarr file on the right episode, rerun NZBGet's post-processing, or rescan a Grimmory library or its Bookdrop |
 | `trigger_subtitle_search` | Go and find the subtitles this is missing, now |
 | `grab_release` | Not that one — grab this release from `get_releases` instead; on Shelfmark, the most-downloaded file unless you name one |
-| `set_monitoring` | Turn monitoring on or off: a whole series, one season, specific episodes; on Lidarr, `level: "album"` for one album or `level: "artist"` with `artists` and `monitor_new_items` for a policy over the set |
+| `set_monitoring` | Turn monitoring on or off: a whole series (by id or title), one season, specific episodes; on Lidarr, `level: "album"` for one album or `level: "artist"` with `artists` and `monitor_new_items` for a policy over the set |
 | `retry_download` | Try this failed usenet download again, with its password if it needs one, or a failed or cancelled Shelfmark book |
 | `pause_downloads` | Pause, resume or throttle a download client, or one item in its queue |
 | `remove_queue_item` | Get rid of this stuck or wrong download; on Grimmory, discard a file waiting in the Bookdrop |
@@ -1478,9 +1478,15 @@ actually be picked. `get_releases` runs the same interactive search Radarr
 and Sonarr's own web UI does and returns every candidate, so a model can
 compare them and pick one for `grab_release`.
 
-`service` and `id` are both required: this searches one movie or series,
-or on Shelfmark one book, with `id` from a `lookup_media` row. It never merges
-across services the way `get_history` and `get_wanted` do.
+`service` and either `id` or `title` are required: this searches one movie or
+series, or on Shelfmark one book, with `id` from a `lookup_media` row. It never
+merges across services the way `get_history` and `get_wanted` do.
+
+A `title` is resolved the way `get_media_details` resolves one, to the id the
+named service manages it under, which saves looking the id up first. Two items
+matching equally well are refused with both ids rather than guessed between, a
+title managed by another service is refused naming that service, and a title
+the library lacks gets the same lookup answer `get_media_details` gives.
 `season` and `episode` are Sonarr-only, and passing either to a Radarr search
 is refused rather than silently dropped. They are mutually exclusive. `episode`
 takes one episode id, as `trigger_search`'s `episodes` does, and searches that
@@ -1757,6 +1763,13 @@ take the Jellyfin one from `media_servers.jellyfin.itemId` on `get_library` or
 `get_media_details`. A Radarr or Sonarr id is a small integer and is
 refused before any network call, rather than becoming a 404 that names
 nothing.
+
+`title` takes the place of `item_id`: a film or series title, resolved as
+`get_media_details` resolves one, to the Jellyfin id on the merged record
+(`media_servers.jellyfin.itemId` with two media servers). A tie is refused
+with every match's id, since this writes. The confirmation token is bound to
+the resolved id, so a title that resolves to something else between the
+preview and the confirm is refused rather than written.
 
 A series id with `season` marks that season. The preview reports the **number
 of episodes**, not just the season number: "marks season 2 watched" is not

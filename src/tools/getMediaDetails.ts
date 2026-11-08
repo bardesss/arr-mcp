@@ -10,9 +10,11 @@ import { logger } from '../core/logger.ts';
 import { enrichWithImdb } from '../metadata/enrich.ts';
 import { SeerrAdapter } from '../services/seerr.ts';
 import type { ImdbDataset } from '../metadata/imdbDataset.ts';
-import { hasMediaDetails, type CleanupStatus, type EpisodeSummary, type MediaDetails, type ServiceAdapter } from '../services/types.ts';
+import { hasMediaDetails, type CleanupStatus, type EpisodeSummary, type MediaDetails, type SearchHit, type ServiceAdapter } from '../services/types.ts';
 import { removalSentence, upcomingSentence, withCleanup } from './cleanupStatus.ts';
 import type { LibraryLoader } from './library.ts';
+import { buildLookupMedia } from './lookupMedia.ts';
+import { searchLine } from './searchMedia.ts';
 import { withBoth } from './mediaServers.ts';
 
 /**
@@ -106,6 +108,60 @@ export type ResolvedMediaDetails = FilmOrSeries & {
     candidates?: MatchCandidate[];
 };
 
+/**
+ * No film or series in the library matches. The plain message says only that;
+ * `get_media_details` itself adds what a metadata lookup knows, so a caller
+ * gets the whole answer to "do I have this, and if not what is it" at once.
+ */
+export class NotInLibrary extends Error {
+    readonly query: string;
+    constructor(query: string, hedge: string) {
+        super(`Nothing in your library matches "${query}".${hedge}`);
+        this.name = 'NotInLibrary';
+        this.query = query;
+    }
+}
+
+/** Enough to say what the title is without paging through every edition. */
+const MAX_LOOKUP_HITS = 5;
+
+/**
+ * The miss, finished: what `lookup_media` would have said, in the same answer.
+ *
+ * Without it a model that asked for a title the library lacks went on to
+ * `search_media`, `get_library` and `lookup_media` in turn, three to five calls
+ * to learn what this one lookup says (#518's eval). The lookup is a read, and
+ * a failing one only drops the extra: the miss itself is still the answer.
+ */
+export async function explainMiss(adapters: readonly ServiceAdapter[], miss: NotInLibrary, dataset?: ImdbDataset): Promise<Error> {
+    let found: SearchHit[];
+    let unreachable: string[];
+    try {
+        // `standard`, not `minimal`: the year is what tells a remake from the original.
+        const lookup = await buildLookupMedia(adapters, { query: miss.query, detail: 'standard', limit: MAX_LOOKUP_HITS }, dataset);
+        found = lookup.items;
+        unreachable = lookup.degraded;
+    } catch (err) {
+        logger.warn({ err }, 'lookup after a library miss failed; answering with the miss alone');
+        return new Error(`${miss.message} lookup_media says what it is and how to add it.`, { cause: miss });
+    }
+    const films = found.filter(h => h.kind === 'movie' || h.kind === 'series');
+    if (films.length === 0) {
+        // An empty lookup is only a fact about the title when every service answered it.
+        return new Error(
+            unreachable.length === 0
+                ? `${miss.message} No metadata lookup knows that title either, so check the spelling.`
+                : `${miss.message} The metadata lookup could not reach ${unreachable.join(', ')}; lookup_media can try again.`,
+            { cause: miss }
+        );
+    }
+    return new Error(
+        `${miss.message} Not in your library, but known as: ${films.map(searchLine).join('; ')}. ` +
+            'To get one, add_media takes its tmdb id (a film) or tvdb id (a series), or request_media asks through Seerr. No further search is needed.',
+        { cause: miss }
+    );
+}
+
 /** Enough to tell the candidates apart and to ask for one by id. */
 const MAX_CANDIDATES = 5;
 
@@ -160,9 +216,7 @@ export async function buildResolvedMediaDetails(
             unreachable.length === 0
                 ? ''
                 : ` ${unreachable.join(', ')} could not be reached, so this may be incomplete rather than a real absence.`;
-        throw new Error(
-            `Nothing in your library matches "${query}".${hedge} Try search_media, which also looks at what you do not have yet.`
-        );
+        throw new NotInLibrary(query, hedge);
     }
 
     // Only ties count: a title one item matches exactly and another merely
@@ -218,8 +272,9 @@ export async function resolveMediaDetails(
     adapters: readonly ServiceAdapter[],
     loader: LibraryLoader,
     opts: MediaDetailsQuery,
-    /** Only the by-id branch needs this. The by-title branch resolves through
-     *  the library index, which `LibraryLoader` has already enriched. */
+    /** The by-id branch rates with it, and a by-title miss rates the lookup
+     *  hits it adds. A by-title hit resolves through the library index, which
+     *  `LibraryLoader` has already enriched. */
     dataset?: ImdbDataset
 ): Promise<MediaDetails | ResolvedMediaDetails> {
     // The explicit id wins when both are given: an id is unambiguous and a
@@ -241,7 +296,14 @@ export async function resolveMediaDetails(
         throw new Error('Name either a query (a title) or both service and id.');
     }
 
-    return withCleanup(adapters, await buildResolvedMediaDetails(loader, opts.query, { adapters, detail: opts.detail, limit: opts.limit }));
+    let resolved: ResolvedMediaDetails;
+    try {
+        resolved = await buildResolvedMediaDetails(loader, opts.query, { adapters, detail: opts.detail, limit: opts.limit });
+    } catch (err) {
+        if (err instanceof NotInLibrary) throw await explainMiss(adapters, err, dataset);
+        throw err;
+    }
+    return withCleanup(adapters, resolved);
 }
 
 export function registerGetMediaDetails(
@@ -282,7 +344,7 @@ export function registerGetMediaDetails(
                     .min(1)
                     .optional()
                     .describe(
-                        'A title, matched against every title the services know (original and alternate titles too). When other items match equally well, the answer carries `ambiguous: true` and their `candidates`.'
+                        'A title, matched against every title the services know (original and alternate titles too). When other items match equally well, the answer carries `ambiguous: true` and their `candidates`. A title not in your library is refused with what a metadata lookup knows of it, so no other search is needed.'
                     ),
                 service: ServiceIdSchema.optional().describe('With `id`: one service’s own view.'),
                 instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
