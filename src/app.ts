@@ -6,7 +6,8 @@ import {
     bearerAuthChallengeResponse,
     createMcpHandler,
     verifyBearerToken,
-    type AuthInfo
+    type AuthInfo,
+    type McpServerFactory
 } from '@modelcontextprotocol/server';
 import { Hono, type Context, type Next } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
@@ -115,13 +116,26 @@ Arguments are strict: an argument a tool does not have is refused rather than ig
 // A symbol key, so no JWT claim copied into `extra` can pose as a named token.
 const MCP_TOKEN = Symbol('mcpToken');
 
-function cappedTools(tools: ToolContext, oauth: OAuthConfig | undefined, authInfo: AuthInfo | undefined): ToolContext {
+/** What one connection may write, why a write above it is refused, and who it is in the audit trail. */
+export type Ceiling = {
+    tiers: ReadonlySet<WriteTier>;
+    refusal: (tier: WriteTier) => { reason: string; remedy: string };
+    caller: string;
+};
+
+/** The HTTP endpoint's ceiling: a named token's tier, or an OAuth token's scopes. */
+function httpCeiling(oauth: OAuthConfig | undefined, authInfo: AuthInfo | undefined): Ceiling {
     const token = (authInfo?.extra as { [MCP_TOKEN]?: StoredToken } | undefined)?.[MCP_TOKEN];
     const tiers =
         token !== undefined ? tiersOf(token.tier) : ((authInfo && oauth && tiersFor(oauth, authInfo.scopes)) ?? new Set<WriteTier>());
     const refusal = token !== undefined ? tokenRefusal(token.name, token.tier) : oauthRefusal(oauth?.scopes);
     const caller =
         token !== undefined ? bearerCaller(token) : authInfo !== undefined ? `${OAUTH_CALLER_PREFIX}${authInfo.clientId}` : 'unknown';
+    return { tiers, refusal, caller };
+}
+
+function cappedTools(tools: ToolContext, ceiling: Ceiling): ToolContext {
+    const { tiers, refusal, caller } = ceiling;
     return {
         ...tools,
         // Cast because spreading a discriminated union loses the pairing of
@@ -145,26 +159,32 @@ function cappedTools(tools: ToolContext, oauth: OAuthConfig | undefined, authInf
     };
 }
 
-export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogStore; events?: WebhookEvents }) {
-    const { runtime, audit, logs } = opts;
-    const events = opts.events ?? WebhookEvents.ephemeral();
-
-    // The factory runs once per request, so every call gets a fresh McpServer.
-    // This is what keeps the transport stateless — do not
-    // hoist the server out of the closure.
-    //
-    // `runtime.current` is read here, per request, rather than captured when
-    // the app is built: that is what lets a config change take effect without
-    // a restart. Reading it once into `snapshot` also means a call that starts
-    // before a reload finishes against the configuration it began with.
-    const handler = createMcpHandler(ctx => {
+/**
+ * The one place an McpServer is built, shared by the HTTP endpoint and stdio
+ * so the two can never offer different tools, prompts or instructions.
+ *
+ * Over HTTP the factory runs once per request, so every call gets a fresh
+ * McpServer. This is what keeps the transport stateless — do not hoist the
+ * server out of the closure. Over stdio it runs once per connection.
+ *
+ * `runtime.current` is read here, per call, rather than captured when the
+ * factory is built: that is what lets a config change take effect without a
+ * restart. Reading it once into `snapshot` also means a call that starts
+ * before a reload finishes against the configuration it began with.
+ */
+export function mcpServerFactory(
+    runtime: Runtime,
+    events: WebhookEvents,
+    ceilingFor: (oauth: OAuthConfig | undefined, authInfo: AuthInfo | undefined) => Ceiling
+): McpServerFactory {
+    return ctx => {
         const snapshot = runtime.current;
         // The ceiling is applied here rather than inside the tools because
         // this factory already runs once per request — the same property
-        // that lets a config reload take effect without a restart. Every
-        // request arrives with authInfo; one without is capped to reads.
+        // that lets a config reload take effect without a restart. A request
+        // with no authInfo is capped to reads.
         const tools: ToolContext = {
-            ...cappedTools(snapshot.tools, snapshot.config.auth.oauth, ctx.authInfo),
+            ...cappedTools(snapshot.tools, ceilingFor(snapshot.config.auth.oauth, ctx.authInfo)),
             eventLog: { store: events, enabled: snapshot.config.webhooks?.enabled === true }
         };
         const server = new McpServer(
@@ -209,7 +229,14 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
         registerAllPrompts(server);
         registerAllResources(server, tools);
         return server;
-    });
+    };
+}
+
+export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogStore; events?: WebhookEvents }) {
+    const { runtime, audit, logs } = opts;
+    const events = opts.events ?? WebhookEvents.ephemeral();
+
+    const handler = createMcpHandler(mcpServerFactory(runtime, events, httpCeiling));
 
     // We bind 0.0.0.0 because the container must be reachable across the LAN,
     // which drops the SDK's default localhost Host/Origin validation.
