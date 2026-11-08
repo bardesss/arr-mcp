@@ -11,6 +11,8 @@ import {
     type ArtistMonitorPolicy,
     type ServiceAdapter
 } from '../services/types.ts';
+import { managedIdByTitle } from './byTitle.ts';
+import type { LibraryLoader } from './library.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 
 const findAdapter = (adapters: readonly ServiceAdapter[], service: ServiceId, instance?: string) => {
@@ -66,16 +68,33 @@ const previewedArtistIds = (plan: WritePlan): string[] => {
 export function registerSetMonitoring(
     server: McpServer,
     context: WriteContext,
-    adapters: readonly ServiceAdapter[]
+    adapters: readonly ServiceAdapter[],
+    /** Resolves `title`. Absent in tests that only ever pass an id. */
+    loader?: LibraryLoader
 ): void {
+    // A series title in place of `id`, resolved on preview and on confirm
+    // alike. The token binds the resolved target, so the two cannot disagree.
+    const idOf = async (adapterId: string, id: string | undefined, title: string | undefined, service: string): Promise<string | undefined> => {
+        if (title === undefined) return id;
+        if (id !== undefined) throw new Error('Pass either `id` or `title`, not both.');
+        if (service === 'lidarr') throw new Error('`title` names a series; on lidarr pass the album `id`, or `level: "artist"` with `artists`.');
+        if (loader === undefined) throw new Error('`title` cannot be resolved here; pass `id`.');
+        return managedIdByTitle(adapters, loader, title, adapterId);
+    };
+
     registerWriteTool(server, context, {
         name: 'set_monitoring',
         title: 'Start or stop monitoring',
         description:
-            'Turns monitoring on or off. Sonarr and Whisparr: a series, one `season`, or `episodes` (not both). [[lidarr: Lidarr takes `level`: `album` sets one album\'s flag; `artist` sets the artist flag and `monitor_new_items` (`none` is the only value that stops the wanted list growing by itself), and omitting `artists` reaches every artist. **The artist flag is not the album flag**: an unmonitored artist\'s albums drop out of get_wanted but keep their own flags and come back with the artist, so stop wanting one album with `level: "album"` (ids from get_media_details on the artist, or a get_wanted `albumId`).]] Radarr monitoring is update_media. Unmonitor **before** delete_episode_files, or Sonarr downloads the files again. Safe tier. The preview shows the current state; a season, episode or artist that does not exist is refused rather than silently written. Previews first; confirm to apply. Field reference: arr://docs/set_monitoring.',
+            'Turns monitoring on or off. Sonarr and Whisparr: a series (by `id` or `title`), one `season`, or `episodes` (not both). [[lidarr: Lidarr takes `level`: `album` sets one album\'s flag; `artist` sets the artist flag and `monitor_new_items` (`none` is the only value that stops the wanted list growing by itself), and omitting `artists` reaches every artist. **The artist flag is not the album flag**: an unmonitored artist\'s albums drop out of get_wanted but keep their own flags and come back with the artist, so stop wanting one album with `level: "album"` (ids from get_media_details on the artist, or a get_wanted `albumId`).]] Radarr monitoring is update_media. Unmonitor **before** delete_episode_files, or Sonarr downloads the files again. Safe tier. The preview shows the current state; a season, episode or artist that does not exist is refused rather than silently written. Previews first; confirm to apply. Field reference: arr://docs/set_monitoring.',
         inputSchema: z.object({
             service: serviceOf(['sonarr', 'whisparr', 'lidarr']),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
+            title: z
+                .string()
+                .min(1)
+                .optional()
+                .describe('Sonarr or Whisparr: a series title in place of `id`. A title two series match equally is refused with both ids.'),
             id: z
                 .string()
                 .min(1)
@@ -126,8 +145,9 @@ export function registerSetMonitoring(
         operation: 'set_monitoring',
         tier: 'safe',
 
-        async plan({ service, instance, id, monitored, season, episodes, level, artists, monitor_new_items }): Promise<WritePlan> {
+        async plan({ service, instance, id: given, title, monitored, season, episodes, level, artists, monitor_new_items }): Promise<WritePlan> {
             const adapter = findAdapter(adapters, service, instance);
+            const id = await idOf(adapter.id, given, title, service);
 
             // ---- Lidarr's artist level: a policy over a set, not a flag on one item.
             //
@@ -413,8 +433,9 @@ export function registerSetMonitoring(
             };
         },
 
-        async apply(plan, { service, instance, id, monitored, season, episodes, level, monitor_new_items }) {
+        async apply(plan, { service, instance, id: given, title, monitored, season, episodes, level, monitor_new_items }) {
             const adapter = findAdapter(adapters, service, instance);
+            const id = await idOf(adapter.id, given, title, service);
 
             if (level === 'artist' && hasArtistMonitor(adapter)) {
                 const ids = previewedArtistIds(plan);

@@ -185,7 +185,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerGetQueue(server, adapters);
     registerGetHistory(server, adapters, context.eventLog);
     registerGetWanted(server, adapters);
-    registerGetReleases(server, adapters);
+    registerGetReleases(server, adapters, library);
     registerGetBlocklist(server, adapters);
     registerGetCalendar(server, adapters);
     registerGetPlayback(server, context.mediaServers);
@@ -210,7 +210,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerCleanQueue(server, write, adapters);
     registerDeleteMedia(server, write, adapters);
     registerDeleteEpisodeFiles(server, write, adapters);
-    registerSetMonitoring(server, write, adapters);
+    registerSetMonitoring(server, write, adapters, library);
     registerRespondToRequest(server, write, adapters, seerrIdentity);
     registerDeleteRequest(server, write, adapters, seerrIdentity);
     registerAddMedia(server, write, adapters);
@@ -225,7 +225,8 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
         write,
         adapters,
         [context.mediaServers.primary, context.mediaServers.secondary].find(c => c?.adapter.type === 'jellyfin')?.identity,
-        bothIds(context.mediaServers)
+        bothIds(context.mediaServers),
+        library
     );
     registerFixMetadata(server, write, context.mediaServers, library, undefined, adapters.find(hasBookMetadata));
     registerRemoveBlocklistItem(server, write, adapters);
