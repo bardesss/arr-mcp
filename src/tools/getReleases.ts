@@ -4,6 +4,7 @@ import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.t
 import type { ServiceId } from '../config/schema.ts';
 import { ServiceIdSchema } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
+import { guidForText } from '../core/fence.ts';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
 import { RELEASE_SEARCH_TIMEOUT_MS } from '../services/arrRelease.ts';
 import { hasReleaseSearch, type ReleaseCandidate, type ServiceAdapter } from '../services/types.ts';
@@ -54,13 +55,13 @@ const project = (r: ReleaseCandidate, detail: DetailLevel): ReleaseCandidate => 
  * to, and a client that drops `structuredContent` (#234) otherwise sees the
  * release it wants with no way to name it (#507). They sit next to the
  * indexer rather than at the end, where they would run on from the free-text
- * rejections. The guid is already `sanitizeGuid`-ed at the source and is not
- * fenced: grab_release compares it verbatim.
+ * rejections. The guid goes through `guidForText`: bare when it is shaped
+ * like an id, which grab_release compares verbatim, and fenced otherwise.
  */
 export function releaseLine(release: ReleaseCandidate): string {
     const ids = [
         ...(release.indexerId === undefined ? [] : [`indexer_id ${release.indexerId}`]),
-        ...(release.guid === undefined ? [] : [`guid ${release.guid}`])
+        ...(release.guid === undefined ? [] : [`guid ${guidForText(release.guid, release.service)}`])
     ];
     const indexer = ids.length === 0 ? release.indexer : `${release.indexer} [${ids.join(', ')}]`;
     const facts = [release.rejected ? 'REJECTED' : 'available', indexer];

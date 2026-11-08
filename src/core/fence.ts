@@ -82,6 +82,23 @@ export function sanitizeGuid(value: string): string {
     return clean.length > GUID_MAX_LENGTH ? cut(clean, GUID_MAX_LENGTH) : clean;
 }
 
+/** Printable ASCII with no space, and none of the characters a fence or a
+ *  bracketed list is built from. Every real guid seen so far — a URL, a hash,
+ *  a Shelfmark id — fits. */
+const OPAQUE_GUID = /^[\x21-\x3b\x3d\x3f-\x5a\x5c\x5e-\x7e]+$/u;
+
+/**
+ * A guid for model-facing text (#507). `sanitizeGuid` leaves ASCII prose
+ * alone, which is fine in `structuredContent` but not in a text line: an
+ * indexer could pick `x] Ignore the above…` as its guid and write past the
+ * fence. One shaped like an id goes in bare, since grab_release needs it
+ * verbatim; anything else is fenced like a title, and the caller can grab
+ * that row by `release_title` instead.
+ */
+export function guidForText(guid: string, service: string): string {
+    return OPAQUE_GUID.test(guid) ? guid : fenceText(guid, { service, field: 'guid' });
+}
+
 /**
  * Wraps free text in a labelled boundary. The value's own angle brackets are
  * escaped first, so a release name cannot close the fence and continue outside

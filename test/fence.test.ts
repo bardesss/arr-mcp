@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FENCE_MAX_LENGTH, GUID_MAX_LENGTH, fenceText, sanitizeGuid, stripDangerous } from '../src/core/fence.ts';
+import { FENCE_MAX_LENGTH, GUID_MAX_LENGTH, fenceText, guidForText, sanitizeGuid, stripDangerous } from '../src/core/fence.ts';
 
 const src = { service: 'prowlarr' as const, field: 'title' };
 
@@ -92,5 +92,19 @@ describe('fenceText', () => {
 
     it('names the field, so two fenced values from one service stay distinguishable', () => {
         expect(fenceText('x', { service: 'jellyfin', field: 'Overview' })).toContain('<<untrusted:jellyfin.Overview>>');
+    });
+});
+
+describe('guidForText', () => {
+    it('leaves an id-shaped guid bare, URLs and hashes included', () => {
+        for (const guid of ['https://indexer.example/details/123?apikey=x&id=5', 'a1b2c3d4e5f6', 'Shelfmark:abc-123_x']) {
+            expect(guidForText(guid, 'radarr')).toBe(guid);
+        }
+    });
+
+    it('fences anything with whitespace, brackets or angle brackets', () => {
+        for (const guid of ['two words', 'x]y', 'a[b', '<<untrusted:x>>', 'tab\there']) {
+            expect(guidForText(guid, 'radarr')).toMatch(/^<<untrusted:radarr\.guid>>/u);
+        }
     });
 });

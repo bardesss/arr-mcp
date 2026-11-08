@@ -1502,7 +1502,9 @@ stripped of the same dangerous code points fenced text is and length-capped —
 an indexer chose it, and it is not trusted any more than a release title is.
 At `full`, each row's text line carries both too, next to the indexer
 (`V3X (Prowlarr) [indexer_id 5, guid …]`), so a client that never forwards
-the structured result can still pass them to `grab_release`.
+the structured result can still pass them to `grab_release`. A guid shaped
+like an id (no whitespace, brackets or angle brackets) appears bare; any other
+is fenced like a title, and that row can be grabbed by `release_title` instead.
 
 This call is slow. Radarr and Sonarr poll every configured indexer
 synchronously before answering, and a live capture measured a Sonarr season

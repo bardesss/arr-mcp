@@ -3,7 +3,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
-import { unfence } from '../core/fence.ts';
+import { guidForText, unfence } from '../core/fence.ts';
 import { logger } from '../core/logger.ts';
 import { btihToHex } from '../services/qbittorrent.ts';
 import {
@@ -43,7 +43,7 @@ function byTitle<T extends { title: string; guid?: string; indexerId?: number; i
     const named = candidates.filter(c => unfence(c.title).trim() === wanted);
     const narrowed = indexerId === undefined ? named : named.filter(c => c.indexerId === indexerId);
     if (narrowed.length > 1) {
-        const rows = narrowed.map(c => `${c.indexer} has indexer_id ${c.indexerId ?? '?'}, guid ${c.guid ?? '?'}`);
+        const rows = narrowed.map(c => `${c.indexer} has indexer_id ${c.indexerId ?? '?'}, guid ${c.guid === undefined ? '?' : guidForText(c.guid, service)}`);
         throw new Error(
             `${narrowed.length} releases on offer from ${service} share that name. Pass \`indexer_id\` to pick one, or \`guid\` and \`indexer_id\` instead of the title: ${rows.join('; ')}.`
         );
