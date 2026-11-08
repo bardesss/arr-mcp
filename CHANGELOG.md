@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.72.0](https://github.com/bardesss/arr-mcp/compare/v1.71.0...v1.72.0) (2026-11-08)
+
+
+### Features
+
+* **mcp:** serve over stdio with --stdio, read-only ([#511](https://github.com/bardesss/arr-mcp/issues/511)) ([37f0545](https://github.com/bardesss/arr-mcp/commit/37f054553c3199bfc5ce0a45a9b45afb81381131))
+
 ## [1.71.0](https://github.com/bardesss/arr-mcp/compare/v1.70.0...v1.71.0) (2026-11-08)
 
 
