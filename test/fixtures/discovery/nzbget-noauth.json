@@ -1,0 +1,11 @@
+{
+  "source": "docs",
+  "service": "nzbget",
+  "path": "/",
+  "note": "ControlPassword empty: the web UI is served, index.html title is NZBGet",
+  "status": 200,
+  "headers": {
+    "content-type": "text/html"
+  },
+  "body": "<!DOCTYPE html><html><head><title>NZBGet</title></head></html>"
+}

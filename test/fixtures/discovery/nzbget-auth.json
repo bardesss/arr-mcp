@@ -1,0 +1,12 @@
+{
+  "source": "docs",
+  "service": "nzbget",
+  "path": "/",
+  "note": "NZBGet source: 401 with a Basic realm of NZBGet",
+  "status": 401,
+  "headers": {
+    "www-authenticate": "Basic realm=\"NZBGet\"",
+    "content-type": "text/html"
+  },
+  "body": ""
+}

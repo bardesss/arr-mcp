@@ -1,0 +1,11 @@
+{
+  "service": "dispatcharr",
+  "path": "/api/core/version/",
+  "version": "0.33.0",
+  "source": "live",
+  "status": 200,
+  "headers": {
+    "content-type": "application/json"
+  },
+  "body": "{\"version\":\"0.33.0\",\"timestamp\":null}"
+}

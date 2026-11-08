@@ -1,0 +1,12 @@
+{
+  "source": "docs",
+  "service": "plex",
+  "path": "/identity",
+  "version": "1.43.3.10896-cb3ebc72d",
+  "note": "shape of test/fixtures/plex/identity.json, when Accept asks for JSON",
+  "status": 200,
+  "headers": {
+    "content-type": "application/json"
+  },
+  "body": "{\"MediaContainer\":{\"size\":0,\"apiVersion\":\"1.2.2\",\"claimed\":true,\"machineIdentifier\":\"0000000000000000000000000000000000000000\",\"version\":\"1.43.3.10896-cb3ebc72d\"}}"
+}

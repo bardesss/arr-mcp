@@ -1,0 +1,11 @@
+{
+  "service": "sonarr",
+  "path": "/login",
+  "note": "login page, trimmed to title and description",
+  "source": "live",
+  "status": 200,
+  "headers": {
+    "content-type": "text/html"
+  },
+  "body": "<!DOCTYPE html><html lang=\"en\"><head><meta name=\"description\" content=\"Sonarr\" /><title>Login - Sonarr</title></head></html>"
+}

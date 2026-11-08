@@ -1,0 +1,12 @@
+{
+  "service": "transmission",
+  "path": "/transmission/rpc",
+  "note": "session id replaced, body trimmed",
+  "source": "live",
+  "status": 409,
+  "headers": {
+    "server": "Transmission",
+    "x-transmission-session-id": "REDACTED"
+  },
+  "body": "<h1>409: Conflict</h1>"
+}
