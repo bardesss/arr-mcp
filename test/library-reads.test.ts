@@ -321,7 +321,7 @@ describe('Jellyfin.listUserMusic', () => {
 
 describe('Jellyfin.listUserLibrary', () => {
     const path =
-        '/Items?userId=u1&Recursive=true&IncludeItemTypes=Movie,Series&Fields=ProviderIds,Genres&EnableUserData=true';
+        '/Items?userId=u1&Recursive=true&IncludeItemTypes=Movie,Series&Fields=ProviderIds,Genres,OriginalTitle&EnableUserData=true';
     const adapter = () => new JellyfinAdapter(multi, serving({ [path]: ITEMS }));
     const user = { id: 'u1', name: 'Someone' };
 

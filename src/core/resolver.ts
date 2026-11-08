@@ -194,7 +194,21 @@ export type MergedItem = {
 
 export type MediaServerPresence = { present: boolean; itemId?: string };
 
-export type IndexInput = Omit<MergedItem, 'presence'>;
+export type IndexInput = Omit<MergedItem, 'presence'> & {
+    /**
+     * Other names the service knows this item by: Radarr's `originalTitle` and
+     * `alternateTitles`, Sonarr's `alternateTitles`, the media server's
+     * original title. Matched by `search`, never returned (#517).
+     *
+     * Kept off `MergedItem` on purpose: a Radarr with localized metadata
+     * carries dozens of alternate titles per film, and every `get_library`
+     * row would carry them.
+     */
+    aliases?: string[];
+};
+
+/** One `search` hit and how well it matched, lower is better (`titleMatch.ts`). */
+export type RankedHit = { item: MergedItem; rank: number };
 
 export type BuildOptions = {
     /**
@@ -254,10 +268,20 @@ function mergeSeasons(target: SeasonSummary[] | undefined, input: readonly Seaso
     return [...rows.values()].sort((a, b) => a.season - b.season);
 }
 
-function mergeInto(target: MergedItem, input: IndexInput): void {
+function mergeInto(target: MergedItem, input: IndexInput, aliases: Map<MergedItem, Set<string>>): void {
     // The *arr title wins: it is the managed one, and the one a user sees in
-    // the service they would go and fix something in.
-    if (input.acquisition !== undefined || target.title === '') target.title = input.title;
+    // the service they would go and fix something in. The losing title is
+    // kept as an alias, because people still ask by it (#517).
+    const names = aliases.get(target) ?? new Set<string>();
+    for (const alias of input.aliases ?? []) names.add(alias);
+    if (input.acquisition !== undefined || target.title === '') {
+        if (target.title !== '' && target.title !== input.title) names.add(target.title);
+        target.title = input.title;
+    } else if (input.title !== '' && input.title !== target.title) {
+        names.add(input.title);
+    }
+    names.delete(target.title);
+    if (names.size > 0) aliases.set(target, names);
     // `exactOptionalPropertyTypes` forbids assigning a possibly-undefined value
     // into an optional field, so the incoming value must be known-present.
     if (target.year === undefined && input.year !== undefined) target.year = input.year;
@@ -371,10 +395,16 @@ const presenceVerdict = (
 export class LibraryIndex {
     readonly #items: MergedItem[];
     readonly #byKey: Map<string, MergedItem>;
+    readonly #aliases: ReadonlyMap<MergedItem, ReadonlySet<string>>;
 
-    private constructor(items: MergedItem[], byKey: Map<string, MergedItem>) {
+    private constructor(
+        items: MergedItem[],
+        byKey: Map<string, MergedItem>,
+        aliases: ReadonlyMap<MergedItem, ReadonlySet<string>>
+    ) {
         this.#items = items;
         this.#byKey = byKey;
+        this.#aliases = aliases;
     }
 
     static build(inputs: readonly IndexInput[], opts: BuildOptions = {}): LibraryIndex {
@@ -390,6 +420,10 @@ export class LibraryIndex {
         // Absorbed groups are dropped from `live` and the array is compacted
         // once, after the loop.
         const live = new Set<MergedItem>();
+        // Every name an item answers to besides `title`, including the titles
+        // that lost the merge: Jellyfin's "Runner" when Radarr's French
+        // "Le Transport" wins the display title (#517).
+        const aliases = new Map<MergedItem, Set<string>>();
 
         for (const input of inputs) {
             const keys = keysOf(input.kind, input.ids);
@@ -417,7 +451,9 @@ export class LibraryIndex {
 
             if (matches.length === 0) {
                 // Recomputed by `presenceVerdict` below; a book is `unknown` from the start.
-                const created: MergedItem = { ...input, presence: input.kind === 'book' ? 'unknown' : 'arr_only' };
+                const { aliases: inputAliases, ...rest } = input;
+                const created: MergedItem = { ...rest, presence: input.kind === 'book' ? 'unknown' : 'arr_only' };
+                if (inputAliases !== undefined && inputAliases.length > 0) aliases.set(created, new Set(inputAliases));
                 items.push(created);
                 live.add(created);
                 for (const key of keys) byKey.set(key, created);
@@ -430,10 +466,11 @@ export class LibraryIndex {
             // survivor if the loser is the one carrying acquisition.
             const survivor = matches[0]!;
             for (const loser of matches.slice(1)) {
-                mergeInto(survivor, loser);
+                mergeInto(survivor, { ...loser, aliases: [...(aliases.get(loser) ?? [])] }, aliases);
+                aliases.delete(loser);
                 live.delete(loser);
             }
-            mergeInto(survivor, input);
+            mergeInto(survivor, input, aliases);
 
             // Re-index under every id the survivor now knows — from fused
             // losers and from this input — so a later record carrying any of
@@ -475,7 +512,7 @@ export class LibraryIndex {
             for (const key of keysOf(item.kind, item.ids)) finalByKey.set(key, item);
         }
 
-        return new LibraryIndex(merged, finalByKey);
+        return new LibraryIndex(merged, finalByKey, aliases);
     }
 
     /**
@@ -502,11 +539,20 @@ export class LibraryIndex {
 
     /** Ranked by relevance, non-matches excluded rather than ranked last. */
     search(query: string): MergedItem[] {
+        return this.searchRanked(query).map(({ item }) => item);
+    }
+
+    /**
+     * As `search`, with each hit's rank, so a caller can tell a clear winner
+     * from a tie. The rank is against the part of the query that matched: the
+     * title without "(2013)" or "S04E03".
+     */
+    searchRanked(query: string): RankedHit[] {
         // "The Fall (2013)" names a year, and no title carries it in brackets.
         const dated = /^(.*\S)\s*\((\d{4})\)\s*$/.exec(query);
         if (dated?.[1] !== undefined) {
             const year = Number(dated[2]);
-            const hits = this.#ranked(dated[1]).filter(i => i.year === year);
+            const hits = this.#ranked(dated[1]).filter(h => h.item.year === year);
             if (hits.length > 0) return hits;
         }
         const hits = this.#ranked(query);
@@ -516,22 +562,40 @@ export class LibraryIndex {
         // Only tried when the whole query matched nothing, so "Blade Runner
         // 2049" and "1917" keep matching their own titles.
         const episode = /^(.*\S)\s+(?:[Ss]\d{1,3}(?:[Ee]\d{1,4}(?:-?[Ee]?\d{1,4})?)?|\d{1,2}x\d{1,3})$/.exec(query);
-        if (episode?.[1] !== undefined) return this.search(episode[1]);
+        if (episode?.[1] !== undefined) return this.searchRanked(episode[1]);
 
         const bareYear = /^(.*\S)\s+(\d{4})$/.exec(query);
         if (bareYear?.[1] !== undefined) {
             const year = Number(bareYear[2]);
-            return this.#ranked(bareYear[1]).filter(i => i.year === year);
+            return this.#ranked(bareYear[1]).filter(h => h.item.year === year);
         }
         return [];
     }
 
-    #ranked(query: string): MergedItem[] {
+    #ranked(query: string): RankedHit[] {
         // Ranking drops the article, so "The Fall" and "Fall" tie; the one
         // spelled as asked goes first (#312).
         const spelled = (title: string): number => (literalTitle(title) === literalTitle(query) ? 0 : 1);
         return this.#items
-            .map(item => ({ item, rank: rankTitle(item.title, query) }))
+            .map(item => {
+                const own = rankTitle(item.title, query);
+                // The best of every name the item answers to, so the film
+                // Jellyfin calls "Runner" is an exact match even when Radarr
+                // displays it as "Le Transport" (#517).
+                let rank = own;
+                let name = item.title;
+                for (const alias of this.#aliases.get(item) ?? []) {
+                    const r = rankTitle(alias, query);
+                    if (r < rank) {
+                        rank = r;
+                        name = alias;
+                    }
+                }
+                // At equal rank, a match on the displayed title beats one on
+                // an alias: an alternate title of one film can be the real
+                // title of another.
+                return { item, rank, viaAlias: rank < own ? 1 : 0, name };
+            })
             .filter(({ rank }) => rank !== RANK_NONE)
             // Every production title is fenced (`<<untrusted:service.field>>…`),
             // and the fence prefix carries the *service* name. Comparing the
@@ -542,10 +606,11 @@ export class LibraryIndex {
             .sort(
                 (a, b) =>
                     a.rank - b.rank ||
-                    spelled(a.item.title) - spelled(b.item.title) ||
+                    a.viaAlias - b.viaAlias ||
+                    spelled(a.name) - spelled(b.name) ||
                     unfenced(a.item.title).localeCompare(unfenced(b.item.title))
             )
-            .map(({ item }) => item);
+            .map(({ item, rank }) => ({ item, rank }));
     }
 
     all(): readonly MergedItem[] {

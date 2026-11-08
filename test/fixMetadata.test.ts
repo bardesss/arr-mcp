@@ -142,7 +142,7 @@ function harness(
 
     const loader = {
         load: async () => ({
-            index: { search: () => [opts.item ?? seriesItem()], all: () => [opts.item ?? seriesItem(), ...(opts.others ?? [])] },
+            index: { search: () => [opts.item ?? seriesItem()], searchRanked: () => [{ item: opts.item ?? seriesItem(), rank: 0 }], all: () => [opts.item ?? seriesItem(), ...(opts.others ?? [])] },
             degraded: opts.degraded ?? []
         }),
         invalidate: vi.fn()
@@ -614,7 +614,7 @@ function plexHarness(
         }
     };
     const loader = {
-        load: async () => ({ index: { search: () => [opts.item ?? plexSeries()], all: () => [opts.item ?? plexSeries()] }, degraded: [] }),
+        load: async () => ({ index: { search: () => [opts.item ?? plexSeries()], searchRanked: () => [{ item: opts.item ?? plexSeries(), rank: 0 }], all: () => [opts.item ?? plexSeries()] }, degraded: [] }),
         invalidate: vi.fn()
     } as unknown as LibraryLoader;
 
@@ -1098,7 +1098,7 @@ describe('fix_metadata with two media servers', () => {
             }
         };
         const loader = {
-            load: async () => ({ index: { search: () => [item], all: () => [item] }, degraded: opts.snapshot?.degraded ?? [] }),
+            load: async () => ({ index: { search: () => [item], searchRanked: () => [{ item, rank: 0 }], all: () => [item] }, degraded: opts.snapshot?.degraded ?? [] }),
             invalidate: vi.fn()
         } as unknown as LibraryLoader;
         const plexChoice = { adapter: plex, identity: plexId.identity };

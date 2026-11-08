@@ -1,3 +1,4 @@
+import { aliasesOf } from '../core/titleMatch.ts';
 import { instanceId } from '../config/instances.ts';
 import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import { apiKeyHeader } from '../core/auth.ts';
@@ -110,6 +111,7 @@ import {
 type RawSeries = {
     id?: number;
     title?: string;
+    alternateTitles?: { title?: string | null }[] | null;
     year?: number;
     overview?: string;
     monitored?: boolean;
@@ -604,6 +606,9 @@ export class SonarrAdapter
             return {
                 kind: 'series' as const,
                 title: fenceText(s.title ?? '', { service: this.id, field: 'title' }),
+                ...((aliases => (aliases.length === 0 ? {} : { aliases }))(
+                    aliasesOf(s.title, (s.alternateTitles ?? []).map(a => a.title))
+                )),
                 ...(s.year === undefined ? {} : { year: s.year }),
                 ...(s.genres === undefined
                     ? {}

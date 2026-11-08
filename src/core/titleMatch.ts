@@ -32,6 +32,9 @@ export const normaliseTitle = (value: string): string => literalTitle(value).rep
 /** As `normaliseTitle`, with the article kept. */
 export const literalTitle = (value: string): string =>
     unfenced(value)
+        // Decomposed, so the accent becomes a mark the next step removes:
+        // "Pokémon" and "Pokemon" are one title to a person (#517).
+        .normalize('NFD')
         .toLowerCase()
         .replace(/[^\p{L}\p{N}\s]/gu, '')
         .replace(/\s+/g, ' ')
@@ -59,4 +62,22 @@ export function rankTitle(title: string, query: string): number {
     if (t.startsWith(q)) return RANK_PREFIX;
     if (t.includes(q)) return RANK_SUBSTRING;
     return RANK_NONE;
+}
+
+/**
+ * The other names a service gives one item, for `IndexInput.aliases`: blanks
+ * and repeats of the title dropped, each spelling once. Not fenced, because
+ * they are only ever matched against, never returned.
+ */
+export function aliasesOf(title: string | null | undefined, names: readonly (string | null | undefined)[]): string[] {
+    const seen = new Set<string>([literalTitle(title ?? '')]);
+    const out: string[] = [];
+    for (const name of names) {
+        if (name === null || name === undefined) continue;
+        const key = literalTitle(name);
+        if (key === '' || seen.has(key)) continue;
+        seen.add(key);
+        out.push(name);
+    }
+    return out;
 }
