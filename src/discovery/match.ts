@@ -71,7 +71,8 @@ export async function matchResults(
         const same = configured.filter(c => c.type === f.type);
         const row: ResultRow = { ...f, status: 'new' };
         if (alsoAt !== undefined) row.alsoAt = alsoAt;
-        if (same.some(c => c.normalized === normalized)) {
+        const second = alsoAt === undefined ? undefined : await resolve(alsoAt);
+        if (same.some(c => c.normalized === normalized || (second !== undefined && c.normalized === second))) {
             row.status = 'added';
         } else if (same.length > 0) {
             row.status = MULTI_INSTANCE.includes(f.type) ? 'maybe-second' : 'configured';

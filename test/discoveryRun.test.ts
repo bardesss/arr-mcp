@@ -209,3 +209,93 @@ describe('logging', () => {
         expect(info.mock.calls[0]?.[0]).toMatchObject({ sources: ['sweep'], range: '192.168.1.0/30', rows: 0 });
     });
 });
+
+describe('a run that fails', () => {
+    const broken = {
+        get services(): never {
+            throw new Error('boom');
+        }
+    } as unknown as Config;
+    const okProbe = async (): Promise<Found[]> => [];
+    const rejecting = async (): Promise<Found[]> => {
+        throw new Error('nope');
+    };
+
+    it('quick ends not running when matching throws, and a later run starts', async () => {
+        vi.spyOn(logger, 'error').mockImplementation(() => {});
+        const d = new Discovery({ catalog, lookup, probe: okProbe });
+        const state = await d.quick('nas.lan', broken);
+        expect(state.running).toBe(false);
+        expect(d.current()?.running).toBe(false);
+        expect((await d.quick('nas.lan', config)).id).not.toBe(state.id);
+    });
+
+    it('quick ends not running when a probe rejects, and a later run starts', async () => {
+        const d = new Discovery({ catalog, lookup, probe: rejecting });
+        const state = await d.quick('nas.lan', config);
+        expect(state.running).toBe(false);
+        expect((await d.quick('nas.lan', config)).id).not.toBe(state.id);
+    });
+
+    it('sweep ends not running when the probe rejects, and a later sweep starts', async () => {
+        const d = new Discovery({ catalog, lookup, probe: rejecting });
+        const a = d.startSweep('192.168.1.0/30', config);
+        await vi.waitFor(() => expect(d.current()?.running).toBe(false));
+        expect(d.current()?.tried).toBe(4);
+        const b = d.startSweep('192.168.1.0/30', config);
+        if ('refused' in a || 'refused' in b) throw new Error('refused');
+        expect(b.id).not.toBe(a.id);
+        await vi.waitFor(() => expect(d.current()?.running).toBe(false));
+    });
+
+    it('sweep ends not running, with no unhandled rejection, when the logger throws', async () => {
+        const unhandled = vi.fn();
+        process.on('unhandledRejection', unhandled);
+        vi.spyOn(logger, 'info').mockImplementation(() => {
+            throw new Error('log down');
+        });
+        const d = new Discovery({ catalog, lookup, probe: okProbe });
+        d.startSweep('192.168.1.0/30', config);
+        await vi.waitFor(() => expect(d.current()?.running).toBe(false));
+        await flush();
+        process.off('unhandledRejection', unhandled);
+        expect(unhandled).not.toHaveBeenCalled();
+    });
+
+    it('sweep survives a throw while matching its rows', async () => {
+        const d = new Discovery({
+            catalog,
+            lookup,
+            probe: async (host, _e, source) => [{ type: 'radarr', url: `http://${host}:7878`, source }]
+        });
+        d.startSweep('192.168.1.0/30', broken);
+        await vi.waitFor(() => expect(d.current()?.running).toBe(false));
+        expect(d.current()?.tried).toBe(4);
+    });
+});
+
+describe('quick while quick runs', () => {
+    it('returns the same run and probes nothing more', async () => {
+        let release!: () => void;
+        const gate = new Promise<void>(resolve => (release = resolve));
+        let calls = 0;
+        const d = new Discovery({
+            catalog,
+            lookup,
+            probe: async () => {
+                calls += 1;
+                await gate;
+                return [];
+            }
+        });
+        const first = d.quick('nas.lan', config);
+        await flush();
+        const callsBefore = calls;
+        const second = await d.quick('nas.lan', config);
+        expect(second.running).toBe(true);
+        expect(second.id).toBe(d.current()?.id);
+        expect(calls).toBe(callsBefore);
+        release();
+        expect((await first).id).toBe(second.id);
+    });
+});

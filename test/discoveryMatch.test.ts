@@ -57,4 +57,16 @@ describe('matchResults', () => {
         ];
         expect(await matchResults(found, parse({}), resolve)).toHaveLength(2);
     });
+
+    it('marks a merged row added when only its container url is the configured one', async () => {
+        const config = parse({ radarr: block('http://radarr:7878') });
+        const found: Found[] = [
+            { type: 'radarr', url: 'http://nas.lan:7878', version: '5.0', source: 'host' },
+            { type: 'radarr', url: 'http://radarr:7878', version: '5.0', source: 'container' }
+        ];
+        const rows = await matchResults(found, config, resolve);
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({ status: 'added', url: 'http://nas.lan:7878', alsoAt: 'http://radarr:7878' });
+        expect(rows[0]?.existingUrl).toBeUndefined();
+    });
 });

@@ -99,9 +99,14 @@ export class Discovery {
             );
         }
 
-        await Promise.all(jobs);
-        state.rows = await matchResults(finds, config, urlResolver(this.lookup));
-        this.finish(state, sources);
+        try {
+            await Promise.all(jobs);
+            state.rows = await matchResults(finds, config, urlResolver(this.lookup));
+        } catch (err) {
+            logger.error({ err }, 'service discovery quick failed');
+        } finally {
+            this.finish(state, sources);
+        }
         return snapshot(state);
     }
 
@@ -111,7 +116,9 @@ export class Discovery {
         if (!parsed.ok) return { refused: parsed.reason };
         const state = this.begin('sweep', parsed.addresses.length);
         state.range = range.trim();
-        void this.sweep(state, parsed.addresses, config);
+        this.sweep(state, parsed.addresses, config).catch(err => {
+            logger.error({ err }, 'service discovery sweep failed');
+        });
         return snapshot(state);
     }
 
@@ -132,7 +139,11 @@ export class Discovery {
 
     private finish(state: RunState, sources: string[]): void {
         state.running = false;
-        logger.info({ sources, range: state.range, rows: state.rows.length, phase: state.phase }, `service discovery ${state.phase} finished`);
+        try {
+            logger.info({ sources, range: state.range, rows: state.rows.length, phase: state.phase }, `service discovery ${state.phase} finished`);
+        } catch {
+            // a failing logger must not undo a finished run
+        }
     }
 
     private async safeProbe(host: string, entries: readonly CatalogEntry[], source: Found['source'], opts: ProbeOpts): Promise<Found[]> {
@@ -157,22 +168,29 @@ export class Discovery {
         const worker = async (): Promise<void> => {
             while (next < addresses.length) {
                 const address = addresses[next++]!;
-                const out = await resolvePrivate(address, this.lookup);
-                if (out.ok) {
-                    const hits = await this.safeProbe(address, this.catalog, 'sweep', {
-                        timeoutMs: this.sweepTimeoutMs,
-                        address: out.address
-                    });
-                    if (hits.length > 0) {
-                        finds.push(...hits);
-                        rematch();
+                try {
+                    const out = await resolvePrivate(address, this.lookup);
+                    if (out.ok) {
+                        const hits = await this.safeProbe(address, this.catalog, 'sweep', {
+                            timeoutMs: this.sweepTimeoutMs,
+                            address: out.address
+                        });
+                        if (hits.length > 0) {
+                            finds.push(...hits);
+                            rematch();
+                        }
                     }
+                } catch (err) {
+                    logger.warn({ err, address }, 'service discovery sweep address failed');
                 }
                 state.tried += 1;
             }
         };
-        await Promise.all(Array.from({ length: Math.min(this.concurrency, addresses.length) }, worker));
-        await chain;
-        this.finish(state, ['sweep']);
+        try {
+            await Promise.all(Array.from({ length: Math.min(this.concurrency, addresses.length) }, worker));
+            await chain;
+        } finally {
+            this.finish(state, ['sweep']);
+        }
     }
 }
