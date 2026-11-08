@@ -368,6 +368,8 @@ export type QueueItem = {
     strikes?: { count: number; reason: string; lastAt: string; dryRun?: true }[];
     /** Internal: what Cleanuparr's rules match on. Never returned by a tool. */
     torrent?: TorrentFacts;
+    /** Torrent clients only, when `get_queue` is asked for this one torrent by `id` at `detail: "full"`. */
+    files?: TorrentFile[];
 };
 
 /**
@@ -1736,6 +1738,41 @@ export interface PauseCapable {
 
 export const hasPause = (a: ServiceAdapter): a is ServiceAdapter & PauseCapable =>
     typeof (a as Partial<PauseCapable>).setPaused === 'function';
+
+/**
+ * One file inside a torrent, as the client holds it.
+ *
+ * `index` is the client's own position for the file — what `skip_files` and
+ * `want_files` take — not a row number in this list. `wanted: false` is
+ * qBittorrent's "Do not download" and Transmission's unwanted flag: the client
+ * neither downloads nor shares the file. Something else can set it without
+ * saying so (Cleanuparr's Malware Blocker marks blocklisted files this way),
+ * which is the usual reason anyone asks.
+ */
+export type TorrentFile = {
+    index: number;
+    /** The path inside the torrent, fenced: it is whatever the uploader named it. */
+    name: string;
+    sizeBytes: number;
+    /** 0 to 1, of the file itself. */
+    progress: number;
+    wanted: boolean;
+};
+
+/**
+ * Reading and changing which files of one torrent a client downloads.
+ *
+ * Torrent clients only. A usenet client has no per-file choice to make.
+ */
+export interface FileSelectionCapable {
+    /** Throws `NotFound` for a torrent the client does not have. */
+    readTorrentFiles(id: string): Promise<TorrentFile[]>;
+    /** `indexes` are `TorrentFile.index` values. Throws `NotFound` for an index the torrent does not have. */
+    setFilesWanted(id: string, indexes: readonly number[], wanted: boolean): Promise<void>;
+}
+
+export const hasFileSelection = (a: ServiceAdapter): a is ServiceAdapter & FileSelectionCapable =>
+    typeof (a as Partial<FileSelectionCapable>).setFilesWanted === 'function';
 
 /**
  * The download cap, always **KB/s at this boundary** whatever the client

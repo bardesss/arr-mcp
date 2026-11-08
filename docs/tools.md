@@ -30,7 +30,7 @@ off until you turn them on — see [writes](writes.md).
 | `grab_release` | Not that one — grab this release from `get_releases` instead; on Shelfmark, the most-downloaded file unless you name one |
 | `set_monitoring` | Turn monitoring on or off: a whole series, one season, specific episodes; on Lidarr, `level: "album"` for one album or `level: "artist"` with `artists` and `monitor_new_items` for a policy over the set |
 | `retry_download` | Try this failed usenet download again, with its password if it needs one, or a failed or cancelled Shelfmark book |
-| `pause_downloads` | Pause, resume or throttle a download client, or one item in its queue |
+| `pause_downloads` | Pause, resume or throttle a download client, or one item in its queue; skip or bring back files inside a torrent |
 | `remove_queue_item` | Get rid of this stuck or wrong download; on Grimmory, discard a file waiting in the Bookdrop |
 | `remove_blocklist_item` | Let this blocklisted release be grabbed again |
 | `clean_queue` | Clear out completed downloads whose film, series or artist no longer exists |
@@ -1167,6 +1167,16 @@ tell a retry apart from a dead end: "Series title mismatch" or an unknown
 episode fails the same way every time, so `trigger_scan`'s `import` will not
 help. Past ten lines the rest are counted, not listed.
 
+### One torrent's files
+
+`id` narrows the answer to the item with that id (a hash matches in any case).
+For a Transmission or qBittorrent torrent asked for this way at `detail: "full"`,
+the row also carries `files`: each file's `index`, fenced `name`, `sizeBytes`,
+`progress` and `wanted`. `wanted: false` is a file the client skips; `index` is
+what `pause_downloads` takes for `skip_files` and `want_files`. Files are never
+read for a whole queue, only for the item `id` names. A client whose file list
+cannot be read is reported in `degraded`, and the row is returned without it.
+
 ### Grimmory's Bookdrop
 
 With Grimmory configured, the files waiting in its Bookdrop are queue rows. Each
@@ -2272,6 +2282,31 @@ The qBittorrent path is **spec-derived and unverified against a live
 instance**: there is no qBittorrent on the stack these adapters were probed
 against. v5 renamed `pause`/`resume` to `stop`/`start`, so both verbs are
 attempted — the new one first, the old one only if it 404s.
+
+### Choosing files inside a torrent
+
+`action: "skip_files"` and `action: "want_files"` act on the files of one
+torrent, on Transmission or qBittorrent: `id` names the torrent, `files` the
+indexes, taken from `get_queue` with that `id` at `detail: "full"`. Skipping is
+qBittorrent's "Do not download" and Transmission's unwanted flag: the client
+neither downloads nor shares the file. `want_files` with no `files` brings back
+every skipped file, and the preview lists them; the token binds to that list, so
+a file skipped between the preview and the confirmation is not swept in.
+
+The usual reason to want this: Cleanuparr's Malware Blocker skips files its
+blocklist names, `*.nfo` among them, and a torrent missing its `.nfo` cannot be
+cross-seeded — cross-seed links every file of the release.
+
+The preview says what skipping costs: the torrent no longer counts as complete,
+so peers get less from you, and a tool that links or imports the file (cross-seed,
+Radarr, Sonarr) will not find it. The call itself deletes nothing on disk. A file
+brought back returns at normal priority, whatever it had before.
+
+Both clients are **spec-derived and unverified against a live instance**: the
+qBittorrent WebUI API (`torrents/files`, `torrents/filePrio`) and the Transmission
+RPC spec (`files`, `fileStats`, `files-wanted`, `files-unwanted`). Transmission
+accepts an index the torrent does not have without complaint, so the adapter
+checks the file list first; qBittorrent answers 409 for it, read as `NotFound`.
 
 ## `retry_download`
 

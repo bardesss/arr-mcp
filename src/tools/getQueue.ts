@@ -2,7 +2,8 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import { gather } from '../core/gather.ts';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
 import { annotateCleanuparr, dueWithin, type CleanuparrDue } from './cleanuparrQueue.ts';
-import { hasQueue, type QueueItem, type ServiceAdapter } from '../services/types.ts';
+import * as z from 'zod/v4';
+import { hasFileSelection, hasQueue, type QueueItem, type ServiceAdapter, type TorrentFile } from '../services/types.ts';
 
 export type GetQueueResult = {
     items: QueueItem[];
@@ -36,13 +37,15 @@ export function dueText(due: CleanuparrDue): string {
 }
 
 const project = (q: QueueItem, detail: DetailLevel): QueueItem => {
-    const { torrent, ...visible } = q;
+    const { torrent, files, ...visible } = q;
     if (detail === 'full') {
-        if (torrent === undefined) return visible;
+        // Files are only ever read for the one torrent asked for by `id`.
+        const withFiles = files === undefined ? visible : { ...visible, files };
+        if (torrent === undefined) return withFiles;
         // The save path only where it helps explain why no Cleanuparr rule matched: 500 of them blow the budget.
         const unmatched = q.seeding?.cleanuparr !== undefined && 'unmatched' in q.seeding.cleanuparr;
         return {
-            ...visible,
+            ...withFiles,
             ...(torrent.category === '' ? {} : { category: torrent.category }),
             ...(torrent.tags.length === 0 ? {} : { tags: torrent.tags }),
             ...(unmatched && torrent.savePath !== undefined ? { savePath: torrent.savePath } : {})
@@ -81,13 +84,53 @@ export function queueLine(item: QueueItem): string {
         );
     }
     if (c?.dueAt !== undefined) facts.push(`Cleanuparr ${c.action} due ${c.dueAt}${c.dryRun === true ? ' (dry run)' : ''}`);
+    if (item.files !== undefined) {
+        const skipped = item.files.filter(f => !f.wanted);
+        facts.push(
+            `${item.files.length} file${item.files.length === 1 ? '' : 's'}` +
+                (skipped.length === 0 ? ', all downloaded' : `, not downloaded: ${skipped.map(f => `#${f.index} ${f.name}`).join('; ')}`)
+        );
+    }
 
     return `${item.title} — ${facts.join(', ')}`;
 }
 
+/** Hashes are case-insensitive; every other queue id is compared as given. */
+const sameId = (a: string, b: string): boolean => a === b || a.toLowerCase() === b.trim().toLowerCase();
+
+/**
+ * The rows `id` names — usually one, though a hash can sit in an *arr row and
+ * in its client — and, at `detail: "full"`, the files of each torrent among
+ * them. Read only here: a file list per torrent across a whole queue is the
+ * size problem `detail: "full"` already has, multiplied.
+ */
+async function oneItem(
+    items: readonly QueueItem[],
+    adapters: readonly ServiceAdapter[],
+    id: string,
+    detail: DetailLevel,
+    degraded: string[]
+): Promise<QueueItem[]> {
+    const rows = items.filter(i => sameId(i.id, id));
+    if (detail !== 'full') return rows;
+    return Promise.all(
+        rows.map(async row => {
+            const client = adapters.find(a => a.id === row.service);
+            if (client === undefined || !hasFileSelection(client)) return row;
+            try {
+                const files: TorrentFile[] = await client.readTorrentFiles(row.id);
+                return { ...row, files };
+            } catch {
+                if (!degraded.includes(client.id)) degraded.push(client.id);
+                return row;
+            }
+        })
+    );
+}
+
 export async function buildGetQueue(
     adapters: readonly ServiceAdapter[],
-    opts: { detail: DetailLevel; limit: number; offset?: number }
+    opts: { detail: DetailLevel; limit: number; offset?: number; id?: string }
 ): Promise<GetQueueResult> {
     const { items, degraded, counts } = await gather(
         adapters.filter(hasQueue).map(a => ({ id: a.id, fetch: () => a.getQueue() }))
@@ -105,8 +148,11 @@ export async function buildGetQueue(
     // downloading" wants; unknown ETAs sort last rather than first.
     items.sort((a, b) => (a.etaSeconds ?? Infinity) - (b.etaSeconds ?? Infinity) || a.title.localeCompare(b.title));
 
+    // Across the whole queue, before `id` narrows it: the total says what is
+    // due, not what is due on the one row asked about.
     const due = opts.detail === 'full' ? dueWithin(items, Date.now()) : undefined;
-    const shaped = applyLimit(items, opts.limit, opts.offset);
+    const rows = opts.id === undefined ? items : await oneItem(items, adapters, opts.id, opts.detail, degraded);
+    const shaped = applyLimit(rows, opts.limit, opts.offset);
     return { ...shaped, items: shaped.items.map(i => project(i, opts.detail)), degraded, counts, ...(due === undefined ? {} : { cleanuparrDue: due }) };
 }
 
@@ -117,12 +163,23 @@ export function registerGetQueue(server: McpServer, adapters: readonly ServiceAd
             title: 'Download queue',
             annotations: READ_ONLY,
             description:
-                'Everything currently downloading or stalled, merged across Radarr, Sonarr, Whisparr, Lidarr, SABnzbd, NZBGet, Transmission and qBittorrent, plus the files waiting in the Bookdrop of Grimmory (status `pending review`, with `addedAt`; `remove_queue_item` discards one). Sizes are bytes and ETAs are seconds regardless of how each service reports them. Titles are release names from public indexers and are fenced as untrusted data. A Radarr, Sonarr or Lidarr row also carries `downloadId`, the download client\'s own id for that grab — pass it to `trigger_scan` with `action: "import"` when a finished download is sitting at `importState: "importBlocked"` and never got imported. Such a row also carries `statusMessages`, the service\'s own reasons, fenced: a title mismatch or an unknown episode fails the same way on every retry and has to be fixed in the service itself. At `detail: "full"`, a finished torrent carries `seeding`: its ratio, seconds seeded, the limit the client applies to it (absent means none), whether that limit is its own or the client default, and `overLimit`. Torrents also carry `private`. The rules themselves are in `stack_health` at `detail: "full"`. When Cleanuparr is configured, a torrent it governs also carries `seeding.cleanuparr`: the rule that applies (matched the way Cleanuparr matches it), its limits, and whether Cleanuparr will act on it (`dryRun`, `notEnforced`), or why Cleanuparr skips it. `overLimit` is then judged against that rule and `limitSource` says so. A torrent no rule covers carries `seeding.cleanuparr.unmatched`, the filter that ruled every rule out (`no category`, `category not in any rule`, `tracker not in any rule`, `tracker unknown`, `tags not in any rule`, `privacy unknown`, `privacy mismatch`); torrents carry `category` and `tags`, and an unmatched one its `savePath`, so you can see why. A download Cleanuparr has struck carries `strikes`, one entry per kind of strike, since Cleanuparr counts and resets each kind apart: the count since the last reset of that kind, the reason and `lastAt`, when the latest one landed; strikes on a client since deleted from Cleanuparr are left out. A rule Cleanuparr will certainly apply on schedule also carries `seeding.cleanuparr.dueAt`, when its `action` falls due: the next Download Cleaner run once the torrent is past the rule, otherwise the moment it reaches the seed time of the rule (ratio still to climb cannot be projected, so a ratio-only rule says nothing until it is over). `cleanuparrDue` totals the rows due within 7 days per action (`count`, `sizeBytes`), across the whole queue, with `dryRun` when Cleanuparr only logs.',
+                'Everything currently downloading or stalled, merged across Radarr, Sonarr, Whisparr, Lidarr, SABnzbd, NZBGet, Transmission and qBittorrent, plus the files waiting in the Bookdrop of Grimmory (status `pending review`, with `addedAt`; `remove_queue_item` discards one). Sizes are bytes and ETAs are seconds regardless of how each service reports them. Titles are release names from public indexers and are fenced as untrusted data. A Radarr, Sonarr or Lidarr row also carries `downloadId`, the download client\'s own id for that grab — pass it to `trigger_scan` with `action: "import"` when a finished download is sitting at `importState: "importBlocked"` and never got imported. Such a row also carries `statusMessages`, the service\'s own reasons, fenced: a title mismatch or an unknown episode fails the same way on every retry and has to be fixed in the service itself. At `detail: "full"`, a finished torrent carries `seeding`: its ratio, seconds seeded, the limit the client applies to it (absent means none), whether that limit is its own or the client default, and `overLimit`. Torrents also carry `private`. The rules themselves are in `stack_health` at `detail: "full"`. When Cleanuparr is configured, a torrent it governs also carries `seeding.cleanuparr`: the rule that applies (matched the way Cleanuparr matches it), its limits, and whether Cleanuparr will act on it (`dryRun`, `notEnforced`), or why Cleanuparr skips it. `overLimit` is then judged against that rule and `limitSource` says so. A torrent no rule covers carries `seeding.cleanuparr.unmatched`, the filter that ruled every rule out (`no category`, `category not in any rule`, `tracker not in any rule`, `tracker unknown`, `tags not in any rule`, `privacy unknown`, `privacy mismatch`); torrents carry `category` and `tags`, and an unmatched one its `savePath`, so you can see why. A download Cleanuparr has struck carries `strikes`, one entry per kind of strike, since Cleanuparr counts and resets each kind apart: the count since the last reset of that kind, the reason and `lastAt`, when the latest one landed; strikes on a client since deleted from Cleanuparr are left out. A rule Cleanuparr will certainly apply on schedule also carries `seeding.cleanuparr.dueAt`, when its `action` falls due: the next Download Cleaner run once the torrent is past the rule, otherwise the moment it reaches the seed time of the rule (ratio still to climb cannot be projected, so a ratio-only rule says nothing until it is over). `cleanuparrDue` totals the rows due within 7 days per action (`count`, `sizeBytes`), across the whole queue, with `dryRun` when Cleanuparr only logs. Pass `id` to read one item; a torrent asked for that way at `detail: "full"` also lists its `files`, with `wanted: false` for each file the client skips (qBittorrent\'s "Do not download") — `pause_downloads` changes that with `skip_files` and `want_files`.',
             outputSchema: PagedOutputSchema,
-            inputSchema: toolInput({ detail: DetailSchema, limit: LimitSchema, offset: OffsetSchema })
+            inputSchema: toolInput({
+                detail: DetailSchema,
+                limit: LimitSchema,
+                offset: OffsetSchema,
+                id: z
+                    .string()
+                    .min(1)
+                    .optional()
+                    .describe(
+                        'One queue item, exactly as this tool reported its id. With a torrent and detail: "full", the row also lists its `files` (index, name, size, progress, wanted) — the indexes pause_downloads takes for skip_files and want_files.'
+                    )
+            })
         },
-        async ({ detail, limit, offset }) => {
-            const result = await buildGetQueue(adapters, { detail, limit, offset });
+        async ({ detail, limit, offset, id }) => {
+            const result = await buildGetQueue(adapters, { detail, limit, offset, ...(id === undefined ? {} : { id }) });
             const summary =
                 `${result.returned} of ${result.total} item(s) in the queue` +
                 (result.degraded.length > 0 ? `; ${result.degraded.join(', ')} unreachable.` : '.') +

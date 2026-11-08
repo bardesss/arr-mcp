@@ -12,6 +12,7 @@ import {
     type ConnectionDiagnosis,
     type DiskSpace,
     type DiskSpaceCapable,
+    type FileSelectionCapable,
     type PauseCapable,
     type PauseState,
     type QueueCapable,
@@ -25,7 +26,8 @@ import {
     type ServiceAdapter,
     type SpeedLimit,
     type SpeedLimitCapable,
-    type TorrentEndpoint
+    type TorrentEndpoint,
+    type TorrentFile
 } from './types.ts';
 
 const API = '/api/v2';
@@ -63,6 +65,22 @@ type RawTorrent = {
     tracker?: string;
     save_path?: string;
 };
+
+/** One row of `torrents/files`. `index` arrived in WebUI API 2.8.2; older
+ *  builds list files in index order without it. */
+type RawFile = {
+    index?: number;
+    name?: string;
+    size?: number;
+    progress?: number;
+    /** 0 do not download, 1 normal, 6 high, 7 maximum. */
+    priority?: number;
+};
+
+/** `filePrio`'s value for "download it", which is what qBittorrent's own
+ *  "Normal" means. A file that was High comes back as Normal, and the preview says so. */
+const PRIORITY_NORMAL = 1;
+const PRIORITY_SKIP = 0;
 
 type RawMainData = { server_state?: { free_space_on_disk?: number } };
 type RawPreferences = {
@@ -191,6 +209,7 @@ export class QbittorrentAdapter
         QueueRemoveCapable,
         PauseCapable,
         SpeedLimitCapable,
+        FileSelectionCapable,
         MagnetAddCapable,
         SeedLimitsCapable,
         TorrentEndpoint
@@ -379,6 +398,69 @@ export class QbittorrentAdapter
     async setSpeedLimit(kbps: number | undefined): Promise<void> {
         const bytes = kbps === undefined || kbps <= 0 ? 0 : Math.round(kbps) * 1024;
         await this.#http.postForm(`${API}/transfer/setDownloadLimit`, { limit: String(bytes) }, true);
+    }
+
+    /**
+     * `torrents/files` answers 404 for a hash it does not have, which the HTTP
+     * layer already turns into `NotFound`; the remedy is added here because a
+     * bare 404 does not say where an id comes from.
+     *
+     * Spec-derived, like the pause paths above: the shapes follow the WebUI
+     * API documentation, not a capture.
+     */
+    async readTorrentFiles(id: string): Promise<TorrentFile[]> {
+        const hash = this.#hash(id);
+        let files: RawFile[];
+        try {
+            files = await this.#http.get<RawFile[]>(`${API}/torrents/files?hash=${encodeURIComponent(hash)}`);
+        } catch (err) {
+            throw this.#notFound(err, id);
+        }
+
+        return (Array.isArray(files) ? files : []).map((f, position) => ({
+            index: typeof f.index === 'number' ? f.index : position,
+            name: fenceText(f.name ?? '', { service: this.id, field: 'file' }),
+            sizeBytes: f.size ?? 0,
+            progress: f.progress ?? 0,
+            wanted: (f.priority ?? PRIORITY_NORMAL) !== PRIORITY_SKIP
+        }));
+    }
+
+    /**
+     * `filePrio` takes `|`-separated indexes. It answers 409 when an index is
+     * not in the torrent or the metadata has not arrived yet, and changes
+     * nothing in either case, so both read as `NotFound` with the reason.
+     */
+    async setFilesWanted(id: string, indexes: readonly number[], wanted: boolean): Promise<void> {
+        const hash = this.#hash(id);
+        if (indexes.length === 0 || indexes.some(i => !Number.isInteger(i) || i < 0)) {
+            throw new ServiceError('NotFound', this.id, 'file indexes must be whole numbers from 0 up', {
+                remedy: 'Take the indexes from get_queue with this torrent\'s id and detail: "full".'
+            });
+        }
+        try {
+            await this.#http.postForm(
+                `${API}/torrents/filePrio`,
+                { hash, id: indexes.join('|'), priority: String(wanted ? PRIORITY_NORMAL : PRIORITY_SKIP) },
+                true
+            );
+        } catch (err) {
+            if (err instanceof ServiceError && err.kind === 'UpstreamError' && err.detail.startsWith('HTTP 409')) {
+                throw new ServiceError('NotFound', this.id, `torrent ${id} has no file at one of indexes ${indexes.join(', ')}, or its metadata has not arrived yet`, {
+                    remedy: 'Read the files again with get_queue and this id at detail: "full". A torrent still fetching metadata has no files to choose from yet.'
+                });
+            }
+            throw this.#notFound(err, id);
+        }
+    }
+
+    #notFound(err: unknown, id: string): unknown {
+        if (err instanceof ServiceError && err.kind === 'NotFound') {
+            return new ServiceError('NotFound', this.id, `no torrent with hash "${id}"`, {
+                remedy: 'qBittorrent torrent ids are info hashes. Take one from get_queue.'
+            });
+        }
+        return err;
     }
 
     /**

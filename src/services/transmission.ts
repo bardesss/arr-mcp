@@ -12,6 +12,7 @@ import {
     type ConnectionDiagnosis,
     type DiskSpace,
     type DiskSpaceCapable,
+    type FileSelectionCapable,
     type PauseCapable,
     type PauseState,
     type QueueCapable,
@@ -25,7 +26,8 @@ import {
     type ServiceAdapter,
     type SpeedLimit,
     type SpeedLimitCapable,
-    type TorrentEndpoint
+    type TorrentEndpoint,
+    type TorrentFile
 } from './types.ts';
 
 const RPC_PATH = '/transmission/rpc';
@@ -47,6 +49,13 @@ type RawSession = {
  * endpoint, with an `X-Transmission-Session-Id` handshake that the auth
  * strategy owns. Confirmed against a live 4.1.3.
  */
+/** `torrent-get` with `files` and `fileStats`: parallel arrays, in file-index order. */
+type RawFilesTorrent = {
+    id?: number;
+    files?: { name?: string; length?: number; bytesCompleted?: number }[];
+    fileStats?: { wanted?: boolean; priority?: number; bytesCompleted?: number }[];
+};
+
 type RawTorrent = {
     id?: number;
     name?: string;
@@ -158,6 +167,7 @@ export class TransmissionAdapter
         QueueCapable,
         QueueRemoveCapable,
         PauseCapable,
+        FileSelectionCapable,
         SpeedLimitCapable,
         MagnetAddCapable,
         SeedLimitsCapable,
@@ -402,6 +412,69 @@ export class TransmissionAdapter
                 : { title: fenceText(row.name, { service: this.id, field: 'name' }) }),
             duplicate: added === undefined && duplicate !== undefined
         };
+    }
+
+    /**
+     * `files` and `fileStats` are parallel arrays in file-index order, which
+     * is the index `torrent-set` takes, so the position is the index.
+     *
+     * Spec-derived from the RPC documentation, not probed live.
+     */
+    async readTorrentFiles(id: string): Promise<TorrentFile[]> {
+        const torrent = await this.#filesOf(id);
+        const stats = torrent.fileStats ?? [];
+        return (torrent.files ?? []).map((f, index) => {
+            const length = f.length ?? 0;
+            const done = stats[index]?.bytesCompleted ?? f.bytesCompleted ?? 0;
+            return {
+                index,
+                name: fenceText(f.name ?? '', { service: this.id, field: 'file' }),
+                sizeBytes: length,
+                progress: length > 0 ? Math.min(1, done / length) : 1,
+                wanted: stats[index]?.wanted ?? true
+            };
+        });
+    }
+
+    /**
+     * Checked against the file list first: `torrent-set` takes an index the
+     * torrent does not have without complaint, so an off-by-one would report
+     * a change that never happened.
+     */
+    async setFilesWanted(id: string, indexes: readonly number[], wanted: boolean): Promise<void> {
+        const torrent = await this.#filesOf(id);
+        const count = (torrent.files ?? []).length;
+        const missing = indexes.filter(i => !Number.isInteger(i) || i < 0 || i >= count);
+        if (indexes.length === 0 || missing.length > 0) {
+            throw new ServiceError('NotFound', this.id, `torrent ${id} has no file at index ${missing.join(', ') || '(none given)'}`, {
+                remedy: 'Take the indexes from get_queue with this torrent\'s id and detail: "full".'
+            });
+        }
+
+        const body = await this.#http.post<RpcResponse<unknown>>(RPC_PATH, {
+            method: 'torrent-set',
+            arguments: { ids: [this.#torrentId(id)], [wanted ? 'files-wanted' : 'files-unwanted']: [...indexes] }
+        });
+        if (body.result !== 'success') {
+            throw new ServiceError('UpstreamError', this.id, `torrent-set failed: ${resultOf(this.id, body.result)}`);
+        }
+    }
+
+    async #filesOf(id: string): Promise<RawFilesTorrent> {
+        const body = await this.#http.post<RpcResponse<{ torrents?: RawFilesTorrent[] }>>(RPC_PATH, {
+            method: 'torrent-get',
+            arguments: { ids: [this.#torrentId(id)], fields: ['id', 'files', 'fileStats'] }
+        });
+        if (body.result !== 'success') {
+            throw new ServiceError('UpstreamError', this.id, `torrent-get failed: ${resultOf(this.id, body.result)}`);
+        }
+        const torrent = body.arguments?.torrents?.[0];
+        if (torrent === undefined) {
+            throw new ServiceError('NotFound', this.id, `no torrent with id "${id}"`, {
+                remedy: 'Transmission torrent ids are integers. Take one from get_queue.'
+            });
+        }
+        return torrent;
     }
 
     #torrentId(id: string): number {
