@@ -129,17 +129,17 @@ describe('LidarrAdapter updating an artist', () => {
 
 type Call = (args: Record<string, unknown>) => Promise<{ content: { type: 'text'; text: string }[]; structuredContent: WriteToolResult }>;
 
-const permissive = (port: number): AnyServiceConfig =>
-    ({ ...config(port), permissions: { safe_write: true, destructive: false } }) as AnyServiceConfig;
+const permissive = (port: number, destructive: boolean): AnyServiceConfig =>
+    ({ ...config(port), permissions: { safe_write: true, destructive } }) as AnyServiceConfig;
 
-function updateMedia(adapters: ServiceAdapter[]) {
+function updateMedia(adapters: ServiceAdapter[], destructive = true) {
     let call: Call = () => Promise.reject(new Error('not registered'));
     const server = {
         registerTool(_n: string, c: { inputSchema: z.ZodObject }, handler: Call) {
             call = args => handler(c.inputSchema.parse(args) as Record<string, unknown>);
         }
     };
-    const services: Partial<Record<ServiceId, AnyServiceConfig>> = { lidarr: permissive(8686), radarr: permissive(7878) };
+    const services: Partial<Record<ServiceId, AnyServiceConfig>> = { lidarr: permissive(8686, destructive), radarr: permissive(7878, destructive) };
     registerUpdateMedia(
         server as never,
         {
@@ -185,6 +185,20 @@ describe('update_media on Lidarr', () => {
 
         await call({ service: 'lidarr', id: '101', metadata_profile: 'None', confirm: first.structuredContent.confirm_token });
         expect(sent.find(s => s.method === 'PUT')?.body).toEqual({ artistIds: [101], metadataProfileId: 2, moveFiles: false });
+    });
+
+    // A refresh after a narrower profile deletes albums the tool cannot put
+    // back as they were, so only that field needs the destructive tier.
+    it('needs the destructive tier for a metadata profile, and only safe_write without one', async () => {
+        const safeOnly = updateMedia([lidarr().adapter], false);
+        await expect(safeOnly({ service: 'lidarr', id: '101', metadata_profile: 'None' })).rejects.toThrow(
+            /permissions\.destructive: true/
+        );
+        const profile = await safeOnly({ service: 'lidarr', id: '101', quality_profile: 'Quality profile 11' });
+        expect(profile.structuredContent.tier).toBe('safe');
+
+        const both = await updateMedia([lidarr().adapter])({ service: 'lidarr', id: '101', metadata_profile: 'None' });
+        expect(both.structuredContent.tier).toBe('destructive');
     });
 
     // `None` empties the album list, so the refresh removes every album

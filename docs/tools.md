@@ -2770,8 +2770,9 @@ tag.
 
 Safe tier. Every field is one the same tool sets back, and a move loses
 nothing: the undo is moving it back. A Lidarr metadata profile is the one
-exception: once a refresh has removed albums, switching back brings them in
-without their old flags, which the preview says. A request that would change
+exception, and a call that changes it needs the destructive tier: once a
+refresh has removed albums, switching back brings them in without their old
+flags, which the preview says. A request that would change
 nothing is a no-op, and a request naming no field at all is refused rather than
 previewed.
 

@@ -34,7 +34,7 @@ re-monitor it.
 | `trigger_subtitle_search` | safe | `safe_write` |
 | `respond_to_request` | safe | `safe_write` |
 | `add_media` | safe | `safe_write` |
-| `update_media` | safe | `safe_write` |
+| `update_media` | safe; destructive with a Lidarr `metadata_profile` | `safe_write`; `destructive` with a metadata profile |
 | `set_monitoring` | safe | `safe_write` |
 | `grab_release` | safe | `safe_write` |
 | `request_media` | safe | `safe_write` |
@@ -99,7 +99,8 @@ the same reason. The preview names the source and the destination, because
 "change the root folder" reads cheaper than it is. A Lidarr metadata profile is
 the one field it cannot always set back: once a refresh has removed the albums
 the new profile leaves out, switching back brings them in again as new albums,
-without their old flags, and the preview says so.
+without their old flags. A call that changes it is destructive tier, so it needs
+`destructive` on that Lidarr, and the preview says what the refresh will do.
 
 On a Grimmory book `update_media` edits the title, authors, series and
 categories, and Grimmory may write the change into the book file and move it to
