@@ -8,6 +8,8 @@ import { guidForText } from '../core/fence.ts';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
 import { RELEASE_SEARCH_TIMEOUT_MS } from '../services/arrRelease.ts';
 import { hasReleaseSearch, type ReleaseCandidate, type ServiceAdapter } from '../services/types.ts';
+import { managedIdByTitle } from './byTitle.ts';
+import type { LibraryLoader } from './library.ts';
 
 export type GetReleasesResult = {
     items: ReleaseCandidate[];
@@ -110,7 +112,12 @@ export async function buildGetReleases(
     return { ...shaped, items: shaped.items.map(i => project(i, opts.detail)), degraded: [], counts: { [adapter.id]: items.length } };
 }
 
-export function registerGetReleases(server: McpServer, adapters: readonly ServiceAdapter[]): void {
+export function registerGetReleases(
+    server: McpServer,
+    adapters: readonly ServiceAdapter[],
+    /** Resolves `title`. Absent in tests that only ever pass an id. */
+    loader?: LibraryLoader
+): void {
     server.registerTool(
         'get_releases',
         {
@@ -122,9 +129,15 @@ export function registerGetReleases(server: McpServer, adapters: readonly Servic
             inputSchema: toolInput({
                 service: serviceOf(['radarr', 'sonarr', 'whisparr', 'lidarr', 'shelfmark']),
                 instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
+                title: z
+                    .string()
+                    .min(1)
+                    .optional()
+                    .describe('A film or series title in place of `id`. A title two items match equally is refused with both ids.'),
                 id: z
                     .string()
                     .min(1)
+                    .optional()
                     .describe(
                         'The movie, series or artist id — `acquisition.id` on a get_library or get_media_details record. On shelfmark, the id of a lookup_media row whose kind is book.'
                     ),
@@ -155,7 +168,12 @@ export function registerGetReleases(server: McpServer, adapters: readonly Servic
                 offset: OffsetSchema
             })
         },
-        async ({ service, instance, id, season, episode, album, detail, limit, offset }) => {
+        async ({ service, instance, title, id: given, season, episode, album, detail, limit, offset }) => {
+            if ((given === undefined) === (title === undefined)) throw new Error('Pass either `id` or `title`, not both.');
+            let id: string;
+            if (given !== undefined) id = given;
+            else if (loader === undefined) throw new Error('`title` cannot be resolved here; pass `id`.');
+            else id = await managedIdByTitle(adapters, loader, title as string, resolveInstance(adapters, service, instance).id);
             const result = await buildGetReleases(adapters, {
                 service,
                 ...(instance === undefined ? {} : { instance }),

@@ -9,6 +9,8 @@ import { LidarrAdapter } from '../src/services/lidarr.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
 import { WhisparrAdapter } from '../src/services/whisparr.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
+import { fenceText } from '../src/core/fence.ts';
+import { LibraryLoader } from '../src/tools/library.ts';
 import { registerSetMonitoring } from '../src/tools/setMonitoring.ts';
 import { instancesOf } from './helpers/instances.ts';
 
@@ -38,7 +40,7 @@ const neverCalled = (() => {
 
 type Call = (args: Record<string, unknown>) => Promise<{ structuredContent: Record<string, unknown> }>;
 
-function harness(adapters: ServiceAdapter[], permissions: Partial<Record<ServiceId, AnyServiceConfig>>) {
+function harness(adapters: ServiceAdapter[], permissions: Partial<Record<ServiceId, AnyServiceConfig>>, loader?: LibraryLoader) {
     let call: Call = () => Promise.reject(new Error('not registered'));
     const server = {
         registerTool(_n: string, config: { inputSchema: z.ZodObject }, handler: Call) {
@@ -54,7 +56,8 @@ function harness(adapters: ServiceAdapter[], permissions: Partial<Record<Service
             audit: WriteAudit.ephemeral(),
             library: { invalidate: vi.fn() } as never
         } as never,
-        adapters
+        adapters,
+        loader
     );
 
     return { call: (a: Record<string, unknown>) => call(a) };
@@ -148,5 +151,55 @@ describe('set_monitoring argument checks', () => {
 
         expect(err).toBeInstanceOf(ServiceError);
         expect((err as ServiceError).kind).toBe('NotFound');
+    });
+});
+
+describe('set_monitoring by title', () => {
+    const library = new LibraryLoader(
+        [
+            {
+                id: 'sonarr',
+                testConnection: async () => ({ ok: true, service: 'sonarr', latency_ms: 1 }),
+                getVersion: async () => '4.0.0',
+                listLibrary: async () => [
+                    {
+                        kind: 'series',
+                        title: fenceText('Rick and Morty', { service: 'sonarr', field: 'title' }),
+                        year: 2013,
+                        ids: { tvdb: 275274 },
+                        acquisition: { service: 'sonarr', id: '15', monitored: true, hasFile: true }
+                    }
+                ]
+            } as unknown as ServiceAdapter
+        ],
+        undefined
+    );
+
+    const withTitle = () => {
+        const asked: string[] = [];
+        const recording = (async (input: string | URL | Request) => {
+            asked.push(new URL(input instanceof Request ? input.url : String(input)).pathname);
+            return new Response('{}', { status: 404, headers: { 'content-type': 'application/json' } });
+        }) as unknown as typeof fetch;
+        const config = configFor();
+        const h = harness([new SonarrAdapter(config as never, recording)], { sonarr: config as AnyServiceConfig }, library);
+        return { ...h, asked };
+    };
+
+    it('reads the series the title resolves to', async () => {
+        const h = withTitle();
+        await h.call({ service: 'sonarr', title: 'Rick and Morty', season: 1, monitored: false }).catch(() => undefined);
+        expect(h.asked).toContain('/api/v3/series/15');
+    });
+
+    it('refuses a title together with an id', async () => {
+        const h = withTitle();
+        await expect(h.call({ service: 'sonarr', title: 'Rick and Morty', id: '15', monitored: false })).rejects.toThrow(/either `id` or `title`/);
+        expect(h.asked).toEqual([]);
+    });
+
+    it('refuses a title on lidarr', async () => {
+        const h = harnessFor('lidarr');
+        await expect(h.call({ service: 'lidarr', title: 'Rick and Morty', level: 'album', monitored: false })).rejects.toThrow(/`title` names a series/);
     });
 });

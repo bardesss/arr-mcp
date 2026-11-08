@@ -9,7 +9,8 @@ import { permissionSourceFrom } from '../src/core/permissions.ts';
 import { ServiceError } from '../src/core/errors.ts';
 import { JellyfinAdapter } from '../src/services/jellyfin.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
-import type { LibraryLoader } from '../src/tools/library.ts';
+import { fenceText } from '../src/core/fence.ts';
+import { LibraryLoader } from '../src/tools/library.ts';
 import { registerSetWatched } from '../src/tools/setWatched.ts';
 import type { WriteToolResult } from '../src/tools/write.ts';
 import { jsonResponse } from './helpers/serve.ts';
@@ -63,6 +64,7 @@ function harness(
         config?: MultiUserServiceConfig;
         item?: Record<string, unknown>;
         episodes?: Record<string, unknown>[];
+        loader?: LibraryLoader;
     } = {}
 ) {
     const config = opts.config ?? jellyfinConfig();
@@ -113,7 +115,9 @@ function harness(
             library: { invalidate: vi.fn() } as unknown as LibraryLoader
         },
         [adapter],
-        new IdentityResolver(adapter, config)
+        new IdentityResolver(adapter, config),
+        undefined,
+        opts.loader
     );
 
     return { call: (a: Record<string, unknown>) => call(a), marked, audit };
@@ -285,5 +289,44 @@ describe('set_watched beside Plex', () => {
         const { structuredContent } = await call({ item_id: MOVIE, watched: true });
         expect(structuredContent.target).toBe(`jellyfin:${MOVIE}`);
         expect(structuredContent.confirm_token).toBeDefined();
+    });
+});
+
+describe('set_watched by title', () => {
+    const loader = () =>
+        new LibraryLoader(
+            [
+                {
+                    id: 'radarr',
+                    testConnection: async () => ({ ok: true, service: 'radarr', latency_ms: 1 }),
+                    getVersion: async () => '5.0.0',
+                    listLibrary: async () => [
+                        {
+                            kind: 'movie',
+                            title: fenceText('Alien', { service: 'radarr', field: 'title' }),
+                            year: 1979,
+                            ids: { tmdb: 348 },
+                            acquisition: { service: 'radarr', id: '7', monitored: true, hasFile: true },
+                            playback: { user: 'Sam', itemId: MOVIE, watched: false }
+                        }
+                    ]
+                } as unknown as ServiceAdapter
+            ],
+            undefined
+        );
+
+    it('marks the item the title resolves to, once confirmed', async () => {
+        const h = harness({ loader: loader() });
+        const preview = await h.call({ title: 'Alien', watched: true });
+        expect(preview.structuredContent.target).toBe(`jellyfin:${MOVIE}`);
+        await h.call({ title: 'Alien', watched: true, confirm: preview.structuredContent.confirm_token });
+        expect(h.marked).toEqual([{ method: 'POST', path: `/UserPlayedItems/${MOVIE}` }]);
+    });
+
+    it('refuses a title together with an item_id, and neither', async () => {
+        const h = harness({ loader: loader() });
+        await expect(h.call({ title: 'Alien', item_id: MOVIE, watched: true })).rejects.toThrow(/either `item_id` or `title`/);
+        await expect(h.call({ watched: true })).rejects.toThrow(/either `item_id` or `title`/);
+        expect(h.marked).toHaveLength(0);
     });
 });
