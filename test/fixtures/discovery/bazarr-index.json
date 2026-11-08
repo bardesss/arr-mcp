@@ -1,0 +1,11 @@
+{
+  "service": "bazarr",
+  "path": "/",
+  "note": "index, trimmed to title",
+  "source": "live",
+  "status": 200,
+  "headers": {
+    "content-type": "text/html; charset=utf-8"
+  },
+  "body": "<!doctype html><html lang=\"en\"><head><title>Bazarr</title></head></html>"
+}

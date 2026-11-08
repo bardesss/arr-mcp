@@ -1,0 +1,11 @@
+{
+  "source": "docs",
+  "service": "qbittorrent",
+  "path": "/",
+  "note": "qBittorrent src/webui/www title once translated",
+  "status": 200,
+  "headers": {
+    "content-type": "text/html"
+  },
+  "body": "<!DOCTYPE html><html lang=\"en\"><head><title>qBittorrent WebUI</title></head></html>"
+}

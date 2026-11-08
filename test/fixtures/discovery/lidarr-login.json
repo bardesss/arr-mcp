@@ -1,0 +1,11 @@
+{
+  "source": "docs",
+  "service": "lidarr",
+  "path": "/login",
+  "note": "same login page template as the live Radarr, Sonarr and Prowlarr captures",
+  "status": 200,
+  "headers": {
+    "content-type": "text/html"
+  },
+  "body": "<!DOCTYPE html><html lang=\"en\"><head><meta name=\"description\" content=\"Lidarr\" /><title>Login - Lidarr</title></head></html>"
+}

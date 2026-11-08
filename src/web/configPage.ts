@@ -11,6 +11,9 @@ import {
 } from '../config/schema.ts';
 import type { StoredManagementKey } from '../core/managementKey.ts';
 import { unfence } from '../core/fence.ts';
+import { UNDISCOVERABLE } from '../discovery/catalog.ts';
+import type { ResultRow } from '../discovery/match.ts';
+import type { RunState } from '../discovery/run.ts';
 import { fingerprint, isExpired, type StoredToken } from '../core/mcpTokens.ts';
 import { WEBHOOK_SERVICES, WEBHOOK_USERNAME } from '../services/arrWebhook.ts';
 import type { ConnectionDiagnosis } from '../services/types.ts';
@@ -55,6 +58,17 @@ const THEMES: readonly { key: Theme; label: string }[] = [
 /** Alphabetical, unlike `ServiceIdSchema.options` — which is declaration order
  *  and reads as arbitrary to anyone looking for their service in the list. */
 export const SERVICE_IDS_ALPHABETICAL: readonly ServiceId[] = [...SERVICE_IDS].sort();
+
+/**
+ * The types the add dialog offers. A service that cannot have a second
+ * instance and already has one is not a choice — offering it only to answer
+ * "already configured" wastes the click. The multi-instance types are always
+ * here, so this list is never empty.
+ */
+export function offerableTypes(config: Config): ServiceId[] {
+    const configured = new Set(listInstances(config).map(i => i.type));
+    return SERVICE_IDS_ALPHABETICAL.filter(id => MULTI_INSTANCE.includes(id) || !configured.has(id));
+}
 
 /** Which extra fields each service actually has, so a card matches the schema
  *  rather than showing eight identical boxes. */
@@ -497,18 +511,12 @@ function addDialog(
     config: Config,
     keys: SafeHtml,
     open: boolean,
-    tested: ConnectionDiagnosis | undefined
+    tested: ConnectionDiagnosis | undefined,
+    prefill: { type: ServiceId; url: string } | undefined
 ): SafeHtml {
     const instances = listInstances(config);
     const configured = new Set(instances.map(i => i.type));
-
-    /** A service that cannot have a second instance and already has one is not
-     *  a choice — offering it only to answer "already configured" wastes the
-     *  click. The multi-instance types are always here, so this list is
-     *  never empty. */
-    const offerable = SERVICE_IDS_ALPHABETICAL.filter(
-        id => MULTI_INSTANCE.includes(id) || !configured.has(id)
-    );
+    const offerable = offerableTypes(config);
 
     const keyed = offerable.filter(id => !NO_API_KEY.has(id));
     const needsName = MULTI_INSTANCE.filter(t => configured.has(t));
@@ -524,7 +532,9 @@ function addDialog(
             <div class="field">
                 <label for="add.type">Service</label>
                 <select id="add.type" name="type">
-                    ${offerable.map(id => html`<option value="${id}">${id}</option>`)}
+                    ${offerable.map(
+                        id => html`<option value="${id}"${prefill?.type === id ? raw(' selected') : raw('')}>${id}</option>`
+                    )}
                 </select>
                 ${offerable.length === SERVICE_IDS.length
                     ? raw('')
@@ -540,7 +550,13 @@ function addDialog(
                       </p>`}
             </div>
 
-            ${field({ id: 'add.url', name: 'url', label: 'URL', placeholder: 'http://192.168.1.20:7878' })}
+            ${field({
+                id: 'add.url',
+                name: 'url',
+                label: 'URL',
+                placeholder: 'http://192.168.1.20:7878',
+                ...(prefill === undefined ? {} : { value: prefill.url })
+            })}
             ${field({
                 id: 'add.api_key',
                 name: 'api_key',
@@ -814,6 +830,109 @@ function webhooksCard(config: Config, keys: SafeHtml, confirmingNewSecret: boole
         : raw('')}`;
 }
 
+/** Seconds between reloads while a run is going. */
+const DISCOVERY_REFRESH_SECONDS = 2;
+
+const addLink = (r: ResultRow): SafeHtml =>
+    html`<a href="/ui/config?tab=services&amp;add_type=${r.type}&amp;add_url=${encodeURIComponent(r.url)}">Add</a>`;
+
+function discoveryStatus(r: ResultRow): SafeHtml {
+    switch (r.status) {
+        case 'added':
+            return html`already added`;
+        case 'configured':
+            return html`already configured at <span class="mono">${r.existingUrl ?? ''}</span>`;
+        case 'maybe-second':
+            return html`${r.type} is already configured at <span class="mono">${r.existingUrl ?? ''}</span>.
+                If this is a different one, add it as a second instance. ${addLink(r)}`;
+        default:
+            return addLink(r);
+    }
+}
+
+/**
+ * What the last Find services run saw, above the service cards. A run that
+ * is still going shows the rows so far and the page reloads itself; the
+ * layout adds the meta refresh.
+ *
+ * Nothing here saves anything. Add opens the add dialog with the type and the
+ * address filled in, and the credential stays empty.
+ */
+function discoveryPanel(run: RunState, keys: SafeHtml, refreshing: boolean): SafeHtml {
+    // A quick search tries one host and a handful of names, so a counter says
+    // nothing; it names its sources, and the Skipped list explains the rest.
+    const what =
+        run.phase === 'sweep'
+            ? html`the range ${run.range ?? ''}: ${run.tried} of ${run.total} addresses tried`
+            : html`${run.hostTried === undefined
+                  ? raw('')
+                  : html`this host (${run.hostAddress === undefined || run.hostAddress === run.hostTried
+                        ? run.hostTried
+                        : `${run.hostTried}, ${run.hostAddress}`}) and `}container names: ${run.containersResolved ?? 0} resolved`;
+    const reload = html`<a href="/ui/config?tab=services">Reload</a>`;
+    return html`<div class="panel" id="discovery"${refreshing ? raw(` data-reload="${DISCOVERY_REFRESH_SECONDS}"`) : raw('')}>
+        <h3 style="margin:0 0 .75rem">Found services</h3>
+        ${run.running
+            ? html`<p class="note">
+                  Looking at ${what}.
+                  ${refreshing
+                      ? html`This page reloads until it is done.
+                            <span data-paused hidden>It has stopped reloading while you have something open or typed in. ${reload}</span>`
+                      : html`This view does not reload by itself. ${reload}`}
+              </p>`
+            : html`<p class="note">Looked at ${what}.</p>`}
+        ${run.failed === true
+            ? html`<p class="note">The search failed; the logs page has the error.</p>`
+            : run.rows.length === 0
+              ? run.running
+                  ? raw('')
+                  : html`<p class="note">
+                        Nothing found. Add a service by hand with the button above, or scan a range below.
+                    </p>`
+            : html`<table class="stacked">
+                  <thead><tr><th>Service</th><th>Address</th><th>Version</th><th></th></tr></thead>
+                  <tbody>
+                      ${run.rows.map(
+                          r => html`<tr>
+                              <td class="mono">${r.type}</td>
+                              <td class="mono">${r.url}${r.alsoAt === undefined
+                                  ? raw('')
+                                  : html` <span class="dim">also reachable at ${r.alsoAt}</span>`}</td>
+                              <td>${r.version ?? ''}</td>
+                              <td>${discoveryStatus(r)}</td>
+                          </tr>`
+                      )}
+                  </tbody>
+              </table>`}
+        ${run.skipped.length === 0
+            ? raw('')
+            : html`<p class="note">Skipped:</p>
+                  <ul class="note">
+                      ${run.skipped.map(s => html`<li><span class="mono">${s.what}</span>: ${s.reason}</li>`)}
+                  </ul>`}
+        ${UNDISCOVERABLE.length === 0
+            ? raw('')
+            : html`<p class="note">These cannot be found this way:</p>
+                  <ul class="note">
+                      ${UNDISCOVERABLE.map(u => html`<li><span class="mono">${u.type}</span>: ${u.reason}</li>`)}
+                  </ul>`}
+        <form method="post" action="/ui/config/discover/sweep" ${IGNORE_FORM}>
+            ${keys}
+            ${field({
+                id: 'discover.range',
+                name: 'range',
+                label: 'Scan a range',
+                value: run.range ?? run.suggestedRange ?? '',
+                placeholder: '192.168.1.0/24',
+                note: 'A port scan: it tries each service port on every address in the range. Routers and intrusion detection may flag it. It only reads, and no key is sent.'
+            })}
+            <div class="row" style="margin-top:1rem">
+                <button type="submit" class="ghost"${run.running ? raw(' disabled') : raw('')}>Scan this range</button>
+            </div>
+        </form>
+    </div>`;
+}
+
 /** What each tab answers: what is connected, who can get in, how it behaves. */
 export const CONFIG_TABS = [
     { key: 'services', label: 'Services' },
@@ -883,6 +1002,10 @@ export function configPage(opts: {
     /** What the last OAuth post left for its card: a result, a pending
      *  removal, or the fields as typed after a refusal or a Test. */
     oauth?: OAuthCardState | undefined;
+    /** The last Find services run, shown above the cards on the services tab. */
+    discovery?: RunState | undefined;
+    /** The Add link's choice, to select in the add dialog. */
+    addPrefill?: { type: ServiceId; url: string } | undefined;
 }): string {
     const instances = listInstances(opts.config);
     const bothMediaServers = MEDIA_SERVERS.every(id => instances.some(i => i.type === id));
@@ -890,14 +1013,32 @@ export function configPage(opts: {
     const keys = html`<input type="hidden" name="csrf" value="${opts.csrf}">
         <input type="hidden" name="etag" value="${configEtag(opts.config)}">`;
 
+    // A reload re-renders every form empty, so it would eat a key being typed.
+    // It is also a GET of whatever URL this page answered, which for a post
+    // render is a 404. So only a plain view of the tab reloads itself.
+    const refreshes =
+        opts.tab === 'services' &&
+        opts.discovery?.running === true &&
+        opts.message === undefined &&
+        opts.openAdd !== true &&
+        opts.addPrefill === undefined &&
+        opts.testedAdd === undefined &&
+        opts.openInstance === undefined &&
+        opts.tested === undefined &&
+        opts.confirmingRemoval === undefined;
+
     const services = html`<div class="row" style="margin-bottom:1rem">
             <button type="button" data-open="add-service">Add a service</button>
+            <button type="submit" form="discover-form" class="ghost">Find services</button>
             <span class="note" style="margin:0">
                 ${instances.length === 0
                     ? raw('Nothing is configured yet — anything you leave out is simply absent, not broken.')
                     : raw('Saving applies immediately — no restart. Each instance is saved on its own.')}
             </span>
         </div>
+
+        <form id="discover-form" method="post" action="/ui/config/discover" hidden ${IGNORE_FORM}>${keys}</form>
+        ${opts.discovery === undefined ? raw('') : discoveryPanel(opts.discovery, keys, refreshes)}
 
         ${instances.map(i =>
             instanceCard(
@@ -913,7 +1054,7 @@ export function configPage(opts: {
                 opts.tested?.instance === i.id || opts.confirmingRemoval === i.id || opts.openInstance === i.id
             )
         )}
-        ${addDialog(opts.config, keys, opts.openAdd === true, opts.testedAdd)}`;
+        ${addDialog(opts.config, keys, opts.openAdd === true, opts.testedAdd, opts.addPrefill)}`;
 
     const savedAlone = html`<p class="note">Each card is saved on its own. A Save writes only its own card.</p>`;
 
@@ -1089,6 +1230,9 @@ export function configPage(opts: {
         // Derived, not passed in: this page already has the config, and a
         // second source for one value is a way for them to disagree.
         theme: opts.config.ui?.theme,
+        ...(refreshes
+            ? { refreshSeconds: DISCOVERY_REFRESH_SECONDS }
+            : {}),
         ...(opts.message === undefined ? {} : { message: opts.message })
     });
 }

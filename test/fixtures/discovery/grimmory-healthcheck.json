@@ -1,0 +1,12 @@
+{
+  "service": "grimmory",
+  "path": "/api/v1/healthcheck",
+  "version": "v3.5.0",
+  "note": "timestamps removed",
+  "source": "live",
+  "status": 200,
+  "headers": {
+    "content-type": "application/json"
+  },
+  "body": "{\"data\":{\"status\":\"UP\",\"message\":\"Application is running smoothly.\",\"version\":\"v3.5.0\"},\"message\":\"Pong\",\"status\":200}"
+}

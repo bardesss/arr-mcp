@@ -1,0 +1,12 @@
+{
+  "service": "jellyfin",
+  "path": "/System/Info/Public",
+  "version": "12.4.0",
+  "note": "ServerName, Id and LocalAddress removed",
+  "source": "live",
+  "status": 200,
+  "headers": {
+    "content-type": "application/json; charset=utf-8"
+  },
+  "body": "{\"Version\":\"12.4.0\",\"ProductName\":\"Jellyfin Server\",\"StartupWizardCompleted\":true}"
+}

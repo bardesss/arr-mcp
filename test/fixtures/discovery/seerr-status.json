@@ -1,0 +1,12 @@
+{
+  "service": "seerr",
+  "path": "/api/v1/status",
+  "version": "3.5.1",
+  "note": "commitTag removed",
+  "source": "live",
+  "status": 200,
+  "headers": {
+    "content-type": "application/json; charset=utf-8"
+  },
+  "body": "{\"version\":\"3.5.1\",\"updateAvailable\":false,\"commitsBehind\":0,\"restartRequired\":false}"
+}

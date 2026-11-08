@@ -1,0 +1,11 @@
+{
+  "service": "sabnzbd",
+  "path": "/api?mode=version",
+  "version": "5.1.3",
+  "source": "live",
+  "status": 200,
+  "headers": {
+    "content-type": "application/json;charset=UTF-8"
+  },
+  "body": "{\"version\":\"5.1.3\"}"
+}

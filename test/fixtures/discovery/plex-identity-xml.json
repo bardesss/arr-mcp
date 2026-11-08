@@ -1,0 +1,12 @@
+{
+  "source": "docs",
+  "service": "plex",
+  "path": "/identity",
+  "version": "1.43.3.10896-cb3ebc72d",
+  "note": "default XML answer, from Plex API docs",
+  "status": 200,
+  "headers": {
+    "content-type": "text/xml;charset=utf-8"
+  },
+  "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<MediaContainer size=\"0\" claimed=\"1\" machineIdentifier=\"0000000000000000000000000000000000000000\" version=\"1.43.3.10896-cb3ebc72d\">\n</MediaContainer>"
+}
