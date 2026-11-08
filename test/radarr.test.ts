@@ -148,7 +148,7 @@ describe('RadarrAdapter', () => {
         // context as prose. Unlike `path` it is never posted back, so there is
         // no raw half to keep beside it.
         expect(folders[0]?.unmappedFolders).toEqual([
-            '<<untrusted:radarr.unmappedFolder>>Back to Black (2024) [tmdbid-998846]<</untrusted>>'
+            '<<untrusted:radarr.unmappedFolder>>Back to Black (2024) [tmdbid-998846]<</>>'
         ]);
     });
 

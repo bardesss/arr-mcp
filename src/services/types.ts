@@ -1790,7 +1790,7 @@ export type QualityProfile = { id: number; name: string; display: string };
  *
  * `path` is exactly what the service reported and is what gets posted back —
  * a fenced string is not a directory, and sending one would create a library
- * folder literally named `<<untrusted:radarr.path>>/movies<</untrusted>>`.
+ * folder literally named `<<untrusted:radarr.path>>/movies<</>>`.
  * `display` is the fenced form for prose that reaches model context. Keeping
  * both is what stops anyone having to un-fence a value, which `fenceText` is
  * deliberately not reversible for.

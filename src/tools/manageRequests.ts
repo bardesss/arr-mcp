@@ -128,7 +128,7 @@ export function registerRespondToRequest(
         name: 'respond_to_request',
         title: 'Approve or decline a request',
         description:
-            'Approves or declines a pending Seerr request. Approving hands it to Radarr or Sonarr, which will search for it and download it — so it costs disk space and bandwidth even though the decision itself is reversible. Take `id` from get_requests. Previews by default — call again with the returned `confirm` token to actually apply the verdict.',
+            'Approves or declines a pending Seerr request. Approving hands it to Radarr or Sonarr, which will search for it and download it — so it costs disk space and bandwidth even though the decision itself is reversible. Take `id` from get_requests. Previews first; confirm to apply the verdict.',
         inputSchema: z.object({
             id: z.string().min(1).describe('The Seerr request id, as get_requests reported it.'),
             verdict: z.enum(['approve', 'decline']).describe('approve or decline.')
@@ -192,7 +192,7 @@ export function registerDeleteRequest(
         name: 'delete_request',
         title: 'Delete a request',
         description:
-            'Deletes a Seerr request record entirely. This removes the request, not the media — anything already downloaded stays on disk and in Radarr or Sonarr. Use respond_to_request with `decline` to refuse a request while keeping the record. Take `id` from get_requests. Previews by default — call again with the returned `confirm` token to actually delete it.',
+            'Deletes a Seerr request record entirely. This removes the request, not the media — anything already downloaded stays on disk and in Radarr or Sonarr. Use respond_to_request with `decline` to refuse a request while keeping the record. Take `id` from get_requests. Previews first; confirm to delete it.',
         inputSchema: z.object({
             id: z.string().min(1).describe('The Seerr request id, as get_requests reported it.')
         }),

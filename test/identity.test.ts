@@ -110,7 +110,7 @@ describe('IdentityResolver', () => {
         const r = new IdentityResolver(adapter, { default_user: 'Bartsu', allow_other_users: false });
 
         const remedy = (await rejection(r.resolve())).remedy ?? '';
-        expect(remedy).toMatch(/^Known users: <<untrusted:jellyfin\.users>>.*<<\/untrusted>>\. Fix/);
+        expect(remedy).toMatch(/^Known users: <<untrusted:jellyfin\.users>>.*<<\/>>\. Fix/);
         expect(remedy).not.toContain('that>>');
     });
 

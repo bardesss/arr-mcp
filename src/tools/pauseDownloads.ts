@@ -1,7 +1,7 @@
 import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
+import { type ServiceId, serviceOf } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { hasPause, hasSpeedLimit, type ServiceAdapter } from '../services/types.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
@@ -52,9 +52,9 @@ export function registerPauseDownloads(
         name: 'pause_downloads',
         title: 'Pause, resume or throttle a download client',
         description:
-            'Pauses, resumes or throttles one download client — SABnzbd, NZBGet, Transmission or qBittorrent — or pauses one item in its queue when `id` is given. The bandwidth answer: "stop downloading for an hour", or `action: "limit"` with `speed_limit_kbps` to slow it down instead of stopping it (0 removes the cap). A limit is always client-wide, never per item. Safe tier, because the undo is this same tool with the other action. It does NOT stop Radarr or Sonarr grabbing: they carry on finding and sending releases, which then sit in the paused client. `service` is required and names one client; pausing "everything" means one call each. Previews by default — call again with the returned `confirm` token to apply it.',
+            'Pauses, resumes or throttles one download client — SABnzbd, NZBGet, Transmission or qBittorrent — or pauses one item in its queue when `id` is given. The bandwidth answer: "stop downloading for an hour", or `action: "limit"` with `speed_limit_kbps` to slow it down instead of stopping it (0 removes the cap). A limit is always client-wide, never per item. Safe tier, because the undo is this same tool with the other action. It does NOT stop Radarr or Sonarr grabbing: they carry on finding and sending releases, which then sit in the paused client. `service` is required and names one client; pausing "everything" means one call each. Previews first; confirm to apply it.',
         inputSchema: z.object({
-            service: ServiceIdSchema.describe('sabnzbd, nzbget, transmission or qbittorrent.'),
+            service: serviceOf(['sabnzbd', 'nzbget', 'transmission', 'qbittorrent']),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             action: z
                 .enum(['pause', 'resume', 'limit'])

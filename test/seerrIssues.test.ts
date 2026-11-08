@@ -80,7 +80,7 @@ describe('Seerr issues', () => {
 
     it('names who reported it and what it is about', async () => {
         const rows = await new SeerrAdapter(config, serving()).getIssues({ limit: 50 });
-        expect(rows[0]?.reportedBy).toBe('<<untrusted:seerr.user>>Someone<</untrusted>>');
+        expect(rows[0]?.reportedBy).toBe('<<untrusted:seerr.user>>Someone<</>>');
         expect(rows[0]?.title).toContain('Heat');
     });
 });

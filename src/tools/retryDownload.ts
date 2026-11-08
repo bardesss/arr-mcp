@@ -1,7 +1,7 @@
 import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
+import { type ServiceId, serviceOf } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import {
     hasDownloadTrace,
@@ -150,9 +150,9 @@ export function registerRetryDownload(server: McpServer, context: WriteContext, 
         name: 'retry_download',
         title: 'Retry a failed download',
         description:
-            'Retries one failed download on SABnzbd or NZBGet, the client that holds the files, or a failed or cancelled book on Shelfmark, which queues it again if Shelfmark says it can. It picks what to send from the job itself: a SABnzbd job paused for a password is unlocked, a failed SABnzbd job is retried, an NZBGet download with missing articles fetches them again, and one that only failed to unpack is post-processed again. Give `password` when the failure was an encrypted archive; it comes from the site the NZB came from and is never shown back. Take `id` from the get_history or get_queue row. The preview checks whether Radarr or Sonarr already grabbed a replacement, since retrying then can leave two copies. If no *arr imports the result, trigger_scan with action: "import" does. Safe tier. Previews by default — call again with the returned `confirm` token to apply it.',
+            'Retries one failed download on SABnzbd or NZBGet, the client that holds the files, or a failed or cancelled book on Shelfmark, which queues it again if Shelfmark says it can. It picks what to send from the job itself: a SABnzbd job paused for a password is unlocked, a failed SABnzbd job is retried, an NZBGet download with missing articles fetches them again, and one that only failed to unpack is post-processed again. Give `password` when the failure was an encrypted archive; it comes from the site the NZB came from and is never shown back. Take `id` from the get_history or get_queue row. The preview checks whether Radarr or Sonarr already grabbed a replacement, since retrying then can leave two copies. If no *arr imports the result, trigger_scan with action: "import" does. Safe tier. Previews first; confirm to apply it.',
         inputSchema: z.object({
-            service: ServiceIdSchema.describe('sabnzbd, nzbget or shelfmark.'),
+            service: serviceOf(['sabnzbd', 'nzbget', 'shelfmark']),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             id: z.string().min(1).describe("the id on that client's get_history or get_queue row"),
             password: z.string().min(1).optional().describe('the archive password, from the site the NZB came from')

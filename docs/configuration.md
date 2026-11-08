@@ -1007,3 +1007,30 @@ out, so a config nobody customised stays as clean as it started.
 It is stored server-side rather than in the browser because this UI has exactly
 one account: there is no second person for a shared setting to be wrong for, and
 it holds wherever you sign in from.
+
+## The tools a client sees
+
+Every tool's name, description and schema sit in the client's context for the
+whole session, so arr-mcp sends only what applies to your stack:
+
+- a tool's `service` field lists only the services it takes that you have
+  configured, so the model does not look for a Lidarr you do not run;
+- a sentence about a service you do not run is left out of a description;
+- longer field-by-field references are resources, `arr://docs/<tool>`, read
+  only when a client asks for one.
+
+All 40 tools are still listed whatever you configure, so a saved prompt keeps
+finding the tool it names. On a small stack you can opt out of that:
+
+```yaml
+tools:
+  hide_unusable: true   # default false
+```
+
+With it on, a tool that does nothing without a service you have not configured
+is left out of the list: `get_subtitles` and `trigger_subtitle_search` without
+Bazarr, the Seerr request tools without Seerr, `sync_database` without
+Profilarr, and so on. The reads that merge across services (`get_library`,
+`get_queue`, `get_history`, `diagnose`, the lookups) always stay. It is set in
+`config.yaml` only, and takes effect after a restart (or the next save from the
+configuration page, which reloads the config).

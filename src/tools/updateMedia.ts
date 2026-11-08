@@ -1,7 +1,7 @@
 import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
+import { type ServiceId, serviceOf } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import {
     hasBookMetadata,
@@ -194,9 +194,9 @@ export function registerUpdateMedia(
         name: 'update_media',
         title: 'Change what a library item is set to',
         description:
-            'Changes settings on something already in Radarr or Sonarr, or edits a Grimmory book by hand: quality profile, root folder, monitoring, tags, Radarr’s minimum availability, Sonarr’s series type. The counterpart to add_media, which only ever adds — and the only way to change a **Radarr** item’s monitoring, since set_monitoring is Sonarr’s per-season tool. Takes `service` and `id`, never a title: take `id` from `acquisition.id` on a get_library or get_media_details record. Changing `root_folder` asks the service to **move the files on disk**; pass `move_files: false` to leave them where they are, which reports them missing until the next scan. `tags` replaces the whole tag set rather than adding to it, and an unknown label is refused — nothing here creates a tag. `stack_health` at `detail: "full"` lists the profiles, root folders and tags each instance actually has. A Grimmory book takes `title`, `authors`, `series` (`""` clears the series name), `series_number` and `tags` (which sets its categories; `[]` clears them), and optionally `lock_fields` or `unlock_fields`. Only the fields named are sent; a locked field is refused unless the same call unlocks it. Grimmory may also write the change into the book file and rename it to its naming pattern. Previews by default — call again with the returned `confirm` token to apply.',
+            'Changes settings on an item already in Radarr or Sonarr (quality profile, root folder, monitoring, tags, Radarr\'s minimum availability, Sonarr\'s series type), or edits a Grimmory book\'s title, authors, series, series number and tags, with `lock_fields` or `unlock_fields`. The only way to change a Radarr item\'s monitoring. Takes `service` and `id`. Changing `root_folder` **moves the files on disk** unless `move_files: false`. `tags` replaces the whole set and an unknown tag is refused; stack_health at `detail: "full"` lists profiles, folders and tags. [[grimmory: A locked book field is refused unless the same call unlocks it, and Grimmory may write the change into the book file and rename it.]] Previews first; confirm to apply. Field reference: arr://docs/update_media.',
         inputSchema: z.object({
-            service: ServiceIdSchema.describe('radarr for a film, sonarr for a series, grimmory for a book.'),
+            service: serviceOf(['radarr', 'sonarr', 'grimmory']).describe('radarr for a film, sonarr for a series, grimmory for a book.'),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             id: z
                 .string()

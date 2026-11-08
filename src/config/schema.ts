@@ -24,6 +24,18 @@ export const ServiceIdSchema = z.enum([
 ]);
 export type ServiceId = z.infer<typeof ServiceIdSchema>;
 
+/** Marks which services a `service` field takes; read and removed by `mcp/leanSchema.ts`. */
+export const SERVICES_KEY = 'x-arr-services';
+
+/**
+ * A `service` field that advertises only the services this tool takes.
+ *
+ * Validation still accepts every service id, on purpose: a tool's own refusal
+ * names the services it does take and what to do instead, which a bare enum
+ * error would not. Only the schema a client reads is narrowed (#518).
+ */
+export const serviceOf = (services: readonly ServiceId[]) => ServiceIdSchema.meta({ [SERVICES_KEY]: [...services] });
+
 /**
  * Both default to off: a service added by hand-editing YAML must not
  * silently acquire write access.
@@ -657,7 +669,14 @@ export const ConfigSchema = z.object({
      *  started — the same reasoning as `metadata`. */
     ui: UiSchema.optional(),
     /** Absent means off, and the route answers 404. */
-    webhooks: WebhooksSchema.optional()
+    webhooks: WebhooksSchema.optional(),
+    /**
+     * How much of the tool surface a client sees. Absent means every tool,
+     * always: the surface stays the same whatever is configured, which is what
+     * keeps saved prompts working. `hide_unusable` is the opt-in for a small
+     * stack that would rather not pay context for tools it cannot use (#518).
+     */
+    tools: z.object({ hide_unusable: z.boolean().default(false) }).strict().optional()
 }).superRefine((config, ctx) => {
     // `jellyfin` and `plex` are distinct, individually valid keys, so the two
     // together are admitted, and this rule says which one the tools default to.

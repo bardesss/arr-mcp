@@ -2,7 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
 import type { ServiceId } from '../config/schema.ts';
-import { ServiceIdSchema } from '../config/schema.ts';
+import { serviceOf } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { guidForText } from '../core/fence.ts';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
@@ -117,12 +117,10 @@ export function registerGetReleases(server: McpServer, adapters: readonly Servic
             title: 'Interactive search results',
             annotations: READ_ONLY,
             description:
-                `\`trigger_search\` starts an indexer search but hands back only a queued command — it cannot show what was found, so nothing can be picked. \`get_releases\` runs the same interactive search Radarr, Sonarr, Whisparr or Lidarr's own UI does and returns every candidate, rejected ones included: a real capture found every release rejected on both a Radarr and a Sonarr search, almost always because the library already held an equal-or-better file, so filtering rejects out would have answered empty. Each row carries \`rejected\` and the upstream \`rejections\` that explain it, plus \`guid\` and \`indexerId\` together, which is what grab_release binds to — both trimmed below \`detail: full\`, along with \`rejections\` below \`detail: standard\`. \`seeders\` is torrent-only and absent, not zero, on a usenet result. **This call is slow: Radarr, Sonarr, Whisparr and Lidarr poll every configured indexer synchronously, and a live capture measured a Sonarr season search at 14.3s. The timeout on this one call is set to ${(RELEASE_SEARCH_TIMEOUT_MS / 1000).toFixed(0)}s to give a real search room to finish. A long wait is not a hang — do not retry, which starts a second full indexer sweep.** \`season\` is Sonarr and Whisparr only, and is refused, not ignored, against Radarr. On Lidarr, \`id\` is the artist and \`album\` narrows the search to one of its albums; a whole-artist search returns every release matching the artist, which ran past a thousand rows live, so pass \`album\` when you know it. Sonarr runs one indexer search per episode, so a season search scales with the season's episode count and a whole series with every episode it has: for one episode, pass \`episode\` instead — a single search. \`retry\` is already off for this call, so a timeout means one sweep ran out of time, not two. For a book, pass \`service: shelfmark\` and a book id from lookup_media; that search took 24s to 54s on a live server, and lists the most-downloaded first.`,
+                `Runs the interactive search Radarr, Sonarr, Whisparr or Lidarr's own UI runs and returns every candidate, rejected ones included with their \`rejections\` (often because the library already holds an equal or better file). trigger_search cannot show what was found; this can, and its \`guid\` and \`indexerId\` (at \`detail: "full"\`) are what grab_release takes. **Slow**: every indexer is polled synchronously, 15 seconds or more is normal and the timeout is ${(RELEASE_SEARCH_TIMEOUT_MS / 1000).toFixed(0)}s. A long wait is not a hang: do not retry. Keep it narrow: on Sonarr pass \`episode\` for one search instead of a \`season\` (one search per episode); [[lidarr: on Lidarr \`id\` is the artist, so pass \`album\`, since a whole artist can return over a thousand rows.]] \`season\` is refused on Radarr. \`seeders\` is absent, not zero, on usenet. [[shelfmark: For a book, \`service: "shelfmark"\` with a book id from lookup_media.]] Field reference: arr://docs/get_releases.`,
             outputSchema: PagedOutputSchema,
             inputSchema: toolInput({
-                service: ServiceIdSchema.describe(
-                    'radarr, sonarr, whisparr, lidarr or shelfmark. Required — this searches one item, never merges across services.'
-                ),
+                service: serviceOf(['radarr', 'sonarr', 'whisparr', 'lidarr', 'shelfmark']),
                 instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
                 id: z
                     .string()

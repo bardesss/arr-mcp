@@ -1,7 +1,7 @@
 import { INSTANCE_PARAM_DESCRIPTION, instancesOfType, resolveInstance } from './resolveInstance.ts';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
+import { type ServiceId, serviceOf } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import {
     hasArtistMonitor,
@@ -72,9 +72,9 @@ export function registerSetMonitoring(
         name: 'set_monitoring',
         title: 'Start or stop monitoring',
         description:
-            'Turns monitoring on or off. Sonarr and Whisparr: a whole series, one season, or specific episodes. Lidarr takes `level` — `album` monitors or unmonitors one whole album, and `artist` sets the artist-level policy: `monitor_new_items` is the rule Lidarr applies to albums it discovers later, and `none` is the only value that stops the wanted list growing by itself. Omit `artists` on the artist level to reach every artist in that Lidarr. **The artist flag is not the album flag.** An artist can read `monitored: false` while an album under it stays `monitored: true`. Lidarr leaves every album of an unmonitored artist out of its wanted lists, its calendar, its RSS sync and its missing and cutoff searches, so `get_wanted` stops listing them (a search for one album started by hand still runs), but each album keeps its own flag and the monitored ones come back with the artist — write the album flag with `level: "album"` to stop wanting one album for good. Safe tier — nothing is deleted and the service can undo it, so `safe_write` is enough. `season` and `episodes` are mutually exclusive and refused on any Lidarr level, because an album is monitored whole. Unmonitoring **before** deleting files is what stops Sonarr immediately re-downloading them — see delete_episode_files. Takes ids, never a title: take them from `acquisition.id` on a get_library or get_media_details record. An album id for `level: "album"` comes from `get_media_details` on the artist, which lists them, because the library rows on artists, or from a `get_wanted` row\'s `albumId`. Previews by default and the preview reports the state it found — new-album policy and monitor flag across the artists it would touch — so the current policy is read before it is changed rather than assumed; call again with the returned `confirm` token to apply. A season this series does not have, an episode id that cannot be resolved, or an artist id Lidarr does not have is refused rather than written: those endpoints accept a write matching nothing and report success, and you would go on believing the item was unmonitored. The refusal names the seasons that do exist, so retry with one of those rather than assuming the series is unreachable.',
+            'Turns monitoring on or off. Sonarr and Whisparr: a series, one `season`, or `episodes` (not both). [[lidarr: Lidarr takes `level`: `album` sets one album\'s flag; `artist` sets the artist flag and `monitor_new_items` (`none` is the only value that stops the wanted list growing by itself), and omitting `artists` reaches every artist. **The artist flag is not the album flag**: an unmonitored artist\'s albums drop out of get_wanted but keep their own flags and come back with the artist, so stop wanting one album with `level: "album"` (ids from get_media_details on the artist, or a get_wanted `albumId`).]] Radarr monitoring is update_media. Unmonitor **before** delete_episode_files, or Sonarr downloads the files again. Safe tier. The preview shows the current state; a season, episode or artist that does not exist is refused rather than silently written. Previews first; confirm to apply. Field reference: arr://docs/set_monitoring.',
         inputSchema: z.object({
-            service: ServiceIdSchema.describe('sonarr, whisparr or lidarr.'),
+            service: serviceOf(['sonarr', 'whisparr', 'lidarr']),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             id: z
                 .string()

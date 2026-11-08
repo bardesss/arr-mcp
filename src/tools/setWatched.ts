@@ -113,9 +113,8 @@ export function registerSetWatched(
         name: 'set_watched',
         title: 'Mark watched or unwatched',
         description:
-            'Marks a film, series, season or episode watched or unwatched in Jellyfin. `item_id` is a **Jellyfin** item id — take it from `playback.itemId` on a get_library or get_media_details record, from the `itemId` get_playback reports, or from a jellyfin hit in search_media.' +
-            withBoth(mediaServerIds, 'When Plex is the primary media server, take it from `media_servers.jellyfin.itemId` instead: `playback.itemId` is then a Plex id.') +
-            ' A Grimmory book is `grimmory:<book id>`, the `acquisition.id` of a book row on get_library: READ counts as watched, anything else as unwatched, for the Grimmory account arr-mcp signs in as (so `user` and `season` are refused for a book). Marking a book read sets its finish date to now, and unmarking clears it. Radarr and Sonarr ids will not work here and are refused rather than guessed at. Pass a series id with `season` to mark one season; the preview says how many episodes that is. Safe tier, with one caveat: unmarking and re-marking restores the flag but not the original play date or resume position. `user` names whose watch state changes, and naming anyone but the configured default user needs services.jellyfin.allow_other_users. Previews by default — call again with the returned `confirm` token to apply it.',
+            'Marks a film, series, season or episode watched or unwatched in Jellyfin. `item_id` is the Jellyfin id: `playback.itemId` from get_library or get_media_details, or `itemId` from get_playback. A Radarr or Sonarr id is refused. A series id with `season` marks one season. [[grimmory: A Grimmory book is `grimmory:<book id>` (READ is watched; marking sets its finish date to now).]] Safe tier, but unmarking and re-marking loses the original play date and resume position. A `user` other than the default needs services.jellyfin.allow_other_users. Previews first; confirm to apply. Field reference: arr://docs/set_watched.' +
+            withBoth(mediaServerIds, 'When Plex is the primary media server, take it from `media_servers.jellyfin.itemId` instead: `playback.itemId` is then a Plex id.'),
         inputSchema: z.object({
             item_id: z
                 .string()

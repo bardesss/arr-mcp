@@ -330,7 +330,7 @@ describe('respond_to_request', () => {
         const h = harness(registerRespondToRequest, { permissions: { seerr: tiered(true, false) } });
         const { structuredContent } = await h.call({ id: '31', verdict: 'approve', dry_run: true });
 
-        const fenced = '<<untrusted:seerr.user>>Sam<</untrusted>>';
+        const fenced = '<<untrusted:seerr.user>>Sam<</>>';
         expect(structuredContent.summary).toContain(fenced);
         expect(structuredContent.effects.join(' ')).toContain(fenced);
         expect(`${structuredContent.summary} ${structuredContent.effects.join(' ')}`.replaceAll(fenced, '')).not.toContain('Sam');
