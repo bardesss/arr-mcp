@@ -120,8 +120,8 @@ naming each item and the id a follow-up call takes:
 
 ```
 2 of 1885 item(s).
-<<untrusted:radarr.title>>Inception<</untrusted>> (2010) — movie, radarr:412, tmdb:27205
-<<untrusted:sonarr.title>>Severance<</untrusted>> (2022) — series, sonarr:31, tvdb:371980
+<<untrusted:radarr.title>>Inception<</>> (2010) — movie, radarr:412, tmdb:27205
+<<untrusted:sonarr.title>>Severance<</>> (2022) — series, sonarr:31, tvdb:371980
 ```
 
 It was the count alone until 1.26. Not every client forwards
@@ -2786,7 +2786,7 @@ people actually ask are rarely one call.
 | `best_in_library` | What's the best thing I own? |
 | `whats_new` | What happened this week? |
 
-**Four resources**, which a client can attach once rather than re-fetch:
+**Four data resources**, which a client can attach once rather than re-fetch, and field references for the longer tools:
 
 | Resource | Holds |
 | --- | --- |
@@ -2794,10 +2794,12 @@ people actually ask are rarely one call.
 | `arr://health` | A stack verdict, stamped with when it was taken |
 | `arr://library/summary` | Total, on disk, still wanted |
 | `arr://lidarr/monitoring` | Every Lidarr artist's monitoring policy: who will keep discovering albums, and who carries the artist flag; with more than one Lidarr, each instance that answered as well (one that did not is in `degraded`), and totals that add them up (an artist two hold counts in each) |
+| `arr://docs/<tool>` | The full field reference for the tools with the most to explain (`get_library`, `stack_health`, `get_queue` and fourteen more). Each of their descriptions is kept under 1,000 characters and ends with a pointer here |
 
 **Client support for both is uneven, so nothing is reachable only through
 them.** A prompt is a sequence of tool calls the model could have made anyway,
-and every resource mirrors something a tool already returns. On a client that
+and every resource mirrors something a tool already returns; a field reference
+explains fields the tool results already carry. On a client that
 surfaces neither, arr-mcp is exactly as capable as it was — you just have to
 know what to ask.
 

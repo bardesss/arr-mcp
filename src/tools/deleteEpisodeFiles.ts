@@ -1,7 +1,7 @@
 import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
+import { type ServiceId, serviceOf } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { hasEpisodeFiles, hasMediaDetails, type EpisodeSummary, type ServiceAdapter } from '../services/types.ts';
 import { arrSubject } from './crossChecks.ts';
@@ -35,9 +35,9 @@ export function registerDeleteEpisodeFiles(
         name: 'delete_episode_files',
         title: 'Delete episode files',
         description:
-            'Deletes the files for one Sonarr season, or for specific episodes, from disk. Destructive and not undoable. Give `season` or `episodes`, never both; there is no whole-series form — that is delete_media. **Unmonitor first with set_monitoring**, or Sonarr treats the episodes as missing and re-downloads exactly what you just deleted; the preview says so when the target is still monitored. Leaves the series, its monitoring and its history in Sonarr — only the files go. Previews by default — call again with the returned `confirm` token to actually delete.',
+            'Deletes the files for one Sonarr season, or for specific episodes, from disk. Destructive and not undoable. Give `season` or `episodes`, never both; there is no whole-series form — that is delete_media. **Unmonitor first with set_monitoring**, or Sonarr treats the episodes as missing and re-downloads exactly what you just deleted; the preview says so when the target is still monitored. Leaves the series, its monitoring and its history in Sonarr — only the files go. Previews first; confirm to delete.',
         inputSchema: z.object({
-            service: ServiceIdSchema.describe('sonarr or whisparr.'),
+            service: serviceOf(['sonarr', 'whisparr']),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             id: z.string().min(1).describe('The series id, as an integer string.'),
             season: z

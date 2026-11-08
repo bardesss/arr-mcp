@@ -132,14 +132,14 @@ const DryRunSchema = z
     .boolean()
     .default(false)
     .describe(
-        'Preview only: resolve the target and describe exactly what would happen, then stop. Never mutates anything and never returns a confirmation token. Use this to answer "what would happen if…" — not as the first step of actually doing it.'
+        'Preview without a confirm token, for "what would happen if" questions; not the first step of a real change.'
     );
 
 const ConfirmSchema = z
     .string()
     .optional()
     .describe(
-        'The confirmation token from this same tool\'s preview of this same operation. Omit it to get a preview and a token; pass the token back verbatim to apply the change. Tokens are single-use, expire, and are bound to the exact operation and arguments previewed.'
+        'The token from this tool\'s preview, passed back verbatim to apply it. Single-use and bound to the previewed arguments.'
     );
 
 /**

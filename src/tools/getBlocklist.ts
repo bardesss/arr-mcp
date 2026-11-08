@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
-import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
+import { type ServiceId, serviceOf } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { gather } from '../core/gather.ts';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
@@ -82,7 +82,7 @@ export function registerGetBlocklist(server: McpServer, adapters: readonly Servi
                 'Why a release keeps getting skipped. Lists what Radarr, Sonarr, Whisparr and Lidarr have blocklisted — releases they will not grab again — with the reason each was blocklisted, usually relayed from the download client. This is the answer to "it keeps finding the same thing and never downloading it", which `get_history` shows as a repeating grab-then-fail and nothing explains. Rows carry `mediaId` for get_media_details (an artist id on a Lidarr row), and `id` for remove_blocklist_item. Newest first. Radarr, Sonarr, Whisparr and Lidarr only — the download clients have no blocklist of their own.',
             outputSchema: PagedOutputSchema,
             inputSchema: toolInput({
-                service: ServiceIdSchema.optional().describe('Scope to one service. Omit to merge Radarr, Sonarr, Whisparr and Lidarr.'),
+                service: serviceOf(['radarr', 'sonarr', 'whisparr', 'lidarr']).optional().describe('Scope to one service. Omit to merge them all.'),
                 instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
                 detail: DetailSchema,
                 limit: LimitSchema,

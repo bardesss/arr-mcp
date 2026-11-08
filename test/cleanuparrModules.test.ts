@@ -70,7 +70,7 @@ describe('Cleanuparr cleaner modules, against the captured 2.10.12 configuration
         expect(set.orphanedFiles).toMatchObject({ enabled: true, minFileAgeHours: 24, purgeAfterHours: 24 });
         if (set.orphanedFiles?.enabled !== true) throw new Error('orphaned files off');
         expect(set.orphanedFiles.scanDirectories).toHaveLength(9);
-        expect(set.orphanedFiles.scanDirectories[0]).toBe('<<untrusted:cleanuparr.path>>/downloads<</untrusted>>');
+        expect(set.orphanedFiles.scanDirectories[0]).toBe('<<untrusted:cleanuparr.path>>/downloads<</>>');
         expect(set.orphanedFiles.orphanedDirectory).toContain('/downloads/orphaned');
         expect(set.orphanedFiles.excludePatterns).toContain('cleanuparr-*');
         expect(set.orphanScan?.scanDirectories[4]).toBe('/downloads/cross-seed/<tracker 1>');
@@ -151,7 +151,7 @@ describe('orphan scan coverage', () => {
 
     it('warns that an unexcluded folder between a scan and a save directory would be moved whole', async () => {
         const notes = cover(await setOf(), ['/downloads/music/flac']);
-        expect(notes[0]).toContain('the entry <<untrusted:qbittorrent.path>>music<</untrusted>> inside it holds torrents');
+        expect(notes[0]).toContain('the entry <<untrusted:qbittorrent.path>>music<</>> inside it holds torrents');
         expect(notes[0]).toContain('move it whole');
         expect(notes[0]).toContain('one per tracker');
         expect(notes[1]).toContain('does not scan');
@@ -166,7 +166,7 @@ describe('orphan scan coverage', () => {
         });
         // A torrent saved straight into the tracker folder claims it; one a level deeper does not.
         expect(cover(set, ['/downloads/cross-seed/TrackerA']).filter(n => n.includes('move it whole'))).toEqual([]);
-        expect(cover(set, ['/downloads/cross-seed/TrackerA/movies']).some(n => n.includes('TrackerA<</untrusted>> inside it'))).toBe(true);
+        expect(cover(set, ['/downloads/cross-seed/TrackerA/movies']).some(n => n.includes('TrackerA<</>> inside it'))).toBe(true);
     });
 
     it('caps what it names, so a scan of the root stays inside the budget', async () => {

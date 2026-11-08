@@ -1,7 +1,7 @@
 import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
+import { type ServiceId, serviceOf } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { hasMediaDetails, hasSearchTrigger, type AlbumSummary, type MediaDetails, type ServiceAdapter } from '../services/types.ts';
 import { arrSubject } from './crossChecks.ts';
@@ -101,9 +101,9 @@ export function registerTriggerSearch(
         name: 'trigger_search',
         title: 'Search indexers for a release',
         description:
-            'Asks Radarr, Sonarr, Whisparr or Lidarr to go looking for releases for one item it already tracks — the "it never downloaded, try again" action. Takes `service` and `id`, deliberately not a title: take `id` from `acquisition.id` on a get_library or get_media_details record. On Sonarr or Whisparr, give `season` to search one season or `episodes` for specific episode ids; giving both is refused rather than resolved, and neither on Radarr, which has no seasons. On Lidarr, `id` is the artist: give `albums` for specific album ids of that artist (from get_media_details at `detail: "full"`), or omit it to search the artist\'s monitored albums. This queues a search and returns immediately; it does not wait for a release to be found, and finding one is not guaranteed. Previews by default — call again with the returned `confirm` token to actually run it.',
+            'Asks Radarr, Sonarr, Whisparr or Lidarr to go looking for releases for one item it already tracks — the "it never downloaded, try again" action. Takes `service` and `id`, deliberately not a title: take `id` from `acquisition.id` on a get_library or get_media_details record. On Sonarr or Whisparr, give `season` to search one season or `episodes` for specific episode ids; giving both is refused rather than resolved, and neither on Radarr, which has no seasons. On Lidarr, `id` is the artist: give `albums` for specific album ids of that artist (from get_media_details at `detail: "full"`), or omit it to search the artist\'s monitored albums. This queues a search and returns immediately; it does not wait for a release to be found, and finding one is not guaranteed. Previews first; confirm to run it.',
         inputSchema: z.object({
-            service: ServiceIdSchema.describe('radarr, sonarr, whisparr or lidarr.'),
+            service: serviceOf(['radarr', 'sonarr', 'whisparr', 'lidarr']),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             id: z.string().min(1).describe("The item's id within that service, as an integer string."),
             season: z

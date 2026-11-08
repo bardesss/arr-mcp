@@ -94,4 +94,4 @@ export const instanceArgs = (instanceId: string): { service: string; instance?: 
  * three chances to conclude they mean different things.
  */
 export const INSTANCE_PARAM_DESCRIPTION =
-    'Which instance, when several of this service are configured — for example "4k" or "hd". Omit it when there is only one. If several are configured and you omit it, the call is refused and the names are listed.';
+    'Which instance (e.g. "4k") when several of this service exist. Omit it when there is one.';

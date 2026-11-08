@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
+import { type ServiceId, serviceOf } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { logger } from '../core/logger.ts';
 import { hasQueue, hasQueueRemove, type QueueItem, type ServiceAdapter } from '../services/types.ts';
@@ -30,9 +30,9 @@ export function registerCleanQueue(
         name: 'clean_queue',
         title: 'Clean up orphaned queue items',
         description:
-            'Removes every completed download stuck in a Radarr, Sonarr, Whisparr or Lidarr queue because the film, series or artist it belongs to no longer exists — the ones that pile up at "importBlocked" for years. Also drops them from the download client. Only touches items that are both orphaned and import-blocked, so a download still in progress is never affected, and it never blocklists: the release was fine, the media was deleted. On Lidarr before 2.10.1 nothing is ever marked `importBlocked` — a deleted artist\'s finished download stays `completed` with a warning — so this finds nothing there; remove such a row with remove_queue_item. Previews the exact list by default — call again with the returned `confirm` token to remove them.',
+            'Removes every completed download stuck in a Radarr, Sonarr, Whisparr or Lidarr queue because the film, series or artist it belongs to no longer exists — the ones that pile up at "importBlocked" for years. Also drops them from the download client. Only touches items that are both orphaned and import-blocked, so a download still in progress is never affected, and it never blocklists: the release was fine, the media was deleted. On Lidarr before 2.10.1 nothing is ever marked `importBlocked` — a deleted artist\'s finished download stays `completed` with a warning — so this finds nothing there; remove such a row with remove_queue_item. Previews first; confirm to remove them.',
         inputSchema: z.object({
-            service: ServiceIdSchema.describe('radarr, sonarr, whisparr or lidarr.'),
+            service: serviceOf(['radarr', 'sonarr', 'whisparr', 'lidarr']),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION)
         }),
         service: ({ service, instance }) => findAdapter(adapters, service, instance).id,

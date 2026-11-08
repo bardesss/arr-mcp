@@ -1048,7 +1048,7 @@ describe('PlexAdapter', () => {
             expect(calls(seen)).toContain('PUT /library/metadata/900100/match');
             expect((err as ServiceError).kind).toBe('UpstreamError');
             expect((err as ServiceError).detail).toContain('the refresh step failed');
-            expect((err as ServiceError).remedy).toContain('The match to <<untrusted:plex.name>>Fixture show 2<</untrusted>> was applied; only the refresh failed.');
+            expect((err as ServiceError).remedy).toContain('The match to <<untrusted:plex.name>>Fixture show 2<</>> was applied; only the refresh failed.');
         });
 
         it('keeps the kind of a timed-out match', async () => {

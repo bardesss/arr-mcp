@@ -1,7 +1,7 @@
 import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
+import { type ServiceId, serviceOf } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { hasQueue, hasQueueRemove, type ServiceAdapter } from '../services/types.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
@@ -36,9 +36,9 @@ export function registerRemoveQueueItem(
         name: 'remove_queue_item',
         title: 'Remove a queue item',
         description:
-            'Removes one item from a download queue — the stuck-at-0%, wrong-release, or stalled download. Works against Radarr, Sonarr, Whisparr, Lidarr, SABnzbd, NZBGet, Transmission, qBittorrent, Shelfmark and Grimmory; take `service` and `id` from get_queue. Optionally deletes partial data and, on Radarr, Sonarr, Whisparr and Lidarr only, blocklists the release so it will not be grabbed again. On NZBGet, keeping the data parks the download in its history rather than deleting it. On Shelfmark it cancels a queued or running book, and a failed one has nothing to cancel. On Grimmory it discards a file waiting in the Bookdrop, which deletes the file from disk (so `remove_from_client: false` is refused). Previews by default — call again with the returned `confirm` token to actually remove it.',
+            'Removes one item from a download queue — the stuck-at-0%, wrong-release, or stalled download. Works against Radarr, Sonarr, Whisparr, Lidarr, SABnzbd, NZBGet, Transmission, qBittorrent, Shelfmark and Grimmory; take `service` and `id` from get_queue. Optionally deletes partial data and, on Radarr, Sonarr, Whisparr and Lidarr only, blocklists the release so it will not be grabbed again. On NZBGet, keeping the data parks the download in its history rather than deleting it. On Shelfmark it cancels a queued or running book, and a failed one has nothing to cancel. On Grimmory it discards a file waiting in the Bookdrop, which deletes the file from disk (so `remove_from_client: false` is refused). Previews first; confirm to remove it.',
         inputSchema: z.object({
-            service: ServiceIdSchema.describe('radarr, sonarr, whisparr, lidarr, sabnzbd, nzbget, transmission, qbittorrent, shelfmark or grimmory.'),
+            service: serviceOf(['radarr', 'sonarr', 'whisparr', 'lidarr', 'sabnzbd', 'nzbget', 'transmission', 'qbittorrent', 'shelfmark', 'grimmory']),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             id: z.string().min(1).describe('The queue item id, exactly as get_queue reported it.'),
             remove_from_client: z

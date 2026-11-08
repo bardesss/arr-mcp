@@ -19,7 +19,7 @@
 
 /** Fenced titles carry a boundary prefix; comparison strips it first. */
 export const unfenced = (value: string): string =>
-    value.replace(/^<<untrusted:[^>]*>>/, '').replace(/<<\/untrusted>>$/, '');
+    value.replace(/^<<untrusted:[^>]*>>/, '').replace(/<<\/>>$/, '');
 
 const LEADING_ARTICLE = /^(the|a|an)\s+/;
 

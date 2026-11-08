@@ -19,7 +19,7 @@ const http = (fetchImpl: unknown) =>
 
 /** Strips one fence, for asserting the text underneath survived intact. */
 const unfenced = (value: string): string =>
-    value.replace(/^<<untrusted:[^>]+>>/, '').replace(/<<\/untrusted>>$/, '');
+    value.replace(/^<<untrusted:[^>]+>>/, '').replace(/<<\/>>$/, '');
 
 describe('findArrReleases', () => {
     it('queries Radarr with movieId', async () => {

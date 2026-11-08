@@ -850,7 +850,8 @@ describe('every top-level block', () => {
         primary_media_server: 'plex',
         metadata: { imdb: { enabled: true } },
         ui: { theme: 'dark' },
-        webhooks: { enabled: true, secret: 's'.repeat(40), retention_days: 14 }
+        webhooks: { enabled: true, secret: 's'.repeat(40), retention_days: 14 },
+        tools: { hide_unusable: true }
     });
 
     // Fails the moment a block joins the schema, which is the point: the round

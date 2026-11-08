@@ -21,7 +21,7 @@ const wanted = async (...args: Parameters<typeof readArrWanted>) => (await readA
 
 /** Strips one fence, for asserting the text underneath survived intact. */
 const unfenced = (value: string): string =>
-    value.replace(/^<<untrusted:[^>]+>>/, '').replace(/<<\/untrusted>>$/, '');
+    value.replace(/^<<untrusted:[^>]+>>/, '').replace(/<<\/>>$/, '');
 
 describe('readArrWanted', () => {
     it('hits /wanted/missing for scope missing', async () => {
