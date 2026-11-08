@@ -93,7 +93,7 @@ export function registerDeleteMedia(
         name: 'delete_media',
         title: 'Delete a film, series or book',
         description:
-            'Removes a film from Radarr, a whole series (or Whisparr site) from Sonarr or Whisparr, or a book from Grimmory, optionally deleting its files from disk. Grimmory always deletes the files of a book, so it needs `delete_files: true` and takes no import exclusion. Destructive and not undoable — files are gone, not moved to a recycle bin unless the service itself is configured for one. Takes `service` and `id`, never a title: take `id` from `acquisition.id` on a get_library or get_media_details record. Sonarr and Whisparr delete the entire series/site; to remove one season\'s files or specific episodes, use delete_episode_files instead. Previews by default — call again with the returned `confirm` token to actually delete.',
+            'Removes a film from Radarr, a whole series (or Whisparr site) from Sonarr or Whisparr, or a book from Grimmory, optionally deleting its files from disk. Grimmory always deletes the files of a book, so it needs `delete_files: true` and takes no import exclusion. Destructive and not undoable — files are gone, not moved to a recycle bin unless the service itself is configured for one. Takes `service` and `id`, never a title: take `id` from `acquisition.id` on a get_library or get_media_details record. Sonarr and Whisparr delete the entire series/site; to remove one season\'s files or specific episodes, use delete_episode_files instead. Previews first; confirm to delete.',
         inputSchema: z.object({
             service: ServiceIdSchema.describe('radarr, sonarr, whisparr, or grimmory.'),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),

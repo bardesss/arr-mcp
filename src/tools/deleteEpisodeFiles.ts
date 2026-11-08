@@ -35,7 +35,7 @@ export function registerDeleteEpisodeFiles(
         name: 'delete_episode_files',
         title: 'Delete episode files',
         description:
-            'Deletes the files for one Sonarr season, or for specific episodes, from disk. Destructive and not undoable. Give `season` or `episodes`, never both; there is no whole-series form — that is delete_media. **Unmonitor first with set_monitoring**, or Sonarr treats the episodes as missing and re-downloads exactly what you just deleted; the preview says so when the target is still monitored. Leaves the series, its monitoring and its history in Sonarr — only the files go. Previews by default — call again with the returned `confirm` token to actually delete.',
+            'Deletes the files for one Sonarr season, or for specific episodes, from disk. Destructive and not undoable. Give `season` or `episodes`, never both; there is no whole-series form — that is delete_media. **Unmonitor first with set_monitoring**, or Sonarr treats the episodes as missing and re-downloads exactly what you just deleted; the preview says so when the target is still monitored. Leaves the series, its monitoring and its history in Sonarr — only the files go. Previews first; confirm to delete.',
         inputSchema: z.object({
             service: ServiceIdSchema.describe('sonarr or whisparr.'),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),

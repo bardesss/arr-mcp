@@ -109,8 +109,19 @@ const CATALOGUE: IndexInput[] = [
 const ALL = ['arr://instances', 'arr://health', 'arr://library/summary', 'arr://lidarr/monitoring'];
 
 describe('the resources a client sees', () => {
-    it('registers all four', () => {
-        expect(Object.keys(registered()).sort()).toEqual([...ALL].sort());
+    it('registers all four, beside the tool references', () => {
+        expect(Object.keys(registered()).filter(u => !u.startsWith('arr://docs/')).sort()).toEqual([...ALL].sort());
+    });
+
+    it('serves each tool reference as text (#518)', async () => {
+        const docs = Object.keys(registered()).filter(u => u.startsWith('arr://docs/'));
+        expect(docs).toContain('arr://docs/get_library');
+        const resource = registered()['arr://docs/get_library'] as unknown as {
+            readCallback: (uri: URL) => { contents: { text: string; mimeType: string }[] };
+        };
+        const [content] = resource.readCallback(new URL('arr://docs/get_library')).contents;
+        expect(content?.mimeType).toBe('text/markdown');
+        expect(content?.text).toMatch(/jellyfin_only/);
     });
 
     it('names every instance a tool would accept as `instance`', async () => {
