@@ -48,9 +48,22 @@ const project = (r: ReleaseCandidate, detail: DetailLevel): ReleaseCandidate => 
  * The title is uploader-chosen and keeps its fence. `rejected` comes early and
  * always: a rejected release that reads like an available one is how a model
  * ends up telling someone to grab something the *arr has already refused.
+ *
+ * `indexer_id` and `guid` go in whenever the item still has them, which
+ * `project` allows only at `detail: full`. They are what grab_release binds
+ * to, and a client that drops `structuredContent` (#234) otherwise sees the
+ * release it wants with no way to name it (#507). They sit next to the
+ * indexer rather than at the end, where they would run on from the free-text
+ * rejections. The guid is already `sanitizeGuid`-ed at the source and is not
+ * fenced: grab_release compares it verbatim.
  */
 export function releaseLine(release: ReleaseCandidate): string {
-    const facts = [release.rejected ? 'REJECTED' : 'available', release.indexer];
+    const ids = [
+        ...(release.indexerId === undefined ? [] : [`indexer_id ${release.indexerId}`]),
+        ...(release.guid === undefined ? [] : [`guid ${release.guid}`])
+    ];
+    const indexer = ids.length === 0 ? release.indexer : `${release.indexer} [${ids.join(', ')}]`;
+    const facts = [release.rejected ? 'REJECTED' : 'available', indexer];
     if (release.quality !== undefined && release.quality !== '') facts.push(release.quality);
     if (release.seeders !== undefined) facts.push(`${release.seeders} seeders`);
     if (release.downloads !== undefined) facts.push(`${release.downloads} downloads`);

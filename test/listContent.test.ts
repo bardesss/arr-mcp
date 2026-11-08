@@ -235,3 +235,36 @@ describe('every list tool names its items in the text block', () => {
         });
     }
 });
+
+/**
+ * #507: grab_release binds to `guid` and `indexer_id`, and a client that never
+ * forwards structuredContent could see the release it wanted and not name it.
+ * `project` strips both below `detail: full`, so the line carries them exactly
+ * when the item does.
+ */
+describe('get_releases text carries the grab ids at full detail', () => {
+    const base = {
+        service: 'radarr',
+        indexer: fenceText('V3X (Prowlarr)', { service: 'radarr', field: 'indexer' }),
+        title: fenced('Some.Release.2026.1080p'),
+        rejected: true,
+        rejections: ['Existing file and the Quality profile does not allow upgrades']
+    };
+
+    it('names indexer_id and guid when the item has them', () => {
+        const text = releaseLine({ ...base, guid: 'https://indexer.example/dl/abc123', indexerId: 5 } as never);
+        expect(text).toContain('indexer_id 5');
+        expect(text).toContain('guid https://indexer.example/dl/abc123');
+    });
+
+    it('keeps the ids ahead of the free-text rejections', () => {
+        const text = releaseLine({ ...base, guid: 'abc', indexerId: 5 } as never);
+        expect(text.indexOf('guid abc')).toBeLessThan(text.indexOf('Existing file'));
+    });
+
+    it('leaves them out when detail trimmed them', () => {
+        const text = releaseLine(base as never);
+        expect(text).not.toContain('indexer_id');
+        expect(text).not.toContain('guid');
+    });
+});
