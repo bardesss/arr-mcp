@@ -1,7 +1,7 @@
 import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
+import { type ServiceId, serviceOf } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import {
     hasBookMetadata,
@@ -194,9 +194,9 @@ export function registerUpdateMedia(
         name: 'update_media',
         title: 'Change what a library item is set to',
         description:
-            'Changes settings on an item already in Radarr or Sonarr (quality profile, root folder, monitoring, tags, Radarr\'s minimum availability, Sonarr\'s series type), or edits a Grimmory book\'s title, authors, series, series number and tags, with `lock_fields` or `unlock_fields`. The only way to change a Radarr item\'s monitoring. Takes `service` and `id`. Changing `root_folder` **moves the files on disk** unless `move_files: false`. `tags` replaces the whole set and an unknown tag is refused; stack_health at `detail: "full"` lists profiles, folders and tags. A locked book field is refused unless the same call unlocks it, and Grimmory may write the change into the book file and rename it. Previews first; confirm to apply. Field reference: arr://docs/update_media.',
+            'Changes settings on an item already in Radarr or Sonarr (quality profile, root folder, monitoring, tags, Radarr\'s minimum availability, Sonarr\'s series type), or edits a Grimmory book\'s title, authors, series, series number and tags, with `lock_fields` or `unlock_fields`. The only way to change a Radarr item\'s monitoring. Takes `service` and `id`. Changing `root_folder` **moves the files on disk** unless `move_files: false`. `tags` replaces the whole set and an unknown tag is refused; stack_health at `detail: "full"` lists profiles, folders and tags. [[grimmory: A locked book field is refused unless the same call unlocks it, and Grimmory may write the change into the book file and rename it.]] Previews first; confirm to apply. Field reference: arr://docs/update_media.',
         inputSchema: z.object({
-            service: ServiceIdSchema.describe('radarr for a film, sonarr for a series, grimmory for a book.'),
+            service: serviceOf(['radarr', 'sonarr', 'grimmory']).describe('radarr for a film, sonarr for a series, grimmory for a book.'),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             id: z
                 .string()

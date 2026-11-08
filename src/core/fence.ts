@@ -13,7 +13,7 @@
 export const FENCE_MAX_LENGTH = 2000;
 
 const OPEN = '<<untrusted:';
-const CLOSE = '<</untrusted>>';
+const CLOSE = '<</>>';
 
 /**
  * Code point ranges stripped from untrusted text, written as numbers rather
@@ -119,7 +119,7 @@ export function fenceText(value: string, source: { service: string; field: strin
     return `${OPEN}${source.service}.${source.field}>>${clean}${CLOSE}`;
 }
 
-const FENCED = /<<untrusted:[^>]*>>([\s\S]*?)<<\/untrusted>>/g;
+const FENCED = /<<untrusted:[^>]*>>([\s\S]*?)<<\/>>/g;
 
 /**
  * The value as its service said it, for a person reading the web UI. The fence

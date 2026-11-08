@@ -22,6 +22,7 @@ import { claimJsonBody } from './mcp/jsonBody.ts';
 import { JwksUnavailable } from './mcp/oauthVerifier.ts';
 import { acceptingBoth, acceptsStream, asPlainJson } from './mcp/plainJson.ts';
 import { registerAllPrompts } from './mcp/prompts.ts';
+import { shapeToolSurface } from './mcp/toolSurface.ts';
 import { registerAllResources } from './mcp/resources.ts';
 import { RESOURCE_METADATA_PATHS, resourceMetadata, resourceMetadataUrl } from './mcp/resourceMetadata.ts';
 import { cappedTo, oauthRefusal, tiersFor, tokenRefusal } from './mcp/scopes.ts';
@@ -86,6 +87,7 @@ const INSTRUCTIONS = `One endpoint for a self-hosted media stack: Radarr and Son
 Reading:
 - \`get_library\` is the join across Radarr, Sonarr, Whisparr and Jellyfin — the only tool that can say a file one service believes in is missing from the other.
 - \`diagnose\` answers "why can I not play this" in one call. Prefer it over assembling that answer from several reads.
+- Call the tool that answers the question directly. A tool's \`service\` field lists the services it takes on this stack, so there is no need to call \`stack_health\` first to find one.
 - Every list is a window: \`items\`, \`total\`, \`returned\`, \`offset\`, \`truncated\`. \`total\` counts the whole list, never the window — it is the number to report when someone asks how many. \`offset + returned < total\` means there is another page; page two of 50 is \`offset: 50\`.
 - \`degraded\` names services that did not answer. A short list may be an outage rather than an answer, so say which it was.
 
@@ -223,6 +225,12 @@ export function mcpServerFactory(
                 }
             }
         );
+        // Before any tool registers: trims what tools/list sends, and tailors
+        // it to the services this config has (#518).
+        shapeToolSurface(server, {
+            configured: new Set(tools.instances.map(i => i.type)),
+            hideUnusable: snapshot.config.tools?.hide_unusable === true
+        });
         registerAllTools(server, tools);
         // Registered beside the tools, never instead of them. Client support
         // for prompts and resources is uneven and arr-mcp has to work on all of

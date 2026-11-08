@@ -51,9 +51,9 @@ describe('the html template', () => {
     });
 
     it('is safe for a fenced value, whose brackets are literal text', () => {
-        const fenced = '<<untrusted:radarr.title>>Alien<</untrusted>>';
+        const fenced = '<<untrusted:radarr.title>>Alien<</>>';
         expect(html`<td>${fenced}</td>`.value).toBe(
-            '<td>&lt;&lt;untrusted:radarr.title&gt;&gt;Alien&lt;&lt;/untrusted&gt;&gt;</td>'
+            '<td>&lt;&lt;untrusted:radarr.title&gt;&gt;Alien&lt;&lt;/&gt;&gt;</td>'
         );
     });
 });

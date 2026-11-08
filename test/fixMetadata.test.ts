@@ -180,7 +180,7 @@ describe('fix_metadata', () => {
     it('fix_metadata refuses a Grimmory book matched by title, before any request', async () => {
         const book = {
             kind: 'book',
-            title: '<<untrusted:grimmory.title>>Example Book 58 by Example Author 1<</untrusted>>',
+            title: '<<untrusted:grimmory.title>>Example Book 58 by Example Author 1<</>>',
             ids: {},
             acquisition: { service: 'grimmory', id: '58', monitored: false, hasFile: true },
             presence: 'unknown'
@@ -682,7 +682,7 @@ describe('fix_metadata on Plex', () => {
         const h = plexHarness();
         const { note } = (await confirmed(h)).structuredContent.result as { note: string };
 
-        expect(note).toMatch(/Matched to <<untrusted:[^>]*>>Fixture show 2<<\/untrusted>> \(2001\)\./);
+        expect(note).toMatch(/Matched to <<untrusted:[^>]*>>Fixture show 2<<\/>> \(2001\)\./);
     });
 
     it('says what Plex matched to when the repair already shows', async () => {

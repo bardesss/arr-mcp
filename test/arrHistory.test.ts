@@ -21,7 +21,7 @@ const history = async (...args: Parameters<typeof readArrHistory>) => (await rea
 
 /** Strips one fence, for asserting the text underneath survived intact. */
 const unfenced = (value: string): string =>
-    value.replace(/^<<untrusted:[^>]+>>/, '').replace(/<<\/untrusted>>$/, '');
+    value.replace(/^<<untrusted:[^>]+>>/, '').replace(/<<\/>>$/, '');
 
 describe('readArrHistory', () => {
     it("normalises each service's event spelling to one vocabulary", async () => {

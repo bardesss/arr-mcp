@@ -126,7 +126,7 @@ const EXAMPLE_LIMIT = 5;
 
 const describe = (m: Mismatch, service: string): string => {
     // Unfenced before the split and fenced again after, rather than split as
-    // it arrives: the closing marker `<</untrusted>>` contains a slash, so
+    // it arrives: the closing marker `<</>>` contains a slash, so
     // splitting the fenced string on path separators returns the tail of the
     // marker instead of the filename. Re-fencing keeps the guarantee that
     // server-supplied text is labelled wherever it is printed.
@@ -419,7 +419,7 @@ export function registerFixMetadata(
         name: 'fix_metadata',
         title: 'Repair wrong metadata',
         description:
-            'Repairs films and series whose Jellyfin or Plex metadata does not describe the file on disk (a file `Episode 101` shown as S1E1 with another title). Not trigger_scan, which never replaces a wrong title. Give a title as `query`, or the `id` get_metadata_issues printed. The preview lists `numbering` findings (confident) and `title` findings (advisory); a film is judged on year and title. **Destructive**: re-identifies the item against TVDB or TMDB and replaces all its metadata, hand edits included, with no undo on Jellyfin. Locked fields are never overwritten. When the preview says a refresh cannot move the episodes, use trigger_scan `action: "rename"` on the Sonarr series, then a media-server rescan. On Jellyfin the repair holds the request open a long time: do not retry. A Grimmory book is `grimmory:<book id>`, matched by ISBN or title and author. Previews first; confirm to apply. Field reference: arr://docs/fix_metadata.' +
+            'Repairs films and series whose Jellyfin or Plex metadata does not describe the file on disk (a file `Episode 101` shown as S1E1 with another title). Not trigger_scan, which never replaces a wrong title. Give a title as `query`, or the `id` get_metadata_issues printed. The preview lists `numbering` findings (confident) and `title` findings (advisory); a film is judged on year and title. **Destructive**: re-identifies the item against TVDB or TMDB and replaces all its metadata, hand edits included, with no undo on Jellyfin. Locked fields are never overwritten. When the preview says a refresh cannot move the episodes, use trigger_scan `action: "rename"` on the Sonarr series, then a media-server rescan. On Jellyfin the repair holds the request open a long time: do not retry. [[grimmory: A Grimmory book is `grimmory:<book id>`, matched by ISBN or title and author.]] Previews first; confirm to apply. Field reference: arr://docs/fix_metadata.' +
             withBoth(
                 bothIds(servers),
                 'With two media servers configured, `service` picks one; it defaults to the primary, and an `id` prefixed `plex:` or `jellyfin:` picks that server.'

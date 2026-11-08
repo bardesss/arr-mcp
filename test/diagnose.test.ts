@@ -66,7 +66,7 @@ const lidarr = (albums: unknown = lidarrFixture('album'), seen: string[] = [], t
 };
 const FILM: IndexInput = {
     kind: 'movie',
-    title: '<<untrusted:radarr.title>>Some Film<</untrusted>>',
+    title: '<<untrusted:radarr.title>>Some Film<</>>',
     year: 2026,
     ids: { tmdb: 550 },
     acquisition: { service: 'radarr', monitored: true, hasFile: false }
@@ -347,7 +347,7 @@ describe('diagnose', () => {
     });
 
     it('prefers a film over an artist of the same name, and diagnoses the artist when alone', async () => {
-        const sameName: IndexInput = { ...FILM, title: '<<untrusted:radarr.title>>Daft Punk<</untrusted>>', ids: { tmdb: 77 } };
+        const sameName: IndexInput = { ...FILM, title: '<<untrusted:radarr.title>>Daft Punk<</>>', ids: { tmdb: 77 } };
         const both = [stub('radarr', { listLibrary: async () => [sameName], getQueue: async () => [] }), lidarr()];
         const film = await buildDiagnose({ adapters: both, library: new LibraryLoader(both, undefined) }, { query: 'daft punk' });
         expect(film.resolved?.kind).toBe('movie');
@@ -365,7 +365,7 @@ describe('diagnose', () => {
         };
         const withFiles: IndexInput = {
             kind: 'artist',
-            title: '<<untrusted:lidarr.title>>Daft Punk<</untrusted>>',
+            title: '<<untrusted:lidarr.title>>Daft Punk<</>>',
             // A tmdb id, so the cleanup read is kept off by the artist kind and not by this id's absence
             ids: { mbid: '056e4f3e-d505-4dad-8ec1-d04f521cbb56', tmdb: 4242 },
             acquisition: { service: 'lidarr', id: '1', monitored: true, hasFile: true }
@@ -433,7 +433,7 @@ describe('diagnose', () => {
                 service: 'lidarr',
                 kind: 'artist',
                 id: '1',
-                title: '<<untrusted:lidarr.title>>Daft Punk<</untrusted>>',
+                title: '<<untrusted:lidarr.title>>Daft Punk<</>>',
                 monitored: true,
                 hasFile: true,
                 ids: { mbid: MBID }
@@ -456,13 +456,13 @@ describe('diagnose', () => {
             // No MusicBrainz id on the server's side, so the two do not join.
             const lidarrSide: IndexInput = {
                 kind: 'artist',
-                title: '<<untrusted:lidarr.title>>Daft Punk Experience<</untrusted>>',
+                title: '<<untrusted:lidarr.title>>Daft Punk Experience<</>>',
                 ids: { mbid: MBID },
                 acquisition: { service: 'lidarr', id: '1', monitored: true, hasFile: false }
             };
             const serverSide: IndexInput = {
                 kind: 'artist',
-                title: '<<untrusted:jellyfin.title>>Daft Punk<</untrusted>>',
+                title: '<<untrusted:jellyfin.title>>Daft Punk<</>>',
                 ids: {},
                 playback: { user: 'Someone', itemId: 'j1' }
             };
@@ -476,11 +476,11 @@ describe('diagnose', () => {
         it('keeps a server-only artist with the exact name over a Radarr-held film that merely contains it', async () => {
             const serverSide: IndexInput = {
                 kind: 'artist',
-                title: '<<untrusted:jellyfin.title>>Daft Punk<</untrusted>>',
+                title: '<<untrusted:jellyfin.title>>Daft Punk<</>>',
                 ids: {},
                 playback: { user: 'Someone', itemId: 'j1' }
             };
-            const film: IndexInput = { ...FILM, title: '<<untrusted:radarr.title>>The Story of Daft Punk<</untrusted>>', ids: { tmdb: 77 } };
+            const film: IndexInput = { ...FILM, title: '<<untrusted:radarr.title>>The Story of Daft Punk<</>>', ids: { tmdb: 77 } };
             // A Lidarr with no artists, because the server's music is only read when one is configured.
             const adapters = [
                 stub('radarr', { listLibrary: async () => [film], getQueue: async () => [] }),
@@ -495,7 +495,7 @@ describe('diagnose', () => {
         it('still resolves a query that only films match, with the year', async () => {
             const alien = (title: string, year: number, tmdb: number): IndexInput => ({
                 ...FILM,
-                title: `<<untrusted:radarr.title>>${title}<</untrusted>>`,
+                title: `<<untrusted:radarr.title>>${title}<</>>`,
                 year,
                 ids: { tmdb }
             });
@@ -575,7 +575,7 @@ describe('diagnose', () => {
         // is genuinely sitting in the index under sonarr's acquisition.
         const SERIES: IndexInput = {
             kind: 'series',
-            title: '<<untrusted:sonarr.title>>A Series<</untrusted>>',
+            title: '<<untrusted:sonarr.title>>A Series<</>>',
             ids: { tvdb: 900 },
             acquisition: { service: 'sonarr', monitored: true, hasFile: false }
         };
@@ -632,7 +632,7 @@ describe('diagnose', () => {
         // the diagnosis can now confidently say so instead of retracting.
         const SERIES_NO_TMDB: IndexInput = {
             kind: 'series',
-            title: '<<untrusted:sonarr.title>>A Series<</untrusted>>',
+            title: '<<untrusted:sonarr.title>>A Series<</>>',
             ids: { tvdb: 700 },
             acquisition: { service: 'sonarr', monitored: true, hasFile: false }
         };
@@ -659,7 +659,7 @@ describe('diagnose', () => {
         // actually be found, not just correctly reported absent.
         const SERIES_NO_TMDB: IndexInput = {
             kind: 'series',
-            title: '<<untrusted:sonarr.title>>A Series<</untrusted>>',
+            title: '<<untrusted:sonarr.title>>A Series<</>>',
             ids: { tvdb: 700 },
             acquisition: { service: 'sonarr', monitored: true, hasFile: false }
         };
@@ -822,7 +822,7 @@ describe('diagnose', () => {
         // failed at all — discarding the flagship `library` verdict.
         const FILM_WITH_FILE: IndexInput = {
             kind: 'movie',
-            title: '<<untrusted:radarr.title>>Some Film<</untrusted>>',
+            title: '<<untrusted:radarr.title>>Some Film<</>>',
             year: 2026,
             ids: { tmdb: 550 },
             acquisition: { service: 'radarr', monitored: true, hasFile: true }
@@ -873,7 +873,7 @@ describe('diagnose', () => {
         // sabnzbd) answered completely.
         const SERIES: IndexInput = {
             kind: 'series',
-            title: '<<untrusted:sonarr.title>>A Series<</untrusted>>',
+            title: '<<untrusted:sonarr.title>>A Series<</>>',
             ids: { tvdb: 700 },
             acquisition: { service: 'sonarr', monitored: true, hasFile: false }
         };
@@ -939,7 +939,7 @@ describe('diagnose', () => {
             // resolves to nothing rather than to the book.
             const BOOK: IndexInput = {
                 kind: 'book',
-                title: '<<untrusted:grimmory.title>>Example Book 58 by Example Author 1<</untrusted>>',
+                title: '<<untrusted:grimmory.title>>Example Book 58 by Example Author 1<</>>',
                 ids: {},
                 acquisition: { service: 'grimmory', id: '58', monitored: false, hasFile: true, quality: 'EPUB' }
             };
@@ -1208,7 +1208,7 @@ describe('collectEvidence — Cleanuparr', () => {
 });
 
 describe('diagnose — download history for a title no library has', () => {
-    const fenced = (service: string, field: string, value: string) => `<<untrusted:${service}.${field}>>${value}<</untrusted>>`;
+    const fenced = (service: string, field: string, value: string) => `<<untrusted:${service}.${field}>>${value}<</>>`;
     const gone = (id: string, title: string, over: Record<string, unknown> = {}) => ({
         service: 'cleanuparr',
         id,
@@ -1347,7 +1347,7 @@ describe('diagnose and a request for another kind of title', () => {
     it('sees a pending request behind an approved one for the same series, as the write checks do', async () => {
         const series: IndexInput = {
             kind: 'series',
-            title: '<<untrusted:sonarr.title>>A Series<</untrusted>>',
+            title: '<<untrusted:sonarr.title>>A Series<</>>',
             ids: { tvdb: 700 },
             acquisition: { service: 'sonarr', monitored: true, hasFile: false }
         };
@@ -1367,7 +1367,7 @@ describe('diagnose and a request for another kind of title', () => {
 });
 
 describe('diagnose by name and a partial match', () => {
-    const film = (title: string): IndexInput => ({ ...FILM, title: `<<untrusted:radarr.title>>${title}<</untrusted>>`, ids: { tmdb: 77 } });
+    const film = (title: string): IndexInput => ({ ...FILM, title: `<<untrusted:radarr.title>>${title}<</>>`, ids: { tmdb: 77 } });
     const resolve = async (title: string) => {
         const adapters = [stub('radarr', { listLibrary: async () => [film(title)], getQueue: async () => [] }), lidarr()];
         return buildDiagnose({ adapters, library: new LibraryLoader(adapters, undefined) }, { query: 'daft punk' });

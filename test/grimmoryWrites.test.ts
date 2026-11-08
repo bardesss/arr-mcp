@@ -748,10 +748,10 @@ describe('update_media on a book', () => {
         expect(structuredContent.target).toBe('grimmory:58');
         expect(structuredContent.confirm_token).toBeDefined();
         expect(structuredContent.effects).toContain(
-            'title: <<untrusted:grimmory.title>>Example Book 45<</untrusted>> → <<untrusted:grimmory.title>>New<</untrusted>>'
+            'title: <<untrusted:grimmory.title>>Example Book 45<</>> → <<untrusted:grimmory.title>>New<</>>'
         );
         const effects = structuredContent.effects.join('\n');
-        expect(effects).toContain('authors: <<untrusted:grimmory.authors>>Example Author 1<</untrusted>> → <<untrusted:grimmory.authors>>A B');
+        expect(effects).toContain('authors: <<untrusted:grimmory.authors>>Example Author 1<</>> → <<untrusted:grimmory.authors>>A B');
         expect(effects).toContain('seriesName: (empty) → <<untrusted:grimmory.seriesName>>Saga');
         expect(effects).toContain('seriesNumber: (empty) → 2');
         expect(effects).toMatch(/write the new metadata into the book file/);

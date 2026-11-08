@@ -2,7 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
 import type { ServiceId } from '../config/schema.ts';
-import { ServiceIdSchema } from '../config/schema.ts';
+import { serviceOf } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { guidForText } from '../core/fence.ts';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
@@ -117,12 +117,10 @@ export function registerGetReleases(server: McpServer, adapters: readonly Servic
             title: 'Interactive search results',
             annotations: READ_ONLY,
             description:
-                `Runs the interactive search Radarr, Sonarr, Whisparr or Lidarr's own UI runs and returns every candidate, rejected ones included with their \`rejections\` (often because the library already holds an equal or better file). trigger_search cannot show what was found; this can, and its \`guid\` and \`indexerId\` (at \`detail: "full"\`) are what grab_release takes. **Slow**: every indexer is polled synchronously, 15 seconds or more is normal and the timeout is ${(RELEASE_SEARCH_TIMEOUT_MS / 1000).toFixed(0)}s. A long wait is not a hang: do not retry. Keep it narrow: on Sonarr pass \`episode\` for one search instead of a \`season\` (one search per episode); on Lidarr \`id\` is the artist, so pass \`album\`, since a whole artist can return over a thousand rows. \`season\` is refused on Radarr. \`seeders\` is absent, not zero, on usenet. For a book, \`service: "shelfmark"\` with a book id from lookup_media. Field reference: arr://docs/get_releases.`,
+                `Runs the interactive search Radarr, Sonarr, Whisparr or Lidarr's own UI runs and returns every candidate, rejected ones included with their \`rejections\` (often because the library already holds an equal or better file). trigger_search cannot show what was found; this can, and its \`guid\` and \`indexerId\` (at \`detail: "full"\`) are what grab_release takes. **Slow**: every indexer is polled synchronously, 15 seconds or more is normal and the timeout is ${(RELEASE_SEARCH_TIMEOUT_MS / 1000).toFixed(0)}s. A long wait is not a hang: do not retry. Keep it narrow: on Sonarr pass \`episode\` for one search instead of a \`season\` (one search per episode); [[lidarr: on Lidarr \`id\` is the artist, so pass \`album\`, since a whole artist can return over a thousand rows.]] \`season\` is refused on Radarr. \`seeders\` is absent, not zero, on usenet. [[shelfmark: For a book, \`service: "shelfmark"\` with a book id from lookup_media.]] Field reference: arr://docs/get_releases.`,
             outputSchema: PagedOutputSchema,
             inputSchema: toolInput({
-                service: ServiceIdSchema.describe(
-                    'radarr, sonarr, whisparr, lidarr or shelfmark. Required — this searches one item, never merges across services.'
-                ),
+                service: serviceOf(['radarr', 'sonarr', 'whisparr', 'lidarr', 'shelfmark']),
                 instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
                 id: z
                     .string()

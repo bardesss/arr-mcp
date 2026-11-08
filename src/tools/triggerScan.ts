@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
+import { type ServiceId, serviceOf } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import type { NextStep } from '../core/nextStep.ts';
 import {
@@ -272,10 +272,10 @@ export function registerTriggerScan(
         name: 'trigger_scan',
         title: 'Refresh and scan a library',
         description:
-            'Asks a service to reconcile itself with what is on disk: the "it downloaded but will not play" fix, and the usual fix for a stale scan diagnose reports. No `id` rescans the whole library of Radarr, Sonarr, Whisparr, Lidarr, Jellyfin, Plex or Grimmory; on Prowlarr it pushes the indexer list to the apps. An `id` refreshes and rescans one item. On Jellyfin and Plex a scan only finds changed files; wrong metadata is fix_metadata. `action`: `rename` (files to the service\'s naming, needs `id`), `import` (a finished download stuck at importBlocked, with `mapping` to correct a wrong match; not on Lidarr), `remap` (which episode an imported Sonarr file really is), `postprocess` (rerun NZBGet post-processing by `downloadId`), `bookdrop` (Grimmory). For an import refused over a "TBA" episode title, scan the series, wait, then import again. Most actions queue and return; follow them in stack_health `commands`. Previews first; confirm to run. Field reference: arr://docs/trigger_scan.',
+            'Asks a service to reconcile itself with what is on disk: the "it downloaded but will not play" fix, and the usual fix for a stale scan diagnose reports. No `id` rescans the whole library of Radarr, Sonarr, Whisparr, Lidarr, Jellyfin, Plex or Grimmory; on Prowlarr it pushes the indexer list to the apps. An `id` refreshes and rescans one item. On Jellyfin and Plex a scan only finds changed files; wrong metadata is fix_metadata. `action`: `rename` (files to the service\'s naming, needs `id`), `import` (a finished download stuck at importBlocked, with `mapping` to correct a wrong match; not on Lidarr), `remap` (which episode an imported Sonarr file really is), `postprocess` (rerun NZBGet post-processing by `downloadId`), `bookdrop` (Grimmory). [[sonarr: For an import refused over a "TBA" episode title, scan the series, wait, then import again.]] Most actions queue and return; follow them in stack_health `commands`. Previews first; confirm to run. Field reference: arr://docs/trigger_scan.',
         inputSchema: z.object({
-            service: ServiceIdSchema.describe(
-                'radarr, sonarr, whisparr, lidarr, jellyfin, plex or grimmory — or prowlarr, to sync its indexers to the apps, or nzbget for action: "postprocess".'
+            service: serviceOf(['radarr', 'sonarr', 'whisparr', 'lidarr', 'jellyfin', 'plex', 'grimmory', 'prowlarr', 'nzbget']).describe(
+                'prowlarr syncs its indexers to the apps; nzbget only with action: "postprocess".'
             ),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             action: z

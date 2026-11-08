@@ -319,7 +319,7 @@ describe('trigger_scan on lidarr', () => {
 
     /** The preview names the artist, read through `getMediaDetails`, rather than a bare id. */
     const named = () => lidarr(s => (s.path === '/api/v1/artist/3' ? { id: 3, artistName: 'Some Artist' } : undefined));
-    const plain = (s: string) => s.replace(/<<untrusted:[^>]*>>|<<\/untrusted>>/g, '');
+    const plain = (s: string) => s.replace(/<<untrusted:[^>]*>>|<<\/>>/g, '');
 
     /** Lidarr's rescan after a one-artist refresh still reads every root folder, so the preview must not say "its folder". */
     it('previews one artist\'s scan by name, as a rescan of every root folder, sending no command', async () => {
@@ -350,7 +350,7 @@ describe('trigger_scan on lidarr', () => {
         const call = harness(adapter);
 
         const { structuredContent } = await call({ service: 'lidarr', action: 'import', download_id: 'nzo-1', dry_run: true });
-        const effects = structuredContent.effects.map(e => e.replace(/<<untrusted:[^>]*>>|<<\/untrusted>>/g, ''));
+        const effects = structuredContent.effects.map(e => e.replace(/<<untrusted:[^>]*>>|<<\/>>/g, ''));
 
         expect(structuredContent.summary).toContain('Import 1 file(s) from download nzo-1 into lidarr');
         expect(effects[0]).toContain('01.flac as Some Artist — First');

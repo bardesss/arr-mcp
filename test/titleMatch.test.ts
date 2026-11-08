@@ -3,7 +3,7 @@ import { RANK_EXACT, RANK_NONE, RANK_PREFIX, RANK_SUBSTRING, normaliseTitle, ran
 
 describe('unfenced', () => {
     it('strips the boundary so fenced titles compare like plain ones', () => {
-        expect(unfenced('<<untrusted:radarr.title>>Some Film<</untrusted>>')).toBe('Some Film');
+        expect(unfenced('<<untrusted:radarr.title>>Some Film<</>>')).toBe('Some Film');
     });
 
     it('leaves an unfenced value alone', () => {
@@ -54,7 +54,7 @@ describe('rankTitle', () => {
     });
 
     it('compares through a fence', () => {
-        expect(rankTitle('<<untrusted:radarr.title>>The Matrix<</untrusted>>', 'matrix')).toBe(RANK_EXACT);
+        expect(rankTitle('<<untrusted:radarr.title>>The Matrix<</>>', 'matrix')).toBe(RANK_EXACT);
     });
 
     it('reports no match for an empty query rather than a universal prefix', () => {

@@ -247,10 +247,10 @@ describe('unknown queue items', () => {
         ]);
         const [item] = await new SonarrAdapter(keyed(8989), impl).getQueue();
         expect(item?.statusMessages).toEqual([
-            '<<untrusted:sonarr.statusMessage>>Series title mismatch<</untrusted>>',
-            '<<untrusted:sonarr.statusMessage>>Some.Show.S02E03.mkv: Unknown episode<</untrusted>>',
-            '<<untrusted:sonarr.statusMessage>>Some.Show.S02E03.mkv: Sample<</untrusted>>',
-            '<<untrusted:sonarr.statusMessage>>One or more episodes expected in this release were not imported<</untrusted>>'
+            '<<untrusted:sonarr.statusMessage>>Series title mismatch<</>>',
+            '<<untrusted:sonarr.statusMessage>>Some.Show.S02E03.mkv: Unknown episode<</>>',
+            '<<untrusted:sonarr.statusMessage>>Some.Show.S02E03.mkv: Sample<</>>',
+            '<<untrusted:sonarr.statusMessage>>One or more episodes expected in this release were not imported<</>>'
         ]);
     });
 
@@ -408,7 +408,7 @@ describe('get_queue', () => {
 
     it('fences error messages too', async () => {
         const result = await buildGetQueue([radarr()], opts);
-        expect(result.items[0]?.errorMessage).toBe('<<untrusted:radarr.errorMessage>>Sample check failed<</untrusted>>');
+        expect(result.items[0]?.errorMessage).toBe('<<untrusted:radarr.errorMessage>>Sample check failed<</>>');
     });
 
     it('returns the other services worth of queue when one is down', async () => {

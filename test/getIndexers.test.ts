@@ -73,7 +73,7 @@ describe('get_indexers', () => {
     it('fences the failure message, which is text the indexer chose', async () => {
         const result = await buildGetIndexers([adapter()], { detail: 'full', limit: 50 });
         expect(result.items.find(i => i.name === 'NZBgeek')?.lastFailure).toBe(
-            '<<untrusted:prowlarr.mostRecentFailure>>Request limit reached<</untrusted>>'
+            '<<untrusted:prowlarr.mostRecentFailure>>Request limit reached<</>>'
         );
     });
 
@@ -140,8 +140,8 @@ describe('get_indexers', () => {
                 service: 'prowlarr',
                 indexer: 'NZBgeek',
                 at: '2026-08-04T22:10:00Z',
-                reason: '<<untrusted:prowlarr.reason>>Query rate limit exceeded<</untrusted>>',
-                query: '<<untrusted:prowlarr.query>>some film 2026<</untrusted>>'
+                reason: '<<untrusted:prowlarr.reason>>Query rate limit exceeded<</>>',
+                query: '<<untrusted:prowlarr.query>>some film 2026<</>>'
             }
         ]);
     });

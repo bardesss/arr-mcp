@@ -462,6 +462,12 @@ describe('the advertised tool surface', () => {
         expect(total).toBeLessThanOrEqual(DESCRIPTIONS_TOTAL_CAP);
     });
 
+    it('never sends a description scope marker', async () => {
+        const raw = JSON.stringify(await listTools());
+        expect(raw).not.toContain('[[');
+        expect(raw).not.toContain('x-arr-services');
+    });
+
     it('points only at docs resources that exist', async () => {
         const res = await app().request(
             'http://localhost:6060/mcp',

@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
+import { type ServiceId, serviceOf } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { hasSubtitleSearch, hasSubtitles, type ServiceAdapter, type SubtitleGap } from '../services/types.ts';
 import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
@@ -38,7 +38,7 @@ export function registerTriggerSubtitleSearch(
         description:
             'Asks Bazarr to go looking for one language of subtitles for one item it already tracks — the "it is missing Dutch subs and I do not want to wait for the next round" action. Takes `kind`, `id` and `language` exactly as get_subtitles reports them. By default it only searches for something Bazarr lists as missing; `search_anyway: true` searches regardless, which is how you replace a subtitle you already have but do not want (for an episode outside that list, pass `series_id` too). This queues a search and returns immediately; it does not wait, and finding a subtitle is not guaranteed. Previews first; confirm to run it.',
         inputSchema: z.object({
-            service: ServiceIdSchema.describe('bazarr.'),
+            service: serviceOf(['bazarr']),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             kind: z.enum(['movie', 'episode']).describe('Which of the two lists get_subtitles reported the item in.'),
             id: z
