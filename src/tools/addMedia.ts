@@ -113,9 +113,9 @@ function searchEffect(
  * `new` finds nothing to compare with, so it monitors every one
  * (`MonitorNewAlbumService`). A refresh of a monitored artist then searches the
  * monitored albums it added that are already released: all of them up to
- * 3.2.0.5144 (`AlbumAddedService`), and in later builds, nightly only so far,
- * just those released in the last 180 days (`AlbumRefreshedService`), where the
- * older ones wait for RSS sync or a search started by hand.
+ * 3.2.0.5144 (`AlbumAddedService`), and in later versions just those released
+ * in the last 180 days (`AlbumRefreshedService`), where the older ones wait for
+ * RSS sync or a search started by hand.
  */
 const SEARCH_AFTER_REFRESH =
     "Lidarr then searches the released ones while the artist is monitored (in Lidarr newer than 3.2.0.5144, only those released in the last 180 days; older ones wait for RSS sync or trigger_search).";
