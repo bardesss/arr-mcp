@@ -440,6 +440,39 @@ describe('the advertised tool surface', () => {
         expect(await listTools()).toHaveLength(TOOL_NAMES.length);
     });
 
+    /**
+     * Every description is loaded into the client's context on every session,
+     * before the first call (#518). A description says what the tool is for,
+     * when to pick it over a sibling, and the pitfalls that cause a wrong call;
+     * field-by-field detail goes in `arr://docs/<tool>`. Raising either number
+     * is a decision, not a fix for a failing test.
+     */
+    const DESCRIPTION_CAP = 1000;
+    const DESCRIPTIONS_TOTAL_CAP = 28_000;
+
+    it(`keeps every tool description under ${DESCRIPTION_CAP} characters`, async () => {
+        const long = (await listTools())
+            .filter(t => (t.description ?? '').length > DESCRIPTION_CAP)
+            .map(t => `${t.name}: ${t.description?.length}`);
+        expect(long).toEqual([]);
+    });
+
+    it(`keeps all tool descriptions together under ${DESCRIPTIONS_TOTAL_CAP} characters`, async () => {
+        const total = (await listTools()).reduce((n, t) => n + (t.description ?? '').length, 0);
+        expect(total).toBeLessThanOrEqual(DESCRIPTIONS_TOTAL_CAP);
+    });
+
+    it('points only at docs resources that exist', async () => {
+        const res = await app().request(
+            'http://localhost:6060/mcp',
+            rpc({ jsonrpc: '2.0', id: 1, method: 'resources/list' }, { Authorization: `Bearer ${TOKEN}` })
+        );
+        const listed = new Set(((await rpcPayload(res)).result as { resources: { uri: string }[] }).resources.map(r => r.uri));
+        const pointers = (await listTools()).flatMap(t => [...(t.description ?? '').matchAll(/arr:\/\/docs\/[a-z_]+/g)].map(m => m[0]));
+        expect(pointers.length).toBeGreaterThan(0);
+        expect(pointers.filter(p => !listed.has(p))).toEqual([]);
+    });
+
     it('gives every tool a description, which is the only documentation a model reads', async () => {
         const undocumented = (await listTools()).filter(t => (t.description ?? '').length < 40);
         expect(undocumented.map(t => t.name)).toEqual([]);
@@ -1248,9 +1281,9 @@ describe('prompts and resources, beside the tools rather than instead of them', 
         ]);
     });
 
-    it('advertises the four resources', async () => {
+    it('advertises the four data resources beside the tool references', async () => {
         const { resources } = (await list('resources/list')) as { resources: { uri: string }[] };
-        expect(resources.map(r => r.uri).sort()).toEqual([
+        expect(resources.map(r => r.uri).filter(u => !u.startsWith('arr://docs/')).sort()).toEqual([
             'arr://health',
             'arr://instances',
             'arr://library/summary',

@@ -6,6 +6,7 @@ import type { ArtistMonitorCapable, ArtistMonitorPolicy, ServiceAdapter } from '
 import type { ToolContext } from '../tools/register.ts';
 import { buildGetLibrary } from '../tools/getLibrary.ts';
 import { buildStackHealth } from '../tools/stackHealth.ts';
+import { TOOL_DOCS } from './toolDocs.ts';
 
 /**
  * The four resources (0.9 spec ).
@@ -356,4 +357,19 @@ export function registerAllResources(server: McpServer, context: ToolContext): v
             });
         }
     );
+
+    // The field-by-field detail the tool descriptions point at (#518). Static
+    // text, so it is listed once and costs nothing until a client reads it.
+    for (const [tool, text] of Object.entries(TOOL_DOCS)) {
+        server.registerResource(
+            `docs-${tool}`,
+            `arr://docs/${tool}`,
+            {
+                title: `${tool} reference`,
+                description: `The full field reference for ${tool}: every output field and its caveats.`,
+                mimeType: 'text/markdown'
+            },
+            uri => ({ contents: [{ uri: uri.href, mimeType: 'text/markdown', text }] })
+        );
+    }
 }

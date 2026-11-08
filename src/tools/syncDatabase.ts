@@ -109,8 +109,7 @@ export function registerSyncDatabase(
             'Profilarr answers the request with a queued job, and this tool polls it to a terminal status before ' +
             'reporting anything, so the result reflects whether the sync actually finished, not just that it was ' +
             'accepted. A sync can legitimately find nothing to pull; that reports as a completed call whose ' +
-            '`outcome` is `skipped`, not as a normal sync. Previews by default — call again with the returned ' +
-            '`confirm` token to run it.',
+            '`outcome` is `skipped`, not as a normal sync. Previews first; confirm to run it.',
         inputSchema: z.object({
             database: z
                 .string()
