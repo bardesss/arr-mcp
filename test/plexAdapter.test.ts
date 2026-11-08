@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { MultiUserServiceConfig } from '../src/config/schema.ts';
 import { ServiceError } from '../src/core/errors.ts';
 import { logger } from '../src/core/logger.ts';
+import { LibraryIndex } from '../src/core/resolver.ts';
 import { unfenced } from '../src/core/titleMatch.ts';
 import { PlexAdapter } from '../src/services/plex.ts';
 import { jsonResponse, serving } from './helpers/serve.ts';
@@ -1249,6 +1250,19 @@ describe('PlexAdapter', () => {
             expect(items.every(i => i.playback?.watched === false)).toBe(true);
             const first = items.find(i => i.ids.imdb === 'tt1179933');
             expect(first).toMatchObject({ kind: 'movie', year: 2016, ids: { imdb: 'tt1179933', tmdb: 333371, tvdb: 777 } });
+        });
+
+        it('keeps a real originalTitle as a name to match, so a search finds the film by it (#517)', async () => {
+            const sections = { MediaContainer: { Directory: [{ key: '1', type: 'movie' }] } };
+            const { adapter } = plex({ '/library/sections': sections, '/library/sections/1/all': CAPTURED_SECTION_ALL });
+            const items = await adapter.listUserLibrary({ id: '1', name: 'viewer' });
+            const short = items.find(i => unfenced(i.title) === '2036: Nexus Dawn');
+            expect(short?.aliases).toEqual(['Blade Runner: 2036 Nexus Dawn']);
+            // Rows without an originalTitle get no aliases key at all.
+            expect(items.filter(i => i.aliases !== undefined)).toHaveLength(2);
+
+            const index = LibraryIndex.build(items);
+            expect(unfenced(index.search('Blade Runner: 2036 Nexus Dawn')[0]?.title ?? '')).toBe('2036: Nexus Dawn');
         });
 
         it('reads a real /library/metadata/{id} detail response', async () => {
