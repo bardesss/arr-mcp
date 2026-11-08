@@ -90,6 +90,12 @@ describe('discovery catalog', () => {
         }
     });
 
+    it('cuts a reported version to 64 characters', () => {
+        const long = 'v'.repeat(500);
+        const found = entry('sabnzbd').identify({ status: 200, headers: {}, body: JSON.stringify({ version: long }) });
+        expect(found?.version).toBe('v'.repeat(64));
+    });
+
     it('uses valid, plausible ports and absolute paths, with container names', () => {
         for (const e of CATALOG) {
             expect(Number.isInteger(e.port) && e.port > 0 && e.port < 65536, e.type).toBe(true);

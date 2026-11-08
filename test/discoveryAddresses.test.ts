@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   defaultSweepRange,
   isPrivateAddress,
@@ -45,9 +45,40 @@ describe('resolvePrivate', () => {
     const r = await resolvePrivate('nas.lan', async () => ['192.168.1.20']);
     expect(r).toEqual({ ok: true, host: 'nas.lan', address: '192.168.1.20' });
   });
-  it('refuses mixed results', async () => {
-    const r = await resolvePrivate('mixed.lan', async () => ['192.168.1.20', '104.21.3.4']);
+  it('accepts a private A record beside a public AAAA record, and probes the IPv4', async () => {
+    const r = await resolvePrivate('fritz.box', async () => ['2a02:8109:1234::1', '192.168.178.1']);
+    expect(r).toEqual({ ok: true, host: 'fritz.box', address: '192.168.178.1' });
+  });
+  it('prefers a private IPv4 over a unique-local IPv6 listed first', async () => {
+    const r = await resolvePrivate('nas.lan', async () => ['fd00::5', '192.168.1.20']);
+    expect(r).toEqual({ ok: true, host: 'nas.lan', address: '192.168.1.20' });
+  });
+  it('takes a unique-local IPv6 when it is the only private address', async () => {
+    const r = await resolvePrivate('nas.lan', async () => ['2a02:8109:1234::1', 'fd00::5']);
+    expect(r).toEqual({ ok: true, host: 'nas.lan', address: 'fd00::5' });
+  });
+  it('refuses a name whose addresses are all public', async () => {
+    const r = await resolvePrivate('mixed.example', async () => ['104.21.3.4', '2a02:8109:1234::1']);
     expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toContain('not a private address');
+  });
+  it('treats a lookup that never settles as not resolving', async () => {
+    const r = await resolvePrivate('slow', () => new Promise<string[]>(() => {}), 20);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toContain('does not resolve');
+  });
+  it('leaves no unhandled rejection when a lookup fails after its timeout', async () => {
+    const unhandled = vi.fn();
+    process.on('unhandledRejection', unhandled);
+    const r = await resolvePrivate(
+      'late',
+      () => new Promise<string[]>((_, reject) => setTimeout(() => reject(new Error('ENOTFOUND')), 40)),
+      10,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    process.off('unhandledRejection', unhandled);
+    expect(r.ok).toBe(false);
+    expect(unhandled).not.toHaveBeenCalled();
   });
   it('turns a lookup rejection into a refusal', async () => {
     const r = await resolvePrivate('nope.lan', async () => {

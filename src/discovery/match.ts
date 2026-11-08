@@ -2,6 +2,7 @@ import { lookup as dnsLookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { listInstances } from '../config/instances.ts';
 import { MULTI_INSTANCE, type Config } from '../config/schema.ts';
+import { LOOKUP_TIMEOUT_MS, lookupWithin } from './addresses.ts';
 import type { Found } from './probe.ts';
 
 export type ResultRow = Found & {
@@ -11,12 +12,17 @@ export type ResultRow = Found & {
     existingUrl?: string;
 };
 
+const defaultLookup = async (host: string): Promise<string[]> => (await dnsLookup(host, { all: true })).map(a => a.address);
+
 /**
  * Turns a url into `scheme//address:port`, so `http://radarr:7878` and
  * `http://172.18.0.5:7878` compare equal when the name resolves to the address.
  * A name that does not resolve is compared as written.
  */
-export function urlResolver(lookup?: (host: string) => Promise<string[]>): (url: string) => Promise<string> {
+export function urlResolver(
+    lookup: (host: string) => Promise<string[]> = defaultLookup,
+    timeoutMs: number = LOOKUP_TIMEOUT_MS
+): (url: string) => Promise<string> {
     return async url => {
         let parsed: URL;
         try {
@@ -26,12 +32,9 @@ export function urlResolver(lookup?: (host: string) => Promise<string[]>): (url:
         }
         let host = parsed.hostname.replace(/^\[|\]$/g, '');
         if (isIP(host) === 0) {
-            try {
-                const addresses = lookup ? await lookup(host) : (await dnsLookup(host, { all: true })).map(a => a.address);
-                if (addresses[0] !== undefined) host = addresses[0];
-            } catch {
-                // keep the name
-            }
+            // A name that does not resolve in time is kept as written.
+            const addresses = await lookupWithin(host, lookup, timeoutMs);
+            if (addresses?.[0] !== undefined) host = addresses[0];
         }
         const port = parsed.port || (parsed.protocol === 'https:' ? '443' : '80');
         return `${parsed.protocol}//${isIP(host) === 6 ? `[${host}]` : host}:${port}`;
