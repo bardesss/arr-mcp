@@ -3202,6 +3202,32 @@ describe('finding services', () => {
         expect(await servicesPage()).not.toContain('<meta http-equiv="refresh"');
     });
 
+    it('does not reload a page whose add dialog is open, but still shows progress and a link', async () => {
+        await signIn();
+        state = baseRun({ phase: 'sweep', running: true, range: '192.168.1.0/24', tried: 142, total: 256 });
+        const page = await servicesPage('&add_type=radarr&add_url=http%3A%2F%2F192.168.1.10%3A7878');
+        expect(page).not.toContain('<meta http-equiv="refresh"');
+        expect(page).toContain('<dialog id="add-service" open');
+        expect(page).toContain('142 of 256 addresses tried');
+        expect(page).toContain('<a href="/ui/config?tab=services">Reload</a>');
+
+        expect(await servicesPage()).toContain('<meta http-equiv="refresh"');
+    });
+
+    it('does not reload an error render during a running sweep', async () => {
+        await signIn();
+        state = baseRun({ phase: 'sweep', running: true, range: '192.168.1.0/24', tried: 142, total: 256 });
+        const refused = await call('/ui/config/discover/sweep', form({ csrf: await csrfFrom(), range: 'nonsense' }));
+        expect(refused.status).toBe(400);
+        const page = await refused.text();
+        expect(page).toContain('142 of 256 addresses tried');
+        expect(page).not.toContain('<meta http-equiv="refresh"');
+
+        const stale = await call('/ui/config/discover', form({ csrf: 'wrong' }));
+        expect(stale.status).toBe(403);
+        expect(await stale.text()).not.toContain('<meta http-equiv="refresh"');
+    });
+
     it('opens the add dialog with the type and address filled in and no credential', async () => {
         await signIn();
         const page = await servicesPage('&add_type=radarr&add_url=http%3A%2F%2F192.168.1.10%3A7878');

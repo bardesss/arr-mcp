@@ -854,13 +854,16 @@ function discoveryStatus(r: ResultRow): SafeHtml {
  * Nothing here saves anything. Add opens the add dialog with the type and the
  * address filled in, and the credential stays empty.
  */
-function discoveryPanel(run: RunState, keys: SafeHtml): SafeHtml {
+function discoveryPanel(run: RunState, keys: SafeHtml, refreshing: boolean): SafeHtml {
     const what = run.phase === 'sweep' ? `the range ${run.range ?? ''}` : 'this host and the usual container names';
     return html`<div class="panel" id="discovery">
         <h3 style="margin:0 0 .75rem">Found services</h3>
         ${run.running
             ? html`<p class="note">
-                  Looking at ${what}: ${run.tried} of ${run.total} addresses tried. This page reloads until it is done.
+                  Looking at ${what}: ${run.tried} of ${run.total} addresses tried.
+                  ${refreshing
+                      ? 'This page reloads until it is done.'
+                      : html`This page does not reload while a form is open. <a href="/ui/config?tab=services">Reload</a>`}
               </p>`
             : html`<p class="note">Looked at ${what}. ${run.tried} of ${run.total} addresses tried.</p>`}
         ${run.rows.length === 0
@@ -993,6 +996,20 @@ export function configPage(opts: {
     const keys = html`<input type="hidden" name="csrf" value="${opts.csrf}">
         <input type="hidden" name="etag" value="${configEtag(opts.config)}">`;
 
+    // A reload re-renders every form empty, so it would eat a key being typed.
+    // It is also a GET of whatever URL this page answered, which for a post
+    // render is a 404. So only a plain view of the tab reloads itself.
+    const refreshes =
+        opts.tab === 'services' &&
+        opts.discovery?.running === true &&
+        opts.message === undefined &&
+        opts.openAdd !== true &&
+        opts.addPrefill === undefined &&
+        opts.testedAdd === undefined &&
+        opts.openInstance === undefined &&
+        opts.tested === undefined &&
+        opts.confirmingRemoval === undefined;
+
     const services = html`<div class="row" style="margin-bottom:1rem">
             <button type="button" data-open="add-service">Add a service</button>
             <button type="submit" form="discover-form" class="ghost">Find services</button>
@@ -1004,7 +1021,7 @@ export function configPage(opts: {
         </div>
 
         <form id="discover-form" method="post" action="/ui/config/discover" hidden ${IGNORE_FORM}>${keys}</form>
-        ${opts.discovery === undefined ? raw('') : discoveryPanel(opts.discovery, keys)}
+        ${opts.discovery === undefined ? raw('') : discoveryPanel(opts.discovery, keys, refreshes)}
 
         ${instances.map(i =>
             instanceCard(
@@ -1196,7 +1213,7 @@ export function configPage(opts: {
         // Derived, not passed in: this page already has the config, and a
         // second source for one value is a way for them to disagree.
         theme: opts.config.ui?.theme,
-        ...(opts.tab === 'services' && opts.discovery?.running === true
+        ...(refreshes
             ? { refreshSeconds: DISCOVERY_REFRESH_SECONDS }
             : {}),
         ...(opts.message === undefined ? {} : { message: opts.message })
