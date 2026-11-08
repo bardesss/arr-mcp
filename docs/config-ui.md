@@ -126,17 +126,21 @@ since that turns the API off. See [Management API](api.md).
 **Find services** sits next to **Add a service** on the Services tab. It looks in two places, and each answer
 lists the service, its address and its version.
 
-- This host: the name you used to reach arr-mcp, tried on each service's default port.
+- This host: the name you used to reach arr-mcp, tried on each service's default port. A name that resolves
+  to a private address and a public one as well is tried at the private one.
 - Container names: the usual names, such as `radarr` and `sonarr`. These only resolve when arr-mcp shares a
   Docker network with the service.
 
-Under the results, **Scan this range** sweeps a range of addresses, pre-filled with the /24 around this host. It
-is a port scan: it tries each service's port on every address, which routers or intrusion detection may flag.
-It runs in the background and the page reloads itself until it is done. Only private addresses are tried.
+Under the results, **Scan this range** sweeps a range of addresses. The range is pre-filled with the /24 around
+this host when this host is a private IPv4 address. It is a port scan: it tries each service's port on every
+address, which routers or intrusion detection may flag. It runs in the background and the page reloads itself
+until it is done, except while you have the add dialog or a service card open or have typed into a form. Only
+private addresses are tried. On Unraid, a container on br0 or another macvlan network cannot reach the Unraid
+host's own IP unless "Host access to custom networks" is on, so there the sweep is the source that works.
 
 Nothing is saved. **Add** opens the add dialog with the service and address filled in. API keys stay manual:
-discovery never sends or fills one. A service that is already configured shows no Add, and a second Radarr or
-Sonarr shows one with a note.
+discovery never sends or fills one. A service that is already configured shows no Add, and a service that can
+have more than one instance shows one with a note.
 
 ## Logs and the write audit
 
