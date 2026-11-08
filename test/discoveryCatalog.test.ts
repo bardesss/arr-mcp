@@ -61,7 +61,7 @@ describe('discovery catalog', () => {
     });
 
     it('an *arr behind forms login is still named', () => {
-        const radarr = fixtures.find(f => f.name === 'radarr-login.json');
+        const radarr = fixtures.find(f => f.name === 'radarr-login-forms.json');
         expect(radarr).toBeDefined();
         const r = respond(radarr!.fixture);
         expect(matches(r).map(e => e.type)).toEqual(['radarr']);
@@ -99,12 +99,14 @@ describe('discovery catalog', () => {
         }
     });
 
-    it("no default port is 6060 unless the entry says arr-mcp skips its own port", () => {
-        for (const e of CATALOG) {
-            if (e.port !== 6060) continue;
-            expect(e.note, e.type).toMatch(/arr-mcp/);
-            expect(e.note, e.type).toMatch(/skip/i);
-        }
+    it('does not take arr-mcp itself at the Grimmory path for Grimmory', () => {
+        const grimmory = entry('grimmory');
+        expect(grimmory.port).toBe(6060);
+        const own: ProbeResponse[] = [
+            { status: 404, headers: { 'content-type': 'application/json' }, body: '{"error":"Not Found"}' },
+            { status: 200, headers: { 'content-type': 'application/json' }, body: '{"status":"ok","name":"arr-mcp","version":"1.71.0"}' }
+        ];
+        for (const r of own) expect(grimmory.identify(r), JSON.stringify(r)).toBeUndefined();
     });
 
     it('every ServiceId is in CATALOG or UNDISCOVERABLE, never both', () => {

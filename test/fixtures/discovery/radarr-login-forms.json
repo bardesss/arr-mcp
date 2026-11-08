@@ -1,0 +1,11 @@
+{
+  "service": "radarr",
+  "path": "/login",
+  "source": "docs",
+  "note": "Radarr source: StaticResourceController.LoginPage is [AllowAnonymous] GET login and LoginHtmlMapper serves login.html for every auth method, substituting only the theme and the auth-forms body class. Trimmed to head and body tag.",
+  "status": 200,
+  "headers": {
+    "content-type": "text/html"
+  },
+  "body": "<!DOCTYPE html><html lang=\"en\"><head><meta name=\"description\" content=\"Radarr (Preview)\" /><title>Login - Radarr</title></head><body class=\"auth-forms\"></body></html>"
+}

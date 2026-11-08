@@ -211,7 +211,7 @@ export const CATALOG: readonly CatalogEntry[] = [
         port: 6060,
         containerNames: ['grimmory'],
         path: '/api/v1/healthcheck',
-        note: 'Grimmory defaults to 6060, the same as arr-mcp. Discovery skips its own port, so this entry is only found on 6060 of another host.',
+        note: 'Grimmory defaults to 6060, the same as arr-mcp. The fingerprint rejects arr-mcp itself (a 404 at this path, or its healthz answer), so a host running both is not reported as Grimmory.',
         identify: r => {
             const o = jsonObject(r);
             const data = asObject(o?.data);
