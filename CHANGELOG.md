@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.73.1](https://github.com/bardesss/arr-mcp/compare/v1.73.0...v1.73.1) (2026-11-08)
+
+
+### Bug Fixes
+
+* **library:** match original and alternate titles, flag ties in get_media_details ([#520](https://github.com/bardesss/arr-mcp/issues/520)) ([741125d](https://github.com/bardesss/arr-mcp/commit/741125dc87a28a17f2a8606591c1243b92adc6c2))
+* **lidarr:** look up an artist nothing manages, and say None grabs nothing once monitored ([#514](https://github.com/bardesss/arr-mcp/issues/514)) ([0a581b8](https://github.com/bardesss/arr-mcp/commit/0a581b8b641143e08645d47fa7912eb0e504f722))
+* **mcp:** cap tool descriptions and move field detail to arr://docs resources ([#522](https://github.com/bardesss/arr-mcp/issues/522)) ([e4c52ee](https://github.com/bardesss/arr-mcp/commit/e4c52eedbda204f390703e2179b5ca12a9f9df78)), closes [#518](https://github.com/bardesss/arr-mcp/issues/518)
+* **mcp:** trim tools/list further and tailor it to the configured stack ([#524](https://github.com/bardesss/arr-mcp/issues/524)) ([9da2fac](https://github.com/bardesss/arr-mcp/commit/9da2fac22a7b8bb7d928e8344c2e7e107324ec09))
+
 ## [1.73.0](https://github.com/bardesss/arr-mcp/compare/v1.72.0...v1.73.0) (2026-11-08)
 
 
