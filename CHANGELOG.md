@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.74.0](https://github.com/bardesss/arr-mcp/compare/v1.73.1...v1.74.0) (2026-11-08)
+
+
+### Features
+
+* **lidarr:** change an artist's profiles, folder, monitoring and tags ([#527](https://github.com/bardesss/arr-mcp/issues/527)) ([cadfda6](https://github.com/bardesss/arr-mcp/commit/cadfda6ac87536f65b8f2facf5014ab80b0b579e))
+* **tools:** take a title in place of an id on set_watched, set_monitoring and get_releases ([#528](https://github.com/bardesss/arr-mcp/issues/528)) ([9fc1c2f](https://github.com/bardesss/arr-mcp/commit/9fc1c2f3bd5e7464be273f5d3e6cdcc7c97e752f))
+
+
+### Bug Fixes
+
+* **add_media:** point at the refusal's own list instead of a stack_health call first ([#525](https://github.com/bardesss/arr-mcp/issues/525)) ([638a2b8](https://github.com/bardesss/arr-mcp/commit/638a2b804ebef49c85f7bc4d082bbaca89985378))
+* **get_media_details:** answer a title the library lacks with what a lookup knows ([#526](https://github.com/bardesss/arr-mcp/issues/526)) ([61afee7](https://github.com/bardesss/arr-mcp/commit/61afee7b4d7f1f4d9d4c5e8cf085e5ef82e6aafc))
+
 ## [1.73.1](https://github.com/bardesss/arr-mcp/compare/v1.73.0...v1.73.1) (2026-11-08)
 
 
