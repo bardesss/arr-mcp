@@ -1500,6 +1500,11 @@ which is documented as intentionally the biggest a caller can ask for.
 `guid` is never fenced, since a grab tool needs it verbatim, but it is still
 stripped of the same dangerous code points fenced text is and length-capped —
 an indexer chose it, and it is not trusted any more than a release title is.
+At `full`, each row's text line carries both too, next to the indexer
+(`V3X (Prowlarr) [indexer_id 5, guid …]`), so a client that never forwards
+the structured result can still pass them to `grab_release`. A guid shaped
+like an id (no whitespace, brackets or angle brackets) appears bare; any other
+is fenced like a title, and that row can be grabbed by `release_title` instead.
 
 This call is slow. Radarr and Sonarr poll every configured indexer
 synchronously before answering, and a live capture measured a Sonarr season
@@ -1532,6 +1537,15 @@ The write half of `get_releases`. Takes `guid` and `indexer_id` from a
 `get_releases` row verbatim and tells Radarr, Sonarr, Whisparr, Lidarr or
 Shelfmark to grab that one release — "not that one, the 1080p remux". On Shelfmark both can be left
 out, and the most-downloaded file is taken, named in the preview first.
+
+Instead of the ids it takes `release_title`, the release name exactly as
+`get_releases` listed it, plus `id`. The preview's re-search looks the name up:
+an exact match, ignoring only surrounding whitespace. Two indexers often list
+the same release under the same name, so a name that matches more than one row
+is refused with each row's `indexer_id` and `guid`. Pass `indexer_id` with the
+title to pick one. The token binds to the guid and indexer the title resolved
+to, and the confirmation resolves it again, so a re-search that maps the name
+to a different row voids the token.
 
 Safe tier, not destructive: a grab starts a download, and a download comes
 back off with `remove_queue_item`. Nothing on disk is lost.
