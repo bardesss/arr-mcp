@@ -3022,3 +3022,223 @@ describe('management API keys', () => {
         expect(runtime.config.auth.management_keys).toBeUndefined();
     });
 });
+
+describe('finding services', () => {
+    type Row = import('../src/discovery/match.ts').ResultRow;
+    type Run = import('../src/discovery/run.ts').RunState;
+
+    const baseRun = (over: Partial<Run> = {}): Run => ({
+        id: 'run-1',
+        phase: 'quick',
+        running: false,
+        tried: 3,
+        total: 3,
+        rows: [],
+        skipped: [],
+        suggestedRange: '192.168.1.0/24',
+        startedAt: '2026-11-08T10:00:00.000Z',
+        ...over
+    });
+    const row = (over: Partial<Row>): Row => ({
+        type: 'radarr',
+        url: 'http://192.168.1.10:7878',
+        version: '5.3.6',
+        source: 'host',
+        status: 'new',
+        ...over
+    });
+
+    let state: Run | undefined;
+    const quick = vi.fn(async (_host: string | undefined, _config: unknown) => {
+        state = state ?? baseRun();
+        return state;
+    });
+    const startSweep = vi.fn((range: string, _config: unknown): Run | { refused: string } => {
+        if (range === 'nonsense') return { refused: 'That is not a range arr-mcp can scan.' };
+        state = baseRun({ phase: 'sweep', running: true, range, tried: 142, total: 256 });
+        return state;
+    });
+
+    beforeEach(() => {
+        state = undefined;
+        quick.mockClear();
+        startSweep.mockClear();
+        app = buildApp({ runtime, audit, logs, discovery: { quick, startSweep, current: () => state } });
+    });
+
+    const servicesPage = async (query = ''): Promise<string> =>
+        (await call(`/ui/config?tab=services${query}`)).text();
+
+    it('sends a signed-out visitor to sign-in and runs nothing', async () => {
+        cookie = '';
+        for (const path of ['/ui/config/discover', '/ui/config/discover/sweep']) {
+            const res = await call(path, form({ csrf: 'x', range: '192.168.1.0/24' }));
+            expect(res.status).toBe(302);
+            expect(res.headers.get('location')).toBe('/ui/login');
+        }
+        expect(quick).not.toHaveBeenCalled();
+        expect(startSweep).not.toHaveBeenCalled();
+    });
+
+    it('refuses a post without a valid CSRF token', async () => {
+        await signIn();
+        const a = await call('/ui/config/discover', form({ csrf: 'wrong' }));
+        const b = await call('/ui/config/discover/sweep', form({ csrf: 'wrong', range: '192.168.1.0/24' }));
+        expect(a.status).toBe(403);
+        expect(b.status).toBe(403);
+        expect(quick).not.toHaveBeenCalled();
+        expect(startSweep).not.toHaveBeenCalled();
+    });
+
+    it('runs the quick scan with the Host header and redirects to the services tab', async () => {
+        await signIn();
+        const post = form({ csrf: await csrfFrom() });
+        const res = await call('/ui/config/discover', {
+            ...post,
+            headers: { ...(post.headers as Record<string, string>), host: 'localhost:6060' }
+        });
+        expect(res.status).toBe(303);
+        expect(res.headers.get('location')).toBe('/ui/config?tab=services');
+        expect(quick).toHaveBeenCalledTimes(1);
+        expect(quick.mock.calls[0]?.[0]).toBe('localhost:6060');
+    });
+
+    it('offers Find services on the services tab only', async () => {
+        await signIn();
+        expect(await servicesPage()).toContain('action="/ui/config/discover"');
+        state = baseRun({ rows: [row({})] });
+        const other = await (await call('/ui/config?tab=settings')).text();
+        expect(other).not.toContain('Find services');
+        expect(other).not.toContain('192.168.1.10:7878');
+    });
+
+    it('lists each row by status', async () => {
+        await signIn();
+        state = baseRun({
+            rows: [
+                row({}),
+                row({ type: 'sonarr', url: 'http://192.168.1.10:8989', version: '4.0.1', status: 'added' }),
+                row({
+                    type: 'jellyfin',
+                    url: 'http://192.168.1.10:8096',
+                    version: '10.9.0',
+                    status: 'configured',
+                    existingUrl: 'http://jelly:8096'
+                }),
+                row({
+                    type: 'lidarr',
+                    url: 'http://192.168.1.10:8686',
+                    version: '2.0.0',
+                    status: 'maybe-second',
+                    existingUrl: 'http://lidarr:8686'
+                }),
+                row({ type: 'prowlarr', url: 'http://192.168.1.10:9696', alsoAt: 'http://prowlarr:9696' })
+            ]
+        });
+        const page = await servicesPage();
+
+        expect(page).toContain('5.3.6');
+        expect(page).toContain('href="/ui/config?tab=services&amp;add_type=radarr&amp;add_url=http%3A%2F%2F192.168.1.10%3A7878"');
+        expect(page).toContain('already added');
+        expect(page).not.toContain('add_type=sonarr');
+        expect(page).toContain('already configured at');
+        expect(page).toContain('http://jelly:8096');
+        expect(page).not.toContain('add_type=jellyfin');
+        expect(page).toContain('If this is a different one, add it as a second instance');
+        expect(page).toContain('add_type=lidarr');
+        expect(page).toContain('also reachable at');
+        expect(page).toContain('http://prowlarr:9696');
+    });
+
+    it('lists what was skipped, with the reason', async () => {
+        await signIn();
+        state = baseRun({ skipped: [{ what: 'example.com', reason: 'not a private address' }] });
+        const page = await servicesPage();
+        expect(page).toContain('example.com');
+        expect(page).toContain('not a private address');
+    });
+
+    it('says so when nothing was found', async () => {
+        await signIn();
+        state = baseRun();
+        expect(await servicesPage()).toContain('Nothing found');
+    });
+
+    it('offers the sweep with the suggested range and says it is a port scan', async () => {
+        await signIn();
+        state = baseRun();
+        const page = await servicesPage();
+        expect(page).toContain('action="/ui/config/discover/sweep"');
+        expect(page).toMatch(/name="range"[^>]*value="192\.168\.1\.0\/24"/);
+        expect(page).toContain('port scan');
+    });
+
+    it('starts a sweep and redirects', async () => {
+        await signIn();
+        const res = await call('/ui/config/discover/sweep', form({ csrf: await csrfFrom(), range: '192.168.1.0/24' }));
+        expect(res.status).toBe(303);
+        expect(res.headers.get('location')).toBe('/ui/config?tab=services');
+        expect(startSweep).toHaveBeenCalledWith('192.168.1.0/24', expect.anything());
+    });
+
+    it('shows a refused range as an error on the page', async () => {
+        await signIn();
+        const res = await call('/ui/config/discover/sweep', form({ csrf: await csrfFrom(), range: 'nonsense' }));
+        expect(res.status).toBe(400);
+        const page = await res.text();
+        expect(page).toContain('class="msg err"');
+        expect(page).toContain('That is not a range arr-mcp can scan.');
+    });
+
+    it('reloads itself with progress while a run is going, and stops when it is done', async () => {
+        await signIn();
+        state = baseRun({ phase: 'sweep', running: true, range: '192.168.1.0/24', tried: 142, total: 256, rows: [row({})] });
+        const running = await servicesPage();
+        expect(running).toContain('<meta http-equiv="refresh"');
+        expect(running).toContain('142 of 256 addresses tried');
+        expect(running).toContain('5.3.6');
+
+        state = { ...state, running: false, tried: 256 };
+        expect(await servicesPage()).not.toContain('<meta http-equiv="refresh"');
+    });
+
+    it('opens the add dialog with the type and address filled in and no credential', async () => {
+        await signIn();
+        const page = await servicesPage('&add_type=radarr&add_url=http%3A%2F%2F192.168.1.10%3A7878');
+        expect(page).toContain('<dialog id="add-service" open');
+        expect(page).toMatch(/<option value="radarr" selected>/);
+        expect(page).toMatch(/id="add\.url"[^>]*value="http:\/\/192\.168\.1\.10:7878"/);
+        expect(page).toMatch(/id="add\.api_key"[^>]*value=""/);
+    });
+
+    it('ignores an unknown type or a non-http address', async () => {
+        await signIn();
+        for (const q of [
+            '&add_type=evil&add_url=http%3A%2F%2F192.168.1.10%3A7878',
+            '&add_type=radarr&add_url=javascript%3Aalert(1)',
+            '&add_type=radarr&add_url=ftp%3A%2F%2Fhost',
+            '&add_type=radarr&add_url=not%20a%20url'
+        ]) {
+            const page = await servicesPage(q);
+            expect(page).not.toContain('<dialog id="add-service" open');
+            expect(page).not.toContain('javascript:alert');
+        }
+    });
+
+    it('escapes what a service reports', async () => {
+        await signIn();
+        state = baseRun({ rows: [row({ version: '<script>alert(1)</script>' })] });
+        const page = await servicesPage();
+        expect(page).toContain('&lt;script&gt;');
+        expect(page).not.toContain('<script>alert(1)');
+    });
+
+    it('logs who started a scan', async () => {
+        await signIn();
+        const info = vi.spyOn(logger, 'info');
+        await call('/ui/config/discover/sweep', form({ csrf: await csrfFrom(), range: '192.168.1.0/24' }));
+        const lines = info.mock.calls.map(c => JSON.stringify(c));
+        info.mockRestore();
+        expect(lines.some(l => l.includes('192.168.1.0/24') && l.includes('ip'))).toBe(true);
+    });
+});

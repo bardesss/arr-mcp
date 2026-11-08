@@ -11,6 +11,9 @@ import {
 } from '../config/schema.ts';
 import type { StoredManagementKey } from '../core/managementKey.ts';
 import { unfence } from '../core/fence.ts';
+import { UNDISCOVERABLE } from '../discovery/catalog.ts';
+import type { ResultRow } from '../discovery/match.ts';
+import type { RunState } from '../discovery/run.ts';
 import { fingerprint, isExpired, type StoredToken } from '../core/mcpTokens.ts';
 import { WEBHOOK_SERVICES, WEBHOOK_USERNAME } from '../services/arrWebhook.ts';
 import type { ConnectionDiagnosis } from '../services/types.ts';
@@ -497,7 +500,8 @@ function addDialog(
     config: Config,
     keys: SafeHtml,
     open: boolean,
-    tested: ConnectionDiagnosis | undefined
+    tested: ConnectionDiagnosis | undefined,
+    prefill: { type: ServiceId; url: string } | undefined
 ): SafeHtml {
     const instances = listInstances(config);
     const configured = new Set(instances.map(i => i.type));
@@ -524,7 +528,9 @@ function addDialog(
             <div class="field">
                 <label for="add.type">Service</label>
                 <select id="add.type" name="type">
-                    ${offerable.map(id => html`<option value="${id}">${id}</option>`)}
+                    ${offerable.map(
+                        id => html`<option value="${id}"${prefill?.type === id ? raw(' selected') : raw('')}>${id}</option>`
+                    )}
                 </select>
                 ${offerable.length === SERVICE_IDS.length
                     ? raw('')
@@ -540,7 +546,13 @@ function addDialog(
                       </p>`}
             </div>
 
-            ${field({ id: 'add.url', name: 'url', label: 'URL', placeholder: 'http://192.168.1.20:7878' })}
+            ${field({
+                id: 'add.url',
+                name: 'url',
+                label: 'URL',
+                placeholder: 'http://192.168.1.20:7878',
+                ...(prefill === undefined ? {} : { value: prefill.url })
+            })}
             ${field({
                 id: 'add.api_key',
                 name: 'api_key',
@@ -814,6 +826,93 @@ function webhooksCard(config: Config, keys: SafeHtml, confirmingNewSecret: boole
         : raw('')}`;
 }
 
+/** Seconds between reloads while a run is going. */
+const DISCOVERY_REFRESH_SECONDS = 2;
+
+const addLink = (r: ResultRow): SafeHtml =>
+    html`<a href="/ui/config?tab=services&amp;add_type=${r.type}&amp;add_url=${encodeURIComponent(r.url)}">Add</a>`;
+
+function discoveryStatus(r: ResultRow): SafeHtml {
+    switch (r.status) {
+        case 'added':
+            return html`already added`;
+        case 'configured':
+            return html`already configured at <span class="mono">${r.existingUrl ?? ''}</span>`;
+        case 'maybe-second':
+            return html`${r.type} is already configured at <span class="mono">${r.existingUrl ?? ''}</span>.
+                If this is a different one, add it as a second instance. ${addLink(r)}`;
+        default:
+            return addLink(r);
+    }
+}
+
+/**
+ * What the last Find services run saw, above the service cards. A run that
+ * is still going shows the rows so far and the page reloads itself; the
+ * layout adds the meta refresh.
+ *
+ * Nothing here saves anything. Add opens the add dialog with the type and the
+ * address filled in, and the credential stays empty.
+ */
+function discoveryPanel(run: RunState, keys: SafeHtml): SafeHtml {
+    const what = run.phase === 'sweep' ? `the range ${run.range ?? ''}` : 'this host and the usual container names';
+    return html`<div class="panel" id="discovery">
+        <h3 style="margin:0 0 .75rem">Found services</h3>
+        ${run.running
+            ? html`<p class="note">
+                  Looking at ${what}: ${run.tried} of ${run.total} addresses tried. This page reloads until it is done.
+              </p>`
+            : html`<p class="note">Looked at ${what}. ${run.tried} of ${run.total} addresses tried.</p>`}
+        ${run.rows.length === 0
+            ? run.running
+                ? raw('')
+                : html`<p class="note">
+                      Nothing found. Add a service by hand with the button above, or scan a range below.
+                  </p>`
+            : html`<table class="stacked">
+                  <thead><tr><th>Service</th><th>Address</th><th>Version</th><th></th></tr></thead>
+                  <tbody>
+                      ${run.rows.map(
+                          r => html`<tr>
+                              <td class="mono">${r.type}</td>
+                              <td class="mono">${r.url}${r.alsoAt === undefined
+                                  ? raw('')
+                                  : html` <span class="dim">also reachable at ${r.alsoAt}</span>`}</td>
+                              <td>${r.version ?? ''}</td>
+                              <td>${discoveryStatus(r)}</td>
+                          </tr>`
+                      )}
+                  </tbody>
+              </table>`}
+        ${run.skipped.length === 0
+            ? raw('')
+            : html`<p class="note">Skipped:</p>
+                  <ul class="note">
+                      ${run.skipped.map(s => html`<li><span class="mono">${s.what}</span>: ${s.reason}</li>`)}
+                  </ul>`}
+        ${UNDISCOVERABLE.length === 0
+            ? raw('')
+            : html`<p class="note">These cannot be found this way:</p>
+                  <ul class="note">
+                      ${UNDISCOVERABLE.map(u => html`<li><span class="mono">${u.type}</span>: ${u.reason}</li>`)}
+                  </ul>`}
+        <form method="post" action="/ui/config/discover/sweep" ${IGNORE_FORM}>
+            ${keys}
+            ${field({
+                id: 'discover.range',
+                name: 'range',
+                label: 'Scan a range',
+                value: run.range ?? run.suggestedRange ?? '',
+                placeholder: '192.168.1.0/24',
+                note: 'A port scan: it tries each service port on every address in the range. Routers and intrusion detection may flag it. It only reads, and no key is sent.'
+            })}
+            <div class="row" style="margin-top:1rem">
+                <button type="submit" class="ghost"${run.running ? raw(' disabled') : raw('')}>Scan this range</button>
+            </div>
+        </form>
+    </div>`;
+}
+
 /** What each tab answers: what is connected, who can get in, how it behaves. */
 export const CONFIG_TABS = [
     { key: 'services', label: 'Services' },
@@ -883,6 +982,10 @@ export function configPage(opts: {
     /** What the last OAuth post left for its card: a result, a pending
      *  removal, or the fields as typed after a refusal or a Test. */
     oauth?: OAuthCardState | undefined;
+    /** The last Find services run, shown above the cards on the services tab. */
+    discovery?: RunState | undefined;
+    /** The Add link's choice, to select in the add dialog. */
+    addPrefill?: { type: ServiceId; url: string } | undefined;
 }): string {
     const instances = listInstances(opts.config);
     const bothMediaServers = MEDIA_SERVERS.every(id => instances.some(i => i.type === id));
@@ -892,12 +995,16 @@ export function configPage(opts: {
 
     const services = html`<div class="row" style="margin-bottom:1rem">
             <button type="button" data-open="add-service">Add a service</button>
+            <button type="submit" form="discover-form" class="ghost">Find services</button>
             <span class="note" style="margin:0">
                 ${instances.length === 0
                     ? raw('Nothing is configured yet — anything you leave out is simply absent, not broken.')
                     : raw('Saving applies immediately — no restart. Each instance is saved on its own.')}
             </span>
         </div>
+
+        <form id="discover-form" method="post" action="/ui/config/discover" hidden ${IGNORE_FORM}>${keys}</form>
+        ${opts.discovery === undefined ? raw('') : discoveryPanel(opts.discovery, keys)}
 
         ${instances.map(i =>
             instanceCard(
@@ -913,7 +1020,7 @@ export function configPage(opts: {
                 opts.tested?.instance === i.id || opts.confirmingRemoval === i.id || opts.openInstance === i.id
             )
         )}
-        ${addDialog(opts.config, keys, opts.openAdd === true, opts.testedAdd)}`;
+        ${addDialog(opts.config, keys, opts.openAdd === true, opts.testedAdd, opts.addPrefill)}`;
 
     const savedAlone = html`<p class="note">Each card is saved on its own. A Save writes only its own card.</p>`;
 
@@ -1089,6 +1196,9 @@ export function configPage(opts: {
         // Derived, not passed in: this page already has the config, and a
         // second source for one value is a way for them to disagree.
         theme: opts.config.ui?.theme,
+        ...(opts.tab === 'services' && opts.discovery?.running === true
+            ? { refreshSeconds: DISCOVERY_REFRESH_SECONDS }
+            : {}),
         ...(opts.message === undefined ? {} : { message: opts.message })
     });
 }

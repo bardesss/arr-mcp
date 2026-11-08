@@ -121,6 +121,23 @@ base URL. `read` is the default and can only look; `admin` can also make changes
 **Revoke** asks once before it stops a key, and says so when it is the last one,
 since that turns the API off. See [Management API](api.md).
 
+## Finding services
+
+**Find services** sits next to **Add a service** on the Services tab. It looks in two places, and each answer
+lists the service, its address and its version.
+
+- This host: the name you used to reach arr-mcp, tried on each service's default port.
+- Container names: the usual names, such as `radarr` and `sonarr`. These only resolve when arr-mcp shares a
+  Docker network with the service.
+
+Under the results, **Scan this range** sweeps a range of addresses, pre-filled with the /24 around this host. It
+is a port scan: it tries each service's port on every address, which routers or intrusion detection may flag.
+It runs in the background and the page reloads itself until it is done. Only private addresses are tried.
+
+Nothing is saved. **Add** opens the add dialog with the service and address filled in. API keys stay manual:
+discovery never sends or fills one. A service that is already configured shows no Add, and a second Radarr or
+Sonarr shows one with a note.
+
 ## Logs and the write audit
 
 <img src="../screenshots/logs-dark.png" alt="The logs page: three stream tabs above a live-refreshing table of time, level, service and message, with each line's recorded fields underneath the message" width="880">

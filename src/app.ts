@@ -31,6 +31,8 @@ import { registerAllTools, type ToolContext } from './tools/register.ts';
 import { apiJsonBody } from './api/body.ts';
 import { registerApiRoutes } from './api/index.ts';
 import { WebhookEvents } from './core/webhookEvents.ts';
+import { Discovery } from './discovery/run.ts';
+import type { DiscoveryService } from './web/routes.ts';
 import { originOf, registerWebRoutes } from './web/routes.ts';
 import { registerWebhookRoutes } from './web/webhooks.ts';
 
@@ -232,7 +234,7 @@ export function mcpServerFactory(
     };
 }
 
-export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogStore; events?: WebhookEvents }) {
+export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogStore; events?: WebhookEvents; discovery?: DiscoveryService }) {
     const { runtime, audit, logs } = opts;
     const events = opts.events ?? WebhookEvents.ephemeral();
 
@@ -394,7 +396,7 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
 
     // After the Host allowlist, like everything else but /healthz.
     registerWebhookRoutes(app, { runtime, events });
-    registerWebRoutes(app, { runtime, audit, logs, events, version: VERSION });
+    registerWebRoutes(app, { runtime, audit, logs, events, version: VERSION, discovery: opts.discovery ?? new Discovery() });
     registerApiRoutes(app, { runtime, logs, version: VERSION });
 
     app.all('/mcp', async (c: Context) => {

@@ -6,9 +6,10 @@ import { configEtag } from '../config/etag.ts';
 import { listInstances } from '../config/instances.ts';
 import { addManagementKey, revokeManagementKey, setImdb, setMcpEndpoint, setPrimaryMediaServer } from '../config/edits.ts';
 import { ConfigUnloadableError, saveConfig } from '../config/save.ts';
-import { OAuthSchema, ServiceIdSchema, ThemeSchema, type Config, type OAuthConfig, type Theme } from '../config/schema.ts';
+import { OAuthSchema, ServiceIdSchema, ThemeSchema, type Config, type OAuthConfig, type ServiceId, type Theme } from '../config/schema.ts';
 import type { WriteAudit } from '../core/audit.ts';
 import { unfence } from '../core/fence.ts';
+import type { Discovery, RunState } from '../discovery/run.ts';
 import { logger } from '../core/logger.ts';
 import { LoginThrottle } from '../core/loginThrottle.ts';
 import { managementKeyField } from '../core/managementKey.ts';
@@ -64,7 +65,17 @@ const EVENT_ROWS_SHOWN = 300;
  *  `Password1!` and buy nothing a longer passphrase does not. */
 const MIN_PASSWORD = 12;
 
-export type WebDeps = { runtime: Runtime; audit: WriteAudit; logs: LogStore; events: WebhookEvents; version: string };
+/** What the config page needs of a discovery run; tests hand in a stub. */
+export type DiscoveryService = Pick<Discovery, 'quick' | 'startSweep' | 'current'>;
+
+export type WebDeps = {
+    runtime: Runtime;
+    audit: WriteAudit;
+    logs: LogStore;
+    events: WebhookEvents;
+    version: string;
+    discovery: DiscoveryService;
+};
 
 /**
  * The config UI: a dashboard, connection tests that diagnose
@@ -75,7 +86,7 @@ export type WebDeps = { runtime: Runtime; audit: WriteAudit; logs: LogStore; eve
  * stream and copies a freshly created token.
  */
 export function registerWebRoutes(app: Hono, deps: WebDeps): void {
-    const { runtime, audit, logs, events, version } = deps;
+    const { runtime, audit, logs, events, version, discovery } = deps;
 
     // --- assets ---------------------------------------------------------
     //
@@ -404,6 +415,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         if (session === undefined) return c.redirect(entry(), 302);
         c.header('cache-control', 'no-store');
         const tab = configTabNamed(c.req.query('tab'));
+        const prefill = tab === 'services' ? addPrefillFrom(c.req.query('add_type'), c.req.query('add_url')) : undefined;
         return c.html(
             configPage({
                 tab,
@@ -413,10 +425,70 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                 // Only the service cards suggest users, and asking waits on every
                 // user-aware service. The other tabs have no reason to.
                 users: tab === 'services' ? await usersByInstance() : {},
-                plaintextOnDisk: runtime.plaintextOnDisk
+                plaintextOnDisk: runtime.plaintextOnDisk,
+                ...(tab === 'services' ? discoveryOpts(discovery.current()) : {}),
+                ...(prefill === undefined ? {} : { addPrefill: prefill, openAdd: true })
             })
         );
     });
+
+    /**
+     * Find services. Same gate as the config saves: a session, then the CSRF
+     * token bound to it. Neither saves anything, so there is no etag to check.
+     *
+     * The quick scan answers within the request; the sweep runs in the
+     * background and the page reloads itself until it ends.
+     */
+    const discoverPost =
+        (start: (form: Record<string, unknown>) => Promise<{ refused: string } | undefined>) =>
+        async (c: Context): Promise<Response> => {
+            const session = guard(c);
+            if (session === undefined) return c.redirect(entry(), 302);
+            c.header('cache-control', 'no-store');
+
+            const form = await c.req.parseBody();
+            const render = (message: { kind: 'ok' | 'err'; text: string }, status: 400 | 403) =>
+                c.html(
+                    configPage({
+                        tab: 'services',
+                        version,
+                        config: runtime.config,
+                        csrf: runtime.sessions.csrfFor(session),
+                        plaintextOnDisk: runtime.plaintextOnDisk,
+                        ...discoveryOpts(discovery.current()),
+                        message
+                    }),
+                    status
+                );
+
+            if (!runtime.sessions.csrfValid(session, str(form.csrf))) {
+                logger.warn({ ...originOf(c) }, 'rejected a service scan with a bad CSRF token');
+                return render({ kind: 'err', text: 'That form was stale. Reload the page and try again.' }, 403);
+            }
+
+            const refused = await start(form);
+            if (refused !== undefined) return render({ kind: 'err', text: refused.refused }, 400);
+            return c.redirect('/ui/config?tab=services', 303);
+        };
+
+    app.post(
+        '/ui/config/discover',
+        c =>
+            discoverPost(async () => {
+                logger.info({ ...originOf(c), scan: 'quick' }, 'service scan started from the config UI');
+                await discovery.quick(c.req.header('host'), runtime.config);
+                return undefined;
+            })(c)
+    );
+
+    app.post('/ui/config/discover/sweep', c =>
+        discoverPost(async form => {
+            const range = str(form.range).trim();
+            logger.info({ ...originOf(c), scan: 'sweep', range }, 'service scan started from the config UI');
+            const started = discovery.startSweep(range, runtime.config);
+            return 'refused' in started ? started : undefined;
+        })(c)
+    );
 
     /**
      * The config mutations share everything except the one line that
@@ -884,6 +956,24 @@ type MutationResult =
 
 const CACHE = { 'cache-control': 'public, max-age=3600' };
 const NO_STORE = { 'cache-control': 'no-store' };
+
+const discoveryOpts = (run: RunState | undefined): { discovery?: RunState } => (run === undefined ? {} : { discovery: run });
+
+/**
+ * The Add link's type and address, or nothing. Only a known service and an
+ * http(s) address are honoured; the rest of the page renders as if the link
+ * had not been followed. No credential is ever prefilled.
+ */
+export function addPrefillFrom(type: string | undefined, url: string | undefined): { type: ServiceId; url: string } | undefined {
+    const id = ServiceIdSchema.safeParse(type);
+    if (!id.success || url === undefined) return undefined;
+    try {
+        const { protocol } = new URL(url);
+        return protocol === 'http:' || protocol === 'https:' ? { type: id.data, url } : undefined;
+    } catch {
+        return undefined;
+    }
+}
 
 const str = (value: unknown): string => (typeof value === 'string' ? value : '');
 const on = (value: unknown): boolean => value === 'on' || value === 'true';
