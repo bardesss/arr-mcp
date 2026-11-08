@@ -129,7 +129,9 @@ already permits. See [`auth.oauth`](docs/configuration.md#authoauth). Everything
 the UI does is still just `config.yaml`, and editing that by hand remains
 supported. Clients that read the
 [MCP Registry](https://registry.modelcontextprotocol.io) find it there as
-`io.github.bardesss/arr-mcp`.
+`io.github.bardesss/arr-mcp`. It is also listed on Glama:
+
+[![arr-mcp MCP server – quality and maintenance score on Glama](https://glama.ai/mcp/servers/bardesss/arr-mcp/badges/card.svg)](https://glama.ai/mcp/servers/bardesss/arr-mcp)
 
 **Works with whatever you point at it.** A client asking for
 `Accept: application/json` — or sending no `Accept` at all — gets one JSON object
