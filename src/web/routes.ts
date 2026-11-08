@@ -9,7 +9,6 @@ import { ConfigUnloadableError, saveConfig } from '../config/save.ts';
 import { OAuthSchema, ServiceIdSchema, ThemeSchema, type Config, type OAuthConfig, type ServiceId, type Theme } from '../config/schema.ts';
 import type { WriteAudit } from '../core/audit.ts';
 import { unfence } from '../core/fence.ts';
-import { resolvePrivate } from '../discovery/addresses.ts';
 import type { Discovery, RunState } from '../discovery/run.ts';
 import { logger } from '../core/logger.ts';
 import { LoginThrottle } from '../core/loginThrottle.ts';
@@ -434,11 +433,10 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         if (session === undefined) return c.redirect(entry(), 302);
         c.header('cache-control', 'no-store');
         const tab = configTabNamed(c.req.query('tab'));
-        const prefill =
-            tab === 'services' ? await addPrefillFrom(c.req.query('add_type'), c.req.query('add_url'), runtime.config) : undefined;
         // Matched against the config as it is now, so a service added from a
         // row since the run started is not offered again.
         const run = tab === 'services' ? await discovery.view(runtime.config) : undefined;
+        const prefill = tab === 'services' ? addPrefillFrom(c.req.query('add_type'), c.req.query('add_url'), runtime.config, run) : undefined;
         return c.html(
             configPage({
                 tab,
@@ -984,27 +982,21 @@ const discoveryOpts = (run: RunState | undefined): { discovery?: RunState } => (
 
 /**
  * The Add link's type and address, or nothing. Only a type the add dialog
- * offers and an http(s) address on a private host are honoured; the rest of
- * the page renders as if the link had not been followed. No credential is
- * ever prefilled.
+ * offers, at an address the current scan found, is honoured; the rest of the
+ * page renders as if the link had not been followed. No credential is ever
+ * prefilled.
  */
-export async function addPrefillFrom(
+export function addPrefillFrom(
     type: string | undefined,
     url: string | undefined,
     config: Config,
-    lookup?: (host: string) => Promise<string[]>
-): Promise<{ type: ServiceId; url: string } | undefined> {
+    run: RunState | undefined
+): { type: ServiceId; url: string } | undefined {
     const id = ServiceIdSchema.safeParse(type);
     if (!id.success || url === undefined || !offerableTypes(config).includes(id.data)) return undefined;
-    let parsed: URL;
-    try {
-        parsed = new URL(url);
-    } catch {
-        return undefined;
-    }
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return undefined;
-    const host = parsed.hostname.replace(/^\[|\]$/g, '');
-    return (await resolvePrivate(host, lookup)).ok ? { type: id.data, url } : undefined;
+    // Matches a found row on purpose, not DNS: a name with a private and a public address would pass a lookup, and the saved name is not pinned.
+    const found = run?.rows.some(r => r.type === id.data && (r.url === url || r.alsoAt === url)) === true;
+    return found ? { type: id.data, url } : undefined;
 }
 
 const str = (value: unknown): string => (typeof value === 'string' ? value : '');

@@ -3209,7 +3209,7 @@ describe('finding services', () => {
 
     it('does not reload a page whose add dialog is open, but still shows progress and a link', async () => {
         await signIn();
-        state = baseRun({ phase: 'sweep', running: true, range: '192.168.1.0/24', tried: 142, total: 256 });
+        state = baseRun({ phase: 'sweep', running: true, range: '192.168.1.0/24', tried: 142, total: 256, rows: [row({})] });
         const page = await servicesPage('&add_type=radarr&add_url=http%3A%2F%2F192.168.1.10%3A7878');
         expect(page).not.toContain('<meta http-equiv="refresh"');
         expect(page).toContain('<dialog id="add-service" open');
@@ -3237,6 +3237,7 @@ describe('finding services', () => {
 
     it('opens the add dialog with the type and address filled in and no credential', async () => {
         await signIn();
+        state = baseRun({ rows: [row({})] });
         const page = await servicesPage('&add_type=radarr&add_url=http%3A%2F%2F192.168.1.10%3A7878');
         expect(page).toContain('<dialog id="add-service" open');
         expect(page).toMatch(/<option value="radarr" selected>/);
@@ -3246,6 +3247,7 @@ describe('finding services', () => {
 
     it('ignores an unknown type or a non-http address', async () => {
         await signIn();
+        state = baseRun({ rows: [row({})] });
         for (const q of [
             '&add_type=evil&add_url=http%3A%2F%2F192.168.1.10%3A7878',
             '&add_type=radarr&add_url=javascript%3Aalert(1)',
@@ -3293,16 +3295,47 @@ describe('finding services', () => {
         await seed('  whisparr:\n    url: http://192.0.2.10:6969\n    api_key: k\n');
         app = buildApp({ runtime, audit, logs, discovery: stub() });
         await signIn();
+        state = baseRun({ rows: [row({ type: 'whisparr', url: 'http://192.168.1.10:6969', status: 'configured' })] });
         const page = await servicesPage('&add_type=whisparr&add_url=http%3A%2F%2F192.168.1.10%3A6969');
         expect(page).not.toContain('<dialog id="add-service" open');
-        expect(page).not.toContain('192.168.1.10:6969');
+        expect(page).not.toMatch(/id="add\.url"[^>]*value="http:\/\/192\.168\.1\.10:6969"/);
     });
 
     it('ignores a prefill whose host is not a private address', async () => {
         await signIn();
-        const page = await servicesPage('&add_type=radarr&add_url=http%3A%2F%2F8.8.8.8%3A7878');
+        state = baseRun({ rows: [row({})] });
+        for (const q of ['&add_type=radarr&add_url=http%3A%2F%2F8.8.8.8%3A7878', '&add_type=radarr&add_url=http%3A%2F%2Fevil.example%3A7878']) {
+            const page = await servicesPage(q);
+            expect(page).not.toContain('<dialog id="add-service" open');
+            expect(page).not.toContain('8.8.8.8');
+            expect(page).not.toContain('evil.example');
+        }
+    });
+
+    it('honours a prefill that matches a found row, by its address or its also-reachable address', async () => {
+        await signIn();
+        state = baseRun({ rows: [row({ alsoAt: 'http://radarr:7878' })] });
+        for (const url of ['http%3A%2F%2F192.168.1.10%3A7878', 'http%3A%2F%2Fradarr%3A7878']) {
+            const page = await servicesPage(`&add_type=radarr&add_url=${url}`);
+            expect(page).toContain('<dialog id="add-service" open');
+            expect(page).toMatch(/<option value="radarr" selected>/);
+        }
+    });
+
+    it('ignores a prefill that is not a row of the current run, even on a private address', async () => {
+        await signIn();
+        state = baseRun({ rows: [row({})] });
+        for (const q of ['&add_type=radarr&add_url=http%3A%2F%2F192.168.1.99%3A7878', '&add_type=sonarr&add_url=http%3A%2F%2F192.168.1.10%3A7878']) {
+            const page = await servicesPage(q);
+            expect(page).not.toContain('<dialog id="add-service" open');
+        }
+    });
+
+    it('ignores a prefill when there is no run', async () => {
+        await signIn();
+        state = undefined;
+        const page = await servicesPage('&add_type=radarr&add_url=http%3A%2F%2F192.168.1.10%3A7878');
         expect(page).not.toContain('<dialog id="add-service" open');
-        expect(page).not.toContain('8.8.8.8');
     });
 
     it('marks a found service as already added once it is added, with no Add link', async () => {
