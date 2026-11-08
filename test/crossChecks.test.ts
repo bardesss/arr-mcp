@@ -459,7 +459,7 @@ describe('cross-checks — ids', () => {
     it('matches queue rows by title from a fenced, year-suffixed label with no acquisition', async () => {
         const added: CrossCheckSubject = {
             kind: 'movie',
-            label: '<<untrusted:abc123>>Alien<</untrusted>> (1979)',
+            label: '<<untrusted:abc123>>Alien<</>> (1979)',
             ids: { tmdb: 348 }
         };
         const advice = await check(added, 'acquire', {

@@ -2,7 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
 import type { ServiceId } from '../config/schema.ts';
-import { ServiceIdSchema } from '../config/schema.ts';
+import { serviceOf } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { gather } from '../core/gather.ts';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, windowEnd, type DetailLevel } from '../core/shape.ts';
@@ -129,11 +129,11 @@ export function registerGetWanted(server: McpServer, adapters: readonly ServiceA
             title: 'Missing and upgradable',
             annotations: READ_ONLY,
             description:
-                'Radarr, Sonarr and Lidarr\'s own wanted lists. `scope` is required: `"missing"` is monitored items with no file, `"upgradable"` monitored items with a file below the profile\'s quality cutoff. Unlike get_library it lists missing episodes one by one. Sonarr rows carry `season`, `episode` and `episodeTitle`; Lidarr rows are `kind: "artist"` with `albumId` and `albumTitle`, and `albumId` is what set_monitoring takes with `level: "album"`. On Lidarr an album missing any track counts as missing, so it can be in both lists, and albums of an unmonitored artist are left out. Unmonitored gaps never appear. `detail: "minimal"` drops titles and air dates. Field reference: arr://docs/get_wanted.',
+                'Radarr, Sonarr and Lidarr\'s own wanted lists. `scope` is required: `"missing"` is monitored items with no file, `"upgradable"` monitored items with a file below the profile\'s quality cutoff. Unlike get_library it lists missing episodes one by one. Sonarr rows carry `season`, `episode` and `episodeTitle`; [[lidarr: Lidarr rows are `kind: "artist"` with `albumId` and `albumTitle`, and `albumId` is what set_monitoring takes with `level: "album"`. On Lidarr an album missing any track counts as missing, so it can be in both lists, and albums of an unmonitored artist are left out.]] Unmonitored gaps never appear. `detail: "minimal"` drops titles and air dates. Field reference: arr://docs/get_wanted.',
             outputSchema: PagedOutputSchema,
             inputSchema: toolInput({
                 scope: WantedScopeSchema,
-                service: ServiceIdSchema.optional().describe('Scope to one service.'),
+                service: serviceOf(['radarr', 'sonarr', 'lidarr']).optional().describe('Scope to one service.'),
                 instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
                 detail: DetailSchema,
                 limit: LimitSchema,

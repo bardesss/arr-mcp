@@ -113,7 +113,7 @@ export function registerSetWatched(
         name: 'set_watched',
         title: 'Mark watched or unwatched',
         description:
-            'Marks a film, series, season or episode watched or unwatched in Jellyfin. `item_id` is the Jellyfin id: `playback.itemId` from get_library or get_media_details, or `itemId` from get_playback. A Radarr or Sonarr id is refused. A series id with `season` marks one season. A Grimmory book is `grimmory:<book id>` (READ is watched; marking sets its finish date to now). Safe tier, but unmarking and re-marking loses the original play date and resume position. A `user` other than the default needs services.jellyfin.allow_other_users. Previews first; confirm to apply. Field reference: arr://docs/set_watched.' +
+            'Marks a film, series, season or episode watched or unwatched in Jellyfin. `item_id` is the Jellyfin id: `playback.itemId` from get_library or get_media_details, or `itemId` from get_playback. A Radarr or Sonarr id is refused. A series id with `season` marks one season. [[grimmory: A Grimmory book is `grimmory:<book id>` (READ is watched; marking sets its finish date to now).]] Safe tier, but unmarking and re-marking loses the original play date and resume position. A `user` other than the default needs services.jellyfin.allow_other_users. Previews first; confirm to apply. Field reference: arr://docs/set_watched.' +
             withBoth(mediaServerIds, 'When Plex is the primary media server, take it from `media_servers.jellyfin.itemId` instead: `playback.itemId` is then a Plex id.'),
         inputSchema: z.object({
             item_id: z

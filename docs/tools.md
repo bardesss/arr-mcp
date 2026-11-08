@@ -120,8 +120,8 @@ naming each item and the id a follow-up call takes:
 
 ```
 2 of 1885 item(s).
-<<untrusted:radarr.title>>Inception<</untrusted>> (2010) — movie, radarr:412, tmdb:27205
-<<untrusted:sonarr.title>>Severance<</untrusted>> (2022) — series, sonarr:31, tvdb:371980
+<<untrusted:radarr.title>>Inception<</>> (2010) — movie, radarr:412, tmdb:27205
+<<untrusted:sonarr.title>>Severance<</>> (2022) — series, sonarr:31, tvdb:371980
 ```
 
 It was the count alone until 1.26. Not every client forwards

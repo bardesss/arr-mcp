@@ -216,10 +216,10 @@ export function buildCrossChecker(adapters: readonly ServiceAdapter[], library: 
             const acquisition = subject.acquisition ?? found?.acquisition;
             // A title `mentions` can tokenise: the library's when there is one,
             // otherwise the label without its fence markers and trailing year.
-            // A fenced label ends `<</untrusted>> (1979)`, which `unfenced`
+            // A fenced label ends `<</>> (1979)`, which `unfenced`
             // cannot strip, so the fence and the year would become tokens no
             // release name contains.
-            const plain = label.replace(/<<untrusted:[^>]*>>/g, '').replace(/<<\/untrusted>>/g, '').trim();
+            const plain = label.replace(/<<untrusted:[^>]*>>/g, '').replace(/<<\/>>/g, '').trim();
             const dated = /^(.*\S)\s*\((\d{4})\)$/.exec(plain);
             const year = found?.year ?? (dated?.[2] === undefined ? undefined : Number(dated[2]));
             const item: MergedItem = {

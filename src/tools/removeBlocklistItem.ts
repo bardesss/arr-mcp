@@ -1,7 +1,7 @@
 import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
+import { type ServiceId, serviceOf } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { hasBlocklist, hasQueueRemove, type ServiceAdapter } from '../services/types.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
@@ -37,7 +37,7 @@ export function registerRemoveBlocklistItem(
         description:
             'Removes one entry from Radarr, Sonarr, Whisparr or Lidarr\'s blocklist, so that release can be grabbed again. The fix for "this never downloads and I do not know why" once get_blocklist has said why. Take `service` and `id` from a get_blocklist row. Safe tier: the entry is a refusal to grab, and removing it only withdraws that refusal — nothing on disk changes, and on Radarr, Sonarr, Whisparr and Lidarr the release can be blocklisted again through remove_queue_item\'s `blocklist` flag. Previews first; confirm to remove it.',
         inputSchema: z.object({
-            service: ServiceIdSchema.describe('radarr, sonarr, whisparr or lidarr.'),
+            service: serviceOf(['radarr', 'sonarr', 'whisparr', 'lidarr']),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             id: z.string().min(1).describe('The blocklist entry id, exactly as get_blocklist reported it.')
         }),

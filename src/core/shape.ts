@@ -35,7 +35,7 @@ export const OffsetSchema = z
     .min(0)
     .default(0)
     .describe(
-        'How many items to skip before the window `limit` returns — page two of 50 is `offset: 50`. `total` always counts the whole list, so `offset + returned < total` is how you know there is another page. Pair it with `sort` for a stable walk: without one the order is whatever the services returned, and an item can move between pages.'
+        'Items to skip: page two of 50 is `offset: 50`. Pair it with `sort`, or items can move between pages.'
     );
 
 /**

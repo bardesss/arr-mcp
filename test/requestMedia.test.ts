@@ -187,7 +187,7 @@ describe('request_media', () => {
         expect(structuredContent.noop).toBe(true);
         expect(structuredContent.confirm_token).toBeUndefined();
         expect(h.posted).toHaveLength(0);
-        expect(structuredContent.summary).toContain('requested by <<untrusted:seerr.user>>Sam<</untrusted>>');
+        expect(structuredContent.summary).toContain('requested by <<untrusted:seerr.user>>Sam<</>>');
     });
 
     it('still requests when an existing request is for a different media type', async () => {

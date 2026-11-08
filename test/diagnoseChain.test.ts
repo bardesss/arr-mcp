@@ -1360,7 +1360,7 @@ describe('buildChain — fencing', () => {
     it('composes fenced titles without unwrapping them', () => {
         const d = buildChain('some film', healthy());
         expect(d.resolved?.title).toContain('<<untrusted:radarr.title>>');
-        expect(JSON.stringify(d).match(/<<\/untrusted>>/g)?.length).toBeGreaterThan(0);
+        expect(JSON.stringify(d).match(/<<\/>>/g)?.length).toBeGreaterThan(0);
     });
 
     it('carries a queue error message through fenced', () => {
@@ -1378,7 +1378,7 @@ describe('buildChain — fencing', () => {
                         // match anything would defeat the fencing check below.
                         title: queueTitle('sabnzbd', 'Some.Film.2026'),
                         status: 'failed',
-                        errorMessage: '<<untrusted:sabnzbd.fail_message>>unpack failed<</untrusted>>'
+                        errorMessage: '<<untrusted:sabnzbd.fail_message>>unpack failed<</>>'
                     }
                 ],
                 partial: []

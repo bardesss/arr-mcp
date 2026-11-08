@@ -305,8 +305,13 @@ const project = (item: MergedItem, detail: DetailLevel): MergedItem => {
     // optional field an item can carry, and `standard` is the default every
     // caller gets who did not ask for season arithmetic. `minimal` already
     // excludes it by naming its fields explicitly.
+    // `acquisition.path` goes the same way (#518): a fenced folder path on
+    // every row was a sixth of a standard page, and a question that needs the
+    // folder is about one title, which get_media_details answers.
     const { genres: _g, seasons: _s, ...rest } = item;
-    return rest;
+    if (rest.acquisition?.path === undefined) return rest;
+    const { path: _p, ...acquisition } = rest.acquisition;
+    return { ...rest, acquisition };
 };
 
 /**
@@ -501,7 +506,7 @@ export function registerGetLibrary(server: McpServer, loader: LibraryLoader, med
             title: 'Library',
             annotations: READ_ONLY,
             description:
-                'Your library joined across Radarr, Sonarr, Whisparr, Lidarr, Grimmory and your media server on shared external ids: films, series, artists (`kind: "artist"`) and books (`kind: "book"`). Use it for filtered lists and counts; for one title use get_media_details. `presence` is what no single service can tell: `arr_only` with a file is a likely broken import, `jellyfin_only` (spelled that way for any media server) is media nothing manages, and `unknown` means the other half was not read. When `degraded` or `note` explain a gap, report that reason rather than calling it unwatched or unrated. `has_file: false` with `monitored: true` is what you are still waiting for. An artist\'s `monitored` is the artist-level flag, not the album flag; its albums and their ids come from get_media_details on the Lidarr artist. A series has an IMDb rating only with the IMDb dataset on, so ask `rating_source: "imdb"` explicitly. Series `seasons` need `detail: "full"`. Field reference: arr://docs/get_library.' +
+                'Your library joined across Radarr, Sonarr, Whisparr, Lidarr, Grimmory and your media server on shared external ids: films, series, artists and books. Use it for filtered lists and counts; for one title use get_media_details. `presence` is what no single service can tell: `arr_only` with a file is a likely broken import, `jellyfin_only` (spelled that way for any media server) is media nothing manages, and `unknown` means the other half was not read. When `degraded` or `note` explain a gap, report that reason rather than calling it unwatched or unrated. `has_file: false` with `monitored: true` is what you are still waiting for. [[lidarr: An artist\'s `monitored` is the artist-level flag, not the album flag; its albums and their ids come from get_media_details on the Lidarr artist.]] A series has an IMDb rating only with the IMDb dataset on, so ask `rating_source: "imdb"` explicitly. Series `seasons` and folder paths need `detail: "full"`. Field reference: arr://docs/get_library.' +
                 withBoth(
                     mediaServerIds,
                     'With two media servers, `presence`, `playback` and `seasons` describe the primary, and `media_servers` says per server whether it has the item and under which `itemId`; a server missing from that map was not read. The non-primary server is matched on tmdb, tvdb or imdb ids, so an item it holds without any reads `present: false`. Items only the non-primary server has do not appear here; search_media finds them.'

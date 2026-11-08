@@ -1,7 +1,7 @@
 import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
+import { type ServiceId, serviceOf } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { MUSICBRAINZ_ID } from '../services/lidarr.ts';
 import {
@@ -225,9 +225,9 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
         name: 'add_media',
         title: 'Add a film, series, site or artist',
         description:
-            'Adds a film to Radarr, a series to Sonarr, a site to Whisparr or an artist to Lidarr, and by default starts a search. For a Seerr request that goes through approval, use request_media. Ids: TMDB for Radarr, TVDB for Sonarr and Whisparr (Whisparr\'s own scene id in that field), MusicBrainz for Lidarr; get them from lookup_media `ids`. With more than one quality profile or root folder you must name one; never guess, stack_health at `detail: "full"` lists them. Sonarr and Whisparr take `monitor` (which seasons), Sonarr `series_type`, Radarr `minimum_availability`. Lidarr takes `monitor` (which albums), `monitor_new_items` and `metadata_profile`; `monitor: "none"` needs `monitored: false` with it, and its search on add covers only monitored, released albums. An option sent to the wrong service is refused, not dropped. Previews first; confirm to add. Field reference: arr://docs/add_media.',
+            'Adds a film to Radarr, a series to Sonarr, a site to Whisparr or an artist to Lidarr, and by default starts a search. For a Seerr request that goes through approval, use request_media. Ids: TMDB for Radarr, TVDB for Sonarr and Whisparr (Whisparr\'s own scene id in that field), MusicBrainz for Lidarr; get them from lookup_media `ids`. With more than one quality profile or root folder you must name one; never guess, stack_health at `detail: "full"` lists them. Sonarr and Whisparr take `monitor` (which seasons), Sonarr `series_type`, Radarr `minimum_availability`. [[lidarr: Lidarr takes `monitor` (which albums), `monitor_new_items` and `metadata_profile`; `monitor: "none"` needs `monitored: false` with it, and its search on add covers only monitored, released albums.]] An option sent to the wrong service is refused, not dropped. Previews first; confirm to add. Field reference: arr://docs/add_media.',
         inputSchema: z.object({
-            service: ServiceIdSchema.describe('radarr for a film, sonarr for a series, whisparr for a site, lidarr for an artist.'),
+            service: serviceOf(['radarr', 'sonarr', 'whisparr', 'lidarr']).describe('radarr for a film, sonarr for a series, whisparr for a site, lidarr for an artist.'),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             external_id: z
                 .string()

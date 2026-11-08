@@ -99,8 +99,8 @@ describe('Radarr.listLibrary', () => {
             // Fenced like every other string a service chose (§11). The filter
             // compares through the fence rather than against it.
             genres: [
-                '<<untrusted:radarr.genre>>Drama<</untrusted>>',
-                '<<untrusted:radarr.genre>>Thriller<</untrusted>>'
+                '<<untrusted:radarr.genre>>Drama<</>>',
+                '<<untrusted:radarr.genre>>Thriller<</>>'
             ],
             ids: { tmdb: 550, imdb: 'tt0137523' },
             acquisition: {
@@ -115,7 +115,7 @@ describe('Radarr.listLibrary', () => {
 
     it('fences the title, because it is a name a service chose', async () => {
         const [item] = await adapter().listLibrary();
-        expect(item?.title).toBe('<<untrusted:radarr.title>>Some Film<</untrusted>>');
+        expect(item?.title).toBe('<<untrusted:radarr.title>>Some Film<</>>');
     });
 
     it('keeps only rating sources the merged type names', async () => {

@@ -353,7 +353,7 @@ const REQUESTS = {
 };
 
 const seerrRoutes = { '/api/v1/user': SEERR_USERS, '/api/v1/request': REQUESTS };
-const BARTUS = '<<untrusted:seerr.user>>bartus<</untrusted>>';
+const BARTUS = '<<untrusted:seerr.user>>bartus<</>>';
 
 const seerr = (over: Partial<MultiUserServiceConfig> = {}, routes: Record<string, unknown> = seerrRoutes) => {
     const config = seerrConfig(over);
@@ -398,7 +398,7 @@ describe('get_requests', () => {
     it('fences request titles, which come from TMDB rather than from us', async () => {
         const { adapter, resolver } = seerr();
         const result = await buildGetRequests(adapter, resolver, { detail: 'full', limit: 50, user: 'bartus' });
-        expect(result.items.find(i => i.id === 10)?.title).toBe('<<untrusted:seerr.title>>Fight Club<</untrusted>>');
+        expect(result.items.find(i => i.id === 10)?.title).toBe('<<untrusted:seerr.title>>Fight Club<</>>');
     });
 
     it('fences who made the request, since Seerr users choose their own display names', async () => {
@@ -425,7 +425,7 @@ describe('get_requests', () => {
         const result = await buildGetRequests(adapter, resolver, { detail: 'full', limit: 50, user: 'guest' });
 
         expect(result.items).toHaveLength(1);
-        expect(result.items[0]?.requestedBy).toBe('<<untrusted:seerr.user>>guest<</untrusted>>');
+        expect(result.items[0]?.requestedBy).toBe('<<untrusted:seerr.user>>guest<</>>');
     });
 
     it('degrades rather than failing when Seerr is unreachable', async () => {
