@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.71.0](https://github.com/bardesss/arr-mcp/compare/v1.70.0...v1.71.0) (2026-11-08)
+
+
+### Features
+
+* **lidarr:** add an artist, and look up artists to add ([#506](https://github.com/bardesss/arr-mcp/issues/506)) ([25b6768](https://github.com/bardesss/arr-mcp/commit/25b67681a5fb1b23bfa4654ee6c0f2b1f030248d))
+
+
+### Bug Fixes
+
+* **releases:** name a release in text so grab_release works without structuredContent ([#509](https://github.com/bardesss/arr-mcp/issues/509)) ([84a0547](https://github.com/bardesss/arr-mcp/commit/84a0547cbfcc640096569e9d684405962d3d7b48))
+
 ## [1.70.0](https://github.com/bardesss/arr-mcp/compare/v1.69.0...v1.70.0) (2026-11-07)
 
 
