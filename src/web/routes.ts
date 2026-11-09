@@ -1033,14 +1033,14 @@ export const originOf = (c: Context): { ip: string; forwardedFor?: string } => {
     };
 };
 
+const secureFor = (c: Pick<Context, 'req'>): boolean => requestIsHttps(c.req.url, c.req.header('x-forwarded-proto'));
+
 /**
  * What the sign-in throttle counts a request against. The socket peer cannot be
  * forged, so it is the key. A request that says it was forwarded shares one
  * bucket: the address behind a proxy is unverifiable, so keying on it would let
  * an attacker rotate a header to reset their counter.
  */
-const secureFor = (c: Pick<Context, 'req'>): boolean => requestIsHttps(c.req.url, c.req.header('x-forwarded-proto'));
-
 export const throttleKey = (c: Context): string =>
     c.req.header('x-forwarded-for') !== undefined || c.req.header('forwarded') !== undefined
         ? 'proxied'
