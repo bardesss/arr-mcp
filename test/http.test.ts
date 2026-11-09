@@ -653,6 +653,65 @@ describe('ServiceHttp circuit breaker', () => {
             // One trial only: the failed trial re-opens the circuit immediately.
             await expect(client.get('/x')).rejects.toThrow(/circuit/i);
             expect(calls).toBe(callsAfterFive + 1);
+
+            // And the next cooldown admits a new trial: the flag was cleared.
+            vi.advanceTimersByTime(60_001);
+            await expect(client.get('/x')).rejects.toThrow(/unreachable/);
+            expect(calls).toBe(callsAfterFive + 2);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('says a trial is running, not that nothing is retried, while one is in flight', async () => {
+        vi.useFakeTimers();
+        try {
+            let failing = true;
+            const client = http(async () => {
+                if (failing) throw refusedError();
+                return new Promise<Response>(() => undefined);
+            });
+            for (let i = 0; i < 5; i += 1) await expect(client.get('/x')).rejects.toThrow();
+            await expect(client.get('/x')).rejects.toMatchObject({ remedy: expect.stringMatching(/Not retried for 60s/) });
+            vi.advanceTimersByTime(60_001);
+            failing = false;
+            void client.get('/x').catch(() => undefined);
+            await expect(client.get('/x')).rejects.toMatchObject({ remedy: expect.stringMatching(/trial request is checking/) });
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('does not re-open a circuit a straggler already closed when the trial fails', async () => {
+        vi.useFakeTimers();
+        try {
+            const pending: Array<{ resolve: (r: Response) => void; reject: (e: unknown) => void }> = [];
+            let mode: 'fail' | 'hold' = 'fail';
+            let calls = 0;
+            const client = http(async () => {
+                calls += 1;
+                if (mode === 'fail') throw refusedError();
+                return new Promise<Response>((resolve, reject) => pending.push({ resolve, reject }));
+            });
+            // Four failures, then a straggler admitted while still closed.
+            for (let i = 0; i < 4; i += 1) await expect(client.get('/x')).rejects.toThrow();
+            mode = 'hold';
+            const straggler = client.get('/x');
+            await vi.waitFor(() => expect(pending).toHaveLength(1));
+            mode = 'fail';
+            await expect(client.get('/x')).rejects.toThrow(/unreachable/); // the fifth failure opens it
+            vi.advanceTimersByTime(60_001);
+            mode = 'hold';
+            const trial = client.get('/x');
+            await vi.waitFor(() => expect(pending).toHaveLength(2));
+            pending[0]?.resolve(json({ ok: true })); // the straggler succeeds and closes the circuit
+            expect(await straggler).toEqual({ ok: true });
+            pending[1]?.reject(refusedError()); // the trial fails afterwards
+            await expect(trial).rejects.toThrow(/unreachable/);
+            const before = calls;
+            mode = 'fail';
+            await expect(client.get('/x')).rejects.toThrow(/unreachable/);
+            expect(calls).toBe(before + 1);
         } finally {
             vi.useRealTimers();
         }
@@ -776,6 +835,23 @@ describe('ServiceHttp body encoding and response reading', () => {
 
         await client.post('/api/v3/command', { name: 'RefreshMovie' });
         expect(seen).toBe('application/json');
+    });
+
+    it.each([
+        ['json', (c: ServiceHttp) => c.get('/x', { retry: false })],
+        ['text', (c: ServiceHttp) => c.getText('/x')]
+    ])('reports a %s body that errors after the deadline as a timeout, not unreachable', async (kind, read) => {
+        const f = async (_url: string, init: RequestInit) => {
+            const response = new Response('{}', { status: 200 });
+            const fail = () =>
+                new Promise<never>((_, reject) =>
+                    init.signal?.addEventListener('abort', () => reject(new TypeError('terminated')))
+                );
+            Object.defineProperty(response, kind, { value: fail });
+            return response;
+        };
+        const client = new ServiceHttp('radarr', { ...config, timeout_ms: 30 }, apiKeyHeader('X-Api-Key', 'secret'), f as unknown as typeof fetch);
+        await expect(read(client)).rejects.toMatchObject({ kind: 'Timeout' });
     });
 
     it('reads a bare string body without trying to parse it as JSON', async () => {
@@ -1121,7 +1197,7 @@ describe('ServiceHttp deadline', () => {
             url: config.url,
             username: 'admin',
             password: 'pw',
-            timeoutMs: 30,
+            timeoutMs: 200,
             fetchImpl: f as unknown as typeof fetch
         });
         await expect(new ServiceHttp('qbittorrent', short, auth, f as unknown as typeof fetch).get('/x', { retry: false })).rejects.toMatchObject({
@@ -1160,6 +1236,38 @@ describe('ServiceHttp deadline', () => {
         expect(a).toMatchObject({ status: 'rejected', reason: { kind: 'Timeout' } });
         expect(b).toEqual({ status: 'fulfilled', value: { ok: true } });
         expect(denied).toBe(2);
+        expect(logins).toBe(1);
+    });
+
+    it('keeps the cookie of a login every caller gave up on', async () => {
+        let logins = 0;
+        let denied = 0;
+        const f = async (url: string, init: RequestInit) => {
+            if (url.endsWith('/api/v2/auth/login')) {
+                logins += 1;
+                await new Promise((r) => setTimeout(r, 120));
+                return okLogin();
+            }
+            if (new Headers(init.headers).get('Cookie') === null) {
+                denied += 1;
+                return new Response('', { status: 403 });
+            }
+            return json({ ok: true });
+        };
+        const auth = qbittorrentSession({
+            id: 'qbittorrent',
+            url: config.url,
+            username: 'admin',
+            password: 'pw',
+            timeoutMs: 2000,
+            fetchImpl: f as unknown as typeof fetch
+        });
+        const client = new ServiceHttp('qbittorrent', config, auth, f as unknown as typeof fetch);
+        await expect(client.get('/a', { timeoutMs: 40, retry: false })).rejects.toMatchObject({ kind: 'Timeout' });
+        // The login is still running; let it finish with nobody waiting.
+        await new Promise((r) => setTimeout(r, 250));
+        expect(await client.get('/b', { timeoutMs: 2000, retry: false })).toEqual({ ok: true });
+        expect(denied).toBe(1);
         expect(logins).toBe(1);
     });
 });

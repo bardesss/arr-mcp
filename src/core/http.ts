@@ -315,7 +315,7 @@ export class ServiceHttp {
         body: RequestBody | undefined,
         allowRecovery = true,
         read: ReadAs = 'json',
-        signal: AbortSignal = AbortSignal.timeout(this.#timeoutMs),
+        signal: AbortSignal,
         extraHeaders?: Record<string, string>
     ): Promise<T> {
         // Prefixed, not resolved: every adapter path is absolute, and `new URL`
@@ -418,7 +418,7 @@ export class ServiceHttp {
             try {
                 return (await response.text()).trim() as T;
             } catch (err) {
-                if (signal.aborted) throw classifyFetchError(err, this.#id, safeUrl(target));
+                if (signal.aborted) throw classifyFetchError(signal.reason, this.#id, safeUrl(target));
                 throw new ServiceError('UpstreamError', this.#id, `could not read the response from ${target.pathname}`, {
                     cause: err
                 });
@@ -428,7 +428,7 @@ export class ServiceHttp {
         try {
             return (await response.json()) as T;
         } catch (err) {
-            if (signal.aborted) throw classifyFetchError(err, this.#id, safeUrl(target));
+            if (signal.aborted) throw classifyFetchError(signal.reason, this.#id, safeUrl(target));
             throw new ServiceError('UpstreamError', this.#id, `response from ${target.pathname} was not valid JSON`, {
                 cause: err
             });
@@ -447,7 +447,11 @@ export class ServiceHttp {
                 'Unreachable',
                 this.#id,
                 `circuit breaker is open after ${CIRCUIT_THRESHOLD} consecutive failures`,
-                { remedy: `Not retried for ${CIRCUIT_COOLDOWN_MS / 1000}s. Fix the service, then try again.` }
+                {
+                    remedy: this.#trialInFlight
+                        ? 'A trial request is checking whether the service is back; try again shortly.'
+                        : `Not retried for ${CIRCUIT_COOLDOWN_MS / 1000}s. Fix the service, then try again.`
+                }
             );
         }
         this.#trialInFlight = true;
@@ -460,7 +464,9 @@ export class ServiceHttp {
     }
 
     #recordFailure(admission: 'closed' | 'trial'): void {
-        if (admission === 'trial') {
+        // A straggler may have closed the circuit while the trial ran; then
+        // this failure is an ordinary one and counts like any other.
+        if (admission === 'trial' && this.#openedAt !== undefined) {
             this.#openedAt = Date.now();
             logger.warn({ service: this.#id }, 'circuit breaker re-opened after a failed trial');
             return;
