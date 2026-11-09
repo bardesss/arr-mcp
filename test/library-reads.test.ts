@@ -374,6 +374,33 @@ describe('Jellyfin.listUserLibrary', () => {
     });
 });
 
+describe('Jellyfin paging bound', () => {
+    const user = { id: 'u1', name: 'Someone' };
+    const movie = (i: number) => ({ Id: `m${i}`, Name: `Film ${i}`, Type: 'Movie' });
+    const page = (from: number) => ({ Items: Array.from({ length: 500 }, (_, i) => movie(from + i)) });
+
+    it('stops with a diagnosis when the server ignores StartIndex', async () => {
+        let calls = 0;
+        const fetchImpl = (async () => {
+            calls += 1;
+            return jsonResponse(page(0));
+        }) as unknown as typeof fetch;
+        await expect(new JellyfinAdapter(multi, fetchImpl).listUserLibrary(user)).rejects.toThrow(/did not advance/);
+        expect(calls).toBe(2);
+    });
+
+    it('gives up after the page cap when every page is new', async () => {
+        let calls = 0;
+        const fetchImpl = (async (input: string | URL | Request) => {
+            calls += 1;
+            const start = Number(new URL(String(input)).searchParams.get('StartIndex'));
+            return jsonResponse(page(start));
+        }) as unknown as typeof fetch;
+        await expect(new JellyfinAdapter(multi, fetchImpl).listUserLibrary(user)).rejects.toThrow(/pages/);
+        expect(calls).toBe(400);
+    });
+});
+
 const SERIES_ITEMS = {
     Items: [
         { Id: 'show-1', Name: 'Some Show', Type: 'Series', ProviderIds: { Tvdb: '292157' } },

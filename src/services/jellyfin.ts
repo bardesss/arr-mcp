@@ -100,6 +100,8 @@ const TICKS_PER_SECOND = 10_000_000;
 /** Library reads are paged: a large library has thousands of items, and one
  *  unpaged read would be the slowest call in a library build. */
 const PAGE_SIZE = 500;
+/** Backstop for `#pagedItems`: 400 pages is 200,000 items. */
+const MAX_PAGES = 400;
 const ticksToSeconds = (ticks: number | undefined): number | undefined =>
     typeof ticks === 'number' ? Math.round(ticks / TICKS_PER_SECOND) : undefined;
 
@@ -624,12 +626,28 @@ export class JellyfinAdapter
     }
 
     /** Reads every page of an items-shaped endpoint, `PAGE_SIZE` at a time,
-     *  stopping on the first short page. `path` must already carry a query. */
+     *  stopping on the first short page. `path` must already carry a query.
+     *  A page identical to the one before it means the server ignored
+     *  `StartIndex`; that, or running past `MAX_PAGES`, is thrown rather than
+     *  looped on. */
     async #pagedItems<T>(path: string): Promise<T[]> {
         const out: T[] = [];
+        let previous: string | undefined;
         for (let start = 0; ; start += PAGE_SIZE) {
+            if (start / PAGE_SIZE >= MAX_PAGES) {
+                throw new ServiceError('UpstreamError', this.id, `${path.split('?')[0]} did not finish paging after ${MAX_PAGES} pages`, {
+                    remedy: 'This is a backstop, not an expected outcome. Check that nothing in front of Jellyfin rewrites Limit or StartIndex.'
+                });
+            }
             const page = await this.#http.get<{ Items?: T[] }>(`${path}&Limit=${PAGE_SIZE}&StartIndex=${start}`);
             const items = page.Items ?? [];
+            const fingerprint = JSON.stringify(items);
+            if (start > 0 && items.length > 0 && fingerprint === previous) {
+                throw new ServiceError('UpstreamError', this.id, `${path.split('?')[0]} did not advance past StartIndex=0, the whole page repeated`, {
+                    remedy: 'Jellyfin, or a proxy in front of it, appears to be ignoring the StartIndex query parameter.'
+                });
+            }
+            previous = fingerprint;
             out.push(...items);
             if (items.length < PAGE_SIZE) return out;
         }
