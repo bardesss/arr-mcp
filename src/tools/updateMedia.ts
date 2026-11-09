@@ -22,7 +22,7 @@ import { chooseOne, freeSpace, FOLDER_MATCH, PROFILE_MATCH, TAG_MATCH } from './
 import { NO_ALBUMS_PROFILE, SEARCH_AFTER_REFRESH } from './lidarrProfiles.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 import { titled } from '../core/labels.ts';
-import { targetInput, writeTarget } from './writeTarget.ts';
+import { targetInput, serviceTarget } from './serviceTarget.ts';
 
 /**
  * `add_media`'s counterpart, and the only way to change a **Radarr** item's
@@ -131,7 +131,7 @@ function artistMonitoredEffect(service: string, label: string, monitored: boolea
 
 type Updatable = ServiceAdapter & ((MediaUpdateCapable & MediaAddCapable) | BookMetadataCapable);
 
-const TARGET = writeTarget({
+const TARGET = serviceTarget({
     services: ['radarr', 'sonarr', 'lidarr', 'grimmory'],
     can: (a): a is Updatable => hasBookMetadata(a) || (hasMediaUpdate(a) && hasMediaAdd(a)),
     cannot: 'cannot update media',

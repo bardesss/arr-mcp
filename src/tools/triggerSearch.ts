@@ -5,7 +5,7 @@ import { hasSearchTrigger, type AlbumSummary, type MediaDetails, type ServiceAda
 import { arrSubject } from './crossChecks.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 import { titled } from '../core/labels.ts';
-import { targetInput, writeTarget } from './writeTarget.ts';
+import { targetInput, serviceTarget } from './serviceTarget.ts';
 import { checkScope, describable, EPISODE_LIMIT, refuseBoth } from './itemScope.ts';
 
 /**
@@ -19,7 +19,7 @@ import { checkScope, describable, EPISODE_LIMIT, refuseBoth } from './itemScope.
  * user could have seen before the write, not one this tool invented.
  */
 
-const TARGET = writeTarget({
+const TARGET = serviceTarget({
     services: ['radarr', 'sonarr', 'whisparr', 'lidarr'],
     can: hasSearchTrigger,
     cannot: 'cannot be told to search'

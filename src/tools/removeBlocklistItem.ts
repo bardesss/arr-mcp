@@ -3,7 +3,7 @@ import * as z from 'zod/v4';
 import { ServiceError } from '../core/errors.ts';
 import { hasBlocklist, hasQueueRemove, type ServiceAdapter } from '../services/types.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
-import { targetInput, writeTarget } from './writeTarget.ts';
+import { targetInput, serviceTarget } from './serviceTarget.ts';
 
 /**
  * Un-blocklisting one release, so it can be grabbed again.
@@ -15,7 +15,7 @@ import { targetInput, writeTarget } from './writeTarget.ts';
  * `remove_queue_item` can do it.
  */
 
-const TARGET = writeTarget({
+const TARGET = serviceTarget({
     services: ['radarr', 'sonarr', 'whisparr', 'lidarr'],
     can: hasBlocklist,
     cannot: 'has no blocklist',

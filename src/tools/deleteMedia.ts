@@ -6,7 +6,7 @@ import { hasBookDelete, hasMediaDelete, hasMediaDetails, type BookDeleteCapable,
 import { arrSubject } from './crossChecks.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 import { titled } from '../core/labels.ts';
-import { targetInput, writeTarget } from './writeTarget.ts';
+import { targetInput, serviceTarget } from './serviceTarget.ts';
 
 /**
  * The first destructive-tier write. Everything the harness does matters more
@@ -30,7 +30,7 @@ function humanSize(bytes: number | undefined): string | undefined {
     return bytes >= GIB ? `${(bytes / GIB).toFixed(1)} GB` : `${Math.round(bytes / 1024 ** 2)} MB`;
 }
 
-const TARGET = writeTarget({
+const TARGET = serviceTarget({
     services: ['radarr', 'sonarr', 'whisparr', 'lidarr', 'grimmory'],
     can: (a): a is ServiceAdapter & (MediaDeleteCapable | BookDeleteCapable) => hasMediaDelete(a) || hasBookDelete(a),
     cannot: 'has no media to delete'

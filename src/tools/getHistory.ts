@@ -1,15 +1,16 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
+import { INSTANCE_PARAM_DESCRIPTION, instancesOfType, resolveInstance } from './resolveInstance.ts';
 import type { ServiceId } from '../config/schema.ts';
 import { ServiceIdSchema } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { gather } from '../core/gather.ts';
 import { logger } from '../core/logger.ts';
-import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, windowEnd, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, windowEnd, type DetailLevel, unreachableTail } from '../core/shape.ts';
 import type { WebhookEvents } from '../core/webhookEvents.ts';
 import { WEBHOOK_SERVICES } from '../services/arrWebhook.ts';
-import { HISTORY_EVENT_TYPES, hasHistory, type HistoryCapable, type HistoryEntry, type HistoryEventType, type ServiceAdapter } from '../services/types.ts';
+import { HISTORY_EVENT_TYPES, hasHistory, type HistoryEntry, type HistoryEventType, type ServiceAdapter } from '../services/types.ts';
+import { readTargets, resolveTarget, serviceTarget } from './serviceTarget.ts';
 
 /** The stored events, and whether more are being recorded. A log turned off keeps what it has. */
 export type EventLog = { store: WebhookEvents; enabled: boolean };
@@ -97,6 +98,13 @@ export function historyLine(entry: HistoryEntry): string {
     return `${entry.at} — ${entry.title} — ${facts.join(', ')}`;
 }
 
+const TARGET = serviceTarget({
+    services: ['radarr', 'sonarr', 'lidarr', 'sabnzbd', 'nzbget', 'bazarr', 'cleanuparr', 'reclaimerr', 'shelfmark', 'grimmory'],
+    can: hasHistory,
+    cannot: 'has no history to return',
+    hint: 'A media server has no download history.'
+});
+
 export async function buildGetHistory(
     adapters: readonly ServiceAdapter[],
     opts: {
@@ -118,27 +126,15 @@ export async function buildGetHistory(
         throw new Error('`id` scopes to one movie, series or artist; pass `service` (and `instance` if it is named) to say which.');
     }
 
-    let scoped: (ServiceAdapter & HistoryCapable)[];
-    if (opts.service === undefined) {
-        scoped = adapters.filter(hasHistory);
-    } else {
-        const adapter = resolveInstance(adapters, opts.service, opts.instance);
-        // A valid, configured service with no history capability (e.g.
-        // Jellyfin) must refuse rather than silently answer empty — an empty
-        // result reads as "this item has no history", which is a different
-        // and more misleading claim than "this service cannot answer that".
-        if (!hasHistory(adapter)) {
-            throw new ServiceError('NotFound', adapter.id, `${adapter.id} has no history to return`, {
-                remedy: 'radarr, sonarr, lidarr, sabnzbd, nzbget, bazarr, cleanuparr, reclaimerr, shelfmark and grimmory can answer get_history. A media server has no download history.'
-            });
-        }
-        scoped = [adapter];
-    }
+    // An id belongs to one instance's namespace, so it names one instance.
+    const scoped =
+        opts.id !== undefined && opts.service !== undefined
+            ? [resolveTarget(adapters, TARGET, opts.service, opts.instance)]
+            : readTargets(adapters, TARGET, opts.service, opts.instance);
 
     // Each service hands over its newest `want` rows and says how many it has.
     // The merged window is then the same one the whole histories would give.
     const want = windowEnd(opts.limit, opts.offset);
-    const totals: Record<string, number> = {};
     const { items, degraded, counts } = await gather(
         scoped.map(a => ({
             id: a.id,
@@ -152,17 +148,11 @@ export async function buildGetHistory(
                 // Filtered inside the source, not after gather, so `counts`
                 // reports what each service actually contributed to this
                 // answer rather than its unfiltered total.
-                const rows = Array.isArray(read)
-                    ? opts.eventType === undefined
-                        ? read
-                        : read.filter(r => r.event === opts.eventType)
-                    : read.items;
-                totals[a.id] = Array.isArray(read) ? rows.length : read.total;
-                return rows;
+                if (!Array.isArray(read)) return read;
+                return opts.eventType === undefined ? read : read.filter(r => r.event === opts.eventType);
             }
         }))
     );
-    for (const id of Object.keys(counts)) counts[id] = totals[id] ?? counts[id] ?? 0;
 
     // Newest first: "why did last night's download fail" is a question about
     // the most recent attempt, not the oldest.
@@ -184,14 +174,21 @@ type EventLogOptions = {
     offset?: number;
 };
 
+/** Every configured instance's id; none configured is `resolveInstance`'s refusal. */
+function everyInstance(adapters: readonly ServiceAdapter[], service: ServiceId): string[] {
+    const all = instancesOfType(adapters, service);
+    return all.length === 0 ? [resolveInstance(adapters, service).id] : all.map(a => a.id);
+}
+
 /**
  * `source: "webhooks"`: what Radarr and Sonarr reported, read from arr-mcp's own
  * store. A separate read from `buildGetHistory`, because a stored row and the
  * service's own row for the same grab would otherwise both appear.
  *
- * `service` goes through `resolveInstance`, so a stack with two Radarrs is asked
- * which, as the default source asks. That means events from an instance since
- * removed from the config are reachable only without a `service`.
+ * `service` scopes the same way the default source does: with an `id` or an
+ * `instance` it is one instance, alone it is every configured instance of it.
+ * Events from an instance since removed from the config are reachable only
+ * without a `service`.
  */
 export function readEventLog(
     adapters: readonly ServiceAdapter[],
@@ -207,7 +204,14 @@ export function readEventLog(
             remedy: 'The event log only holds what Radarr and Sonarr report. Leave `source` out to read the service\'s own history.'
         });
     }
-    const service = opts.service === undefined ? undefined : resolveInstance(adapters, opts.service, opts.instance).id;
+    // As the default source: an id or a named instance is one instance, a
+    // service alone is every configured instance of it.
+    const service =
+        opts.service === undefined
+            ? undefined
+            : opts.id !== undefined || (opts.instance !== undefined && opts.instance !== '')
+              ? resolveInstance(adapters, opts.service, opts.instance).id
+              : everyInstance(adapters, opts.service);
     const query = {
         ...(service === undefined ? {} : { service }),
         ...(opts.id === undefined ? {} : { id: opts.id }),
@@ -296,7 +300,7 @@ export function registerGetHistory(server: McpServer, adapters: readonly Service
             const result = await buildGetHistory(adapters, opts);
             const summary =
                 `${result.returned} of ${result.total} history entr${result.returned === 1 ? 'y' : 'ies'}` +
-                (result.degraded.length > 0 ? `; ${result.degraded.join(', ')} unreachable.` : '.');
+                unreachableTail(result.degraded);
 
             return { content: [{ type: 'text', text: listText(summary, result.items, historyLine) }], structuredContent: result };
         }

@@ -3,7 +3,7 @@ import * as z from 'zod/v4';
 import { ServiceError } from '../core/errors.ts';
 import { hasQueue, hasQueueRemove, type ServiceAdapter } from '../services/types.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
-import { targetInput, writeTarget } from './writeTarget.ts';
+import { targetInput, serviceTarget } from './serviceTarget.ts';
 
 /**
  * "This has been stuck at 0% for two days, get rid of it" — the other thing
@@ -16,7 +16,7 @@ import { targetInput, writeTarget } from './writeTarget.ts';
  * mysteriously never grabs.
  */
 
-const TARGET = writeTarget({
+const TARGET = serviceTarget({
     services: ['radarr', 'sonarr', 'whisparr', 'lidarr', 'sabnzbd', 'nzbget', 'transmission', 'qbittorrent', 'shelfmark', 'grimmory'],
     can: hasQueueRemove,
     cannot: 'has no download queue',

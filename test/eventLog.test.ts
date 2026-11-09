@@ -23,6 +23,7 @@ const stub = (id: string, extra: Record<string, unknown> = {}): ServiceAdapter =
     ({
         id,
         type: id.split('/')[0],
+        instance: id.split('/')[1],
         testConnection: async () => ({ ok: true, service: id, latency_ms: 1 }),
         getVersion: async () => '1.0.0',
         ...extra
@@ -86,9 +87,23 @@ describe('get_history over the event log', () => {
         expect(page.items[0]?.service).toBe('sonarr');
     });
 
-    it('asks for the instance when a service has several, as get_history does', () => {
+    it('reads every instance of a service when none is named, as get_history does', async () => {
+        const two = [stub('radarr/a'), stub('radarr/b'), stub('sonarr')];
+        await storeCaptured(store, 'radarr', 'Grab', recently(3), 'radarr/a');
+        await storeCaptured(store, 'radarr', 'MovieDelete', recently(2), 'radarr/b');
+        await storeCaptured(store, 'sonarr', 'SeriesDelete', recently(1));
+
+        const result = readEventLog(two, { store, enabled: true }, { service: 'radarr', detail: 'standard', limit: 50 });
+        expect(result.items.map(i => i.service)).toEqual(['radarr/b', 'radarr/a']);
+        expect(result.counts).toEqual({ 'radarr/a': 1, 'radarr/b': 1 });
+
+        const one = readEventLog(two, { store, enabled: true }, { service: 'radarr', instance: 'b', detail: 'standard', limit: 50 });
+        expect(one.items.map(i => i.service)).toEqual(['radarr/b']);
+    });
+
+    it('still asks which instance an id belongs to, because each has its own ids', () => {
         const two = [stub('radarr/a'), stub('radarr/b')];
-        expect(() => readEventLog(two, { store, enabled: true }, { service: 'radarr', detail: 'standard', limit: 50 })).toThrow(/instance/);
+        expect(() => readEventLog(two, { store, enabled: true }, { service: 'radarr', id: '1230', detail: 'standard', limit: 50 })).toThrow(/instance/);
     });
 
     it('needs a service alongside an id, because ids of different services share numbers', () => {

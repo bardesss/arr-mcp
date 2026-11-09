@@ -17,7 +17,7 @@ import { arrSubject } from './crossChecks.ts';
 import { NO_ALBUMS_PROFILE, SEARCH_AFTER_REFRESH } from './lidarrProfiles.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 import { titled } from '../core/labels.ts';
-import { targetInput, writeTarget } from './writeTarget.ts';
+import { targetInput, serviceTarget } from './serviceTarget.ts';
 
 /**
  * The last of the writes, and the only one that has to *choose*
@@ -36,7 +36,7 @@ import { targetInput, writeTarget } from './writeTarget.ts';
  * cheaper than it is.
  */
 
-const TARGET = writeTarget({
+const TARGET = serviceTarget({
     services: ['radarr', 'sonarr', 'whisparr', 'lidarr'],
     can: hasMediaAdd,
     cannot: 'cannot add media',

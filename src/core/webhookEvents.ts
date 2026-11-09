@@ -97,7 +97,8 @@ export class WebhookEvents {
     }
 }
 
-type EventQuery = HistoryQuery & { service?: string };
+/** `service` is one instance's id, or several: every instance of a service a read fans out to. */
+type EventQuery = HistoryQuery & { service?: string | readonly string[] };
 
 function whereOf(query: EventQuery): { condition: string; args: string[] } {
     const where: string[] = [];
@@ -107,7 +108,11 @@ function whereOf(query: EventQuery): { condition: string; args: string[] } {
         where.push(clause);
         args.push(value);
     };
-    filter('service = ?', query.service);
+    if (typeof query.service === 'string') filter('service = ?', query.service);
+    else if (query.service !== undefined) {
+        where.push(query.service.length === 0 ? '0' : `service IN (${query.service.map(() => '?').join(', ')})`);
+        args.push(...query.service);
+    }
     filter('media_id = ?', query.id);
     filter('event = ?', query.eventType);
     filter('at >= ?', normalisedSince(query.since));

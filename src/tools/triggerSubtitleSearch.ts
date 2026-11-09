@@ -3,7 +3,7 @@ import * as z from 'zod/v4';
 import { ServiceError } from '../core/errors.ts';
 import { hasSubtitleSearch, hasSubtitles, type ServiceAdapter, type SubtitleGap, type SubtitleSearchCapable, type SubtitleCapable } from '../services/types.ts';
 import { outcomeText, registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
-import { targetInput, writeTarget } from './writeTarget.ts';
+import { targetInput, serviceTarget } from './serviceTarget.ts';
 
 /**
  * The other half of `get_subtitles`, which until now could only say what was
@@ -11,7 +11,7 @@ import { targetInput, writeTarget } from './writeTarget.ts';
  * outcome is a wrong one you can replace.
  */
 
-const TARGET = writeTarget({
+const TARGET = serviceTarget({
     services: ['bazarr'],
     can: (a): a is ServiceAdapter & SubtitleSearchCapable & SubtitleCapable => hasSubtitleSearch(a) && hasSubtitles(a),
     cannot: 'cannot search for subtitles'

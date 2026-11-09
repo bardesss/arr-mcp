@@ -1,6 +1,10 @@
 import { logger } from './logger.ts';
 
-export type Source<T> = { id: string; fetch: () => Promise<T[]> };
+/**
+ * A source returns its rows, or a window of them with the size of the whole: a
+ * service that hands over only the first rows a page needs still counts all it has.
+ */
+export type Source<T> = { id: string; fetch: () => Promise<T[] | { items: T[]; total: number }> };
 
 export type Gathered<T> = {
     items: T[];
@@ -56,8 +60,9 @@ export async function gather<T>(sources: readonly Source<T>[]): Promise<Gathered
         const id = sources[index]?.id;
         if (id === undefined) return;
         if (result.status === 'fulfilled') {
-            items.push(...result.value);
-            counts[id] = result.value.length;
+            const rows = Array.isArray(result.value) ? result.value : result.value.items;
+            items.push(...rows);
+            counts[id] = Array.isArray(result.value) ? rows.length : result.value.total;
         } else {
             logger.warn({ service: id, err: result.reason }, 'source failed; degrading rather than failing');
             degraded.push(id);
