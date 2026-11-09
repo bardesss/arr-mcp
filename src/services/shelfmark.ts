@@ -223,7 +223,10 @@ export class ShelfmarkAdapter
             if (isForbidden(err)) throw new ServiceError('AuthFailed', this.id, `the read-only key cannot ${verb} a download`, { remedy: REMEDY_FULL_KEY });
             if (err.kind === 'NotFound') throw new ServiceError('NotFound', this.id, `Shelfmark no longer has that download in a state it can ${verb}`, { remedy: 'It may just have finished. Call get_queue or get_history for where it stands.' });
             const detail = err.detail.replaceAll(encoded, '[download]');
-            throw new ServiceError(err.kind, this.id, detail, err.remedy === undefined ? undefined : { remedy: err.remedy });
+            throw new ServiceError(err.kind, this.id, detail, {
+                ...(err.remedy === undefined ? {} : { remedy: err.remedy }),
+                ...(err.status === undefined ? {} : { status: err.status })
+            });
         }
     }
 
