@@ -60,6 +60,8 @@ export class Runtime {
     readonly #configDir: string;
     #plaintextOnDisk: readonly string[] = [];
     readonly #reloads = serial();
+    #closed = false;
+    #closing: Promise<void> | undefined;
     readonly #audit: WriteAudit;
     readonly #refresh: Refresher;
 
@@ -289,6 +291,7 @@ export class Runtime {
     }
 
     async #reloadNow(): Promise<void> {
+        if (this.#closed) return;
         // Never seeds: a file deleted under a running server must not turn it unclaimed.
         const { config, plaintextOnDisk } = await loadConfig(this.#configDir, { create: false });
         const next = this.#prepareDataset(config);
@@ -309,13 +312,22 @@ export class Runtime {
     /**
      * Stops the dataset's refresh, waiting for an ingest in flight to be
      * terminated, and then closes and clears the dataset. Idempotent.
+     *
+     * Queued behind any reload in flight, and a reload after it does nothing,
+     * so nothing reopens a dataset or starts a refresh nobody will stop.
      */
-    async close(): Promise<void> {
-        const stop = this.#stopRefresh;
-        this.#stopRefresh = undefined;
-        await stop?.();
-        this.#dataset?.close();
-        this.#dataset = undefined;
+    close(): Promise<void> {
+        return (this.#closing ??= this.#reloads(async () => {
+            this.#closed = true;
+            const stop = this.#stopRefresh;
+            this.#stopRefresh = undefined;
+            try {
+                await stop?.();
+            } finally {
+                this.#dataset?.close();
+                this.#dataset = undefined;
+            }
+        }));
     }
 
 }

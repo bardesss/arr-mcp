@@ -70,8 +70,11 @@ export async function serveOverStdio(deps: StdioDeps): Promise<{ close(): Promis
     }
     return {
         close: async () => {
-            await handle.close();
-            await runtime.close();
+            try {
+                await handle.close();
+            } finally {
+                await runtime.close();
+            }
         }
     };
 }

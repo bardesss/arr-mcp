@@ -74,7 +74,9 @@ export async function bootstrap(deps: BootstrapDeps): Promise<Booted> {
             return built;
         } catch (err) {
             // Started but never served: nothing else holds the dataset or its refresh.
-            await runtime.close();
+            await runtime.close().catch((closeErr: unknown) => {
+                logger.error({ err: closeErr }, 'closing the runtime after a failed start failed');
+            });
             throw err;
         }
     };
