@@ -1760,10 +1760,10 @@ export const hasPause = (a: ServiceAdapter): a is ServiceAdapter & PauseCapable 
     typeof (a as Partial<PauseCapable>).setPaused === 'function';
 
 /**
- * The download cap, always **KB/s at this boundary** whatever the client
- * speaks on the wire: SABnzbd wants a `K`-suffixed string (a bare number
- * there is a *percentage*), Transmission wants KB/s, qBittorrent wants
- * bytes/s. Converting inside each adapter is what stops one wrong unit
+ * The download cap, always **KiB/s (1024 bytes) at this boundary** whatever
+ * the client speaks on the wire: SABnzbd wants a `K`-suffixed string (a bare
+ * number there is a *percentage*), Transmission counts in its own
+ * `speed-bytes` (1000 by default), qBittorrent wants bytes/s. Converting inside each adapter is what stops one wrong unit
  * throttling a stack to nothing.
  *
  * An absent `kbps` means no cap is set — not a cap of zero, which on these

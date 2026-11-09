@@ -2362,15 +2362,15 @@ download client — SABnzbd, NZBGet, Transmission or qBittorrent — or one item
 queue when `id` is given.
 
 `action: "limit"` throttles instead of stopping: `speed_limit_kbps` is the cap
-in KB/s, and `0` removes it. Always client-wide, never per item, so `id` with
+in KiB/s (1024 bytes), and `0` removes it. Always client-wide, never per item, so `id` with
 `action: "limit"` is refused. Drop `id`, or use `action: "pause"` for that one
 item.
 
 Each client speaks a different unit, and the wrong one throttles a stack to
 nothing — SABnzbd reads a bare number as a *percentage* of the configured line
-speed, qBittorrent wants bytes per second, Transmission wants KB/s behind an
+speed, qBittorrent wants bytes per second, Transmission counts kB/s of 1000 bytes behind an
 enable flag it keeps separately, and NZBGet's `rate` takes KB/s while its
-`status` reports the limit in bytes per second. The tool boundary is KB/s and each adapter
+`status` reports the limit in bytes per second. The tool boundary is KiB/s and each adapter
 converts at its own edge. Clearing on Transmission zeroes the number as well as
 the flag, so a stale cap cannot come back the next time anything enables it.
 

@@ -17,7 +17,7 @@ import { jsonResponse } from './helpers/serve.ts';
 /**
  * Every client speaks a different unit here, and the wrong one throttles a
  * stack to nothing: SABnzbd reads a bare number as a *percentage*,
- * qBittorrent wants bytes/s, Transmission wants KB/s. These pin the wire
+ * qBittorrent wants bytes/s, Transmission wants kB/s of its own unit. These pin the wire
  * format, not just the call.
  */
 
@@ -84,13 +84,13 @@ describe('SABnzbd speed limit', () => {
 });
 
 describe('Transmission speed limit', () => {
-    it('reads KB/s, and only when the enabled flag is set', async () => {
+    it('reads KiB/s from the daemon unit (1000 by default), and only when the enabled flag is set', async () => {
         const enabled = recording(() =>
             jsonResponse({ result: 'success', arguments: { 'speed-limit-down': 500, 'speed-limit-down-enabled': true } })
         );
         expect(await new TransmissionAdapter(clientConfig, enabled.impl).readSpeedLimit()).toEqual({
             service: 'transmission',
-            kbps: 500
+            kbps: 488
         });
 
         const disabled = recording(() =>
@@ -104,10 +104,19 @@ describe('Transmission speed limit', () => {
     it('sets the number and the flag together', async () => {
         const { impl, sent } = recording(() => jsonResponse({ result: 'success' }));
         await new TransmissionAdapter(clientConfig, impl).setSpeedLimit(500);
+        // 500 KiB/s is 512 kB/s on the wire
         expect(JSON.parse(sent.at(-1)?.body ?? '{}')).toMatchObject({
             method: 'session-set',
-            arguments: { 'speed-limit-down': 500, 'speed-limit-down-enabled': true }
+            arguments: { 'speed-limit-down': 512, 'speed-limit-down-enabled': true }
         });
+    });
+
+    it('uses the unit the daemon reports', async () => {
+        const { impl, sent } = recording(() =>
+            jsonResponse({ result: 'success', arguments: { units: { 'speed-bytes': 1024 } } })
+        );
+        await new TransmissionAdapter(clientConfig, impl).setSpeedLimit(500);
+        expect(JSON.parse(sent.at(-1)?.body ?? '{}')).toMatchObject({ arguments: { 'speed-limit-down': 500 } });
     });
 
     /** Transmission keeps the number behind the flag, so a stale cap would
@@ -121,7 +130,9 @@ describe('Transmission speed limit', () => {
     });
 
     it('treats a non-success result as a failure', async () => {
-        const { impl } = recording(() => jsonResponse({ result: 'no such session' }));
+        const { impl } = recording((_url, init) =>
+            jsonResponse({ result: String(init?.body).includes('session-set') ? 'no such session' : 'success' })
+        );
         await expect(new TransmissionAdapter(clientConfig, impl).setSpeedLimit(100)).rejects.toThrow(/session-set/);
     });
 });
