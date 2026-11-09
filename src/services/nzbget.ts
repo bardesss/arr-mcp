@@ -355,7 +355,7 @@ export class NzbgetAdapter
         // WebServer.cpp answers a 401 before reading the POST body but keeps
         // the connection open, so the next request on it fails. Without
         // keep-alive NZBGet closes after each reply.
-        this.#http = new ServiceHttp(this.id, config, basicAuth({ username, password: config.password }), fetchImpl, {
+        this.#http = new ServiceHttp(this.id, config, basicAuth({ username, password: config.password }, LOGIN_REMEDY), fetchImpl, {
             closeConnection: true
         });
         this.#passwordOnly = config.password !== undefined && config.password !== '' && (username ?? '') === '';
@@ -367,21 +367,12 @@ export class NzbgetAdapter
                 remedy: `NZBGet logs in with a username and password. Add the username to this ${this.id} entry: the ControlUsername (default "nzbget") or RestrictedUsername from NZBGet Settings → Security.`
             });
         }
-        let body: RpcResponse<T>;
-        try {
-            body = await this.#http.post<RpcResponse<T>>('/jsonrpc', {
-                jsonrpc: '2.0',
-                method,
-                params,
-                id: this.#nextRpcId++
-            });
-        } catch (err) {
-            // The shared 401 remedy is about an API key; NZBGet has a login.
-            if (err instanceof ServiceError && err.kind === 'AuthFailed') {
-                throw new ServiceError('AuthFailed', this.id, err.detail, { remedy: LOGIN_REMEDY, cause: err });
-            }
-            throw err;
-        }
+        const body = await this.#http.post<RpcResponse<T>>('/jsonrpc', {
+            jsonrpc: '2.0',
+            method,
+            params,
+            id: this.#nextRpcId++
+        });
         if (body === null || typeof body !== 'object') {
             throw new ServiceError('UpstreamError', this.id, `JSON-RPC ${method} returned a non-object response`);
         }

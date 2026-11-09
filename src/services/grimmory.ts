@@ -58,8 +58,8 @@ const list = (v: unknown): Raw[] => (Array.isArray(v) ? v.filter((r): r is Raw =
 
 /** Says which read failed and why in a word; never the URL or a response body. */
 function unreadable(name: string, reason: unknown): string {
-    const status = reason instanceof ServiceError ? /^HTTP (\d+)/.exec(reason.detail)?.[1] : undefined;
-    if (status === '403') return `This Grimmory account may not read ${name}, so it is left out.`;
+    const status = reason instanceof ServiceError ? reason.status : undefined;
+    if (status === 403) return `This Grimmory account may not read ${name}, so it is left out.`;
     const why = status !== undefined ? `HTTP ${status}` : reason instanceof ServiceError ? reason.kind : 'error';
     return `Grimmory's ${name} could not be read (${why}), so it is left out.`;
 }
@@ -623,7 +623,7 @@ export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, Sear
         try {
             return await call();
         } catch (error) {
-            if (error instanceof ServiceError && error.detail.startsWith('HTTP 403')) {
+            if (error instanceof ServiceError && error.status === 403) {
                 throw new ServiceError('AuthFailed', this.id, `this Grimmory account may not ${what}`, {
                     remedy: `Give it ${permission} in Grimmory's user settings, or use an admin account.`,
                     cause: error
@@ -681,7 +681,7 @@ export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, Sear
             try {
                 body = obj(await this.#http.get<unknown>(`${AUDIT_PATH}?${params.toString()}`));
             } catch (error) {
-                if (error instanceof ServiceError && error.detail.startsWith('HTTP 403')) {
+                if (error instanceof ServiceError && error.status === 403) {
                     throw new ServiceError('AuthFailed', this.id, 'this Grimmory account may not read the audit log', {
                         remedy: 'The audit log needs a Grimmory admin account.',
                         cause: error

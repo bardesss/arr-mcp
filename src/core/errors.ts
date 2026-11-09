@@ -47,12 +47,14 @@ export class ServiceError extends Error {
     /** Set by IdentityResolver when no configured or named user exists, so
      *  that refusal is not mistaken for an HTTP 404 from the user listing. */
     readonly reason: 'unknown_user' | undefined;
+    /** The HTTP status the service answered with, when that is what failed. */
+    readonly status: number | undefined;
 
     constructor(
         kind: ServiceErrorKind,
         service: string,
         detail: string,
-        opts?: { remedy?: string; cause?: unknown; reason?: 'unknown_user' }
+        opts?: { remedy?: string; cause?: unknown; reason?: 'unknown_user'; status?: number }
     ) {
         super(
             formatServiceError(kind, service, detail, opts?.remedy),
@@ -64,6 +66,7 @@ export class ServiceError extends Error {
         this.detail = detail;
         this.remedy = opts?.remedy;
         this.reason = opts?.reason;
+        this.status = opts?.status;
     }
 
     /**
@@ -165,25 +168,32 @@ const NOT_FOUND_REMEDY: Record<ReturnType<typeof classifyNotFoundPath>, string> 
         'Could not tell from the URL alone whether this is a missing id or a wrong base path — verify the id is correct, and separately that the URL has no trailing path or reverse-proxy prefix.'
 };
 
-export function classifyHttpStatus(status: number, service: string, url: string): ServiceError | undefined {
+export const API_KEY_REMEDY = 'The API key is wrong. Check the service’s Settings → General page.';
+
+/** `authRemedy` is what to say about a 401 or 403: the API key text fits only a service that takes one. */
+export function classifyHttpStatus(
+    status: number,
+    service: string,
+    url: string,
+    authRemedy: string = API_KEY_REMEDY
+): ServiceError | undefined {
     if (status < 400) return undefined;
     const pathname = safePath(url);
     const at = `HTTP ${status} at ${pathname}`;
 
     if (status === 401 || status === 403) {
-        return new ServiceError('AuthFailed', service, at, {
-            remedy: 'The API key is wrong. Check the service’s Settings → General page.'
-        });
+        return new ServiceError('AuthFailed', service, at, { remedy: authRemedy, status });
     }
     if (status === 404) {
         return new ServiceError('NotFound', service, at, {
-            remedy: NOT_FOUND_REMEDY[classifyNotFoundPath(pathname)]
+            remedy: NOT_FOUND_REMEDY[classifyNotFoundPath(pathname)],
+            status
         });
     }
     if (status === 429) {
-        return new ServiceError('RateLimited', service, at);
+        return new ServiceError('RateLimited', service, at, { status });
     }
-    return new ServiceError('UpstreamError', service, at);
+    return new ServiceError('UpstreamError', service, at, { status });
 }
 
 const TLS_CODES = new Set([
