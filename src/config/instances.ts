@@ -1,4 +1,4 @@
-import { MULTI_INSTANCE, type ConfigByService, type Config, type ServiceId } from './schema.ts';
+import { serviceTraits, type ConfigByService, type Config, type ServiceId } from './schema.ts';
 
 /**
  * Flattening the config into instances, in one place.
@@ -62,7 +62,7 @@ export function listInstances(config: Config): ServiceInstance[] {
         if (value === undefined) continue;
         const type = key as ServiceId;
 
-        // Only the types in MULTI_INSTANCE can be a list, and the schema has
+        // Only a multi-instance type can be a list, and the schema has
         // already refused one anywhere else — so this is a shape check, not a
         // policy decision being made twice.
         const entries: readonly unknown[] = Array.isArray(value) ? value : [value];
@@ -91,4 +91,4 @@ export function listInstances(config: Config): ServiceInstance[] {
 }
 
 /** Whether this service may appear more than once. */
-export const isMultiInstance = (type: ServiceId): boolean => MULTI_INSTANCE.includes(type);
+export const isMultiInstance = (type: ServiceId): boolean => serviceTraits(type).multiInstance;

@@ -453,12 +453,14 @@ reporting gigabytes as a string, Sonarr's rating arriving unlabelled, Jellyfin
 localising its task names. Those notes have prevented more bugs than the code
 around them.
 
-1. **Add the service id** to `ServiceIdSchema` in `src/config/schema.ts`, a
-   schema for it in `ServicesSchema`, and its entry in `ConfigByService`. Reuse
-   `KeyedServiceSchema` unless the service authenticates differently. A
-   single-instance service is wrapped in `singleOnly(...)`; a read-only one uses
-   `ReadOnlyKeyedServiceSchema` and joins `READ_ONLY_SERVICES`, which forces its
-   write permissions off, as Cleanuparr, Reclaimerr and Dispatcharr do. `test/config.test.ts`
+1. **Add the service id** to `ServiceIdSchema` in `src/config/schema.ts`, its
+   row in `SERVICES`, and its entry in `ConfigByService`. Reuse
+   `KeyedServiceSchema` unless the service authenticates differently. The row
+   says the rest: `multi(...)` for a service that can be configured twice,
+   `single(...)` for one that cannot, and `readOnly(...)` for one arr-mcp never
+   writes to, which forces its write permissions off, as Cleanuparr, Reclaimerr
+   and Dispatcharr do. The config UI and the management API read which fields a
+   service has, and which it needs, off that row's schema. `test/config.test.ts`
    is where the config cases go.
 2. **Set its minimum version** in `MINIMUM_VERSIONS` in
    `src/services/versions.ts`, with a comment saying what the floor rests on.
