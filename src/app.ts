@@ -54,11 +54,11 @@ export const MAX_WEBHOOK_BODY_BYTES = 256 * 1024;
 /**
  * An hour, for every list the SDK builds itself.
  *
- * The lists are static by construction: `registerAllTools`, `registerAllPrompts`
- * and `registerAllResources` register unconditionally — nothing is filtered by
- * configuration, which is the same property that makes hiding a tool behind a
- * config key a non-option — so what a client caches for an hour cannot go
- * stale under it. Without this the SDK emits the conservative default
+ * The lists are static between config reloads, not across them: with
+ * `tools.hide_unusable` the tool list, and the steps prompts name, follow the
+ * configured services (`shapeToolSurface`, `registerAllPrompts`), so a reload
+ * can leave a client's cached list up to an hour behind, as it already could
+ * for tools. Nothing else changes them. Without this the SDK emits the conservative default
  * `ttlMs: 0` and every client reloads thirty-three tool descriptions every
  * session.
  *
@@ -83,7 +83,7 @@ const LIST_CACHE_TTL_MS = 60 * 60 * 1000;
  * that a list reports the whole count rather than the window, and that a write
  * happens in two calls rather than one.
  */
-const INSTRUCTIONS = `One endpoint for a self-hosted media stack: Radarr, Sonarr and Lidarr manage films, series and music, Whisparr scenes, Prowlarr the indexers and Profilarr their quality profiles, Bazarr subtitles, Jellyfin and Plex playback, Seerr requests, Grimmory books and Shelfmark book downloads, SABnzbd, NZBGet, Transmission and qBittorrent downloads, Cleanuparr and Reclaimerr cleanup, Dispatcharr live TV.
+const INSTRUCTIONS = `One endpoint for a self-hosted media stack: Radarr, Sonarr and Lidarr manage films, series and music, Whisparr scenes, Prowlarr the indexers, Profilarr quality profiles, Bazarr subtitles, Jellyfin and Plex playback, Seerr requests, Grimmory books and Shelfmark book downloads, SABnzbd, NZBGet, Transmission and qBittorrent downloads, Cleanuparr and Reclaimerr cleanup, Dispatcharr live TV.
 
 Reading:
 - \`get_library\` is the join across Radarr, Sonarr, Whisparr, Lidarr, Grimmory and the media server (Jellyfin or Plex) — the only tool that can say a file one service believes in is missing from the other.
@@ -94,7 +94,7 @@ Reading:
 
 Writing:
 - Writes happen in two calls. The first previews: read \`summary\` and \`effects\`, then call again passing the returned \`confirm\` token to apply it. \`applied\` says which of the two just happened. \`dry_run: true\` previews without ever issuing a token.
-- Most writes take a service and an id: get it from \`get_library\` or \`get_media_details\` first. \`set_watched\` and \`set_monitoring\` also take a title, and refuse one that two items match equally.
+- Most writes take a service and an id from \`get_library\` or \`get_media_details\`; a few also accept a title.
 - Read \`warnings\` as well, and tell the user about them before confirming.
 - A write refused for permissions names the config key that would allow it. Report that key rather than retrying.
 
@@ -202,9 +202,9 @@ export function mcpServerFactory(
                  * `registerTool`/`registerPrompt`/`registerResource` each set
                  * `listChanged: getCapabilities().<kind>?.listChanged ?? true`,
                  * so declaring it here is what makes the answer false — and it
-                 * should be. The lists are static by construction (the same
-                 * property `LIST_CACHE_TTL_MS` rests on): nothing changes them,
-                 * not a config reload, not the weekly IMDb refresh. A modern-era
+                 * should be. The lists are static between config reloads (the
+                 * property `LIST_CACHE_TTL_MS` rests on): nothing changes them
+                 * while the server runs, not even the weekly IMDb refresh. A modern-era
                  * client reads these bits to decide which notifications to
                  * request on its `subscriptions/listen` filter, so advertising
                  * true means subscribing to an event that will never arrive.

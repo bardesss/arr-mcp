@@ -567,11 +567,10 @@ describe('what the server says about itself at initialize', () => {
         expect(ServiceIdSchema.options.filter(id => !instructions.includes(DISPLAY[id]))).toEqual([]);
     });
 
-    it('does not claim a write never takes a title, and names the ones that do', async () => {
+    it('does not claim a write never takes a title', async () => {
         const { instructions = '' } = await initialize();
         expect(instructions).not.toContain('never a title');
-        expect(instructions).toContain('`set_watched`');
-        expect(instructions).toContain('`set_monitoring`');
+        expect(instructions).toContain('a few also accept a title');
     });
 
     it('names the two rules no single tool description can carry', async () => {
