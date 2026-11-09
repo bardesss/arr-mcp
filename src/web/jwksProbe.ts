@@ -29,7 +29,7 @@ function reason(err: unknown): string {
 /** A host that names this machine, whose answer would describe local ports
  *  rather than the identity provider. Literal forms only. */
 export function isLoopbackHost(hostname: string): boolean {
-    const h = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+    const h = hostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
     return (
         h === 'localhost' ||
         h.endsWith('.localhost') ||
@@ -37,7 +37,9 @@ export function isLoopbackHost(hostname: string): boolean {
         h === '::' ||
         h === '0.0.0.0' ||
         h.startsWith('127.') ||
-        h.startsWith('::ffff:127.')
+        h.startsWith('::ffff:127.') ||
+        // `new URL` rewrites a mapped address into hex: 127.x.y.z is 7fxx:yyzz.
+        /^::ffff:7f[0-9a-f]{2}:[0-9a-f]{1,4}$/.test(h)
     );
 }
 
