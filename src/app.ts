@@ -83,10 +83,10 @@ const LIST_CACHE_TTL_MS = 60 * 60 * 1000;
  * that a list reports the whole count rather than the window, and that a write
  * happens in two calls rather than one.
  */
-const INSTRUCTIONS = `One endpoint for a self-hosted media stack: Radarr and Sonarr manage films and series, Whisparr scenes, Prowlarr the indexers, Bazarr subtitles, Jellyfin playback, Seerr requests, SABnzbd, NZBGet, Transmission and qBittorrent downloads.
+const INSTRUCTIONS = `One endpoint for a self-hosted media stack: Radarr, Sonarr and Lidarr manage films, series and music, Whisparr scenes, Prowlarr the indexers and Profilarr their quality profiles, Bazarr subtitles, Jellyfin and Plex playback, Seerr requests, Grimmory books and Shelfmark book downloads, SABnzbd, NZBGet, Transmission and qBittorrent downloads, Cleanuparr and Reclaimerr cleanup, Dispatcharr live TV.
 
 Reading:
-- \`get_library\` is the join across Radarr, Sonarr, Whisparr and Jellyfin — the only tool that can say a file one service believes in is missing from the other.
+- \`get_library\` is the join across Radarr, Sonarr, Whisparr, Lidarr, Grimmory and the media server (Jellyfin or Plex) — the only tool that can say a file one service believes in is missing from the other.
 - \`diagnose\` answers "why can I not play this" in one call. Prefer it over assembling that answer from several reads.
 - Call the tool that answers the question directly. A tool's \`service\` field lists the services it takes on this stack, so there is no need to call \`stack_health\` first to find one.
 - Every list is a window: \`items\`, \`total\`, \`returned\`, \`offset\`, \`truncated\`. \`total\` counts the whole list, never the window — it is the number to report when someone asks how many. \`offset + returned < total\` means there is another page; page two of 50 is \`offset: 50\`.
@@ -94,7 +94,7 @@ Reading:
 
 Writing:
 - Writes happen in two calls. The first previews: read \`summary\` and \`effects\`, then call again passing the returned \`confirm\` token to apply it. \`applied\` says which of the two just happened. \`dry_run: true\` previews without ever issuing a token.
-- Writes take a service and an id, never a title. Get the id from \`get_library\` or \`get_media_details\` first.
+- Most writes take a service and an id: get it from \`get_library\` or \`get_media_details\` first. \`set_watched\` and \`set_monitoring\` also take a title, and refuse one that two items match equally.
 - Read \`warnings\` as well, and tell the user about them before confirming.
 - A write refused for permissions names the config key that would allow it. Report that key rather than retrying.
 
