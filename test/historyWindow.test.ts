@@ -97,6 +97,27 @@ describe('get_history reads only the window it returns (#293)', () => {
     });
 });
 
+describe('get_history on a Radarr that ignores eventType', () => {
+    it('says the total is at most the count the service reported', async () => {
+        const mixed = Array.from({ length: 600 }, (_, i) => ({
+            id: i + 1,
+            eventType: i % 4 === 0 ? 'downloadFailed' : 'grabbed',
+            date: new Date(base - i * 60_000).toISOString(),
+            sourceTitle: `Release.${i}`
+        }));
+        const adapters = [new SonarrAdapter(keyed(8989), paged(mixed, []))];
+        const result = await buildGetHistory(adapters, { detail: 'full', limit: 5, eventType: 'failed' });
+        expect(result.totalIsUpperBound).toBe(true);
+        expect(result.total).toBeLessThanOrEqual(600);
+        expect(result.total).toBeGreaterThanOrEqual(result.returned);
+    });
+
+    it('leaves the flag off when the service did the filtering or the read reached the end', async () => {
+        const plain = await buildGetHistory(history(), { detail: 'full', limit: 5 });
+        expect('totalIsUpperBound' in plain).toBe(false);
+    });
+});
+
 describe('get_blocklist reads only the window it returns', () => {
     it('fetches one page per service for limit 10, and still reports the full total', async () => {
         const pages: number[] = [];
@@ -115,6 +136,19 @@ describe('get_blocklist reads only the window it returns', () => {
         const result = await buildGetBlocklist(blocklist(), { detail: 'full', limit, offset });
         expect(result.items.map(key)).toEqual(expected.items.map(key));
         expect(result.total).toBe(expected.total);
+        expect(result.truncated).toBe(expected.truncated);
+    });
+
+    it('reads every page of a blocklist whose service ignores the sort', async () => {
+        const pages: number[] = [];
+        const ascending = [...RADARR_HISTORY].reverse();
+        const adapters = [new RadarrAdapter(keyed(7878), paged(ascending, pages))];
+        const result = await buildGetBlocklist(adapters, { detail: 'full', limit: 10 });
+        // pageSizeFor(10) pages of 10: the early stop is refused, so all 43 are read.
+        expect(pages).toHaveLength(43);
+        expect(result.total).toBe(430);
+        const newest = RADARR_HISTORY.slice(0, 10).map(r => String(r.id));
+        expect(result.items.map(i => i.id).sort()).toEqual(newest.sort());
     });
 });
 

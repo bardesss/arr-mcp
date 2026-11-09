@@ -115,7 +115,9 @@ export async function readArrHistory(
     const items = opts.eventType === undefined ? pages.entries : pages.entries.filter(e => e.event === opts.eventType);
     // Exact when the walk reached the end, an upper bound when a locally
     // filtered walk stopped early.
-    return { items, total: pages.windowed ? readTotal(pages.read, items.length) : items.length };
+    const total = pages.windowed ? readTotal(pages.read, items.length) : items.length;
+    const stoppedEarly = pages.read.totalRecords !== undefined && pages.read.records.length < pages.read.totalRecords;
+    return { items, total, ...(pages.windowed && pages.filteredHere && stoppedEarly ? { atMost: true as const } : {}) };
 }
 
 async function readHistoryPages(
@@ -124,7 +126,7 @@ async function readHistoryPages(
     kind: ArrKind,
     opts: HistoryQuery,
     code: number | readonly number[] | undefined
-): Promise<{ entries: HistoryEntry[]; read: ArrRead<unknown>; windowed: boolean }> {
+): Promise<{ entries: HistoryEntry[]; read: ArrRead<unknown>; windowed: boolean; filteredHere: boolean }> {
     // Confirmed live: /api/v3/history/movie?movieId=<id> answers a bare
     // HistoryResource[], not the {records, totalRecords} envelope pageArr
     // expects, so a scoped read through it always looked empty. The paged
@@ -156,7 +158,11 @@ async function readHistoryPages(
     const read = await readArrPages<RawHistory>(http, `${http.apiRoot}/history`, query, {
         ...(want === undefined ? {} : { pageSize: filterHere ? ARR_PAGE_SIZE : pageSizeFor(want) }),
         stopWhen: (page, kept) => {
-            matched += page.filter(r => (EVENT[r.eventType ?? ''] ?? 'unknown') === opts.eventType).length;
+            if (filterHere) {
+                matched += page.filter(
+                    r => typeof r.id === 'number' && (EVENT[r.eventType ?? ''] ?? 'unknown') === opts.eventType
+                ).length;
+            }
             // Trust an early exit only when this page is actually newest-first.
             if (!pageIsNewestFirst(page)) return false;
             const oldest = page[page.length - 1]?.date ?? '';
@@ -202,5 +208,5 @@ async function readHistoryPages(
         // it, and this is what drops them.
         .filter(e => opts.since === undefined || e.at >= opts.since);
 
-    return { entries, read, windowed: want !== undefined };
+    return { entries, read, windowed: want !== undefined, filteredHere: filterHere };
 }

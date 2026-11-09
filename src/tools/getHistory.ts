@@ -26,6 +26,8 @@ export type GetHistoryResult = {
     truncated: boolean;
     degraded: string[];
     counts: Record<string, number>;
+    /** `total` is a ceiling, not a count. */
+    totalIsUpperBound?: true;
 };
 
 const EventTypeSchema = z
@@ -135,6 +137,7 @@ export async function buildGetHistory(
     // Each service hands over its newest `want` rows and says how many it has.
     // The merged window is then the same one the whole histories would give.
     const want = windowEnd(opts.limit, opts.offset);
+    let atMost = false;
     const { items, degraded, counts } = await gather(
         scoped.map(a => ({
             id: a.id,
@@ -148,7 +151,10 @@ export async function buildGetHistory(
                 // Filtered inside the source, not after gather, so `counts`
                 // reports what each service actually contributed to this
                 // answer rather than its unfiltered total.
-                if (!Array.isArray(read)) return read;
+                if (!Array.isArray(read)) {
+                    if (read.atMost) atMost = true;
+                    return read;
+                }
                 return opts.eventType === undefined ? read : read.filter(r => r.event === opts.eventType);
             }
         }))
@@ -160,7 +166,13 @@ export async function buildGetHistory(
 
     const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
     const shaped = applyLimit(items, opts.limit, opts.offset, total);
-    return { ...shaped, items: shaped.items.map(i => project(i, opts.detail)), degraded, counts };
+    return {
+        ...shaped,
+        items: shaped.items.map(i => project(i, opts.detail)),
+        degraded,
+        counts,
+        ...(atMost ? { totalIsUpperBound: true as const } : {})
+    };
 }
 
 type EventLogOptions = {
@@ -260,6 +272,7 @@ export function registerGetHistory(server: McpServer, adapters: readonly Service
             description:
                 'What happened to a download after it left the queue (grabbed, imported, failed, deleted), merged across the *arrs, SABnzbd, NZBGet, Bazarr (`subtitle` rows), Cleanuparr (strikes and removals), Reclaimerr (cleanup), Shelfmark and Grimmory, in one vocabulary with the upstream word kept as `rawEvent`. This answers "why did last night\'s download fail": get_queue cannot see finished or failed items, and a failure carries the download client\'s own message. Pass `service` and `id` to scope it to one movie, series or Lidarr artist. `downloadId` links a row to its *arr grab[[nzbget: ; on an NZBGet row it is what trigger_scan `action: "postprocess"` takes]]. [[radarr|sonarr: Deleting a title also deletes its Radarr and Sonarr history, so `source: "webhooks"` reads what they reported to arr-mcp instead, when the library event log is on.]] Field reference: arr://docs/get_history.',
             outputSchema: PagedOutputSchema.extend({
+                totalIsUpperBound: z.boolean().optional().describe('`total` is a ceiling: the read stopped early.'),
                 note: z.string().optional().describe('Why a `source: "webhooks"` answer may be empty: the log is off, or nothing has arrived.')
             }),
             inputSchema: toolInput({
@@ -299,7 +312,7 @@ export function registerGetHistory(server: McpServer, adapters: readonly Service
 
             const result = await buildGetHistory(adapters, opts);
             const summary =
-                `${result.returned} of ${result.total} history entr${result.returned === 1 ? 'y' : 'ies'}` +
+                `${result.returned} of ${result.totalIsUpperBound ? 'at most ' : ''}${result.total} history entr${result.returned === 1 ? 'y' : 'ies'}` +
                 unreachableTail(result.degraded);
 
             return { content: [{ type: 'text', text: listText(summary, result.items, historyLine) }], structuredContent: result };

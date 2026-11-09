@@ -771,7 +771,12 @@ export type HistoryEntry = {
 };
 
 /** The first rows of a longer list, and how long that list is. */
-export type Window<T> = { items: T[]; total: number };
+export type Window<T> = {
+    items: T[];
+    total: number;
+    /** `total` is a ceiling, not a count: a locally filtered read stopped before the end. */
+    atMost?: true;
+};
 
 export type HistoryQuery = {
     id?: string;
@@ -985,7 +990,8 @@ export interface BlocklistCapable {
 }
 
 export const hasBlocklist = (a: ServiceAdapter): a is ServiceAdapter & BlocklistCapable =>
-    typeof (a as Partial<BlocklistCapable>).readBlocklist === 'function';
+    typeof (a as Partial<BlocklistCapable>).readBlocklist === 'function' &&
+    typeof (a as Partial<BlocklistCapable>).findBlocklistItem === 'function';
 
 export type CalendarEntry = {
     service: string;

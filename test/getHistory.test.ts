@@ -271,6 +271,40 @@ describe('get_history', () => {
         expectWithinBudget(result, 40_000);
     });
 
+    describe('summary line', () => {
+        const summary = async (adapter: ServiceAdapter, args: Record<string, unknown>): Promise<string> => {
+            let handler: ((a: Record<string, unknown>) => Promise<{ content: { text: string }[] }>) | undefined;
+            const server = {
+                registerTool(_name: string, _config: unknown, h: typeof handler) {
+                    handler = h;
+                }
+            };
+            registerGetHistory(server as never, [adapter]);
+            return (await handler!({ source: 'services', detail: 'full', limit: 5, ...args })).content[0]!.text;
+        };
+
+        it('says "at most" when the total is an upper bound', async () => {
+            const rows = Array.from({ length: 600 }, (_, i) => ({
+                id: i + 1,
+                eventType: i % 4 === 0 ? 'downloadFailed' : 'grabbed',
+                date: new Date(Date.UTC(2026, 7, 1) - i * 60_000).toISOString(),
+                sourceTitle: `Rel.${i}`
+            }));
+            const paging = (async (input: string | URL | Request) => {
+                const url = new URL(input instanceof Request ? input.url : String(input));
+                const page = Number(url.searchParams.get('page'));
+                const size = Number(url.searchParams.get('pageSize'));
+                return jsonResponse({ page, pageSize: size, totalRecords: rows.length, records: rows.slice((page - 1) * size, page * size) });
+            }) as unknown as typeof fetch;
+            const text = await summary(new SonarrAdapter(keyed(8989), paging), { event_type: 'failed' });
+            expect(text).toMatch(/^5 of at most \d+ history entries/);
+        });
+
+        it('states an exact total otherwise', async () => {
+            expect(await summary(sonarr(), {})).toMatch(/^1 of 1 history entry/);
+        });
+    });
+
     describe('since validation', () => {
         const schema = (): z.ZodObject => {
             let inputSchema: z.ZodObject | undefined;

@@ -346,6 +346,11 @@ describe('Lidarr history', () => {
 });
 
 describe('Lidarr blocklist', () => {
+    it('does not claim a blocklist it cannot look an entry up in', () => {
+        const readOnly = { id: 'x', readBlocklist: async () => ({ items: [], total: 0 }) };
+        expect(hasBlocklist(readOnly as never)).toBe(false);
+    });
+
     it('claims the blocklist, and reports the artist as the media id', async () => {
         const { adapter, sent } = lidarr({ '/api/v1/blocklist': fixture('blocklist') });
         expect(hasBlocklist(adapter)).toBe(true);

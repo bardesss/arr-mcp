@@ -172,7 +172,7 @@ export async function readRootFolders(http: ServiceHttp, service: string): Promi
 }
 
 export async function readTags(http: ServiceHttp, service: string): Promise<Tag[]> {
-    const rows = await http.get<{ id?: number; label?: string }[]>(`${http.apiRoot}/tag`);
+    const rows = await http.getArray<{ id?: number; label?: string }>(`${http.apiRoot}/tag`);
     return rows
         .filter((t): t is { id: number; label: string } => typeof t.id === 'number' && typeof t.label === 'string')
         .map(t => ({ id: t.id, label: t.label, display: fenceText(t.label, { service, field: 'label' }) }));
