@@ -31,6 +31,8 @@ type World = {
     libraryHangs?: boolean;
     /** Called with what Reclaimerr was asked. */
     asked?: (kind: string, tmdb: number) => void;
+    /** Collects what Seerr was asked: `list`, or `<type>:<tmdb id>` for one title. */
+    seerrAsked?: string[];
 };
 
 const settle = async <T>(source: Source<T>): Promise<T> => {
@@ -45,7 +47,24 @@ function adaptersFor(world: World): ServiceAdapter[] {
     const adapters: ServiceAdapter[] = [];
     if (world.seerr !== undefined) {
         const source = world.seerr;
-        adapters.push(stub('seerr', { getRequests: () => settle(source) }));
+        const asked = world.seerrAsked;
+        adapters.push(
+            stub(
+                'seerr',
+                asked === undefined
+                    ? { getRequests: () => settle(source) }
+                    : {
+                          getRequests: () => {
+                              asked.push('list');
+                              return settle(source);
+                          },
+                          getMediaRequests: (t: string, id: number) => {
+                              asked.push(`${t}:${id}`);
+                              return settle(source).then(requests => ({ requests }));
+                          }
+                      }
+            )
+        );
     }
     if (world.reclaimerr !== undefined) {
         const source = world.reclaimerr;
@@ -148,6 +167,22 @@ afterEach(() => {
 });
 
 describe('cross-checks — delete', () => {
+    it('asks Seerr for this title only when it has a TMDB id', async () => {
+        const seerrAsked: string[] = [];
+        const result = await check(subject, 'delete', { seerr: [request('approved')], seerrAsked });
+        expect(seerrAsked).toEqual(['movie:348']);
+        expect(result.warnings.join(' ')).toContain('Seerr still has a request');
+    });
+
+    it('falls back to the request list for a series known only by TVDB', async () => {
+        const seerrAsked: string[] = [];
+        await check({ kind: 'series', label: 'Lost', ids: { tvdb: 73739 } }, 'delete', {
+            seerr: [request('approved', { mediaType: 'tv', tvdbId: 73739 })],
+            seerrAsked
+        });
+        expect(seerrAsked).toEqual(['list']);
+    });
+
     it('warns that a Seerr request exists, and that delete_request removes it', async () => {
         const advice = await check(subject, 'delete', { seerr: [request('approved')] });
         expect(advice.warnings).toHaveLength(1);

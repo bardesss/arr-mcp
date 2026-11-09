@@ -384,6 +384,28 @@ describe('diagnose', () => {
         expect(d.steps.find(s => s.stage === 'subtitles')?.status).toBe('skipped');
     });
 
+    it('reads the resolved title’s requests from Seerr, not the whole history', async () => {
+        const reads: string[] = [];
+        const base = deps();
+        const adapters = base.adapters.map(a =>
+            a.id !== 'seerr'
+                ? a
+                : stub('seerr', {
+                      getRequests: async () => {
+                          reads.push('list');
+                          return [];
+                      },
+                      getMediaRequests: async (t: string, id: number) => {
+                          reads.push(`${t}:${id}`);
+                          return { requests: [{ service: 'seerr', id: 1, status: 'pending', mediaType: 'movie', tmdbId: 550, requestedBy: 'x' }] };
+                      }
+                  })
+        );
+        const d = await buildDiagnose({ adapters, library: new LibraryLoader(adapters, undefined) }, { query: 'some film' });
+        expect(reads).toEqual(['movie:550']);
+        expect(d.verdict.stage).toBe('request');
+    });
+
     it('does not count an unreachable Lidarr against a film', async () => {
         const adapters = [
             stub('radarr', { listLibrary: async () => [FILM], getQueue: async () => [], queueKind: 'movie' }),

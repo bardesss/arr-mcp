@@ -10,7 +10,7 @@ import {
     type ServiceAdapter
 } from '../services/types.ts';
 import { classifyQueueStatus, queueRowsFor, SEEDING, wholeRemoval } from './diagnose/chain.ts';
-import { requestsFor } from './diagnose/evidence.ts';
+import { readTitleRequests, requestsFor } from './diagnose/evidence.ts';
 import { removalSentence, upcomingSentence } from './cleanupStatus.ts';
 import type { LibraryLoader } from './library.ts';
 import { deadline, TIMED_OUT } from '../core/timeout.ts';
@@ -175,7 +175,7 @@ export function buildCrossChecker(adapters: readonly ServiceAdapter[], library: 
                     unchecked.add(NO_TMDB(seerrAdapter.id));
                     return Promise.resolve(undefined);
                 }
-                return read(seerrAdapter.id, () => seerrAdapter.getRequests({}));
+                return read(seerrAdapter.id, () => readTitleRequests(seerrAdapter, ids, subject.kind));
             };
             const askCleanup = (cleanupAdapter: NonNullable<typeof reclaimerr>, ids: ExternalIds): Promise<CleanupStatus | undefined> => {
                 const tmdb = ids.tmdb;
