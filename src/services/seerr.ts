@@ -267,10 +267,23 @@ export class SeerrAdapter
      * handed `issueType: 2` cannot say what is wrong with the film. Comments
      * are the user's own text and are fenced, and capped at the newest few:
      * an argument twenty comments long is not what the caller asked for.
+     *
+     * One page of `limit` rows, not the whole list: a caller asking for a few
+     * issues should not cost a request per hundred issues ever raised. The
+     * order follows `sort=added`, newest first, as GET /api/v1/request does
+     * with the same sort.
      */
     async getIssues(opts: { limit: number }): Promise<MediaIssue[]> {
-        const params = new URLSearchParams({ take: String(Math.max(1, opts.limit)), sort: 'added', filter: 'all' });
-        const rows = await this.#allPages<RawIssue>('/api/v1/issue', params);
+        const params = new URLSearchParams({
+            take: String(Math.max(1, opts.limit)),
+            skip: '0',
+            sort: 'added',
+            filter: 'all'
+        });
+        const page = await this.#http.get<{ pageInfo?: PageInfo; results?: RawIssue[] }>(
+            `/api/v1/issue?${params.toString()}`
+        );
+        const rows = page.results ?? [];
 
         return rows
             .filter((i): i is RawIssue & { id: number } => typeof i.id === 'number')
