@@ -1,6 +1,7 @@
 import { instanceId } from '../config/instances.ts';
 import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import { transmissionRpc } from '../core/auth.ts';
+import { SHORT_READ_TTL_MS, cached } from '../core/cache.ts';
 import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
 import { fenceText } from '../core/fence.ts';
@@ -172,6 +173,8 @@ export class TransmissionAdapter
     readonly instance: string | undefined;
     readonly id: string;
     readonly #http: ServiceHttp;
+    /** One session-get serves the disk check, seed limits and speed limit of a stack_health pass. */
+    readonly #sessionRead = cached(SHORT_READ_TTL_MS, () => this.#readSession());
 
     constructor(config: ConfigByService['transmission'], fetchImpl: typeof fetch = fetch) {
         this.instance = config.name;
@@ -374,6 +377,7 @@ export class TransmissionAdapter
         if (body.result !== 'success') {
             throw new ServiceError('UpstreamError', this.id, `session-set failed: ${resultOf(this.id, body.result)}`);
         }
+        this.#sessionRead.clear();
     }
 
     /**
@@ -436,6 +440,7 @@ export class TransmissionAdapter
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {
+        this.#sessionRead.clear();
         return diagnoseConnection(this.id, this.type, () => this.getVersion());
     }
 
@@ -444,7 +449,11 @@ export class TransmissionAdapter
      * "success", so checking the status line alone would report a broken call
      * as healthy.
      */
-    async #session(): Promise<RawSession> {
+    #session(): Promise<RawSession> {
+        return this.#sessionRead();
+    }
+
+    async #readSession(): Promise<RawSession> {
         const body = await this.#http.post<RpcResponse<RawSession>>(RPC_PATH, { method: 'session-get' });
         if (body.result !== 'success') {
             throw new ServiceError('UpstreamError', this.id, `session-get failed: ${resultOf(this.id, body.result)}`);

@@ -1,6 +1,7 @@
 import { instanceId } from '../config/instances.ts';
 import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import { qbittorrentSession } from '../core/auth.ts';
+import { SHORT_READ_TTL_MS, cached } from '../core/cache.ts';
 import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
 import { hostPort } from '../core/hostPort.ts';
@@ -200,6 +201,8 @@ export class QbittorrentAdapter
     readonly instance: string | undefined;
     readonly id: string;
     readonly #http: ServiceHttp;
+    /** Shared by the disk check and the seed limits of one stack_health pass; this adapter never writes preferences. */
+    readonly #preferences = cached(SHORT_READ_TTL_MS, () => this.#http.get<RawPreferences>(`${API}/app/preferences`));
 
     constructor(config: ConfigByService['qbittorrent'], fetchImpl: typeof fetch = fetch) {
         this.instance = config.name;
@@ -237,7 +240,7 @@ export class QbittorrentAdapter
     async getDiskSpace(): Promise<DiskSpace[]> {
         const [main, prefs] = await Promise.all([
             this.#http.get<RawMainData>(`${API}/sync/maindata`),
-            this.#http.get<RawPreferences>(`${API}/app/preferences`)
+            this.#preferences()
         ]);
 
         const free = main.server_state?.free_space_on_disk;
@@ -277,7 +280,7 @@ export class QbittorrentAdapter
     /** Global defaults only. Per-category limits (5.2+) show up per torrent
      *  in `getQueue`, as its effective limit. */
     async getSeedLimits(): Promise<ClientSeedLimits> {
-        const prefs = await this.#http.get<RawPreferences>(`${API}/app/preferences`);
+        const prefs = await this.#preferences();
         const ratio = prefs.max_ratio_enabled === true ? prefs.max_ratio : undefined;
         const minutes = prefs.max_seeding_time_enabled === true ? prefs.max_seeding_time : undefined;
 
