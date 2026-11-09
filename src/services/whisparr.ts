@@ -6,7 +6,7 @@ import { fenceText } from '../core/fence.ts';
 import { ServiceHttp } from '../core/http.ts';
 import type { IndexInput, SeasonSummary } from '../core/resolver.ts';
 import { applyLimit } from '../core/shape.ts';
-import { readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
+import { findArrBlocklistEntry, readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
 import { readSeedCriteria } from './arrSeedCriteria.ts';
 import { deleteArrMedia, readArrQueue, readSonarrCalendar, removeArrQueueItem, sonarrCalendarPath } from './arrQueue.ts';
 import { audioLanguagesByFileId } from './arrMediaInfo.ts';
@@ -30,6 +30,7 @@ import {
     type AddMediaOptions,
     type BlocklistCapable,
     type BlocklistEntry,
+    type Window,
     type IndexerSeedCriteria,
     type SeedCriteriaCapable,
     type CalendarCapable,
@@ -276,8 +277,12 @@ export class WhisparrAdapter
         return addArrMedia(this.#http, this.id, WHISPARR_ADD, opts);
     }
 
-    async readBlocklist(): Promise<BlocklistEntry[]> {
-        return readArrBlocklist(this.#http, this.id, 'series');
+    async readBlocklist(want?: number): Promise<Window<BlocklistEntry>> {
+        return readArrBlocklist(this.#http, this.id, 'series', want);
+    }
+
+    async findBlocklistItem(id: string): Promise<BlocklistEntry | undefined> {
+        return findArrBlocklistEntry(this.#http, this.id, 'series', id);
     }
 
     async getSeedCriteria(): Promise<IndexerSeedCriteria[]> {

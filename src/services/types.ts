@@ -977,7 +977,10 @@ export type BlocklistEntry = {
 };
 
 export interface BlocklistCapable {
-    readBlocklist(): Promise<BlocklistEntry[]>;
+    /** The newest `want` entries (all of them without it), and how many there are. */
+    readBlocklist(want?: number): Promise<Window<BlocklistEntry>>;
+    /** One entry by id, or `undefined`. Stops reading once it has seen it. */
+    findBlocklistItem(id: string): Promise<BlocklistEntry | undefined>;
     removeBlocklistItem(id: string): Promise<void>;
 }
 

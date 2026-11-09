@@ -350,7 +350,7 @@ describe('Lidarr blocklist', () => {
         const { adapter, sent } = lidarr({ '/api/v1/blocklist': fixture('blocklist') });
         expect(hasBlocklist(adapter)).toBe(true);
 
-        const rows = await adapter.readBlocklist();
+        const { items: rows } = await adapter.readBlocklist();
 
         expect(sent[0]?.path).toBe('/api/v1/blocklist');
         expect(rows).toHaveLength(10);
@@ -371,7 +371,7 @@ describe('Lidarr blocklist', () => {
             }
         });
 
-        const rows = await adapter.readBlocklist();
+        const { items: rows } = await adapter.readBlocklist();
 
         expect(rows.map(r => r.protocol)).toEqual(['torrent', 'usenet']);
     });
@@ -416,7 +416,7 @@ describe('Lidarr text is fenced exactly once', () => {
         });
 
         const [queued] = await adapter.getQueue();
-        const [blocked] = await adapter.readBlocklist();
+        const { items: [blocked] } = await adapter.readBlocklist();
         const { items: [failed, deleted] } = await adapter.readHistory({});
 
         const texts = [

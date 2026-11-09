@@ -1,7 +1,7 @@
 import { sanitizeGuid, fencer } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
 import type { ArrKind } from '../core/resolver.ts';
-import { pageSizeFor, readArrPages, readTotal, type ArrRead } from './arrPaging.ts';
+import { pageIsNewestFirst, pageSizeFor, readArrPages, readTotal, type ArrRead } from './arrPaging.ts';
 import { mediaIdOf, mediaIdsParam } from './arrRecord.ts';
 import type { HistoryEntry, HistoryEventType, HistoryQuery, Window } from './types.ts';
 
@@ -150,13 +150,9 @@ async function readHistoryPages(
     const read = await readArrPages<RawHistory>(http, `${http.apiRoot}/history`, query, {
         ...(want === undefined ? {} : { pageSize: pageSizeFor(want) }),
         stopWhen: (page, kept) => {
-            // Trust an early exit only when this page is actually newest-first,
-            // as asked: a service that silently ignored the sort params (this
-            // project has seen that happen) must not have paging cut short on
-            // an assumption it broke.
-            const dates = page.map(r => r.date);
-            if (!dates.every((d, i) => d !== undefined && (i === 0 || (dates[i - 1] ?? '') >= d))) return false;
-            const oldest = dates[dates.length - 1] ?? '';
+            // Trust an early exit only when this page is actually newest-first.
+            if (!pageIsNewestFirst(page)) return false;
+            const oldest = page[page.length - 1]?.date ?? '';
             // Once a page's oldest record predates `since`, every later page
             // does too. A live Sonarr capture held 12,614 records.
             if (since !== undefined) return oldest < since;

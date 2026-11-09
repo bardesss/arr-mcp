@@ -59,6 +59,16 @@ export async function pageArr<Raw>(
     return (await readArrPages<Raw>(http, path, query, stopWhen === undefined ? {} : { stopWhen })).records;
 }
 
+/**
+ * Whether this page is actually newest-first, as asked. A service that
+ * silently ignored the sort params (this project has seen that happen) must
+ * not have paging cut short on an assumption it broke.
+ */
+export function pageIsNewestFirst(page: readonly { date?: string }[]): boolean {
+    const dates = page.map(r => r.date);
+    return dates.every((d, i) => d !== undefined && (i === 0 || (dates[i - 1] ?? '') >= d));
+}
+
 /** A page just big enough for `want` rows, so `limit: 10` is not 200 records. */
 export const pageSizeFor = (want: number): number => Math.min(ARR_PAGE_SIZE, Math.max(1, Math.trunc(want)));
 

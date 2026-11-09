@@ -122,6 +122,7 @@ describe('LidarrAdapter', () => {
         expect(own.sort()).toEqual([
             'addMedia',
             'deleteMedia',
+            'findBlocklistItem',
             'findReleases',
             'getCalendar',
             'getDiskSpace',

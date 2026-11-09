@@ -30,7 +30,7 @@ import {
 } from './arrManualImport.ts';
 import { readArrForUpdate, updateArrMedia } from './arrUpdate.ts';
 import { deleteArrMedia, readArrQueue, readSonarrCalendar, removeArrQueueItem, sonarrCalendarPath } from './arrQueue.ts';
-import { readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
+import { findArrBlocklistEntry, readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
 import { readSeedCriteria } from './arrSeedCriteria.ts';
 import { findArrReleases, grabArrRelease } from './arrRelease.ts';
 import { readArrWanted } from './arrWanted.ts';
@@ -265,8 +265,12 @@ export class SonarrAdapter
         return grabArrRelease(this.#http, opts);
     }
 
-    async readBlocklist(): Promise<BlocklistEntry[]> {
-        return readArrBlocklist(this.#http, this.id, 'series');
+    async readBlocklist(want?: number): Promise<Window<BlocklistEntry>> {
+        return readArrBlocklist(this.#http, this.id, 'series', want);
+    }
+
+    async findBlocklistItem(id: string): Promise<BlocklistEntry | undefined> {
+        return findArrBlocklistEntry(this.#http, this.id, 'series', id);
     }
 
     async getSeedCriteria(): Promise<IndexerSeedCriteria[]> {

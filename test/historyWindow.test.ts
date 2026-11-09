@@ -4,6 +4,7 @@ import { applyLimit } from '../src/core/shape.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
 import type { HistoryEntry } from '../src/services/types.ts';
+import { buildGetBlocklist } from '../src/tools/getBlocklist.ts';
 import { buildGetHistory } from '../src/tools/getHistory.ts';
 import { buildGetWanted } from '../src/tools/getWanted.ts';
 import { jsonResponse } from './helpers/serve.ts';
@@ -51,6 +52,10 @@ const history = (pages: number[] = []) => [
     new RadarrAdapter(keyed(7878), paged(RADARR_HISTORY, pages)),
     new SonarrAdapter(keyed(8989), paged(SONARR_HISTORY, pages))
 ];
+const blocklist = (pages: number[] = []) => [
+    new RadarrAdapter(keyed(7878), paged(RADARR_HISTORY, pages)),
+    new SonarrAdapter(keyed(8989), paged(SONARR_HISTORY, pages))
+];
 const wanted = (pages: number[] = []) => [
     new RadarrAdapter(keyed(7878), paged(RADARR_WANTED, pages)),
     new SonarrAdapter(keyed(8989), paged(SONARR_WANTED, pages))
@@ -89,6 +94,27 @@ describe('get_history reads only the window it returns (#293)', () => {
         expect(result.items.map(key)).toEqual(expected.items.map(key));
         expect(result.total).toBe(expected.total);
         expect(result.truncated).toBe(expected.truncated);
+    });
+});
+
+describe('get_blocklist reads only the window it returns', () => {
+    it('fetches one page per service for limit 10, and still reports the full total', async () => {
+        const pages: number[] = [];
+        const result = await buildGetBlocklist(blocklist(pages), { detail: 'full', limit: 10 });
+        expect(pages).toEqual([1, 1]);
+        expect(result.total).toBe(430 + 610);
+        expect(result.counts).toEqual({ radarr: 430, sonarr: 610 });
+    });
+
+    it.each(WINDOWS)('matches slicing both whole blocklists at limit $limit, offset $offset', async ({ limit, offset }) => {
+        const everything = (await Promise.all(blocklist().map(async a => (await a.readBlocklist()).items)))
+            .flat()
+            .sort((a, b) => b.at.localeCompare(a.at));
+        const expected = applyLimit(everything, limit, offset);
+
+        const result = await buildGetBlocklist(blocklist(), { detail: 'full', limit, offset });
+        expect(result.items.map(key)).toEqual(expected.items.map(key));
+        expect(result.total).toBe(expected.total);
     });
 });
 
