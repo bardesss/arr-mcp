@@ -206,6 +206,14 @@ export async function awaitArrCommand(
     commandId: number,
     sleep: (ms: number) => Promise<void> = ms => new Promise(r => setTimeout(r, ms))
 ): Promise<{ status: string; result?: string; message?: string }> {
+    if (!Number.isInteger(commandId) || commandId <= 0) {
+        throw new ServiceError(
+            'UpstreamError',
+            service,
+            `${service} queued the command but returned no command id, so arr-mcp cannot wait for it`,
+            { remedy: "stack_health's `commands` says whether it ran. Do not send it again." }
+        );
+    }
     const deadline = Date.now() + COMMAND_WAIT_MS;
 
     for (;;) {

@@ -203,6 +203,15 @@ describe('awaitArrCommand', () => {
         expect(s.polls()).toBe(3);
     });
 
+    it('refuses to wait on a command the service gave no id for', async () => {
+        const s = sequence([{ id: 9, status: 'completed' }]);
+        await expect(awaitArrCommand(reader(s.impl), 'sonarr', 0, instantly)).rejects.toMatchObject({
+            kind: 'UpstreamError'
+        });
+        await expect(awaitArrCommand(reader(s.impl), 'sonarr', 0, instantly)).rejects.toThrow(/returned no command id/);
+        expect(s.polls()).toBe(0);
+    });
+
     it('stops on a command that failed rather than waiting out the budget', async () => {
         const s = sequence([{ id: 9, status: 'failed', result: 'unsuccessful' }]);
         await expect(awaitArrCommand(reader(s.impl), 'sonarr', 9, instantly)).resolves.toMatchObject({
