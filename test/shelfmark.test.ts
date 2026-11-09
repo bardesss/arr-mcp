@@ -225,11 +225,13 @@ describe('finding a book', () => {
     it('refuses something that is not a book id, and series scopes', async () => {
         const shelfmark = adapter(server() as typeof fetch);
         await expect(shelfmark.findReleases({ id: '42' })).rejects.toMatchObject({ kind: 'NotFound' });
+        await expect(shelfmark.findReleases({ id: ID, season: 1 })).rejects.toMatchObject({ kind: 'NotFound', service: 'shelfmark', remedy: 'Leave out `season` and `episode`.' });
         await expect(shelfmark.findReleases({ id: ID, season: 1 })).rejects.toThrow(/series/);
     });
 
     it('refuses an album rather than searching the whole book', async () => {
         const fetchImpl = server();
+        await expect(adapter(fetchImpl as typeof fetch).findReleases({ id: ID, album: '15' })).rejects.toMatchObject({ kind: 'NotFound', remedy: 'Leave out `album`.' });
         await expect(adapter(fetchImpl as typeof fetch).findReleases({ id: ID, album: '15' })).rejects.toThrow(/Lidarr artist/);
         expect(fetchImpl.mock.calls).toHaveLength(0);
     });
@@ -523,6 +525,7 @@ describe('cancelling and retrying', () => {
         });
 
         it('refuses a password, which a book download has no use for', async () => {
+            await expect(tools(stopped).call('retry_download', { service: 'shelfmark', id: idOf(URL_TASK), password: 'x' })).rejects.toMatchObject({ kind: 'NotFound', remedy: 'Leave out `password`.' });
             await expect(tools(stopped).call('retry_download', { service: 'shelfmark', id: idOf(URL_TASK), password: 'x' })).rejects.toThrow('no archive password');
         });
 

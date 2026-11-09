@@ -197,7 +197,7 @@ export class ShelfmarkAdapter
     }
 
     async #retryRow(id: string, hasPassword: boolean): Promise<FinishedRow> {
-        if (hasPassword) throw new Error('A Shelfmark download has no archive password to supply. Leave out `password`.');
+        if (hasPassword) throw new ServiceError('NotFound', this.id, 'a Shelfmark download has no archive password', { remedy: 'Leave out `password`.' });
         const row = (await this.#finished()).find(r => hashOf(r.taskId) === id);
         if (row === undefined) throw new ServiceError('NotFound', this.id, `no failed or cancelled download has id "${id}"`, { remedy: 'Take the id from a get_history or get_queue row for Shelfmark.' });
         if (row.status === 'complete') throw new ServiceError('NotFound', this.id, 'that download finished, so there is nothing to retry');
@@ -346,8 +346,8 @@ export class ShelfmarkAdapter
      * source that counts nothing says nothing against the file.
      */
     async findReleases(opts: ReleaseScope): Promise<ReleaseCandidate[]> {
-        if (opts.season !== undefined || opts.episode !== undefined) throw new Error('`season` and `episode` are for series. A book has neither.');
-        if (opts.album !== undefined) throw new Error('`album` is for a Lidarr artist. A book has none.');
+        if (opts.season !== undefined || opts.episode !== undefined) throw new ServiceError('NotFound', this.id, '`season` and `episode` are for series, and a book has neither', { remedy: 'Leave out `season` and `episode`.' });
+        if (opts.album !== undefined) throw new ServiceError('NotFound', this.id, '`album` is for a Lidarr artist, and a book has none', { remedy: 'Leave out `album`.' });
         const ranked = [...(await this.#rawReleases(opts.id))].sort((a, b) => (downloadsOf(b) ?? -1) - (downloadsOf(a) ?? -1));
         return ranked.map(raw => {
             const language = str(raw.language);
