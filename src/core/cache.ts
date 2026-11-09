@@ -119,6 +119,8 @@ export type Cached<T> = (() => Promise<T>) & { clear(): void };
 
 /**
  * One in-flight or recent read, shared by every caller until `ttlMs` passes.
+ * The ttl counts from the start of a load, so a load slower than `ttlMs`
+ * is already stale when it resolves and shares nothing.
  * A failed read is dropped at once, so the next caller retries. `clear()`
  * forgets the current read, for a caller that must see fresh data.
  */

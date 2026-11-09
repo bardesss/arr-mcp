@@ -294,4 +294,21 @@ describe('cached', () => {
         await read();
         expect(load).toHaveBeenCalledTimes(2);
     });
+
+    it('keeps a newer read when an older load fails after clear', async () => {
+        let rejectFirst: (e: Error) => void = () => {};
+        const load = vi
+            .fn<() => Promise<string>>()
+            .mockImplementationOnce(() => new Promise<string>((_, reject) => (rejectFirst = reject)))
+            .mockResolvedValue('second');
+        const read = cached(1000, load);
+        const first = read();
+        first.catch(() => {});
+        read.clear();
+        await expect(read()).resolves.toBe('second');
+        rejectFirst(new Error('late'));
+        await expect(first).rejects.toThrow('late');
+        await expect(read()).resolves.toBe('second');
+        expect(load).toHaveBeenCalledTimes(2);
+    });
 });

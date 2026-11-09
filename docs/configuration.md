@@ -470,6 +470,8 @@ do depends on the key:
 | `SHELFMARK_API_KEY_READONLY` | yes | no | no |
 | `SHELFMARK_API_KEY` | yes | yes | yes |
 
+With the read-only key Shelfmark cannot search for books either, so `search_media` shows it as degraded.
+
 Shelfmark's docs treat `SHELFMARK_API_KEY` as a root password, because an admin
 can set a post-download script that the server runs, so storing it here gives
 arr-mcp's config file that reach. Use the read-only key if `stack_health` is all
