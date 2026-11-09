@@ -177,6 +177,21 @@ and each takes `false` for the opposite set. `total` counts the matching rows;
 `cleanuparrDue` and `counts` still describe the whole queue. A download that has
 not finished carries no `seeding`, so no Cleanuparr filter matches it.
 
+### Seed time per tracker
+
+`by_tracker: true` adds `byTracker` to `get_queue`: one entry per tracker
+hostname over the matching rows that are seeding now, with `seeding` (how many),
+`sizeBytes`, `seedingSeconds` (`total`, `median`, `min`) and `noPeers` when some
+seed without peers. Only the hostname is returned, never the announce URL,
+which carries the passkey. A torrent with no working tracker counts under
+`unknown`. The filters apply first, so `category: ["cross-seed-link"]` with
+`by_tracker` shows what cross-seed adds per tracker, and `detail: "minimal"`
+with `limit: 1` keeps the rows out of the way.
+
+`min_seed_days` adds `atRisk` per tracker: torrents a Cleanuparr rule stops or
+deletes (its `dueAt`) before they have seeded that many days, the hit-and-run
+case. arr-mcp cannot know a tracker's minimum, so it is the caller's number.
+
 ## Narrowing a read to one kind
 
 `search_media`, `lookup_media`, `get_queue` and `get_calendar` take an optional
