@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Config } from '../config/schema.ts';
 import { logger } from '../core/logger.ts';
-import { defaultSweepRange, LOOKUP_TIMEOUT_MS, lookupGate, parseSweepRange, requestHost, resolvePrivate } from './addresses.ts';
+import { defaultSweepRange, LOOKUP_CONCURRENCY, LOOKUP_QUEUE_TIMEOUT_MS, LOOKUP_TIMEOUT_MS, lookupGate, type LookupGate, parseSweepRange, requestHost, resolvePrivate } from './addresses.ts';
 import { CATALOG, type CatalogEntry } from './catalog.ts';
 import { matchResults, urlResolver, type ResultRow } from './match.ts';
 import { probeHost, type Found, type ProbeOpts } from './probe.ts';
@@ -34,6 +34,7 @@ export type DiscoveryOpts = {
     timeoutMs?: number;
     sweepTimeoutMs?: number;
     lookupTimeoutMs?: number;
+    lookupQueueTimeoutMs?: number;
     concurrency?: number;
 };
 
@@ -53,7 +54,7 @@ export class Discovery {
     private readonly sweepTimeoutMs: number;
     private readonly lookupTimeoutMs: number;
     private readonly concurrency: number;
-    private readonly lookups = lookupGate();
+    private readonly lookups: LookupGate;
     private state: RunState | undefined;
     /** What the current run found, before matching, so a render can match it against the config as it is then. */
     private finds: Found[] = [];
@@ -67,6 +68,7 @@ export class Discovery {
         // The whole answer, body included, so a cold *arr login page or a Plex on a slow NAS still makes it.
         this.sweepTimeoutMs = opts.sweepTimeoutMs ?? 800;
         this.lookupTimeoutMs = opts.lookupTimeoutMs ?? LOOKUP_TIMEOUT_MS;
+        this.lookups = lookupGate(LOOKUP_CONCURRENCY, opts.lookupQueueTimeoutMs ?? LOOKUP_QUEUE_TIMEOUT_MS);
         // A dead /24 costs one timeout per round: 32 rounds of 800 ms is about 26 s.
         this.concurrency = opts.concurrency ?? 8;
     }

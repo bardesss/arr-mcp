@@ -41,10 +41,21 @@ export const LOOKUP_TIMEOUT_MS = 1000;
 /** How many name lookups may be in flight at once, leaving libuv's pool a thread for other work. */
 export const LOOKUP_CONCURRENCY = 3;
 
-export type LookupGate = { acquire(): Promise<() => void> };
+/**
+ * How long a name may wait for a lookup slot before it is given up as
+ * unresolved. Slots are held until a lookup settles, so a resolver that never
+ * answers (no DNS server reachable) pins all of them; without this bound every
+ * other name would wait forever. Long enough that a working resolver failing
+ * slowly on missing container names still gets through a normal catalog, short
+ * enough that a dead one costs a quick search only a few seconds.
+ */
+export const LOOKUP_QUEUE_TIMEOUT_MS = 4000;
 
-/** A counting gate: `acquire` waits for a free slot and resolves with a one-shot release. */
-export function lookupGate(max: number = LOOKUP_CONCURRENCY): LookupGate {
+/** `acquire` resolves with a one-shot release, or undefined when no slot freed up within the wait. */
+export type LookupGate = { acquire(): Promise<(() => void) | undefined> };
+
+/** A counting gate: `acquire` waits up to `waitMs` for a free slot, in arrival order. */
+export function lookupGate(max: number = LOOKUP_CONCURRENCY, waitMs: number = LOOKUP_QUEUE_TIMEOUT_MS): LookupGate {
   let active = 0;
   const waiting: Array<() => void> = [];
   const grant = (): (() => void) => {
@@ -61,8 +72,17 @@ export function lookupGate(max: number = LOOKUP_CONCURRENCY): LookupGate {
     acquire: () =>
       active < max
         ? Promise.resolve(grant())
-        : new Promise<() => void>((resolve) => {
-            waiting.push(() => resolve(grant()));
+        : new Promise<(() => void) | undefined>((resolve) => {
+            const turn = (): void => {
+              clearTimeout(timer);
+              resolve(grant());
+            };
+            const timer = setTimeout(() => {
+              const at = waiting.indexOf(turn);
+              if (at >= 0) waiting.splice(at, 1);
+              resolve(undefined);
+            }, waitMs);
+            waiting.push(turn);
           }),
   };
 }
@@ -81,6 +101,8 @@ export async function lookupWithin(
   gate?: LookupGate,
 ): Promise<string[] | undefined> {
   const release = gate === undefined ? undefined : await gate.acquire();
+  // No slot in time: the name counts as not resolving, and its lookup never starts.
+  if (gate !== undefined && release === undefined) return undefined;
   // Started inside a promise so a lookup that throws outright counts as a failure too.
   const answer = Promise.resolve()
     .then(() => lookup(host))

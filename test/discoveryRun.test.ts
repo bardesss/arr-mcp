@@ -471,4 +471,18 @@ describe('lookup concurrency', () => {
         await new Discovery({ catalog: many, lookup: counting, probe: async () => [] }).quick(undefined, config);
         expect(max).toBe(3);
     });
+
+    it('finishes in bounded time when no lookup ever settles', async () => {
+        const many = Array.from({ length: 10 }, (_, i) => entry('radarr', 7878, [`name${i}`]));
+        const d = new Discovery({
+            catalog: many,
+            lookup: () => new Promise<string[]>(() => {}),
+            lookupTimeoutMs: 20,
+            lookupQueueTimeoutMs: 60,
+            probe: async () => []
+        });
+        const state = await d.quick('192.168.1.10', config);
+        expect(state.running).toBe(false);
+        expect(state.containersResolved).toBe(0);
+    }, 2000);
 });
