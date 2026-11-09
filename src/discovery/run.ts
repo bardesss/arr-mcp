@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Config } from '../config/schema.ts';
 import { logger } from '../core/logger.ts';
-import { defaultSweepRange, LOOKUP_TIMEOUT_MS, parseSweepRange, requestHost, resolvePrivate } from './addresses.ts';
+import { defaultSweepRange, LOOKUP_TIMEOUT_MS, lookupGate, parseSweepRange, requestHost, resolvePrivate } from './addresses.ts';
 import { CATALOG, type CatalogEntry } from './catalog.ts';
 import { matchResults, urlResolver, type ResultRow } from './match.ts';
 import { probeHost, type Found, type ProbeOpts } from './probe.ts';
@@ -53,6 +53,7 @@ export class Discovery {
     private readonly sweepTimeoutMs: number;
     private readonly lookupTimeoutMs: number;
     private readonly concurrency: number;
+    private readonly lookups = lookupGate();
     private state: RunState | undefined;
     /** What the current run found, before matching, so a render can match it against the config as it is then. */
     private finds: Found[] = [];
@@ -84,7 +85,7 @@ export class Discovery {
         if (this.state === undefined) return undefined;
         const out = snapshot(this.state);
         try {
-            out.rows = await matchResults(this.finds, config, urlResolver(this.lookup, this.lookupTimeoutMs));
+            out.rows = await matchResults(this.finds, config, urlResolver(this.lookup, this.lookupTimeoutMs, this.lookups));
         } catch (err) {
             logger.warn({ err }, 'service discovery could not match against the current config');
         }
@@ -92,7 +93,7 @@ export class Discovery {
     }
 
     private resolve(host: string) {
-        return resolvePrivate(host, this.lookup, this.lookupTimeoutMs);
+        return resolvePrivate(host, this.lookup, this.lookupTimeoutMs, this.lookups);
     }
 
     async quick(hostHeader: string | undefined, config: Config): Promise<RunState> {
@@ -141,7 +142,7 @@ export class Discovery {
             });
 
             await Promise.all([hostJob, ...containerJobs]);
-            state.rows = await matchResults(finds, config, urlResolver(this.lookup, this.lookupTimeoutMs));
+            state.rows = await matchResults(finds, config, urlResolver(this.lookup, this.lookupTimeoutMs, this.lookups));
         } catch (err) {
             state.failed = true;
             logger.error({ err }, 'service discovery quick failed');
@@ -203,7 +204,7 @@ export class Discovery {
 
     private async sweep(state: RunState, addresses: string[], config: Config): Promise<void> {
         const finds = this.finds;
-        const resolve = urlResolver(this.lookup, this.lookupTimeoutMs);
+        const resolve = urlResolver(this.lookup, this.lookupTimeoutMs, this.lookups);
         // Matches run one after another so an older answer never overwrites a newer one.
         let chain: Promise<void> = Promise.resolve();
         const rematch = (): void => {

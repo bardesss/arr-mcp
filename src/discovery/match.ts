@@ -2,7 +2,7 @@ import { lookup as dnsLookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { isMultiInstance, listInstances } from '../config/instances.ts';
 import type { Config } from '../config/schema.ts';
-import { LOOKUP_TIMEOUT_MS, lookupWithin } from './addresses.ts';
+import { LOOKUP_TIMEOUT_MS, lookupWithin, type LookupGate } from './addresses.ts';
 import type { Found } from './probe.ts';
 
 export type ResultRow = Found & {
@@ -21,7 +21,8 @@ const defaultLookup = async (host: string): Promise<string[]> => (await dnsLooku
  */
 export function urlResolver(
     lookup: (host: string) => Promise<string[]> = defaultLookup,
-    timeoutMs: number = LOOKUP_TIMEOUT_MS
+    timeoutMs: number = LOOKUP_TIMEOUT_MS,
+    gate?: LookupGate
 ): (url: string) => Promise<string> {
     return async url => {
         let parsed: URL;
@@ -33,7 +34,7 @@ export function urlResolver(
         let host = parsed.hostname.replace(/^\[|\]$/g, '');
         if (isIP(host) === 0) {
             // A name that does not resolve in time is kept as written.
-            const addresses = await lookupWithin(host, lookup, timeoutMs);
+            const addresses = await lookupWithin(host, lookup, timeoutMs, gate);
             if (addresses?.[0] !== undefined) host = addresses[0];
         }
         const port = parsed.port || (parsed.protocol === 'https:' ? '443' : '80');

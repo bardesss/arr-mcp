@@ -391,9 +391,9 @@ describe('slow lookups', () => {
         expect(calls).toContain('192.168.1.10');
     });
 
-    it('finishes in a few seconds with the defaults when no container name ever resolves', async () => {
+    it('finishes in a few seconds with the defaults when no container name resolves and each lookup is slow to fail', async () => {
         const many = Array.from({ length: 22 }, (_, i) => entry('radarr', 7878, [`name${i}`]));
-        const d = new Discovery({ catalog: many, lookup: () => new Promise<string[]>(() => {}), probe: async () => [] });
+        const d = new Discovery({ catalog: many, lookup: () => new Promise<string[]>((_, reject) => setTimeout(() => reject(new Error('ENOTFOUND')), 200)), probe: async () => [] });
         const started = Date.now();
         const state = await d.quick('192.168.1.10', config);
         expect(state.running).toBe(false);
@@ -452,5 +452,23 @@ describe('a sweep after a quick search', () => {
         d.startSweep('192.168.1.0/30', config);
         await vi.waitFor(() => expect(d.current()?.running).toBe(false));
         expect(d.current()?.rows.map(r => r.url).sort()).toEqual(['http://192.168.1.1:7878', 'http://192.168.1.1:8989']);
+    });
+});
+
+describe('lookup concurrency', () => {
+    it('resolves at most three container names at once', async () => {
+        const names = ['a', 'b', 'c', 'd', 'e', 'f'];
+        const many = names.map((n, i) => entry('radarr', 7000 + i, [n]));
+        let now = 0;
+        let max = 0;
+        const counting = async (): Promise<string[]> => {
+            now += 1;
+            max = Math.max(max, now);
+            await new Promise(r => setTimeout(r, 10));
+            now -= 1;
+            throw new Error('ENOTFOUND');
+        };
+        await new Discovery({ catalog: many, lookup: counting, probe: async () => [] }).quick(undefined, config);
+        expect(max).toBe(3);
     });
 });
