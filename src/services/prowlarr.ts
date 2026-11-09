@@ -4,7 +4,7 @@ import { apiKeyHeader } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
 import { ServiceHttp } from '../core/http.ts';
-import { readArrCommands } from './arrCommands.ts';
+import { postArrCommand, readArrCommands } from './arrCommands.ts';
 import { readSeedCriteria } from './arrSeedCriteria.ts';
 import { arrRecentLogs } from './arrSystem.ts';
 import type { components } from './generated/prowlarr.ts';
@@ -142,15 +142,7 @@ export class ProwlarrAdapter
      * v1, like everything else here.
      */
     async startLibraryScan(): Promise<CommandHandle> {
-        const queued = await this.#http.post<{ id?: number; name?: string; status?: string }>('/api/v1/command', {
-            name: 'ApplicationIndexerSync'
-        });
-        return {
-            service: this.id,
-            commandId: queued.id ?? 0,
-            name: queued.name ?? 'ApplicationIndexerSync',
-            ...(typeof queued.status === 'string' ? { status: queued.status } : {})
-        };
+        return postArrCommand(this.#http, this.id, { name: 'ApplicationIndexerSync' });
     }
 
     async syncIndexers(): Promise<CommandHandle> {

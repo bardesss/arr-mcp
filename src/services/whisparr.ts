@@ -21,7 +21,7 @@ import {
     WHISPARR_ADD
 } from './arrAdd.ts';
 import { readArrProfileDiagnostics } from './arrProfiles.ts';
-import { arrItemId, refreshArrItem, renameArrItem } from './arrCommands.ts';
+import { arrItemId, postArrCommand, refreshArrItem, renameArrItem } from './arrCommands.ts';
 import { findArrReleases, grabArrRelease } from './arrRelease.ts';
 import { arrDiskSpace, arrFailedHealthChecks, arrScanState, arrStartLibraryScan, arrVersion } from './arrSystem.ts';
 import {
@@ -98,8 +98,6 @@ type RawSeries = {
         statistics?: { episodeFileCount?: number; episodeCount?: number; totalEpisodeCount?: number };
     }[];
 };
-
-type RawCommand = { id?: number; name?: string; status?: string };
 
 /**
  * Two fields Sonarr has and Whisparr does not, both confirmed absent from every
@@ -362,14 +360,7 @@ export class WhisparrAdapter
                   ? { name: 'SeasonSearch', seriesId, seasonNumber: target.season }
                   : { name: 'SeriesSearch', seriesId };
 
-        const command = await this.#http.post<RawCommand>('/api/v3/command', payload);
-
-        return {
-            service: this.id,
-            commandId: command.id ?? 0,
-            name: command.name ?? payload.name,
-            ...(typeof command.status === 'string' ? { status: command.status } : {})
-        };
+        return postArrCommand(this.#http, this.id, payload);
     }
 
     async refreshItem(id: string): Promise<CommandHandle> {

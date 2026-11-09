@@ -21,7 +21,7 @@ import {
 import { readArrProfileDiagnostics } from './arrProfiles.ts';
 import { readArrHistory } from './arrHistory.ts';
 import { traceArrDownload } from './arrDownloadTrace.ts';
-import { arrItemId, readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
+import { arrItemId, postArrCommand, readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
 import {
     listArrImportCandidates,
     planArrEpisodeRemap,
@@ -37,7 +37,6 @@ import { readArrWanted } from './arrWanted.ts';
 import { audioLanguagesByFileId } from './arrMediaInfo.ts';
 import { flattenSeriesRating, type RawRating } from './arrRatings.ts';
 import { arrDiskSpace, arrFailedHealthChecks, arrRecentLogs, arrScanState, arrStartLibraryScan, arrVersion } from './arrSystem.ts';
-import type { components } from './generated/sonarr.ts';
 import {
     diagnoseConnection,
     type BlocklistEntry,
@@ -154,8 +153,6 @@ type RawEpisode = {
 };
 
 type RawEpisodeFile = { id?: number; seasonNumber?: number; size?: number };
-
-type RawCommand = components['schemas']['CommandResource'];
 
 /**
  * The task that rescans the series library, confirmed against a live Sonarr
@@ -432,14 +429,7 @@ export class SonarrAdapter
                   ? { name: 'SeasonSearch', seriesId, seasonNumber: target.season }
                   : { name: 'SeriesSearch', seriesId };
 
-        const command = await this.#http.post<RawCommand>('/api/v3/command', payload);
-
-        return {
-            service: this.id,
-            commandId: command.id ?? 0,
-            name: command.name ?? payload.name,
-            ...(typeof command.status === 'string' ? { status: command.status } : {})
-        };
+        return postArrCommand(this.#http, this.id, payload);
     }
 
     async getMediaDetails(id: string, opts: { includeEpisodes: boolean; episodeLimit: number }): Promise<MediaDetails> {
