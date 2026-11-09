@@ -9,7 +9,7 @@
 **Radarr · Sonarr · Whisparr · Lidarr · Prowlarr · Bazarr · Jellyfin · Plex · Seerr · SABnzbd · NZBGet · Transmission · qBittorrent · Profilarr · Cleanuparr · Reclaimerr · Dispatcharr · Shelfmark · Grimmory**
 
 [![Release](https://img.shields.io/github/v/release/bardesss/arr-mcp?style=flat-square&color=6f42c1)](https://github.com/bardesss/arr-mcp/releases)
-[![CI](https://img.shields.io/github/actions/workflow/status/bardesss/arr-mcp/ci.yml?branch=main&style=flat-square)](https://github.com/bardesss/arr-mcp/actions)
+[![CI](https://img.shields.io/github/actions/workflow/status/bardesss/arr-mcp/release.yml?branch=main&label=build&style=flat-square)](https://github.com/bardesss/arr-mcp/actions)
 [![Image](https://img.shields.io/badge/ghcr.io-arr--mcp-2496ed?style=flat-square&logo=docker&logoColor=white)](https://github.com/bardesss/arr-mcp/pkgs/container/arr-mcp)
 [![Platforms](https://img.shields.io/badge/platforms-amd64%20%C2%B7%20arm64-555?style=flat-square)](https://github.com/bardesss/arr-mcp/pkgs/container/arr-mcp)
 [![Licence](https://img.shields.io/badge/licence-MIT-green?style=flat-square)](LICENSE)

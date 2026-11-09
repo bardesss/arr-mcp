@@ -2,8 +2,6 @@ name: CI
 
 on:
   pull_request:
-  push:
-    branches: [main]
 
 permissions:
   contents: read
@@ -46,6 +44,12 @@ jobs:
           push: false
           load: true
           tags: arr-mcp:amd64-smoke
+          # Reads release.yml's cache too: a PR may read only its own caches and
+          # main's, and release.yml is the one workflow that writes from main.
+          cache-from: |
+            type=gha,scope=amd64
+            type=gha,scope=release
+          cache-to: type=gha,mode=max,scope=amd64,ignore-error=true
 
       - name: Smoke-test the native-platform native addon
         run: |
@@ -66,10 +70,12 @@ jobs:
           load: true
           platforms: linux/arm64
           tags: arr-mcp:arm64-smoke
-          cache-from: type=gha
+          cache-from: |
+            type=gha,scope=arm64
+            type=gha,scope=release
           # A run whose token cannot write the cache (a PR event delivered after
           # the PR closed) failed the build on the write. A cache is optional.
-          cache-to: type=gha,mode=max,ignore-error=true
+          cache-to: type=gha,mode=max,scope=arm64,ignore-error=true
 
       - name: Smoke-test the arm64 native addon
         run: |

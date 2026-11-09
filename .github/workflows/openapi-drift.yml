@@ -78,16 +78,19 @@ jobs:
       - name: Summarise
         id: verdict
         if: steps.drift.outputs.changed == 'true'
+        env:
+          CONTRACT: ${{ steps.contract.outcome }}
+          TYPECHECK: ${{ steps.typecheck.outcome }}
         run: |
           {
-            if [ "${{ steps.contract.outcome }}" = "success" ] \
-            && [ "${{ steps.typecheck.outcome }}" = "success" ]; then
+            if [ "$CONTRACT" = "success" ] \
+            && [ "$TYPECHECK" = "success" ]; then
               echo "The nightly re-fetch found spec changes, and every field this"
               echo "project reads is still declared. Additive drift; review and merge."
             else
               echo "**Upstream shipped a change this project does not survive.**"
               echo
-              if [ "${{ steps.contract.outcome }}" = "failure" ]; then
+              if [ "$CONTRACT" = "failure" ]; then
                 echo "The contract test failed against the newly fetched specs — a field"
                 echo "an adapter reads is no longer declared. Failing entries:"
                 echo
@@ -96,7 +99,7 @@ jobs:
                 echo '```'
                 echo
               fi
-              if [ "${{ steps.typecheck.outcome }}" = "failure" ]; then
+              if [ "$TYPECHECK" = "failure" ]; then
                 echo "The project no longer typechecks against the regenerated types —"
                 echo "a field an adapter reads changed shape. Failing entries:"
                 echo

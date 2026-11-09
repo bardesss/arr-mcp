@@ -4,12 +4,7 @@ on:
   push:
     branches: [main]
 
-permissions:
-  contents: write
-  pull-requests: write
-  packages: write
-  id-token: write
-  attestations: write
+permissions: {}
 
 concurrency:
   group: release
@@ -18,6 +13,9 @@ concurrency:
 jobs:
   release-please:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     outputs:
       released: ${{ steps.rp.outputs.release_created }}
       tag: ${{ steps.rp.outputs.tag_name }}
@@ -70,6 +68,11 @@ jobs:
     # every version tag depend on this one.
     if: needs.release-please.outputs.released == 'true' || needs.release-please.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
@@ -104,12 +107,13 @@ jobs:
       # fail loudly rather than discovering it after the fact.
       - name: Assert the release produced version tags
         if: needs.release-please.outputs.released == 'true'
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+          VERSION: ${{ needs.release-please.outputs.version }}
         run: |
-          tags='${{ steps.meta.outputs.tags }}'
-          echo "$tags"
-          version='${{ needs.release-please.outputs.version }}'
-          if ! echo "$tags" | grep -q ":${version}$"; then
-            echo "::error::Release ${version} computed no ${version} image tag — got: ${tags}"
+          echo "$TAGS"
+          if ! echo "$TAGS" | grep -q ":${VERSION}$"; then
+            echo "::error::Release ${VERSION} computed no ${VERSION} image tag — got: ${TAGS}"
             exit 1
           fi
 
@@ -124,6 +128,10 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           sbom: true
           provenance: mode=max
+          # One scope: this builds both platforms in a single buildx call, which
+          # writes one cache. ci.yml and preview.yml read it.
+          cache-from: type=gha,scope=release
+          cache-to: type=gha,mode=max,scope=release,ignore-error=true
           build-args: |
             ARR_MCP_VERSION=${{ needs.release-please.outputs.version || 'main' }}
 
@@ -154,8 +162,10 @@ jobs:
       # a string it cannot rewrite — so derive both from the release version
       # rather than trusting the file to name the tag this run just pushed.
       - name: Pin server.json to this release
+        env:
+          VERSION: ${{ needs.release-please.outputs.version }}
         run: |
-          v='${{ needs.release-please.outputs.version }}'
+          v="$VERSION"
           jq --arg v "$v" '.version = $v | .packages[0].identifier = "ghcr.io/bardesss/arr-mcp:" + $v' \
             server.json > server.tmp && mv server.tmp server.json
           cat server.json
