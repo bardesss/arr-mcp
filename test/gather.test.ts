@@ -128,4 +128,9 @@ describe('mapLimit', () => {
         expect(out).toEqual(inputs.map(n => n * 2));
         expect(peak).toBe(3);
     });
+
+    it('still runs every item when the limit is below one', async () => {
+        const out = await mapLimit([1, 2, 3], 0, async n => n * 2);
+        expect(out).toEqual([2, 4, 6]);
+    });
 });

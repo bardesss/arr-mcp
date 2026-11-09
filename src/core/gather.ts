@@ -87,6 +87,6 @@ export async function mapLimit<T, R>(items: readonly T[], limit: number, fn: (it
             results[index] = await fn(items[index] as T);
         }
     };
-    await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+    await Promise.all(Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, worker));
     return results;
 }
