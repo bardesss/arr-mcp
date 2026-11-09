@@ -125,7 +125,9 @@ describe('delete_media on Lidarr', () => {
         expect(first.structuredContent.summary).toContain('Artist 1');
         expect(said).toContain('Deletes 1.0 GB from disk');
         expect(said).toContain('Deletes every album of the artist.');
-        expect(said).toContain("Adds an import list exclusion, so Lidarr's import lists will not add it again.");
+        expect(said).toContain(
+            "Adds an import list exclusion, so Lidarr's import lists will not add it again until one of its albums is added, by hand or through Lidarr's API."
+        );
         expect(said).not.toContain('or request');
         expect(sent.some(s => s.method === 'DELETE')).toBe(false);
 

@@ -181,6 +181,26 @@ describe('write tool harness — preview and confirm', () => {
         expect(content[0]?.text).toContain('not a confirmation token issued by this server');
     });
 
+    // Every rejection that reissues comes back as the fresh preview. A client
+    // that drops structuredContent (#234) must still read it before the new
+    // token, above all when what the write acts on has moved since the old one.
+    it('puts the fresh preview\'s summary and effects in the text of a rejection', async () => {
+        const { content } = await harness.call('delete_media', { id: '5', confirm: 'nonsense' });
+        const text = content[0]?.text ?? '';
+
+        expect(text).toContain(PLAN.summary);
+        for (const effect of PLAN.effects) expect(text).toContain(`- ${effect}`);
+        expect(text.indexOf(PLAN.effects[1] ?? '')).toBeLessThan(text.indexOf('Do not resend'));
+    });
+
+    it('leaves no empty list in a rejection whose preview has no effects', async () => {
+        const bare = buildHarness({ plan: { ...PLAN, effects: [] } });
+        const { content } = await bare.call('delete_media', { id: '5', confirm: 'nonsense' });
+
+        expect(content[0]?.text).toContain(`${PLAN.summary}\n\nDo not resend the rejected one.`);
+        expect(content[0]?.text).not.toContain('\n- ');
+    });
+
     it('gives one next action on a rejection, not two', async () => {
         const { content, structuredContent } = await harness.call('delete_media', { id: '5', confirm: 'nonsense' });
         const text = content[0]?.text ?? '';

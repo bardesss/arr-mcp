@@ -41,7 +41,7 @@ off until you turn them on — see [writes](writes.md).
 | `request_media` | Ask Seerr for this, through its approval queue and quotas |
 | `add_media` | Add this film or series and start looking for it; on Lidarr, an artist |
 | `update_media` | Change the profile, folder, monitoring or tags of something already there, and a Lidarr artist's metadata profile; on Grimmory, a book's title, authors, series and categories |
-| `fix_metadata` | Repair one item whose metadata does not describe its files; on Grimmory, a book, from its metadata providers |
+| `fix_metadata` | Repair one item whose metadata does not describe its files; on Grimmory, a book, from its metadata providers; on Lidarr, an artist's file tags |
 | `set_watched` | Mark this watched or unwatched in Jellyfin; on Grimmory, mark a book read or unread |
 | `sync_database` | Have Profilarr pull its database from git again |
 | `manage_indexer` | Add a public indexer, change its priority, profile, tags or seeding, stop grabbing from it, or delete it |
@@ -763,7 +763,7 @@ command id and return immediately, and until now the only way to know whether
 one had finished was to wait and re-read the queue.
 
 Followable means the tasks this server can start — searches, scans, refreshes,
-renames, imports, the Prowlarr sync. A live instance also runs its own
+renames, retags, imports, the Prowlarr sync. A live instance also runs its own
 housekeeping every minute, and it is left out: measured on a quiet stack the
 unfiltered window held 37 rows, every one of them a poller, which is how the
 one row you asked about gets lost. Filtering on the command's `trigger` would
@@ -1417,12 +1417,12 @@ setup it will not read as English.
 same vocabulary. It has three imports — `artistFolderImported`,
 `trackFileImported` and `downloadImported` — and `albumImportIncomplete`
 counts as `failed` beside `downloadFailed`: a download that arrived but could
-not all be imported. `trackFileRetagged` has no counterpart and reads
-`unknown`, with `rawEvent` saying what it was. An `event_type` filter on
-`imported` or `failed` sends Lidarr every code for that type, so one album's
-`downloadImported` row is not dropped behind its tracks' `trackFileImported`
-rows. `id` with `service: "lidarr"` is an artist id, scoped through Lidarr's
-`artistIds`, which Lidarr 2.1.3 (the version floor) applies server-side.
+not all be imported. `trackFileRetagged` reads `retagged`, a file whose tags
+Lidarr rewrote. An `event_type` filter on `imported` or `failed` sends Lidarr
+every code for that type, so one album's `downloadImported` row is not dropped
+behind its tracks' `trackFileImported` rows. `id` with `service: "lidarr"` is an
+artist id, scoped through Lidarr's `artistIds`, which Lidarr 2.1.3 (the version
+floor) applies server-side.
 
 ### Cleanuparr
 
@@ -2051,7 +2051,8 @@ should be.
 
 A Grimmory book is repaired too, by its id and through Grimmory's own metadata
 providers; see [A Grimmory book](#a-grimmory-book) below. A title that matches
-only a book is refused, and the refusal names the id form.
+only a book is refused, and the refusal names the id form. Music is repaired
+through Lidarr; see [Music, through Lidarr](#music-through-lidarr).
 
 Give a film or series title as `query`, resolved through the library index the
 same way `get_media_details` resolves one, or the `id` that
@@ -2300,6 +2301,43 @@ wrong was repaired once its locked date was unlocked. Two series rematched
 cleanly and kept their wrong episode titles, so a rematch does not fix every
 series finding yet, and the default stays off until it does. Reports on #312
 are still welcome.
+
+### Music, through Lidarr
+
+A media server reads its music metadata from the tags inside the files, so music
+is repaired by rewriting those tags from Lidarr's metadata rather than through
+the media server. Give `id` as `lidarr:<artistId>`, the artist's
+`acquisition.id`; on a named instance the prefix is its `acquisition.service`,
+such as `lidarr/hd:<artistId>`. An artist asked for by name is not retagged: the
+permission check runs on the arguments before anything is resolved, so a name is
+checked against the media server. A `dry_run` by name answers with the artist's
+`lidarr:` id.
+
+The preview is Lidarr's own retag preview: each audio file whose embedded tags
+differ from Lidarr's metadata, field by field, with its track file id. Lidarr
+leaves out a file linked to several tracks or to none, and one it cannot read.
+`files` narrows the retag to chosen ids. The token binds the files previewed,
+the albums they are on (where the check after the retag reads) and the Scrub
+Existing Tags setting; the values written are Lidarr's metadata as it stands
+when the retag runs. Applying runs Lidarr's `RetagFiles` on the files regardless
+of its Tag Audio Files with Metadata setting, as Lidarr's own Retag button does.
+With its Scrub Existing Tags setting on, every tag Lidarr does not write itself
+is deleted first, and the preview leads with that, as it does when Lidarr does
+not report the setting. It waits for the command, then reads the preview again
+for the albums those files are on (Lidarr's `albumId`, so it reads no other
+album's files), or the whole artist when Lidarr gave a file no album: a file no
+longer listed counts as fixed, and the result says how many still differ. A file
+Lidarr could not write still differs, and the result reads `NOT FIXED`; with
+Scrub on, the file may have lost its tags. The result reads `NOT VERIFIED` when
+that second preview cannot be read, when the command failed and yet no file
+still differs, and when Lidarr queued the command but arr-mcp stopped waiting
+for it. That command may still run: `stack_health`'s `commands` shows when it
+ends, and a new preview then shows which files still differ. Lidarr writes a
+`retagged` row in `get_history` for each file it retagged, and for a file it
+failed to write too, so the row alone does not show the write happened.
+
+The music repair needs no media server and is not gated by
+`allow_metadata_repair`; it needs `destructive` on the Lidarr instance.
 
 ## `get_profile_issues`
 
@@ -2860,8 +2898,10 @@ With `delete_files: true` Lidarr deletes the artist's folder, through its
 recycle bin when one is set, unless that folder holds another artist's or is the
 same as one, when it deletes no files at all. The artist's history goes with it,
 and Lidarr's events are not in arr-mcp's event log, so only arr-mcp's audit
-trail keeps a record of the delete. The preview runs none of the cross-checks
-(see [writes](writes.md)).
+trail keeps a record of the delete. `add_import_exclusion` keeps Lidarr's import
+lists from adding the artist again until one of its albums is added, by hand or
+through Lidarr's API, which deletes the exclusion. The preview runs none of the
+cross-checks (see [writes](writes.md)).
 
 ### Grimmory
 

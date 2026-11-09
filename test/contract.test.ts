@@ -553,6 +553,21 @@ const CONTRACTS: Record<string, ServiceContract> = {
                 // with the artists), so only the recorded response is checked.
                 fixture: 'test/fixtures/lidarr/artist-editor-update.json',
                 fields: ['id', 'artistName', 'monitored', 'qualityProfileId', 'metadataProfileId', 'monitorNewItems', 'path', 'tags']
+            },
+            {
+                // `fix_metadata`'s music preview, and its check after the retag.
+                // `oldValue` is left out when the file lacked the tag, so it is
+                // not a field every change carries.
+                path: '/api/v1/retag',
+                method: 'get',
+                fixture: 'test/fixtures/lidarr/retag.json',
+                fields: ['trackFileId', 'albumId', 'path', 'changes.field', 'changes.newValue']
+            },
+            {
+                path: '/api/v1/config/metadataprovider',
+                method: 'get',
+                fixture: 'test/fixtures/lidarr/config-metadataprovider.json',
+                fields: ['scrubAudioTags', 'writeAudioTags']
             }
         ]
     },

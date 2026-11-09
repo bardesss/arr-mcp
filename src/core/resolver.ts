@@ -317,6 +317,17 @@ export const isFilmOrSeries = (item: MergedItem): item is FilmOrSeries =>
 
 export const isArrItem = (item: MergedItem): item is ArrItem => item.kind !== 'book';
 
+/** An artist refusal that keeps the artist, so a tool that repairs music by id can name it. */
+export class ArtistTitleRefusal extends Error {
+    /** The library row the title matched. */
+    readonly artist: MergedItem;
+
+    constructor(message: string, artist: MergedItem) {
+        super(message);
+        this.artist = artist;
+    }
+}
+
 /**
  * The refusal for an artist that reached a film-and-series reader.
  *
@@ -324,9 +335,10 @@ export const isArrItem = (item: MergedItem): item is ArrItem => item.kind !== 'b
  * artist, which is where an album id comes from. A pointer to `get_library`
  * alone sent a caller after an album id no library row carries.
  */
-export const artistRefusal = (name: string): Error =>
-    new Error(
-        `"${name}" is a Lidarr artist, and this tool reads the film and series chain. For its albums and their ids, use get_media_details with service: "lidarr", the artist id and detail: "full". get_library with kind: "artist" lists artists with their album count, profile and file state.`
+export const artistRefusal = (name: string, artist: MergedItem): Error =>
+    new ArtistTitleRefusal(
+        `"${name}" is a Lidarr artist, and this tool reads the film and series chain. For its albums and their ids, use get_media_details with service: "lidarr", the artist id and detail: "full". get_library with kind: "artist" lists artists with their album count, profile and file state.`,
+        artist
     );
 
 /** A book refusal that keeps the book id, so a tool that repairs books by id can name it. */
@@ -370,7 +382,7 @@ export function filmOrSeriesMatch(hits: readonly MergedItem[], query: string): F
     const best = hits.find(isFilmOrSeries) ?? hits.find(isArrItem) ?? hits[0];
     if (best === undefined) return undefined;
     if (best.kind === 'book') throw bookRefusal(query, best.acquisition?.id);
-    if (!isFilmOrSeries(best)) throw artistRefusal(query);
+    if (!isFilmOrSeries(best)) throw artistRefusal(query, best);
     return best;
 }
 

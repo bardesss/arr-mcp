@@ -16,17 +16,21 @@ import { fenceText } from '../core/fence.ts';
 import { logger } from '../core/logger.ts';
 import { unfenced } from '../core/titleMatch.ts';
 import type { IdentityResolver } from '../core/identity.ts';
-import { BookTitleRefusal, isFilmOrSeries, type FilmOrSeries } from '../core/resolver.ts';
+import { ArtistTitleRefusal, BookTitleRefusal, filmOrSeriesMatch, isFilmOrSeries, type FilmOrSeries, type MergedItem } from '../core/resolver.ts';
 import {
     hasMediaDetails,
     hasMetadataInspect,
     hasMetadataRepair,
+    hasTagRepair,
     type BookFields,
     type BookMetadataCapable,
     type BookSearch,
+    type MediaDetailCapable,
     type MetadataInspectCapable,
     type MetadataRepairCapable,
-    type ServiceAdapter
+    type RetagFile,
+    type ServiceAdapter,
+    type TagRepairCapable
 } from '../services/types.ts';
 import { bestCandidate, describeBookChange, diffBookFields, FIX_FIELDS, normaliseIsbn } from './bookMetadata.ts';
 import { buildResolvedMediaDetails } from './getMediaDetails.ts';
@@ -90,6 +94,179 @@ const withPlexGate = (source: PermissionSource, adapters: readonly ServiceAdapte
     };
 };
 
+type Lidarr = ServiceAdapter & TagRepairCapable & MediaDetailCapable;
+
+/**
+ * `lidarr:42` names a Lidarr artist, whose music is repaired by rewriting the
+ * tags in its files; any other id is a media-server item. Read from the
+ * arguments alone, so the permission check sees which service is written to
+ * before anything is resolved.
+ */
+const lidarrTarget = (music: readonly ServiceAdapter[], id: string | undefined): { adapter: Lidarr; artistId: string } | undefined => {
+    if (id === undefined) return undefined;
+    const adapter = music.find((a): a is Lidarr => hasTagRepair(a) && hasMediaDetails(a) && id.startsWith(`${a.id}:`));
+    return adapter === undefined ? undefined : { adapter, artistId: id.slice(adapter.id.length + 1) };
+};
+
+/**
+ * An artist asked for by name. The fix is in Lidarr, by id: a title only says
+ * which service it belongs to after resolving it, and the permission check
+ * has already run on the arguments by then.
+ */
+const artistByName = (item: MergedItem, music: readonly ServiceAdapter[]): Error => {
+    const { service, id } = item.acquisition ?? {};
+    const lidarr = music.find(a => a.id === service && hasTagRepair(a));
+    const lidarrId = lidarr !== undefined && id !== undefined ? `${lidarr.id}:${id}` : undefined;
+    return new Error(
+        lidarrId === undefined
+            ? `"${item.title}" is an artist no Lidarr manages. fix_metadata repairs music by rewriting the tags in its files from Lidarr, and a media server's own music metadata is not something it changes.`
+            : `"${item.title}" is an artist. Its music is repaired by rewriting the tags in its files from Lidarr: call fix_metadata with id "${lidarrId}".`
+    );
+};
+
+// Unfenced before the split and fenced again after, rather than split as it
+// arrives: the closing marker `<</>>` contains a slash, so splitting
+// the fenced string on path separators returns the tail of the marker instead
+// of the filename. Re-fencing keeps the guarantee that server-supplied text is
+// labelled wherever it is printed.
+const fileName = (path: string, service: string, field = 'path'): string => {
+    const raw = unfenced(path);
+    return fenceText(raw.split(/[/\\]/).at(-1) ?? raw, { service, field });
+};
+
+/** An absent tag reads as empty. Printed bare, "Genres Rock → " looks cut off. */
+const tagValue = (v: string): string => (unfenced(v) === '' ? '(empty)' : v);
+
+const describeRetag = (f: RetagFile, service: string): string =>
+    `${fileName(f.path, service)} (#${f.trackFileId}): ${f.changes.map(c => `${c.field} ${tagValue(c.oldValue)} → ${tagValue(c.newValue)}`).join('; ')}`;
+
+async function planRetag(adapter: Lidarr, artistId: string, files: readonly number[] | undefined): Promise<WritePlan> {
+    // The artist is read too: Lidarr previews an unknown artist as an empty
+    // list, which would otherwise read as "nothing to fix".
+    const [artist, preview, settings] = await Promise.all([
+        adapter.getMediaDetails(artistId, { includeEpisodes: false, episodeLimit: 0 }),
+        adapter.previewRetag(artistId),
+        adapter.readTagSettings()
+    ]);
+    const target = `${adapter.id}:${artistId}`;
+
+    const missing = (files ?? []).filter(id => !preview.some(f => f.trackFileId === id));
+    if (missing.length > 0) {
+        const which = missing.length === 1 ? `track file ${missing[0]} has` : `track files ${missing.join(', ')} have`;
+        throw new ServiceError('NotFound', adapter.id, `${which} no tag differences under ${artist.title}`, {
+            remedy:
+                (missing.length === 1
+                    ? "Either its tags already match Lidarr's, it is not one of this artist's files, or Lidarr leaves it"
+                    : "Either their tags already match Lidarr's, they are not this artist's files, or Lidarr leaves them") +
+                ' out of its retag preview, as it does any file linked to several tracks or to none, or that it cannot read. Preview without `files` to see which ones differ.'
+        });
+    }
+    const selected = files === undefined ? preview : preview.filter(f => files.includes(f.trackFileId));
+    if (selected.length === 0) {
+        return {
+            target,
+            summary: `Lidarr's retag preview lists no file under ${artist.title} whose tags differ from its metadata. It leaves out a file linked to several tracks or to none, or that it cannot read.`,
+            effects: [],
+            noop: true
+        };
+    }
+
+    const n = selected.length;
+    const these = n === 1 ? 'this file' : 'these files';
+    const changes = selected.reduce((sum, f) => sum + f.changes.length, 0);
+    return {
+        target,
+        summary: `Rewrite the embedded tags in ${n} of ${artist.title}'s files from Lidarr's metadata (${changes} field${changes === 1 ? '' : 's'}).`,
+        effects: [
+            ...(settings.scrubAudioTags === false
+                ? []
+                : [
+                      settings.scrubAudioTags === true
+                          ? `Lidarr's Scrub Existing Tags setting is on: every tag Lidarr does not write itself (ReplayGain, comments, other players' ratings) is deleted from ${these} first, and the list below does not show those.`
+                          : `Lidarr did not say whether its Scrub Existing Tags setting is on. If it is, every tag Lidarr does not write itself (ReplayGain, comments, other players' ratings) is deleted from ${these} first, and the list below does not show those.`
+                  ]),
+            `Rewrites the tags inside ${n} audio file${n === 1 ? '' : 's'} on disk. Irreversible: Lidarr's history records the change, but nothing writes the old values back.`,
+            `Runs regardless of Lidarr's Tag Audio Files with Metadata setting (now \`${settings.writeAudioTags}\`).`,
+            `A media server shows the new tags after its next scan of ${these}; trigger_scan on it to pick them up now.`,
+            ...selected.slice(0, EXAMPLE_LIMIT).map(f => describeRetag(f, adapter.id)),
+            ...(n > EXAMPLE_LIMIT ? [`…and ${n - EXAMPLE_LIMIT} more.`] : [])
+        ],
+        // The files, not "whatever differs at apply time", and the setting that
+        // decides whether other tags are wiped. Not the values: Lidarr writes
+        // its metadata as it stands at apply time, as a Jellyfin or Plex repair
+        // takes the provider's. `albums` is where the check after the retag
+        // looks, or the whole artist when a row came without one.
+        args: {
+            kind: 'retag',
+            artistId,
+            files: selected.map(f => f.trackFileId).sort((a, b) => a - b),
+            scrub: settings.scrubAudioTags ?? null,
+            albums: selected.every(f => f.albumId !== undefined) ? [...new Set(selected.map(f => f.albumId ?? 0))].sort((a, b) => a - b) : null
+        }
+    };
+}
+
+/**
+ * The command settling is not the files being fixed: a file Lidarr cannot
+ * write is logged and skipped, and the command still completes. A fresh
+ * preview of the bound files is what says whether they now match, and only
+ * that far: Lidarr's preview also leaves out a file it cannot read.
+ */
+async function applyRetag(adapter: Lidarr, bound: { artistId: string; files: number[]; scrub: boolean | null; albums: number[] | null }) {
+    const n = bound.files.length;
+    const run = await adapter.retagFiles(bound.artistId, bound.files);
+    // Scrub deletes a file's tags before writing them, and a write that then
+    // fails leaves the file with none (`AudioTagService.WriteTags`).
+    const scrubbed =
+        bound.scrub === false ? '' : ` ${bound.scrub === true ? 'Scrub Existing Tags is on' : 'If Scrub Existing Tags is on'}: Lidarr deletes a file's tags before writing them, so a file it could not write may now have none.`;
+    if (!run.settled) {
+        // Queued and possibly still running, so a preview now would list files
+        // the command has yet to reach, and sending it again would retag twice.
+        return {
+            filesBefore: n,
+            status: 'unknown',
+            ...(run.commandId > 0 ? { commandId: run.commandId } : {}),
+            verified: false,
+            note: `NOT VERIFIED: Lidarr queued RetagFiles${run.commandId > 0 ? ` (command ${run.commandId})` : ''}, and arr-mcp stopped waiting for it: ${run.reason}. It may still run. stack_health's \`commands\` shows when it ends; then preview fix_metadata again to see which files still differ. Do not confirm it again.${scrubbed}`
+        };
+    }
+    const row = run;
+    const said = row.message === undefined ? '' : ` (${row.message})`;
+    let remaining: number;
+    try {
+        // The bound files' albums alone: every file Lidarr previews is read from
+        // disk, so the whole artist again would read files nothing touched. One
+        // album at a time, as set_watched writes its items, not a burst of reads.
+        const after: RetagFile[] = [];
+        for (const album of bound.albums ?? [undefined]) after.push(...(await adapter.previewRetag(bound.artistId, album)));
+        remaining = after.filter(f => bound.files.includes(f.trackFileId)).length;
+    } catch (err) {
+        // The write has happened and the token is spent: say so, not just the read's error.
+        return {
+            filesBefore: n,
+            status: row.status,
+            verified: false,
+            note: `NOT VERIFIED: Lidarr's RetagFiles command ended ${row.status}${said}, but the retag preview that checks the files could not be read (${err instanceof Error ? err.message : String(err)}). Preview fix_metadata again to see which files still differ before retagging them again.${scrubbed}`
+        };
+    }
+    const verified = row.status === 'completed' && remaining === 0;
+    const stillDiffer = `${remaining} of ${n} file${n === 1 ? '' : 's'} still ${remaining === 1 ? 'differs' : 'differ'}`;
+    const noneListed = `a fresh retag preview no longer lists ${n === 1 ? 'the file' : `any of the ${n} files`} as differing from Lidarr's metadata`;
+    return {
+        filesBefore: n,
+        filesStillDiffering: remaining,
+        status: row.status,
+        verified,
+        note: verified
+            ? `Retagged: ${noneListed}. trigger_scan on the media server to show the new tags there.`
+            : row.status !== 'completed'
+              ? remaining === 0
+                  ? `NOT VERIFIED: Lidarr's RetagFiles command ended ${row.status}${said}, though ${noneListed}. Lidarr's log says what failed.${scrubbed}`
+                  : `NOT FIXED: Lidarr's RetagFiles command ended ${row.status}${said}. ${stillDiffer}.${scrubbed}`
+              : `NOT FIXED: the command completed but ${stillDiffer} from Lidarr's metadata. Lidarr skips a file it cannot write (permissions, a format it cannot tag); its log names which.${scrubbed}`
+    };
+}
+
 const serverName = (adapter: ServiceAdapter): string => (adapter.type === 'plex' ? 'Plex' : 'Jellyfin');
 
 /** Where the lock lives in each server's own UI. */
@@ -126,13 +303,7 @@ export const mergedHow = (adapter: ServiceAdapter, titles: readonly string[]): s
 const EXAMPLE_LIMIT = 5;
 
 const describe = (m: Mismatch, service: string): string => {
-    // Unfenced before the split and fenced again after, rather than split as
-    // it arrives: the closing marker `<</>>` contains a slash, so
-    // splitting the fenced string on path separators returns the tail of the
-    // marker instead of the filename. Re-fencing keeps the guarantee that
-    // server-supplied text is labelled wherever it is printed.
-    const raw = unfenced(m.path);
-    const file = fenceText(raw.split(/[/\\]/).at(-1) ?? raw, { service, field: 'Path' });
+    const file = fileName(m.path, service, 'Path');
     const server =
         m.serverSeason !== undefined && m.serverEpisode !== undefined
             ? `S${m.serverSeason}E${m.serverEpisode} ${m.serverTitle}`
@@ -413,14 +584,16 @@ export function registerFixMetadata(
     servers: MediaServers,
     loader: LibraryLoader,
     timing: RepairTiming = DEFAULT_TIMING,
-    books?: BookLibrary
+    books?: BookLibrary,
+    /** Every configured adapter. Only the Lidarr ones are read, for music. */
+    music: readonly ServiceAdapter[] = []
 ): void {
     const adapters = [servers.primary?.adapter, servers.secondary?.adapter].filter(a => a !== undefined);
     registerWriteTool(server, { ...context, permissions: withPlexGate(context.permissions, adapters) }, {
         name: 'fix_metadata',
         title: 'Repair wrong metadata',
         description:
-            'Repairs films and series whose Jellyfin or Plex metadata does not describe the file on disk (a file `Episode 101` shown as S1E1 with another title). Not trigger_scan, which never replaces a wrong title. Give a title as `query`, or the `id` get_metadata_issues printed. The preview lists `numbering` findings (confident) and `title` findings (advisory); a film is judged on year and title. **Destructive**: re-identifies the item against TVDB or TMDB and replaces all its metadata, hand edits included, with no undo on Jellyfin. Locked fields are never overwritten. When the preview says a refresh cannot move the episodes, use trigger_scan `action: "rename"` on the Sonarr series, then a media-server rescan. On Jellyfin the repair holds the request open a long time: do not retry. [[grimmory: A Grimmory book is `grimmory:<book id>`, matched by ISBN or title and author.]] Previews first; confirm to apply. Field reference: arr://docs/fix_metadata.' +
+            'Repairs films and series whose Jellyfin or Plex metadata does not describe the file on disk (a file `Episode 101` shown as S1E1 with another title). Not trigger_scan, which never replaces a wrong title. Give a title as `query`, or the `id` get_metadata_issues printed. The preview lists `numbering` findings (confident) and `title` findings (advisory); a film is judged on year and title. **Destructive**: re-identifies the item against TVDB or TMDB and replaces all its metadata, hand edits included, with no undo on Jellyfin. Locked fields are never overwritten. When the preview says a refresh cannot move the episodes, use trigger_scan `action: "rename"` on the Sonarr series, then a media-server rescan. On Jellyfin the repair holds the request open a long time: do not retry. [[grimmory: A Grimmory book is `grimmory:<book id>`, matched by ISBN or title and author.]] [[lidarr: For music, `id: "lidarr:<artistId>"` retags its files.]] Previews first; confirm to apply. Field reference: arr://docs/fix_metadata.' +
             withBoth(
                 bothIds(servers),
                 'With two media servers configured, `service` picks one; it defaults to the primary, and an `id` prefixed `plex:` or `jellyfin:` picks that server.'
@@ -436,7 +609,14 @@ export function registerFixMetadata(
                 .string()
                 .min(1)
                 .optional()
-                .describe('The media server item id, as get_metadata_issues prints it (`plex:119962`) or bare, or a Grimmory book as `grimmory:<book id>`. Wins over `query`.'),
+                .describe(
+                    'The media server item id, as get_metadata_issues prints it (`plex:119962`) or bare, or a Grimmory book as `grimmory:<book id>`[[lidarr: , or a Lidarr artist as `lidarr:<artistId>`]]. Wins over `query`.'
+                ),
+            files: z
+                .array(z.number().int().positive())
+                .min(1)
+                .optional()
+                .describe('[[lidarr: Music only: the Lidarr track file ids to retag, as the preview prints them (`#123`). Omit for every file that differs.]]'),
             user: z
                 .string()
                 .optional()
@@ -451,16 +631,36 @@ export function registerFixMetadata(
                 .describe("Books only: search Grimmory's providers by this ISBN instead of the book's own.")
         }),
         // `service` is enum-checked against the configured ids, so this cannot throw.
+        // A `lidarr:` id first: that write goes to Lidarr.
         service: ({ service, id }) =>
-            id?.startsWith('grimmory:') === true ? (books?.id ?? 'grimmory') : (pickMediaServer(servers, service ?? prefixed(servers, id))?.adapter.id ?? 'jellyfin'),
+            lidarrTarget(music, id)?.adapter.id ??
+            (id?.startsWith('grimmory:') === true ? (books?.id ?? 'grimmory') : (pickMediaServer(servers, service ?? prefixed(servers, id))?.adapter.id ?? 'jellyfin')),
         operation: 'fix_metadata',
         tier: 'destructive',
 
-        async plan({ service, query, id, user, isbn }): Promise<WritePlan> {
+        async plan({ service, query, id, user, isbn, files }): Promise<WritePlan> {
             if (id === undefined && query === undefined) throw new Error('Name a film or series as `query`, or give its `id`.');
+            const retag = lidarrTarget(music, id);
+            if (retag !== undefined) {
+                if (service !== undefined) throw new Error('`service` picks a media server; a `lidarr:` id is retagged in Lidarr. Drop `service`.');
+                if (user !== undefined) throw new Error('`user` picks whose media-server view to read; a music retag reads Lidarr alone. Drop it.');
+                if (isbn !== undefined) throw new Error('`isbn` is for a book: give the book as `id: "grimmory:<book id>"`.');
+                return planRetag(retag.adapter, retag.artistId, files);
+            }
+            if (files !== undefined) throw new Error('`files` is for music only, with `id` as `lidarr:<artistId>`.');
             // Before any media-server request: a book never reaches that path.
             if (id === 'grimmory' || id?.startsWith('grimmory:') === true) return planBookFix(books, id, { service, user, isbn });
             if (isbn !== undefined) throw new Error('`isbn` is for a book: give the book as `id: "grimmory:<book id>"`.');
+            if (id === undefined && query !== undefined) {
+                // The resolver's own choice, before a media server is needed: an
+                // artist is repaired in Lidarr. A book is left to `resolve` below.
+                try {
+                    filmOrSeriesMatch((await loader.load()).index.search(query), query);
+                } catch (err) {
+                    if (err instanceof ArtistTitleRefusal) throw artistByName(err.artist, music);
+                    if (!(err instanceof BookTitleRefusal)) throw err;
+                }
+            }
             const { adapter, identity } = chooseServer(servers, service, id);
             const viewer = await identity.resolve(user);
             const series = id !== undefined ? await resolveById(loader, id, adapter) : await resolve(loader, query ?? '', adapter, adapter.id === servers.secondary?.adapter.id);
@@ -672,13 +872,21 @@ ${note}`;
             // resolve. Re-resolving would let a concurrent write that
             // invalidated the library index land this repair on a different
             // item than the one the confirmation names.
-            const bound = plan.args as {
-                server: string;
-                itemId: string;
-                kind: 'movie' | 'series' | 'book';
-                providerId?: { tvdbId?: number; tmdbId?: number };
-                changes?: BookFields;
-            };
+            const bound = plan.args as
+                | { kind: 'retag'; artistId: string; files: number[]; scrub: boolean | null; albums: number[] | null }
+                | {
+                      server: string;
+                      itemId: string;
+                      kind: 'movie' | 'series' | 'book';
+                      providerId?: { tvdbId?: number; tmdbId?: number };
+                      changes?: BookFields;
+                  };
+            if (bound.kind === 'retag') {
+                // The Lidarr the token's target names, not a fresh resolve.
+                const target = lidarrTarget(music, plan.target);
+                if (target === undefined) throw new ServiceError('NotFound', 'lidarr', `${plan.target} is no longer a configured Lidarr artist`);
+                return applyRetag(target.adapter, bound);
+            }
             if (bound.kind === 'book') {
                 if (books === undefined) throw new ServiceError('NotFound', 'grimmory', 'no Grimmory is configured');
                 const changes = bound.changes ?? {};

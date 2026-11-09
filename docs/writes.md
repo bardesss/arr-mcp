@@ -88,7 +88,10 @@ the previous values are not recoverable. Unrecoverable is the test, not
 whether files were removed. On a Grimmory book it replaces the fields where the
 best provider match differs and the field is not locked, except categories. It
 may write the change into the book file and move the file to match its naming
-pattern, and there is no undo.
+pattern, and there is no undo. On music it rewrites the tags inside an artist's
+files from Lidarr's metadata, and with Lidarr's Scrub Existing Tags setting on
+it first deletes every tag Lidarr does not write itself. Lidarr's history
+records the retag, but nothing writes the old values back.
 
 `set_watched` is safe rather than destructive, but it is the one safe write
 whose undo is not perfectly clean: unmarking and re-marking restores the
@@ -200,6 +203,15 @@ preview that left files on disk cannot be used to wipe them. A token only works
 in the arr-mcp process that issued it, so restarting invalidates any outstanding
 ones, and a token taken to a second instance is refused as coming from another
 process.
+
+A token that is refused for any reason but having been used already comes back
+as a fresh preview with a new token, and its text carries that preview's summary
+and effects as a first preview does. Some writes also bind what they act on, not
+only the arguments: `clean_queue` the queue items it listed,
+`delete_episode_files` the file ids, `grab_release` the release, and a
+`fix_metadata` retag the files, their albums and Lidarr's Scrub Existing Tags
+setting. For those, the same call is refused when that has moved since the old
+preview, and the new effects are what the caller reads before confirming again.
 
 A destructive preview says what it costs in the units that matter:
 

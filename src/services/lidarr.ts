@@ -3,12 +3,12 @@ import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import { apiKeyHeader } from '../core/auth.ts';
 import { LIBRARY_TTL_MS, TtlCache } from '../core/cache.ts';
 import { ServiceError } from '../core/errors.ts';
-import { fenceText } from '../core/fence.ts';
+import { fenceText, fencer } from '../core/fence.ts';
 import { ServiceHttp } from '../core/http.ts';
 import type { IndexInput } from '../core/resolver.ts';
 import { readMetadataProfiles, readProfileNames, readQualityProfiles, readRootFolders, readTags } from './arrAdd.ts';
 import { findArrBlocklistEntry, readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
-import { arrItemId, postArrCommand, readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
+import { arrItemId, awaitArrCommand, postArrCommand, readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
 import { readArrHistory } from './arrHistory.ts';
 import { listArrImportCandidates, runArrManualImport } from './arrManualImport.ts';
 import { deleteArrMedia, lidarrCalendarPath, readArrQueue, readLidarrCalendar, removeArrQueueItem } from './arrQueue.ts';
@@ -65,6 +65,8 @@ import {
     type ReleaseScope,
     type ReleaseSearchCapable,
     type RemoveQueueOptions,
+    type RetagFile,
+    type RetagRun,
     type RootFolder,
     type ScanState,
     type ScanStateCapable,
@@ -75,11 +77,20 @@ import {
     type SearchTriggerCapable,
     type ServiceAdapter,
     type Tag,
+    type TagRepairCapable,
     type WantedCapable,
     type WantedItem,
     type WantedScope,
     type Window
 } from './types.ts';
+
+/** `RetagTrackResource`. */
+type RawRetag = {
+    trackFileId?: number;
+    albumId?: number;
+    path?: string;
+    changes?: { field?: string; oldValue?: string; newValue?: string }[];
+};
 
 /**
  * Whether Lidarr named a policy this code knows. Anything else stays `unknown`
@@ -287,7 +298,8 @@ export class LidarrAdapter
         MediaAddCapable,
         MetadataProfileCapable,
         MediaUpdateCapable,
-        MediaDeleteCapable
+        MediaDeleteCapable,
+        TagRepairCapable
 {
     readonly type: ServiceId = 'lidarr';
     readonly instance: string | undefined;
@@ -896,6 +908,65 @@ export class LidarrAdapter
     async deleteMedia(id: string, opts: DeleteMediaOptions): Promise<void> {
         await deleteArrMedia(this.#http, this.id, 'artist', id, opts);
         this.#libraryCache.clear();
+    }
+
+    /**
+     * Lidarr's own retag preview: only the files whose embedded tags differ
+     * from its metadata (`RetagTrackController`). A tag the file lacks comes
+     * with no `oldValue`, read here as empty.
+     */
+    async previewRetag(id: string, albumId?: number): Promise<RetagFile[]> {
+        const artistId = arrItemId(this.id, 'artist', id);
+        // With `albumId`, Lidarr reads that album's files alone and ignores the
+        // artist (`RetagTrackController`, the same on 2.1.3).
+        const album = albumId === undefined ? '' : `&albumId=${arrItemId(this.id, 'album', String(albumId))}`;
+        const rows = await this.#http.get<RawRetag[]>(`/api/v1/retag?artistId=${artistId}${album}`);
+        if (!Array.isArray(rows)) {
+            throw new ServiceError('UpstreamError', this.id, '/api/v1/retag did not return an array');
+        }
+        const fence = fencer(this.id);
+        return rows
+            .filter((r): r is RawRetag & { trackFileId: number } => typeof r?.trackFileId === 'number')
+            .map(r => ({
+                trackFileId: r.trackFileId,
+                ...(typeof r.albumId === 'number' && Number.isInteger(r.albumId) && r.albumId > 0 ? { albumId: r.albumId } : {}),
+                path: fence(r.path ?? '', 'path'),
+                changes: (r.changes ?? []).map(c => ({
+                    field: c.field ?? '',
+                    oldValue: fence(c.oldValue ?? '', 'oldValue'),
+                    newValue: fence(c.newValue ?? '', 'newValue')
+                }))
+            }));
+    }
+
+    /** A setting Lidarr did not report stays unknown rather than read as off: off is the value that drops the scrub warning. */
+    async readTagSettings(): Promise<{ scrubAudioTags: boolean | undefined; writeAudioTags: string }> {
+        const config = await this.#http.get<{ scrubAudioTags?: unknown; writeAudioTags?: unknown } | null>('/api/v1/config/metadataprovider');
+        const scrub = config?.scrubAudioTags;
+        const write = config?.writeAudioTags;
+        return { scrubAudioTags: typeof scrub === 'boolean' ? scrub : undefined, writeAudioTags: typeof write === 'string' ? write : 'unknown' };
+    }
+
+    /**
+     * `RetagFiles` for those track files, waited on. It writes with `force`, so
+     * it runs whatever "Tag Audio Files with Metadata" says, as Lidarr's own
+     * Retag button does (`AudioTagService`). Once Lidarr has queued it, a wait
+     * that fails is not a write that failed: the command can still run.
+     */
+    async retagFiles(id: string, trackFileIds: readonly number[]): Promise<RetagRun> {
+        const artistId = arrItemId(this.id, 'artist', id);
+        const handle = await postArrCommand(this.#http, this.id, { name: 'RetagFiles', artistId, files: [...trackFileIds] });
+        let row: Awaited<ReturnType<typeof awaitArrCommand>>;
+        try {
+            row = await awaitArrCommand(this.#http, this.id, handle.commandId);
+        } catch (err) {
+            return { settled: false, commandId: handle.commandId, reason: err instanceof Error ? err.message : String(err) };
+        }
+        return {
+            settled: true,
+            status: row.status,
+            ...(row.message === undefined ? {} : { message: fenceText(row.message, { service: this.id, field: 'message' }) })
+        };
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {

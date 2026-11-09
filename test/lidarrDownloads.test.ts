@@ -234,8 +234,7 @@ describe('Lidarr history', () => {
         expect(events).toContainEqual(['trackFileDeleted', 'deleted']);
         expect(events).toContainEqual(['downloadFailed', 'failed']);
         expect(events).toContainEqual(['downloadIgnored', 'ignored']);
-        // No counterpart in the shared vocabulary: kept, and said what it was.
-        expect(events).toContainEqual(['trackFileRetagged', 'unknown']);
+        expect(events).toContainEqual(['trackFileRetagged', 'retagged']);
     });
 
     it('reports the artist as the media id, and the failure in its own words', async () => {

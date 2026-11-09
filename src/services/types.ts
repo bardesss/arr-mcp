@@ -699,7 +699,9 @@ export const hasQueue = (a: ServiceAdapter): a is ServiceAdapter & QueueCapable 
 
 /** `subtitle` is Bazarr's: a downloaded subtitle is not an `imported` grab,
  *  and calling it one would put it in the answer to "what did Radarr import
- *  last night". Appended, so no existing value moved. */
+ *  last night". `retagged` is Lidarr's: a file whose embedded tags were
+ *  rewritten, which changes its contents, not its name, so it is not
+ *  `renamed`. Placed after `subtitle`, as agreed in #399. */
 export const HISTORY_EVENT_TYPES = [
     'grabbed',
     'imported',
@@ -709,6 +711,7 @@ export const HISTORY_EVENT_TYPES = [
     'added',
     'ignored',
     'subtitle',
+    'retagged',
     'unknown',
     'strike',
     'stopped',
@@ -957,6 +960,42 @@ export interface MetadataRepairCapable {
         opts: { tvdbId?: number; tmdbId?: number }
     ): Promise<{ settled: boolean; matchedTo?: { name: string; year?: string } }>;
 }
+
+/**
+ * One audio file whose embedded tags differ from Lidarr's metadata, as
+ * Lidarr's retag preview lists it. `field` is Lidarr's own name for the tag;
+ * the values come from the file and from Lidarr's metadata, and are fenced.
+ */
+export type RetagFile = {
+    trackFileId: number;
+    /** The album the file is on; absent when Lidarr sent none. */
+    albumId?: number;
+    path: string;
+    changes: { field: string; oldValue: string; newValue: string }[];
+};
+
+/**
+ * How a `RetagFiles` run ended: the status it settled on, or, once it was
+ * queued, why arr-mcp stopped waiting for it. It may still run then.
+ */
+export type RetagRun = { settled: true; status: string; message?: string } | { settled: false; commandId: number; reason: string };
+
+/**
+ * Rewriting a music file's embedded tags from Lidarr's metadata, which is
+ * how `fix_metadata` repairs music: the media server reads its music
+ * metadata from those tags.
+ */
+export interface TagRepairCapable {
+    /** Only the files whose tags differ: the artist's, or one album's when `albumId` is given. */
+    previewRetag(artistId: string, albumId?: number): Promise<RetagFile[]>;
+    /** Lidarr's "Tag Audio Files with Metadata" (`writeAudioTags`) and "Scrub Existing Tags" settings; `undefined` when Lidarr did not say. */
+    readTagSettings(): Promise<{ scrubAudioTags: boolean | undefined; writeAudioTags: string }>;
+    /** Runs Lidarr's `RetagFiles` on those files and waits for it to settle. */
+    retagFiles(artistId: string, trackFileIds: readonly number[]): Promise<RetagRun>;
+}
+
+export const hasTagRepair = (a: ServiceAdapter): a is ServiceAdapter & TagRepairCapable =>
+    typeof (a as Partial<TagRepairCapable>).retagFiles === 'function';
 
 export const hasMetadataRepair = (a: ServiceAdapter): a is ServiceAdapter & MetadataRepairCapable =>
     typeof (a as Partial<MetadataRepairCapable>).repairMetadata === 'function';
