@@ -51,6 +51,17 @@ describe('ServiceHttp request shaping', () => {
         await client.get('/api/v3/system/status');
     });
 
+    it('sends per-request headers, and the auth header still wins', async () => {
+        let seen: Headers | undefined;
+        const client = http(async (_input: string, init?: RequestInit) => {
+            seen = new Headers(init?.headers);
+            return json({});
+        }, apiKeyHeader('X-Api-Key', 'k'));
+        await client.get('/x', { headers: { 'X-Plex-Container-Start': '500', 'X-Api-Key': 'forged' } });
+        expect(seen?.get('X-Plex-Container-Start')).toBe('500');
+        expect(seen?.get('X-Api-Key')).toBe('k');
+    });
+
     it('lets a query-parameter strategy put the key in the url', async () => {
         const seen: string[] = [];
         const client = http(

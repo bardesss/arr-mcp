@@ -463,6 +463,25 @@ describe('PlexAdapter', () => {
             expect(items.map(i => i.kind).sort()).toEqual(['movie', 'series']);
         });
 
+        it('pages by header and by query', async () => {
+            const seen: { url: string; headers: Headers }[] = [];
+            const routed = serving({
+                '/library/sections': SECTIONS,
+                [`/library/sections/1/all${withPaging(0)}`]: page([]),
+                [`/library/sections/2/all${withPaging(0)}`]: page([])
+            });
+            const adapter = new PlexAdapter(config(), (async (input: string | URL, init?: RequestInit) => {
+                seen.push({ url: String(input), headers: new Headers(init?.headers) });
+                return routed(input as never, init);
+            }) as typeof fetch);
+            await adapter.listUserLibrary({ id: '1', name: 'Bartus' });
+            const all = seen.find(r => r.url.includes('/library/sections/1/all'));
+            expect(all?.url).toContain('X-Plex-Container-Start=0');
+            expect(all?.url).toContain('X-Plex-Container-Size=500');
+            expect(all?.headers.get('X-Plex-Container-Start')).toBe('0');
+            expect(all?.headers.get('X-Plex-Container-Size')).toBe('500');
+        });
+
         it('carries the ratingKey as playback.itemId, the id metadata tools act on', async () => {
             const { adapter } = plex({
                 '/library/sections': SECTIONS,
