@@ -172,6 +172,19 @@ function cappedTools(tools: ToolContext, ceiling: Ceiling): ToolContext {
  * McpServer. This is what keeps the transport stateless — do not hoist the
  * server out of the closure. Over stdio it runs once per connection.
  *
+ * What a build costs, from `scripts/measure-mcp-factory.ts` (2026-11-09,
+ * Node v26.12.1, 1000 calls after 100 warm-up, middle of three runs):
+ *
+ *   | config              | median  | p95      |
+ *   | ------------------- | ------- | -------- |
+ *   | default             | 2.85 ms | 11.20 ms |
+ *   | tools.hide_unusable | 2.41 ms | 10.24 ms |
+ *
+ * That is over the 2 ms line, so a cache is proposed separately. It cannot be
+ * the server itself, which must stay fresh per request; only part of the
+ * registration (zod schema construction dominates the profile) could be
+ * shared per `RuntimeSnapshot`.
+ *
  * `runtime.current` is read here, per call, rather than captured when the
  * factory is built: that is what lets a config change take effect without a
  * restart. Reading it once into `snapshot` also means a call that starts
