@@ -107,6 +107,17 @@ describe('CleanuparrAdapter health', () => {
         await expect(new CleanuparrAdapter(config, stub(routes)).getFailedHealthChecks()).rejects.toThrow();
     });
 
+    it('reads the version once for a connection test and the health checks after it', async () => {
+        const seen: string[] = [];
+        const a = new CleanuparrAdapter(config, stub(healthRoutes(), seen));
+        const reads = () => seen.filter(s => s === 'GET /api/status').length;
+        await a.testConnection();
+        await a.getFailedHealthChecks();
+        expect(reads()).toBe(1);
+        await a.testConnection();
+        expect(reads()).toBe(2);
+    });
+
     it('never asks for the download client configuration, which holds passwords', async () => {
         const seen: string[] = [];
         const adapter = new CleanuparrAdapter(config, stub(healthRoutes(), seen));

@@ -103,6 +103,17 @@ describe('DispatcharrAdapter connection', () => {
         expect(header).toBe('dsp-key');
     });
 
+    it('reads the version once for a connection test and the health checks after it', async () => {
+        const seen: string[] = [];
+        const a = new DispatcharrAdapter(config, stub(routes(), seen));
+        const reads = () => seen.filter(s => s === 'GET /api/core/version/').length;
+        await a.testConnection();
+        await a.getFailedHealthChecks();
+        expect(reads()).toBe(1);
+        await a.testConnection();
+        expect(reads()).toBe(2);
+    });
+
     it('testConnection reads accounts too, since the version route answers anyone', async () => {
         const seen: string[] = [];
         const result = await new DispatcharrAdapter(config, stub(routes(), seen)).testConnection();

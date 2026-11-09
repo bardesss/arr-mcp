@@ -1,6 +1,6 @@
 import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import { apiKeyHeader } from '../core/auth.ts';
-import { cached } from '../core/cache.ts';
+import { SHORT_READ_TTL_MS, cached } from '../core/cache.ts';
 import { ServiceError } from '../core/errors.ts';
 import { fenceText, fencer } from '../core/fence.ts';
 import { logger } from '../core/logger.ts';
@@ -143,6 +143,8 @@ export class ReclaimerrAdapter implements ServiceAdapter, HealthCheckCapable, Hi
     readonly type: ServiceId = 'reclaimerr';
     readonly id = 'reclaimerr';
     readonly #http: ServiceHttp;
+    /** One system read serves the version and the health checks of a stack_health pass. */
+    readonly #system = cached(SHORT_READ_TTL_MS, () => this.#http.get<RawSystem>(`${RECLAIMERR_API}/system`));
     readonly #grantedScopes = cached(SCOPES_TTL_MS, () => this.#readScopes());
     readonly #ruleMap = cached(RULES_TTL_MS, () => this.#readRules());
     readonly #candidates = cached(READ_TTL_MS, () => this.#readAll<RawCandidate>(`${RECLAIMERR_API}/candidates`));
@@ -155,12 +157,13 @@ export class ReclaimerrAdapter implements ServiceAdapter, HealthCheckCapable, Hi
 
     async getVersion(): Promise<string> {
         await this.#need('system:read');
-        const system = await this.#http.get<RawSystem>(`${RECLAIMERR_API}/system`);
+        const system = await this.#system();
         if (!system.version) throw new ServiceError('UpstreamError', this.id, 'system returned no version field');
         return system.version;
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {
+        this.#system.clear();
         return diagnoseConnection(this.id, this.type, () => this.getVersion());
     }
 
@@ -180,7 +183,7 @@ export class ReclaimerrAdapter implements ServiceAdapter, HealthCheckCapable, Hi
         }
 
         if (scopes.has('system:read')) {
-            const system = await this.#http.get<RawSystem>(`${RECLAIMERR_API}/system`);
+            const system = await this.#system();
             if (system.status !== undefined && system.status !== 'ok') out.push(check('system', 'error', fence(`Reclaimerr reports status ${system.status}`)));
             if (system.has_main_media_server === false) {
                 out.push(check('system', 'warning', 'No main media server is set in Reclaimerr, so rules based on watch history cannot match'));
