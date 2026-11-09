@@ -50,7 +50,7 @@ export function registerPauseDownloads(
         name: 'pause_downloads',
         title: 'Pause, resume or throttle a download client',
         description:
-            'Pauses, resumes or throttles one download client — SABnzbd, NZBGet, Transmission or qBittorrent — or pauses one item in its queue when `id` is given. The bandwidth answer: "stop downloading for an hour", or `action: "limit"` with `speed_limit_kbps` to slow it down instead of stopping it (0 removes the cap). A limit is always client-wide, never per item. Safe tier, because the undo is this same tool with the other action. It does NOT stop Radarr or Sonarr grabbing: they carry on finding and sending releases, which then sit in the paused client. `service` is required and names one client; pausing "everything" means one call each. Previews first; confirm to apply it.',
+            'Pauses, resumes or throttles one download client — SABnzbd, NZBGet, Transmission or qBittorrent — or pauses one item in its queue when `id` is given. The bandwidth answer: "stop downloading for an hour", or `action: "limit"` with `speed_limit_kbps` (KiB/s) to slow it down instead of stopping it (0 removes the cap). A limit is always client-wide, never per item. Safe tier, because the undo is this same tool with the other action. It does NOT stop Radarr or Sonarr grabbing: they carry on finding and sending releases, which then sit in the paused client. `service` is required and names one client; pausing "everything" means one call each. Previews first; confirm to apply it.',
         inputSchema: z.object({
             ...targetInput(TARGET),
             action: z
@@ -62,7 +62,7 @@ export function registerPauseDownloads(
                 .min(0)
                 .optional()
                 .describe(
-                    'With action: "limit", the download cap in KB/s — 0 removes the cap. Client-wide, never per item. Required for "limit" and ignored otherwise.'
+                    'With action: "limit", the download cap in KiB/s — 0 removes the cap. Client-wide, never per item. Required for "limit" and ignored otherwise.'
                 ),
             id: z
                 .string()
@@ -85,7 +85,7 @@ export function registerPauseDownloads(
                     );
                 }
                 if (speed_limit_kbps === undefined) {
-                    throw new Error('limit needs `speed_limit_kbps` — the cap in KB/s, or 0 to remove it.');
+                    throw new Error('limit needs `speed_limit_kbps` — the cap in KiB/s, or 0 to remove it.');
                 }
 
                 const client = findLimitAdapter(adapters, service, instance);
@@ -99,7 +99,7 @@ export function registerPauseDownloads(
                         summary:
                             wanted === undefined
                                 ? `${client.id} already has no download limit.`
-                                : `${client.id} is already limited to ${wanted} KB/s.`,
+                                : `${client.id} is already limited to ${wanted} KiB/s.`,
                         effects: [],
                         noop: true
                     };
@@ -110,11 +110,11 @@ export function registerPauseDownloads(
                     summary:
                         wanted === undefined
                             ? `Remove the download limit on ${client.id}.`
-                            : `Limit ${client.id} to ${wanted} KB/s.`,
+                            : `Limit ${client.id} to ${wanted} KiB/s.`,
                     effects: [
                         wanted === undefined
-                            ? `${client.id} will download as fast as the line allows${current.kbps === undefined ? '' : `, instead of the current ${current.kbps} KB/s`}.`
-                            : `Caps ${client.id} at ${wanted} KB/s${current.kbps === undefined ? ', which currently has no limit' : `, from ${current.kbps} KB/s`}. Client-wide, not per item.`,
+                            ? `${client.id} will download as fast as the line allows${current.kbps === undefined ? '' : `, instead of the current ${current.kbps} KiB/s`}.`
+                            : `Caps ${client.id} at ${wanted} KiB/s${current.kbps === undefined ? ', which currently has no limit' : `, from ${current.kbps} KiB/s`}. Client-wide, not per item.`,
                         'Does NOT stop Radarr or Sonarr grabbing. They keep sending releases; they just arrive more slowly.',
                         'Undo it by calling this tool again with action: "limit" and a different value — 0 removes the cap.'
                     ],

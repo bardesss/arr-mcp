@@ -52,19 +52,20 @@ export async function buildGetMediaDetails(
 /**
  * Rotten Tomatoes, and IMDb for a film, from Seerr.
  *
- * Only here, and only for one item. It costs an HTTP call per title, so it has
- * no business on a path that returns a page of them — `lookup_media` uses the
- * `voteAverage` Seerr already puts in its search payload instead.
+ * Only here, on both forms, and only for one item. It costs an HTTP call per
+ * title, so it has no business on a path that returns a page of them —
+ * `lookup_media` uses the `voteAverage` Seerr already puts in its search
+ * payload instead.
  *
  * Worth the call here because this is the "tell me everything about this one
  * thing" tool, and Rotten Tomatoes is the one score nothing else in the stack
  * can supply for a series. Never overwrites: the managing service is the
  * authority on its own data, and Radarr already reports RT for films.
  */
-async function withSeerrRatings(
+async function withSeerrRatings<T extends { kind: string; ids: { tmdb?: number }; ratings?: Record<string, number> }>(
     adapters: readonly ServiceAdapter[],
-    details: MediaDetails
-): Promise<MediaDetails> {
+    details: T
+): Promise<T> {
     const seerr = adapters.find((a): a is SeerrAdapter => a instanceof SeerrAdapter);
     const tmdb = details.ids.tmdb;
     if (seerr === undefined || tmdb === undefined) return details;
@@ -312,7 +313,7 @@ export async function resolveMediaDetails(
         if (err instanceof NotInLibrary) throw await explainMiss(adapters, err, dataset);
         throw err;
     }
-    return withCleanup(adapters, resolved);
+    return withCleanup(adapters, await withSeerrRatings(adapters, resolved));
 }
 
 export function registerGetMediaDetails(

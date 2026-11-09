@@ -35,12 +35,16 @@ type RawSession = {
     version?: string;
     'download-dir'?: string;
     'download-dir-free-space'?: number;
-    /** KB/s, and only applied when the `-enabled` flag is set. */
+    /** In the daemon's own speed unit (`units.speed-bytes`), and only applied when the `-enabled` flag is set. */
     'speed-limit-down'?: number;
     'speed-limit-down-enabled'?: boolean;
     seedRatioLimit?: number;
     seedRatioLimited?: boolean;
+    units?: { 'speed-bytes'?: number };
 };
+
+/** Bytes per "kB" the daemon counts in; 1000 unless it says otherwise. */
+const speedBytes = (s: RawSession): number => s.units?.['speed-bytes'] ?? 1000;
 
 /**
  * Hand-written: Transmission speaks POST-only JSON-RPC against a single
@@ -340,9 +344,9 @@ export class TransmissionAdapter
     }
 
     /**
-     * Transmission's session speeds are **KB/s**, which is what this boundary
-     * speaks — no conversion, only the enabled flag, which is what actually
-     * decides whether the number is applied.
+     * Transmission counts speeds in its own unit (`units.speed-bytes`, 1000
+     * by default), so they are converted to the KiB/s this boundary speaks.
+     * The enabled flag is what actually decides whether the number is applied.
      */
     async readSpeedLimit(): Promise<SpeedLimit> {
         const session = await this.#session();
@@ -350,19 +354,20 @@ export class TransmissionAdapter
         if (session['speed-limit-down-enabled'] !== true || typeof limit !== 'number' || limit <= 0) {
             return { service: this.id };
         }
-        return { service: this.id, kbps: limit };
+        return { service: this.id, kbps: Math.round((limit * speedBytes(session)) / 1024) };
     }
 
     async setSpeedLimit(kbps: number | undefined): Promise<void> {
         const clearing = kbps === undefined || kbps <= 0;
+        const unit = clearing ? 1000 : speedBytes(await this.#session());
         const body = await this.#http.post<RpcResponse<unknown>>(RPC_PATH, {
             method: 'session-set',
             arguments: {
                 'speed-limit-down-enabled': !clearing,
                 // Sent even when clearing: Transmission keeps the number
-                // behind the flag, and leaving a stale 50 KB/s there is how a
+                // behind the flag, and leaving a stale cap there is how a
                 // later "pause and resume" comes back throttled.
-                'speed-limit-down': clearing ? 0 : Math.round(kbps)
+                'speed-limit-down': clearing ? 0 : Math.round((kbps * 1024) / unit)
             }
         });
 

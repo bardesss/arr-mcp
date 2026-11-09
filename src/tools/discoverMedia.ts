@@ -123,7 +123,7 @@ export async function buildDiscoverMedia(
         ...shaped,
         items: rated.map(h => project(h, opts.detail)),
         degraded: [],
-        counts: { seerr: hits.length }
+        counts: { [adapter.id]: hits.length }
     };
 }
 

@@ -79,6 +79,12 @@ const SCOPED = /\[\[([a-z|]+): ((?:[^\]]|\](?!\]))*)\]\]/g;
 const present = (services: readonly string[], opts: SurfaceOptions): boolean =>
     opts.configured.size === 0 || services.some(s => opts.configured.has(s as ServiceId));
 
+/** Whether a tool is listed to the client: false only when `hide_unusable` removed it. */
+export function toolUsable(name: string, opts: SurfaceOptions): boolean {
+    const needs = TOOL_SERVICES[name];
+    return !(opts.hideUnusable && opts.configured.size > 0 && needs !== undefined && !present(needs, opts));
+}
+
 /** Resolves the `[[…]]` scopes in one piece of text. */
 export function scopeText(text: string, opts: SurfaceOptions): string {
     return text
@@ -168,8 +174,7 @@ export function leanSchema<T>(schema: T, opts: SurfaceOptions): T {
 export function shapeToolSurface(server: McpServer, opts: SurfaceOptions): McpServer {
     const register = server.registerTool.bind(server) as (name: string, config: Record<string, unknown>, cb: unknown) => unknown;
     (server as unknown as { registerTool: typeof register }).registerTool = (name, config, cb) => {
-        const needs = TOOL_SERVICES[name];
-        if (opts.hideUnusable && opts.configured.size > 0 && needs !== undefined && !present(needs, opts)) return undefined;
+        if (!toolUsable(name, opts)) return undefined;
         const description = config['description'];
         return register(
             name,

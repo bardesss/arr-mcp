@@ -22,7 +22,7 @@ import { claimJsonBody } from './mcp/jsonBody.ts';
 import { JwksUnavailable } from './mcp/oauthVerifier.ts';
 import { acceptingBoth, acceptsStream, asPlainJson } from './mcp/plainJson.ts';
 import { registerAllPrompts } from './mcp/prompts.ts';
-import { shapeToolSurface } from './mcp/toolSurface.ts';
+import { shapeToolSurface, type SurfaceOptions } from './mcp/toolSurface.ts';
 import { registerAppResources } from './mcp/apps.ts';
 import { registerAllResources } from './mcp/resources.ts';
 import { RESOURCE_METADATA_PATHS, resourceMetadata, resourceMetadataUrl } from './mcp/resourceMetadata.ts';
@@ -54,12 +54,12 @@ export const MAX_WEBHOOK_BODY_BYTES = 256 * 1024;
 /**
  * An hour, for every list the SDK builds itself.
  *
- * The lists are static by construction: `registerAllTools`, `registerAllPrompts`
- * and `registerAllResources` register unconditionally — nothing is filtered by
- * configuration, which is the same property that makes hiding a tool behind a
- * config key a non-option — so what a client caches for an hour cannot go
- * stale under it. Without this the SDK emits the conservative default
- * `ttlMs: 0` and every client reloads thirty-three tool descriptions every
+ * The lists are static between config reloads, not across them: with
+ * `tools.hide_unusable` the tool list, and the steps prompts name, follow the
+ * configured services (`shapeToolSurface`, `registerAllPrompts`), so a reload
+ * can leave a client's cached list up to an hour behind, as it already could
+ * for tools. Nothing else changes them. Without this the SDK emits the conservative default
+ * `ttlMs: 0` and every client reloads every tool description every
  * session.
  *
  * `resources/read` is deliberately absent: each resource carries its own
@@ -83,10 +83,10 @@ const LIST_CACHE_TTL_MS = 60 * 60 * 1000;
  * that a list reports the whole count rather than the window, and that a write
  * happens in two calls rather than one.
  */
-const INSTRUCTIONS = `One endpoint for a self-hosted media stack: Radarr and Sonarr manage films and series, Whisparr scenes, Prowlarr the indexers, Bazarr subtitles, Jellyfin playback, Seerr requests, SABnzbd, NZBGet, Transmission and qBittorrent downloads.
+const INSTRUCTIONS = `One endpoint for a self-hosted media stack: Radarr, Sonarr and Lidarr manage films, series and music, Whisparr scenes, Prowlarr the indexers, Profilarr quality profiles, Bazarr subtitles, Jellyfin and Plex playback, Seerr requests, Grimmory books and Shelfmark book downloads, SABnzbd, NZBGet, Transmission and qBittorrent downloads, Cleanuparr and Reclaimerr cleanup, Dispatcharr live TV.
 
 Reading:
-- \`get_library\` is the join across Radarr, Sonarr, Whisparr and Jellyfin — the only tool that can say a file one service believes in is missing from the other.
+- \`get_library\` is the join across Radarr, Sonarr, Whisparr, Lidarr, Grimmory and the media server (Jellyfin or Plex) — the only tool that can say a file one service believes in is missing from the other.
 - \`diagnose\` answers "why can I not play this" in one call. Prefer it over assembling that answer from several reads.
 - Call the tool that answers the question directly. A tool's \`service\` field lists the services it takes on this stack, so there is no need to call \`stack_health\` first to find one.
 - Every list is a window: \`items\`, \`total\`, \`returned\`, \`offset\`, \`truncated\`. \`total\` counts the whole list, never the window — it is the number to report when someone asks how many. \`offset + returned < total\` means there is another page; page two of 50 is \`offset: 50\`.
@@ -94,7 +94,7 @@ Reading:
 
 Writing:
 - Writes happen in two calls. The first previews: read \`summary\` and \`effects\`, then call again passing the returned \`confirm\` token to apply it. \`applied\` says which of the two just happened. \`dry_run: true\` previews without ever issuing a token.
-- Writes take a service and an id, never a title. Get the id from \`get_library\` or \`get_media_details\` first.
+- Most writes take a service and an id from \`get_library\` or \`get_media_details\`.
 - Read \`warnings\` as well, and tell the user about them before confirming.
 - A write refused for permissions names the config key that would allow it. Report that key rather than retrying.
 
@@ -202,9 +202,9 @@ export function mcpServerFactory(
                  * `registerTool`/`registerPrompt`/`registerResource` each set
                  * `listChanged: getCapabilities().<kind>?.listChanged ?? true`,
                  * so declaring it here is what makes the answer false — and it
-                 * should be. The lists are static by construction (the same
-                 * property `LIST_CACHE_TTL_MS` rests on): nothing changes them,
-                 * not a config reload, not the weekly IMDb refresh. A modern-era
+                 * should be. The lists are static between config reloads (the
+                 * property `LIST_CACHE_TTL_MS` rests on): nothing changes them
+                 * while the server runs, not even the weekly IMDb refresh. A modern-era
                  * client reads these bits to decide which notifications to
                  * request on its `subscriptions/listen` filter, so advertising
                  * true means subscribing to an event that will never arrive.
@@ -228,16 +228,17 @@ export function mcpServerFactory(
         );
         // Before any tool registers: trims what tools/list sends, and tailors
         // it to the services this config has (#518).
-        shapeToolSurface(server, {
+        const surface: SurfaceOptions = {
             configured: new Set(tools.instances.map(i => i.type)),
             hideUnusable: snapshot.config.tools?.hide_unusable === true
-        });
+        };
+        shapeToolSurface(server, surface);
         registerAllTools(server, tools);
         // Registered beside the tools, never instead of them. Client support
         // for prompts and resources is uneven and arr-mcp has to work on all of
         // them, so a client that surfaces neither is exactly as capable as
         // before — `test/mcp.test.ts` asserts that rather than trusting it.
-        registerAllPrompts(server);
+        registerAllPrompts(server, surface);
         registerAllResources(server, tools);
         // MCP Apps: the poster-card view the card tools point at (`mcp/apps.ts`).
         if (tools.mediaCards) registerAppResources(server);

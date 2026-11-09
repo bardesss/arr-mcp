@@ -194,7 +194,7 @@ Recent log records, newest first.
 | Parameter | Meaning |
 | --- | --- |
 | `level` | Minimum level: `trace`, `debug`, `info`, `warn`, `error` or `fatal`. Default `trace` |
-| `app` | Only records for this instance id, such as `radarr/hd`. An unknown id gives an empty list |
+| `app` | Only records for this instance id, such as `radarr/hd`. An unknown id is refused with 400; a configured one that has logged nothing gives an empty list |
 | `afterId` | Only records with an id above this. A whole number |
 | `limit` | 1 to 300. Default 100 |
 

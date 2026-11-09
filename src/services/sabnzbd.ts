@@ -367,7 +367,7 @@ export class SabnzbdAdapter
 
     /**
      * The `K` suffix is load-bearing: `value=100` sets **100 percent** of the
-     * configured line speed, `value=100K` sets 100 KB/s. `value=0` clears it.
+     * configured line speed, `value=100K` sets 100 KiB/s. `value=0` clears it.
      */
     async setSpeedLimit(kbps: number | undefined): Promise<void> {
         const value = kbps === undefined || kbps <= 0 ? '0' : `${Math.round(kbps)}K`;

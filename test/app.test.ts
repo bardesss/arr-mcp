@@ -1,7 +1,7 @@
 import { SignJWT, createLocalJWKSet, exportJWK, generateKeyPair } from 'jose';
 import { describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.ts';
-import { ConfigSchema, type Config } from '../src/config/schema.ts';
+import { ConfigSchema, ServiceIdSchema, type Config, type ServiceId } from '../src/config/schema.ts';
 import { WriteAudit } from '../src/core/audit.ts';
 import { attachLogStore, detachLogStore } from '../src/core/logger.ts';
 import { LogStore } from '../src/core/logs.ts';
@@ -552,6 +552,24 @@ describe('what the server says about itself at initialize', () => {
     it('ships instructions, which is the only documentation a client always reads', async () => {
         const { instructions } = await initialize();
         expect(instructions ?? '').not.toBe('');
+    });
+
+    // Record<ServiceId, …> so a new service fails typecheck here until it is named.
+    const DISPLAY: Record<ServiceId, string> = {
+        radarr: 'Radarr', sonarr: 'Sonarr', whisparr: 'Whisparr', lidarr: 'Lidarr', prowlarr: 'Prowlarr',
+        bazarr: 'Bazarr', jellyfin: 'Jellyfin', seerr: 'Seerr', sabnzbd: 'SABnzbd', nzbget: 'NZBGet',
+        transmission: 'Transmission', qbittorrent: 'qBittorrent', plex: 'Plex', profilarr: 'Profilarr',
+        cleanuparr: 'Cleanuparr', reclaimerr: 'Reclaimerr', dispatcharr: 'Dispatcharr', shelfmark: 'Shelfmark', grimmory: 'Grimmory'
+    };
+
+    it('names every service arr-mcp has an adapter for', async () => {
+        const { instructions = '' } = await initialize();
+        expect(ServiceIdSchema.options.filter(id => !instructions.includes(DISPLAY[id]))).toEqual([]);
+    });
+
+    it('does not claim a write never takes a title', async () => {
+        const { instructions = '' } = await initialize();
+        expect(instructions).not.toContain('never a title');
     });
 
     it('names the two rules no single tool description can carry', async () => {
