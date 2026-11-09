@@ -559,6 +559,12 @@ describe('get_media_details', () => {
         expect(result).toMatchObject({ title: RESOLVED.title, presence: 'arr_only' });
     });
 
+    it("adds Seerr's Rotten Tomatoes score on the title form too", async () => {
+        const seerr = new SeerrAdapter(seerrConfig, serving({ '/api/v1/movie/603/ratingscombined': { rt: { criticsScore: 88 } } }));
+        const result = await resolveMediaDetails([seerr], loader(), { ...query, query: 'matrix' });
+        expect(result.ratings).toMatchObject({ rottenTomatoes: 88 });
+    });
+
     it('never answers a title query with a Grimmory book, and points a book-only match at its id', async () => {
         const book = (title: string) => ({
             kind: 'book' as const,
