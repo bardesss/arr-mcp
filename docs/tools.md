@@ -1110,11 +1110,11 @@ manages. Two kinds of row there need care before anything is added:
   media server to another title. `add_media` with `path` checks the folder name
   against the lookup (see below).
 
-`add_media` takes `path`, an existing folder inside one of the service's root
+`add_media` takes `path`, an existing folder directly inside one of the service's root
 folders, as the service sees the disk, to adopt the folder as it is (Radarr,
 Sonarr and Whisparr; not Lidarr, which has its own Library Import). The root is
 the one holding the folder, or the one `root_folder` names, which must hold it;
-a folder outside every root is refused. The service scans the folder on add,
+a folder outside every root, nested deeper, or with a `.` or `..` segment is refused. The service scans the folder on add,
 so its files count as on disk. `search_now` defaults to `false` with `path`.
 The preview warns when the folder name disagrees with the lookup: a
 `tmdb-`/`tvdb-` id in the name that is not the one given, a year in parentheses

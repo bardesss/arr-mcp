@@ -885,11 +885,15 @@ describe('add_media adopting an existing folder (#535)', () => {
     });
 
     it('refuses a folder outside every root, or outside the root named', async () => {
-        await expect(harness().call({ service: 'radarr', external_id: '603', path: '/downloads/The Matrix' })).rejects.toThrow(/not a folder inside/);
-        await expect(harness().call({ service: 'radarr', external_id: '603', path: '/movies' })).rejects.toThrow(/not a folder inside/);
+        await expect(harness().call({ service: 'radarr', external_id: '603', path: '/downloads/The Matrix' })).rejects.toThrow(/not a folder directly inside/);
+        await expect(harness().call({ service: 'radarr', external_id: '603', path: '/movies' })).rejects.toThrow(/not a folder directly inside/);
+        await expect(harness().call({ service: 'radarr', external_id: '603', path: '/movies/../etc' })).rejects.toThrow(/not a folder directly inside/);
+        await expect(harness().call({ service: 'radarr', external_id: '603', path: '/movies/./The Matrix' })).rejects.toThrow(/not a folder directly inside/);
+        await expect(harness().call({ service: 'radarr', external_id: '603', path: '/movies/A/The Matrix' })).rejects.toThrow(/not a folder directly inside/);
+        await expect(harness().call({ service: 'radarr', external_id: '603', path: '/moviesX/The Matrix' })).rejects.toThrow(/not a folder directly inside/);
         await expect(
             harness({ folders: MANY_FOLDERS }).call({ service: 'radarr', external_id: '603', path: '/movies/The Matrix', root_folder: '/movies-4k' })
-        ).rejects.toThrow(/not a folder inside/);
+        ).rejects.toThrow(/not a folder directly inside/);
     });
 
     it('warns when the folder name disagrees with the title', async () => {

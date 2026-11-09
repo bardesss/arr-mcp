@@ -220,15 +220,20 @@ const trimSlash = (p: string): string => p.replace(/[\\/]+$/, '');
  */
 export function rootOf(folders: readonly RootFolder[], path: string, service: string): RootFolder {
     const wanted = trimSlash(path);
-    const hit = folders
-        .filter(f => {
-            const root = trimSlash(f.path);
-            return wanted.length > root.length && wanted.startsWith(root) && /[\\/]/.test(wanted[root.length] ?? '');
-        })
-        .sort((a, b) => b.path.length - a.path.length)[0];
+    // `/movies/../etc` would pass a prefix test, so dot segments are refused
+    // outright, and the folder must be the root's own child, as Radarr and
+    // Sonarr lay a title out.
+    const dotted = wanted.split(/[\\/]/).some(segment => segment === '.' || segment === '..');
+    const hit = dotted
+        ? undefined
+        : folders.find(f => {
+              const root = trimSlash(f.path);
+              const rest = wanted.slice(root.length);
+              return wanted.startsWith(root) && /^[\\/][^\\/]+$/.test(rest);
+          });
     if (hit !== undefined) return hit;
-    throw new ServiceError('NotFound', service, `${JSON.stringify(path)} is not a folder inside a ${service} root folder`, {
-        remedy: `Pass the title's own folder inside one of ${folders.map(f => f.display).join(', ') || 'its root folders'}, as ${service} sees the disk.`
+    throw new ServiceError('NotFound', service, `${JSON.stringify(path)} is not a folder directly inside a ${service} root folder`, {
+        remedy: `Pass the title's own folder, directly inside one of ${folders.map(f => f.display).join(', ') || 'its root folders'}, as ${service} sees the disk.`
     });
 }
 
