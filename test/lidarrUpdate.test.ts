@@ -44,7 +44,7 @@ const config = (port: number): KeyedServiceConfig => ({
 
 type Sent = { method: string; path: string; body: Record<string, unknown> | undefined };
 
-function lidarr(routes: Record<string, unknown> = {}) {
+function lidarr(routes: Record<string, unknown> = {}, cfg: KeyedServiceConfig = config(8686)) {
     const all: Record<string, unknown> = {
         '/api/v1/artist/101': ARTIST,
         '/api/v1/artist/editor': UPDATED,
@@ -64,7 +64,7 @@ function lidarr(routes: Record<string, unknown> = {}) {
         if (!(url.pathname in all)) return new Response(JSON.stringify({ message: 'not found' }), { status: 404 });
         return new Response(JSON.stringify(all[url.pathname]), { headers: { 'content-type': 'application/json' } });
     }) as unknown as typeof fetch;
-    return { adapter: new LidarrAdapter(config(8686), impl), sent };
+    return { adapter: new LidarrAdapter(cfg as never, impl), sent };
 }
 
 describe('LidarrAdapter updating an artist', () => {
@@ -132,14 +132,21 @@ type Call = (args: Record<string, unknown>) => Promise<{ content: { type: 'text'
 const permissive = (port: number, destructive: boolean): AnyServiceConfig =>
     ({ ...config(port), permissions: { safe_write: true, destructive } }) as AnyServiceConfig;
 
-function updateMedia(adapters: ServiceAdapter[], destructive = true) {
+function updateMedia(
+    adapters: ServiceAdapter[],
+    destructive = true,
+    override?: Partial<Record<ServiceId, AnyServiceConfig>>
+) {
     let call: Call = () => Promise.reject(new Error('not registered'));
     const server = {
         registerTool(_n: string, c: { inputSchema: z.ZodObject }, handler: Call) {
             call = args => handler(c.inputSchema.parse(args) as Record<string, unknown>);
         }
     };
-    const services: Partial<Record<ServiceId, AnyServiceConfig>> = { lidarr: permissive(8686, destructive), radarr: permissive(7878, destructive) };
+    const services: Partial<Record<ServiceId, AnyServiceConfig>> = override ?? {
+        lidarr: permissive(8686, destructive),
+        radarr: permissive(7878, destructive)
+    };
     registerUpdateMedia(
         server as never,
         {
@@ -220,7 +227,7 @@ describe('update_media on Lidarr', () => {
         const { adapter } = lidarr({ '/api/v1/artist/101': { ...ARTIST, monitorNewItems: rule }, '/api/v1/metadataprofile': BROADER });
         const said = (await updateMedia([adapter])({ service: 'lidarr', id: '101', metadata_profile: 'Everything' })).structuredContent.effects.join(' ');
         expect(said).toContain(
-            'Albums the new profile leaves out are removed then, unless they have files or were added by hand, and switching back later brings them in again as new albums, without their old flags.'
+            'Any album the new profile leaves out is removed then, unless it has files or was added by hand, and switching back later brings it in again as a new album, without its old flag.'
         );
         expect(said).toContain(text);
         if (rule === 'none') expect(said).not.toContain('searches');
@@ -233,7 +240,7 @@ describe('update_media on Lidarr', () => {
         const { adapter } = lidarr({ '/api/v1/artist/101': { ...ARTIST, metadataProfileId: 2, monitorNewItems: 'new' } });
         const said = (await updateMedia([adapter])({ service: 'lidarr', id: '101', metadata_profile: 'Standard' })).structuredContent.effects.join(' ');
         expect(said).toContain('Switches the metadata profile from <<untrusted:lidarr.name>>None');
-        expect(said).toContain('Albums the new profile leaves out are removed then');
+        expect(said).toContain('Any album the new profile leaves out is removed then');
         expect(said).toContain('every one when there is none (`monitor_new_items` is `new`)');
     });
 
@@ -253,6 +260,85 @@ describe('update_media on Lidarr', () => {
         const none = lidarr({ '/api/v1/artist/101': noProfile });
         const second = await updateMedia([none.adapter])({ service: 'lidarr', id: '101', metadata_profile: 'Standard' });
         expect(second.structuredContent.effects.join(' ')).toContain('Switches the metadata profile from its current profile to');
+    });
+
+    // A scheduled refresh may not come until the artist changes upstream, so
+    // the refresh is offered.
+    it('says the next refresh may not come on its own, and offers trigger_scan on the artist once applied', async () => {
+        const { adapter } = lidarr();
+        const call = updateMedia([adapter]);
+        const first = await call({ service: 'lidarr', id: '101', metadata_profile: 'None' });
+        const said = first.structuredContent.effects.join(' ');
+        expect(said).toContain(
+            "Lidarr applies it at the artist's next refresh, which this does not start and which may not come until the artist changes upstream; trigger_scan with its `id` refreshes it now, and is offered once this is applied."
+        );
+        // The outcome only: how Lidarr picks the artists is in docs/tools.md.
+        expect(said).not.toContain('metadata server');
+        expect(said).not.toContain('3.1.5.5066');
+
+        const done = await call({ service: 'lidarr', id: '101', metadata_profile: 'None', confirm: first.structuredContent.confirm_token });
+        expect(done.structuredContent.next_steps).toEqual([
+            {
+                tool: 'trigger_scan',
+                arguments: { service: 'lidarr', id: '101' },
+                why: "Refreshes the artist now, and rescans every root folder unless Lidarr's 'Rescan Artist Folder after Refresh' is set to Never, so Lidarr applies the new metadata profile, with the album changes the preview described."
+            }
+        ]);
+        expect(done.content[0]?.text).toContain('Next: trigger_scan {"service":"lidarr","id":"101"}');
+    });
+
+    it('names the instance in the offered step', async () => {
+        const named = { ...config(8686), permissions: { safe_write: true, destructive: true }, name: 'two' } as unknown as AnyServiceConfig;
+        const { adapter } = lidarr({}, named as KeyedServiceConfig);
+        const call = updateMedia([adapter], true, { lidarr: named });
+        const args = { service: 'lidarr', instance: 'two', id: '101', metadata_profile: 'None' };
+        const first = await call(args);
+        const done = await call({ ...args, confirm: first.structuredContent.confirm_token });
+        expect(done.structuredContent.next_steps?.[0]?.arguments).toEqual({ service: 'lidarr', instance: 'two', id: '101' });
+    });
+
+    // The refresh rescans the root folders, which can drop the records of
+    // files that have not reached the new folder yet.
+    it('offers no refresh after a move_files: false change in the same call, and says why', async () => {
+        const { adapter } = lidarr({
+            '/api/v1/rootfolder': [
+                { id: 1, path: '/music', freeSpace: 2_000_000_000_000 },
+                { id: 2, path: '/data/music', freeSpace: 500_000_000_000 }
+            ]
+        });
+        const call = updateMedia([adapter]);
+        const args = { service: 'lidarr', id: '101', metadata_profile: 'None', root_folder: '/data/music', move_files: false };
+        const first = await call(args);
+        expect(first.structuredContent.effects.join(' ')).toContain(
+            "trigger_scan with its `id` refreshes it now, but is not offered here, since it also rescans the root folders: run it once the files are in the new root folder."
+        );
+        const done = await call({ ...args, confirm: first.structuredContent.confirm_token });
+        expect(done.structuredContent.next_steps).toBeUndefined();
+    });
+
+    it('still offers the refresh when the same call moves the files to a new root folder', async () => {
+        const { adapter } = lidarr({
+            '/api/v1/rootfolder': [
+                { id: 1, path: '/music', freeSpace: 2_000_000_000_000 },
+                { id: 2, path: '/data/music', freeSpace: 500_000_000_000 }
+            ]
+        });
+        const call = updateMedia([adapter]);
+        const args = { service: 'lidarr', id: '101', metadata_profile: 'None', root_folder: '/data/music', move_files: true };
+        const first = await call(args);
+        expect(first.structuredContent.effects.join(' ')).toContain('and is offered once this is applied.');
+        const done = await call({ ...args, confirm: first.structuredContent.confirm_token });
+        expect(done.structuredContent.next_steps?.[0]?.tool).toBe('trigger_scan');
+    });
+
+    it('offers no refresh, and sends no metadata profile, when the profile does not change', async () => {
+        const { adapter, sent } = lidarr();
+        const call = updateMedia([adapter]);
+        const args = { service: 'lidarr', id: '101', metadata_profile: 'Standard', quality_profile: 'Quality profile 11' };
+        const first = await call(args);
+        const done = await call({ ...args, confirm: first.structuredContent.confirm_token });
+        expect(done.structuredContent.next_steps).toBeUndefined();
+        expect(sent.find(s => s.method === 'PUT')?.body).toEqual({ artistIds: [101], qualityProfileId: 11, moveFiles: false });
     });
 
     it('is a no-op when the metadata profile is already that one', async () => {
@@ -287,7 +373,14 @@ describe('update_media on Lidarr', () => {
         const call = updateMedia([adapter]);
         const args = { service: 'lidarr', id: '101', root_folder: '/data/music', move_files: false };
         const first = await call(args);
-        expect(first.structuredContent.effects.join(' ')).toContain('without moving anything');
+        const said = first.structuredContent.effects.join(' ');
+        expect(said).toContain(
+            "without moving anything. If the artist's current folder is still on disk, Lidarr also rewrites every track file's recorded path to the new root folder while the files stay where they are. It keeps counting them as present, and a library scan before they are moved there can drop their records."
+        );
+        expect(said).toContain(
+            "Switching back restores the artist's folder but not those paths, since Lidarr skips the move when the folder it moves from is not on disk."
+        );
+        expect(said).not.toContain('missing');
         await call({ ...args, confirm: first.structuredContent.confirm_token });
         expect(sent.find(s => s.method === 'PUT')?.body).toEqual({ artistIds: [101], rootFolderPath: '/data/music', moveFiles: false });
     });
