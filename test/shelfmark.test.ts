@@ -176,6 +176,20 @@ describe('get_queue', () => {
         for (let i = 0; i < 2; i += 1) await expect(shelfmark.getQueue()).rejects.toMatchObject({ kind: 'AuthFailed', remedy: expect.stringContaining('SHELFMARK_API_KEY') });
         expect(fetchImpl.mock.calls.filter(c => new URL(String(c[0])).pathname === '/api/status')).toHaveLength(1);
     });
+
+    it('asks again five minutes after a refusal', async () => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        try {
+            const fetchImpl = server(READ_ONLY);
+            const shelfmark = adapter(fetchImpl as typeof fetch, 'ro');
+            await expect(shelfmark.getQueue()).rejects.toMatchObject({ kind: 'AuthFailed' });
+            vi.advanceTimersByTime(5 * 60_000 + 1);
+            await expect(shelfmark.getQueue()).rejects.toMatchObject({ kind: 'AuthFailed' });
+            expect(fetchImpl.mock.calls.filter(c => new URL(String(c[0])).pathname === '/api/status')).toHaveLength(2);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
 });
 
 describe('finding a book', () => {
@@ -190,10 +204,10 @@ describe('finding a book', () => {
         expect(hit?.title).toContain('The Dutch Republic by Jonathan Irvine Israel');
     });
 
-    it('answers no books with a read-only key, and asks only once', async () => {
+    it('refuses a book search with a read-only key, and asks only once', async () => {
         const fetchImpl = server({ '/api/metadata/search': () => json({ error: 'This API key is read-only' }, 403) });
         const shelfmark = adapter(fetchImpl as typeof fetch, 'ro');
-        for (let i = 0; i < 2; i += 1) await expect(shelfmark.search('dutch', 'discover')).resolves.toEqual([]);
+        for (let i = 0; i < 2; i += 1) await expect(shelfmark.search('dutch', 'discover')).rejects.toMatchObject({ kind: 'AuthFailed', remedy: expect.stringContaining('SHELFMARK_API_KEY') });
         expect(fetchImpl.mock.calls.filter(c => new URL(String(c[0])).pathname === '/api/metadata/search')).toHaveLength(1);
     });
 
@@ -370,6 +384,23 @@ describe('get_history', () => {
             expect(row.title).toContain('<<');
         }
     });
+
+    it('asks for the snapshot and the dismissed list together', async () => {
+        let release!: () => void;
+        const dismissedAsked = new Promise<void>(resolve => {
+            release = resolve;
+        });
+        const fetchImpl = vi.fn(async (input: string | URL | Request) => {
+            const path = new URL(String(input)).pathname;
+            if (path === '/api/activity/snapshot') {
+                await dismissedAsked;
+                return json({ status: {} });
+            }
+            release();
+            return json([]);
+        });
+        await expect(adapter(fetchImpl as typeof fetch).readHistory({})).resolves.toEqual([]);
+    }, 1000);
 
     it('keeps one row for a task in both lists, with the time it ended', async () => {
         const task = { title: 'T', status_message: 'x', added_time: 1000 };

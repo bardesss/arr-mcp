@@ -93,6 +93,7 @@ const isForbidden = (err: unknown): boolean => err instanceof ServiceError && er
 
 /** What a read gives back when the key turns out to be the read-only one. */
 const READ_ONLY_KEY: unique symbol = Symbol('read-only key');
+const READ_ONLY_RETRY_MS = 5 * 60_000;
 /**
  * A hash, never `source_id` itself: on a Prowlarr row that is the indexer's own
  * download URL, API key and all, and a guid is shown to the caller. `source` and
@@ -128,12 +129,13 @@ export class ShelfmarkAdapter
     readonly #http: ServiceHttp;
     readonly #public: ServiceHttp;
     /**
-     * Set by the first 403 from an admin route, and never tried again: every 403
-     * counts toward `ServiceHttp`'s circuit breaker, so asking on each call would
-     * trip it on a healthy server. A config change builds a new adapter, so a
-     * swapped key starts over.
+     * Set by a 403 from an admin route, and not tried again until `READ_ONLY_RETRY_MS`
+     * has passed: every 403 counts toward `ServiceHttp`'s circuit breaker, so asking
+     * on each call would trip it on a healthy server. A config change builds a new
+     * adapter, so a swapped key starts over, and a key swapped on the server itself
+     * is picked up when the latch lapses.
      */
-    #readOnly = false;
+    #readOnlyUntil = 0;
     /** Raw rows by book id, oldest first, because a grab has to send one back whole. */
     readonly #listed = new Map<string, { at: number; rows: RawRelease[] }>();
 
@@ -265,8 +267,10 @@ export class ShelfmarkAdapter
 
     /** The snapshot leaves out what was dismissed and the history holds nothing else, so a row is in one or the other. */
     async #finished(): Promise<FinishedRow[]> {
-        const snapshot = await this.#adminRead<RawSnapshot>(SNAPSHOT_PATH, 'read the download history');
-        const dismissed = await this.#adminRead<RawDismissed[]>(DISMISSED_PATH, 'read the download history');
+        const [snapshot, dismissed] = await Promise.all([
+            this.#adminRead<RawSnapshot>(SNAPSHOT_PATH, 'read the download history'),
+            this.#adminRead<RawDismissed[]>(DISMISSED_PATH, 'read the download history')
+        ]);
         const rows = new Map<string, FinishedRow>();
         for (const row of dismissed) {
             const task = row.snapshot?.download;
@@ -286,14 +290,22 @@ export class ShelfmarkAdapter
 
     /** A read only a full key can make, with the first refusal remembered. */
     async #fullKey<T>(read: () => Promise<T>): Promise<T | typeof READ_ONLY_KEY> {
-        if (this.#readOnly) return READ_ONLY_KEY;
+        if (this.#isReadOnly()) return READ_ONLY_KEY;
         try {
             return await read();
         } catch (err) {
             if (!isForbidden(err)) throw err;
-            this.#readOnly = true;
+            this.#latchReadOnly();
             return READ_ONLY_KEY;
         }
+    }
+
+    #isReadOnly(): boolean {
+        return Date.now() < this.#readOnlyUntil;
+    }
+
+    #latchReadOnly(): void {
+        this.#readOnlyUntil = Date.now() + READ_ONLY_RETRY_MS;
     }
 
     async #adminRead<T>(path: string, what: string): Promise<T> {
@@ -313,13 +325,13 @@ export class ShelfmarkAdapter
         return message === undefined ? undefined : fenceText(message.replace(ANY_URL, '[url]'), { service: this.id, field: 'status_message' });
     }
 
-    /** Books not yet owned, so `discover` only. A read-only key cannot search: the first refusal is remembered. */
+    /** Books not yet owned, so `discover` only. A read-only key cannot search, so that refuses; a library search answers none. */
     async search(query: string, source: SearchSource): Promise<SearchHit[]> {
         if (source !== 'discover') return [];
         const body = await this.#fullKey(() =>
             this.#http.get<{ books?: RawBook[] }>(`${SEARCH_PATH}?${new URLSearchParams({ query, limit: String(SEARCH_LIMIT) }).toString()}`)
         );
-        if (body === READ_ONLY_KEY) return [];
+        if (body === READ_ONLY_KEY) throw new ServiceError('AuthFailed', this.id, 'the read-only key cannot search for books', { remedy: REMEDY_FULL_KEY });
         return (body.books ?? []).flatMap(book => {
             const provider = str(book.provider);
             const providerId = str(book.provider_id);
