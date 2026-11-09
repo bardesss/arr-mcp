@@ -155,6 +155,20 @@ describe('set_watched', () => {
         expect(h.marked).toHaveLength(0);
     });
 
+    it('will not apply a token previewed for one viewer to another', async () => {
+        const h = harness({ config: jellyfinConfig({ allow_other_users: true }) });
+        const preview = await h.call({ item_id: MOVIE, watched: true });
+        const second = await h.call({
+            item_id: MOVIE,
+            watched: true,
+            user: 'Alex',
+            confirm: preview.structuredContent.confirm_token
+        });
+        expect(second.structuredContent.applied).toBe(false);
+        expect(second.structuredContent.confirm_error).toMatch(/different operation or different arguments/);
+        expect(h.marked).toHaveLength(0);
+    });
+
     it('marks it once the token comes back', async () => {
         const h = harness();
         const preview = await h.call({ item_id: MOVIE, watched: true });

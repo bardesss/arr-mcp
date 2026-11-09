@@ -235,7 +235,7 @@ export function registerSetWatched(
                     // before the fact rather than discovered after.
                     'Re-marking later restores the flag but not the original play date or resume position — that history is not recoverable.'
                 ],
-                args: { itemId: item.id, watched, ...(season === undefined ? {} : { season }) }
+                args: { itemId: item.id, viewer: viewer.id, watched, ...(season === undefined ? {} : { season }) }
             };
         },
 
