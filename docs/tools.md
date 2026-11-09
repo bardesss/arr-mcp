@@ -1214,8 +1214,9 @@ never merged. `service` exists only when two media servers are configured, and
 
 Plex's `/library/onDeck` mixes resume and next-up rows with nothing marking
 which is which, so `active` and `next_up` split it by `viewOffset`: non-zero
-reads as resume, zero or absent as next-up. That split is unverified against a
-live server.
+reads as resume, zero or absent as next-up.
+
+**Unverified live** (Plex): the resume and next-up split of `/library/onDeck`.
 
 **Plex answers for one user only.** A local `X-Plex-Token` is scoped to a
 single Plex account, so every Plex row here is that account's — reading anyone
@@ -1254,6 +1255,10 @@ Each Radarr, Sonarr or Lidarr row carries `downloadId`, the download client's
 own id for that grab. It is what `trigger_scan`'s `import` action takes, and
 it is the link between "this is stuck at `importBlocked`" and doing something
 about it.
+
+**Unverified live** (qBittorrent): `by_tracker`, the seed time per tracker.
+
+**Unverified live** (Cleanuparr): the seeding rules of a Transmission client.
 
 Radarr, Sonarr and Lidarr rows also carry `mediaId`, the *arr's own id for the
 movie, series or artist the grab is for, and an orphaned row has none. `diagnose`
@@ -1469,6 +1474,8 @@ and what `at` means on its rows. Passing `id` with `service: shelfmark` is refus
 Grimmory contributes four actions from its audit log. Logins, users, settings
 and tasks are never read.
 
+**Unverified live** (Grimmory): the `BOOK_UPLOADED` row.
+
 | Audit action | `event` | What a row means |
 | --- | --- | --- |
 | `BOOK_UPLOADED` | `added` | A book was uploaded to Grimmory. `mediaId` is the book id when Grimmory logs one. No live upload row has been captured yet, so this shape follows Grimmory's API description |
@@ -1661,6 +1668,10 @@ The write half of `get_releases`. Takes `guid` and `indexer_id` from a
 `get_releases` row verbatim and tells Radarr, Sonarr, Whisparr, Lidarr or
 Shelfmark to grab that one release — "not that one, the 1080p remux". On Shelfmark both can be left
 out, and the most-downloaded file is taken, named in the preview first.
+
+**Unverified live** (qBittorrent): a magnet link sent to the client.
+
+**Unverified live** (Shelfmark): the default grab with no release named.
 
 Instead of the ids it takes `release_title`, the release name exactly as
 `get_releases` listed it, plus `id`. The preview's re-search looks the name up:
@@ -1868,6 +1879,8 @@ sync clears it; `trigger_scan` on Prowlarr runs one.
 
 The write half of `get_playback`. Marks a film, series, season or episode
 watched or unwatched in Jellyfin, or a Grimmory book read or unread.
+
+**Unverified live** (Grimmory): marking a book read or unread.
 
 `item_id` is a **Jellyfin** item id, and that constraint is deliberate rather
 than incidental. Jellyfin's own ids never enter the library index —
@@ -2438,16 +2451,18 @@ SABnzbd and NZBGet publish a client-wide paused flag; for the two torrent client
 all reads as *not* paused — nothing to pause is a different state from
 everything paused, and treating them alike would refuse a legitimate call.
 
-The qBittorrent path is **spec-derived and unverified against a live
-instance**: there is no qBittorrent on the stack these adapters were probed
-against. v5 renamed `pause`/`resume` to `stop`/`start`, so both verbs are
-attempted — the new one first, the old one only if it 404s.
+**Unverified live** (qBittorrent): pause, resume and the speed limit.
+
+v5 renamed `pause`/`resume` to `stop`/`start`, so both verbs are attempted on
+qBittorrent — the new one first, the old one only if it 404s.
 
 ## `retry_download`
 
 "This download failed, try it again", on the usenet client that holds the files,
 SABnzbd or NZBGet, or on Shelfmark. `id` is the one on that client's `get_history`
 or `get_queue` row. The preview picks what to send from the job itself and shows it:
+
+**Unverified live** (Shelfmark): retrying a failed book or a Prowlarr row.
 
 - **Shelfmark:** a failed or cancelled book goes back to the front of its queue,
   under the same id, if Shelfmark marks the row as retryable. `password` is refused.
@@ -2576,6 +2591,8 @@ rejects the call without it.
 
 Six actions, one idea: make a service reconcile itself with what is on disk
 and, on the *arrs, with its metadata provider.
+
+**Unverified live** (Grimmory): approving one Bookdrop file with `action: "bookdrop"` and `id`.
 
 | Call | What it does |
 | --- | --- |
@@ -2883,6 +2900,8 @@ Removes a film from Radarr, a series or site from Sonarr or Whisparr, an artist
 from Lidarr, or a book from Grimmory. It takes `service` and `id`, never a
 title, with `id` from `acquisition.id` on a `get_library` or `get_media_details`
 record. `destructive` tier, and the preview comes first.
+
+**Unverified live** (Grimmory): deleting a book.
 
 ### Lidarr
 

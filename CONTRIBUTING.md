@@ -755,6 +755,13 @@ discard the filter cannot do for you: keep the file you were asked for and
 `git checkout` the rest. Issue #272 is what it looks like in practice, ten
 captured and nine discarded.
 
+**A path with no live capture says so.** A read or write whose response was
+never recorded from, or confirmed against, a real service carries an
+`**Unverified live** (<service>): <what>.` line in its tool's section of
+`docs/tools.md` and a row in the table in `docs/writes.md` ("Not yet run
+against a live service"). `test/unverifiedLive.test.ts` keeps the two in step.
+Removing the line and the row is part of the pull request that adds the capture.
+
 ### Webhook payloads
 
 An *arr sends these rather than answering a request, so they have their own script:
