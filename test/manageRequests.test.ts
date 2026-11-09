@@ -159,6 +159,26 @@ describe('SeerrAdapter request writes', () => {
         expect(sent).toEqual([]);
     });
 
+    it("reads a title's own requests from its detail", async () => {
+        const recorded = JSON.parse(
+            readFileSync(new URL('./fixtures/seerr/movie-detail.json', import.meta.url), 'utf8')
+        ) as { id: number };
+        const impl = (async () => jsonResponse(recorded)) as unknown as typeof fetch;
+        const adapter = new SeerrAdapter(seerrConfig, impl);
+        const found = await adapter.getMediaRequests('movie', recorded.id);
+
+        expect(found.media?.title).toContain('<<untrusted:seerr.title>>');
+        expect(found.requests.length).toBeGreaterThan(0);
+        for (const r of found.requests) {
+            expect(r.tmdbId).toBe(recorded.id);
+            expect(r.mediaType).toBe('movie');
+            expect(r.requestedBy).not.toBe('unknown');
+        }
+
+        const bare = (async () => jsonResponse({ title: 'X' })) as unknown as typeof fetch;
+        expect((await new SeerrAdapter(seerrConfig, bare).getMediaRequests('movie', 1)).requests).toEqual([]);
+    });
+
     it('maps the recorded single-request response', async () => {
         const recorded = JSON.parse(
             readFileSync(new URL('./fixtures/seerr/request-by-id.json', import.meta.url), 'utf8')

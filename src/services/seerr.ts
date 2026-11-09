@@ -277,8 +277,43 @@ export class SeerrAdapter
         }
     }
 
-    async getMediaRequests(_mediaType: 'movie' | 'tv', _tmdbId: number): Promise<TitleRequests> {
-        throw new Error('not implemented');
+    /**
+     * A title's own requests, read from its detail: `mediaInfo.requests` lists
+     * every request for that title, so the duplicate check costs one call
+     * however long the request history is. Errors propagate; the caller decides
+     * what a failed lookup means.
+     *
+     * The nested rows carry no tmdbId or mediaType of their own that can be
+     * trusted, so the arguments decide both.
+     */
+    async getMediaRequests(mediaType: 'movie' | 'tv', tmdbId: number): Promise<TitleRequests> {
+        const path = mediaType === 'movie' ? `/api/v1/movie/${tmdbId}` : `/api/v1/tv/${tmdbId}`;
+        const raw = await this.#http.get<
+            RawMediaDetails & { mediaInfo?: { tvdbId?: number | null; requests?: RawRequest[] } }
+        >(path);
+
+        const title = raw.title ?? raw.name;
+        const year = yearOf(raw.releaseDate ?? raw.firstAirDate);
+        const requests = (raw.mediaInfo?.requests ?? [])
+            .filter((r): r is RawRequest & { id: number } => typeof r.id === 'number')
+            .map(r =>
+                this.#toRequest({
+                    ...r,
+                    media: { ...(r.media ?? {}), tvdbId: raw.mediaInfo?.tvdbId ?? null, tmdbId, mediaType }
+                })
+            );
+
+        return {
+            ...(title === undefined || title === ''
+                ? {}
+                : {
+                      media: {
+                          title: fenceText(title, { service: this.id, field: 'title' }),
+                          ...(year === undefined ? {} : { year })
+                      }
+                  }),
+            requests
+        };
     }
 
     /**
