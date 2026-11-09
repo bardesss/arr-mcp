@@ -320,7 +320,7 @@ at `resolve`, and the summary says what happened to up to three matching
 releases, for example "Cleanuparr removed … on 2026-10-27: MaxSeedTimeReached,
 after 3 strikes." `history` holds the row behind each one. Nothing matching
 leaves today's answer, and a history source that could not be read sets
-`certain: false`. A query that resolves never triggers this read.
+`certain: false`. A query that resolves never triggers this read. A title nothing matches is answered from the library and download history only. A service that has not answered within 10 seconds of the title being found is reported as not checked.
 
 With the [library event log](configuration.md#the-library-event-log) on, that
 search covers its last 30 days too, which is how `diagnose` can explain a title

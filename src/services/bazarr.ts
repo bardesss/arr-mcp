@@ -233,8 +233,16 @@ export class BazarrAdapter
         ]);
         const seriesTitle = (series.data ?? []).find(s => s.sonarrSeriesId === item.seriesId)?.title;
 
-        return (episodes.data ?? []).flatMap(e =>
-            e.sonarrSeriesId === item.seriesId && typeof e.sonarrEpisodeId === 'number' && (e.missing_subtitles ?? []).length > 0
+        const mine = (episodes.data ?? []).filter(
+            e => e.sonarrSeriesId === item.seriesId && typeof e.sonarrEpisodeId === 'number' && (e.missing_subtitles ?? []).length > 0
+        );
+        // Without the series row the gaps cannot be tied to a title, and the chain would read them as none missing.
+        if (seriesTitle === undefined && mine.length > 0) {
+            throw new ServiceError('UpstreamError', this.id, `series ${item.seriesId} has episodes but no series row`);
+        }
+
+        return mine.flatMap(e =>
+            typeof e.sonarrEpisodeId === 'number'
                 ? [
                       this.#episodeGap({
                           id: e.sonarrEpisodeId,

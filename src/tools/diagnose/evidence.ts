@@ -82,7 +82,11 @@ async function historyByName(
     return reads.flatMap(rowsOf).filter(r => releaseMentions(r.title, query));
 }
 
-/** The whole diagnosis answers within this, however many services are slow. */
+/**
+ * Everything read after the title is resolved answers within this, however many
+ * services are slow. The library read and the by-id lookup that resolve the
+ * title come first and are bounded only by each service's own timeout.
+ */
 export const DIAGNOSE_BUDGET_MS = 10_000;
 
 type Probe = <T>(id: string, degraded: string[], fn: () => Promise<T>) => Promise<T | undefined>;
@@ -96,7 +100,8 @@ type Probe = <T>(id: string, degraded: string[], fn: () => Promise<T>) => Promis
 function prober(budget: Deadline): Probe {
     return async (id, degraded, fn) => {
         try {
-            const result = await budget.race(fn());
+            // Once the budget is spent a read could only be thrown away, so it is not started.
+            const result = budget.expired() ? TIMED_OUT : await budget.race(fn());
             if (result !== TIMED_OUT) return result;
             logger.warn({ service: id }, 'diagnose probe ran out of time; the stage will report unknown');
         } catch (err) {
@@ -393,7 +398,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
                   queueAdapters.map(a => ({
                       id: a.id,
                       fetch: () =>
-                          budget.race(a.getQueue()).then(r => {
+                          (budget.expired() ? Promise.resolve(TIMED_OUT) : budget.race(a.getQueue())).then(r => {
                               if (r === TIMED_OUT) throw new ServiceError('Timeout', a.id, 'no answer within the diagnose budget');
                               return r;
                           })
@@ -443,7 +448,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
                             item?.kind === 'series' ? { kind: 'series', seriesId: subtitlesId } : { kind: 'movie', id: subtitlesId }
                         )
                     ).then(gaps => (gaps === undefined ? undefined : { gaps, service: subtitlesAdapter.id }))
-                  : // Nothing to ask about: the chain reports the missing id as unknown.
+                  : // No usable id to ask about: reads as none missing, as the whole-list read did. Only an undefined id reports unknown.
                     Promise.resolve({ gaps: [], service: subtitlesAdapter.id });
 
         // An artist with no track on disk is searched for next, and a Lidarr search
@@ -521,7 +526,11 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
             // Unknown (no identity, or it would not resolve) reads as "may not".
             let mayRespond = false;
             if (match !== undefined && match.status === 'pending' && deps.seerrIdentity !== undefined) {
-                mayRespond = (await budget.race(mayManageRequest(match, deps.seerrIdentity).catch(() => false))) === true;
+                const may = budget.expired()
+                    ? TIMED_OUT
+                    : await budget.race(mayManageRequest(match, deps.seerrIdentity).catch(() => false));
+                if (may === TIMED_OUT && seerr !== undefined && !degraded.includes(seerr.id)) degraded.push(seerr.id);
+                mayRespond = may === true;
             }
             request = match === undefined ? null : { status: match.status, id: match.id, mayRespond };
         }

@@ -579,7 +579,14 @@ describe('BazarrAdapter', () => {
             })
         );
         const gaps = await wanted.getMissingSubtitles();
-        expect(gaps[0]).toMatchObject({ kind: 'episode', id: 5169, seriesId: 67 });
+        expect(gaps[0]).toMatchObject({
+            kind: 'episode',
+            id: 5169,
+            seriesId: 67,
+            title: '<<untrusted:bazarr.seriesTitle>>Rick and Morty<</>>',
+            episodeTitle: '<<untrusted:bazarr.episodeTitle>>Mortyplicity<</>>',
+            releaseName: '<<untrusted:bazarr.sceneName>>Rick.and.Morty.S05E02.Mortyplicity.1080p.HMAX.WEB-DL.DD5.1.H.264-PHOENiX<</>>'
+        });
     });
 
     describe('getMissingSubtitlesFor', () => {
@@ -620,10 +627,26 @@ describe('BazarrAdapter', () => {
             for (const u of urls) expect(new URL(u).searchParams.getAll('seriesid[]')).toEqual([String(SERIES_ID)]);
             expect(gaps.length).toBeGreaterThan(0);
             expect(gaps.every(g => g.kind === 'episode' && g.seriesId === SERIES_ID && g.missing.length > 0)).toBe(true);
-            expect(gaps[0]).toMatchObject({ season: 1, episode: 4, title: '<<untrusted:bazarr.seriesTitle>>Unnatural Selection<</>>' });
+            expect(gaps[0]).toMatchObject({
+                season: 1,
+                episode: 4,
+                title: '<<untrusted:bazarr.seriesTitle>>Unnatural Selection<</>>',
+                episodeTitle: '<<untrusted:bazarr.episodeTitle>>Our Next Generation<</>>',
+                releaseName:
+                    '<<untrusted:bazarr.sceneName>>Unnatural.Selection.S01E04.Our.Next.Generation.2160p.NF.WEB-DL.DDP.5.1.DoVi.HDR.HEVC-SiC<</>>'
+            });
+        });
+
+        it('fails when episodes are missing subtitles but Bazarr has no row for the series', async () => {
+            const a = new BazarrAdapter(
+                keyed(6767),
+                serving({ '/api/episodes': fixture('bazarr/episodes-series.json'), '/api/series': { data: [] } })
+            );
+            await expect(a.getMissingSubtitlesFor({ kind: 'series', seriesId: SERIES_ID })).rejects.toMatchObject({ kind: 'UpstreamError' });
         });
 
         it('drops episodes without a gap, and those of another series, when Bazarr ignores the filter', async () => {
+            // The recorded rows all have a gap, so the first one is edited in memory to have none.
             const episodes = fixture('bazarr/episodes-series.json') as { data: Record<string, unknown>[] };
             const rows = [{ ...episodes.data[0]!, missing_subtitles: [] }, ...episodes.data.slice(1)];
             const a = new BazarrAdapter(
