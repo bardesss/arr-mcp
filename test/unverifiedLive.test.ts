@@ -1,11 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { ServiceIdSchema, type ServiceId } from '../src/config/schema.js';
+import { TOOL_NAMES } from '../src/tools/register.js';
 
 /**
- * A read or write path with no live capture or confirmed live run carries the
- * marker `**Unverified live** (<service>): <what>.` in its tool's section of
- * docs/tools.md, and one row in docs/writes.md. The two lists must agree.
+ * A read or write path with no live capture or confirmed live run has a row in
+ * docs/writes.md. When its tool has a section in docs/tools.md, that section
+ * also carries the marker `**Unverified live** (<service>): <what>.`; a tool
+ * with no section needs the row alone. Every marker must have a row.
  */
 
 const MARKER = '**Unverified live**';
@@ -82,11 +84,13 @@ describe('tools that have never run against a live service', () => {
         expect(new Set(keys).size).toBe(keys.length);
     });
 
-    it.each(table.map(r => [r.tool, r.service] as const))('%s on %s names a real service and carries the marker', (tool, service) => {
+    it.each(table.map(r => [r.tool, r.service] as const))('%s on %s names a real tool and service, and carries the marker where the tool has a section', (tool, service) => {
+        expect(TOOL_NAMES as readonly string[]).toContain(tool);
         expect(ServiceIdSchema.options as readonly string[]).toContain(service);
 
+        // A tool without a section in tools.md is covered by its row alone.
         const section = sectionOf(tool);
-        expect(section, `docs/tools.md has no "## \`${tool}\`" heading`).toBeDefined();
+        if (section === undefined) return;
 
         const display = DISPLAY[service as ServiceId];
         expect(section, `the ${tool} section has no marker for ${display}`).toContain(`${MARKER} (${display})`);

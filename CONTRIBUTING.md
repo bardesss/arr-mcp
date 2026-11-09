@@ -756,11 +756,12 @@ discard the filter cannot do for you: keep the file you were asked for and
 captured and nine discarded.
 
 **A path with no live capture says so.** A read or write whose response was
-never recorded from, or confirmed against, a real service carries an
+never recorded from, or confirmed against, a real service gets a row in the
+table in `docs/writes.md` ("Not yet run against a live service"), and an
 `**Unverified live** (<service>): <what>.` line in its tool's section of
-`docs/tools.md` and a row in the table in `docs/writes.md` ("Not yet run
-against a live service"). `test/unverifiedLive.test.ts` keeps the two in step.
-Removing the line and the row is part of the pull request that adds the capture.
+`docs/tools.md` when the tool has one. `test/unverifiedLive.test.ts` keeps the
+two in step. Removing the row and the line is part of the pull request that
+adds the capture.
 
 ### Webhook payloads
 

@@ -392,9 +392,10 @@ nobody asked for. The editor endpoint queued none in three runs against
 
 Every path below has tests, but none has a recorded response or a confirmed run
 against a real service behind it. A bug report here is likely its first real
-exercise. The same paths carry an `**Unverified live**` line in
-[tools.md](tools.md). The line comes off in the pull request that adds the
-capture or confirms the run.
+exercise. Where the tool has its own section, the same path carries an
+`**Unverified live**` line in [tools.md](tools.md). The row, and the line if
+there is one, come off in the pull request that adds the capture or confirms
+the run.
 
 | Tool | Service | What | Why |
 | --- | --- | --- | --- |
@@ -405,6 +406,12 @@ capture or confirms the run.
 | `get_queue` | `cleanuparr` | Seeding rules for a Transmission client | Only hand-written fixtures; the one tester runs qBittorrent |
 | `grab_release` | `shelfmark` | The default grab, with no release named | Mock-only; the live Shelfmark has not been asked for one |
 | `retry_download` | `shelfmark` | Retrying a failed book, or a Prowlarr row | Every failed row on the live Shelfmark is marked not retryable |
+| `trigger_search` | `sonarr` | `SeasonSearch` and `EpisodeSearch` payloads | Posting one runs a real search on the stack, and Sonarr reports success for a command that matches nothing |
+| `add_media` | `radarr` | Adopting an existing folder with `path` | Never posted to a live Radarr |
+| `add_media` | `sonarr` | Adopting an existing folder with `path` | Never posted to a live Sonarr |
+| `remove_queue_item` | `shelfmark` | Cancelling a Prowlarr row | Mock-only; the live Shelfmark has not been asked to cancel one |
+| `remove_queue_item` | `grimmory` | Discarding a Bookdrop file | Mock-only; no discard response was ever captured |
+| `remove_queue_item` | `qbittorrent` | Removing a torrent, with or without its files | No qBittorrent on the maintainer's stack |
 | `delete_media` | `grimmory` | Deleting a book | The test response is a hand-made mock; no live book has been deleted |
 | `set_watched` | `grimmory` | Marking a book read or unread | The test response is a hand-made mock; no live book has been changed |
 | `trigger_scan` | `grimmory` | Approving one Bookdrop file (`action: "bookdrop"` with `id`) | Built from Grimmory's OpenAPI spec and mocks; the first real approval is its test |
