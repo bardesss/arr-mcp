@@ -7,6 +7,7 @@ import type { ConfirmTokens } from '../core/confirm.ts';
 import { IdentityResolver } from '../core/identity.ts';
 import type { ServiceInstance } from '../config/instances.ts';
 import { permissionSourceFrom } from '../core/permissions.ts';
+import { mediaCardsMode, type MediaCardsMode } from '../mcp/apps.ts';
 import { SeerrAdapter } from '../services/seerr.ts';
 import {
     hasBookMetadata,
@@ -88,7 +89,7 @@ export type ToolContext = {
      *  write gate reads, so `stack_health` cannot report a different answer. */
     instances: readonly ServiceInstance[];
     /** `tools.media_cards`: build MCP Apps poster cards at all (`mcp/apps.ts`). */
-    mediaCards: boolean;
+    mediaCards: MediaCardsMode;
     /**
      * The write half. Built once alongside the resolvers rather than per
      * request: `ConfirmTokens` holds the signing key and the spent-token set,
@@ -140,7 +141,7 @@ export function buildToolContext(
         adapters,
         dataset,
         instances: listInstances(config),
-        mediaCards: config.tools?.media_cards !== false,
+        mediaCards: mediaCardsMode(config.tools?.media_cards),
         mediaServerIdentity,
         mediaServers,
         seerrIdentity:

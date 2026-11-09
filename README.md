@@ -194,7 +194,9 @@ will not load, gets a plain tile with its name.
 `structuredContent` are identical. The cards ride in the result's `_meta`, which
 is not model context, and are only built for a client that says it renders MCP
 Apps, or one that says nothing (stateless HTTP). `tools.media_cards: false` turns
-them off. The cards are read-only for now.
+them off; `tools.media_cards: always` builds them even for a client that declared
+no MCP Apps support, for a proxy such as MetaMCP that hides the real client's
+capabilities. The cards are read-only for now.
 
 ## Documentation
 

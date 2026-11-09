@@ -693,9 +693,16 @@ export const ConfigSchema = z.object({
      * `media_cards: false` turns the MCP Apps poster cards off: no `_meta.ui`
      * on the tools, no `ui://` resource, and none of the queue reads behind
      * them — for an HTTP client that cannot render them and does not say so.
+     * `media_cards: always` builds them even for a client that declared
+     * capabilities without the MCP Apps extension: a proxy such as MetaMCP
+     * connects with `capabilities: {}` on behalf of a client that can render
+     * them.
      */
     tools: z
-        .object({ hide_unusable: z.boolean().default(false), media_cards: z.boolean().default(true) })
+        .object({
+            hide_unusable: z.boolean().default(false),
+            media_cards: z.union([z.boolean(), z.literal('always')], { error: 'must be true, false or "always"' }).default(true)
+        })
         .strict()
         .optional()
 }).superRefine((config, ctx) => {

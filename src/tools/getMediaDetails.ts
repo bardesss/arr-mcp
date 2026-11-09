@@ -17,7 +17,7 @@ import { buildLookupMedia } from './lookupMedia.ts';
 import { searchLine } from './searchMedia.ts';
 import { withBoth } from './mediaServers.ts';
 import { withoutDisplay } from '../core/display.ts';
-import { mediaCardsToolMeta, wantsCards, withCards } from '../mcp/apps.ts';
+import { mediaCardsToolMeta, wantsCards, withCards, type MediaCardsMode } from '../mcp/apps.ts';
 import { cardFromDetails } from '../ui/mediaCards.ts';
 
 /**
@@ -322,14 +322,14 @@ export function registerGetMediaDetails(
     dataset?: ImdbDataset,
     mediaServerIds?: [string, string],
     /** `tools.media_cards`. */
-    mediaCards = true
+    mediaCards: MediaCardsMode = 'auto'
 ): void {
     server.registerTool(
         'get_media_details',
         {
             title: 'Media details',
             annotations: READ_ONLY,
-            ...(mediaCards ? { _meta: mediaCardsToolMeta() } : {}),
+            ...(mediaCards !== 'off' ? { _meta: mediaCardsToolMeta() } : {}),
             description:
                 'Everything known about one item. A title as `query` returns the merged record (acquisition, watch state, ratings, presence across services); `service` plus `id` returns that service\'s raw view, for checking a join that looks wrong. A series carries `seasons` with per-season watched, on-disk, aired and total counts, and `monitored`, Sonarr\'s own flag: check it before delete_episode_files, because deleting a monitored season\'s files makes Sonarr download them again. At `detail: "full"` a series lists its episodes and a Lidarr artist its albums with their ids. `audioLanguages` (per episode for a series, on the record for a film) are the tracks read off the file: that, not a `MULTi` release name, answers "is the dub here". [[reclaimerr: With Reclaimerr, `cleanup` says what will delete or move it, and when.]] Field reference: arr://docs/get_media_details.' +
                 withBoth(mediaServerIds, 'With two media servers, `media_servers` says which has it and under which `itemId`.'),

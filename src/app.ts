@@ -240,7 +240,7 @@ export function mcpServerFactory(
         registerAllPrompts(server);
         registerAllResources(server, tools);
         // MCP Apps: the poster-card view the card tools point at (`mcp/apps.ts`).
-        if (tools.mediaCards) registerAppResources(server);
+        if (tools.mediaCards !== 'off') registerAppResources(server);
         return server;
     };
 }

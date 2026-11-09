@@ -5,7 +5,8 @@ import { WriteAudit } from '../src/core/audit.ts';
 import { LogStore } from '../src/core/logs.ts';
 import { Runtime } from '../src/core/runtime.ts';
 import { hashPassword } from '../src/core/session.ts';
-import { CARD_TOOLS, MEDIA_CARDS_URI, RESOURCE_MIME_TYPE } from '../src/mcp/apps.ts';
+import type { McpServer } from '@modelcontextprotocol/server';
+import { CARD_TOOLS, MEDIA_CARDS_URI, RESOURCE_MIME_TYPE, UI_EXTENSION_ID, mediaCardsMode, wantsCards } from '../src/mcp/apps.ts';
 import { CARD_VIEW_HTML } from '../src/ui/cardView.ts';
 import { rpcPayload } from '../scripts/lib/rpc.ts';
 
@@ -73,6 +74,67 @@ describe('tools.media_cards: false', () => {
         expect(tools.filter(t => t._meta?.['ui'] !== undefined)).toEqual([]);
         const { resources } = (await call('resources/list', {}, off)) as { resources: { uri: string }[] };
         expect(resources.map(r => r.uri)).not.toContain(MEDIA_CARDS_URI);
+    });
+});
+
+describe('tools.media_cards: always', () => {
+    const always = configWith({ tools: { media_cards: 'always' } });
+
+    it('points the card tools at the view and serves it', async () => {
+        const { tools } = (await call('tools/list', {}, always)) as { tools: Tool[] };
+        for (const name of CARD_TOOLS) {
+            expect(tools.find(t => t.name === name)?._meta?.['ui']).toEqual({ resourceUri: MEDIA_CARDS_URI });
+        }
+        const { resources } = (await call('resources/list', {}, always)) as { resources: { uri: string }[] };
+        expect(resources.map(r => r.uri)).toContain(MEDIA_CARDS_URI);
+    });
+});
+
+describe('tools.media_cards validation', () => {
+    it.each([true, false, 'always'])('accepts %j', value => {
+        expect(configWith({ tools: { media_cards: value } }).tools?.media_cards).toBe(value);
+    });
+
+    it.each(['sometimes', 'auto', 1])('refuses %j, saying what it takes', value => {
+        const result = ConfigSchema.safeParse({
+            auth: { bearer_token: TOKEN, password_hash: PASSWORD_HASH },
+            services: {},
+            tools: { media_cards: value }
+        });
+        expect(result.success).toBe(false);
+        expect(result.error?.issues.map(i => i.message)).toContain('must be true, false or "always"');
+    });
+
+    it('defaults to true', () => {
+        expect(configWith({ tools: {} }).tools?.media_cards).toBe(true);
+    });
+});
+
+describe('wantsCards', () => {
+    const declaring = (caps: unknown) => ({ mcpReq: { envelope: { 'io.modelcontextprotocol/clientCapabilities': caps } } });
+    const server = {} as McpServer;
+    const ui = { extensions: { [UI_EXTENSION_ID]: {} } };
+
+    it.each([
+        ['auto', undefined, true],
+        ['auto', {}, false],
+        ['auto', ui, true],
+        ['always', undefined, true],
+        ['always', {}, true],
+        ['always', ui, true],
+        ['off', undefined, false],
+        ['off', ui, false]
+    ] as const)('%s with capabilities %j: %s', (mode, caps, expected) => {
+        expect(wantsCards(mode, server, caps === undefined ? {} : declaring(caps))).toBe(expected);
+    });
+
+    it('maps the setting onto a mode', () => {
+        expect([true, false, 'always', undefined].map(v => mediaCardsMode(v as boolean | 'always' | undefined))).toEqual([
+            'auto',
+            'off',
+            'always',
+            'auto'
+        ]);
     });
 });
 

@@ -18,7 +18,7 @@ import { UserSchema } from './getPlayback.ts';
 import type { LibraryLoader } from './library.ts';
 import { withBoth } from './mediaServers.ts';
 import { titled } from '../core/labels.ts';
-import { mediaCardsToolMeta, wantsCards, withCards } from '../mcp/apps.ts';
+import { mediaCardsToolMeta, wantsCards, withCards, type MediaCardsMode } from '../mcp/apps.ts';
 import type { ServiceAdapter } from '../services/types.ts';
 import { cardsFromLibrary } from '../ui/mediaCards.ts';
 
@@ -519,14 +519,14 @@ export function registerGetLibrary(
     /** Only for the cards' download state, read from the *arrs' queues. */
     adapters: readonly ServiceAdapter[] = [],
     /** `tools.media_cards`. */
-    mediaCards = true
+    mediaCards: MediaCardsMode = 'auto'
 ): void {
     server.registerTool(
         'get_library',
         {
             title: 'Library',
             annotations: READ_ONLY,
-            ...(mediaCards ? { _meta: mediaCardsToolMeta() } : {}),
+            ...(mediaCards !== 'off' ? { _meta: mediaCardsToolMeta() } : {}),
             description:
                 'Your library joined across Radarr, Sonarr, Whisparr, Lidarr, Grimmory and your media server on shared external ids: films, series, artists and books. Use it for filtered lists and counts; for one title use get_media_details. `presence` is what no single service can tell: `arr_only` with a file is a likely broken import, `jellyfin_only` (spelled that way for any media server) is media nothing manages, and `unknown` means the other half was not read. When `degraded` or `note` explain a gap, report that reason rather than calling it unwatched or unrated. `has_file: false` with `monitored: true` is what you are still waiting for. [[lidarr: An artist\'s `monitored` is the artist-level flag, not the album flag; its albums and their ids come from get_media_details on the Lidarr artist.]] A series has an IMDb rating only with the IMDb dataset on, so ask `rating_source: "imdb"` explicitly. Series `seasons` and folder paths need `detail: "full"`. Field reference: arr://docs/get_library.' +
                 withBoth(

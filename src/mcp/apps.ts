@@ -44,7 +44,9 @@ type Capabilities = { extensions?: Record<string, unknown> } | undefined;
  * envelope; a 2025-era connection declared them at `initialize`, which stdio
  * keeps. Stateless HTTP on the 2025 era has neither — each request gets a
  * fresh server that never saw `initialize` — so the answer is `undefined`
- * there, not `false`, and `tools.media_cards` is the switch for that case.
+ * there, not `false`, and `tools.media_cards` is the switch for that case —
+ * `false` when such a client cannot render them, `always` when a proxy
+ * declared capabilities on behalf of a client that can.
  */
 export function clientRendersApps(server: McpServer, ctx: unknown): boolean | undefined {
     const envelope = (ctx as { mcpReq?: { envelope?: Record<string, unknown> } } | undefined)?.mcpReq?.envelope;
@@ -55,9 +57,24 @@ export function clientRendersApps(server: McpServer, ctx: unknown): boolean | un
     return declared.extensions?.[UI_EXTENSION_ID] !== undefined;
 }
 
-/** Build cards unless they are switched off, or the client said it cannot render them. */
-export const wantsCards = (enabled: boolean, server: McpServer, ctx: unknown): boolean =>
-    enabled && clientRendersApps(server, ctx) !== false;
+/**
+ * `tools.media_cards`, read once. `auto` trusts the client's declaration;
+ * `always` ignores it, for a proxy or aggregator that connects with
+ * capabilities of its own (MetaMCP sends `{}`) and so hides the real client's;
+ * `off` builds nothing and advertises nothing.
+ */
+export type MediaCardsMode = 'auto' | 'always' | 'off';
+
+/** The mode a `tools.media_cards` value selects. */
+export const mediaCardsMode = (setting: boolean | 'always' | undefined): MediaCardsMode =>
+    setting === false ? 'off' : setting === 'always' ? 'always' : 'auto';
+
+/** Build cards unless they are switched off, or the client said it cannot render them and the mode trusts it. */
+export function wantsCards(mode: MediaCardsMode, server: McpServer, ctx: unknown): boolean {
+    if (mode === 'off') return false;
+    if (mode === 'always') return true;
+    return clientRendersApps(server, ctx) !== false;
+}
 
 /** The result, with its cards in `_meta` when there are any. */
 export function withCards<T extends object>(result: T, cards: MediaCards | undefined): T {

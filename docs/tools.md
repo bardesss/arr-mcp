@@ -237,7 +237,9 @@ it stays fenced, and its image URLs are only ever TMDB's or TheTVDB's.
 
 Cards are built only for a client that declares MCP Apps support
 (`io.modelcontextprotocol/ui`), or that declares nothing the server can read,
-which is stateless HTTP; `tools.media_cards: false` turns them off entirely
+which is stateless HTTP; `tools.media_cards: false` turns them off entirely, and
+`tools.media_cards: always` builds them whatever the client declared, for a proxy
+that connects with capabilities of its own
 ([configuration](configuration.md#poster-cards)).
 
 ## `get_history` and the event log

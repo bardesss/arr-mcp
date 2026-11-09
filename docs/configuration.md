@@ -1044,9 +1044,18 @@ configuration page, which reloads the config).
 In a client that renders [MCP Apps](https://github.com/modelcontextprotocol/ext-apps),
 `get_media_details`, `search_media`, `lookup_media` and `get_library` show films
 and series as poster cards. Building them reads the Radarr and Sonarr queues for
-the "downloading" badge, so it only happens for a client that declares MCP Apps
-support. Over stateless HTTP a client cannot declare anything the server keeps,
-so the cards are built there unless you turn them off:
+the "downloading" badge on every call, so `tools.media_cards` decides when they
+are built:
+
+| Value | `_meta.ui` and the `ui://` resource | Cards in the result |
+| --- | --- | --- |
+| `true` (default) | yes | unless the client declared capabilities without MCP Apps support |
+| `false` | no | never |
+| `always` | yes | always, whatever the client declared |
+
+Over stateless HTTP a client cannot declare anything the server keeps, so with
+the default the cards are built there. Turn them off for a client that cannot
+render them and does not say so:
 
 ```yaml
 tools:
@@ -1055,3 +1064,17 @@ tools:
 
 That also removes the `_meta.ui` key from those four tools and the
 `ui://arr-mcp/media-cards.html` resource.
+
+Behind a proxy or aggregator that connects with capabilities of its own, the
+default builds nothing: [MetaMCP](https://github.com/metatool-ai/metamcp), for
+one, connects with `capabilities: {}`, so arr-mcp sees a client that declared no
+MCP Apps support, even when the client behind it (claude.ai) renders them.
+Force them:
+
+```yaml
+tools:
+  media_cards: always
+```
+
+The text answer and `structuredContent` are the same in all three modes; only
+the cards in `_meta` change.

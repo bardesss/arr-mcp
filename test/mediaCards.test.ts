@@ -20,6 +20,7 @@ import { registerGetMediaDetails } from '../src/tools/getMediaDetails.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
 import { registerLookupMedia } from '../src/tools/lookupMedia.ts';
 import { registerSearchMedia } from '../src/tools/searchMedia.ts';
+import type { MediaCardsMode } from '../src/mcp/apps.ts';
 import { MAX_CARDS, cardStatus, cardsFromHits, externalLinks, type MediaCards } from '../src/ui/mediaCards.ts';
 import { serving } from './helpers/serve.ts';
 
@@ -369,12 +370,67 @@ describe('cards only for a client that can render them', () => {
     it('builds none, and advertises no view, with tools.media_cards off', async () => {
         const { adapter, reads } = counting();
         const server = new McpServer({ name: 'test', version: '0' });
-        registerSearchMedia(server, [adapter], undefined, false);
+        registerSearchMedia(server, [adapter], undefined, 'off');
         const tool = (server as unknown as { _registeredTools: Record<string, { handler: Handler; _meta?: unknown }> })._registeredTools.search_media!;
         expect(tool._meta).toBeUndefined();
         const result = await tool.handler(search, {});
         expect(result._meta).toBeUndefined();
         expect(reads()).toBe(0);
+    });
+});
+
+/** What MetaMCP sends: capabilities declared, as `{}`, so no MCP Apps extension. */
+const proxied = { mcpReq: { envelope: { 'io.modelcontextprotocol/clientCapabilities': {} } } };
+
+describe('tools.media_cards: always, behind a proxy that declares no MCP Apps support', () => {
+    const details = { query: 'Ghostbusters: Frozen Empire', detail: 'standard', limit: 50 };
+    const library = { detail: 'minimal', limit: 50 };
+    const detailsTool = (mode?: MediaCardsMode) => {
+        const adapters = [radarrLibrary()];
+        return toolsOf(s => registerGetMediaDetails(s, adapters, new LibraryLoader(adapters, undefined), undefined, undefined, mode))
+            .get_media_details!;
+    };
+    const libraryTool = (mode?: MediaCardsMode) => {
+        const adapters = [radarrLibrary()];
+        return toolsOf(s => registerGetLibrary(s, new LibraryLoader(adapters, undefined), undefined, adapters, mode)).get_library!;
+    };
+
+    it('builds the detail card for get_media_details', async () => {
+        const card = cardsOf(await detailsTool('always').handler(details, proxied));
+        expect(card?.view).toBe('detail');
+        expect(card?.items[0]).toMatchObject({ type: 'movie', year: 2024 });
+    });
+
+    it('builds the grid for get_library', async () => {
+        expect(cardsOf(await libraryTool('always').handler(library, proxied))?.items).toHaveLength(MAX_CARDS);
+    });
+
+    it('builds the grid for search_media and lookup_media', async () => {
+        const search = await toolsOf(s => registerSearchMedia(s, [radarrLibrary()], undefined, 'always')).search_media!.handler(
+            { query: 'Ghostbusters', source: 'library', detail: 'standard', limit: 50, offset: 0 },
+            proxied
+        );
+        expect(cardsOf(search)?.items.length).toBeGreaterThan(0);
+        const lookup = await toolsOf(s => registerLookupMedia(s, [radarrLibrary()], undefined, 'always')).lookup_media!.handler(
+            { query: 'matrix', detail: 'standard', limit: 50, offset: 0 },
+            proxied
+        );
+        expect(cardsOf(lookup)?.items.length).toBeGreaterThan(0);
+    });
+
+    it('builds none for the same client by default, which trusts its declaration', async () => {
+        expect((await detailsTool().handler(details, proxied))._meta).toBeUndefined();
+        expect((await libraryTool('auto').handler(library, proxied))._meta).toBeUndefined();
+    });
+
+    it('answers with the same text and structuredContent as the default', async () => {
+        for (const [auto, always] of [
+            [await detailsTool('auto').handler(details, proxied), await detailsTool('always').handler(details, proxied)],
+            [await libraryTool('auto').handler(library, proxied), await libraryTool('always').handler(library, proxied)]
+        ] as const) {
+            expect(always.content).toEqual(auto.content);
+            expect(always.structuredContent).toEqual(auto.structuredContent);
+        }
     });
 });
 
