@@ -402,7 +402,9 @@ the run.
 | `get_playback` | `plex` | Reading a non-zero `viewOffset` as resume and the rest as next-up, in `/library/onDeck` | Plex marks neither kind, and nobody has checked the split against a live server with an in-progress item; the read itself is captured |
 | `pause_downloads` | `qbittorrent` | Pause, resume and the speed limit, on both the v4 and v5 verbs | No qBittorrent on the maintainer's stack; written from the WebUI API description |
 | `grab_release` | `qbittorrent` | A magnet link sent to the client | No qBittorrent on the maintainer's stack |
-| `get_queue` | `qbittorrent` | `by_tracker` seed time per tracker | No qBittorrent on the maintainer's stack; waits on a capture from a user who runs one |
+| `get_queue` | `qbittorrent` | The torrent list, the seed limits and `by_tracker`; only login and health have met a real server | No qBittorrent on the maintainer's stack; the fixtures were written from the WebUI API description |
+| `get_queue` | `grimmory` | A file waiting in the Bookdrop | The live Bookdrop was empty at capture; the row is tested on a constructed file |
+| `stack_health` | `grimmory` | The warning for books left in the Bookdrop over a day | Rests on the same constructed file |
 | `get_queue` | `cleanuparr` | Seeding rules for a Transmission client | Only hand-written fixtures; the one tester runs qBittorrent |
 | `grab_release` | `shelfmark` | The default grab, with no release named | Mock-only; the live Shelfmark has not been asked for one |
 | `retry_download` | `shelfmark` | Retrying a failed book, or a Prowlarr row | Every failed row on the live Shelfmark is marked not retryable |
@@ -416,6 +418,7 @@ the run.
 | `set_watched` | `grimmory` | Marking a book read or unread | The test response is a hand-made mock; no live book has been changed |
 | `trigger_scan` | `grimmory` | Approving one Bookdrop file (`action: "bookdrop"` with `id`) | Built from Grimmory's OpenAPI spec and mocks; the first real approval is its test |
 | `get_history` | `grimmory` | The `BOOK_UPLOADED` audit row | No upload has been captured, so the shape follows Grimmory's API description |
+| `get_history` | `shelfmark` | The `failed` and `stopped` rows | The live Shelfmark has had no failed or cancelled download; tested on captured bodies with those answers constructed |
 
 ## The audit trail
 

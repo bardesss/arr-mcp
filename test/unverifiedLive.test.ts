@@ -53,7 +53,11 @@ function rows(): Row[] {
         .split('\n')
         .filter(line => line.startsWith('|'))
         .map(line => line.split('|').slice(1, -1).map(cell => cell.trim()))
-        .filter(cells => cells.length === 4 && cells[0] !== 'Tool' && !/^-+$/.test(cells[0]!))
+        .filter(cells => cells[0] !== 'Tool' && !/^-+$/.test(cells[0]!))
+        .map(cells => {
+            if (cells.length !== 4) throw new Error(`a row in the table does not have four cells: ${cells.join(' | ')}`);
+            return cells;
+        })
         .map(cells => ({ tool: cells[0]!.replaceAll('`', ''), service: cells[1]!.replaceAll('`', '') }));
 }
 
@@ -110,6 +114,8 @@ describe('tools that have never run against a live service', () => {
             }
         }
 
+        const bare = sections().reduce((n, s) => n + s.body.split(MARKER).length - 1, 0);
+        expect(bare, 'a marker is not written as "**Unverified live** (<Service>)"').toBe(found.length);
         expect(found.length).toBeGreaterThan(0);
         for (const key of found) expect(known, `${key} has a marker but no row in docs/writes.md`).toContain(key);
     });

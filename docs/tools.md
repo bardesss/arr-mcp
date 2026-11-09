@@ -754,6 +754,8 @@ may not read" it, so a user without `canAccessBookdrop` loses the Bookdrop
 finding and nothing else. The update notice only appears when the latest release
 is newer than the running one.
 
+**Unverified live** (Grimmory): the Bookdrop age warning, tested on a constructed file.
+
 ### Did that command finish?
 
 `commands` is every **followable** task a service has queued or running, plus
@@ -1256,9 +1258,11 @@ own id for that grab. It is what `trigger_scan`'s `import` action takes, and
 it is the link between "this is stuck at `importBlocked`" and doing something
 about it.
 
-**Unverified live** (qBittorrent): `by_tracker`, the seed time per tracker.
+**Unverified live** (qBittorrent): the torrent list, the seed limits and `by_tracker`; only login and health have met a real server.
 
 **Unverified live** (Cleanuparr): the seeding rules of a Transmission client.
+
+**Unverified live** (Grimmory): a file waiting in the Bookdrop, tested on a constructed file.
 
 Radarr, Sonarr and Lidarr rows also carry `mediaId`, the *arr's own id for the
 movie, series or artist the grab is for, and an orphaned row has none. `diagnose`
@@ -1468,6 +1472,8 @@ Shelfmark contributes its book downloads: `imported` for a finished one, `failed
 with its reason, and `stopped` for a cancelled one, with Shelfmark's own word in
 `rawEvent`. See [Shelfmark](#shelfmark) under `stack_health` for how much it reads
 and what `at` means on its rows. Passing `id` with `service: shelfmark` is refused.
+
+**Unverified live** (Shelfmark): the `failed` and `stopped` rows, tested on constructed answers.
 
 ### Grimmory
 

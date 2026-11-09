@@ -23,7 +23,8 @@ a report from a real instance is worth more than one from a stack set up for
 the test.
 
 - **qBittorrent.** Only login and health have been confirmed on a real server
-  ([#195](../../issues/195)). Everything else is untested.
+  ([#195](../../issues/195)). Everything else is untested. The full list of
+  paths that have never run live is in [docs/writes.md](docs/writes.md#not-yet-run-against-a-live-service).
 - **Plex.** Other versions and library layouts, especially managed user tokens.
 - **Whisparr V2.** History, wanted, manual import and a few others are missing
   because they need captures from a live instance.
@@ -761,7 +762,7 @@ table in `docs/writes.md` ("Not yet run against a live service"), and an
 `**Unverified live** (<service>): <what>.` line in its tool's section of
 `docs/tools.md` when the tool has one. `test/unverifiedLive.test.ts` keeps the
 two in step. Removing the row and the line is part of the pull request that
-adds the capture.
+adds the capture or confirms the run.
 
 ### Webhook payloads
 
