@@ -137,17 +137,14 @@ async function searchWindow(
         if (year === undefined) return [whole, 0, whole];
         return [Math.min(whole, rankTitle(h.title, title)), h.year === year ? 0 : 1, whole];
     };
-    const keys = new Map(items.map(h => [h, key(h)] as const));
-    items.sort((a, b) => {
-        const ka = keys.get(a) as RankKey;
-        const kb = keys.get(b) as RankKey;
-        return ka[0] - kb[0] || ka[1] - kb[1] || ka[2] - kb[2] || unfenced(a.title).localeCompare(unfenced(b.title));
-    });
+    const ranked = items.map(hit => ({ hit, key: key(hit), name: unfenced(hit.title) }));
+    ranked.sort((a, b) => a.key[0] - b.key[0] || a.key[1] - b.key[1] || a.key[2] - b.key[2] || a.name.localeCompare(b.name));
+    const sorted = ranked.map(r => r.hit);
 
     // Enriched after the limit, not before: only the page actually returned
     // needs ratings, and an indexer search can produce hundreds of hits for a
     // caller who asked for ten.
-    const shaped = applyLimit(items, opts.limit, opts.offset);
+    const shaped = applyLimit(sorted, opts.limit, opts.offset);
     const rated = enrichWithImdb(shaped.items, dataset);
 
     return { result: { ...shaped, items: rated.map(h => project(h, opts.detail)), degraded, counts }, page: rated };
