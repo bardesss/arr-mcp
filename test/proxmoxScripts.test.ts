@@ -239,4 +239,29 @@ describe('the Proxmox LXC installer', () => {
     it('installs no compiler toolchain, as the image does not', () => {
         expect(install).not.toMatch(/build-essential|python3|\bg\+\+/);
     });
+
+    it('runs the service as a dedicated system user that owns the config directory', () => {
+        expect(install).toMatch(/^User=arr-mcp$/m);
+        expect(install).toMatch(/^Group=arr-mcp$/m);
+        expect(install).not.toMatch(/^User=root$/m);
+        expect(install).toContain('useradd --system --no-create-home --home-dir /config --shell /usr/sbin/nologin arr-mcp');
+        expect(install).toContain('chown -R arr-mcp:arr-mcp /config');
+        // chown after mkdir, unit after both
+        expect(install.indexOf('mkdir -p /config')).toBeLessThan(install.indexOf('chown -R arr-mcp:arr-mcp /config'));
+        expect(install.indexOf('chown -R arr-mcp:arr-mcp /config')).toBeLessThan(install.indexOf('User=arr-mcp'));
+    });
+
+    it('moves an existing root install to that user on update', () => {
+        expect(ct).toContain('id -u arr-mcp');
+        expect(ct).toContain('chown -R arr-mcp:arr-mcp /config');
+        expect(ct).toContain("sed -i 's/^User=root$/User=arr-mcp\\nGroup=arr-mcp/' /etc/systemd/system/arr-mcp.service");
+        expect(ct).toContain('systemctl daemon-reload');
+    });
+
+    it('pins the Community Scripts engine to a commit named in SECURITY.md', () => {
+        const sha =
+            /COMMUNITY_SCRIPTS_CORE_URL:-https:\/\/raw\.githubusercontent\.com\/community-scripts\/core\/([0-9a-f]{40})\}/.exec(ct)?.[1];
+        expect(sha).toBeDefined();
+        expect(read('SECURITY.md')).toContain(sha!);
+    });
 });

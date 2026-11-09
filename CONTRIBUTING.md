@@ -685,6 +685,22 @@ Two things worth knowing before you touch this:
   fails to typecheck against them, fix the mapper. Do not widen it with a cast:
   that failure is the codegen doing the job it was added for.
 
+## Testing the Proxmox scripts
+
+No maintainer runs Proxmox, so a change under `proxmox/` merges on the text
+guards in `test/proxmoxScripts.test.ts` and then needs a volunteer with a PVE
+host to run it for real. Point `COMMUNITY_SCRIPTS_URL` at the raw `proxmox/`
+base of the branch under test and run `proxmox/ct/arr-mcp.sh` from the host.
+Two runs cover it:
+
+- **A fresh install.** `systemctl show -p User arr-mcp` prints `User=arr-mcp`,
+  `stat -c %U /config/config.yaml` prints `arr-mcp` once the instance is
+  claimed, and saving a service in the UI succeeds.
+- **An `update` over an existing root install.** The same three checks pass and
+  the existing config survives.
+
+Report results on #265 (related to #265), or open a new issue.
+
 ## Screenshots
 
 `screenshots/` is regenerated, never taken by hand:

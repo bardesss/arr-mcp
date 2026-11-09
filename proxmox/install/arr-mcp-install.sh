@@ -36,6 +36,13 @@ msg_info "Creating Service"
 # loader that would have created it runs. A missing /config is SQLITE_CANTOPEN
 # at startup, not a first-run mkdir.
 mkdir -p /config
+# The service runs as its own user rather than root: it holds API keys for a
+# dozen services and serves a web UI, so a bug in it should not be a root shell
+# in the container. /opt/arr-mcp stays root-owned and readable; only /config is
+# written to. systemd reads /opt/arr-mcp.env as root and port 6060 needs no
+# privilege.
+useradd --system --no-create-home --home-dir /config --shell /usr/sbin/nologin arr-mcp
+chown -R arr-mcp:arr-mcp /config
 # Read out of the deployed tree so it cannot drift from the release that is
 # actually installed, and written outside /opt/arr-mcp because an update is a
 # clean re-deploy of that directory.
@@ -48,7 +55,8 @@ After=network-online.target
 
 [Service]
 Type=simple
-User=root
+User=arr-mcp
+Group=arr-mcp
 WorkingDirectory=/opt/arr-mcp
 Environment=NODE_ENV=production
 # The same two the image sets, so a container and an LXC put config.yaml in the

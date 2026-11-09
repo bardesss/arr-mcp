@@ -59,6 +59,12 @@ Things that are known and documented rather than vulnerabilities:
   port to it is a deployment decision, not a defect.
 - **`config.yaml` is plaintext.** Filesystem permissions on the config volume
   are the boundary; there is no encryption at rest.
+- **The Proxmox scripts run a pinned copy of Community Scripts' engine.**
+  `proxmox/ct/arr-mcp.sh` sources their engine at commit
+  `5514fdfd6c3fe5fb74d91a42863c807a99c617a5` instead of `main`, and exports that
+  base so every further engine file `build.func` fetches comes from the same
+  commit. Dependabot cannot bump a raw URL, so a bump is by hand: change the SHA
+  in `proxmox/ct/arr-mcp.sh` and in this file together. A test enforces that.
 - **A model that confirms its own preview.** The confirm handshake guarantees
   that the *first* call cannot mutate anything, not that a determined caller
   cannot call twice. See
