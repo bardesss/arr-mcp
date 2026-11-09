@@ -471,12 +471,15 @@ describe('readArrHistory', () => {
             expect(seen[0]?.searchParams.get('eventType')).toBe('6');
         });
 
-        it('falls back to reading everything when the service ignores eventType, as Radarr 4 does', async () => {
+        it('keeps the window when the service ignores eventType, as Radarr 4 does', async () => {
             const seen: URL[] = [];
             const read = await readArrHistory(http(serving(seen, false)), 'sonarr', 'series', { want: 5, eventType: 'failed' });
+            expect(seen).toHaveLength(2); // the ignored filtered page, then one fallback page
+            expect(seen[1]?.searchParams.has('eventType')).toBe(false);
+            expect(seen[1]?.searchParams.get('pageSize')).toBe('200');
+            expect(read.items).toHaveLength(50); // every `failed` row on that page
             expect(read.items.every(r => r.event === 'failed')).toBe(true);
-            expect(read.total).toBe(total / 4);
-            expect(seen.at(-1)?.searchParams.has('eventType')).toBe(false);
+            expect(read.total).toBe(850); // 50 kept + 800 unread: an upper bound
         });
 
         it('filters a type with no upstream number here, reading everything', async () => {

@@ -1,7 +1,7 @@
 import { sanitizeGuid, fencer } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
 import type { ArrKind } from '../core/resolver.ts';
-import { pageIsNewestFirst, pageSizeFor, readArrPages, readTotal, type ArrRead } from './arrPaging.ts';
+import { ARR_PAGE_SIZE, pageIsNewestFirst, pageSizeFor, readArrPages, readTotal, type ArrRead } from './arrPaging.ts';
 import { mediaIdOf, mediaIdsParam } from './arrRecord.ts';
 import type { HistoryEntry, HistoryEventType, HistoryQuery, Window } from './types.ts';
 
@@ -113,6 +113,8 @@ export async function readArrHistory(
     }
 
     const items = opts.eventType === undefined ? pages.entries : pages.entries.filter(e => e.event === opts.eventType);
+    // Exact when the walk reached the end, an upper bound when a locally
+    // filtered walk stopped early.
     return { items, total: pages.windowed ? readTotal(pages.read, items.length) : items.length };
 }
 
@@ -142,21 +144,27 @@ async function readHistoryPages(
     ].join('&');
 
     // A `since` read has to reach its boundary to count what is in range, so
-    // only a read without one can stop at `want`. Nor can one whose filter
-    // only happens here.
+    // only a read without one can stop at `want`.
     const since = opts.since;
-    const want = since === undefined && (opts.eventType === undefined || code !== undefined) ? opts.want : undefined;
+    const want = since === undefined ? opts.want : undefined;
+    // The filter only happens here when no code was sent upstream. A sparse
+    // type over an unfiltered list needs whole pages, and the walk stops on
+    // the rows that match, not the rows read.
+    const filterHere = opts.eventType !== undefined && code === undefined;
+    let matched = 0;
 
     const read = await readArrPages<RawHistory>(http, `${http.apiRoot}/history`, query, {
-        ...(want === undefined ? {} : { pageSize: pageSizeFor(want) }),
+        ...(want === undefined ? {} : { pageSize: filterHere ? ARR_PAGE_SIZE : pageSizeFor(want) }),
         stopWhen: (page, kept) => {
+            matched += page.filter(r => (EVENT[r.eventType ?? ''] ?? 'unknown') === opts.eventType).length;
             // Trust an early exit only when this page is actually newest-first.
             if (!pageIsNewestFirst(page)) return false;
             const oldest = page[page.length - 1]?.date ?? '';
             // Once a page's oldest record predates `since`, every later page
             // does too. A live Sonarr capture held 12,614 records.
             if (since !== undefined) return oldest < since;
-            return want !== undefined && kept >= want;
+            if (want === undefined) return false;
+            return filterHere ? matched >= want : kept >= want;
         }
     });
     const fence = fencer(service);
