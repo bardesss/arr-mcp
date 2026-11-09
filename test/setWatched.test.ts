@@ -259,7 +259,7 @@ describe('set_watched beside Plex', () => {
         };
         registerSetWatched(server as never, context(), [plex], undefined);
 
-        const err = await call({ item_id: MOVIE, watched: true }).catch((e: unknown) => e);
+        const err = await call({ item_id: MOVIE, watched: true, dry_run: true }).catch((e: unknown) => e);
         expect(err).toBeInstanceOf(ServiceError);
         expect((err as ServiceError).remedy).toMatch(/alongside/);
         expect((err as ServiceError).remedy).not.toMatch(/Replace/);

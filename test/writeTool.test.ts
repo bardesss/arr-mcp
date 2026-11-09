@@ -243,10 +243,19 @@ describe('write tool harness — dry_run', () => {
         expect(structuredContent.permission.allowed).toBe(false);
         expect(structuredContent.permission.remedy).toContain('permissions.destructive: true');
         expect(content[0]?.text).toContain('would currently be refused');
+        expect(denied.plan).toHaveBeenCalledTimes(1);
     });
 });
 
 describe('write tool harness — permission tiers', () => {
+    it('refuses a live write without resolving it first', async () => {
+        const denied = buildHarness({ permissions: { radarr: service(false, false) } });
+        await expect(denied.call('delete_media', { id: '5' })).rejects.toThrow(/radarr:5/);
+        await expect(denied.call('delete_media', { id: '5' })).rejects.toThrow(/destructive/);
+        expect(denied.plan).not.toHaveBeenCalled();
+        expect((denied.audit.recent() as { target: string }[])[0]?.target).toBe('5');
+    });
+
     it('refuses a live write when the tier is off, before touching the service', async () => {
         const denied = buildHarness({ permissions: { radarr: service(false, false) } });
 

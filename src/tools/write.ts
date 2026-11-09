@@ -218,6 +218,17 @@ export type WriteToolResult = {
     next_steps?: NextStep[];
 };
 
+const TARGET_KEYS = ['id', 'item_id', 'title', 'external_id', 'media_id', 'definition', 'query', 'database'];
+
+/** The identifying argument as the caller gave it, for a refusal that never resolved the plan. */
+export function rawTarget(args: Record<string, unknown>): string {
+    for (const key of TARGET_KEYS) {
+        const value = args[key];
+        if (typeof value === 'string' || typeof value === 'number') return String(value);
+    }
+    return '';
+}
+
 /**
  * The one place a write tool is turned into an MCP tool. Every branch below
  * either records an audit row or is a pure preview that records one as
@@ -277,17 +288,36 @@ export function registerWriteTool<Schema extends z.ZodObject>(
             const service = typeof spec.service === 'function' ? spec.service(args) : spec.service;
             const tier = typeof spec.tier === 'function' ? spec.tier(args) : spec.tier;
 
-            // Resolution happens first, and for every path including a denied
-            // one. A refusal that cannot even name what it refused ("permission
-            // denied" with no film attached) is not actionable, and resolving
-            // is a read — already permitted, and already what the model could
-            // do for itself with get_media_details.
-            const plan = await spec.plan(args);
-
+            // A refusal costs no upstream read, so it names the argument as
+            // given rather than the resolved title. A dry run still resolves
+            // the plan, because that is how "what would I need to enable?"
+            // gets answered.
             const verdict = checkPermission(permissions, service, tier);
             const permission: WriteToolResult['permission'] = verdict.allowed
                 ? { allowed: true }
                 : { allowed: false, reason: verdict.reason, remedy: verdict.remedy };
+
+            if (!verdict.allowed && !dryRun) {
+                const given = rawTarget(args);
+                const id = audit.begin({
+                    tool: spec.name,
+                    service,
+                    operation: spec.operation,
+                    tier,
+                    target: given,
+                    args: {},
+                    caller
+                });
+                audit.settle(id, 'denied', verdict.reason);
+                throw new ServiceError(
+                    'PermissionDenied',
+                    service,
+                    `${verdict.reason} (${tier} write ${spec.operation} on ${given === '' ? service : `${service}:${given}`})`,
+                    { remedy: verdict.remedy }
+                );
+            }
+
+            const plan = await spec.plan(args);
 
             const record = {
                 tool: spec.name,
@@ -320,8 +350,8 @@ export function registerWriteTool<Schema extends z.ZodObject>(
             });
 
             // Asked on the preview paths only, never for a no-op, a refusal or
-            // an applied write. Reads are not permission-gated, for the reason
-            // resolving the plan is not (above), and they write no audit row.
+            // an applied write. Reads are not permission-gated, and they write no
+            // audit row.
             const advise = async (): Promise<{ fields: Partial<WriteToolResult>; block: string }> => {
                 if (spec.crossCheck === undefined || plan.subject === undefined || context.crossChecks === undefined) {
                     return { fields: {}, block: '' };
@@ -377,13 +407,6 @@ export function registerWriteTool<Schema extends z.ZodObject>(
                             ? 'Omit `dry_run` to preview it for real and receive a confirmation token.'
                             : `Note that this write would currently be refused: ${verdict.reason}. ${verdict.remedy}`)
                 );
-            }
-
-            // --- 3. Permission tier ----------------------------------------------
-            if (!verdict.allowed) {
-                const id = audit.begin(record);
-                audit.settle(id, 'denied', verdict.reason);
-                throw new ServiceError('PermissionDenied', service, verdict.reason, { remedy: verdict.remedy });
             }
 
             const intent: WriteIntent = {

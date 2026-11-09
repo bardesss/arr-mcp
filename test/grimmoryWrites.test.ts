@@ -138,8 +138,8 @@ describe('trigger_scan on grimmory', () => {
             (() => Promise.reject(new Error('no network'))) as unknown as typeof fetch
         );
         const call = writeTool((s, context) => registerTriggerScan(s, context, [radarr]));
-        await expect(call({ service: 'radarr', library: 'Fiction' })).rejects.toThrow(/grimmory/);
-        await expect(call({ service: 'radarr', action: 'bookdrop' })).rejects.toThrow(/grimmory/);
+        await expect(call({ service: 'radarr', library: 'Fiction', dry_run: true })).rejects.toThrow(/grimmory/);
+        await expect(call({ service: 'radarr', action: 'bookdrop', dry_run: true })).rejects.toThrow(/grimmory/);
     });
 
     it('names canManageLibrary on a 403 and the library on a 404', async () => {
@@ -507,7 +507,7 @@ describe('set_watched on grimmory', () => {
 
     it('a Jellyfin id still goes to Jellyfin', async () => {
         const { call, server } = watchedTool(undefined);
-        const error = (await call({ item_id: '65cbd491b1ecb02fdb3d7cbaefab5353', watched: true }).catch((e: unknown) => e)) as { kind?: string; service?: string };
+        const error = (await call({ item_id: '65cbd491b1ecb02fdb3d7cbaefab5353', watched: true, dry_run: true }).catch((e: unknown) => e)) as { kind?: string; service?: string };
         expect(error).toMatchObject({ kind: 'NotFound', service: 'jellyfin' });
         expect(server.sent.some(s => s.path.startsWith('/api/v1/books'))).toBe(false);
     });
@@ -660,8 +660,8 @@ describe('fix_metadata on a book', () => {
 
     it('refuses isbn on a film and user on a book', async () => {
         const { call, server } = fixTool();
-        await expect(call({ query: 'Alien', isbn: '9780140449136' })).rejects.toThrow(/isbn.*book/i);
-        await expect(call({ id: 'grimmory:58', user: 'Sam' })).rejects.toThrow(/book/i);
+        await expect(call({ query: 'Alien', isbn: '9780140449136', dry_run: true })).rejects.toThrow(/isbn.*book/i);
+        await expect(call({ id: 'grimmory:58', user: 'Sam', dry_run: true })).rejects.toThrow(/book/i);
         expect(server.sent.some(s => s.path.startsWith('/api/v1/books'))).toBe(false);
     });
 
@@ -854,7 +854,7 @@ describe('update_media on a book', () => {
 
     it('refuses film settings on a book and book fields on Radarr', async () => {
         const { call, server } = editTool();
-        await expect(call({ service: 'grimmory', id: '58', quality_profile: 'HD' })).rejects.toThrow(/book/i);
+        await expect(call({ service: 'grimmory', id: '58', quality_profile: 'HD', dry_run: true })).rejects.toThrow(/book/i);
         expect(server.sent.some(s => s.path.startsWith('/api/v1/books'))).toBe(false);
 
         const radarr = new RadarrAdapter(
@@ -864,7 +864,7 @@ describe('update_media on a book', () => {
             }) as unknown as typeof fetch
         );
         const film = writeTool((s, context) => registerUpdateMedia(s, context, [radarr]), { safe_write: true });
-        await expect(film({ service: 'radarr', id: '1', title: 'x' })).rejects.toThrow(/Grimmory/);
+        await expect(film({ service: 'radarr', id: '1', title: 'x', dry_run: true })).rejects.toThrow(/Grimmory/);
     });
 
     it('refuses a metadata profile on a book, sending nothing', async () => {
