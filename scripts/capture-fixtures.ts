@@ -306,7 +306,7 @@ function anonymiseEpisodeFile(row: Row, index: number): Row {
  *  exactly — both say what the user is downloading. `infohash_v1`/`_v2` repeat
  *  `hash`, `root_path` repeats the name, and `comment` is whatever the uploader
  *  wrote: on a private tracker, a URL with the account's ids in it. */
-function anonymiseTorrent(row: Row, index: number): Row {
+function anonymiseTorrent(row: Row, index: number, trackerHost: (url: unknown) => string): Row {
     const n = index + 1;
     const hash = String(n).repeat(64);
     return {
@@ -321,7 +321,8 @@ function anonymiseTorrent(row: Row, index: number): Row {
         content_path: replaceIfString(row.content_path, `/downloads/release-${n}`),
         download_path: replaceIfString(row.download_path, '/downloads'),
         magnet_uri: replaceIfString(row.magnet_uri, 'magnet:?xt=urn:btih:__REDACTED__'),
-        tracker: replaceIfString(row.tracker, 'https://tracker.example.test/announce'),
+        // One fake host per real one, so a per-tracker grouping still groups (#531).
+        tracker: replaceIfString(row.tracker, row.tracker === '' ? '' : `https://${trackerHost(row.tracker)}/announce`),
         category: replaceIfString(row.category, 'category'),
         tags: replaceIfString(row.tags, '')
     };
@@ -334,7 +335,18 @@ const anonymiseTorrents = (body: unknown): unknown => {
     if (!Array.isArray(body)) return body;
     const seen = new Set<unknown>();
     const kept = (body as Row[]).filter(row => !seen.has(row.state) && seen.add(row.state));
-    return kept.slice(0, 5).map(anonymiseTorrent);
+    const hosts = new Map<string, string>();
+    const trackerHost = (url: unknown): string => {
+        let host = '';
+        try {
+            host = new URL(String(url)).hostname;
+        } catch {
+            /* an unparseable tracker still gets a host of its own */
+        }
+        if (!hosts.has(host)) hosts.set(host, `tracker-${hosts.size + 1}.example.test`);
+        return hosts.get(host)!;
+    };
+    return kept.slice(0, 5).map((row, i) => anonymiseTorrent(row, i, trackerHost));
 };
 
 function anonymiseSeerrUser(row: Row, index: number): Row {

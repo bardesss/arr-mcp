@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CleanuparrRule } from '../src/core/cleanuparrRules.ts';
 import { annotateCleanuparr, currentStrikes, dueWithin } from '../src/tools/cleanuparrQueue.ts';
-import { buildGetQueue, dueText, queueLine, type QueueFilter } from '../src/tools/getQueue.ts';
+import { buildGetQueue, dueText, queueLine, seedingByTracker, trackerLine, type QueueFilter } from '../src/tools/getQueue.ts';
 import type { CleanuparrSeeding, HistoryEntry, QueueItem, ServiceAdapter } from '../src/services/types.ts';
 
 const rule = (over: Partial<CleanuparrRule>): CleanuparrRule => ({
@@ -419,5 +419,58 @@ describe('get_queue filters (#530)', () => {
         const result = await buildGetQueue([withEvents(seeding(), events), client], { detail: 'full', limit: 10, filter: { category: ['radarr'] } });
         expect(result.total).toBe(1);
         expect(result.cleanuparrDue?.stop?.count).toBe(1);
+    });
+});
+
+describe('seed time per tracker (#531)', () => {
+    const NOW = Date.parse('2026-10-29T11:00:00Z');
+    const seeder = (id: string, tracker: string | undefined, secs: number, status = 'seeding'): QueueItem =>
+        row({
+            id,
+            status,
+            sizeBytes: 1024 ** 3,
+            seeding: { seedingSeconds: secs },
+            torrent: facts({ hash: id, trackerDomains: tracker === undefined ? [] : [tracker] })
+        });
+
+    it('groups seeding torrents by hostname, with total, median and minimum', () => {
+        const items = [
+            seeder('a', 'c411.org', 86_400),
+            seeder('b', 'c411.org', 3 * 86_400, 'seeding (no peers)'),
+            seeder('c', 'c411.org', 2 * 86_400),
+            seeder('d', 'tr4ker.example', 100),
+            seeder('e', undefined, 50),
+            { ...seeder('f', 'c411.org', 9), status: 'downloading' }
+        ];
+        expect(seedingByTracker(items, NOW)).toEqual([
+            { tracker: 'c411.org', seeding: 3, sizeBytes: 3 * 1024 ** 3, seedingSeconds: { total: 6 * 86_400, median: 2 * 86_400, min: 86_400 }, noPeers: 1 },
+            { tracker: 'tr4ker.example', seeding: 1, sizeBytes: 1024 ** 3, seedingSeconds: { total: 100, median: 100, min: 100 } },
+            { tracker: 'unknown', seeding: 1, sizeBytes: 1024 ** 3, seedingSeconds: { total: 50, median: 50, min: 50 } }
+        ]);
+        expect(trackerLine(seedingByTracker(items, NOW)[0]!)).toBe('c411.org: 3 seeding (3.0 GB), 6.0d total, median 2.0d, min 1.0d, 1 without peers');
+    });
+
+    it('counts what Cleanuparr removes before the minimum seed time', () => {
+        const due = (id: string, secs: number, dueAt: string): QueueItem => {
+            const r = seeder(id, 'c411.org', secs);
+            r.seeding = { ...r.seeding, cleanuparr: { rule: 'Private', action: 'delete', dueAt } };
+            return r;
+        };
+        const items = [
+            due('a', 86_400, '2026-10-30T11:00:00Z'), // 2 days at removal: at risk of a 3-day minimum
+            due('b', 2 * 86_400, '2026-10-31T11:00:00Z'), // 4 days: safe
+            seeder('c', 'c411.org', 10) // no rule due: not counted
+        ];
+        expect(seedingByTracker(items, NOW, 3)[0]?.atRisk).toBe(1);
+        expect(seedingByTracker(items, NOW)[0]).not.toHaveProperty('atRisk');
+    });
+
+    it('comes back only when asked, over the filtered rows, never the page', async () => {
+        const rows = [seeder('a', 'c411.org', 10), seeder('b', 'c411.org', 20), seeder('c', 'v3x.example', 30)];
+        const client = { ...transmission, getQueue: async () => structuredClone(rows) } as unknown as ServiceAdapter;
+        const plain = await buildGetQueue([client], { detail: 'minimal', limit: 1 });
+        expect(plain).not.toHaveProperty('byTracker');
+        const asked = await buildGetQueue([client], { detail: 'minimal', limit: 1, byTracker: {} });
+        expect(asked.byTracker?.map(t => [t.tracker, t.seeding])).toEqual([['c411.org', 2], ['v3x.example', 1]]);
     });
 });
