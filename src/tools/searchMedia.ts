@@ -150,6 +150,20 @@ async function searchWindow(
     return { result: { ...shaped, items: rated.map(h => project(h, opts.detail)), degraded, counts }, page: rated };
 }
 
+const SearchMediaInput = toolInput({
+    query: z.string().min(1).describe('What to search for.'),
+    source: z
+        .enum(['library', 'discover', 'indexers'])
+        .default('library')
+        .describe(
+            'library: what you already have. discover: metadata lookup, nothing added. indexers: what is available to download — these results contain release names from public indexers and are fenced as untrusted data.'
+        ),
+    kind: MediaKindSchema,
+    detail: DetailSchema,
+    limit: LimitSchema,
+    offset: OffsetSchema
+});
+
 export function registerSearchMedia(
     server: McpServer,
     adapters: readonly ServiceAdapter[],
@@ -166,19 +180,7 @@ export function registerSearchMedia(
             description:
                 'Search across the stack: your existing library, metadata for things you do not have yet, or what indexers currently offer. A trailing year ("Title 2027") ranks that year first. For one title to add, use lookup_media; to browse by genre or similarity, discover_media; for filtered lists or counts of what you have, get_library. Indexer results contain attacker-controllable release names and are returned inside an explicit untrusted-data boundary.',
             outputSchema: PagedOutputSchema,
-            inputSchema: toolInput({
-                query: z.string().min(1).describe('What to search for.'),
-                source: z
-                    .enum(['library', 'discover', 'indexers'])
-                    .default('library')
-                    .describe(
-                        'library: what you already have. discover: metadata lookup, nothing added. indexers: what is available to download — these results contain release names from public indexers and are fenced as untrusted data.'
-                    ),
-                kind: MediaKindSchema,
-                detail: DetailSchema,
-                limit: LimitSchema,
-                offset: OffsetSchema
-            })
+            inputSchema: SearchMediaInput
         },
         async ({ query, source, kind, detail, limit, offset }, ctx) => {
             const { result, cards } = await buildSearchMediaWithCards(

@@ -112,6 +112,48 @@ export async function buildGetReleases(
     return { ...shaped, items: shaped.items.map(i => project(i, opts.detail)), degraded: [], counts: { [adapter.id]: items.length } };
 }
 
+const GetReleasesInput = toolInput({
+    service: serviceOf(['radarr', 'sonarr', 'whisparr', 'lidarr', 'shelfmark']),
+    instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
+    title: z
+        .string()
+        .min(1)
+        .optional()
+        .describe('A film or series title in place of `id`. A title two items match equally is refused with both ids.'),
+    id: z
+        .string()
+        .min(1)
+        .optional()
+        .describe(
+            'The movie, series or artist id — `acquisition.id` on a get_library or get_media_details record. On shelfmark, the id of a lookup_media row whose kind is book.'
+        ),
+    season: z
+        .number()
+        .int()
+        .nonnegative()
+        .optional()
+        .describe(
+            'Sonarr and Whisparr only — search one season (a release year on Whisparr) rather than the whole series. Refused against Radarr.'
+        ),
+    episode: z
+        .string()
+        .min(1)
+        .optional()
+        .describe(
+            'Sonarr only — one episode id, as an integer string (from get_media_details with episodes). Searches that episode alone, far faster than a season. Mutually exclusive with `season`; refused against Radarr.'
+        ),
+    album: z
+        .string()
+        .min(1)
+        .optional()
+        .describe(
+            'Lidarr only — one album id of the artist `id`, as an integer string (from get_media_details at `detail: "full"`). Searches that album alone. Refused elsewhere.'
+        ),
+    detail: DetailSchema,
+    limit: LimitSchema,
+    offset: OffsetSchema
+});
+
 export function registerGetReleases(
     server: McpServer,
     adapters: readonly ServiceAdapter[],
@@ -126,47 +168,7 @@ export function registerGetReleases(
             description:
                 `Runs the interactive search Radarr, Sonarr, Whisparr or Lidarr's own UI runs and returns every candidate, rejected ones included with their \`rejections\` (often because the library already holds an equal or better file). trigger_search cannot show what was found; this can, and its \`guid\` and \`indexerId\` (at \`detail: "full"\`) are what grab_release takes. **Slow**: every indexer is polled synchronously, 15 seconds or more is normal and the timeout is ${(RELEASE_SEARCH_TIMEOUT_MS / 1000).toFixed(0)}s. A long wait is not a hang: do not retry. Keep it narrow: on Sonarr pass \`episode\` for one search instead of a \`season\` (one search per episode); [[lidarr: on Lidarr \`id\` is the artist, so pass \`album\`, since a whole artist can return over a thousand rows.]] \`season\` is refused on Radarr. \`seeders\` is absent, not zero, on usenet. [[shelfmark: For a book, \`service: "shelfmark"\` with a book id from lookup_media.]] Field reference: arr://docs/get_releases.`,
             outputSchema: PagedOutputSchema,
-            inputSchema: toolInput({
-                service: serviceOf(['radarr', 'sonarr', 'whisparr', 'lidarr', 'shelfmark']),
-                instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
-                title: z
-                    .string()
-                    .min(1)
-                    .optional()
-                    .describe('A film or series title in place of `id`. A title two items match equally is refused with both ids.'),
-                id: z
-                    .string()
-                    .min(1)
-                    .optional()
-                    .describe(
-                        'The movie, series or artist id — `acquisition.id` on a get_library or get_media_details record. On shelfmark, the id of a lookup_media row whose kind is book.'
-                    ),
-                season: z
-                    .number()
-                    .int()
-                    .nonnegative()
-                    .optional()
-                    .describe(
-                        'Sonarr and Whisparr only — search one season (a release year on Whisparr) rather than the whole series. Refused against Radarr.'
-                    ),
-                episode: z
-                    .string()
-                    .min(1)
-                    .optional()
-                    .describe(
-                        'Sonarr only — one episode id, as an integer string (from get_media_details with episodes). Searches that episode alone, far faster than a season. Mutually exclusive with `season`; refused against Radarr.'
-                    ),
-                album: z
-                    .string()
-                    .min(1)
-                    .optional()
-                    .describe(
-                        'Lidarr only — one album id of the artist `id`, as an integer string (from get_media_details at `detail: "full"`). Searches that album alone. Refused elsewhere.'
-                    ),
-                detail: DetailSchema,
-                limit: LimitSchema,
-                offset: OffsetSchema
-            })
+            inputSchema: GetReleasesInput
         },
         async ({ service, instance, title, id: given, season, episode, album, detail, limit, offset }) => {
             if ((given === undefined) === (title === undefined)) throw new Error('Pass either `id` or `title`, not both.');

@@ -43,6 +43,16 @@ function numbered(steps: readonly PromptStep[], surface: SurfaceOptions): string
         .join('\n');
 }
 
+// Built once and shared by every request's server (#573).
+const WhyNotPlayableArgs = z.object({ title: z.string().min(1).describe('The film, series or artist to explain.') });
+const NoArgs = z.object({});
+const KindArgs = z.object({
+    kind: z.enum(['movie', 'series']).optional().describe('Films or series. Omit for both.')
+});
+const WhatsNewArgs = z.object({
+    days: z.string().optional().describe('How many days back. Defaults to 7.')
+});
+
 export function registerAllPrompts(server: McpServer, surface: SurfaceOptions): void {
     server.registerPrompt(
         'why_not_playable',
@@ -50,7 +60,7 @@ export function registerAllPrompts(server: McpServer, surface: SurfaceOptions): 
             title: 'Why is this not playable?',
             description:
                 'Walk the whole chain for one title — requested, managed, monitored, downloaded, indexed, imported, scanned — and name the first thing that explains it.',
-            argsSchema: z.object({ title: z.string().min(1).describe('The film, series or artist to explain.') })
+            argsSchema: WhyNotPlayableArgs
         },
         ({ title }) =>
             user(
@@ -71,7 +81,7 @@ Answer with the cause and the next action, not a transcript of the checks.`
             title: 'What needs my attention?',
             description:
                 'The periodic sweep: what is broken, stuck, out of disk, not scanning, or missing subtitles — reconciled into a short list of things that actually need you.',
-            argsSchema: z.object({})
+            argsSchema: NoArgs
         },
         () =>
             user(
@@ -99,9 +109,7 @@ One thing you cannot see, so do not claim to: the write audit is not exposed as 
             title: 'What should I watch?',
             description:
                 'Unwatched, well rated, and actually on disk — plus anything half-finished worth continuing.',
-            argsSchema: z.object({
-                kind: z.enum(['movie', 'series']).optional().describe('Films or series. Omit for both.')
-            })
+            argsSchema: KindArgs
         },
         ({ kind }) =>
             user(
@@ -125,9 +133,7 @@ Give a handful of suggestions with one line each on why. Rank them; do not just 
         {
             title: 'What is the best thing I own?',
             description: 'Rank everything in the library by rating, watched or not.',
-            argsSchema: z.object({
-                kind: z.enum(['movie', 'series']).optional().describe('Films or series. Omit for both.')
-            })
+            argsSchema: KindArgs
         },
         ({ kind }) =>
             user(
@@ -146,9 +152,7 @@ For a series, \`rating_source: "imdb"\` is worth naming explicitly — the defau
         {
             title: 'What happened this week?',
             description: 'A digest: what arrived, what aired, what finished downloading and what failed.',
-            argsSchema: z.object({
-                days: z.string().optional().describe('How many days back. Defaults to 7.')
-            })
+            argsSchema: WhatsNewArgs
         },
         ({ days }) => {
             // A window the model cannot parse falls back to the default rather

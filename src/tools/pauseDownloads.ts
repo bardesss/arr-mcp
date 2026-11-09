@@ -41,6 +41,27 @@ const findLimitAdapter = (adapters: readonly ServiceAdapter[], service: ServiceI
     return adapter;
 };
 
+const PauseDownloadsInput = z.object({
+    ...targetInput(TARGET),
+    action: z
+        .enum(['pause', 'resume', 'limit'])
+        .describe('pause, resume, or limit to cap the download speed without stopping anything.'),
+    speed_limit_kbps: z
+        .number()
+        .int()
+        .min(0)
+        .optional()
+        .describe(
+            'With action: "limit", the download cap in KiB/s — 0 removes the cap. Client-wide, never per item. Required for "limit" and ignored otherwise.'
+        ),
+    id: z
+        .string()
+        .optional()
+        .describe(
+            'One queue item to pause, exactly as get_queue reported its id. Omit to pause the whole client. Refused with action "limit".'
+        )
+});
+
 export function registerPauseDownloads(
     server: McpServer,
     context: WriteContext,
@@ -51,26 +72,7 @@ export function registerPauseDownloads(
         title: 'Pause, resume or throttle a download client',
         description:
             'Pauses, resumes or throttles one download client — SABnzbd, NZBGet, Transmission or qBittorrent — or pauses one item in its queue when `id` is given. The bandwidth answer: "stop downloading for an hour", or `action: "limit"` with `speed_limit_kbps` (KiB/s) to slow it down instead of stopping it (0 removes the cap). A limit is always client-wide, never per item. Safe tier, because the undo is this same tool with the other action. It does NOT stop Radarr or Sonarr grabbing: they carry on finding and sending releases, which then sit in the paused client. `service` is required and names one client; pausing "everything" means one call each. Previews first; confirm to apply it.',
-        inputSchema: z.object({
-            ...targetInput(TARGET),
-            action: z
-                .enum(['pause', 'resume', 'limit'])
-                .describe('pause, resume, or limit to cap the download speed without stopping anything.'),
-            speed_limit_kbps: z
-                .number()
-                .int()
-                .min(0)
-                .optional()
-                .describe(
-                    'With action: "limit", the download cap in KiB/s — 0 removes the cap. Client-wide, never per item. Required for "limit" and ignored otherwise.'
-                ),
-            id: z
-                .string()
-                .optional()
-                .describe(
-                    'One queue item to pause, exactly as get_queue reported its id. Omit to pause the whole client. Refused with action "limit".'
-                )
-        }),
+        inputSchema: PauseDownloadsInput,
         // The resolved instance id, not the bare type — permissions are
         // granted per instance.
         target: { adapters, to: TARGET },

@@ -296,6 +296,25 @@ export const summarizeProfileIssues = (result: GetProfileIssuesResult, arrInstan
     return withNote(counts);
 };
 
+const GetProfileIssuesInput = toolInput({
+    detail: DetailSchema,
+    limit: LimitSchema,
+    offset: OffsetSchema,
+    service: z.enum(['radarr', 'sonarr', 'whisparr']).optional().describe('Only report on this service.'),
+    instance: z.string().optional().describe('Only report on this named instance.'),
+    profile: z.string().optional().describe('Only report on this quality profile, by name.')
+});
+
+const GetProfileIssuesOutput = PagedOutputSchema.extend({
+    note: z
+        .string()
+        .optional()
+        .describe(
+            "Present when a fact about the stack's config, not this call, needs stating — no arr " +
+                'service configured at all, or no `profilarr` to check drift against.'
+        )
+});
+
 export function registerGetProfileIssues(
     server: McpServer,
     adapters: readonly ServiceAdapter[],
@@ -317,23 +336,8 @@ export function registerGetProfileIssues(
                 'Read-only — every `remedy` is a change to make in Profilarr when it syncs that profile, or in ' +
                 'the arr itself when it does not, never one arr-mcp performs. Use it when a profile grabs the wrong release or ' +
                 'never upgrades; why one title is missing is diagnose.',
-            outputSchema: PagedOutputSchema.extend({
-                note: z
-                    .string()
-                    .optional()
-                    .describe(
-                        "Present when a fact about the stack's config, not this call, needs stating — no arr " +
-                            'service configured at all, or no `profilarr` to check drift against.'
-                    )
-            }),
-            inputSchema: toolInput({
-                detail: DetailSchema,
-                limit: LimitSchema,
-                offset: OffsetSchema,
-                service: z.enum(['radarr', 'sonarr', 'whisparr']).optional().describe('Only report on this service.'),
-                instance: z.string().optional().describe('Only report on this named instance.'),
-                profile: z.string().optional().describe('Only report on this quality profile, by name.')
-            })
+            outputSchema: GetProfileIssuesOutput,
+            inputSchema: GetProfileIssuesInput
         },
         async ({ detail, limit, offset, service, instance, profile }) => {
             const result = await buildGetProfileIssues(

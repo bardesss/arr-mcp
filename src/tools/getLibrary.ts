@@ -16,7 +16,7 @@ import {
 import { unfenced } from '../core/titleMatch.ts';
 import { UserSchema } from './getPlayback.ts';
 import type { LibraryLoader } from './library.ts';
-import { withBoth } from './mediaServers.ts';
+import { byMediaServers, withBoth } from './mediaServers.ts';
 import { titled } from '../core/labels.ts';
 import { mediaCardsToolMeta, wantsCards, withCards } from '../mcp/apps.ts';
 import type { ServiceAdapter } from '../services/types.ts';
@@ -512,6 +512,82 @@ export async function buildGetLibrary(loader: LibraryLoader, opts: LibraryQuery)
     };
 }
 
+const getLibraryInput = byMediaServers(ids => toolInput({
+    kind: z.enum(['movie', 'series', 'artist', 'book']).optional().describe('Films, series, Lidarr artists or Grimmory books. Omit for all.'),
+    year: z.number().int().optional(),
+    genre: z.string().min(1).optional().describe('Matched case-insensitively against the *arr genres.'),
+    monitored: z.boolean().optional(),
+    has_file: z
+        .boolean()
+        .optional()
+        .describe(
+            'Whether a file is actually on disk. For an artist this means any track of any of its albums is on disk. `false` with `monitored: true` is "what am I still waiting for"; `true` is "what can I watch now". Media no *arr manages is excluded from both answers rather than counted as missing — nothing is going to fetch it.'
+        ),
+    watched: z.boolean().optional().describe('The media server\'s watch state, or a Grimmory book\'s read status (READ is watched). Items it has never seen count as unwatched. Pair with `user` to ask about someone else.'),
+    user: UserSchema,
+    // Undocumented on purpose: the spelling this tool had when the
+    // surface froze at 1.0, where `get_playback` and `get_requests`
+    // already called the same thing `user`. Kept working forever —
+    // removing it would break a saved prompt silently — but
+    // described nowhere.
+    watched_by: UserSchema,
+    quality: z.string().min(1).optional().describe("Films, or a book's file format such as EPUB."),
+    library: z.string().min(1).optional().describe('A Grimmory library, by name. Matches books only.'),
+    added_since: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}/, 'must start with an ISO 8601 date (YYYY-MM-DD), e.g. "2026-08-01" or "2026-08-01T00:00:00Z".')
+        .optional()
+        .describe('Only items added at or after this ISO 8601 date. Items with no added date are left out.'),
+    min_rating: z
+        .number()
+        .min(0)
+        .max(10)
+        .optional()
+        .describe(
+            'Always 0-10, regardless of source. Metacritic and Rotten Tomatoes are reported in the response on their native 0-100 scale, but rescaled to 0-10 for this comparison.'
+        ),
+    rating_source: z
+        .enum(RATING_SOURCES)
+        .optional()
+        .describe('Defaults to whichever source covers the most of your library. `tvdb` is series-only.'),
+    presence: z
+        .enum(['both', 'arr_only', 'jellyfin_only', 'unknown'])
+        .optional()
+        .describe(
+            'both / arr_only (possible broken import) / jellyfin_only (unmanaged media — the value keeps this name whichever media server is configured) / unknown (media server degraded or unconfigured, so arr_only cannot be asserted; for an artist it also means the music read did not run).' +
+                withBoth(ids, 'With two media servers, measured against the primary.')
+        ),
+    ...(ids === undefined
+        ? {}
+        : {
+              missing_from: z
+                  .enum(ids)
+                  .optional()
+                  .describe(
+                      'Items this media server reported it does not have. A server that could not be read matches nothing. The non-primary server is matched on tmdb, tvdb or imdb ids only.'
+                  )
+          }),
+    sort: z
+        .enum(SORT_FIELDS)
+        .optional()
+        .describe(
+            'Order the results *before* `limit` is applied — which is what makes "the best rated" or "most recently added" answerable at all, since a filter alone would leave the top item outside the returned window. `rating` is descending and uses `rating_source`, excluding items that source has no rating for and reporting them in `ratingCoverage`; `added` is newest first and excludes media no *arr manages, which has no added date; `year` is descending; `title` ascending. Omit to keep the library\'s own order.'
+        ),
+    detail: DetailSchema,
+    limit: LimitSchema,
+    offset: OffsetSchema
+}, { undocumented: ['watched_by'] }));
+
+const getLibraryOutput = byMediaServers(ids => PagedOutputSchema.extend({
+    note: z
+        .string()
+        .optional()
+        .describe(
+            'Present when a fact about the stack\'s config, not this call, needs stating — no media server configured at all, or one configured with no default_user.' +
+                withBoth(ids, 'Also when the secondary media server is not read because its default_user is missing (Jellyfin) or matches no user.')
+        )
+}));
+
 export function registerGetLibrary(
     server: McpServer,
     loader: LibraryLoader,
@@ -533,80 +609,8 @@ export function registerGetLibrary(
                     mediaServerIds,
                     'With two media servers, `presence`, `playback` and `seasons` describe the primary, and `media_servers` says per server whether it has the item and under which `itemId`; a server missing from that map was not read. The non-primary server is matched on tmdb, tvdb or imdb ids, so an item it holds without any reads `present: false`. Items only the non-primary server has do not appear here; search_media finds them.'
                 ),
-            outputSchema: PagedOutputSchema.extend({
-                note: z
-                    .string()
-                    .optional()
-                    .describe(
-                        'Present when a fact about the stack\'s config, not this call, needs stating — no media server configured at all, or one configured with no default_user.' +
-                            withBoth(mediaServerIds, 'Also when the secondary media server is not read because its default_user is missing (Jellyfin) or matches no user.')
-                    )
-            }),
-            inputSchema: toolInput({
-                kind: z.enum(['movie', 'series', 'artist', 'book']).optional().describe('Films, series, Lidarr artists or Grimmory books. Omit for all.'),
-                year: z.number().int().optional(),
-                genre: z.string().min(1).optional().describe('Matched case-insensitively against the *arr genres.'),
-                monitored: z.boolean().optional(),
-                has_file: z
-                    .boolean()
-                    .optional()
-                    .describe(
-                        'Whether a file is actually on disk. For an artist this means any track of any of its albums is on disk. `false` with `monitored: true` is "what am I still waiting for"; `true` is "what can I watch now". Media no *arr manages is excluded from both answers rather than counted as missing — nothing is going to fetch it.'
-                    ),
-                watched: z.boolean().optional().describe('The media server\'s watch state, or a Grimmory book\'s read status (READ is watched). Items it has never seen count as unwatched. Pair with `user` to ask about someone else.'),
-                user: UserSchema,
-                // Undocumented on purpose: the spelling this tool had when the
-                // surface froze at 1.0, where `get_playback` and `get_requests`
-                // already called the same thing `user`. Kept working forever —
-                // removing it would break a saved prompt silently — but
-                // described nowhere.
-                watched_by: UserSchema,
-                quality: z.string().min(1).optional().describe("Films, or a book's file format such as EPUB."),
-                library: z.string().min(1).optional().describe('A Grimmory library, by name. Matches books only.'),
-                added_since: z
-                    .string()
-                    .regex(/^\d{4}-\d{2}-\d{2}/, 'must start with an ISO 8601 date (YYYY-MM-DD), e.g. "2026-08-01" or "2026-08-01T00:00:00Z".')
-                    .optional()
-                    .describe('Only items added at or after this ISO 8601 date. Items with no added date are left out.'),
-                min_rating: z
-                    .number()
-                    .min(0)
-                    .max(10)
-                    .optional()
-                    .describe(
-                        'Always 0-10, regardless of source. Metacritic and Rotten Tomatoes are reported in the response on their native 0-100 scale, but rescaled to 0-10 for this comparison.'
-                    ),
-                rating_source: z
-                    .enum(RATING_SOURCES)
-                    .optional()
-                    .describe('Defaults to whichever source covers the most of your library. `tvdb` is series-only.'),
-                presence: z
-                    .enum(['both', 'arr_only', 'jellyfin_only', 'unknown'])
-                    .optional()
-                    .describe(
-                        'both / arr_only (possible broken import) / jellyfin_only (unmanaged media — the value keeps this name whichever media server is configured) / unknown (media server degraded or unconfigured, so arr_only cannot be asserted; for an artist it also means the music read did not run).' +
-                            withBoth(mediaServerIds, 'With two media servers, measured against the primary.')
-                    ),
-                ...(mediaServerIds === undefined
-                    ? {}
-                    : {
-                          missing_from: z
-                              .enum(mediaServerIds)
-                              .optional()
-                              .describe(
-                                  'Items this media server reported it does not have. A server that could not be read matches nothing. The non-primary server is matched on tmdb, tvdb or imdb ids only.'
-                              )
-                      }),
-                sort: z
-                    .enum(SORT_FIELDS)
-                    .optional()
-                    .describe(
-                        'Order the results *before* `limit` is applied — which is what makes "the best rated" or "most recently added" answerable at all, since a filter alone would leave the top item outside the returned window. `rating` is descending and uses `rating_source`, excluding items that source has no rating for and reporting them in `ratingCoverage`; `added` is newest first and excludes media no *arr manages, which has no added date; `year` is descending; `title` ascending. Omit to keep the library\'s own order.'
-                    ),
-                detail: DetailSchema,
-                limit: LimitSchema,
-                offset: OffsetSchema
-            }, { undocumented: ['watched_by'] })
+            outputSchema: getLibraryOutput(mediaServerIds),
+            inputSchema: getLibraryInput(mediaServerIds)
         },
         async (input, ctx) => {
             const { user, watched_by, ...rest } = input as LibraryQuery & { user?: string };

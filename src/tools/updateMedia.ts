@@ -269,6 +269,63 @@ async function planBook(book: ServiceAdapter & BookMetadataCapable, rawId: strin
     };
 }
 
+const UpdateMediaInput = z.object({
+    ...targetInput(TARGET, 'radarr for a film, sonarr for a series, lidarr for an artist, grimmory for a book.'),
+    id: z
+        .string()
+        .min(1)
+        .describe("The item's id within that service — `acquisition.id` on a get_library or get_media_details record."),
+    quality_profile: z.string().optional().describe('Profile name or id to switch to.'),
+    root_folder: z
+        .string()
+        .optional()
+        .describe('Root folder path, or any distinctive part of it. Moves the files there unless move_files is false.'),
+    monitored: z
+        .boolean()
+        .optional()
+        .describe('Monitor it, or stop. Works on Radarr, Sonarr and Lidarr, where it is the artist’s own flag and the albums keep theirs.'),
+    minimum_availability: z
+        .enum(['announced', 'inCinemas', 'released'])
+        .optional()
+        .describe('Radarr only: how early it may grab.'),
+    series_type: z
+        .enum(['standard', 'daily', 'anime'])
+        .optional()
+        .describe('Sonarr only: the numbering scheme.'),
+    metadata_profile: z
+        .string()
+        .optional()
+        .describe(
+            'Lidarr only: metadata profile name or id to switch to, which decides the album types and release statuses the artist gets. It applies at the artist’s next refresh, which this does not start. A name that matches none is refused, listing the ones the instance has.'
+        ),
+    tags: z
+        .array(z.string())
+        .optional()
+        .describe(
+            'Tag labels or ids that already exist. Replaces the whole set — pass [] to clear it. On a Grimmory book these are its categories: free text that need not exist yet, replacing the set.'
+        ),
+    title: z.string().min(1).optional().describe(`${BOOK_ONLY}The new title.`),
+    authors: z.array(z.string().min(1)).min(1).optional().describe(`${BOOK_ONLY}The authors; replaces the list.`),
+    series: z.string().optional().describe(`${BOOK_ONLY}The series name. "" clears it.`),
+    series_number: z.number().positive().optional().describe(`${BOOK_ONLY}The book's number in its series.`),
+    lock_fields: z
+        .array(z.enum(LOCKABLE))
+        .min(1)
+        .optional()
+        .describe(`${BOOK_ONLY}Fields to lock after writing, so a metadata refresh leaves them alone.`),
+    unlock_fields: z
+        .array(z.enum(LOCKABLE))
+        .min(1)
+        .optional()
+        .describe(`${BOOK_ONLY}Fields to unlock before writing. A locked field is refused unless this call unlocks it.`),
+    move_files: z
+        .boolean()
+        .default(true)
+        .describe(
+            'With root_folder: whether the service moves the files to the new folder. Defaults to true. False only when you have already moved them yourself.'
+        )
+});
+
 export function registerUpdateMedia(
     server: McpServer,
     context: WriteContext,
@@ -279,62 +336,7 @@ export function registerUpdateMedia(
         title: 'Change what a library item is set to',
         description:
             'Changes settings on an item already in Radarr[[lidarr: , Lidarr]] or Sonarr (quality profile, root folder, monitoring, tags, Radarr\'s minimum availability, Sonarr\'s series type[[lidarr: , Lidarr\'s metadata profile]]), or edits a Grimmory book\'s title, authors, series, series number and tags, with `lock_fields` or `unlock_fields`. The only way to change a Radarr item\'s monitoring. [[lidarr: On Lidarr, `id` is an artist, `monitor_new_items` stays with set_monitoring, and a new metadata profile applies at the artist\'s next refresh, which can remove albums.]] Takes `service` and `id`. Changing `root_folder` **moves the files on disk** unless `move_files: false`. `tags` replaces the whole set and an unknown tag is refused; stack_health at `detail: "full"` lists profiles, folders and tags. [[grimmory: A locked book field is refused unless the same call unlocks it, and Grimmory may write the change into the book file and rename it.]] Previews first; confirm to apply. Field reference: arr://docs/update_media.',
-        inputSchema: z.object({
-            ...targetInput(TARGET, 'radarr for a film, sonarr for a series, lidarr for an artist, grimmory for a book.'),
-            id: z
-                .string()
-                .min(1)
-                .describe("The item's id within that service — `acquisition.id` on a get_library or get_media_details record."),
-            quality_profile: z.string().optional().describe('Profile name or id to switch to.'),
-            root_folder: z
-                .string()
-                .optional()
-                .describe('Root folder path, or any distinctive part of it. Moves the files there unless move_files is false.'),
-            monitored: z
-                .boolean()
-                .optional()
-                .describe('Monitor it, or stop. Works on Radarr, Sonarr and Lidarr, where it is the artist’s own flag and the albums keep theirs.'),
-            minimum_availability: z
-                .enum(['announced', 'inCinemas', 'released'])
-                .optional()
-                .describe('Radarr only: how early it may grab.'),
-            series_type: z
-                .enum(['standard', 'daily', 'anime'])
-                .optional()
-                .describe('Sonarr only: the numbering scheme.'),
-            metadata_profile: z
-                .string()
-                .optional()
-                .describe(
-                    'Lidarr only: metadata profile name or id to switch to, which decides the album types and release statuses the artist gets. It applies at the artist’s next refresh, which this does not start. A name that matches none is refused, listing the ones the instance has.'
-                ),
-            tags: z
-                .array(z.string())
-                .optional()
-                .describe(
-                    'Tag labels or ids that already exist. Replaces the whole set — pass [] to clear it. On a Grimmory book these are its categories: free text that need not exist yet, replacing the set.'
-                ),
-            title: z.string().min(1).optional().describe(`${BOOK_ONLY}The new title.`),
-            authors: z.array(z.string().min(1)).min(1).optional().describe(`${BOOK_ONLY}The authors; replaces the list.`),
-            series: z.string().optional().describe(`${BOOK_ONLY}The series name. "" clears it.`),
-            series_number: z.number().positive().optional().describe(`${BOOK_ONLY}The book's number in its series.`),
-            lock_fields: z
-                .array(z.enum(LOCKABLE))
-                .min(1)
-                .optional()
-                .describe(`${BOOK_ONLY}Fields to lock after writing, so a metadata refresh leaves them alone.`),
-            unlock_fields: z
-                .array(z.enum(LOCKABLE))
-                .min(1)
-                .optional()
-                .describe(`${BOOK_ONLY}Fields to unlock before writing. A locked field is refused unless this call unlocks it.`),
-            move_files: z
-                .boolean()
-                .default(true)
-                .describe(
-                    'With root_folder: whether the service moves the files to the new folder. Defaults to true. False only when you have already moved them yourself.'
-                )
-        }),
+        inputSchema: UpdateMediaInput,
         target: { adapters, to: TARGET },
         operation: 'update_media',
         tier: ({ metadata_profile }) => (metadata_profile === undefined ? 'safe' : 'destructive'),

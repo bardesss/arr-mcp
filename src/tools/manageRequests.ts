@@ -119,6 +119,11 @@ async function describe(adapters: readonly ServiceAdapter[], request: MediaReque
     return `${titled(media.title, media.year)}, requested by ${requester(request)}`;
 }
 
+const RespondToRequestInput = z.object({
+    id: z.string().min(1).describe('The Seerr request id, as get_requests reported it.'),
+    verdict: z.enum(['approve', 'decline']).describe('approve or decline.')
+});
+
 export function registerRespondToRequest(
     server: McpServer,
     context: WriteContext,
@@ -130,10 +135,7 @@ export function registerRespondToRequest(
         title: 'Approve or decline a request',
         description:
             'Approves or declines a pending Seerr request. Approving hands it to Radarr or Sonarr, which will search for it and download it — so it costs disk space and bandwidth even though the decision itself is reversible. Take `id` from get_requests. Previews first; confirm to apply the verdict.',
-        inputSchema: z.object({
-            id: z.string().min(1).describe('The Seerr request id, as get_requests reported it.'),
-            verdict: z.enum(['approve', 'decline']).describe('approve or decline.')
-        }),
+        inputSchema: RespondToRequestInput,
         service: 'seerr',
         operation: 'respond_to_request',
         tier: 'safe',
@@ -183,6 +185,10 @@ export function registerRespondToRequest(
     });
 }
 
+const DeleteRequestInput = z.object({
+    id: z.string().min(1).describe('The Seerr request id, as get_requests reported it.')
+});
+
 export function registerDeleteRequest(
     server: McpServer,
     context: WriteContext,
@@ -194,9 +200,7 @@ export function registerDeleteRequest(
         title: 'Delete a request',
         description:
             'Deletes a Seerr request record entirely. This removes the request, not the media — anything already downloaded stays on disk and in Radarr or Sonarr. Use respond_to_request with `decline` to refuse a request while keeping the record. Take `id` from get_requests. Previews first; confirm to delete it.',
-        inputSchema: z.object({
-            id: z.string().min(1).describe('The Seerr request id, as get_requests reported it.')
-        }),
+        inputSchema: DeleteRequestInput,
         service: 'seerr',
         operation: 'delete_request',
         tier: 'destructive',

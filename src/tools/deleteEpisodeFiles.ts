@@ -23,6 +23,22 @@ const TARGET = serviceTarget({
     hint: 'Use delete_media for a film.'
 });
 
+const DeleteEpisodeFilesInput = z.object({
+    ...targetInput(TARGET),
+    id: z.string().min(1).describe('The series id, as an integer string.'),
+    season: z
+        .number()
+        .int()
+        .min(0)
+        .optional()
+        .describe('One season. 0 is specials. On Whisparr a season is a release year, e.g. 2019.'),
+    episodes: z
+        .array(z.string().min(1))
+        .min(1)
+        .optional()
+        .describe('Specific episode ids, as integer strings. Mutually exclusive with `season`.')
+});
+
 export function registerDeleteEpisodeFiles(
     server: McpServer,
     context: WriteContext,
@@ -33,21 +49,7 @@ export function registerDeleteEpisodeFiles(
         title: 'Delete episode files',
         description:
             'Deletes the files for one Sonarr season, or for specific episodes, from disk. Destructive and not undoable. Give `season` or `episodes`, never both; there is no whole-series form — that is delete_media. **Unmonitor first with set_monitoring**, or Sonarr treats the episodes as missing and re-downloads exactly what you just deleted; the preview says so when the target is still monitored. Leaves the series, its monitoring and its history in Sonarr — only the files go. Previews first; confirm to delete.',
-        inputSchema: z.object({
-            ...targetInput(TARGET),
-            id: z.string().min(1).describe('The series id, as an integer string.'),
-            season: z
-                .number()
-                .int()
-                .min(0)
-                .optional()
-                .describe('One season. 0 is specials. On Whisparr a season is a release year, e.g. 2019.'),
-            episodes: z
-                .array(z.string().min(1))
-                .min(1)
-                .optional()
-                .describe('Specific episode ids, as integer strings. Mutually exclusive with `season`.')
-        }),
+        inputSchema: DeleteEpisodeFilesInput,
         target: { adapters, to: TARGET },
         operation: 'delete_episode_files',
         tier: 'destructive',

@@ -23,6 +23,23 @@ const TARGET = serviceTarget({
     hint: 'Take a service and id from get_queue.'
 });
 
+const RemoveQueueItemInput = z.object({
+    ...targetInput(TARGET),
+    id: z.string().min(1).describe('The queue item id, exactly as get_queue reported it.'),
+    remove_from_client: z
+        .boolean()
+        .default(true)
+        .describe(
+            'Also drop it from the download client and delete partial data. Defaults to true, which is what "get rid of it" normally means.'
+        ),
+    blocklist: z
+        .boolean()
+        .default(false)
+        .describe(
+            'Blocklist the release so it is not grabbed again. Radarr, Sonarr, Whisparr and Lidarr only; ignored elsewhere. Defaults to false.'
+        )
+});
+
 export function registerRemoveQueueItem(
     server: McpServer,
     context: WriteContext,
@@ -33,22 +50,7 @@ export function registerRemoveQueueItem(
         title: 'Remove a queue item',
         description:
             'Removes one item from a download queue — the stuck-at-0%, wrong-release, or stalled download. Works against Radarr, Sonarr, Whisparr, Lidarr, SABnzbd, NZBGet, Transmission, qBittorrent, Shelfmark and Grimmory; take `service` and `id` from get_queue. Optionally deletes partial data and, on Radarr, Sonarr, Whisparr and Lidarr only, blocklists the release so it will not be grabbed again. On NZBGet, keeping the data parks the download in its history rather than deleting it. On Shelfmark it cancels a queued or running book, and a failed one has nothing to cancel. On Grimmory it discards a file waiting in the Bookdrop, which deletes the file from disk (so `remove_from_client: false` is refused). Previews first; confirm to remove it.',
-        inputSchema: z.object({
-            ...targetInput(TARGET),
-            id: z.string().min(1).describe('The queue item id, exactly as get_queue reported it.'),
-            remove_from_client: z
-                .boolean()
-                .default(true)
-                .describe(
-                    'Also drop it from the download client and delete partial data. Defaults to true, which is what "get rid of it" normally means.'
-                ),
-            blocklist: z
-                .boolean()
-                .default(false)
-                .describe(
-                    'Blocklist the release so it is not grabbed again. Radarr, Sonarr, Whisparr and Lidarr only; ignored elsewhere. Defaults to false.'
-                )
-        }),
+        inputSchema: RemoveQueueItemInput,
         // The resolved instance id, not the bare type: permissions are granted per
         // instance, so checking `radarr` against a config that only grants
         // `radarr/hd` would deny a permitted write — or worse, the reverse.

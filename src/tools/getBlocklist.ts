@@ -70,6 +70,14 @@ export async function buildGetBlocklist(
     return { ...shaped, items: shaped.items.map(i => project(i, opts.detail)), degraded, counts };
 }
 
+const GetBlocklistInput = toolInput({
+    service: serviceOf(TARGET.services).optional().describe('Scope to one service. Omit to merge them all.'),
+    instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
+    detail: DetailSchema,
+    limit: LimitSchema,
+    offset: OffsetSchema
+});
+
 export function registerGetBlocklist(server: McpServer, adapters: readonly ServiceAdapter[]): void {
     server.registerTool(
         'get_blocklist',
@@ -79,13 +87,7 @@ export function registerGetBlocklist(server: McpServer, adapters: readonly Servi
             description:
                 'Why a release keeps getting skipped. Lists what Radarr, Sonarr, Whisparr and Lidarr have blocklisted — releases they will not grab again — with the reason each was blocklisted, usually relayed from the download client. This is the answer to "it keeps finding the same thing and never downloading it", which `get_history` shows as a repeating grab-then-fail and nothing explains. Rows carry `mediaId` for get_media_details (an artist id on a Lidarr row), and `id` for remove_blocklist_item. Newest first. Radarr, Sonarr, Whisparr and Lidarr only — the download clients have no blocklist of their own.',
             outputSchema: PagedOutputSchema,
-            inputSchema: toolInput({
-                service: serviceOf(TARGET.services).optional().describe('Scope to one service. Omit to merge them all.'),
-                instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
-                detail: DetailSchema,
-                limit: LimitSchema,
-                offset: OffsetSchema
-            })
+            inputSchema: GetBlocklistInput
         },
         async ({ service, instance, detail, limit, offset }) => {
             const result = await buildGetBlocklist(adapters, {

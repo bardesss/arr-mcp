@@ -213,6 +213,36 @@ function fromDataset(
     };
 }
 
+const DiscoverMediaInput = toolInput({
+    kind: z.enum(['movie', 'series']).optional().describe('Films or series. Defaults to films.'),
+    // Undocumented on purpose: the spelling this tool had when the
+    // surface froze at 1.0. Kept working forever — removing it
+    // would break a saved prompt silently — but described nowhere,
+    // so nothing new is written against it.
+    media_type: z.enum(['movie', 'tv']).optional(),
+    genre: z.string().optional().describe('Genre name, e.g. "Crime" or "Action". A TMDB numeric id is also accepted.'),
+    year: z.number().int().min(1900).max(2100).optional().describe('Restrict to one release year.'),
+    min_rating: z.number().min(0).max(10).optional().describe('Minimum TMDB rating out of 10.'),
+    similar_to: z
+        .string()
+        .optional()
+        .describe(
+            'A TMDB numeric id — find something like it. Seerr only, and mutually exclusive with genre/year/min_rating: it answers a different question.'
+        ),
+    detail: DetailSchema,
+    limit: LimitSchema,
+    offset: OffsetSchema
+}, { undocumented: ['media_type'] });
+
+const DiscoverMediaOutput = PagedOutputSchema.extend({
+    note: z
+        .string()
+        .optional()
+        .describe(
+            'Present when an empty list needs defending — for example when neither Seerr nor the IMDb dataset is configured, so nothing could answer. Report the reason rather than saying nothing matched.'
+        )
+});
+
 export function registerDiscoverMedia(
     server: McpServer,
     adapter: SeerrAdapter | undefined,
@@ -225,34 +255,8 @@ export function registerDiscoverMedia(
             annotations: READ_ONLY,
             description:
                 'Browse what exists rather than what you have: films or series by genre, year and minimum rating, or things similar to one you know via similar_to. To find one title by name, use lookup_media. Answered by Seerr when it is configured — TMDB-backed, so the rating is TMDB’s. With no Seerr, genre/year/min_rating are answered from the local IMDb dataset instead, where the rating is IMDb’s; similar_to needs Seerr and has no dataset fallback.',
-            outputSchema: PagedOutputSchema.extend({
-                note: z
-                    .string()
-                    .optional()
-                    .describe(
-                        'Present when an empty list needs defending — for example when neither Seerr nor the IMDb dataset is configured, so nothing could answer. Report the reason rather than saying nothing matched.'
-                    )
-            }),
-            inputSchema: toolInput({
-                kind: z.enum(['movie', 'series']).optional().describe('Films or series. Defaults to films.'),
-                // Undocumented on purpose: the spelling this tool had when the
-                // surface froze at 1.0. Kept working forever — removing it
-                // would break a saved prompt silently — but described nowhere,
-                // so nothing new is written against it.
-                media_type: z.enum(['movie', 'tv']).optional(),
-                genre: z.string().optional().describe('Genre name, e.g. "Crime" or "Action". A TMDB numeric id is also accepted.'),
-                year: z.number().int().min(1900).max(2100).optional().describe('Restrict to one release year.'),
-                min_rating: z.number().min(0).max(10).optional().describe('Minimum TMDB rating out of 10.'),
-                similar_to: z
-                    .string()
-                    .optional()
-                    .describe(
-                        'A TMDB numeric id — find something like it. Seerr only, and mutually exclusive with genre/year/min_rating: it answers a different question.'
-                    ),
-                detail: DetailSchema,
-                limit: LimitSchema,
-                offset: OffsetSchema
-            }, { undocumented: ['media_type'] })
+            outputSchema: DiscoverMediaOutput,
+            inputSchema: DiscoverMediaInput
         },
         async ({ kind, media_type, genre, year, min_rating, similar_to, detail, limit, offset }) => {
             const resolved =

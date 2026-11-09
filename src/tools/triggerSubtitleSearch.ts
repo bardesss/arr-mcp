@@ -22,6 +22,34 @@ const label = (gap: SubtitleGap): string =>
         ? gap.title
         : `${gap.title} ${gap.season ?? '?'}x${gap.episode ?? '?'}${gap.episodeTitle === undefined ? '' : ` ${gap.episodeTitle}`}`;
 
+const TriggerSubtitleSearchInput = z.object({
+    ...targetInput(TARGET),
+    kind: z.enum(['movie', 'episode']).describe('Which of the two lists get_subtitles reported the item in.'),
+    id: z
+        .string()
+        .min(1)
+        .describe("The item's id as get_subtitles reports it, as an integer string. For an episode this is the episode id, not the series id."),
+    language: z
+        .string()
+        .min(2)
+        .describe('The two-letter code from the item\'s `missing` list — "nl", "en".'),
+    search_anyway: z
+        .boolean()
+        .default(false)
+        .describe(
+            'Search even when Bazarr does not list this item — or this language — as missing. The "I have Dutch subs and they are wrong" case; it may replace a subtitle you already have.'
+        ),
+    series_id: z
+        .number()
+        .int()
+        .optional()
+        .describe(
+            'The Sonarr series id. Only needed with search_anyway for an episode Bazarr does not list as missing, since the missing list is otherwise where the series id comes from.'
+        ),
+    forced: z.boolean().default(false).describe('Search for a forced subtitle track.'),
+    hearing_impaired: z.boolean().default(false).describe('Search for a hearing-impaired subtitle track.')
+});
+
 export function registerTriggerSubtitleSearch(
     server: McpServer,
     context: WriteContext,
@@ -32,33 +60,7 @@ export function registerTriggerSubtitleSearch(
         title: 'Search for a subtitle',
         description:
             'Asks Bazarr to go looking for one language of subtitles for one item it already tracks — the "it is missing Dutch subs and I do not want to wait for the next round" action. Takes `kind`, `id` and `language` exactly as get_subtitles reports them. By default it only searches for something Bazarr lists as missing; `search_anyway: true` searches regardless, which is how you replace a subtitle you already have but do not want (for an episode outside that list, pass `series_id` too). This queues a search and returns immediately; it does not wait, and finding a subtitle is not guaranteed. Previews first; confirm to run it.',
-        inputSchema: z.object({
-            ...targetInput(TARGET),
-            kind: z.enum(['movie', 'episode']).describe('Which of the two lists get_subtitles reported the item in.'),
-            id: z
-                .string()
-                .min(1)
-                .describe("The item's id as get_subtitles reports it, as an integer string. For an episode this is the episode id, not the series id."),
-            language: z
-                .string()
-                .min(2)
-                .describe('The two-letter code from the item\'s `missing` list — "nl", "en".'),
-            search_anyway: z
-                .boolean()
-                .default(false)
-                .describe(
-                    'Search even when Bazarr does not list this item — or this language — as missing. The "I have Dutch subs and they are wrong" case; it may replace a subtitle you already have.'
-                ),
-            series_id: z
-                .number()
-                .int()
-                .optional()
-                .describe(
-                    'The Sonarr series id. Only needed with search_anyway for an episode Bazarr does not list as missing, since the missing list is otherwise where the series id comes from.'
-                ),
-            forced: z.boolean().default(false).describe('Search for a forced subtitle track.'),
-            hearing_impaired: z.boolean().default(false).describe('Search for a hearing-impaired subtitle track.')
-        }),
+        inputSchema: TriggerSubtitleSearchInput,
         target: { adapters, to: TARGET },
         operation: 'trigger_subtitle_search',
         tier: 'safe',

@@ -316,6 +316,26 @@ export async function resolveMediaDetails(
     return withCleanup(adapters, await withSeerrRatings(adapters, resolved));
 }
 
+const GetMediaDetailsInput = toolInput({
+    query: z
+        .string()
+        .min(1)
+        .optional()
+        .describe(
+            'A title, matched against every title the services know (original and alternate titles too). When other items match equally well, the answer carries `ambiguous: true` and their `candidates`. A title not in your library is refused with what a metadata lookup knows of it, so no other search is needed.'
+        ),
+    service: ServiceIdSchema.optional().describe('With `id`: one service’s own view.'),
+    instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
+    id: z.string().min(1).optional().describe("The item's id within that service."),
+    detail: DetailSchema,
+    limit: LimitSchema
+});
+
+const GetMediaDetailsOutput = z.looseObject({
+    kind: z.enum(['movie', 'series', 'item', 'artist', 'book']),
+    title: z.string()
+});
+
 export function registerGetMediaDetails(
     server: McpServer,
     adapters: readonly ServiceAdapter[],
@@ -347,24 +367,8 @@ export function registerGetMediaDetails(
              * here the SDK rejects the result and the caller never sees it.
              * `book` is Grimmory's, by `service` plus `id` only.
              */
-            outputSchema: z.looseObject({
-                kind: z.enum(['movie', 'series', 'item', 'artist', 'book']),
-                title: z.string()
-            }),
-            inputSchema: toolInput({
-                query: z
-                    .string()
-                    .min(1)
-                    .optional()
-                    .describe(
-                        'A title, matched against every title the services know (original and alternate titles too). When other items match equally well, the answer carries `ambiguous: true` and their `candidates`. A title not in your library is refused with what a metadata lookup knows of it, so no other search is needed.'
-                    ),
-                service: ServiceIdSchema.optional().describe('With `id`: one service’s own view.'),
-                instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
-                id: z.string().min(1).optional().describe("The item's id within that service."),
-                detail: DetailSchema,
-                limit: LimitSchema
-            })
+            outputSchema: GetMediaDetailsOutput,
+            inputSchema: GetMediaDetailsInput
         },
         async ({ query, service, instance, id, detail, limit }, ctx) => {
             const result = await resolveMediaDetails(adapters, loader, {

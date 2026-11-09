@@ -152,6 +152,16 @@ export const summarizeIndexers = (result: GetIndexersResult, instanceCount: numb
     return `${result.returned} of ${result.total} indexer(s)${disabled > 0 ? `, ${disabled} temporarily disabled` : ''}${result.degraded.length > 0 ? `. ${result.degraded.join(', ')} could not be reached` : ''}.${partial}`;
 };
 
+const GetIndexersInput = toolInput({ detail: DetailSchema, limit: LimitSchema, offset: OffsetSchema });
+
+const GetIndexersOutput = PagedOutputSchema.extend({
+    disabledCount: z
+        .number()
+        .describe(
+            'How many of the returned indexers are temporarily disabled. Counted before the detail projection, so it is right at every detail level.'
+        )
+});
+
 export function registerGetIndexers(
     server: McpServer,
     adapters: readonly (ServiceAdapter & IndexerCapable)[]
@@ -163,14 +173,8 @@ export function registerGetIndexers(
             annotations: READ_ONLY,
             description:
                 'Prowlarr indexer health: which indexers are enabled, which are temporarily disabled and why, per-indexer query and grab counts, and — at detail: full — the queries indexers recently rejected (newest 50; `limit` pages indexers only) and the reasons they gave. Failure messages and rejection reasons come from the indexer itself and are fenced as untrusted data. To change an indexer, use manage_indexer; why one title found nothing is diagnose.',
-            outputSchema: PagedOutputSchema.extend({
-                disabledCount: z
-                    .number()
-                    .describe(
-                        'How many of the returned indexers are temporarily disabled. Counted before the detail projection, so it is right at every detail level.'
-                    )
-            }),
-            inputSchema: toolInput({ detail: DetailSchema, limit: LimitSchema, offset: OffsetSchema })
+            outputSchema: GetIndexersOutput,
+            inputSchema: GetIndexersInput
         },
         async ({ detail, limit, offset }) => {
             const result = await buildGetIndexers(adapters, { detail, limit, offset });

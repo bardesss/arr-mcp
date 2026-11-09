@@ -17,6 +17,10 @@ const TARGET = serviceTarget({
 // that are still transferring, and deleting one destroys a download in progress.
 const isLitter = (item: QueueItem): boolean => item.orphaned === true && item.importState === 'importBlocked';
 
+const CleanQueueInput = z.object({
+    ...targetInput(TARGET)
+});
+
 export function registerCleanQueue(
     server: McpServer,
     context: WriteContext,
@@ -27,9 +31,7 @@ export function registerCleanQueue(
         title: 'Clean up orphaned queue items',
         description:
             'Removes every completed download stuck in a Radarr, Sonarr, Whisparr or Lidarr queue because the film, series or artist it belongs to no longer exists — the ones that pile up at "importBlocked" for years. Also drops them from the download client. Only touches items that are both orphaned and import-blocked, so a download still in progress is never affected, and it never blocklists: the release was fine, the media was deleted. On Lidarr before 2.10.1 nothing is ever marked `importBlocked` — a deleted artist\'s finished download stays `completed` with a warning — so this finds nothing there; remove such a row with remove_queue_item. Previews first; confirm to remove them.',
-        inputSchema: z.object({
-            ...targetInput(TARGET)
-        }),
+        inputSchema: CleanQueueInput,
         target: { adapters, to: TARGET },
         operation: 'clean_queue',
         tier: 'destructive',

@@ -118,6 +118,25 @@ export async function buildGetCalendar(
     };
 }
 
+const GetCalendarInput = toolInput({
+    kind: MediaKindSchema.describe(
+        'Only one service\'s calendar: `movie` (Radarr), `series` (Sonarr, Whisparr), `artist` (Lidarr\'s albums). Pass it when the request names one of those services; only they are asked. Omit for all.'
+    ),
+    detail: DetailSchema,
+    limit: LimitSchema,
+    offset: OffsetSchema,
+    days_back: DaysBackSchema,
+    days_ahead: DaysAheadSchema
+});
+
+const GetCalendarOutput = PagedOutputSchema.extend({
+    missingFiles: z
+        .number()
+        .describe(
+            'How many of the returned items have no file yet, an album until every track is on disk. Counted before the detail projection, so it is right at every detail level.'
+        )
+});
+
 export function registerGetCalendar(server: McpServer, adapters: readonly ServiceAdapter[]): void {
     server.registerTool(
         'get_calendar',
@@ -126,23 +145,8 @@ export function registerGetCalendar(server: McpServer, adapters: readonly Servic
             annotations: READ_ONLY,
             description:
                 'Films, episodes and albums due in a date window, merged from Radarr, Sonarr, Whisparr and Lidarr and sorted by date. Covers both upcoming releases and recently aired items, with whether each already has a file. What is already overdue is get_wanted.',
-            outputSchema: PagedOutputSchema.extend({
-                missingFiles: z
-                    .number()
-                    .describe(
-                        'How many of the returned items have no file yet, an album until every track is on disk. Counted before the detail projection, so it is right at every detail level.'
-                    )
-            }),
-            inputSchema: toolInput({
-                kind: MediaKindSchema.describe(
-                    'Only one service\'s calendar: `movie` (Radarr), `series` (Sonarr, Whisparr), `artist` (Lidarr\'s albums). Pass it when the request names one of those services; only they are asked. Omit for all.'
-                ),
-                detail: DetailSchema,
-                limit: LimitSchema,
-                offset: OffsetSchema,
-                days_back: DaysBackSchema,
-                days_ahead: DaysAheadSchema
-            })
+            outputSchema: GetCalendarOutput,
+            inputSchema: GetCalendarInput
         },
         async ({ kind, detail, limit, offset, days_back, days_ahead }) => {
             const result = await buildGetCalendar(adapters, {

@@ -96,6 +96,28 @@ export function toolInput<T extends z.ZodRawShape>(
 }
 
 /**
+ * Builds a schema once per distinct key and reuses it (#573).
+ *
+ * For the few schemas that depend on the configuration: the server is built
+ * per request, and rebuilding zod objects each time is most of what a build
+ * costs. The key is the whole of what the schema depends on, so a config
+ * reload that changes it gets a fresh schema and one that does not keeps the
+ * shared one. Keep keys to a handful of values (a flag, the media server
+ * pair): the cache never evicts.
+ */
+export function memoBy<K, V>(build: (key: K) => V): (key: K) => V {
+    const cache = new Map<K, V>();
+    return key => {
+        let hit = cache.get(key);
+        if (hit === undefined) {
+            hit = build(key);
+            cache.set(key, hit);
+        }
+        return hit;
+    };
+}
+
+/**
  * The truncation envelope, declared so a client can read it *before* it calls.
  *
  * #103 reported `total` as missing from `structuredContent`. It was never

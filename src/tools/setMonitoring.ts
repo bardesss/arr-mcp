@@ -64,6 +64,60 @@ const previewedArtistIds = (plan: WritePlan): string[] => {
     return ids;
 };
 
+const SetMonitoringInput = z.object({
+    ...targetInput(TARGET),
+    title: z
+        .string()
+        .min(1)
+        .optional()
+        .describe('Sonarr or Whisparr: a series title in place of `id`. A title two series match equally is refused with both ids.'),
+    id: z
+        .string()
+        .min(1)
+        .optional()
+        .describe(
+            'The series id within that service, or the album id when service is lidarr, as an integer string. Required everywhere except the lidarr artist level, where it is refused.'
+        ),
+    monitored: z
+        .boolean()
+        .optional()
+        .describe(
+            'true to monitor, false to stop. Required except on the lidarr artist level, where it sets each artist\'s own flag, which decides whether Lidarr wants any of its albums, and may be given alone or with `monitor_new_items`.'
+        ),
+    level: z
+        .enum(['album', 'artist'])
+        .optional()
+        .describe(
+            'lidarr only, and required there: whether `id` names an album or an artist. Refused on every other service.'
+        ),
+    artists: z
+        .array(z.string().min(1))
+        .min(1)
+        .optional()
+        .describe(
+            'lidarr artist level only: artist ids, as integer strings. Omit to apply to every artist in that Lidarr.'
+        ),
+    monitor_new_items: z
+        .enum(['all', 'none', 'new'])
+        .optional()
+        .describe(
+            'lidarr artist level only: the standing rule for albums Lidarr discovers later. `none` is what a finished, stable library wants.'
+        ),
+    season: z
+        .number()
+        .int()
+        .min(0)
+        .optional()
+        .describe(
+            'One season. 0 is specials. Omit for the whole series. On Whisparr a season is a release year, e.g. 2019.'
+        ),
+    episodes: z
+        .array(z.string().min(1))
+        .min(1)
+        .optional()
+        .describe('Specific episode ids, as integer strings. Mutually exclusive with `season`.')
+});
+
 export function registerSetMonitoring(
     server: McpServer,
     context: WriteContext,
@@ -86,59 +140,7 @@ export function registerSetMonitoring(
         title: 'Start or stop monitoring',
         description:
             'Turns monitoring on or off. Sonarr and Whisparr: a series (by `id` or `title`), one `season`, or `episodes` (not both). [[lidarr: Lidarr takes `level`: `album` sets one album\'s flag; `artist` sets the artist flag and `monitor_new_items` (`none` is the only value that stops the wanted list growing by itself), and omitting `artists` reaches every artist. **The artist flag is not the album flag**: an unmonitored artist\'s albums drop out of get_wanted but keep their own flags and come back with the artist, so stop wanting one album with `level: "album"` (ids from get_media_details on the artist, or a get_wanted `albumId`).]] Radarr monitoring is update_media. Unmonitor **before** delete_episode_files, or Sonarr downloads the files again. Safe tier. The preview shows the current state; a season, episode or artist that does not exist is refused rather than silently written. Previews first; confirm to apply. Field reference: arr://docs/set_monitoring.',
-        inputSchema: z.object({
-            ...targetInput(TARGET),
-            title: z
-                .string()
-                .min(1)
-                .optional()
-                .describe('Sonarr or Whisparr: a series title in place of `id`. A title two series match equally is refused with both ids.'),
-            id: z
-                .string()
-                .min(1)
-                .optional()
-                .describe(
-                    'The series id within that service, or the album id when service is lidarr, as an integer string. Required everywhere except the lidarr artist level, where it is refused.'
-                ),
-            monitored: z
-                .boolean()
-                .optional()
-                .describe(
-                    'true to monitor, false to stop. Required except on the lidarr artist level, where it sets each artist\'s own flag, which decides whether Lidarr wants any of its albums, and may be given alone or with `monitor_new_items`.'
-                ),
-            level: z
-                .enum(['album', 'artist'])
-                .optional()
-                .describe(
-                    'lidarr only, and required there: whether `id` names an album or an artist. Refused on every other service.'
-                ),
-            artists: z
-                .array(z.string().min(1))
-                .min(1)
-                .optional()
-                .describe(
-                    'lidarr artist level only: artist ids, as integer strings. Omit to apply to every artist in that Lidarr.'
-                ),
-            monitor_new_items: z
-                .enum(['all', 'none', 'new'])
-                .optional()
-                .describe(
-                    'lidarr artist level only: the standing rule for albums Lidarr discovers later. `none` is what a finished, stable library wants.'
-                ),
-            season: z
-                .number()
-                .int()
-                .min(0)
-                .optional()
-                .describe(
-                    'One season. 0 is specials. Omit for the whole series. On Whisparr a season is a release year, e.g. 2019.'
-                ),
-            episodes: z
-                .array(z.string().min(1))
-                .min(1)
-                .optional()
-                .describe('Specific episode ids, as integer strings. Mutually exclusive with `season`.')
-        }),
+        inputSchema: SetMonitoringInput,
         target: { adapters, to: TARGET },
         operation: 'set_monitoring',
         tier: 'safe',

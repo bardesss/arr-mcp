@@ -134,6 +134,12 @@ const describeOutcome = (outcome: Pick<RetryOutcome, 'state' | 'status' | 'event
     return `It finished: ${outcome.event} (${outcome.status}).`;
 };
 
+const RetryDownloadInput = z.object({
+    ...targetInput(TARGET),
+    id: z.string().min(1).describe("the id on that client's get_history or get_queue row"),
+    password: z.string().min(1).optional().describe('the archive password, from the site the NZB came from')
+});
+
 export function registerRetryDownload(server: McpServer, context: WriteContext, adapters: readonly ServiceAdapter[]): void {
     // Keyed by the plan object, which the harness hands back to `apply` and
     // `applied`. Not in `args`: those bind the token, and an *arr that came
@@ -145,11 +151,7 @@ export function registerRetryDownload(server: McpServer, context: WriteContext, 
         title: 'Retry a failed download',
         description:
             'Retries one failed download on SABnzbd or NZBGet, the client that holds the files, or a failed or cancelled book on Shelfmark, which queues it again if Shelfmark says it can. It picks what to send from the job itself: a SABnzbd job paused for a password is unlocked, a failed SABnzbd job is retried, an NZBGet download with missing articles fetches them again, and one that only failed to unpack is post-processed again. Give `password` when the failure was an encrypted archive; it comes from the site the NZB came from and is never shown back. Take `id` from the get_history or get_queue row. The preview checks whether Radarr or Sonarr already grabbed a replacement, since retrying then can leave two copies. If no *arr imports the result, trigger_scan with action: "import" does. Safe tier. Previews first; confirm to apply it.',
-        inputSchema: z.object({
-            ...targetInput(TARGET),
-            id: z.string().min(1).describe("the id on that client's get_history or get_queue row"),
-            password: z.string().min(1).optional().describe('the archive password, from the site the NZB came from')
-        }),
+        inputSchema: RetryDownloadInput,
         // The resolved instance id, not the bare type — permissions are
         // granted per instance.
         target: { adapters, to: TARGET },

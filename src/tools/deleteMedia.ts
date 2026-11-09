@@ -84,6 +84,23 @@ async function planBook(
     };
 }
 
+const DeleteMediaInput = z.object({
+    ...targetInput(TARGET),
+    id: z.string().min(1).describe("The item's id within that service, as an integer string."),
+    delete_files: z
+        .boolean()
+        .default(false)
+        .describe(
+            'Also delete the files from disk. Defaults to false, which removes only the entry and leaves the media where it is.'
+        ),
+    add_import_exclusion: z
+        .boolean()
+        .default(false)
+        .describe(
+            'Also add an import exclusion so it is never re-added automatically. Defaults to false.'
+        )
+});
+
 export function registerDeleteMedia(
     server: McpServer,
     context: WriteContext,
@@ -94,22 +111,7 @@ export function registerDeleteMedia(
         title: 'Delete a film, series, artist or book',
         description:
             'Removes a film from Radarr, a whole series (or Whisparr site) from Sonarr or Whisparr, [[lidarr: a whole artist from Lidarr (by artist id, never an album id),]] or a book from Grimmory, optionally deleting its files from disk. Grimmory always deletes the files of a book, so it needs `delete_files: true` and takes no import exclusion. Destructive and not undoable — files are gone, not moved to a recycle bin unless the service itself is configured for one. Takes `service` and `id`, never a title: take `id` from `acquisition.id` on a get_library or get_media_details record. Sonarr and Whisparr delete the entire series/site; to remove one season\'s files or specific episodes, use delete_episode_files instead. Previews first; confirm to delete.',
-        inputSchema: z.object({
-            ...targetInput(TARGET),
-            id: z.string().min(1).describe("The item's id within that service, as an integer string."),
-            delete_files: z
-                .boolean()
-                .default(false)
-                .describe(
-                    'Also delete the files from disk. Defaults to false, which removes only the entry and leaves the media where it is.'
-                ),
-            add_import_exclusion: z
-                .boolean()
-                .default(false)
-                .describe(
-                    'Also add an import exclusion so it is never re-added automatically. Defaults to false.'
-                )
-        }),
+        inputSchema: DeleteMediaInput,
         target: { adapters, to: TARGET },
         operation: 'delete_media',
         tier: 'destructive',

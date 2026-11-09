@@ -86,6 +86,13 @@ async function awaitJob(
     });
 }
 
+const SyncDatabaseInput = z.object({
+    database: z
+        .string()
+        .optional()
+        .describe('Database name or id. Optional only when Profilarr has exactly one.')
+});
+
 export function registerSyncDatabase(
     server: McpServer,
     context: WriteContext,
@@ -110,12 +117,7 @@ export function registerSyncDatabase(
             'reporting anything, so the result reflects whether the sync actually finished, not just that it was ' +
             'accepted. A sync can legitimately find nothing to pull; that reports as a completed call whose ' +
             '`outcome` is `skipped`, not as a normal sync. Previews first; confirm to run it.',
-        inputSchema: z.object({
-            database: z
-                .string()
-                .optional()
-                .describe('Database name or id. Optional only when Profilarr has exactly one.')
-        }),
+        inputSchema: SyncDatabaseInput,
         service: 'profilarr',
         operation: 'sync_database',
         tier: 'safe',

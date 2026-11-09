@@ -328,6 +328,78 @@ async function applyBookScan(adapter: ServiceAdapter & BookLibraryScanCapable, p
     return `${adapter.id} is rescanning ${ids.length === 1 ? '1 library' : `${ids.length} libraries`}. It runs in the background: check get_library in a few minutes rather than expecting the books to be there now.`;
 }
 
+const TriggerScanInput = z.object({
+    service: serviceOf(['radarr', 'sonarr', 'whisparr', 'lidarr', 'jellyfin', 'plex', 'grimmory', 'prowlarr', 'nzbget']).describe(
+        'prowlarr syncs its indexers to the apps; nzbget only with action: "postprocess".'
+    ),
+    instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
+    action: z
+        .enum(['scan', 'rename', 'import', 'remap', 'postprocess', 'bookdrop'])
+        .default('scan')
+        .describe(
+            'scan rescans the library, or just one item when `id` is given (on Lidarr only the refresh narrows to one artist: the rescan still reads every root folder); on Radarr, Sonarr, Whisparr and Lidarr it refreshes metadata from the provider first. rename renames one item\'s files to the service\'s own naming scheme, and requires `id`. import takes a finished download the service never picked up, and requires `download_id`; add `mapping` when the service cannot tell what a file is. remap reassigns already-imported Sonarr files to the episodes a person has confirmed they are, and requires `id` and `reassignments`. postprocess reruns NZBGet\'s post-processing on a finished download, and requires `download_id`. bookdrop rescans Grimmory\'s Bookdrop folder for new files, or with `id` imports that one file.'
+        ),
+    id: z
+        .string()
+        .min(1)
+        .optional()
+        .describe(
+            'One movie, series or Lidarr artist id — `acquisition.id` on a get_library record. Omit with action: "scan" to scan the whole library. With action: "bookdrop", a Grimmory Bookdrop file id from get_queue: imports that file.'
+        ),
+    library: z
+        .string()
+        .min(1)
+        .optional()
+        .describe(
+            'Grimmory only: one library, by name or by id as stack_health and get_library show it. Omit to rescan every library.'
+        ),
+    download_id: z
+        .string()
+        .min(1)
+        .optional()
+        .describe(
+            'The download client\'s own id, as `downloadId` on a get_queue row (or, for nzbget, on a get_history row). Required for action: "import" and action: "postprocess", ignored otherwise.'
+        ),
+    reassignments: z
+        .array(
+            z.object({
+                path: z
+                    .string()
+                    .min(1)
+                    .describe('The file, relative to the series folder as Sonarr names it ("Season 01/Show - S01E01 - Pilot.mkv"), or absolute.'),
+                season: z.number().int().min(0),
+                episode: z.number().int().min(1).describe('The episode this file really is.')
+            })
+        )
+        .min(1)
+        .optional()
+        .describe(
+            'Required for action: "remap", ignored otherwise. Include every file the change touches: a file moved onto an episode that already has one must say where that one goes too, or the call is refused.'
+        ),
+    mapping: z
+        .array(
+            z.object({
+                path: z
+                    .string()
+                    .min(1)
+                    .describe('A file in the download, as the import preview names it, or absolute.'),
+                movie_id: IdSchema.optional().describe('Radarr: the movie this file is, `acquisition.id` on get_library.'),
+                series_id: IdSchema.optional().describe('Sonarr: the series, `acquisition.id` on get_library.'),
+                season: z.number().int().min(0).optional().describe('Sonarr: the season the episodes are in.'),
+                episodes: z
+                    .array(z.number().int().min(1))
+                    .min(1)
+                    .optional()
+                    .describe('Sonarr: the episode numbers in this file, more than one for a multi-episode file.')
+            })
+        )
+        .min(1)
+        .optional()
+        .describe(
+            'For action: "import", ignored otherwise. What each named file really is, for a download the service matched wrongly or not at all. The service judges each mapped file again with that answer and imports it only if it then accepts it; files left out keep the service\'s own match.'
+        )
+});
+
 export function registerTriggerScan(
     server: McpServer,
     context: WriteContext,
@@ -338,77 +410,7 @@ export function registerTriggerScan(
         title: 'Refresh and scan a library',
         description:
             'Asks a service to reconcile itself with what is on disk: the "it downloaded but will not play" fix, and the usual fix for a stale scan diagnose reports. No `id` rescans the whole library of Radarr, Sonarr, Whisparr, Lidarr, Jellyfin, Plex or Grimmory; on Prowlarr it pushes the indexer list to the apps. An `id` refreshes and rescans one item. On Jellyfin and Plex a scan only finds changed files; wrong metadata is fix_metadata. `action`: `rename` (files to the service\'s naming, needs `id`), `import` (a finished download stuck at importBlocked, with `mapping` to correct a wrong match; not on Lidarr), `remap` (which episode an imported Sonarr file really is), `postprocess` (rerun NZBGet post-processing by `downloadId`), `bookdrop` (Grimmory). [[sonarr: For an import refused over a "TBA" episode title, scan the series, wait, then import again.]] Most actions queue and return; follow them in stack_health `commands`. Previews first; confirm to run. Field reference: arr://docs/trigger_scan.',
-        inputSchema: z.object({
-            service: serviceOf(['radarr', 'sonarr', 'whisparr', 'lidarr', 'jellyfin', 'plex', 'grimmory', 'prowlarr', 'nzbget']).describe(
-                'prowlarr syncs its indexers to the apps; nzbget only with action: "postprocess".'
-            ),
-            instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
-            action: z
-                .enum(['scan', 'rename', 'import', 'remap', 'postprocess', 'bookdrop'])
-                .default('scan')
-                .describe(
-                    'scan rescans the library, or just one item when `id` is given (on Lidarr only the refresh narrows to one artist: the rescan still reads every root folder); on Radarr, Sonarr, Whisparr and Lidarr it refreshes metadata from the provider first. rename renames one item\'s files to the service\'s own naming scheme, and requires `id`. import takes a finished download the service never picked up, and requires `download_id`; add `mapping` when the service cannot tell what a file is. remap reassigns already-imported Sonarr files to the episodes a person has confirmed they are, and requires `id` and `reassignments`. postprocess reruns NZBGet\'s post-processing on a finished download, and requires `download_id`. bookdrop rescans Grimmory\'s Bookdrop folder for new files, or with `id` imports that one file.'
-                ),
-            id: z
-                .string()
-                .min(1)
-                .optional()
-                .describe(
-                    'One movie, series or Lidarr artist id — `acquisition.id` on a get_library record. Omit with action: "scan" to scan the whole library. With action: "bookdrop", a Grimmory Bookdrop file id from get_queue: imports that file.'
-                ),
-            library: z
-                .string()
-                .min(1)
-                .optional()
-                .describe(
-                    'Grimmory only: one library, by name or by id as stack_health and get_library show it. Omit to rescan every library.'
-                ),
-            download_id: z
-                .string()
-                .min(1)
-                .optional()
-                .describe(
-                    'The download client\'s own id, as `downloadId` on a get_queue row (or, for nzbget, on a get_history row). Required for action: "import" and action: "postprocess", ignored otherwise.'
-                ),
-            reassignments: z
-                .array(
-                    z.object({
-                        path: z
-                            .string()
-                            .min(1)
-                            .describe('The file, relative to the series folder as Sonarr names it ("Season 01/Show - S01E01 - Pilot.mkv"), or absolute.'),
-                        season: z.number().int().min(0),
-                        episode: z.number().int().min(1).describe('The episode this file really is.')
-                    })
-                )
-                .min(1)
-                .optional()
-                .describe(
-                    'Required for action: "remap", ignored otherwise. Include every file the change touches: a file moved onto an episode that already has one must say where that one goes too, or the call is refused.'
-                ),
-            mapping: z
-                .array(
-                    z.object({
-                        path: z
-                            .string()
-                            .min(1)
-                            .describe('A file in the download, as the import preview names it, or absolute.'),
-                        movie_id: IdSchema.optional().describe('Radarr: the movie this file is, `acquisition.id` on get_library.'),
-                        series_id: IdSchema.optional().describe('Sonarr: the series, `acquisition.id` on get_library.'),
-                        season: z.number().int().min(0).optional().describe('Sonarr: the season the episodes are in.'),
-                        episodes: z
-                            .array(z.number().int().min(1))
-                            .min(1)
-                            .optional()
-                            .describe('Sonarr: the episode numbers in this file, more than one for a multi-episode file.')
-                    })
-                )
-                .min(1)
-                .optional()
-                .describe(
-                    'For action: "import", ignored otherwise. What each named file really is, for a download the service matched wrongly or not at all. The service judges each mapped file again with that answer and imports it only if it then accepts it; files left out keep the service\'s own match.'
-                )
-        }),
+        inputSchema: TriggerScanInput,
         // Resolved from the arguments, so the permission checked, the audit row
         // written and the token issued all name the same instance. Only the
         // instance is resolved here — which capability the call needs depends

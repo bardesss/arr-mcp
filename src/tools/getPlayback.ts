@@ -4,7 +4,7 @@ import type { IdentityResolver } from '../core/identity.ts';
 import { logger } from '../core/logger.ts';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
 import { NO_MEDIA_SERVER_NOTE, type MediaServerAdapter, type PlaybackEntry } from '../services/types.ts';
-import { bothIds, pickMediaServer, serviceInput, withBoth, type MediaServers } from './mediaServers.ts';
+import { bothIds, byMediaServers, pickMediaServer, serviceInput, withBoth, type MediaServers } from './mediaServers.ts';
 import { episodeCode } from '../core/labels.ts';
 
 export type GetPlaybackResult = {
@@ -143,6 +143,24 @@ export function playbackLine(entry: PlaybackEntry): string {
     return `${name} — ${facts.join(', ')}`;
 }
 
+const getPlaybackInput = byMediaServers(ids => toolInput({
+    detail: DetailSchema,
+    limit: LimitSchema,
+    offset: OffsetSchema,
+    user: UserSchema,
+    scope: ScopeSchema,
+    ...serviceInput(ids)
+}));
+
+const GetPlaybackOutput = PagedOutputSchema.extend({
+    note: z
+        .string()
+        .optional()
+        .describe(
+            "Present when a fact about the stack's config, not this call, needs stating — for example no media server configured at all."
+        )
+});
+
 export function registerGetPlayback(server: McpServer, servers: MediaServers): void {
     server.registerTool(
         'get_playback',
@@ -155,22 +173,8 @@ export function registerGetPlayback(server: McpServer, servers: MediaServers): v
                     bothIds(servers),
                     'With two media servers configured, `service` picks one; it defaults to the primary. Call once per server for everything playing everywhere.'
                 ),
-            outputSchema: PagedOutputSchema.extend({
-                note: z
-                    .string()
-                    .optional()
-                    .describe(
-                        "Present when a fact about the stack's config, not this call, needs stating — for example no media server configured at all."
-                    )
-            }),
-            inputSchema: toolInput({
-                detail: DetailSchema,
-                limit: LimitSchema,
-                offset: OffsetSchema,
-                user: UserSchema,
-                scope: ScopeSchema,
-                ...serviceInput(bothIds(servers))
-            })
+            outputSchema: GetPlaybackOutput,
+            inputSchema: getPlaybackInput(bothIds(servers))
         },
         async ({ detail, limit, offset, user, scope, service }) => {
             const chosen = pickMediaServer(servers, service);
