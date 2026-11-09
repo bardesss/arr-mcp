@@ -306,6 +306,18 @@ export class Runtime {
         logger.info({ services: this.#snapshot.adapters.map(a => a.id) }, 'configuration reloaded');
     }
 
+    /**
+     * Stops the dataset's refresh, waiting for an ingest in flight to be
+     * terminated, and then closes and clears the dataset. Idempotent.
+     */
+    async close(): Promise<void> {
+        const stop = this.#stopRefresh;
+        this.#stopRefresh = undefined;
+        await stop?.();
+        this.#dataset?.close();
+        this.#dataset = undefined;
+    }
+
 }
 
 function buildSnapshot(

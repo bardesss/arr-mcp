@@ -93,6 +93,16 @@ afterEach(async () => {
 
 describe('the IMDb refresh follows the config', () => {
     /** The reported bug, as a test. */
+    it('stops the refresh and closes the dataset on close', async () => {
+        await write(true);
+        const { started, refresh } = spy();
+        const rt = await runtimeFrom({ refresh });
+        await rt.close();
+        expect(started[0]?.stopped).toBe(true);
+        expect(rt.dataset).toBeUndefined();
+        await rt.close(); // idempotent
+    });
+
     it('starts refreshing when the dataset is switched on by a reload', async () => {
         await write(false);
         const { started, refresh } = spy();

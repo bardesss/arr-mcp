@@ -49,7 +49,7 @@ export type StdioDeps = {
  * with no services that still lists every tool — enough for a client, or a
  * registry, to see what it offers.
  */
-export async function serveOverStdio(deps: StdioDeps): Promise<StdioServerHandle> {
+export async function serveOverStdio(deps: StdioDeps): Promise<{ close(): Promise<void> }> {
     const { configDir, audit, events, sessions, transport } = deps;
     const { runtime } = await Runtime.start(configDir, audit, { refresh: dataset => startRefresh(dataset), sessions });
 
@@ -58,8 +58,20 @@ export async function serveOverStdio(deps: StdioDeps): Promise<StdioServerHandle
         logger.warn({ config: configPath(configDir) }, 'no services configured — every tool will report that');
     }
 
-    return serveStdio(mcpServerFactory(runtime, events, stdioCeiling), {
-        ...(transport === undefined ? {} : { transport }),
-        onerror: err => logger.error({ err }, 'stdio connection error')
-    });
+    let handle: StdioServerHandle;
+    try {
+        handle = serveStdio(mcpServerFactory(runtime, events, stdioCeiling), {
+            ...(transport === undefined ? {} : { transport }),
+            onerror: err => logger.error({ err }, 'stdio connection error')
+        });
+    } catch (err) {
+        await runtime.close();
+        throw err;
+    }
+    return {
+        close: async () => {
+            await handle.close();
+            await runtime.close();
+        }
+    };
 }
