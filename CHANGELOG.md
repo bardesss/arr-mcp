@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.76.0](https://github.com/bardesss/arr-mcp/compare/v1.75.2...v1.76.0) (2026-11-09)
+
+
+### Features
+
+* **lidarr:** delete an artist ([#554](https://github.com/bardesss/arr-mcp/issues/554)) ([1104b4a](https://github.com/bardesss/arr-mcp/commit/1104b4a2e307a0d3440e4086dc07a94572793034))
+
 ## [1.75.2](https://github.com/bardesss/arr-mcp/compare/v1.75.1...v1.75.2) (2026-11-09)
 
 
