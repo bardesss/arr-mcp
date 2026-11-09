@@ -282,7 +282,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         // It is live, not cached: a dashboard showing cached status is one
         // that tells you a dead service is fine, and it degrades rather than
         // failing when a service is unreachable.
-        const health = await buildStackHealth(snapshot.adapters, { detail: 'full', limit: 50 });
+        const health = await buildStackHealth(snapshot.adapters, { detail: 'standard', limit: 50 });
 
         return c.html(
             dashboardPage({

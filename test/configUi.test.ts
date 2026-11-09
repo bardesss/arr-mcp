@@ -371,6 +371,25 @@ describe('access control', () => {
         expect(await res.text()).toContain('MCP endpoint');
     });
 
+    it('builds the dashboard without the full-detail reads', async () => {
+        const realFetch = globalThis.fetch;
+        const paths: string[] = [];
+        globalThis.fetch = (async (input: string | URL | Request) => {
+            paths.push(new URL(String(input)).pathname);
+            return new Response('{}', { headers: { 'content-type': 'application/json' } });
+        }) as typeof fetch;
+        try {
+            await seed('  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n');
+            await signIn();
+
+            expect((await call('/ui')).status).toBe(200);
+        } finally {
+            globalThis.fetch = realFetch;
+        }
+
+        expect(paths.filter(p => p.includes('/api/v3/log') || p.includes('/api/v3/qualityprofile'))).toEqual([]);
+    });
+
     it('signs out', async () => {
         await signIn();
         await call('/ui/logout', form({ csrf: await csrfFrom() }));
