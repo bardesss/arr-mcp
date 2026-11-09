@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.77.0](https://github.com/bardesss/arr-mcp/compare/v1.76.1...v1.77.0) (2026-11-09)
+
+
+### Features
+
+* **lidarr:** retag an artist's files through fix_metadata ([#565](https://github.com/bardesss/arr-mcp/issues/565)) ([633257c](https://github.com/bardesss/arr-mcp/commit/633257c69162bf18b869995376ebc15373b00000))
+
+
+### Bug Fixes
+
+* **adapters:** page Jellyfin library reads, reuse repeated reads, and expire Shelfmark's read-only latch ([#567](https://github.com/bardesss/arr-mcp/issues/567)) ([3026809](https://github.com/bardesss/arr-mcp/commit/30268099f0f810d65f2ed2605089d7d3ec219ab0))
+* **http:** one half-open trial, one deadline per request, and capped discovery lookups ([#570](https://github.com/bardesss/arr-mcp/issues/570)) ([8624300](https://github.com/bardesss/arr-mcp/commit/8624300eef12b56fa8665393015208e716fbd22b))
+* **packaging:** run the Proxmox LXC as its own user and tighten the build and CI ([#571](https://github.com/bardesss/arr-mcp/issues/571)) ([b3fce6b](https://github.com/bardesss/arr-mcp/commit/b3fce6b9c6202dbc32618ed94959357cef18482f))
+* page Plex by header and reuse loaded rows in three tools ([#568](https://github.com/bardesss/arr-mcp/issues/568)) ([b29557f](https://github.com/bardesss/arr-mcp/commit/b29557fe9f4c75d689dceeca6674f9f50506c859))
+* **web:** lazy user suggestions, per-peer sign-in throttle, Secure cookie over https, no loopback OAuth test ([#569](https://github.com/bardesss/arr-mcp/issues/569)) ([64c5e13](https://github.com/bardesss/arr-mcp/commit/64c5e13d9a9c6931774cf87fcfac8f3f71dc8c9d))
+
+
+### Performance Improvements
+
+* build tool schemas once instead of on every request ([#574](https://github.com/bardesss/arr-mcp/issues/574)) ([7ac7498](https://github.com/bardesss/arr-mcp/commit/7ac7498cdcdc48c2dbdb9859a171e872cbe7d865))
+
 ## [1.76.1](https://github.com/bardesss/arr-mcp/compare/v1.76.0...v1.76.1) (2026-11-09)
 
 
