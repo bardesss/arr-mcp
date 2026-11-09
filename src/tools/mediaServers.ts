@@ -2,7 +2,6 @@ import * as z from 'zod/v4';
 import type { Config, MultiUserServiceConfig, ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { IdentityResolver } from '../core/identity.ts';
-import { memoBy } from '../core/shape.ts';
 import type { MergedItem } from '../core/resolver.ts';
 import {
     hasPlayback,
@@ -88,11 +87,21 @@ export function bothIds(servers: MediaServers): [string, string] | undefined {
 /**
  * A schema that depends on which media servers are configured, built once per
  * distinct pair and shared by every request's server (#573). A reload that
- * changes the pair gets a fresh schema, since the pair is the cache key.
+ * changes the pair gets a fresh schema, since the pair is the cache key. The
+ * map never evicts, but only a handful of pairs exist (two server types, two
+ * orderings).
  */
 export const byMediaServers = <V>(build: (ids: [string, string] | undefined) => V): ((ids: [string, string] | undefined) => V) => {
-    const built = memoBy((key: string) => build(key === '' ? undefined : (key.split('|') as [string, string])));
-    return ids => built(ids === undefined ? '' : ids.join('|'));
+    const built = new Map<string, V>();
+    return ids => {
+        const key = ids === undefined ? '' : ids.join('|');
+        let hit = built.get(key);
+        if (hit === undefined) {
+            hit = build(ids);
+            built.set(key, hit);
+        }
+        return hit;
+    };
 };
 
 /** A sentence that only applies with two media servers, so a single-server description stays as it was. */

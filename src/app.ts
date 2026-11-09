@@ -180,7 +180,7 @@ function cappedTools(tools: ToolContext, ceiling: Ceiling): ToolContext {
  *   | default             | 0.17 ms | 0.31 - 0.36 ms |
  *   | tools.hide_unusable | 0.10 ms | 0.16 - 0.17 ms |
  *
- * That was 1.9 ms and 8.3 ms before the tool schemas were built once (#573):
+ * That was a default-config median of 1.9 ms and p95 of 8.3 ms before the tool schemas were built once (#573):
  * zod construction was the largest share of a build, with garbage collection
  * behind it. Only the schemas are shared, each a module-level constant (or,
  * for the few that depend on the configured media servers, built once per
