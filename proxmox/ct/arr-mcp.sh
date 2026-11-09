@@ -9,8 +9,18 @@ export COMMUNITY_SCRIPTS_URL="${COMMUNITY_SCRIPTS_URL:-https://raw.githubusercon
 # The engine is pinned to a commit rather than main: it runs as root on the host.
 # Exported, not just expanded in the curl below, because build.func fetches its
 # further files from this variable and falls back to main when it is unset.
-# Bump it by hand, together with the SHA in SECURITY.md.
-export COMMUNITY_SCRIPTS_CORE_URL="${COMMUNITY_SCRIPTS_CORE_URL:-https://raw.githubusercontent.com/community-scripts/core/5514fdfd6c3fe5fb74d91a42863c807a99c617a5}"
+# The engine also bakes the value it saw at install time into /usr/bin/update,
+# and `update` runs this script with that value already set. So an empty value or
+# any ref of the official core repository (main, or an older pin) is replaced
+# with the pin; only a different repository, such as a fork under test, is kept.
+# The first fetch of misc/update.sh still comes from the baked base, before this
+# script runs. Bump the SHA by hand, together with the one in SECURITY.md.
+_cs_core_pin="https://raw.githubusercontent.com/community-scripts/core/5514fdfd6c3fe5fb74d91a42863c807a99c617a5"
+case "${COMMUNITY_SCRIPTS_CORE_URL:-}" in
+  "" | "https://raw.githubusercontent.com/community-scripts/core/"*)
+    COMMUNITY_SCRIPTS_CORE_URL="$_cs_core_pin" ;;
+esac
+export COMMUNITY_SCRIPTS_CORE_URL
 _cs_boot="${COMMUNITY_SCRIPTS_CORE_DIR:-$(dirname "${BASH_SOURCE[0]}")/../../core}/core/build.func"
 source "$_cs_boot" 2>/dev/null || source <(curl -fsSL "${COMMUNITY_SCRIPTS_CORE_URL}/core/build.func")
 # Copyright (c) 2021-2026 community-scripts ORG
@@ -79,7 +89,10 @@ function update_script() {
     # no-op on a unit that is already migrated.
     msg_info "Moving Service to its own user"
     id -u arr-mcp &>/dev/null || useradd --system --no-create-home --home-dir /config --shell /usr/sbin/nologin arr-mcp
-    chown -R arr-mcp:arr-mcp /config
+    chown -R arr-mcp:arr-mcp /config || {
+      msg_error "Could not hand /config to arr-mcp; is it a mount that refuses chown?"
+      exit 1
+    }
     sed -i 's/^User=root$/User=arr-mcp\nGroup=arr-mcp/' /etc/systemd/system/arr-mcp.service
     systemctl daemon-reload
     msg_ok "Moved Service to its own user"

@@ -63,7 +63,13 @@ Things that are known and documented rather than vulnerabilities:
   `proxmox/ct/arr-mcp.sh` sources their engine at commit
   `5514fdfd6c3fe5fb74d91a42863c807a99c617a5` instead of `main`, and exports that
   base so every further engine file `build.func` fetches comes from the same
-  commit. Dependabot cannot bump a raw URL, so a bump is by hand: change the SHA
+  commit. This also holds for `update` inside a container: the script replaces
+  an engine URL baked in at install time when it points at the official
+  repository, and keeps one that points elsewhere. The first fetch of
+  `misc/update.sh` by `/usr/bin/update` still uses the baked URL, before the
+  script runs; a container installed before this pin keeps that bootstrap on
+  `main` until `/usr/bin/update` is regenerated. Engine files not fetched
+  through that variable are not covered. Dependabot cannot bump a raw URL, so a bump is by hand: change the SHA
   in `proxmox/ct/arr-mcp.sh` and in this file together. A test enforces that.
 - **A model that confirms its own preview.** The confirm handshake guarantees
   that the *first* call cannot mutate anything, not that a determined caller

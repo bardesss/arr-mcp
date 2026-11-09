@@ -81,6 +81,7 @@ describe('service lists', () => {
   it('says why every npm override exists and when it goes', () => {
     const doc = read('CONTRIBUTING.md');
     const start = doc.indexOf('## Dependencies');
+    expect(start).toBeGreaterThan(-1);
     const rest = doc.slice(start + 3);
     const next = rest.indexOf('\n## ');
     const section = next === -1 ? rest : rest.slice(0, next);

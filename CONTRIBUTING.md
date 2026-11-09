@@ -702,10 +702,11 @@ Two runs cover it:
 - **A fresh install.** `systemctl show -p User arr-mcp` prints `User=arr-mcp`,
   `stat -c %U /config/config.yaml` prints `arr-mcp` once the instance is
   claimed, and saving a service in the UI succeeds.
-- **An `update` over an existing root install.** The same three checks pass and
-  the existing config survives.
+- **An `update` over an existing root install.** The same three checks pass,
+  the existing config survives, and `grep CORE_URL /usr/bin/update` after the
+  update shows the pinned commit.
 
-Report results on #265 (related to #265), or open a new issue.
+Report results on #265, or open a new issue.
 
 ## Screenshots
 

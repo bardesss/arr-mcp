@@ -94,7 +94,7 @@ describe('the Docker base image against better-sqlite3 prebuilds', () => {
 describe('the Docker build', () => {
     it('installs no compiler, because nothing in the dependency tree compiles', () => {
         const bs3 = JSON.parse(readFileSync(join(ROOT, 'node_modules/better-sqlite3/package.json'), 'utf8')) as { gypfile?: boolean; scripts?: Record<string, string> };
-        // gypfile:false is what stops npm running node-gyp on binding.gyp
+        // gypfile:false does not stop npm ci from the lockfile running node-gyp; --ignore-scripts does (asserted below). This is a tripwire on upstream metadata.
         expect(bs3.gypfile).toBe(false);
         expect(bs3.scripts?.install).toBeUndefined();
         const lock = JSON.parse(readFileSync(join(ROOT, 'package-lock.json'), 'utf8')) as { packages: Record<string, { hasInstallScript?: boolean; dev?: boolean; optional?: boolean; os?: string[] }> };
