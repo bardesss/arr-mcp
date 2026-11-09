@@ -1055,6 +1055,18 @@ export interface RequestCapable {
 export const hasRequests = (a: ServiceAdapter): a is ServiceAdapter & RequestCapable =>
     typeof (a as Partial<RequestCapable>).getRequests === 'function';
 
+/** What one title's requests look like: the title when Seerr names it, and every request made for it. */
+export type TitleRequests = { media?: { title: string; year?: number }; requests: MediaRequest[] };
+
+export interface RequestLookupCapable {
+    /** One request by id; `undefined` when there is none or the id is not a number. */
+    getRequest(id: string): Promise<MediaRequest | undefined>;
+    getMediaRequests(mediaType: 'movie' | 'tv', tmdbId: number): Promise<TitleRequests>;
+}
+
+export const hasRequestLookup = (a: ServiceAdapter): a is ServiceAdapter & RequestLookupCapable =>
+    typeof (a as Partial<RequestLookupCapable>).getMediaRequests === 'function';
+
 /**
  * What a household has reported as broken — the other half of Seerr that
  * `get_requests` never surfaced. Seerr numbers both the kind and the state,

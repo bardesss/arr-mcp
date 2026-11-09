@@ -17,7 +17,9 @@ import {
     type MediaIssue,
     type MediaRequest,
     type RecentLogs,
+    type RequestLookupCapable,
     type RequestManageCapable,
+    type TitleRequests,
     type RequestStatus,
     type RequestVerdict,
     type SearchCapable,
@@ -144,7 +146,7 @@ type RawLogRow = { timestamp?: string; level?: string; label?: string; message?:
 const nameOf = (u: RawUser): string | undefined => u.displayName ?? u.username ?? u.email?.split('@')[0];
 
 export class SeerrAdapter
-    implements ServiceAdapter, LogCapable, UserDirectoryCapable, SearchCapable, DiscoverCapable, RequestManageCapable, IssueCapable
+    implements ServiceAdapter, LogCapable, UserDirectoryCapable, SearchCapable, DiscoverCapable, RequestManageCapable, RequestLookupCapable, IssueCapable
 {
     readonly type: ServiceId = 'seerr';
     readonly id: string = 'seerr';
@@ -257,6 +259,26 @@ export class SeerrAdapter
             // SEERR_FILTERS_SERVER_SIDE can never silently widen what a user sees.
             .filter(r => opts.user === undefined || r.requestedById === opts.user.id)
             .filter(r => opts.status === undefined || r.status === opts.status);
+    }
+
+    /**
+     * One request by id. A guess at an id is cheap to get wrong, so a missing
+     * request is `undefined` rather than an error, and an id that cannot be a
+     * Seerr id never costs a call.
+     */
+    async getRequest(id: string): Promise<MediaRequest | undefined> {
+        if (!/^\d+$/.test(id)) return undefined;
+        try {
+            const body = await this.#http.get<RawRequest>(`/api/v1/request/${id}`);
+            return typeof body.id === 'number' ? this.#toRequest(body as RawRequest & { id: number }) : undefined;
+        } catch (err) {
+            if (err instanceof ServiceError && err.kind === 'NotFound') return undefined;
+            throw err;
+        }
+    }
+
+    async getMediaRequests(_mediaType: 'movie' | 'tv', _tmdbId: number): Promise<TitleRequests> {
+        throw new Error('not implemented');
     }
 
     /**

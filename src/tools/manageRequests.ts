@@ -5,7 +5,7 @@ import { fenceText } from '../core/fence.ts';
 import type { IdentityResolver } from '../core/identity.ts';
 import {
     hasRequestManage,
-    hasRequests,
+    hasRequestLookup,
     type MediaRequest,
     type RequestManageCapable,
     type ServiceAdapter
@@ -51,7 +51,7 @@ export async function mayManageRequest(request: MediaRequest, identity: Identity
 }
 
 /**
- * Requests are read back by id from the live list rather than trusted from the
+ * Requests are read back by id from Seerr rather than trusted from the
  * argument, for the same reason every other write tool reads first: so the
  * preview names a film and a person, and so a stale id fails here rather than
  * as a bare 404.
@@ -62,13 +62,13 @@ async function findRequest(
     identity: IdentityResolver | undefined
 ): Promise<MediaRequest> {
     const adapter = adapters.find(a => a.type === 'seerr');
-    if (adapter === undefined || !hasRequests(adapter) || identity === undefined) {
+    if (adapter === undefined || !hasRequestLookup(adapter) || identity === undefined) {
         throw new ServiceError('NotFound', 'seerr', 'seerr is not configured', {
             remedy: 'Add a services.seerr block to config.yaml and restart.'
         });
     }
 
-    const found = (await adapter.getRequests({})).find(r => String(r.id) === id);
+    const found = await adapter.getRequest(id);
     if (found === undefined) {
         throw new ServiceError('NotFound', 'seerr', `no Seerr request has id "${id}"`, {
             remedy: 'It may already have been deleted. Call get_requests for a current list.'
