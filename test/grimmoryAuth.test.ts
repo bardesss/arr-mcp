@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { GRIMMORY_LOGIN_PATH, LOGIN_LOCKOUT_MS, grimmorySession, resetGrimmoryLockouts } from '../src/core/auth.ts';
 import { ServiceError } from '../src/core/errors.ts';
 
@@ -238,5 +238,53 @@ describe('grimmorySession', () => {
         await expect(auth.recover?.(unauthorized())).resolves.toBe(true);
         expect(calls).toEqual([`http://h:6060${GRIMMORY_LOGIN_PATH}`]);
         for (const c of calls) expect(c).not.toContain('s3kr1tproxy');
+    });
+
+    describe('deadline', () => {
+        const slowSetup = () => {
+            let logins = 0;
+            const fetchImpl = (async () => {
+                logins += 1;
+                await new Promise((r) => setTimeout(r, 120));
+                return new Response(JSON.stringify({ accessToken: 'SLOW', refreshToken: 'R', expires: 7200 }), { status: 200 });
+            }) as unknown as typeof fetch;
+            const auth = grimmorySession({
+                id: 'grimmory',
+                url: 'http://h:6060',
+                username: 'u',
+                password: 'p',
+                timeoutMs: 2000,
+                fetchImpl
+            });
+            const header = () => {
+                const headers = new Headers();
+                auth.apply({ url: new URL('http://h:6060/api/v1/books'), headers, method: 'GET' });
+                return headers.get('Authorization');
+            };
+            return { auth, header, logins: () => logins };
+        };
+
+        it('gives up on a login that outlives the caller, once', async () => {
+            const s = slowSetup();
+            await expect(s.auth.recover?.(unauthorized(), AbortSignal.timeout(30))).rejects.toMatchObject({ name: 'TimeoutError' });
+            expect(s.logins()).toBe(1);
+        });
+
+        it('keeps the token of a login every caller gave up on', async () => {
+            const s = slowSetup();
+            await expect(s.auth.recover?.(unauthorized(), AbortSignal.timeout(30))).rejects.toBeDefined();
+            await new Promise((r) => setTimeout(r, 250));
+            expect(s.header()).toBe('Bearer SLOW');
+            expect(s.logins()).toBe(1);
+        });
+
+        it('removes its abort listener once the login joined', async () => {
+            const s = slowSetup();
+            const ctrl = new AbortController();
+            const remove = vi.spyOn(ctrl.signal, 'removeEventListener');
+            await expect(s.auth.recover?.(unauthorized(), ctrl.signal)).resolves.toBe(true);
+            await Promise.resolve();
+            expect(remove).toHaveBeenCalledWith('abort', expect.any(Function));
+        });
     });
 });

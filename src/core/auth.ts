@@ -230,11 +230,16 @@ export function qbittorrentSession(creds: {
             // Nothing to retry with; let the 403 stand as AuthFailed.
             if (creds.username === undefined) return false;
 
-            inFlight ??= qbittorrentLogin(creds, doFetch).finally(() => {
-                inFlight = undefined;
-            });
+            // The cookie is stored inside the shared chain, not by the waiting
+            // caller: a login that outlives every caller's deadline still
+            // leaves a session for the next call.
+            inFlight ??= qbittorrentLogin(creds, doFetch)
+                .then((c) => (cookie = c))
+                .finally(() => {
+                    inFlight = undefined;
+                });
 
-            cookie = await untilAborted(inFlight, signal);
+            await untilAborted(inFlight, signal);
             return true;
         }
     };
@@ -434,10 +439,13 @@ export function grimmorySession(creds: {
             if (response.status !== 401) return false;
             if (inFlight === undefined && now() < lockedUntil()) throw locked();
 
-            inFlight ??= login().finally(() => {
-                inFlight = undefined;
-            });
-            session = await untilAborted(inFlight, signal);
+            // Stored inside the shared chain, so a login every caller gave up on still lands.
+            inFlight ??= login()
+                .then((s) => (session = s))
+                .finally(() => {
+                    inFlight = undefined;
+                });
+            await untilAborted(inFlight, signal);
             return true;
         }
     };
