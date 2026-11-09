@@ -901,3 +901,60 @@ describe('update_media on a book', () => {
         expect(puts()).toEqual([]);
     });
 });
+
+describe('approving a Bookdrop file (#532)', () => {
+    const ORIGINAL = { title: 'The Book', authors: ['A. Writer'], publisher: 'Del Rey' };
+    const FETCHED = { title: 'The Book', authors: ['A. Writer'], publisher: 'Gollancz', seriesName: 'Not Its Series' };
+    const file = (over: Record<string, unknown> = {}) => ({ ...(PENDING.content[0] as object), originalMetadata: ORIGINAL, fetchedMetadata: FETCHED, ...over });
+    const ONE_LIBRARY = [{ id: 1, name: 'Fiction', watch: false, paths: [{ id: 7, path: '/books' }] }];
+    const search = (ids: number[]) => json({ content: ids.map(id => ({ id, title: 'The Book', authors: ['A. Writer'] })) });
+    const approveTool = (routes: Record<string, Reply | Reply[]> = {}) =>
+        scanTool(
+            {
+                'GET /api/v1/libraries': json(ONE_LIBRARY),
+                'GET /api/v1/bookdrop/files': pendingPage([file()]),
+                'GET /api/v1/app/books/search': [search([5]), search([5, 61])],
+                'POST /api/v1/bookdrop/imports/finalize': json({ totalFiles: 1, successfullyImported: 1, failed: 0, results: [{ fileName: 'x', success: true }] }),
+                ...routes
+            },
+            { safe_write: true }
+        );
+
+    it('previews, then imports with the file\'s own metadata and names the new book', async () => {
+        const { call, server } = approveTool();
+        const preview = await call({ service: 'grimmory', action: 'bookdrop', id: '3' });
+        expect(preview.structuredContent.target).toBe('grimmory:bookdrop/3');
+        expect(JSON.stringify(preview.structuredContent)).toContain('Del Rey');
+        expect(JSON.stringify(preview.structuredContent)).not.toContain('Gollancz');
+        expect(server.sent.some(s => s.path === '/api/v1/bookdrop/imports/finalize')).toBe(false);
+
+        const done = await call({ service: 'grimmory', action: 'bookdrop', id: '3', confirm: preview.structuredContent.confirm_token });
+        const sent = server.sent.find(s => s.path === '/api/v1/bookdrop/imports/finalize');
+        expect(sent?.body).toEqual({ selectAll: false, files: [{ fileId: 3, libraryId: 1, pathId: 7, metadata: ORIGINAL }] });
+        expect(JSON.stringify(done)).toContain('as book 61');
+    });
+
+    it('needs a library when there are several', async () => {
+        const two = [...ONE_LIBRARY, { id: 2, name: 'Comics', watch: false, paths: [{ id: 8, path: '/comics' }] }];
+        const { call } = approveTool({ 'GET /api/v1/libraries': json(two) });
+        await expect(call({ service: 'grimmory', action: 'bookdrop', id: '3' })).rejects.toThrow(/2 libraries/);
+        const preview = await call({ service: 'grimmory', action: 'bookdrop', id: '3', library: 'Comics' });
+        expect(preview.structuredContent.target).toBe('grimmory:bookdrop/3');
+    });
+
+    it('refuses a library with several folders, a file not waiting, and one not read yet', async () => {
+        const several = [{ id: 1, name: 'Fiction', watch: false, paths: [{ id: 7 }, { id: 9 }] }];
+        await expect(approveTool({ 'GET /api/v1/libraries': json(several) }).call({ service: 'grimmory', action: 'bookdrop', id: '3' })).rejects.toThrow(/2 folders/);
+        await expect(approveTool().call({ service: 'grimmory', action: 'bookdrop', id: '99' })).rejects.toThrow(/no Bookdrop file 99/);
+        const unread = approveTool({ 'GET /api/v1/bookdrop/files': pendingPage([file({ originalMetadata: null })]) });
+        await expect(unread.call({ service: 'grimmory', action: 'bookdrop', id: '3' })).rejects.toThrow(/not read the metadata/);
+    });
+
+    it('fails by name when Grimmory imports nothing', async () => {
+        const { call } = approveTool({
+            'POST /api/v1/bookdrop/imports/finalize': json({ totalFiles: 1, successfullyImported: 0, failed: 1, results: [{ fileName: 'x', success: false, message: 'exists' }] })
+        });
+        const token = (await call({ service: 'grimmory', action: 'bookdrop', id: '3' })).structuredContent.confirm_token;
+        await expect(call({ service: 'grimmory', action: 'bookdrop', id: '3', confirm: token })).rejects.toThrow(/did not import Bookdrop file 3/);
+    });
+});

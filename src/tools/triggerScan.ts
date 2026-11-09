@@ -192,9 +192,10 @@ async function planBookScan(
     const { service, instance, action, id, library } = args;
     const bound = (libraryIds: string[]) => ({ service, action, libraryIds, ...(instance === undefined ? {} : { instance }) });
 
+    if (action === 'bookdrop' && id !== undefined) return planBookdropImport(adapter, { service, instance, id, library });
     if (id !== undefined) {
         throw new ServiceError('NotFound', service, `${service} cannot scan one item by id`, {
-            remedy: 'On grimmory `id` is a book. To rescan one library pass `library`, with its name or id.'
+            remedy: 'On grimmory `id` is a book. To rescan one library pass `library`, with its name or id. To approve a Bookdrop file, pass its id with action "bookdrop".'
         });
     }
     if (action !== 'scan' && action !== 'bookdrop') {
@@ -251,7 +252,70 @@ async function planBookScan(
     };
 }
 
+/**
+ * Approves one Bookdrop file (#532) with the metadata Grimmory read from the
+ * file, never the provider match it fetched: a provider hit with another
+ * publisher is another edition. Library and folder are taken when there is
+ * only one, and otherwise must be named.
+ */
+async function planBookdropImport(
+    adapter: ServiceAdapter & BookLibraryScanCapable,
+    args: { service: ServiceId; instance: string | undefined; id: string; library: string | undefined }
+): Promise<WritePlan> {
+    const { service, instance, id, library } = args;
+    const file = await adapter.readBookdropFile(id);
+    if (file === undefined) {
+        throw new ServiceError('NotFound', service, `${service} has no Bookdrop file ${id} waiting`, {
+            remedy: 'get_queue lists the Bookdrop files waiting, as grimmory:<id>. It may already have been imported or discarded.'
+        });
+    }
+    if (file.original === undefined) {
+        throw new ServiceError('UpstreamError', service, `${service} has not read the metadata of Bookdrop file ${id} yet`, {
+            remedy: 'Rescan the Bookdrop (action "bookdrop" without `id`) and try again once Grimmory has read the file.'
+        });
+    }
+    const all = await adapter.listBookLibraries();
+    if (library === undefined && all.length !== 1) {
+        throw new ServiceError('NotFound', service, `${service} has ${all.length} libraries, so pass \`library\``, {
+            remedy: all.length === 0 ? `${service} has no libraries.` : `Its libraries are ${libraryList(all)}.`
+        });
+    }
+    const chosen = library === undefined ? all[0]! : resolveBookLibrary(service, all, library);
+    if (chosen.pathIds.length !== 1) {
+        throw new ServiceError('UpstreamError', service, `${chosen.label} has ${chosen.pathIds.length} folders`, {
+            remedy: 'arr-mcp only imports into a library with a single folder. Approve this file in Grimmory, or pick another `library`.'
+        });
+    }
+    const title = typeof file.original.title === 'string' && file.original.title !== '' ? file.original.title : id;
+    return {
+        target: `${adapter.id}:bookdrop/${id}`,
+        summary: `Import Bookdrop file ${file.label} into ${chosen.label}.`,
+        effects: [
+            `Moves the file into ${chosen.label} as a new book and takes it off the Bookdrop.`,
+            file.shown.length === 0 ? 'Uses the metadata in the file itself.' : `Uses the metadata in the file itself: ${file.shown.join(', ')}.`,
+            'Not the provider match Grimmory fetched, which may be another edition. fix_metadata can change it afterwards.'
+        ],
+        args: {
+            service,
+            action: 'bookdrop',
+            fileId: id,
+            libraryId: chosen.id,
+            pathId: chosen.pathIds[0]!,
+            metadata: file.original,
+            title,
+            ...(instance === undefined ? {} : { instance })
+        }
+    };
+}
+
 async function applyBookScan(adapter: ServiceAdapter & BookLibraryScanCapable, plan: WritePlan): Promise<string> {
+    if (plan.args?.action === 'bookdrop' && typeof plan.args.fileId === 'string') {
+        const a = plan.args as { fileId: string; libraryId: string; pathId: string; metadata: Record<string, unknown>; title: string };
+        const { bookId } = await adapter.finalizeBookdropFile(a);
+        return bookId === undefined
+            ? `${adapter.id} imported Bookdrop file ${a.fileId}. Its new book id could not be told apart; search_media finds it by title.`
+            : `${adapter.id} imported Bookdrop file ${a.fileId} as book ${bookId} (grimmory:${bookId}).`;
+    }
     if (plan.args?.action === 'bookdrop') {
         await adapter.rescanBookdrop();
         return `${adapter.id} is rescanning its Bookdrop folder. It runs in the background: new files show under the Bookdrop in Grimmory, and stack_health reports any left waiting.`;
@@ -282,14 +346,14 @@ export function registerTriggerScan(
                 .enum(['scan', 'rename', 'import', 'remap', 'postprocess', 'bookdrop'])
                 .default('scan')
                 .describe(
-                    'scan rescans the library, or just one item when `id` is given (on Lidarr only the refresh narrows to one artist: the rescan still reads every root folder); on Radarr, Sonarr, Whisparr and Lidarr it refreshes metadata from the provider first. rename renames one item\'s files to the service\'s own naming scheme, and requires `id`. import takes a finished download the service never picked up, and requires `download_id`; add `mapping` when the service cannot tell what a file is. remap reassigns already-imported Sonarr files to the episodes a person has confirmed they are, and requires `id` and `reassignments`. postprocess reruns NZBGet\'s post-processing on a finished download, and requires `download_id`. bookdrop rescans Grimmory\'s Bookdrop folder for new files.'
+                    'scan rescans the library, or just one item when `id` is given (on Lidarr only the refresh narrows to one artist: the rescan still reads every root folder); on Radarr, Sonarr, Whisparr and Lidarr it refreshes metadata from the provider first. rename renames one item\'s files to the service\'s own naming scheme, and requires `id`. import takes a finished download the service never picked up, and requires `download_id`; add `mapping` when the service cannot tell what a file is. remap reassigns already-imported Sonarr files to the episodes a person has confirmed they are, and requires `id` and `reassignments`. postprocess reruns NZBGet\'s post-processing on a finished download, and requires `download_id`. bookdrop rescans Grimmory\'s Bookdrop folder for new files, or with `id` imports that one file.'
                 ),
             id: z
                 .string()
                 .min(1)
                 .optional()
                 .describe(
-                    'One movie, series or Lidarr artist id — `acquisition.id` on a get_library record. Omit with action: "scan" to scan the whole library.'
+                    'One movie, series or Lidarr artist id — `acquisition.id` on a get_library record. Omit with action: "scan" to scan the whole library. With action: "bookdrop", a Grimmory Bookdrop file id from get_queue: imports that file.'
                 ),
             library: z
                 .string()

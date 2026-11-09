@@ -1230,7 +1230,8 @@ help. Past ten lines the rest are counted, not listed.
 With Grimmory configured, the files waiting in its Bookdrop are queue rows. Each
 has `status: "pending review"`, the file name as its title, and `addedAt` when it
 arrived. They are not downloads: arr-mcp has no progress or ETA for them, and
-they leave the queue when someone finalises them in Grimmory. Reading the
+they leave the queue when someone finalises them in Grimmory, or when
+`trigger_scan` with `action: "bookdrop"` and the row's `id` imports one. Reading the
 Bookdrop needs `canAccessBookdrop` on a non-admin account. It is read 100 files
 to a page, and a Bookdrop of more than 1,000 files fails with an error instead
 of paging on.
@@ -2566,15 +2567,25 @@ Grimmory takes two actions.
   case. A library that does not exist is refused, listing the ones
   that do.
 - `action: "bookdrop"` has Grimmory look in its Bookdrop folder again for new
-  files. It imports nothing: the files wait there until someone finalises them
-  in Grimmory, and `get_queue` lists them. Pass no `library` with it.
+  files. It imports nothing: the files wait there until someone finalises them,
+  and `get_queue` lists them. Pass no `library` with it.
+- `action: "bookdrop"` with `id`, a Bookdrop row's id from `get_queue`, imports
+  that one file as a new book. It uses the metadata Grimmory read from the file
+  itself, never the provider match Grimmory fetched, which can be another
+  edition (another publisher, a series the file does not have); `fix_metadata`
+  changes it afterwards. The library is the only one there is, or the one
+  `library` names, and it must have a single folder: a library with several is
+  refused, so approve that file in Grimmory. A file Grimmory has not read yet is
+  refused until a rescan has read it. The preview names the file, the library
+  and the metadata it will use; the result names the new book id when a title
+  search can tell it apart.
 
 A library with `watch` on is skipped, since Grimmory's file watcher already picks
 up changes there. The preview names each library it will rescan and each one it
 skips, and a call that would rescan nothing is a no-op. Libraries are rescanned
 one after another, in the background. `id` is refused, because a book cannot be
-scanned on its own, and `library` and `bookdrop` are refused on any other
-service.
+scanned on its own (with `bookdrop` it names the file), and `library` and
+`bookdrop` are refused on any other service.
 
 Safe tier. A non-admin account needs `canManageLibrary` for a library and
 `canAccessBookdrop` for the Bookdrop.
