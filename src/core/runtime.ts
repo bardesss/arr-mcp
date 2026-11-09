@@ -50,7 +50,7 @@ const NO_CONFIG_DIR = '';
  * unless the caller asked it to. `src/index.ts` passes the real one; every
  * test that never mentions the dataset gets `NO_REFRESH` and no download.
  */
-export type Refresher = (dataset: ImdbDataset) => () => void;
+export type Refresher = (dataset: ImdbDataset) => () => void | Promise<void>;
 
 /** The default. Nothing to keep fresh, and nothing to stop. */
 const NO_REFRESH: Refresher = () => () => {};
@@ -60,6 +60,8 @@ export class Runtime {
     readonly #configDir: string;
     #plaintextOnDisk: readonly string[] = [];
     readonly #reloads = serial();
+    #closed = false;
+    #closing: Promise<void> | undefined;
     readonly #audit: WriteAudit;
     readonly #refresh: Refresher;
 
@@ -100,7 +102,7 @@ export class Runtime {
     #dataset: ImdbDataset | undefined;
 
     /** Stops the refresh belonging to `#dataset`, and only while one is open. */
-    #stopRefresh: (() => void) | undefined;
+    #stopRefresh: (() => void | Promise<void>) | undefined;
 
     /**
      * Injects a local JWKS in place of a live fetch. `undefined` in every real
@@ -134,45 +136,62 @@ export class Runtime {
         sessions.bindCredentials(config.auth.password_hash);
         // Before the snapshot, not after: the tool context closes over the
         // dataset, so it has to exist by the time it is built.
-        this.#syncDataset(config);
-        this.#snapshot = buildSnapshot(config, audit, this.confirm, this.#dataset, this.#oauthKeys);
+        const next = this.#prepareDataset(config);
+        try {
+            this.#snapshot = buildSnapshot(config, audit, this.confirm, next.dataset, this.#oauthKeys);
+        } catch (err) {
+            next.opened?.close();
+            throw err;
+        }
+        this.#commitDataset(next);
     }
 
     /**
-     * Open or close the dataset to match the config — and start or stop its
-     * refresh with it — doing nothing at all when the answer has not changed,
-     * which is the common case on reload.
-     *
-     * The "unchanged" branch is what stops every unrelated save from stacking
-     * up refreshers: editing a timeout reloads the runtime, and a second timer
-     * per edit would mean a day of configuring left a pile of them all
-     * downloading 223 MB on the same schedule.
+     * Opens a dataset when one is wanted and none is open, and starts nothing:
+     * the caller closes `opened` if it never commits.
      *
      * `ImdbDataset.open` touches the filesystem, so it is skipped entirely
      * when there is no real config directory: `fromConfig`'s default is a
      * placeholder, and a test that never asked for a dataset must not have one
      * written beside it.
      */
-    #syncDataset(config: Config): void {
+    #prepareDataset(config: Config): { dataset: ImdbDataset | undefined; opened: ImdbDataset | undefined } {
         const wanted = config.metadata?.imdb?.enabled === true && this.#configDir !== NO_CONFIG_DIR;
+        if (!wanted) return { dataset: undefined, opened: undefined };
+        if (this.#dataset !== undefined) return { dataset: this.#dataset, opened: undefined };
+        const opened = ImdbDataset.open(this.#configDir);
+        return { dataset: opened, opened };
+    }
 
-        if (wanted && this.#dataset === undefined) {
-            this.#dataset = ImdbDataset.open(this.#configDir);
+    /**
+     * The commit half: opens or closes the dataset to match the config — and
+     * starts or stops its refresh with it — doing nothing at all when the
+     * answer has not changed, which is the common case on reload. Nothing here
+     * can fail on the config, so it runs only once the snapshot that needs the
+     * dataset has been built.
+     *
+     * The "unchanged" branch is what stops every unrelated save from stacking
+     * up refreshers: editing a timeout reloads the runtime, and a second timer
+     * per edit would mean a day of configuring left a pile of them all
+     * downloading 223 MB on the same schedule.
+     */
+    #commitDataset(next: { dataset: ImdbDataset | undefined; opened: ImdbDataset | undefined }): void {
+        if (next.opened !== undefined) {
+            this.#dataset = next.opened;
             logger.info({ file: IMDB_FILENAME }, 'IMDb dataset opened');
             // After the open, and pointed at the database that was just
             // opened: a refresh filling a dataset nothing reads would be the
             // same bug this call exists to fix, wearing a different hat.
-            this.#stopRefresh = this.#refresh(this.#dataset);
+            this.#stopRefresh = this.#refresh(next.opened);
             return;
         }
 
-        if (!wanted && this.#dataset !== undefined) {
+        if (next.dataset === undefined && this.#dataset !== undefined) {
             // Stopped *before* the close, so no further ingest is scheduled
             // against a database about to go away. An ingest already in flight
-            // is not cancellable — it will fail on the closed handle and be
-            // logged by the refresher's own catch, which is the right outcome:
-            // a warning about a download nobody wants any more.
-            this.#stopRefresh?.();
+            // is terminated: its worker is stopped and its staging directory
+            // removed, so nothing keeps downloading for a dataset nobody wants.
+            void this.#stopRefresh?.();
             this.#stopRefresh = undefined;
             this.#dataset.close();
             this.#dataset = undefined;
@@ -279,13 +298,43 @@ export class Runtime {
     }
 
     async #reloadNow(): Promise<void> {
+        if (this.#closed) return;
         // Never seeds: a file deleted under a running server must not turn it unclaimed.
         const { config, plaintextOnDisk } = await loadConfig(this.#configDir, { create: false });
+        const next = this.#prepareDataset(config);
+        let snapshot: RuntimeSnapshot;
+        try {
+            snapshot = buildSnapshot(config, this.#audit, this.confirm, next.dataset, this.#oauthKeys);
+        } catch (err) {
+            next.opened?.close();
+            throw err;
+        }
         this.#plaintextOnDisk = plaintextOnDisk;
         this.sessions.bindCredentials(config.auth.password_hash);
-        this.#syncDataset(config);
-        this.#snapshot = buildSnapshot(config, this.#audit, this.confirm, this.#dataset, this.#oauthKeys);
+        this.#commitDataset(next);
+        this.#snapshot = snapshot;
         logger.info({ services: this.#snapshot.adapters.map(a => a.id) }, 'configuration reloaded');
+    }
+
+    /**
+     * Stops the dataset's refresh, waiting for an ingest in flight to be
+     * terminated, and then closes and clears the dataset. Idempotent.
+     *
+     * Queued behind any reload in flight, and a reload after it does nothing,
+     * so nothing reopens a dataset or starts a refresh nobody will stop.
+     */
+    close(): Promise<void> {
+        return (this.#closing ??= this.#reloads(async () => {
+            this.#closed = true;
+            const stop = this.#stopRefresh;
+            this.#stopRefresh = undefined;
+            try {
+                await stop?.();
+            } finally {
+                this.#dataset?.close();
+                this.#dataset = undefined;
+            }
+        }));
     }
 
 }

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { ImdbDataset } from '../src/metadata/imdbDataset.ts';
+import { ImdbDataset, packRating, unpackRating } from '../src/metadata/imdbDataset.ts';
 
 /**
  * The dataset store, driven against a real SQLite database in memory.
@@ -438,5 +438,25 @@ describe('genre wildcards', () => {
 
     it('still matches a real genre exactly', () => {
         expect(seed().discover({ kind: 'movie', genre: 'Drama', limit: 50 }).length).toBeGreaterThan(0);
+    });
+});
+
+describe('packing a rating', () => {
+    it.each([
+        [10, 3_000_000],
+        [1, 0],
+        [7.3, 2_874_193],
+        [0, 5]
+    ])('round-trips %s with %s votes', (average, votes) => {
+        expect(unpackRating(packRating(average, votes))).toEqual({ average, votes });
+    });
+
+    it('stores a perfect score with millions of votes unchanged', () => {
+        db = ImdbDataset.ephemeral();
+        db.replaceAll({
+            titles: [{ tconst: 'tt7', kind: 'movie', title: 'Top' }],
+            ratings: [{ tconst: 'tt7', average: 10, votes: 3_000_000 }]
+        });
+        expect(db.discover({ kind: 'movie', limit: 1 })[0]).toMatchObject({ rating: 10, votes: 3_000_000 });
     });
 });

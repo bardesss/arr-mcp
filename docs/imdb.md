@@ -28,7 +28,9 @@ metadata:
 ```
 
 Or tick **IMDb dataset** in the config UI, which applies immediately — the
-download starts when you save, with no restart.
+download starts when you save if the dataset is empty or more than a week
+old, with no restart. Switching the dataset off and on again with a current
+`imdb.db` on disk downloads nothing.
 
 No account, no API key, nothing sent anywhere. Your container downloads two of
 IMDb's published files and keeps them in a local SQLite database beside the
@@ -58,9 +60,10 @@ Only rated titles of a kind something can actually reach are stored — the othe
 `title.ratings.tsv` carries ~1.7M rows, all of it read into memory during
 ingest and none of it kept as a table: only a title's average and vote count
 survive, denormalised onto the title row itself, so a title with no rating is
-never stored in the first place. The ~1.7M ratings held transiently in memory
-is also where the peak ingest memory above comes from — it happens in the
-ingest worker thread and is released as soon as the ingest finishes.
+never stored in the first place. The ~1.7M ratings held transiently in memory,
+each as a single packed number rather than an object, are also where the peak
+ingest memory above comes from — it happens in the ingest worker thread and is
+released as soon as the ingest finishes.
 
 The dataset stores each title's rating alongside the title itself and indexes
 the browse order, so `discover_media` answers from an index walk rather than
@@ -89,6 +92,10 @@ night before.
 The cost is that a title published in the last week may not be there yet, so a
 brand-new release can be missing from `discover_media` and a series added the
 day it premiered goes without an IMDb rating until the next refresh.
+
+A restart does not re-download. The next refresh is a week after the last
+ingest, and runs at once on start only when the dataset is empty or older than
+a week.
 
 The interval is not configurable.
 

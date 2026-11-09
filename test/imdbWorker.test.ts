@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
@@ -86,6 +86,61 @@ describe('ingesting through a worker', () => {
 
         // Nothing listening, so the download fails inside the worker.
         await expect(runIngest(dataset, { baseUrl: 'http://127.0.0.1:1' })).rejects.toThrow();
+    });
+
+    it('stops a running worker and removes its staging directory', async () => {
+        const gz = fixture('title.basics.tsv');
+        let requested = () => {};
+        const requestedP = new Promise<void>(r => {
+            requested = r;
+        });
+        // Sends the start of the first dump and then never ends, so the worker is parked mid-download.
+        const server = createServer((req, res) => {
+            if ((req.url ?? '').endsWith('title.basics.tsv.gz')) {
+                res.writeHead(200, { 'content-type': 'application/gzip' });
+                res.write(gz.subarray(0, 10));
+                requested();
+                return;
+            }
+            res.writeHead(404).end();
+        });
+        await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+        const address = server.address();
+        const port = typeof address === 'object' && address !== null ? address.port : 0;
+
+        const dir = await mkdtemp(join(tmpdir(), 'arr-mcp-imdb-worker-'));
+        const dataset = ImdbDataset.open(dir);
+        cleanup.push(async () => {
+            server.closeAllConnections();
+            await new Promise<void>(resolve => server.close(() => resolve()));
+            dataset.close();
+            await rm(dir, { recursive: true, force: true, maxRetries: 3 });
+        });
+
+        let staging: string | undefined;
+        let seen = () => {};
+        const seenP = new Promise<void>(r => {
+            seen = r;
+        });
+        const controller = new AbortController();
+        const job = runIngest(dataset, {
+            baseUrl: `http://127.0.0.1:${port}`,
+            signal: controller.signal,
+            onStaging: d => {
+                staging = d;
+                seen();
+            }
+        });
+        const outcome = job.then(
+            () => undefined,
+            (e: unknown) => e
+        );
+
+        await Promise.all([requestedP, seenP]);
+        controller.abort();
+
+        expect(String(await outcome)).toMatch(/stopped/);
+        expect(existsSync(staging!)).toBe(false);
     });
 
     it('runs in-process for an ephemeral dataset, which has no file to share', async () => {

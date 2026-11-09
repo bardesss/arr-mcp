@@ -7,9 +7,18 @@ import type { LogStore } from './core/logs.ts';
 import { Runtime } from './core/runtime.ts';
 import type { Sessions } from './core/session.ts';
 import type { WebhookEvents } from './core/webhookEvents.ts';
+import type { ImdbDataset } from './metadata/imdbDataset.ts';
 import { startRefresh } from './metadata/refresh.ts';
 import { buildRepairApp } from './repair.ts';
 import type { PromoteResult } from './repair.ts';
+
+const datasetIsEmpty = (dataset: ImdbDataset): boolean => {
+    try {
+        return dataset.status().titles === 0;
+    } catch {
+        return false;
+    }
+};
 
 export type BootstrapDeps = {
     configDir: string;
@@ -24,6 +33,8 @@ export type BootstrapDeps = {
 /** What `serve` needs, and the only thing the entry point takes from here. */
 export type Booted = {
     fetch: (req: Request, env?: unknown) => Response | Promise<Response>;
+    /** Closes the runtime of the app being served, if any. */
+    close: () => Promise<void>;
 };
 
 /**
@@ -38,6 +49,7 @@ export type Booted = {
 export async function bootstrap(deps: BootstrapDeps): Promise<Booted> {
     const { configDir, audit, logs, events, sessions, version, port } = deps;
     let app: Hono;
+    let served: Runtime | undefined;
 
     const startNormally = async (): Promise<Hono> => {
         const { runtime } = await Runtime.start(configDir, audit, {
@@ -45,27 +57,39 @@ export async function bootstrap(deps: BootstrapDeps): Promise<Booted> {
             sessions
         });
 
-        logger.info({ adapters: runtime.current.adapters.map(a => a.id) }, 'configuration loaded');
+        try {
+            logger.info({ adapters: runtime.current.adapters.map(a => a.id) }, 'configuration loaded');
 
-        if (runtime.config.auth.password_hash === undefined) {
-            logger.warn(
-                { port },
-                `arr-mcp is not set up yet — open http://<host>:${port} to choose a username and password`
-            );
-        } else if (runtime.current.adapters.length === 0) {
-            logger.warn(
-                { config: configPath(configDir) },
-                'no services configured — add them in the config UI, or edit config.yaml'
-            );
+            if (runtime.config.auth.password_hash === undefined) {
+                logger.warn(
+                    { port },
+                    `arr-mcp is not set up yet — open http://<host>:${port} to choose a username and password`
+                );
+            } else if (runtime.current.adapters.length === 0) {
+                logger.warn(
+                    { config: configPath(configDir) },
+                    'no services configured — add them in the config UI, or edit config.yaml'
+                );
+            }
+
+            // Only an empty dataset ingests at once; a current one waits for its
+            // week, and startRefresh says so itself.
+            if (runtime.dataset !== undefined && datasetIsEmpty(runtime.dataset)) {
+                logger.info(
+                    'IMDb dataset enabled — refreshing in the background; ratings appear once the first ingest finishes'
+                );
+            }
+
+            const built = buildApp({ runtime, audit, logs, ...(events === undefined ? {} : { events }) });
+            served = runtime;
+            return built;
+        } catch (err) {
+            // Started but never served: nothing else holds the dataset or its refresh.
+            await runtime.close().catch((closeErr: unknown) => {
+                logger.error({ err: closeErr }, 'closing the runtime after a failed start failed');
+            });
+            throw err;
         }
-
-        if (runtime.dataset !== undefined) {
-            logger.info(
-                'IMDb dataset enabled — refreshing in the background; ratings appear once the first ingest finishes'
-            );
-        }
-
-        return buildApp({ runtime, audit, logs, ...(events === undefined ? {} : { events }) });
     };
 
     const doPromote = async (): Promise<PromoteResult> => {
@@ -105,5 +129,10 @@ export async function bootstrap(deps: BootstrapDeps): Promise<Booted> {
 
     // `env` is forwarded rather than dropped: node-server passes
     // `{ incoming, outgoing }` there, and nothing reads it yet.
-    return { fetch: (req, env) => app.fetch(req, env) };
+    return {
+        fetch: (req, env) => app.fetch(req, env),
+        close: async () => {
+            await served?.close();
+        }
+    };
 }

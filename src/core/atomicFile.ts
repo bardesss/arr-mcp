@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { renameSync, writeFileSync } from 'node:fs';
-import { rename, writeFile } from 'node:fs/promises';
+import { renameSync, rmSync, writeFileSync } from 'node:fs';
+import { rename, rm, writeFile } from 'node:fs/promises';
 import { serial } from './serial.ts';
 
 /**
@@ -21,12 +21,31 @@ const queue = serial();
 export const writeFileAtomic = (path: string, text: string): Promise<void> =>
     queue(async () => {
         const tmp = tempFor(path);
-        await writeFile(tmp, text, { mode: 0o600 });
-        await rename(tmp, path);
+        try {
+            await writeFile(tmp, text, { mode: 0o600 });
+            await rename(tmp, path);
+        } catch (error) {
+            // The temp file holds every key; a failed write must not leave it behind.
+            try {
+                await rm(tmp, { force: true });
+            } catch {
+                // the original error is the one worth seeing
+            }
+            throw error;
+        }
     });
 
 export function writeFileAtomicSync(path: string, text: string): void {
     const tmp = tempFor(path);
-    writeFileSync(tmp, text, { mode: 0o600 });
-    renameSync(tmp, path);
+    try {
+        writeFileSync(tmp, text, { mode: 0o600 });
+        renameSync(tmp, path);
+    } catch (error) {
+        try {
+            rmSync(tmp, { force: true });
+        } catch {
+            // the original error is the one worth seeing
+        }
+        throw error;
+    }
 }

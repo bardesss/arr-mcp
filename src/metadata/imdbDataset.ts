@@ -156,6 +156,20 @@ export type DiscoverQuery = {
     minRating?: number | undefined;
 };
 
+/**
+ * An average and a vote count as one number: `votes * 128 + average * 10`.
+ * IMDb averages have one decimal, so 0–100 fits the low 7 bits, and even the
+ * largest vote counts stay well inside V8's small-integer range, so the map
+ * in `replaceAll` holds a plain number per rating instead of an object.
+ */
+export function packRating(average: number, votes: number): number {
+    return votes * 128 + Math.round(average * 10);
+}
+
+export function unpackRating(packed: number): { average: number; votes: number } {
+    return { average: (packed % 128) / 10, votes: Math.floor(packed / 128) };
+}
+
 export class ImdbDataset {
     readonly #db: Db;
 
@@ -175,6 +189,9 @@ export class ImdbDataset {
         // tool calls read, and a reader must never block on a twenty-minute
         // rebuild.
         this.#db.pragma('journal_mode = WAL');
+        // The WAL kept a full copy of the vacuumed file; this caps what a
+        // checkpoint blocked by a reader can leave behind.
+        this.#db.pragma('journal_size_limit = 16777216');
         this.#dropSuperseded();
         this.#db.exec(SCHEMA);
     }
@@ -413,9 +430,10 @@ export class ImdbDataset {
             // this is the larger of the two inputs and the one worth being
             // careful about. Every rated id, not just the ones a title
             // claims — the titles have not been read yet. Only the average
-            // and vote count are kept, not the whole row.
-            const ratings = new Map<string, { average: number; votes: number }>();
-            for (const r of rows.ratings) ratings.set(r.tconst, { average: r.average, votes: r.votes });
+            // and vote count are kept, packed into one number per rating
+            // rather than an object each.
+            const ratings = new Map<string, number>();
+            for (const r of rows.ratings) ratings.set(r.tconst, packRating(r.average, r.votes));
 
             for (const t of rows.titles) {
                 if (!STORED_KINDS.has(t.kind)) continue;
@@ -424,8 +442,9 @@ export class ImdbDataset {
                 // rating. Skipped on the way in rather than deleted afterwards,
                 // which is what the two mutual `DELETE ... NOT IN` passes used
                 // to do.
-                const rated = ratings.get(t.tconst);
-                if (rated === undefined) continue;
+                const packed = ratings.get(t.tconst);
+                if (packed === undefined) continue;
+                const rated = unpackRating(packed);
 
                 insertTitle.run(
                     t.tconst,
@@ -452,5 +471,8 @@ export class ImdbDataset {
         // vacuumed afterwards and the running server never did. Costs a full
         // rewrite once a week, on a file that has just been rewritten anyway.
         this.#db.exec('VACUUM');
+        // VACUUM goes through the WAL, which now holds a full copy of the
+        // vacuumed file; truncate it so that copy does not sit on disk.
+        this.#db.pragma('wal_checkpoint(TRUNCATE)');
     }
 }

@@ -131,8 +131,10 @@ export function sweepStaging(root: string, opts: { now?: number } = {}): number 
  * possible. better-sqlite3 transactions cannot `await`, so the network has to
  * be finished with before the write begins.
  */
-async function downloadTo(baseUrl: string, file: string, path: string): Promise<void> {
-    const res = await fetch(`${baseUrl}/${file}`, { signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) });
+async function downloadTo(baseUrl: string, file: string, path: string, signal?: AbortSignal): Promise<void> {
+    const res = await fetch(`${baseUrl}/${file}`, {
+        signal: AbortSignal.any([AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS), ...(signal ? [signal] : [])])
+    });
     if (!res.ok || res.body === null) {
         // Names the file: "HTTP 404" alone would not say which of them, and they
         // fail independently.
@@ -195,7 +197,15 @@ export function* linesOf(path: string): Generator<string> {
  * never read by a single query — 52 MB a day and millions of rows for a table
  * nothing consulted.
  */
-export async function ingestOnce(dataset: ImdbDataset, opts: { baseUrl?: string } = {}): Promise<void> {
+export type IngestOptions = {
+    baseUrl?: string;
+    /** Stops the ingest: the downloads abort and nothing is written. */
+    signal?: AbortSignal;
+    /** Told where the staging directory is, so whoever stops a worker can remove it. */
+    onStaging?: (dir: string) => void;
+};
+
+export async function ingestOnce(dataset: ImdbDataset, opts: IngestOptions = {}): Promise<void> {
     const baseUrl = opts.baseUrl ?? IMDB_BASE_URL;
     const started = Date.now();
 
@@ -206,13 +216,15 @@ export async function ingestOnce(dataset: ImdbDataset, opts: { baseUrl?: string 
     if (swept > 0) logger.info({ swept }, 'removed abandoned IMDb staging directories');
 
     const staging = mkdtempSync(join(tmpdir(), STAGING_PREFIX));
+    opts.onStaging?.(staging);
 
     try {
         const titlesFile = join(staging, 'title.basics.tsv');
         const ratingsFile = join(staging, 'title.ratings.tsv');
 
-        await downloadTo(baseUrl, 'title.basics.tsv.gz', titlesFile);
-        await downloadTo(baseUrl, 'title.ratings.tsv.gz', ratingsFile);
+        await downloadTo(baseUrl, 'title.basics.tsv.gz', titlesFile, opts.signal);
+        await downloadTo(baseUrl, 'title.ratings.tsv.gz', ratingsFile, opts.signal);
+        opts.signal?.throwIfAborted();
 
         // Read lazily from disk straight into the transaction, so the rows are
         // never all in memory at once.
@@ -255,7 +267,7 @@ const workerEntry = (): URL =>
  * in-process. That is every test that does not specifically exercise the
  * worker.
  */
-export async function runIngest(dataset: ImdbDataset, opts: { baseUrl?: string } = {}): Promise<void> {
+export async function runIngest(dataset: ImdbDataset, opts: IngestOptions = {}): Promise<void> {
     if (dataset.dir === undefined) return ingestOnce(dataset, opts);
 
     const { Worker } = await import('node:worker_threads');
@@ -263,22 +275,50 @@ export async function runIngest(dataset: ImdbDataset, opts: { baseUrl?: string }
         workerData: { dir: dataset.dir, ...(opts.baseUrl === undefined ? {} : { baseUrl: opts.baseUrl }) }
     });
 
-    await new Promise<void>((resolve, reject) => {
-        worker.once('error', reject);
-        worker.once('exit', code => {
-            if (code === 0) resolve();
-            else reject(new Error(`the IMDb ingest worker exited with code ${code}`));
-        });
+    let staging: string | undefined;
+    worker.on('message', (m: { staging?: string }) => {
+        if (m.staging === undefined) return;
+        staging = m.staging;
+        opts.onStaging?.(m.staging);
     });
+
+    // `terminate` does not run the worker's `finally`, so this thread cleans
+    // up. An uncommitted transaction is rolled back by SQLite, and readers
+    // keep the old WAL snapshot.
+    const stop = (): void => {
+        void worker.terminate();
+    };
+    if (opts.signal?.aborted === true) stop();
+    else opts.signal?.addEventListener('abort', stop, { once: true });
+
+    try {
+        await new Promise<void>((resolve, reject) => {
+            worker.once('error', reject);
+            worker.once('exit', code => {
+                if (opts.signal?.aborted === true) {
+                    if (staging !== undefined) rmSync(staging, { recursive: true, force: true });
+                    reject(new Error('the IMDb ingest was stopped'));
+                } else if (code === 0) resolve();
+                else reject(new Error(`the IMDb ingest worker exited with code ${code}`));
+            });
+        });
+    } finally {
+        opts.signal?.removeEventListener('abort', stop);
+    }
 }
+
+/** The ingest running for each database, so a new one waits for a stopped one to finish. */
+const inFlight = new Map<string | ImdbDataset, Promise<void>>();
 
 /**
  * Start the weekly refresh, returning a function that stops it.
  *
- * Runs once immediately, then on the interval — which is what makes switching
- * the dataset on from the config UI produce ratings rather than an empty
- * database that waits a week. `Runtime` calls this the moment it opens the
- * database, and calls the returned stop function when it closes it.
+ * Runs immediately only when the dataset is empty or stale, which is what makes
+ * switching it on from the config UI produce ratings rather than an empty
+ * database that waits a week. Otherwise the first run waits until a week after
+ * the last ingest, so a restart no longer re-downloads 224 MB. `Runtime` calls
+ * this the moment it opens the database, and calls the returned stop function
+ * when it closes it.
  *
  * **Startup never awaits this.** A first run of several minutes is several
  * minutes of normal service, not a container that looks broken — every tool
@@ -290,17 +330,19 @@ export function startRefresh(
         baseUrl?: string;
         /** Seams, for tests: the default reaches the network and spawns a
          *  worker, and the default interval is a week. */
-        ingest?: (dataset: ImdbDataset, o: { baseUrl?: string }) => Promise<void>;
+        ingest?: (dataset: ImdbDataset, o: IngestOptions) => Promise<void>;
         intervalMs?: number;
     } = {}
-): () => void {
+): () => Promise<void> {
     const ingest = opts.ingest ?? runIngest;
-    const ingestOpts = opts.baseUrl === undefined ? {} : { baseUrl: opts.baseUrl };
+    const key = dataset.dir ?? dataset;
 
     // An ingest takes minutes and the interval is a week, so an overlap means
     // something is already wrong — but two of them sharing one staging sweep
     // and one database is worse than skipping a beat.
     let running = false;
+    let job: Promise<void> | undefined;
+    const controller = new AbortController();
 
     const run = (): void => {
         if (running) {
@@ -309,8 +351,23 @@ export function startRefresh(
         }
         running = true;
 
-        ingest(dataset, ingestOpts)
+        // Behind any ingest still winding down for the same directory: a
+        // stopped worker can outlive the stop, and two of them must not write
+        // one database.
+        const previous = inFlight.get(key) ?? Promise.resolve();
+        const mine: Promise<void> = previous
+            .then(() => {
+                if (controller.signal.aborted) return;
+                return ingest(dataset, {
+                    ...(opts.baseUrl === undefined ? {} : { baseUrl: opts.baseUrl }),
+                    signal: controller.signal
+                });
+            })
             .catch((err: unknown) => {
+                if (controller.signal.aborted) {
+                    logger.info('IMDb refresh stopped');
+                    return;
+                }
                 // A failed refresh keeps the previous dataset, so this is a
                 // degraded answer rather than an outage — it warns instead of
                 // becoming an unhandled rejection that would take the process
@@ -319,14 +376,50 @@ export function startRefresh(
             })
             .finally(() => {
                 running = false;
+                if (inFlight.get(key) === mine) inFlight.delete(key);
             });
+        job = mine;
+        inFlight.set(key, mine);
     };
 
-    run();
+    const interval = opts.intervalMs ?? REFRESH_INTERVAL_MS;
+    // A status that cannot be read must not throw into the caller — the
+    // runtime commits a reload around this call — so it falls back to
+    // ingesting at once, as an empty dataset does.
+    let status: { titles: number; ingestedAt?: string | undefined } = { titles: 0 };
+    try {
+        status = dataset.status();
+    } catch (err) {
+        logger.warn({ err }, 'could not read the IMDb dataset status; refreshing now');
+    }
+    const age = status.ingestedAt === undefined ? Number.NaN : Date.parse(status.ingestedAt);
+    // Clamped to one interval: an ingest dated in the future (clock skew, a
+    // database copied from another host) would otherwise wait past the 2^31-1
+    // ms timer limit, and Node fires such a timer after 1 ms.
+    const delay =
+        status.titles === 0 || Number.isNaN(age) ? 0 : Math.min(interval, Math.max(0, age + interval - Date.now()));
+    if (delay > 0) {
+        logger.info({ at: new Date(Date.now() + delay).toISOString() }, 'IMDb dataset is current — next refresh scheduled');
+    }
 
-    const timer = setInterval(run, opts.intervalMs ?? REFRESH_INTERVAL_MS);
-    // Unreffed so a pending refresh never holds the process open at shutdown.
-    timer.unref();
+    let timer: NodeJS.Timeout | undefined;
+    const begin = (): void => {
+        run();
+        timer = setInterval(run, interval);
+        // Unreffed so a pending refresh never holds the process open at shutdown.
+        timer.unref();
+    };
 
-    return () => clearInterval(timer);
+    // No timer hop when there is nothing to wait for: an empty dataset starts
+    // filling this tick, as it always did.
+    let first: NodeJS.Timeout | undefined;
+    if (delay === 0) begin();
+    else first = setTimeout(begin, delay).unref();
+
+    return () => {
+        clearTimeout(first);
+        clearInterval(timer);
+        controller.abort();
+        return job ?? Promise.resolve();
+    };
 }

@@ -12,7 +12,7 @@
  * main thread keeps answering from the pre-transaction snapshot until this
  * commits.
  */
-import { workerData } from 'node:worker_threads';
+import { parentPort, workerData } from 'node:worker_threads';
 import { ImdbDataset } from './imdbDataset.ts';
 import { ingestOnce } from './refresh.ts';
 
@@ -20,7 +20,10 @@ const { dir, baseUrl } = workerData as { dir: string; baseUrl?: string };
 
 const dataset = ImdbDataset.open(dir);
 try {
-    await ingestOnce(dataset, baseUrl === undefined ? {} : { baseUrl });
+    await ingestOnce(dataset, {
+        ...(baseUrl === undefined ? {} : { baseUrl }),
+        onStaging: dir => parentPort?.postMessage({ staging: dir })
+    });
 } finally {
     dataset.close();
 }

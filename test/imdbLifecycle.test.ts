@@ -92,6 +92,59 @@ afterEach(async () => {
 });
 
 describe('the IMDb refresh follows the config', () => {
+    it('stops the refresh and closes the dataset on close', async () => {
+        await write(true);
+        const { started, refresh } = spy();
+        const rt = await runtimeFrom({ refresh });
+        await rt.close();
+        expect(started[0]?.stopped).toBe(true);
+        expect(rt.dataset).toBeUndefined();
+        await rt.close(); // idempotent
+    });
+
+    it('ends closed when close is called while a reload is opening the dataset', async () => {
+        await write(false);
+        const { started, refresh } = spy();
+        const rt = await runtimeFrom({ refresh });
+        await write(true);
+        const reloading = rt.reload();
+        const closing = rt.close();
+        await Promise.all([reloading, closing]);
+        expect(rt.dataset).toBeUndefined();
+        expect(started.every(r => r.stopped)).toBe(true);
+    });
+
+    it('does nothing on reload after close', async () => {
+        await write(false);
+        const { started, refresh } = spy();
+        const rt = await runtimeFrom({ refresh });
+        await rt.close();
+        await write(true);
+        await rt.reload();
+        expect(rt.dataset).toBeUndefined();
+        expect(started).toHaveLength(0);
+    });
+
+    it('closes the dataset even when stopping the refresh rejects', async () => {
+        await write(true);
+        const { config } = await loadConfig(dir);
+        runtime = Runtime.fromConfig(config, audit, {
+            configDir: dir,
+            refresh: () => () => Promise.reject(new Error('stop failed'))
+        });
+        await expect(runtime.close()).rejects.toThrow('stop failed');
+        expect(runtime.dataset).toBeUndefined();
+    });
+
+    it('lets a second concurrent close wait for the first', async () => {
+        await write(true);
+        const { refresh } = spy();
+        const rt = await runtimeFrom({ refresh });
+        const first = rt.close();
+        expect(rt.close()).toBe(first);
+        await first;
+    });
+
     /** The reported bug, as a test. */
     it('starts refreshing when the dataset is switched on by a reload', async () => {
         await write(false);
