@@ -21,10 +21,9 @@ import {
     WHISPARR_ADD
 } from './arrAdd.ts';
 import { readArrProfileDiagnostics } from './arrProfiles.ts';
-import { refreshArrItem, renameArrItem } from './arrCommands.ts';
+import { arrItemId, refreshArrItem, renameArrItem } from './arrCommands.ts';
 import { findArrReleases, grabArrRelease } from './arrRelease.ts';
 import { arrDiskSpace, arrFailedHealthChecks, arrScanState, arrStartLibraryScan, arrVersion } from './arrSystem.ts';
-import { numericId } from './arrUpdate.ts';
 import {
     diagnoseConnection,
     type AddCandidate,
@@ -299,18 +298,8 @@ export class WhisparrAdapter
         return readSonarrCalendar(episodes, this.id, 'releaseDate');
     }
 
-    #numericId(value: string, what: string): number {
-        const id = Number(value);
-        if (!Number.isInteger(id)) {
-            throw new ServiceError('NotFound', this.id, `"${value}" is not a Whisparr ${what} id`, {
-                remedy: `Whisparr ${what} ids are integers. Take one from \`acquisition.id\` on get_library or get_media_details.`
-            });
-        }
-        return id;
-    }
-
     async listEpisodeFiles(seriesId: string): Promise<EpisodeFile[]> {
-        const id = this.#numericId(seriesId, 'site');
+        const id = arrItemId(this.id, 'site', seriesId);
         const files = await this.#http.get<RawEpisodeFile[]>(`/api/v3/episodefile?seriesId=${id}`);
 
         return files
@@ -334,12 +323,12 @@ export class WhisparrAdapter
      */
     async setMonitoring(id: string, opts: MonitoringTarget): Promise<void> {
         if (opts.episodeIds !== undefined) {
-            const episodeIds = opts.episodeIds.map(e => this.#numericId(e, 'scene'));
+            const episodeIds = opts.episodeIds.map(e => arrItemId(this.id, 'scene', e));
             await this.#http.put('/api/v3/episode/monitor', { episodeIds, monitored: opts.monitored }, true);
             return;
         }
 
-        const seriesId = this.#numericId(id, 'site');
+        const seriesId = arrItemId(this.id, 'site', id);
         const series = await this.#http.get<RawSeries & { id: number }>(`/api/v3/series/${seriesId}`);
 
         if (opts.season === undefined) {
@@ -360,10 +349,10 @@ export class WhisparrAdapter
      * ones `sonarr.ts` uses, with `seasonNumber` carrying a release year.
      */
     async triggerSearch(id: string, target?: SearchTarget): Promise<CommandHandle> {
-        const seriesId = this.#numericId(id, 'site');
+        const seriesId = arrItemId(this.id, 'site', id);
         const payload =
             target?.episodes !== undefined
-                ? { name: 'EpisodeSearch', episodeIds: target.episodes.map(e => this.#numericId(e, 'scene')) }
+                ? { name: 'EpisodeSearch', episodeIds: target.episodes.map(e => arrItemId(this.id, 'scene', e)) }
                 : target?.season !== undefined
                   ? { name: 'SeasonSearch', seriesId, seasonNumber: target.season }
                   : { name: 'SeriesSearch', seriesId };
@@ -387,7 +376,7 @@ export class WhisparrAdapter
     }
 
     async findReleases(opts: ReleaseScope): Promise<ReleaseCandidate[]> {
-        return findArrReleases(this.#http, this.id, 'series', opts);
+        return findArrReleases(this.#http, this.id, 'site', opts);
     }
 
     async grabRelease(opts: { guid: string; indexerId: number }): Promise<void> {
@@ -395,7 +384,7 @@ export class WhisparrAdapter
     }
 
     async getMediaDetails(id: string, opts: { includeEpisodes: boolean; episodeLimit: number }): Promise<MediaDetails> {
-        const s = await this.#http.get<RawSeries>(`/api/v3/series/${numericId(this.id, 'series', id)}`);
+        const s = await this.#http.get<RawSeries>(`/api/v3/series/${arrItemId(this.id, 'series', id)}`);
         const ratings = flattenSeriesRating(s.ratings);
 
         const base: MediaDetails = {

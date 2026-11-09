@@ -8,7 +8,7 @@ import { ServiceError } from '../src/core/errors.ts';
 import { permissionSourceFrom } from '../src/core/permissions.ts';
 import type { LibraryLoader } from '../src/tools/library.ts';
 import type { CrossChecker, CrossCheckProfile } from '../src/tools/crossChecks.ts';
-import { registerWriteTool, type WritePlan, type WriteToolResult } from '../src/tools/write.ts';
+import { rawTarget, registerWriteTool, type WritePlan, type WriteToolResult } from '../src/tools/write.ts';
 
 /**
  * A stand-in for McpServer that keeps the one behaviour the harness depends on:
@@ -243,10 +243,19 @@ describe('write tool harness — dry_run', () => {
         expect(structuredContent.permission.allowed).toBe(false);
         expect(structuredContent.permission.remedy).toContain('permissions.destructive: true');
         expect(content[0]?.text).toContain('would currently be refused');
+        expect(denied.plan).toHaveBeenCalledTimes(1);
     });
 });
 
 describe('write tool harness — permission tiers', () => {
+    it('refuses a live write without resolving it first', async () => {
+        const denied = buildHarness({ permissions: { radarr: service(false, false) } });
+        await expect(denied.call('delete_media', { id: '5' })).rejects.toThrow(/radarr:5/);
+        await expect(denied.call('delete_media', { id: '5' })).rejects.toThrow(/destructive/);
+        expect(denied.plan).not.toHaveBeenCalled();
+        expect((denied.audit.recent() as { target: string }[])[0]?.target).toBe('5');
+    });
+
     it('refuses a live write when the tier is off, before touching the service', async () => {
         const denied = buildHarness({ permissions: { radarr: service(false, false) } });
 
@@ -542,5 +551,20 @@ describe('write tool harness — cross-checks', () => {
         const h = buildHarness({ plan: SUBJECT_PLAN, crossChecks: advised(), crossCheck: 'delete' });
         await h.call('delete_media', { id: '5' });
         expect(outcomes(h)).toEqual(['unconfirmed']);
+    });
+});
+
+describe('rawTarget', () => {
+    it.each([
+        [{ id: '7', title: 'Alien' }, '7'],
+        [{ title: 'Alien', item_id: 'x' }, 'x'],
+        [{ download_id: 'SABnzbd_nzo_1', title: 'T' }, 'SABnzbd_nzo_1'],
+        [{ library: 'Books' }, 'Books'],
+        [{ id: 15 }, '15'],
+        [{ id: 5, item_id: 'x' }, '5'],
+        [{ id: null, dry_run: true }, ''],
+        [{}, '']
+    ])('%j gives %j', (args, expected) => {
+        expect(rawTarget(args as Record<string, unknown>)).toBe(expected);
     });
 });

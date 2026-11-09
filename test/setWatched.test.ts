@@ -155,6 +155,20 @@ describe('set_watched', () => {
         expect(h.marked).toHaveLength(0);
     });
 
+    it('will not apply a token previewed for one viewer to another', async () => {
+        const h = harness({ config: jellyfinConfig({ allow_other_users: true }) });
+        const preview = await h.call({ item_id: MOVIE, watched: true });
+        const second = await h.call({
+            item_id: MOVIE,
+            watched: true,
+            user: 'Alex',
+            confirm: preview.structuredContent.confirm_token
+        });
+        expect(second.structuredContent.applied).toBe(false);
+        expect(second.structuredContent.confirm_error).toMatch(/different operation or different arguments/);
+        expect(h.marked).toHaveLength(0);
+    });
+
     it('marks it once the token comes back', async () => {
         const h = harness();
         const preview = await h.call({ item_id: MOVIE, watched: true });
@@ -259,10 +273,26 @@ describe('set_watched beside Plex', () => {
         };
         registerSetWatched(server as never, context(), [plex], undefined);
 
-        const err = await call({ item_id: MOVIE, watched: true }).catch((e: unknown) => e);
+        const err = await call({ item_id: MOVIE, watched: true, dry_run: true }).catch((e: unknown) => e);
         expect(err).toBeInstanceOf(ServiceError);
         expect((err as ServiceError).remedy).toMatch(/alongside/);
         expect((err as ServiceError).remedy).not.toMatch(/Replace/);
+    });
+
+    it('refuses a live call on a Plex-only stack with the not-configured message', async () => {
+        let call: Call = () => Promise.reject(new Error('not registered'));
+        const server = {
+            registerTool(_n: string, cfg: { inputSchema: z.ZodObject }, handler: Call) {
+                call = args => handler(cfg.inputSchema.parse(args) as Record<string, unknown>);
+            }
+        };
+        registerSetWatched(server as never, context(), [plex], undefined);
+
+        const err = await call({ item_id: MOVIE, watched: true }).catch((e: unknown) => e);
+        expect(err).toBeInstanceOf(ServiceError);
+        expect((err as ServiceError).kind).toBe('PermissionDenied');
+        expect((err as ServiceError).detail).toMatch(/jellyfin is not configured/);
+        expect((err as ServiceError).remedy).toMatch(/services\.jellyfin/);
     });
 
     it('previews on the Jellyfin adapter when Plex is listed first', async () => {

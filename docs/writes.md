@@ -27,6 +27,12 @@ re-monitor it.
 `radarr/4k` is a configuration you can express — each entry carries its own
 `permissions` block.
 
+A write the tier forbids is refused before anything is read for it. The refusal
+names the service, the id or title exactly as you gave it, and the tier it
+needs. It does not look the title up first, so it also tells you nothing about
+whether the title exists. `dry_run` still resolves the target and plans the
+write, and says which permission to enable.
+
 | Tool | Tier | Needs |
 | --- | --- | --- |
 | `trigger_search` | safe | `safe_write` |

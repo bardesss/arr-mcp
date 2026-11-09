@@ -116,6 +116,26 @@ describe('running a manual import', () => {
         expect(command.files[0]).toMatchObject({ path: '/downloads/Heat.1995.mkv', movieId: 15 });
     });
 
+    const TWO = [
+        CANDIDATES[0],
+        { ...CANDIDATES[0], path: '/downloads/Heat.1995.part2.mkv', relativePath: 'Heat.1995.part2.mkv' }
+    ];
+
+    it('imports only the files the preview listed', async () => {
+        const s = stack(TWO);
+        await new RadarrAdapter(keyed(7878), s.impl).runManualImport('nzo_abc', undefined, ['/downloads/Heat.1995.mkv']);
+        const files = (s.sent.find(x => x.method === 'POST')?.body as { files: { path: string }[] }).files;
+        expect(files.map(f => f.path)).toEqual(['/downloads/Heat.1995.mkv']);
+    });
+
+    it('refuses when a previewed file is no longer importable, and posts nothing', async () => {
+        const s = stack(TWO);
+        await expect(
+            new RadarrAdapter(keyed(7878), s.impl).runManualImport('nzo_abc', undefined, ['/downloads/Gone.mkv'])
+        ).rejects.toThrow(/changed since the preview/);
+        expect(s.sent.some(x => x.method === 'POST')).toBe(false);
+    });
+
     /**
      * A row with no path is dropped from the candidates, so the candidate list
      * is shorter than the rows. Pairing them by position put each verdict on

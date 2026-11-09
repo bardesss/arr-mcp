@@ -5,7 +5,7 @@ import { ServiceError } from '../core/errors.ts';
 import { logger } from '../core/logger.ts';
 import { hasQueue, hasQueueRemove, type QueueItem, type ServiceAdapter } from '../services/types.ts';
 import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
-import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
+import { outcomeText, registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 
 const findAdapter = (adapters: readonly ServiceAdapter[], service: ServiceId, instance?: string) => {
     const adapter = resolveInstance(adapters, service, instance);
@@ -71,6 +71,8 @@ export function registerCleanQueue(
                 args: { ids: litter.map(i => i.id).sort() }
             };
         },
+
+        applied: outcomeText,
 
         async apply(plan, { service, instance }) {
             const adapter = findAdapter(adapters, service, instance);

@@ -169,7 +169,7 @@ describe('fix_metadata', () => {
         const h = harness();
         // With no Grimmory configured, `grimmory:58` is refused the same way.
         for (const id of ['grimmory', 'grimmory:58', 'grimmory:abc']) {
-            const err = (await h.call({ id }).catch((e: unknown) => e)) as ServiceError;
+            const err = (await h.call({ id, dry_run: true }).catch((e: unknown) => e)) as ServiceError;
             expect(err).toBeInstanceOf(ServiceError);
             expect(err.kind).toBe('NotFound');
             expect(err.service).toBe('grimmory');
@@ -802,7 +802,7 @@ describe('fix_metadata on Plex', () => {
         expect(h.audit.recent()[0]).toMatchObject({
             tool: 'fix_metadata',
             service: 'plex',
-            target: `plex:${PLEX_SERIES}`,
+            target: 'Fixture show 2',
             outcome: 'denied',
             detail: 'Plex repair is off'
         });

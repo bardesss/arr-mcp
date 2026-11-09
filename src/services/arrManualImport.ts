@@ -2,7 +2,7 @@ import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
 import type { ArrKind } from '../core/resolver.ts';
-import { awaitArrCommand, postArrCommand, renamedCount } from './arrCommands.ts';
+import { arrItemId, awaitArrCommand, postArrCommand, renamedCount } from './arrCommands.ts';
 import { renameThroughTemporaryFormat } from './arrRename.ts';
 import { readArrQueue } from './arrQueue.ts';
 import type {
@@ -433,16 +433,17 @@ export async function listArrImportCandidates(
 }
 
 /**
- * Re-reads the candidates rather than taking them from the preview: the token
- * binds to the download, and a file list that has moved on should import what
- * is there now or refuse — never a path that no longer exists.
+ * Re-reads the candidates to post their current quality and ids, but imports
+ * exactly the files the preview listed (`paths`) or refuses: a file list that
+ * has moved on since the preview is never imported on the old confirmation.
  */
 export async function runArrManualImport(
     http: ServiceHttp,
     service: string,
     resource: ArrKind,
     downloadId: string,
-    mapping?: ImportMapping[]
+    mapping?: ImportMapping[],
+    paths?: string[]
 ): Promise<CommandHandle> {
     const { raw, judged, candidates } = await readCandidates(http, service, resource, downloadId, mapping);
 
@@ -450,7 +451,7 @@ export async function runArrManualImport(
     // shorter than `raw` whenever a row had no path, and pairing it with
     // `raw` by position put the next file's verdict on the wrong row, posting
     // a pathless row or a file the service had rejected.
-    const importable = raw.filter((_, i) => {
+    let importable = raw.filter((_, i) => {
         const candidate = judged[i];
         return candidate !== undefined && candidate.rejections.length === 0 && candidate.matchedId !== undefined;
     });
@@ -467,6 +468,22 @@ export async function runArrManualImport(
                     ? `${service} reported no importable files for that download id. Check it is still in get_queue — ids do not survive an item leaving the queue.`
                     : `It rejected every file: ${reasons}. ${fix}`
         });
+    }
+
+    if (paths !== undefined) {
+        const present = new Set(importable.map(r => r.path));
+        const gone = paths.filter(p => !present.has(p));
+        if (gone.length > 0) {
+            // The paths are not echoed: they come from the download and are unfenced.
+            throw new ServiceError(
+                'UpstreamError',
+                service,
+                `${service}'s files for ${downloadId} have changed since the preview: ${gone.length} previewed file(s) are no longer importable`,
+                { remedy: 'Preview the import again and confirm the new token.' }
+            );
+        }
+        const wanted = new Set(paths);
+        importable = importable.filter(r => r.path !== undefined && wanted.has(r.path));
     }
 
     if (resource === 'artist') {
@@ -652,23 +669,13 @@ async function resolveEpisodeRemap(
     return { moves, emptied: [...emptied], rotation, chain };
 }
 
-const seriesIdOf = (service: string, seriesId: string): number => {
-    const id = Number(seriesId);
-    if (!Number.isInteger(id)) {
-        throw new ServiceError('NotFound', service, `"${seriesId}" is not a Sonarr series id`, {
-            remedy: 'Sonarr series ids are integers. Take one from `acquisition.id` on get_library or get_media_details.'
-        });
-    }
-    return id;
-};
-
 export async function planArrEpisodeRemap(
     http: ServiceHttp,
     service: string,
     seriesId: string,
     reassignments: EpisodeReassignment[]
 ): Promise<EpisodeRemapPlan> {
-    const { moves, emptied, rotation, chain } = await resolveEpisodeRemap(http, service, seriesIdOf(service, seriesId), reassignments);
+    const { moves, emptied, rotation, chain } = await resolveEpisodeRemap(http, service, arrItemId(service, 'series', seriesId), reassignments);
     return { moves: moves.map(({ display, from, to }) => ({ display, from, to })), emptied, rotation, chain };
 }
 
@@ -680,7 +687,7 @@ export async function runArrEpisodeRemap(
     seriesId: string,
     reassignments: EpisodeReassignment[]
 ): Promise<EpisodeRemapOutcome> {
-    const id = seriesIdOf(service, seriesId);
+    const id = arrItemId(service, 'series', seriesId);
     const { moves } = await resolveEpisodeRemap(http, service, id, reassignments);
 
     if (moves.length === 0) {

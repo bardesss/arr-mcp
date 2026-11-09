@@ -1,6 +1,6 @@
-import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
+import { arrItemId } from './arrCommands.ts';
 import type { MediaUpdateOptions, MediaUpdateState } from './types.ts';
 
 /**
@@ -26,16 +26,6 @@ type RawResource = {
     seriesType?: string;
 };
 
-export const numericId = (service: string, resource: 'movie' | 'series', value: string): number => {
-    const id = Number(value);
-    if (!Number.isInteger(id) || id <= 0) {
-        throw new ServiceError('NotFound', service, `"${value}" is not a ${service} ${resource} id`, {
-            remedy: `${service} ids are integers. Take one from \`acquisition.id\` on get_library or get_media_details.`
-        });
-    }
-    return id;
-};
-
 const toState = (service: string, raw: RawResource): MediaUpdateState => ({
     title: fenceText(raw.title ?? '', { service, field: 'title' }),
     ...(raw.year === undefined || raw.year === 0 ? {} : { year: raw.year }),
@@ -53,7 +43,7 @@ export async function readArrForUpdate(
     resource: 'movie' | 'series',
     id: string
 ): Promise<MediaUpdateState> {
-    const numeric = numericId(service, resource, id);
+    const numeric = arrItemId(service, resource, id);
     return toState(service, await http.get<RawResource>(`${http.apiRoot}/${resource}/${numeric}`));
 }
 
@@ -64,7 +54,7 @@ export async function updateArrMedia(
     id: string,
     opts: MediaUpdateOptions
 ): Promise<MediaUpdateState> {
-    const numeric = numericId(service, resource, id);
+    const numeric = arrItemId(service, resource, id);
     const current = await http.get<RawResource>(`${http.apiRoot}/${resource}/${numeric}`);
 
     const body: Record<string, unknown> = { ...current };

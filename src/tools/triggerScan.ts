@@ -24,7 +24,7 @@ import {
     type ServiceAdapter
 } from '../services/types.ts';
 import { INSTANCE_PARAM_DESCRIPTION, instanceArgs, resolveInstance } from './resolveInstance.ts';
-import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
+import { outcomeText, registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 
 /**
  * The other half of the answer `diagnose` gives most often.
@@ -133,7 +133,7 @@ const findRemapAdapter = (
 const scannableMediaServers = (adapters: readonly ServiceAdapter[]): ServiceAdapter[] =>
     adapters.filter(a => hasUserLibrary(a) && hasLibraryScan(a));
 
-const IdSchema = z.string().regex(/^\d+$/, 'a numeric id, as `acquisition.id` on get_library');
+const IdSchema = z.string().regex(/^[1-9]\d*$/, 'a numeric id, as `acquisition.id` on get_library');
 
 type MappingInput = {
     path: string;
@@ -504,6 +504,7 @@ export function registerTriggerScan(
                         service,
                         action,
                         downloadId: download_id,
+                        paths: importable.map(c => c.path).sort(),
                         ...(mapping === undefined ? {} : { mapping }),
                         ...(instance === undefined ? {} : { instance })
                     }
@@ -602,6 +603,8 @@ export function registerTriggerScan(
             }));
         },
 
+        applied: outcomeText,
+
         async apply(plan, { service, instance, action, id, download_id, reassignments, mapping }) {
             const resolved = resolveInstance(adapters, service, instance);
             if (hasBookLibraryScan(resolved)) return applyBookScan(resolved, plan);
@@ -651,7 +654,11 @@ export function registerTriggerScan(
 
             if (action === 'import' && download_id !== undefined) {
                 const importer = findImportAdapter(adapters, service, instance);
-                const queued = await importer.runManualImport(download_id, toImportMapping(mapping));
+                const queued = await importer.runManualImport(
+                    download_id,
+                    toImportMapping(mapping),
+                    plan.args?.paths as string[] | undefined
+                );
                 return `${importer.id} queued ${queued.name} for download ${download_id}. Importing runs in the background — check get_queue and stack_health's \`commands\` rather than expecting it to be done now.`;
             }
 

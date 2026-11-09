@@ -8,7 +8,7 @@ import { ServiceHttp } from '../core/http.ts';
 import type { IndexInput } from '../core/resolver.ts';
 import { readMetadataProfiles, readProfileNames, readQualityProfiles, readRootFolders, readTags } from './arrAdd.ts';
 import { readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
-import { postArrCommand, readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
+import { arrItemId, postArrCommand, readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
 import { readArrHistory } from './arrHistory.ts';
 import { listArrImportCandidates, runArrManualImport } from './arrManualImport.ts';
 import { lidarrCalendarPath, readArrQueue, readLidarrCalendar, removeArrQueueItem } from './arrQueue.ts';
@@ -460,7 +460,7 @@ export class LidarrAdapter
         id: string,
         opts: { includeEpisodes: boolean; episodeLimit: number }
     ): Promise<MediaDetails> {
-        const artistId = this.#numericId(id, 'artist');
+        const artistId = arrItemId(this.id, 'artist', id);
         const artist = await this.#http.get<RawArtist>(`/api/v1/artist/${artistId}`);
         const title = fenceText(artist.artistName ?? '', { service: this.id, field: 'title' });
 
@@ -502,7 +502,7 @@ export class LidarrAdapter
      * `monitored` stand in for the truth and report a real change as a no-op.
      */
     async getMonitorState(id: string): Promise<MonitorState> {
-        const albumId = this.#numericId(id, 'album');
+        const albumId = arrItemId(this.id, 'album', id);
         const album = await this.#http.get<RawAlbum>(`/api/v1/album/${albumId}`);
         const title = fenceText(album.title ?? '', { service: this.id, field: 'title' });
         const artist = album.artist?.artistName;
@@ -524,7 +524,7 @@ export class LidarrAdapter
     async setMonitoring(id: string, opts: MonitoringTarget): Promise<void> {
         this.refusePartialSelection({ season: opts.season, episodeIds: opts.episodeIds });
 
-        const albumId = this.#numericId(id, 'album');
+        const albumId = arrItemId(this.id, 'album', id);
         await this.#http.put('/api/v1/album/monitor', { albumIds: [albumId], monitored: opts.monitored }, true);
         this.#libraryCache.clear();
     }
@@ -579,7 +579,7 @@ export class LidarrAdapter
     ): Promise<void> {
         if (artistIds.length === 0) return;
 
-        const ids = artistIds.map(id => this.#numericId(id, 'artist'));
+        const ids = artistIds.map(id => arrItemId(this.id, 'artist', id));
         await this.#http.put(
             '/api/v1/artist/editor',
             {
@@ -655,8 +655,8 @@ export class LidarrAdapter
         return listArrImportCandidates(this.#http, this.id, 'artist', downloadId, mapping);
     }
 
-    async runManualImport(downloadId: string, mapping?: ImportMapping[]): Promise<CommandHandle> {
-        return runArrManualImport(this.#http, this.id, 'artist', downloadId, mapping);
+    async runManualImport(downloadId: string, mapping?: ImportMapping[], paths?: string[]): Promise<CommandHandle> {
+        return runArrManualImport(this.#http, this.id, 'artist', downloadId, mapping, paths);
     }
 
     async listCommands(): Promise<CommandStatus[]> {
@@ -686,10 +686,10 @@ export class LidarrAdapter
      */
     async triggerSearch(id: string, target?: SearchTarget): Promise<CommandHandle> {
         this.#refuseSeasons(target?.season !== undefined || target?.episodes !== undefined);
-        const artistId = this.#numericId(id, 'artist');
+        const artistId = arrItemId(this.id, 'artist', id);
         if (target?.albums === undefined) return postArrCommand(this.#http, this.id, { name: 'ArtistSearch', artistId });
         // An album named twice is searched once: Lidarr would search it twice.
-        const albumIds = [...new Set(target.albums)].map(album => this.#numericId(album, 'album'));
+        const albumIds = [...new Set(target.albums)].map(album => arrItemId(this.id, 'album', album));
         return postArrCommand(this.#http, this.id, { name: 'AlbumSearch', albumIds });
     }
 
@@ -701,10 +701,10 @@ export class LidarrAdapter
      */
     async findReleases(opts: ReleaseScope): Promise<ReleaseCandidate[]> {
         this.#refuseSeasons(opts.season !== undefined || opts.episode !== undefined);
-        const artistId = this.#numericId(opts.id, 'artist');
+        const artistId = arrItemId(this.id, 'artist', opts.id);
         if (opts.album === undefined) return findLidarrReleases(this.#http, this.id, { artistId });
 
-        const albumId = this.#numericId(opts.album, 'album');
+        const albumId = arrItemId(this.id, 'album', opts.album);
         const album = await this.#http.get<RawAlbum>(`/api/v1/album/${albumId}`);
         if (album.artistId !== artistId) {
             throw new ServiceError('NotFound', this.id, `album ${albumId} is not one of artist ${artistId}'s albums`, {
@@ -798,7 +798,7 @@ export class LidarrAdapter
     /** Read from the artist itself, not the library cache: a write must
      *  preview against what Lidarr holds now. */
     async readForUpdate(id: string): Promise<MediaUpdateState> {
-        const artistId = this.#numericId(id, 'artist');
+        const artistId = arrItemId(this.id, 'artist', id);
         return this.#updateState(await this.#http.get<RawArtist>(`/api/v1/artist/${artistId}`));
     }
 
@@ -816,7 +816,7 @@ export class LidarrAdapter
      * next one (`ArtistEditedService`, `ArtistService.UpdateArtists`).
      */
     async updateMedia(id: string, opts: MediaUpdateOptions): Promise<MediaUpdateState> {
-        const artistId = this.#numericId(id, 'artist');
+        const artistId = arrItemId(this.id, 'artist', id);
         const updated = await this.#http.put<RawArtist[]>('/api/v1/artist/editor', {
             artistIds: [artistId],
             ...(opts.monitored === undefined ? {} : { monitored: opts.monitored }),
@@ -890,19 +890,5 @@ export class LidarrAdapter
         throw new ServiceError('NotFound', this.id, 'a Lidarr artist has no seasons or episodes', {
             remedy: 'Drop `season` and `episode`. To search specific albums, pass their ids: `albums` on trigger_search, `album` on get_releases and grab_release.'
         });
-    }
-
-    /** An album id is not on a library row, so its remedy points where album ids are listed. */
-    #numericId(value: string, what: 'artist' | 'album'): number {
-        const id = Number(value);
-        if (!Number.isInteger(id)) {
-            throw new ServiceError('NotFound', this.id, `"${value}" is not a Lidarr ${what} id`, {
-                remedy:
-                    what === 'artist'
-                        ? 'Lidarr artist ids are integers. Take one from `acquisition.id` on get_library.'
-                        : 'Lidarr album ids are integers. Take one from get_media_details on the artist, at `detail: "full"`.'
-            });
-        }
-        return id;
     }
 }

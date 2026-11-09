@@ -491,6 +491,45 @@ describe('trigger_scan importing a finished download', () => {
         expect(h.radarr.sent.filter(x => x.method === 'POST' && x.url === '/api/v3/command')).toHaveLength(1);
     });
 
+    it('imports only the previewed files when the list grows between the confirm and the apply', async () => {
+        // Reads: 1 the preview, 2 the confirm's re-plan (same list, so the
+        // token still matches), 3 the apply's own re-read, by which time a
+        // clean file has appeared.
+        let reads = 0;
+        const grown = [
+            CANDIDATES[0],
+            { ...CANDIDATES[0], path: '/downloads/Heat.1995.extra.mkv', relativePath: 'Heat.1995.extra.mkv' }
+        ];
+        const posted: { files: { path: string }[] }[] = [];
+        const impl = (async (input: string | URL | Request, init?: RequestInit) => {
+            const url = new URL(input instanceof Request ? input.url : String(input));
+            if (url.pathname === '/api/v3/manualimport') return jsonResponse(++reads >= 3 ? grown : [CANDIDATES[0]]);
+            if (url.pathname === '/api/v3/command') {
+                posted.push(JSON.parse(String(init?.body)) as { files: { path: string }[] });
+                return jsonResponse({ id: 5, name: 'ManualImport', status: 'queued' });
+            }
+            return jsonResponse({ message: 'not found' }, 404);
+        }) as unknown as typeof fetch;
+        const h = harness({
+            adapters: [new RadarrAdapter(keyed(7878), impl)],
+            permissions: { radarr: permissive(true) }
+        });
+
+        const first = await h.call({ service: 'radarr', action: 'import', download_id: 'nzo_abc' });
+        expect(first.structuredContent.confirm_token).toBeDefined();
+
+        const second = await h.call({
+            service: 'radarr',
+            action: 'import',
+            download_id: 'nzo_abc',
+            confirm: first.structuredContent.confirm_token
+        });
+
+        expect(second.structuredContent.applied).toBe(true);
+        expect(posted).toHaveLength(1);
+        expect(posted[0]?.files.map(f => f.path)).toEqual(['/downloads/Heat.1995.mkv']);
+    });
+
     it('needs a download_id', async () => {
         const h = importHarness();
         await expect(h.call({ service: 'radarr', action: 'import', dry_run: true })).rejects.toThrow(/download_id/);
@@ -569,6 +608,12 @@ describe('trigger_scan importing a finished download', () => {
             action: 'import',
             download_id: 'nzo_gb',
             mapping: [{ path: 'Good.Boy.2025.mkv', movie_id: movieId }]
+        });
+
+        it('refuses a mapped movie id of "0" at the schema, before any call', async () => {
+            const h = mappingHarness();
+            await expect(async () => h.call(args('0'))).rejects.toThrow(/numeric id/);
+            expect(h.sent).toHaveLength(0);
         });
 
         it('previews the file as the movie it was mapped to, importing nothing', async () => {
@@ -776,6 +821,7 @@ describe('trigger_scan remapping episodes', () => {
         const done = await h.call({ ...SWAP, confirm: first.structuredContent.confirm_token });
 
         expect(String(done.structuredContent.result)).toContain('renamed 1');
+        expect(done.content[0]?.text).toContain('renamed 1');
         // It has finished by the time it answers, so it must not send anyone
         // to stack_health to find out whether it worked.
         expect(String(done.structuredContent.result)).not.toMatch(/stack_health/);

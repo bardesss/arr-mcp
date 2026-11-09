@@ -3,7 +3,6 @@ import { instanceId } from '../config/instances.ts';
 import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import { apiKeyHeader } from '../core/auth.ts';
 import { LIBRARY_TTL_MS, TtlCache } from '../core/cache.ts';
-import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
 import { fenceText } from '../core/fence.ts';
 import { applyLimit } from '../core/shape.ts';
@@ -20,14 +19,14 @@ import {
 import { readArrProfileDiagnostics } from './arrProfiles.ts';
 import { readArrHistory } from './arrHistory.ts';
 import { traceArrDownload } from './arrDownloadTrace.ts';
-import { readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
+import { arrItemId, readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
 import {
     listArrImportCandidates,
     planArrEpisodeRemap,
     runArrEpisodeRemap,
     runArrManualImport
 } from './arrManualImport.ts';
-import { numericId, readArrForUpdate, updateArrMedia } from './arrUpdate.ts';
+import { readArrForUpdate, updateArrMedia } from './arrUpdate.ts';
 import { deleteArrMedia, readArrQueue, readSonarrCalendar, removeArrQueueItem, sonarrCalendarPath } from './arrQueue.ts';
 import { readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
 import { readSeedCriteria } from './arrSeedCriteria.ts';
@@ -311,8 +310,8 @@ export class SonarrAdapter
         return listArrImportCandidates(this.#http, this.id, 'series', downloadId, mapping);
     }
 
-    async runManualImport(downloadId: string, mapping?: ImportMapping[]): Promise<CommandHandle> {
-        return runArrManualImport(this.#http, this.id, 'series', downloadId, mapping);
+    async runManualImport(downloadId: string, mapping?: ImportMapping[], paths?: string[]): Promise<CommandHandle> {
+        return runArrManualImport(this.#http, this.id, 'series', downloadId, mapping, paths);
     }
 
     async planEpisodeRemap(seriesId: string, reassignments: EpisodeReassignment[]): Promise<EpisodeRemapPlan> {
@@ -348,17 +347,6 @@ export class SonarrAdapter
         return addArrMedia(this.#http, this.id, SONARR_ADD, opts);
     }
 
-    /** Shared by every write here: refuse before issuing, never after. */
-    #numericId(value: string, what: string): number {
-        const id = Number(value);
-        if (!Number.isInteger(id)) {
-            throw new ServiceError('NotFound', this.id, `"${value}" is not a Sonarr ${what} id`, {
-                remedy: `Sonarr ${what} ids are integers. Take one from \`acquisition.id\` on get_library or get_media_details.`
-            });
-        }
-        return id;
-    }
-
     /**
      * Three targets, one method, because they are one decision: what to
      * monitor. Episode ids take their own endpoint; the series and season forms
@@ -367,12 +355,12 @@ export class SonarrAdapter
      */
     async setMonitoring(id: string, opts: MonitoringTarget): Promise<void> {
         if (opts.episodeIds !== undefined) {
-            const episodeIds = opts.episodeIds.map(e => this.#numericId(e, 'episode'));
+            const episodeIds = opts.episodeIds.map(e => arrItemId(this.id, 'episode', e));
             await this.#http.put('/api/v3/episode/monitor', { episodeIds, monitored: opts.monitored }, true);
             return;
         }
 
-        const seriesId = this.#numericId(id, 'series');
+        const seriesId = arrItemId(this.id, 'series', id);
         const series = await this.#http.get<RawSeries & { id: number }>(`/api/v3/series/${seriesId}`);
 
         if (opts.season === undefined) {
@@ -389,7 +377,7 @@ export class SonarrAdapter
     }
 
     async listEpisodeFiles(seriesId: string): Promise<EpisodeFile[]> {
-        const id = this.#numericId(seriesId, 'series');
+        const id = arrItemId(this.id, 'series', seriesId);
         const files = await this.#http.get<RawEpisodeFile[]>(`/api/v3/episodefile?seriesId=${id}`);
 
         return files
@@ -428,16 +416,11 @@ export class SonarrAdapter
      * posting one runs a real search on the user's stack.
      */
     async triggerSearch(id: string, target?: SearchTarget): Promise<CommandHandle> {
-        const seriesId = Number(id);
-        if (!Number.isInteger(seriesId)) {
-            throw new ServiceError('NotFound', this.id, `"${id}" is not a Sonarr series id`, {
-                remedy: 'Sonarr series ids are integers. Take one from `acquisition.id` on get_library or get_media_details.'
-            });
-        }
+        const seriesId = arrItemId(this.id, 'series', id);
 
         const payload =
             target?.episodes !== undefined
-                ? { name: 'EpisodeSearch', episodeIds: target.episodes.map(Number) }
+                ? { name: 'EpisodeSearch', episodeIds: target.episodes.map(e => arrItemId(this.id, 'episode', e)) }
                 : target?.season !== undefined
                   ? { name: 'SeasonSearch', seriesId, seasonNumber: target.season }
                   : { name: 'SeriesSearch', seriesId };
@@ -453,7 +436,7 @@ export class SonarrAdapter
     }
 
     async getMediaDetails(id: string, opts: { includeEpisodes: boolean; episodeLimit: number }): Promise<MediaDetails> {
-        const s = await this.#http.get<RawSeries>(`/api/v3/series/${numericId(this.id, 'series', id)}`);
+        const s = await this.#http.get<RawSeries>(`/api/v3/series/${arrItemId(this.id, 'series', id)}`);
         const ratings = flattenSeriesRating(s.ratings);
 
         const base: MediaDetails = {
