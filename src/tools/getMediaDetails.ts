@@ -138,7 +138,13 @@ export async function explainMiss(adapters: readonly ServiceAdapter[], miss: Not
     let unreachable: string[];
     try {
         // `standard`, not `minimal`: the year is what tells a remake from the original.
-        const lookup = await buildLookupMedia(adapters, { query: miss.query, detail: 'standard', limit: MAX_LOOKUP_HITS }, dataset);
+        // Films and series only, asked for before the limit: five artists and
+        // books ranked first would leave the filter below nothing to keep.
+        const lookup = await buildLookupMedia(
+            adapters,
+            { query: miss.query, detail: 'standard', limit: MAX_LOOKUP_HITS, kinds: ['movie', 'series'] },
+            dataset
+        );
         found = lookup.items;
         unreachable = lookup.degraded;
     } catch (err) {

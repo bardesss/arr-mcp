@@ -2,7 +2,9 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { gather } from '../core/gather.ts';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
+import type { LibraryKind } from '../core/resolver.ts';
 import { hasCalendar, type CalendarEntry, type ServiceAdapter } from '../services/types.ts';
+import { MediaKindSchema, holds } from './mediaKind.ts';
 
 export type GetCalendarResult = {
     items: CalendarEntry[];
@@ -80,7 +82,7 @@ export function calendarLine(entry: CalendarEntry): string {
 
 export async function buildGetCalendar(
     adapters: readonly ServiceAdapter[],
-    opts: { detail: DetailLevel; limit: number; offset?: number; daysBack: number; daysAhead: number; now?: () => Date }
+    opts: { detail: DetailLevel; limit: number; offset?: number; daysBack: number; daysAhead: number; now?: () => Date; kind?: LibraryKind }
 ): Promise<GetCalendarResult> {
     // The clock is injected so tests are not time-dependent.
     const at = (opts.now ?? (() => new Date()))();
@@ -90,7 +92,10 @@ export async function buildGetCalendar(
     };
 
     const { items, degraded, counts } = await gather(
-        adapters.filter(hasCalendar).map(a => ({ id: a.id, fetch: () => a.getCalendar(range) }))
+        adapters
+            .filter(hasCalendar)
+            .filter(a => holds(a, opts.kind))
+            .map(a => ({ id: a.id, fetch: () => a.getCalendar(range) }))
     );
 
     // Sorted before limiting: a truncated calendar must drop the furthest-away
@@ -128,6 +133,9 @@ export function registerGetCalendar(server: McpServer, adapters: readonly Servic
                     )
             }),
             inputSchema: toolInput({
+                kind: MediaKindSchema.describe(
+                    'Only one service\'s calendar: `movie` (Radarr), `series` (Sonarr, Whisparr), `artist` (Lidarr\'s albums). Pass it when the request names one of those services; only they are asked. Omit for all.'
+                ),
                 detail: DetailSchema,
                 limit: LimitSchema,
                 offset: OffsetSchema,
@@ -135,13 +143,14 @@ export function registerGetCalendar(server: McpServer, adapters: readonly Servic
                 days_ahead: DaysAheadSchema
             })
         },
-        async ({ detail, limit, offset, days_back, days_ahead }) => {
+        async ({ kind, detail, limit, offset, days_back, days_ahead }) => {
             const result = await buildGetCalendar(adapters, {
                 detail,
                 limit,
                 offset,
                 daysBack: days_back,
-                daysAhead: days_ahead
+                daysAhead: days_ahead,
+                ...(kind === undefined ? {} : { kind })
             });
             const missing = result.missingFiles;
             // An album counts until every track is on disk, so with albums in the

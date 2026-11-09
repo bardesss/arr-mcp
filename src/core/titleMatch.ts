@@ -45,6 +45,30 @@ export const RANK_PREFIX = 1;
 export const RANK_SUBSTRING = 2;
 export const RANK_NONE = 3;
 
+/** A trailing year: "Title 2027", "Title (2027)" or "Title [2027]". */
+const TRAILING_YEAR = /^(.*?)[\s([]+(\d{4})[)\]]?\s*$/;
+
+/**
+ * A query's title and the year it names, when it ends in one.
+ *
+ * People ask for "Paranormal Activity (2027)" to tell a remake from the
+ * original, and a model passes that on whole. Ranked as one string it matches
+ * no title at all, every hit falls to RANK_NONE, and the list comes back in
+ * alphabetical order, which put books and series above the film.
+ *
+ * Only a year a release could carry counts: from the first films to five years
+ * out. "Blade Runner 2049" keeps its number, and so does a query that is
+ * nothing but a year ("1917"), since dropping it would leave no title.
+ */
+export function splitYear(query: string, now: Date = new Date()): { title: string; year?: number } {
+    const match = TRAILING_YEAR.exec(query.trim());
+    if (match === null) return { title: query };
+    const [, title = '', digits = ''] = match;
+    const year = Number(digits);
+    if (year < 1870 || year > now.getUTCFullYear() + 5 || normaliseTitle(title) === '') return { title: query };
+    return { title, year };
+}
+
 /** Lower is better, so results sort naturally by relevance. */
 export function rankTitle(title: string, query: string): number {
     const t = normaliseTitle(title);
