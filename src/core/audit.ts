@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import type { Database as Db } from 'better-sqlite3';
+import type { Database as Db, Statement } from 'better-sqlite3';
 import { join } from 'node:path';
 import type { WriteTier } from './permissions.ts';
 import { logger } from './logger.ts';
@@ -183,10 +183,21 @@ export class AuditUnavailableError extends Error {
 export class WriteAudit {
     readonly #db: Db;
     readonly #path: string;
+    readonly #insert: Statement;
+    readonly #settle: Statement;
+    readonly #recent: Statement;
+    readonly #counts: Statement;
 
     private constructor(db: Db, path: string) {
         this.#db = db;
         this.#path = path;
+        this.#insert = db.prepare(
+            `INSERT INTO write_audit (at, tool, service, operation, tier, target, args, caller, outcome)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'attempted')`
+        );
+        this.#settle = db.prepare(`UPDATE write_audit SET outcome = ?, detail = ?, settled_at = ? WHERE id = ?`);
+        this.#recent = db.prepare(`SELECT * FROM write_audit ORDER BY id DESC LIMIT ?`);
+        this.#counts = db.prepare(`SELECT outcome, COUNT(*) AS n FROM write_audit GROUP BY outcome`);
     }
 
     /** Opens (creating if absent) the trail in the config directory. */
@@ -220,21 +231,16 @@ export class WriteAudit {
      */
     begin(record: AuditRecord): number {
         try {
-            const result = this.#db
-                .prepare(
-                    `INSERT INTO write_audit (at, tool, service, operation, tier, target, args, caller, outcome)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'attempted')`
-                )
-                .run(
-                    new Date().toISOString(),
-                    record.tool,
-                    record.service,
-                    record.operation,
-                    record.tier,
-                    record.target,
-                    safeArgs(record.args),
-                    record.caller
-                );
+            const result = this.#insert.run(
+                new Date().toISOString(),
+                record.tool,
+                record.service,
+                record.operation,
+                record.tier,
+                record.target,
+                safeArgs(record.args),
+                record.caller
+            );
             return Number(result.lastInsertRowid);
         } catch (err) {
             throw new AuditUnavailableError(this.#path, err);
@@ -253,9 +259,7 @@ export class WriteAudit {
      */
     settle(id: number, outcome: Exclude<WriteOutcome, 'attempted'>, detail?: string): void {
         try {
-            this.#db
-                .prepare(`UPDATE write_audit SET outcome = ?, detail = ?, settled_at = ? WHERE id = ?`)
-                .run(outcome, detail ?? null, new Date().toISOString(), id);
+            this.#settle.run(outcome, detail ?? null, new Date().toISOString(), id);
         } catch (err) {
             logger.error({ err, id, outcome, path: this.#path }, 'could not settle write audit row');
         }
@@ -263,7 +267,7 @@ export class WriteAudit {
 
     /** Newest first. */
     recent(limit = 50): AuditRow[] {
-        return this.#db.prepare(`SELECT * FROM write_audit ORDER BY id DESC LIMIT ?`).all(limit) as AuditRow[];
+        return this.#recent.all(limit) as AuditRow[];
     }
 
     /**
@@ -274,9 +278,7 @@ export class WriteAudit {
      * total.
      */
     counts(): { applied: number; denied: number; total: number } {
-        const rows = this.#db
-            .prepare(`SELECT outcome, COUNT(*) AS n FROM write_audit GROUP BY outcome`)
-            .all() as { outcome: string; n: number }[];
+        const rows = this.#counts.all() as { outcome: string; n: number }[];
 
         let applied = 0;
         let denied = 0;
