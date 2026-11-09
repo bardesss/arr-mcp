@@ -102,6 +102,12 @@ deliberately will not do on its own:
   so they are ignored in both the `npm` and `docker` ecosystems. Nothing will
   remind you; bumping Node is a deliberate, hand-written change.
 
+`package.json` carries one npm override. `minimatch` is forced to `^11` (#434)
+to clear GHSA-g3hv-75wg-m249 while eslint, `@eslint/config-array` and
+typescript-eslint still asked for `^10`. Remove the override once
+`npm view eslint dependencies.minimatch` and the same for the other two all
+accept 11, and drop it as a `chore(deps)` commit.
+
 ## Commit messages
 
 [Conventional Commits](https://www.conventionalcommits.org/) — release-please
@@ -795,4 +801,4 @@ Review `git diff test/fixtures/` before committing regardless.
 ## Reporting a bug
 
 Please include service versions, your arr-mcp version, and redacted logs.
-Redact API keys and the bearer token.
+Redact API keys and MCP tokens.

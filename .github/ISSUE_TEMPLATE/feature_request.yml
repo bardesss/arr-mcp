@@ -70,6 +70,7 @@ body:
         - label: Reclaimerr
         - label: Dispatcharr
         - label: Shelfmark
+        - label: Grimmory
 
   - type: input
     id: unsupported-service
