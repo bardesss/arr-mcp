@@ -1,13 +1,13 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
+import { INSTANCE_PARAM_DESCRIPTION } from './resolveInstance.ts';
 import type { ServiceId } from '../config/schema.ts';
 import { serviceOf } from '../config/schema.ts';
-import { ServiceError } from '../core/errors.ts';
 import { gather } from '../core/gather.ts';
-import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, windowEnd, type DetailLevel } from '../core/shape.ts';
-import { hasWanted, type ServiceAdapter, type WantedCapable, type WantedItem, type WantedScope } from '../services/types.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, windowEnd, type DetailLevel, unreachableTail } from '../core/shape.ts';
+import { hasWanted, type ServiceAdapter, type WantedItem, type WantedScope } from '../services/types.ts';
 import { episodeCode } from '../core/labels.ts';
+import { readTargets, serviceTarget } from './serviceTarget.ts';
 
 export type GetWantedResult = {
     items: WantedItem[];
@@ -73,6 +73,8 @@ export function wantedLine(item: WantedItem): string {
     return `${item.title}${album}${numbering}${episode} — ${facts.join(', ')}`;
 }
 
+const TARGET = serviceTarget({ services: ['radarr', 'sonarr', 'lidarr'], can: hasWanted, cannot: 'has no wanted list to return' });
+
 export async function buildGetWanted(
     adapters: readonly ServiceAdapter[],
     opts: {
@@ -84,39 +86,13 @@ export async function buildGetWanted(
         offset?: number;
     }
 ): Promise<GetWantedResult> {
-    let scoped: (ServiceAdapter & WantedCapable)[];
-    if (opts.service === undefined) {
-        scoped = adapters.filter(hasWanted);
-    } else {
-        const adapter = resolveInstance(adapters, opts.service, opts.instance);
-        // A valid, configured service with no wanted list (e.g. Jellyfin) must
-        // refuse rather than silently answer empty — an empty result reads as
-        // "nothing is wanted", which is a different and more misleading claim
-        // than "this service cannot answer that".
-        if (!hasWanted(adapter)) {
-            throw new ServiceError('NotFound', adapter.id, `${adapter.id} has no wanted list to return`, {
-                remedy: 'Only radarr, sonarr and lidarr can answer get_wanted.'
-            });
-        }
-        scoped = [adapter];
-    }
-
     // Each service hands over its first `want` rows and says how many it has
     // (#293). `gather` keeps source order, so the concatenated window is the
     // one the whole lists would give.
     const want = windowEnd(opts.limit, opts.offset);
-    const totals: Record<string, number> = {};
     const { items, degraded, counts } = await gather(
-        scoped.map(a => ({
-            id: a.id,
-            fetch: async () => {
-                const read = await a.readWanted(opts.scope, want);
-                totals[a.id] = read.total;
-                return read.items;
-            }
-        }))
+        readTargets(adapters, TARGET, opts.service, opts.instance).map(a => ({ id: a.id, fetch: () => a.readWanted(opts.scope, want) }))
     );
-    for (const id of Object.keys(counts)) counts[id] = totals[id] ?? counts[id] ?? 0;
 
     const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
     const shaped = applyLimit(items, opts.limit, opts.offset, total);
@@ -134,7 +110,7 @@ export function registerGetWanted(server: McpServer, adapters: readonly ServiceA
             outputSchema: PagedOutputSchema,
             inputSchema: toolInput({
                 scope: WantedScopeSchema,
-                service: serviceOf(['radarr', 'sonarr', 'lidarr']).optional().describe('Scope to one service.'),
+                service: serviceOf(TARGET.services).optional().describe('Scope to one service.'),
                 instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
                 detail: DetailSchema,
                 limit: LimitSchema,
@@ -152,7 +128,7 @@ export function registerGetWanted(server: McpServer, adapters: readonly ServiceA
             });
             const summary =
                 `${result.returned} of ${result.total} ${scope} item${result.returned === 1 ? '' : 's'}` +
-                (result.degraded.length > 0 ? `; ${result.degraded.join(', ')} unreachable.` : '.');
+                unreachableTail(result.degraded);
 
             return { content: [{ type: 'text', text: listText(summary, result.items, wantedLine) }], structuredContent: result };
         }

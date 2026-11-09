@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { gather } from '../core/gather.ts';
-import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel, unreachableTail } from '../core/shape.ts';
 import type { LibraryKind } from '../core/resolver.ts';
 import { rankTitle, splitYear, unfenced } from '../core/titleMatch.ts';
 import { enrichWithImdb } from '../metadata/enrich.ts';
@@ -184,10 +184,9 @@ export function registerSearchMedia(
                 wantsCards(mediaCards, server, ctx)
             );
             const summary =
-                result.total === 0
-                    ? `No ${source} results for "${query}".`
-                    : `${result.returned} of ${result.total} ${source} result(s) for "${query}".` +
-                      (result.degraded.length > 0 ? ` ${result.degraded.join(', ')} unreachable.` : '');
+                (result.total === 0
+                    ? `No ${source} results for "${query}"`
+                    : `${result.returned} of ${result.total} ${source} result(s) for "${query}"`) + unreachableTail(result.degraded);
 
             return withCards({ content: [{ type: 'text' as const, text: listText(summary, result.items, searchLine) }], structuredContent: result }, cards);
         }

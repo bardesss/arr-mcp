@@ -5,7 +5,7 @@ import { type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { hasPause, hasSpeedLimit, type ServiceAdapter } from '../services/types.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
-import { targetInput, writeTarget } from './writeTarget.ts';
+import { targetInput, serviceTarget } from './serviceTarget.ts';
 
 /**
  * "Stop downloading, I need the bandwidth" — and its inverse, which is the
@@ -22,7 +22,7 @@ import { targetInput, writeTarget } from './writeTarget.ts';
  * wrong permission is not.
  */
 
-const TARGET = writeTarget({
+const TARGET = serviceTarget({
     services: ['sabnzbd', 'nzbget', 'transmission', 'qbittorrent'],
     can: hasPause,
     cannot: 'cannot be paused',

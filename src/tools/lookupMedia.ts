@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, listText, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, listText, toolInput, type DetailLevel, unreachableTail } from '../core/shape.ts';
 import type { ImdbDataset } from '../metadata/imdbDataset.ts';
 import type { LibraryKind } from '../core/resolver.ts';
 import type { ServiceAdapter } from '../services/types.ts';
@@ -56,9 +56,8 @@ export function registerLookupMedia(
                 wantsCards(mediaCards, server, ctx)
             );
             const summary =
-                result.total === 0
-                    ? `Nothing found for "${query}".`
-                    : `${result.returned} of ${result.total} match(es) for "${query}".`;
+                (result.total === 0 ? `Nothing found for "${query}"` : `${result.returned} of ${result.total} match(es) for "${query}"`) +
+                unreachableTail(result.degraded);
 
             return withCards({ content: [{ type: 'text' as const, text: listText(summary, result.items, searchLine) }], structuredContent: result }, cards);
         }

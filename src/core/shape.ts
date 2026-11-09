@@ -267,3 +267,10 @@ export function preferred<T>(opts: {
 
     return opts.value ?? fromAlias;
 }
+
+/**
+ * Ends a summary line, naming the services that did not answer: a short or
+ * empty list may be an outage rather than an answer.
+ */
+export const unreachableTail = (degraded: readonly string[]): string =>
+    degraded.length > 0 ? `; ${degraded.join(', ')} unreachable.` : '.';

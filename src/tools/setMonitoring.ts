@@ -14,10 +14,10 @@ import { managedIdByTitle } from './byTitle.ts';
 import type { LibraryLoader } from './library.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 import { titled } from '../core/labels.ts';
-import { targetInput, writeTarget } from './writeTarget.ts';
+import { targetInput, serviceTarget } from './serviceTarget.ts';
 import { checkScope, EPISODE_LIMIT, refuseBoth } from './itemScope.ts';
 
-const TARGET = writeTarget({
+const TARGET = serviceTarget({
     services: ['sonarr', 'whisparr', 'lidarr'],
     can: hasMonitoring,
     cannot: 'has no monitoring to set',

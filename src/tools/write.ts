@@ -9,7 +9,7 @@ import { toolInput } from '../core/shape.ts';
 import { logger } from '../core/logger.ts';
 import type { CrossCheckProfile, CrossCheckSubject, CrossChecker } from './crossChecks.ts';
 import type { LibraryLoader } from './library.ts';
-import { resolveTarget, type WriteTarget } from './writeTarget.ts';
+import { resolveTarget, type ServiceTarget } from './serviceTarget.ts';
 import type { ServiceId } from '../config/schema.ts';
 import type { ServiceAdapter } from '../services/types.ts';
 
@@ -87,7 +87,7 @@ type Routing<Schema extends z.ZodObject, Adapter> =
            * checking `radarr` against a config that only grants `radarr/hd` would
            * deny a permitted write, or worse, the reverse.
            */
-          target: { adapters: readonly ServiceAdapter[]; to: WriteTarget<Adapter & ServiceAdapter> };
+          target: { adapters: readonly ServiceAdapter[]; to: ServiceTarget<Adapter & ServiceAdapter> };
           service?: never;
       };
 

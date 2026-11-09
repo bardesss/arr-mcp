@@ -4,7 +4,7 @@ import { hasEpisodeFiles, type EpisodeSummary, type ServiceAdapter } from '../se
 import { arrSubject } from './crossChecks.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 import { titled } from '../core/labels.ts';
-import { targetInput, writeTarget } from './writeTarget.ts';
+import { targetInput, serviceTarget } from './serviceTarget.ts';
 import { checkScope, describable, EPISODE_LIMIT, refuseBoth } from './itemScope.ts';
 
 const GIB = 1024 ** 3;
@@ -16,7 +16,7 @@ function humanSize(bytes: number): string | undefined {
     return bytes >= GIB ? `${(bytes / GIB).toFixed(1)} GB` : `${Math.round(bytes / 1024 ** 2)} MB`;
 }
 
-const TARGET = writeTarget({
+const TARGET = serviceTarget({
     services: ['sonarr', 'whisparr'],
     can: hasEpisodeFiles,
     cannot: 'has no episode files to delete',

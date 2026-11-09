@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { gather } from '../core/gather.ts';
-import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel, unreachableTail } from '../core/shape.ts';
 import { annotateCleanuparr, dueWithin, type CleanuparrDue } from './cleanuparrQueue.ts';
 import type { LibraryKind } from '../core/resolver.ts';
 import { hasQueue, type QueueItem, type ServiceAdapter } from '../services/types.ts';
@@ -261,7 +261,7 @@ export function registerGetQueue(server: McpServer, adapters: readonly ServiceAd
             });
             const summary =
                 `${result.returned} of ${result.total} item(s) in the queue${filtered ? ' match' : ''}` +
-                (result.degraded.length > 0 ? `; ${result.degraded.join(', ')} unreachable.` : '.') +
+                unreachableTail(result.degraded) +
                 (result.cleanuparrDue === undefined ? '' : ` ${dueText(result.cleanuparrDue)}`);
 
             const trackers =

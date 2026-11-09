@@ -4,9 +4,9 @@ import { ServiceError } from '../core/errors.ts';
 import { logger } from '../core/logger.ts';
 import { hasQueue, hasQueueRemove, type QueueItem, type ServiceAdapter, type QueueRemoveCapable, type QueueCapable } from '../services/types.ts';
 import { outcomeText, registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
-import { targetInput, writeTarget } from './writeTarget.ts';
+import { targetInput, serviceTarget } from './serviceTarget.ts';
 
-const TARGET = writeTarget({
+const TARGET = serviceTarget({
     services: ['radarr', 'sonarr', 'whisparr', 'lidarr'],
     can: (a): a is ServiceAdapter & QueueRemoveCapable & QueueCapable => hasQueueRemove(a) && hasQueue(a),
     cannot: 'has no download queue',

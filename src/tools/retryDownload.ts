@@ -10,7 +10,7 @@ import {
     type ServiceAdapter
 } from '../services/types.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
-import { targetInput, writeTarget } from './writeTarget.ts';
+import { targetInput, serviceTarget } from './serviceTarget.ts';
 
 /**
  * "The download failed, try it again" — on the usenet client itself, which is
@@ -24,7 +24,7 @@ import { targetInput, writeTarget } from './writeTarget.ts';
  * the audit log scrubs; it never reaches the summary, effects or result.
  */
 
-const TARGET = writeTarget({
+const TARGET = serviceTarget({
     services: ['sabnzbd', 'nzbget', 'shelfmark'],
     can: hasRetry,
     cannot: 'cannot retry a download'

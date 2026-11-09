@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { gather } from '../core/gather.ts';
-import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel, unreachableTail } from '../core/shape.ts';
 import type { LibraryKind } from '../core/resolver.ts';
 import { hasCalendar, type CalendarEntry, type ServiceAdapter } from '../services/types.ts';
 import { MediaKindSchema, holds } from './mediaKind.ts';
@@ -161,7 +161,7 @@ export function registerGetCalendar(server: McpServer, adapters: readonly Servic
             const summary =
                 `${result.returned} of ${result.total} item(s) between ${days_back} days back and ${days_ahead} ahead` +
                 (missing > 0 ? `, ${missing} ${unit}` : '') +
-                (result.degraded.length > 0 ? `; ${result.degraded.join(', ')} unreachable.` : '.');
+                unreachableTail(result.degraded);
 
             return { content: [{ type: 'text', text: listText(summary, result.items, calendarLine) }], structuredContent: result };
         }

@@ -1,11 +1,11 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
+import { INSTANCE_PARAM_DESCRIPTION } from './resolveInstance.ts';
 import { type ServiceId, serviceOf } from '../config/schema.ts';
-import { ServiceError } from '../core/errors.ts';
 import { gather } from '../core/gather.ts';
-import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
-import { hasBlocklist, type BlocklistCapable, type BlocklistEntry, type ServiceAdapter } from '../services/types.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel, unreachableTail } from '../core/shape.ts';
+import { hasBlocklist, type BlocklistEntry, type ServiceAdapter } from '../services/types.ts';
+import { readTargets, serviceTarget } from './serviceTarget.ts';
 
 export type GetBlocklistResult = {
     items: BlocklistEntry[];
@@ -44,26 +44,20 @@ export function blocklistLine(entry: BlocklistEntry): string {
     return `${entry.title} — ${facts.join(', ')}`;
 }
 
+const TARGET = serviceTarget({
+    services: ['radarr', 'sonarr', 'whisparr', 'lidarr'],
+    can: hasBlocklist,
+    cannot: 'has no blocklist',
+    hint: 'The download clients have none — a release they refused was refused by the *arr that queued it.'
+});
+
 export async function buildGetBlocklist(
     adapters: readonly ServiceAdapter[],
     opts: { service?: ServiceId; instance?: string; detail: DetailLevel; limit: number; offset?: number }
 ): Promise<GetBlocklistResult> {
-    let scoped: (ServiceAdapter & BlocklistCapable)[];
-    if (opts.service === undefined) {
-        scoped = adapters.filter(hasBlocklist);
-    } else {
-        const adapter = resolveInstance(adapters, opts.service, opts.instance);
-        // Answering empty for a service that has no blocklist would read as
-        // "nothing is blocklisted", which is a different claim.
-        if (!hasBlocklist(adapter)) {
-            throw new ServiceError('NotFound', adapter.id, `${adapter.id} has no blocklist`, {
-                remedy: 'Only radarr, sonarr and lidarr keep a blocklist. The download clients have none — a release they refused was refused by the *arr that queued it.'
-            });
-        }
-        scoped = [adapter];
-    }
-
-    const { items, degraded, counts } = await gather(scoped.map(a => ({ id: a.id, fetch: () => a.readBlocklist() })));
+    const { items, degraded, counts } = await gather(
+        readTargets(adapters, TARGET, opts.service, opts.instance).map(a => ({ id: a.id, fetch: () => a.readBlocklist() }))
+    );
 
     // Newest first: a blocklist is read to explain something that just went
     // wrong, and the row that explains it is almost always the last one added.
@@ -82,7 +76,7 @@ export function registerGetBlocklist(server: McpServer, adapters: readonly Servi
                 'Why a release keeps getting skipped. Lists what Radarr, Sonarr, Whisparr and Lidarr have blocklisted — releases they will not grab again — with the reason each was blocklisted, usually relayed from the download client. This is the answer to "it keeps finding the same thing and never downloading it", which `get_history` shows as a repeating grab-then-fail and nothing explains. Rows carry `mediaId` for get_media_details (an artist id on a Lidarr row), and `id` for remove_blocklist_item. Newest first. Radarr, Sonarr, Whisparr and Lidarr only — the download clients have no blocklist of their own.',
             outputSchema: PagedOutputSchema,
             inputSchema: toolInput({
-                service: serviceOf(['radarr', 'sonarr', 'whisparr', 'lidarr']).optional().describe('Scope to one service. Omit to merge them all.'),
+                service: serviceOf(TARGET.services).optional().describe('Scope to one service. Omit to merge them all.'),
                 instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
                 detail: DetailSchema,
                 limit: LimitSchema,
@@ -100,7 +94,7 @@ export function registerGetBlocklist(server: McpServer, adapters: readonly Servi
 
             const summary =
                 `${result.returned} of ${result.total} blocklisted release${result.returned === 1 ? '' : 's'}` +
-                (result.degraded.length > 0 ? `; ${result.degraded.join(', ')} unreachable.` : '.');
+                unreachableTail(result.degraded);
 
             return { content: [{ type: 'text', text: listText(summary, result.items, blocklistLine) }], structuredContent: result };
         }
