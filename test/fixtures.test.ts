@@ -95,11 +95,11 @@ export const publicAddresses = (text: string): string[] => {
 
 /** Domains an anonymised address may end in: the one the capture script writes
  *  and the reserved documentation domains. */
-const PLACEHOLDER_EMAIL = /@(?:[w-]+.)*(?:example.test|example.com|example.org|example.net)$/i;
+const PLACEHOLDER_EMAIL = /@(?:[\w-]+\.)*(?:example\.test|example\.com|example\.org|example\.net)$/i;
 
 /** Every `"email"` value in raw text that is not a placeholder address. */
 export const realEmails = (text: string): string[] =>
-    [...text.matchAll(/"email"s*:s*"([^"]*)"/gi)].map(m => m[1]!).filter(e => e !== '' && !PLACEHOLDER_EMAIL.test(e));
+    [...text.matchAll(/"email"\s*:\s*"([^"]*)"/gi)].map(m => m[1]!).filter(e => e !== '' && !PLACEHOLDER_EMAIL.test(e));
 
 type Finding = { file: string; path: string; reason: string };
 
@@ -184,6 +184,12 @@ describe('the guard itself', () => {
     it('flags an email that is not on a placeholder domain', () => {
         expect(realEmails('{"email":"someone@gmail.com","b":{"email":"user1@example.test"}}')).toEqual(['someone@gmail.com']);
         expect(realEmails('{"email":"a@example.com","email2":"x@y.nl","email":""}')).toEqual([]);
+    });
+
+    it('reads pretty-printed JSON, and does not let a look-alike domain pass', () => {
+        expect(realEmails('{\n  "email": "x@gmail.com"\n}')).toEqual(['x@gmail.com']);
+        expect(realEmails('{\n  "email": "x@exampleXtest"\n}')).toEqual(['x@exampleXtest']);
+        expect(realEmails('{\n  "email": "x@notexample.test.evil.nl"\n}')).toEqual(['x@notexample.test.evil.nl']);
     });
 
     it('flags a session id, which the capture script also redacts', () => {
