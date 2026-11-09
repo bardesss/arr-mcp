@@ -18,6 +18,7 @@ import {
     type ServiceAdapter,
     type SubtitleCapable,
     type SubtitleGap,
+    type SubtitleItem,
     type SubtitleProvider,
     type SubtitleSearchCapable,
     type SubtitleSearchTarget
@@ -53,6 +54,18 @@ type RawWantedEpisode = {
     sceneName?: string | null;
     missing_subtitles?: RawMissing[];
 };
+
+/** A row of `/api/episodes`, which carries the season and episode as numbers and no series title. */
+type RawSeriesEpisode = {
+    sonarrEpisodeId?: number;
+    sonarrSeriesId?: number;
+    title?: string;
+    season?: number;
+    episode?: number;
+    sceneName?: string | null;
+    missing_subtitles?: RawMissing[];
+};
+type RawSeries = { sonarrSeriesId?: number; title?: string };
 
 /**
  * Bazarr reports the position as a single `"5x2"` string rather than separate
@@ -170,50 +183,127 @@ export class BazarrAdapter
      * which is where the design spec wants partial-result handling to live.
      */
     async getMissingSubtitles(): Promise<SubtitleGap[]> {
-        const fence = fencer(this.id);
-
         const [movies, episodes] = await Promise.all([
             this.#http.get<Envelope<RawWantedMovie[]>>('/api/movies/wanted'),
             this.#http.get<Envelope<RawWantedEpisode[]>>('/api/episodes/wanted')
         ]);
 
-        const language = (m: RawMissing): MissingLanguage => ({
+        const movieGaps = (movies.data ?? []).flatMap(m => this.#movieGap(m) ?? []);
+        const episodeGaps = (episodes.data ?? []).flatMap(e => {
+            if (typeof e.sonarrEpisodeId !== 'number') return [];
+            const { season, episode } = parseEpisodeNumber(e.episode_number);
+            return [
+                this.#episodeGap({
+                    id: e.sonarrEpisodeId,
+                    seriesId: e.sonarrSeriesId,
+                    seriesTitle: e.seriesTitle,
+                    episodeTitle: e.episodeTitle,
+                    season,
+                    episode,
+                    sceneName: e.sceneName,
+                    missing: e.missing_subtitles
+                })
+            ];
+        });
+
+        return [...movieGaps, ...episodeGaps];
+    }
+
+    /**
+     * One film's or one series' gaps, without reading the whole library's.
+     *
+     * Confirmed against a live Bazarr 1.6.0: `movies/wanted` honours
+     * `radarrid[]`, but `episodes/wanted` ignores `seriesid[]`, so a series is
+     * read from `episodes` (which honours it; the rows with a missing subtitle
+     * are exactly that series' rows in the wanted list) plus `series` for the
+     * title the wanted list would have carried.
+     *
+     * The answer is filtered by id here as well: a Bazarr that ignores a
+     * parameter costs time, never a gap that belongs to another title.
+     */
+    async getMissingSubtitlesFor(item: SubtitleItem): Promise<SubtitleGap[]> {
+        if (item.kind === 'movie') {
+            const body = await this.#http.get<Envelope<RawWantedMovie[]>>(`/api/movies/wanted?radarrid[]=${item.id}`);
+            return (body.data ?? []).filter(m => m.radarrId === item.id).flatMap(m => this.#movieGap(m) ?? []);
+        }
+
+        const [episodes, series] = await Promise.all([
+            this.#http.get<Envelope<RawSeriesEpisode[]>>(`/api/episodes?seriesid[]=${item.seriesId}`),
+            this.#http.get<Envelope<RawSeries[]>>(`/api/series?seriesid[]=${item.seriesId}`)
+        ]);
+        const seriesTitle = (series.data ?? []).find(s => s.sonarrSeriesId === item.seriesId)?.title;
+
+        const mine = (episodes.data ?? []).filter(
+            e => e.sonarrSeriesId === item.seriesId && typeof e.sonarrEpisodeId === 'number' && (e.missing_subtitles ?? []).length > 0
+        );
+        // Without the series row the gaps cannot be tied to a title, and the chain would read them as none missing.
+        if (seriesTitle === undefined && mine.length > 0) {
+            throw new ServiceError('UpstreamError', this.id, `series ${item.seriesId} has episodes but no series row`);
+        }
+
+        return mine.flatMap(e =>
+            typeof e.sonarrEpisodeId === 'number'
+                ? [
+                      this.#episodeGap({
+                          id: e.sonarrEpisodeId,
+                          seriesId: e.sonarrSeriesId,
+                          seriesTitle,
+                          episodeTitle: e.title,
+                          season: e.season,
+                          episode: e.episode,
+                          sceneName: e.sceneName,
+                          missing: e.missing_subtitles
+                      })
+                  ]
+                : []
+        );
+    }
+
+    #language(m: RawMissing): MissingLanguage {
+        return {
             name: m.name ?? 'unknown',
             code2: m.code2 ?? '??',
             forced: m.forced ?? false,
             hearingImpaired: m.hi ?? false
-        });
+        };
+    }
 
-        const movieGaps: SubtitleGap[] = (movies.data ?? [])
-            .filter((m): m is RawWantedMovie & { radarrId: number } => typeof m.radarrId === 'number')
-            .map(m => ({
-                service: this.id,
-                kind: 'movie' as const,
-                id: m.radarrId,
-                title: fence(m.title ?? '', 'title'),
-                ...(typeof m.sceneName === 'string' ? { releaseName: fence(m.sceneName, 'sceneName') } : {}),
-                missing: (m.missing_subtitles ?? []).map(language)
-            }));
+    #movieGap(m: RawWantedMovie): SubtitleGap | undefined {
+        if (typeof m.radarrId !== 'number') return undefined;
+        const fence = fencer(this.id);
+        return {
+            service: this.id,
+            kind: 'movie',
+            id: m.radarrId,
+            title: fence(m.title ?? '', 'title'),
+            ...(typeof m.sceneName === 'string' ? { releaseName: fence(m.sceneName, 'sceneName') } : {}),
+            missing: (m.missing_subtitles ?? []).map(l => this.#language(l))
+        };
+    }
 
-        const episodeGaps: SubtitleGap[] = (episodes.data ?? [])
-            .filter((e): e is RawWantedEpisode & { sonarrEpisodeId: number } => typeof e.sonarrEpisodeId === 'number')
-            .map(e => {
-                const { season, episode } = parseEpisodeNumber(e.episode_number);
-                return {
-                    service: this.id,
-                    kind: 'episode' as const,
-                    id: e.sonarrEpisodeId,
-                    ...(typeof e.sonarrSeriesId === 'number' ? { seriesId: e.sonarrSeriesId } : {}),
-                    title: fence('seriesTitle', e.seriesTitle ?? ''),
-                    ...(e.episodeTitle === undefined ? {} : { episodeTitle: fence('episodeTitle', e.episodeTitle) }),
-                    ...(season === undefined ? {} : { season }),
-                    ...(episode === undefined ? {} : { episode }),
-                    ...(typeof e.sceneName === 'string' ? { releaseName: fence('sceneName', e.sceneName) } : {}),
-                    missing: (e.missing_subtitles ?? []).map(language)
-                };
-            });
-
-        return [...movieGaps, ...episodeGaps];
+    #episodeGap(e: {
+        id: number;
+        seriesId: number | undefined;
+        seriesTitle: string | undefined;
+        episodeTitle: string | undefined;
+        season: number | undefined;
+        episode: number | undefined;
+        sceneName: string | null | undefined;
+        missing: RawMissing[] | undefined;
+    }): SubtitleGap {
+        const fence = fencer(this.id);
+        return {
+            service: this.id,
+            kind: 'episode',
+            id: e.id,
+            ...(typeof e.seriesId === 'number' ? { seriesId: e.seriesId } : {}),
+            title: fence(e.seriesTitle ?? '', 'seriesTitle'),
+            ...(e.episodeTitle === undefined ? {} : { episodeTitle: fence(e.episodeTitle, 'episodeTitle') }),
+            ...(e.season === undefined ? {} : { season: e.season }),
+            ...(e.episode === undefined ? {} : { episode: e.episode }),
+            ...(typeof e.sceneName === 'string' ? { releaseName: fence(e.sceneName, 'sceneName') } : {}),
+            missing: (e.missing ?? []).map(l => this.#language(l))
+        };
     }
 
     /**

@@ -117,6 +117,13 @@ const firstId = (body: unknown): number | undefined => {
     return typeof row?.id === 'number' ? row.id : undefined;
 };
 
+/** First numeric `field` in a captured Bazarr `{ data: [...] }` list. */
+const firstBazarrId = (body: unknown, field: string): number | undefined => {
+    const rows = (body as { data?: unknown } | undefined)?.data;
+    const row = (Array.isArray(rows) ? rows[0] : undefined) as Record<string, unknown> | undefined;
+    return typeof row?.[field] === 'number' ? row[field] : undefined;
+};
+
 /**
  * First series in a captured `series` fixture that actually has files on disk.
  *
@@ -841,7 +848,32 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         { name: 'log', path: '/api/system/logs', anonymise: anonymiseBazarrLog },
         { name: 'providers', path: '/api/providers' },
         { name: 'movies-wanted', path: '/api/movies/wanted' },
-        { name: 'episodes-wanted', path: '/api/episodes/wanted' }
+        { name: 'episodes-wanted', path: '/api/episodes/wanted' },
+        // The one-item reads `diagnose` makes. A movie takes the wanted list's
+        // own filter; `episodes/wanted` ignores `seriesid[]`, so a series is
+        // read from `episodes` (kept where a subtitle is missing) plus
+        // `series` for its title.
+        {
+            name: 'movies-wanted-one',
+            path: captured => {
+                const id = firstBazarrId(captured.get('movies-wanted'), 'radarrId');
+                return id === undefined ? undefined : `/api/movies/wanted?radarrid[]=${id}`;
+            }
+        },
+        {
+            name: 'episodes-series',
+            path: captured => {
+                const id = firstBazarrId(captured.get('episodes-wanted'), 'sonarrSeriesId');
+                return id === undefined ? undefined : `/api/episodes?seriesid[]=${id}`;
+            }
+        },
+        {
+            name: 'series-one',
+            path: captured => {
+                const id = firstBazarrId(captured.get('episodes-wanted'), 'sonarrSeriesId');
+                return id === undefined ? undefined : `/api/series?seriesid[]=${id}`;
+            }
+        }
     ],
     jellyfin: [
         { name: 'system-info', path: '/System/Info' },

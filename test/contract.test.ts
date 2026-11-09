@@ -741,7 +741,26 @@ const CONTRACTS: Record<string, ServiceContract> = {
                 // separate season and episode fields.
                 fixture: 'test/fixtures/bazarr/episodes-wanted.json',
                 fields: ['data.sonarrEpisodeId', 'data.seriesTitle', 'data.episode_number', 'data.missing_subtitles']
-            }
+            },
+            {
+                fixture: 'test/fixtures/bazarr/movies-wanted-one.json',
+                fields: ['data.radarrId', 'data.title', 'data.sceneName', 'data.missing_subtitles']
+            },
+            {
+                // `episodes/wanted` ignores `seriesid[]`; `episodes` honours it and carries
+                // the numbers separately, but no series title (that is `series-one`).
+                fixture: 'test/fixtures/bazarr/episodes-series.json',
+                fields: [
+                    'data.sonarrEpisodeId',
+                    'data.sonarrSeriesId',
+                    'data.title',
+                    'data.season',
+                    'data.episode',
+                    'data.sceneName',
+                    'data.missing_subtitles'
+                ]
+            },
+            { fixture: 'test/fixtures/bazarr/series-one.json', fields: ['data.sonarrSeriesId', 'data.title'] }
         ]
     },
     sabnzbd: {

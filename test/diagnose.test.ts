@@ -1,12 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { KeyedServiceConfig } from '../src/config/schema.ts';
 import { ServiceError } from '../src/core/errors.ts';
 import { IdentityResolver } from '../src/core/identity.ts';
 import type { IndexInput } from '../src/core/resolver.ts';
 import { buildChain as chain, type Diagnosis, type Evidence } from '../src/tools/diagnose/chain.ts';
-import { collectEvidence } from '../src/tools/diagnose/evidence.ts';
+import { collectEvidence, DIAGNOSE_BUDGET_MS } from '../src/tools/diagnose/evidence.ts';
 import { buildDiagnose, type DiagnoseDeps } from '../src/tools/diagnose/index.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
 import { GrimmoryAdapter } from '../src/services/grimmory.ts';
@@ -373,7 +373,7 @@ describe('diagnose', () => {
         const adapters = [
             Object.assign(lidarr(), { listLibrary: async () => [withFiles] }),
             stub('seerr', { getRequests: track('seerr') }),
-            stub('bazarr', { getMissingSubtitles: track('bazarr') }),
+            stub('bazarr', { getMissingSubtitles: track('bazarr'), getMissingSubtitlesFor: track('bazarr') }),
             stub('reclaimerr', { readCleanupStatus: track('reclaimerr') })
         ];
         const d = await buildDiagnose({ adapters, library: new LibraryLoader(adapters, undefined) }, { query: 'daft punk' });
@@ -549,6 +549,57 @@ describe('diagnose', () => {
 
     it('names the parameters when given neither', async () => {
         await expect(buildDiagnose(deps(), {})).rejects.toThrow(/query.*service.*id/i);
+    });
+
+    describe('a title that does not resolve', () => {
+        const counting = () => {
+            const calls: string[] = [];
+            let historyReads = 0;
+            const adapters = [
+                stub('sabnzbd', {
+                    getQueue: async () => [],
+                    readHistory: async () => {
+                        historyReads += 1;
+                        return [];
+                    }
+                }),
+                stub('radarr', {
+                    listLibrary: async () => [FILM],
+                    getQueue: async () => {
+                        calls.push('queue');
+                        return [];
+                    }
+                }),
+                stub('prowlarr', {
+                    getIndexers: async () => [],
+                    getRecentRejections: async () => {
+                        calls.push('rejections');
+                        return [];
+                    }
+                }),
+                stub('seerr', {
+                    getRequests: async () => {
+                        calls.push('requests');
+                        throw new Error('down');
+                    }
+                })
+            ];
+            return { calls, get historyReads() { return historyReads; }, deps: { adapters, library: new LibraryLoader(adapters, undefined) } };
+        };
+        it('reads nothing past the library, so Seerr cannot make it uncertain', async () => {
+            const c = counting();
+            const result = await buildDiagnose(c.deps, { query: 'nothing like this' });
+            expect(c.calls).toEqual([]);
+            // the history read is what answers a miss, so it still happens
+            expect(c.historyReads).toBe(1);
+            expect(result.verdict.certain).toBe(true);
+            expect(result.degraded).not.toContain('seerr');
+        });
+        it('is still read in full once a title resolves', async () => {
+            const { calls, deps: d } = counting();
+            await buildDiagnose(d, { query: 'some film' });
+            expect([...calls].sort()).toEqual(['queue', 'rejections', 'requests']);
+        });
     });
 
     it('reports a title it cannot resolve rather than throwing', async () => {
@@ -1316,12 +1367,61 @@ describe('collectEvidence — Bazarr', () => {
     const owned = { ...FILM, acquisition: { service: 'radarr', id: '5', monitored: true, hasFile: true } };
     const gap = { service: 'bazarr', kind: 'movie', id: 5, title: 'Some Film', missing: [{ name: 'Dutch', code2: 'nl', forced: false, hearingImpaired: false }] };
     const radarr = (film: IndexInput) => stub('radarr', { listLibrary: async () => [film], getQueue: async () => [] });
-    const bazarr = (read: () => Promise<unknown[]>) => stub('bazarr', { getMissingSubtitles: read, getProviders: async () => [] });
+    const bazarr = (read: (item?: unknown) => Promise<unknown[]>) =>
+        stub('bazarr', { getMissingSubtitles: async () => { throw new Error('the whole wanted list must not be read'); }, getMissingSubtitlesFor: read, getProviders: async () => [] });
     const run = (adapters: ServiceAdapter[]) => collectEvidence({ adapters, library: new LibraryLoader(adapters, undefined) }, { query: 'some film' });
 
     it('reads what Bazarr is missing for an item with a file', async () => {
         const evidence = await run([radarr(owned), bazarr(async () => [gap])]);
         expect(evidence.subtitles).toEqual({ gaps: [gap], service: 'bazarr' });
+    });
+
+    it('asks Bazarr for this one item, not the whole wanted list', async () => {
+        const asked: unknown[] = [];
+        let all = 0;
+        const adapter = stub('bazarr', {
+            getMissingSubtitles: async () => {
+                all += 1;
+                return [];
+            },
+            getMissingSubtitlesFor: async (item: unknown) => {
+                asked.push(item);
+                return [gap];
+            },
+            getProviders: async () => []
+        });
+        await run([radarr(owned), adapter]);
+        expect(asked).toEqual([{ kind: 'movie', id: 5 }]);
+        expect(all).toBe(0);
+    });
+
+    it('asks Bazarr for a series by its series id', async () => {
+        const asked: unknown[] = [];
+        const series: IndexInput = {
+            kind: 'series',
+            title: '<<untrusted:sonarr.title>>Some Series<</>>',
+            ids: { tvdb: 900 },
+            acquisition: { service: 'sonarr', id: '67', monitored: true, hasFile: true }
+        };
+        const sonarr = stub('sonarr', { listLibrary: async () => [series], getQueue: async () => [] });
+        await collectEvidence(
+            { adapters: [sonarr, bazarr(async item => { asked.push(item); return []; })], library: new LibraryLoader([sonarr], undefined) },
+            { query: 'some series' }
+        );
+        expect(asked).toEqual([{ kind: 'series', seriesId: 67 }]);
+    });
+
+    it('reads no Bazarr gaps when the item has no usable id', async () => {
+        let calls = 0;
+        const evidence = await run([
+            radarr({ ...owned, acquisition: { ...owned.acquisition, id: 'x' } }),
+            bazarr(async () => {
+                calls += 1;
+                return [gap];
+            })
+        ]);
+        expect(calls).toBe(0);
+        expect(evidence.subtitles).toEqual({ gaps: [], service: 'bazarr' });
     });
 
     it('is undefined, and degraded, when Bazarr cannot be read', async () => {
@@ -1405,5 +1505,79 @@ describe('diagnose by name and a partial match', () => {
 
     it('still prefers a film of exactly the same name', async () => {
         expect((await resolve('Daft Punk')).resolved?.kind).toBe('movie');
+    });
+});
+
+describe('the diagnose budget', () => {
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+    it('reports a service that outlasts the budget as unknown, and answers anyway', async () => {
+        vi.useFakeTimers();
+        const adapters = [
+            stub('radarr', { listLibrary: async () => [FILM], getQueue: async () => [] }),
+            stub('seerr', { getRequests: () => new Promise(() => {}) })
+        ];
+        const pending = buildDiagnose({ adapters, library: new LibraryLoader(adapters, undefined) }, { query: 'some film' });
+        await vi.advanceTimersByTimeAsync(DIAGNOSE_BUDGET_MS);
+        const d = await pending;
+        expect(d.degraded).toContain('seerr');
+        expect(d.steps.find(s => s.stage === 'request')?.status).toBe('unknown');
+        expect(d.verdict.certain).toBe(false);
+    });
+    it('reports a download client that outlasts the budget as unknown, and answers anyway', async () => {
+        vi.useFakeTimers();
+        const adapters = [stub('radarr', { listLibrary: async () => [FILM], getQueue: () => new Promise(() => {}) })];
+        const pending = buildDiagnose({ adapters, library: new LibraryLoader(adapters, undefined) }, { query: 'some film' });
+        await vi.advanceTimersByTimeAsync(DIAGNOSE_BUDGET_MS);
+        const d = await pending;
+        expect(d.degraded).toContain('radarr');
+        expect(d.steps.find(s => s.stage === 'queue')?.status).toBe('unknown');
+    });
+    it('answers a pending request without the next step when the permission check never settles', async () => {
+        vi.useFakeTimers();
+        const adapters = [
+            stub('radarr', { listLibrary: async () => [FILM], getQueue: async () => [] }),
+            stub('seerr', {
+                getRequests: async () => [{ service: 'seerr', id: 9, status: 'pending', mediaType: 'movie', tmdbId: 550, requestedBy: 'Someone', requestedById: 3 }]
+            })
+        ];
+        const pending = collectEvidence(
+            {
+                adapters,
+                library: new LibraryLoader(adapters, undefined),
+                seerrIdentity: { allowsOtherUsers: false, hasDefaultUser: true, resolve: () => new Promise(() => {}) } as never
+            },
+            { query: 'some film' }
+        );
+        await vi.advanceTimersByTimeAsync(DIAGNOSE_BUDGET_MS);
+        const evidence = await pending;
+        expect(evidence.request).toMatchObject({ status: 'pending', mayRespond: false });
+        expect(evidence.degraded).toContain('seerr');
+    });
+    it('does not start a read once the budget has run out', async () => {
+        vi.useFakeTimers();
+        let historyReads = 0;
+        const adapters = [
+            stub('radarr', {
+                listLibrary: async () => [{ ...FILM, acquisition: { service: 'radarr', id: '5', monitored: true, hasFile: false } }],
+                getQueue: () => new Promise(() => {}),
+                readHistory: async () => {
+                    historyReads += 1;
+                    return { items: [], total: 0 };
+                }
+            }),
+            stub('cleanuparr', { getSeedingRules: async () => [], readHistory: async () => ({ items: [], total: 0 }) })
+        ];
+        const pending = collectEvidence({ adapters, library: new LibraryLoader(adapters, undefined) }, { query: 'some film' });
+        await vi.advanceTimersByTimeAsync(DIAGNOSE_BUDGET_MS);
+        const evidence = await pending;
+        expect(historyReads).toBe(0);
+        expect(evidence.degraded).toContain('radarr:history');
+    });
+    it('leaves no timer running once it answers', async () => {
+        vi.useFakeTimers();
+        await buildDiagnose(deps(), { query: 'some film' });
+        expect(vi.getTimerCount()).toBe(0);
     });
 });

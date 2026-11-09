@@ -307,8 +307,13 @@ export type SubtitleProvider = {
     retryAt?: string;
 };
 
+/** One title, as `diagnose` asks about it: a film by its Radarr id, a series by its Sonarr id. */
+export type SubtitleItem = { kind: 'movie'; id: number } | { kind: 'series'; seriesId: number };
+
 export interface SubtitleCapable {
     getMissingSubtitles(): Promise<SubtitleGap[]>;
+    /** The gaps of one title, without reading every wanted subtitle in the library. */
+    getMissingSubtitlesFor(item: SubtitleItem): Promise<SubtitleGap[]>;
     getProviders(): Promise<SubtitleProvider[]>;
 }
 
