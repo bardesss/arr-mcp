@@ -121,6 +121,11 @@ export class ServiceHttp {
      * so a timed-out first attempt retrying by default turned a 120s budget
      * into two full indexer sweeps stacked on top of each other, against
      * indexers with real rate limits and ban policies.
+     *
+     * `headers` are extra request headers for this one call. They are applied
+     * after the defaults (`Accept`, `Connection`), so they can override those,
+     * and before auth, so they can never override it. A retry or a recovery
+     * re-attempt resends them.
      */
     async get<T>(path: string, opts?: { timeoutMs?: number; retry?: boolean; headers?: Record<string, string> }): Promise<T> {
         return this.#request<T>('GET', path, undefined, opts?.retry ?? true, 'json', opts?.timeoutMs, opts?.headers);

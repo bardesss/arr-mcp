@@ -919,7 +919,8 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         {
             name: 'watch-target',
             // set_watched's target read: one item by id, with the asking user's
-            // watched state. Bare /Items/{id} answers 400; userId is required.
+            // watched state. The /Items/{id}?userId= form was captured on Jellyfin
+            // 12.4.0; a bare /Items/{id} answered 400 on 10.11.11, cause unproven.
             // Images are stripped because a blurhash trips the fixture secret
             // guard.
             path: captured => {

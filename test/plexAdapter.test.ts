@@ -572,7 +572,7 @@ describe('PlexAdapter', () => {
 
         it('throws instead of looping forever when the server ignores the pagination window', async () => {
             // A server that ignores X-Plex-Container-Start/Size as query
-            // parameters — Jellyfin does exactly this to a param it does not
+            // parameters or headers — Jellyfin does exactly this to a param it does not
             // recognise — would otherwise hand back the whole library on
             // every call, so `rows.length < PAGE_SIZE` never fires. See C2.
             const fullPage = Array.from({ length: 500 }, (_, i) => ({ ratingKey: `m${i}`, title: `Movie ${i}` }));
