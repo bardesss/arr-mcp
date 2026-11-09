@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { apiKeyHeader, embyToken, plexToken, qbittorrentSession, queryParamKey, takeUserinfo, transmissionRpc } from '../src/core/auth.ts';
+import { apiKeyHeader, basicAuth, embyToken, grimmorySession, noAuth, plexToken, qbittorrentSession, queryParamKey, takeUserinfo, transmissionRpc } from '../src/core/auth.ts';
+import { ServiceHttp } from '../src/core/http.ts';
+import { API_KEY_REMEDY } from '../src/core/errors.ts';
 
 const ctx = (url = 'http://h:7878/api/v3/system/status', method = 'GET') => ({
     url: new URL(url),
@@ -314,5 +316,44 @@ describe('takeUserinfo', () => {
         const url = new URL('http://u:100%zz@h:7878/');
         expect(decoded(takeUserinfo(url))).toBe('u:100%zz');
         expect(url.toString()).toBe('http://h:7878/');
+    });
+});
+
+describe('the remedy a 401 or 403 carries', () => {
+    const refuse = (status: number) => async () => new Response('', { status });
+    const config = { url: 'http://h:1234', timeout_ms: 5000, permissions: { safe_write: false, destructive: false } };
+    const answer = (auth: ReturnType<typeof apiKeyHeader>, status: number) =>
+        new ServiceHttp('svc', config, auth, refuse(status) as typeof fetch).get('/x');
+
+    it('leaves an API key header on the default', async () => {
+        await expect(answer(apiKeyHeader('X-Api-Key', 'k'), 401)).rejects.toMatchObject({ kind: 'AuthFailed', remedy: API_KEY_REMEDY });
+    });
+
+    it.each([
+        ['queryParamKey', () => queryParamKey('apikey', 'k'), 401, 'The API key is wrong. Copy it from SABnzbd’s Config → General page.'],
+        ['embyToken', () => embyToken('k'), 401, 'The API key is wrong. Create one under Dashboard → API Keys in Jellyfin.'],
+        ['plexToken', () => plexToken('k'), 401, 'The Plex token is wrong or expired. Set a current X-Plex-Token as api_key.'],
+        ['basicAuth', () => basicAuth({ username: 'u', password: 'p' }), 401, 'The username or password is wrong.'],
+        [
+            'transmissionRpc',
+            () => transmissionRpc({ username: 'u', password: 'p' }),
+            403,
+            'The username or password is wrong, or this address is not in Transmission’s rpc-whitelist. Check rpc-username, rpc-password and rpc-whitelist in settings.json.'
+        ],
+        [
+            'qbittorrentSession',
+            () => qbittorrentSession({ id: 'svc', url: 'http://h:1234', timeoutMs: 5000 }),
+            403,
+            'Check username and password against Options → Web UI in qBittorrent, and that its Host header validation accepts this url.'
+        ],
+        [
+            'grimmorySession',
+            () => grimmorySession({ id: 'svc', url: 'http://h:1234', username: 'u', password: 'p', timeoutMs: 5000 }),
+            403,
+            'Grimmory turned the login user away. Check the username and password, and that the user has the permission this read needs.'
+        ],
+        ['noAuth', () => noAuth, 401, 'This service asks for a credential arr-mcp was not given. Add its api_key to the config.']
+    ])('%s', async (_name, make, status, remedy) => {
+        await expect(answer(make(), status)).rejects.toMatchObject({ kind: 'AuthFailed', remedy });
     });
 });

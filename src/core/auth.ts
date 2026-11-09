@@ -65,7 +65,11 @@ export function apiKeyHeader(header: string, key: string): AuthStrategy {
 }
 
 /** A route or a service that takes no credential. Shelfmark's `/api/health`, and all of it until auth is set up. */
-export const noAuth: AuthStrategy = { id: 'none', apply() {} };
+export const noAuth: AuthStrategy = {
+    id: 'none',
+    remedy: 'This service asks for a credential arr-mcp was not given. Add its api_key to the config.',
+    apply() {}
+};
 
 export const LOGIN_REMEDY = 'The username or password is wrong.';
 
@@ -89,6 +93,7 @@ export function basicAuth(
 export function embyToken(key: string): AuthStrategy {
     return {
         id: 'emby-token',
+        remedy: 'The API key is wrong. Create one under Dashboard → API Keys in Jellyfin.',
         apply(ctx) {
             ctx.headers.set('Authorization', `MediaBrowser Token="${key}"`);
         }
@@ -104,6 +109,7 @@ export function embyToken(key: string): AuthStrategy {
 export function plexToken(token: string): AuthStrategy {
     return {
         id: 'plex-token',
+        remedy: 'The Plex token is wrong or expired. Set a current X-Plex-Token as api_key.',
         apply(ctx) {
             ctx.headers.set('X-Plex-Token', token);
         }
@@ -118,6 +124,7 @@ export function plexToken(token: string): AuthStrategy {
 export function queryParamKey(param: string, key: string): AuthStrategy {
     return {
         id: `query:${param}`,
+        remedy: 'The API key is wrong. Copy it from SABnzbd’s Config → General page.',
         apply(ctx) {
             ctx.url.searchParams.set(param, key);
         }
@@ -138,7 +145,8 @@ export function transmissionRpc(creds: { username?: string; password?: string })
 
     return {
         id: 'transmission-rpc',
-        remedy: LOGIN_REMEDY,
+        remedy:
+            'The username or password is wrong, or this address is not in Transmission’s rpc-whitelist. Check rpc-username, rpc-password and rpc-whitelist in settings.json.',
         apply(ctx) {
             basic.apply(ctx);
             if (sessionId !== undefined) {
@@ -195,7 +203,7 @@ export function qbittorrentSession(creds: {
 
     return {
         id: 'qbittorrent-session',
-        remedy: LOGIN_REMEDY,
+        remedy: 'Check username and password against Options → Web UI in qBittorrent, and that its Host header validation accepts this url.',
         apply(ctx) {
             if (cookie !== undefined) ctx.headers.set('Cookie', `${cookie.name}=${cookie.value}`);
         },
@@ -399,7 +407,7 @@ export function grimmorySession(creds: {
 
     return {
         id: 'grimmory-session',
-        remedy: LOGIN_REMEDY,
+        remedy: 'Grimmory turned the login user away. Check the username and password, and that the user has the permission this read needs.',
         apply(ctx) {
             if (session !== undefined && now() < session.validUntil) ctx.headers.set('Authorization', `Bearer ${session.token}`);
         },
