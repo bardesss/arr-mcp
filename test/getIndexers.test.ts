@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { KeyedServiceConfig } from '../src/config/schema.ts';
 import { ProwlarrAdapter } from '../src/services/prowlarr.ts';
-import { buildGetIndexers, summarizeIndexers } from '../src/tools/getIndexers.ts';
+import { RECENT_REJECTION_WINDOW, buildGetIndexers, summarizeIndexers } from '../src/tools/getIndexers.ts';
 import { repeat } from './helpers/bigFixture.ts';
 import { expectWithinBudget } from './helpers/budget.ts';
 import { serving } from './helpers/serve.ts';
@@ -313,24 +313,28 @@ describe('several Prowlarrs', () => {
         expect(result.recentRejections?.map(r => r.at)).toEqual(['2025-01-01T00:00:00Z', '2020-01-01T00:00:00Z']);
     });
 
-    it('bounds the merged rejection list to the requested limit', async () => {
-        const withRejections = (dates: string[]) => ({
-            ...routes,
-            '/api/v1/history': {
-                records: dates.map(date => ({ indexerId: 1, date, successful: false, data: { query: 'q', reason: 'r' } }))
-            }
-        });
+    it('reports rejections from a fixed window, whatever limit pages the indexers', async () => {
+        const urls: string[] = [];
+        const impl = (async (input: string) => {
+            urls.push(String(input));
+            return serving(routes)(input);
+        }) as unknown as typeof fetch;
+        const result = await buildGetIndexers([new ProwlarrAdapter(config, impl)], { detail: 'full', limit: 1 });
+        expect(result.returned).toBe(1);
+        expect(urls.find(u => u.includes('/api/v1/history'))).toContain(`pageSize=${RECENT_REJECTION_WINDOW}`);
+    });
 
+    it('bounds the merged rejections to the window', async () => {
+        const dates = (n: number, year: number) => Array.from({ length: n }, (_, i) => `${year}-01-${String((i % 28) + 1).padStart(2, '0')}T00:00:00Z`);
+        const withRejections = (d: string[]) => ({
+            ...routes,
+            '/api/v1/history': { records: d.map(date => ({ indexerId: 1, date, successful: false, data: { query: 'q', reason: 'r' } })) }
+        });
         const result = await buildGetIndexers(
-            [
-                named('public', withRejections(['2025-01-03T00:00:00Z', '2025-01-01T00:00:00Z'])),
-                named('private', withRejections(['2025-01-04T00:00:00Z', '2025-01-02T00:00:00Z']))
-            ],
+            [named('public', withRejections(dates(30, 2025))), named('private', withRejections(dates(30, 2024)))],
             { detail: 'full', limit: 2 }
         );
-
-        expect(result.recentRejections).toHaveLength(2);
-        expect(result.recentRejections?.map(r => r.at)).toEqual(['2025-01-04T00:00:00Z', '2025-01-03T00:00:00Z']);
+        expect(result.recentRejections).toHaveLength(RECENT_REJECTION_WINDOW);
     });
 
     it('sorts by instance so two of them produce a stable order', async () => {

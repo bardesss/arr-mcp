@@ -27,6 +27,7 @@ import type { IdentityResolver } from '../../core/identity.ts';
 import { mayManageRequest } from '../manageRequests.ts';
 import type { WebhookEvents } from '../../core/webhookEvents.ts';
 import { EVENT_LOG_SOURCE } from '../getHistory.ts';
+import { RECENT_REJECTION_WINDOW } from '../getIndexers.ts';
 import { resolveInstance } from '../resolveInstance.ts';
 import { queueRowsFor, releaseMentions, type Evidence } from './chain.ts';
 
@@ -43,7 +44,6 @@ export type DiagnoseDeps = {
     events?: WebhookEvents;
 };
 
-const RECENT_REJECTION_LIMIT = 50;
 const CLEANUPARR_WINDOW_MS = 30 * 86_400_000;
 const CLEANUPARR_EVENT_LIMIT = 500;
 /** The download clients whose own history outlives the queue. A torrent client
@@ -355,7 +355,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
         ? Promise.resolve(undefined)
         : Promise.all(
               prowlarrs.map(async p => {
-                  const rows = await probe(p.id, degraded, () => p.getRecentRejections(RECENT_REJECTION_LIMIT));
+                  const rows = await probe(p.id, degraded, () => p.getRecentRejections(RECENT_REJECTION_WINDOW));
                   if (rows === undefined) prowlarrDegraded.push(p.id);
                   return rows ?? [];
               })
