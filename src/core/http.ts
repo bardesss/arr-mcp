@@ -264,14 +264,15 @@ export class ServiceHttp {
         extraHeaders?: Record<string, string>
     ): Promise<T> {
         const admission = this.#admit();
+        const deadline = () => AbortSignal.timeout(timeoutMs ?? this.#timeoutMs);
         try {
-            const result = await this.#attempt<T>(method, path, body, true, read, timeoutMs, extraHeaders);
+            const result = await this.#attempt<T>(method, path, body, true, read, deadline(), extraHeaders);
             this.#recordSuccess();
             return result;
         } catch (err) {
             if (retryOnTimeout && err instanceof ServiceError && err.kind === 'Timeout') {
                 try {
-                    const result = await this.#attempt<T>(method, path, body, true, read, timeoutMs, extraHeaders);
+                    const result = await this.#attempt<T>(method, path, body, true, read, deadline(), extraHeaders);
                     this.#recordSuccess();
                     return result;
                 } catch (retryErr) {
@@ -304,6 +305,9 @@ export class ServiceHttp {
      * One logical attempt. An auth strategy may consume one transport-level
      * recovery inside it — Transmission's 409 handshake — which by construction
      * neither consumes the timeout retry above nor reaches the breaker.
+     *
+     * The one `signal` is the attempt's whole deadline: the request, any
+     * redirects, the recovery and the replay all spend it.
      */
     async #attempt<T>(
         method: string,
@@ -311,7 +315,7 @@ export class ServiceHttp {
         body: RequestBody | undefined,
         allowRecovery = true,
         read: ReadAs = 'json',
-        timeoutMs?: number,
+        signal: AbortSignal = AbortSignal.timeout(this.#timeoutMs),
         extraHeaders?: Record<string, string>
     ): Promise<T> {
         // Prefixed, not resolved: every adapter path is absolute, and `new URL`
@@ -329,7 +333,6 @@ export class ServiceHttp {
         if (basic !== undefined) headers.set('Authorization', basic);
         this.#auth.apply({ url, headers, method });
 
-        const signal = AbortSignal.timeout(timeoutMs ?? this.#timeoutMs);
         let target = url;
         let verb = method;
         let payload = encoded?.payload;
@@ -380,11 +383,12 @@ export class ServiceHttp {
         let recovered = false;
         if (allowRecovery) {
             try {
-                recovered = (await this.#auth.recover?.(response)) === true;
+                recovered = (await this.#auth.recover?.(response, signal)) === true;
             } catch (err) {
                 // A recover that throws leaves the original response unread on
                 // every other path out of this function.
                 await discard(response);
+                if (signal.aborted) throw classifyFetchError(signal.reason, this.#id, safeUrl(target));
                 throw err;
             }
         }
@@ -395,7 +399,7 @@ export class ServiceHttp {
             // of Transmission 409s or qBittorrent 403s otherwise degraded
             // connection reuse for everything behind the same origin.
             await discard(response);
-            return this.#attempt<T>(method, path, body, false, read, timeoutMs, extraHeaders);
+            return this.#attempt<T>(method, path, body, false, read, signal, extraHeaders);
         }
 
         const httpError = classifyHttpStatus(response.status, this.#id, safeUrl(target), this.#auth.remedy);

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { BaseServiceConfig } from '../src/config/schema.ts';
-import { apiKeyHeader, embyToken, queryParamKey, transmissionRpc } from '../src/core/auth.ts';
+import { apiKeyHeader, embyToken, qbittorrentSession, queryParamKey, transmissionRpc } from '../src/core/auth.ts';
 import { ServiceHttp } from '../src/core/http.ts';
 import type { KeyedServiceConfig } from '../src/config/schema.ts';
 import {
@@ -1037,5 +1037,111 @@ describe('ServiceHttp.getArray', () => {
     ];
     it.each(sharedReads)('is what %s goes through', async (_name, read) => {
         await expect(read()).rejects.toMatchObject({ kind: 'UpstreamError' });
+    });
+});
+
+describe('ServiceHttp deadline', () => {
+    const qbFetch = (login: (init: RequestInit) => Promise<Response>) => {
+        let first = true;
+        return async (url: string, init: RequestInit) => {
+            if (url.endsWith('/api/v2/auth/login')) return login(init);
+            if (first) {
+                first = false;
+                return new Response('', { status: 403 });
+            }
+            return json({ ok: true });
+        };
+    };
+    const okLogin = async () =>
+        new Response('Ok.', { status: 200, headers: { 'set-cookie': 'SID=abc; HttpOnly; path=/' } });
+
+    it('spends one deadline on a 409 handshake and its replay', async () => {
+        const spy = vi.spyOn(AbortSignal, 'timeout');
+        try {
+            let calls = 0;
+            const client = http(
+                async () =>
+                    ++calls === 1
+                        ? new Response('', { status: 409, headers: { 'X-Transmission-Session-Id': 'sid' } })
+                        : json({ result: 'success' }),
+                transmissionRpc({})
+            );
+            await client.post('/transmission/rpc', {});
+            expect(spy).toHaveBeenCalledTimes(1);
+        } finally {
+            spy.mockRestore();
+        }
+    });
+
+    it('spends one deadline on a 403, the qBittorrent login and the replay', async () => {
+        const spy = vi.spyOn(AbortSignal, 'timeout');
+        try {
+            const f = qbFetch(okLogin);
+            const auth = qbittorrentSession({
+                id: 'qbittorrent',
+                url: config.url,
+                username: 'admin',
+                password: 'pw',
+                timeoutMs: config.timeout_ms,
+                fetchImpl: f as unknown as typeof fetch
+            });
+            expect(await new ServiceHttp('qbittorrent', config, auth, f as unknown as typeof fetch).get('/api/v2/app/preferences')).toEqual({ ok: true });
+            // One for the request, one the shared login keeps for itself.
+            expect(spy.mock.calls.map((c) => c[0])).toEqual([config.timeout_ms, config.timeout_ms]);
+        } finally {
+            spy.mockRestore();
+        }
+    });
+
+    it('reports a login that outlives the deadline as a timeout', async () => {
+        const hang = (init: RequestInit) =>
+            new Promise<Response>((_, reject) => init.signal?.addEventListener('abort', () => reject(init.signal?.reason as Error)));
+        const f = qbFetch(hang);
+        const short = { ...config, timeout_ms: 30 };
+        const auth = qbittorrentSession({
+            id: 'qbittorrent',
+            url: config.url,
+            username: 'admin',
+            password: 'pw',
+            timeoutMs: 30,
+            fetchImpl: f as unknown as typeof fetch
+        });
+        await expect(new ServiceHttp('qbittorrent', short, auth, f as unknown as typeof fetch).get('/x', { retry: false })).rejects.toMatchObject({
+            kind: 'Timeout'
+        });
+    });
+
+    it('lets a second caller use a login the first caller gave up on', async () => {
+        let logins = 0;
+        let denied = 0;
+        const f = async (url: string, init: RequestInit) => {
+            if (url.endsWith('/api/v2/auth/login')) {
+                logins += 1;
+                await new Promise((r) => setTimeout(r, 200));
+                return okLogin();
+            }
+            const cookie = new Headers(init.headers).get('Cookie');
+            if (cookie === null) {
+                denied += 1;
+                return new Response('', { status: 403 });
+            }
+            return json({ ok: true });
+        };
+        const auth = qbittorrentSession({
+            id: 'qbittorrent',
+            url: config.url,
+            username: 'admin',
+            password: 'pw',
+            timeoutMs: 2000,
+            fetchImpl: f as unknown as typeof fetch
+        });
+        const client = new ServiceHttp('qbittorrent', config, auth, f as unknown as typeof fetch);
+        const first = client.get('/a', { timeoutMs: 50, retry: false });
+        const second = client.get('/b', { timeoutMs: 2000, retry: false });
+        const [a, b] = await Promise.allSettled([first, second]);
+        expect(a).toMatchObject({ status: 'rejected', reason: { kind: 'Timeout' } });
+        expect(b).toEqual({ status: 'fulfilled', value: { ok: true } });
+        expect(denied).toBe(2);
+        expect(logins).toBe(1);
     });
 });
