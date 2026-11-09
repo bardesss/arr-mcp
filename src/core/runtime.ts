@@ -50,7 +50,7 @@ const NO_CONFIG_DIR = '';
  * unless the caller asked it to. `src/index.ts` passes the real one; every
  * test that never mentions the dataset gets `NO_REFRESH` and no download.
  */
-export type Refresher = (dataset: ImdbDataset) => () => void;
+export type Refresher = (dataset: ImdbDataset) => () => void | Promise<void>;
 
 /** The default. Nothing to keep fresh, and nothing to stop. */
 const NO_REFRESH: Refresher = () => () => {};
@@ -100,7 +100,7 @@ export class Runtime {
     #dataset: ImdbDataset | undefined;
 
     /** Stops the refresh belonging to `#dataset`, and only while one is open. */
-    #stopRefresh: (() => void) | undefined;
+    #stopRefresh: (() => void | Promise<void>) | undefined;
 
     /**
      * Injects a local JWKS in place of a live fetch. `undefined` in every real
@@ -169,10 +169,9 @@ export class Runtime {
         if (!wanted && this.#dataset !== undefined) {
             // Stopped *before* the close, so no further ingest is scheduled
             // against a database about to go away. An ingest already in flight
-            // is not cancellable — it will fail on the closed handle and be
-            // logged by the refresher's own catch, which is the right outcome:
-            // a warning about a download nobody wants any more.
-            this.#stopRefresh?.();
+            // is terminated: its worker is stopped and its staging directory
+            // removed, so nothing keeps downloading for a dataset nobody wants.
+            void this.#stopRefresh?.();
             this.#stopRefresh = undefined;
             this.#dataset.close();
             this.#dataset = undefined;

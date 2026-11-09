@@ -265,4 +265,40 @@ describe('the weekly schedule', () => {
             vi.useRealTimers();
         }
     });
+
+    it('aborts the running ingest when stopped', async () => {
+        let seen: AbortSignal | undefined;
+        const stop = startRefresh(fake(), {
+            ingest: async (_d, o) => {
+                seen = o.signal;
+                await new Promise(r => setTimeout(r, 20));
+            }
+        });
+        await new Promise(r => setImmediate(r));
+        await stop();
+        expect(seen?.aborted).toBe(true);
+    });
+
+    it('never runs two ingests for one directory at once', async () => {
+        const ds = fake(undefined, 'same-dir');
+        let release = () => {};
+        const first = new Promise<void>(r => {
+            release = r;
+        });
+        let secondStarted = 0;
+        const stopFirst = startRefresh(ds, { ingest: () => first }); // ignores the abort, as a terminating worker still running would
+        await new Promise(r => setImmediate(r));
+        void stopFirst();
+        const stopSecond = startRefresh(ds, {
+            ingest: async () => {
+                secondStarted += 1;
+            }
+        });
+        await new Promise(r => setTimeout(r, 30));
+        expect(secondStarted).toBe(0);
+        release();
+        await new Promise(r => setTimeout(r, 10));
+        expect(secondStarted).toBe(1);
+        await stopSecond();
+    });
 });
