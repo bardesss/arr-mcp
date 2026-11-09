@@ -31,10 +31,11 @@ import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts
  * files, which loses nothing and is undone by moving them back. `add_media`,
  * which starts multi-gigabyte downloads, is safe on the same reasoning. The
  * preview still spells the move out, because "change the root folder" reads
- * cheaper than it is. A Lidarr metadata profile is the exception: switching
- * back after a refresh brings the albums it removed in again as new albums,
- * without their old flags (see `metadataProfileEffect`), so the preview says
- * so rather than the tier changing.
+ * cheaper than it is. A Lidarr metadata profile is the exception, and the one
+ * field that makes the call destructive: switching to a narrower profile lets
+ * the next refresh delete the albums it leaves out, and switching back brings
+ * them in again as new albums, without their old flags (see
+ * `metadataProfileEffect`). The same tool cannot set that back.
  */
 
 /** What each of Lidarr's rules for new albums does with the albums a broader profile brings in. */
@@ -306,7 +307,7 @@ export function registerUpdateMedia(
         // granted per instance.
         service: ({ service, instance }) => (bookLibrary(adapters, service, instance) ?? findAdapter(adapters, service, instance)).id,
         operation: 'update_media',
-        tier: 'safe',
+        tier: ({ metadata_profile }) => (metadata_profile === undefined ? 'safe' : 'destructive'),
 
         async plan({
             service,

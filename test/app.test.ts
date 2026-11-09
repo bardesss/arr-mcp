@@ -405,8 +405,10 @@ describe('the advertised tool surface', () => {
     ];
 
     /**
-     * Of those, the seven whose effect cannot be undone by calling again.
+     * Of those, the eight whose effect cannot be undone by calling again.
      * `manage_indexer` is here for its `delete`; its disable is safe tier.
+     * `update_media` is here for a Lidarr `metadata_profile`; every other
+     * field is safe tier.
      *
      * `fix_metadata` is the one that destroys no *file*: it replaces metadata
      * with `replaceAllMetadata`, so what it overwrites — including anything
@@ -420,7 +422,8 @@ describe('the advertised tool surface', () => {
         'delete_request',
         'fix_metadata',
         'manage_indexer',
-        'remove_queue_item'
+        'remove_queue_item',
+        'update_media'
     ];
 
     /**
