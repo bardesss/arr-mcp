@@ -21,6 +21,7 @@ import type { LogRow } from '../../src/core/logs.ts';
 import type { ConnectionDiagnosis, DiskSpace, HealthCheck, ScanState } from '../../src/services/types.ts';
 import type { AuditRow } from '../../src/core/audit.ts';
 import { hashToken } from '../../src/core/mcpTokens.ts';
+import type { MediaCards } from '../../src/ui/mediaCards.ts';
 
 /** Frozen like the rest; the expiring token is dated relative to it. */
 export const NOW = new Date('2026-08-13T09:45:00Z');
@@ -259,3 +260,65 @@ export const AUDIT_ROWS: AuditRow[] = [
         caller: null
     }
 ];
+
+/**
+ * The MCP Apps poster cards (`src/ui/mediaCards.ts`), for invented titles.
+ *
+ * The image URLs are on the hosts the view allows, and never fetched: the
+ * screenshot script answers them with generated artwork, so the shots need no
+ * network and photograph nobody's poster.
+ */
+const poster = (name: string): string => `https://image.tmdb.org/t/p/w342/${name}.jpg`;
+const fenced = (service: string, field: string, value: string): string => `<<untrusted:${service}.${field}>>${value}<</>>`;
+
+export const CARD_DETAIL: MediaCards = {
+    view: 'detail',
+    total: 1,
+    items: [
+        {
+            type: 'series',
+            title: fenced('sonarr', 'title', 'The Lighthouse Keepers'),
+            year: 2024,
+            ids: { tvdb: 900001, tmdb: 900001, imdb: 'tt9000001' },
+            status: 'monitored',
+            qualityProfile: 'HD-1080p',
+            poster: poster('fixture-lighthouse'),
+            backdrop: 'https://image.tmdb.org/t/p/w780/fixture-lighthouse-backdrop.jpg',
+            overview: fenced(
+                'sonarr',
+                'overview',
+                'Three keepers on a storm-bound island find the logbook of the crew they replaced, and the last entry is dated tomorrow. Every season covers one winter, and every winter the supply boat is a day later than the one before.'
+            ),
+            genres: [fenced('sonarr', 'genre', 'Drama'), fenced('sonarr', 'genre', 'Mystery')],
+            seasonCount: 2,
+            episodes: { onDisk: 14, aired: 18 },
+            links: { tmdb: 'https://www.themoviedb.org/tv/900001', imdb: 'https://www.imdb.com/title/tt9000001/' },
+            ref: { service: 'sonarr', id: '42' }
+        }
+    ]
+};
+
+const tile = (title: string, year: number, type: 'movie' | 'series', status: MediaCards['items'][number]['status'], image?: string) => ({
+    type,
+    title: fenced(type === 'movie' ? 'radarr' : 'sonarr', 'title', title),
+    year,
+    ids: {},
+    status,
+    ...(image === undefined ? {} : { poster: poster(image) })
+});
+
+export const CARD_GRID: MediaCards = {
+    view: 'grid',
+    total: 23,
+    items: [
+        tile('Paper Satellites', 2023, 'movie', 'downloaded', 'fixture-satellites'),
+        tile('The Lighthouse Keepers', 2024, 'series', 'monitored', 'fixture-lighthouse'),
+        tile('Night Ferry to Tallinn', 2021, 'movie', 'downloading', 'fixture-ferry'),
+        tile('Copper & Salt', 2019, 'series', 'downloaded', 'fixture-copper'),
+        tile('A Quiet Orbit', 2025, 'movie', 'absent', 'fixture-orbit'),
+        tile('Glasshouse', 2018, 'movie', 'unmonitored', 'fixture-glasshouse'),
+        // No artwork: what a card looks like when its image cannot load.
+        tile('The Cartographer’s Daughter', 2022, 'movie', 'monitored'),
+        tile('Low Tide', 2020, 'series', 'downloaded', 'fixture-tide')
+    ]
+};

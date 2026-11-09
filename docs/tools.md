@@ -194,6 +194,20 @@ Woman 1984` comes before `Wonder Woman`. Only years from 1870 to five years ahea
 count, which leaves `Blade Runner 2049` whole, and an indexer search keeps the
 year, because release names carry it.
 
+## Poster cards: `cards`
+
+`get_media_details`, `search_media`, `lookup_media` and `get_library` add a
+`cards` field to `structuredContent` when the answer holds films or series:
+`{ view, items, total }`, where `view` is `detail` for `get_media_details` and
+`grid` otherwise, `items` holds at most twenty, and `total` is how many films and
+series the answer held. It is for an MCP Apps host, which renders it with the
+`ui://arr-mcp/media-cards.html` view the four tools name in `_meta.ui`; see the
+README. Nothing in it is new information about the stack beyond artwork, the
+synopsis and a `status` (`downloaded`, `monitored`, `downloading`,
+`unmonitored`, `absent`) derived from `monitored`, files on disk and the *arr
+queue. Text in it stays fenced, image URLs are only ever TMDB's or TheTVDB's,
+and the items and the text answer are exactly what they are without it.
+
 ## `get_history` and the event log
 
 `delete_media` removes a title's history from Radarr or Sonarr along with the

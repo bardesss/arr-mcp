@@ -1,6 +1,7 @@
 import type { ServiceId } from '../config/schema.ts';
 import type { CleanuparrRule, RuleAction, TorrentFacts, UnmatchedReason } from '../core/cleanuparrRules.ts';
 import type { EpisodeRecord, MovieRecord } from '../core/episodeMismatch.ts';
+import type { Display } from '../core/display.ts';
 import type { IndexInput, LibraryKind } from '../core/resolver.ts';
 import { ServiceError, type ServiceErrorKind } from '../core/errors.ts';
 import { assertVersionSupported } from './versions.ts';
@@ -1137,6 +1138,8 @@ export type MediaDetails = {
     albumsTruncated?: boolean;
     /** Series only. Sonarr's per-season monitoring, as reported by Sonarr. */
     seasons?: SeasonMonitoring[];
+    /** What a poster card shows; stripped from every tool's answer (`core/display.ts`). */
+    display?: Display;
     /** Books only (Grimmory). Every free-text field here is fenced. */
     book?: {
         authors: string[];
@@ -1201,6 +1204,8 @@ export type SearchHit = {
     sizeBytes?: number;
     seeders?: number;
     publishDate?: string;
+    /** What a poster card shows; stripped from every tool's answer (`core/display.ts`). */
+    display?: Display;
 };
 
 export interface SearchCapable {

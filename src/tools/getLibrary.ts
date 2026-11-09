@@ -17,6 +17,9 @@ import { unfenced } from '../core/titleMatch.ts';
 import { UserSchema } from './getPlayback.ts';
 import type { LibraryLoader } from './library.ts';
 import { withBoth } from './mediaServers.ts';
+import { mediaCardsToolMeta } from '../mcp/apps.ts';
+import type { ServiceAdapter } from '../services/types.ts';
+import { cardsFromLibrary } from '../ui/mediaCards.ts';
 
 /** Every rating source a title can carry. */
 export const RATING_SOURCES = ['imdb', 'tmdb', 'trakt', 'metacritic', 'rottenTomatoes', 'tvdb'] as const;
@@ -499,12 +502,19 @@ export async function buildGetLibrary(loader: LibraryLoader, opts: LibraryQuery)
     };
 }
 
-export function registerGetLibrary(server: McpServer, loader: LibraryLoader, mediaServerIds?: [string, string]): void {
+export function registerGetLibrary(
+    server: McpServer,
+    loader: LibraryLoader,
+    mediaServerIds?: [string, string],
+    /** Only for the cards' download state, read from the *arrs' queues. */
+    adapters: readonly ServiceAdapter[] = []
+): void {
     server.registerTool(
         'get_library',
         {
             title: 'Library',
             annotations: READ_ONLY,
+            _meta: mediaCardsToolMeta(),
             description:
                 'Your library joined across Radarr, Sonarr, Whisparr, Lidarr, Grimmory and your media server on shared external ids: films, series, artists and books. Use it for filtered lists and counts; for one title use get_media_details. `presence` is what no single service can tell: `arr_only` with a file is a likely broken import, `jellyfin_only` (spelled that way for any media server) is media nothing manages, and `unknown` means the other half was not read. When `degraded` or `note` explain a gap, report that reason rather than calling it unwatched or unrated. `has_file: false` with `monitored: true` is what you are still waiting for. [[lidarr: An artist\'s `monitored` is the artist-level flag, not the album flag; its albums and their ids come from get_media_details on the Lidarr artist.]] A series has an IMDb rating only with the IMDb dataset on, so ask `rating_source: "imdb"` explicitly. Series `seasons` and folder paths need `detail: "full"`. Field reference: arr://docs/get_library.' +
                 withBoth(
@@ -612,9 +622,15 @@ export function registerGetLibrary(server: McpServer, loader: LibraryLoader, med
 
             const summary = `${result.returned} of ${result.total} item(s).${coverage}${missing}${note}`;
 
+            // Same snapshot `buildGetLibrary` just read (cached per user): the
+            // items are projected copies, and the index holds their artwork
+            // and their full acquisition half.
+            const { index } = await loader.load(watchedBy);
+            const cards = await cardsFromLibrary(result.items, index, adapters);
+
             return {
                 content: [{ type: 'text', text: listText(summary, result.items, libraryLine) }],
-                structuredContent: result
+                structuredContent: cards.items.length === 0 ? result : { ...result, cards }
             };
         }
     );

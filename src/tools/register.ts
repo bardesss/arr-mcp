@@ -192,7 +192,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerGetRequests(server, seerr, seerrIdentity);
     registerGetMediaDetails(server, adapters, library, dataset, bothIds(context.mediaServers));
     registerGetMetadataIssues(server, context.mediaServers, write.permissions, library, adapters.find(hasBookMetadataIssues));
-    registerGetLibrary(server, library, bothIds(context.mediaServers));
+    registerGetLibrary(server, library, bothIds(context.mediaServers), adapters);
     registerGetProfileIssues(server, adapters, instances);
     registerSearchMedia(server, adapters, dataset);
     registerLookupMedia(server, adapters, dataset);

@@ -4,6 +4,7 @@ import { TtlCache } from '../core/cache.ts';
 import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
 import { fenceText } from '../core/fence.ts';
+import { BACKDROP_SIZE, POSTER_SIZE, compactDisplay, tmdbImageUrl, type Display } from '../core/display.ts';
 import { logger } from '../core/logger.ts';
 import { LOG_LINES, foldLogLines } from './logLines.ts';
 import {
@@ -38,6 +39,10 @@ type RawSearchResult = {
      *  and discover, confirmed against the recorded fixtures. */
     voteAverage?: number;
     voteCount?: number;
+    overview?: string;
+    /** TMDB image paths, `/abc.jpg`. */
+    posterPath?: string | null;
+    backdropPath?: string | null;
 };
 
 type RawStatus = { version?: string; commitTag?: string };
@@ -444,7 +449,17 @@ export class SeerrAdapter
             // rather than reported as the worst film ever made.
             ...(typeof r.voteAverage === 'number' && r.voteAverage > 0
                 ? { ratings: { tmdb: r.voteAverage } }
-                : {})
+                : {}),
+            // TMDB-backed, so the artwork is a TMDB path rather than a URL.
+            ...((display => (display === undefined ? {} : { display }))(
+                compactDisplay({
+                    poster: tmdbImageUrl(r.posterPath, POSTER_SIZE),
+                    backdrop: tmdbImageUrl(r.backdropPath, BACKDROP_SIZE),
+                    ...(typeof r.overview === 'string' && r.overview !== ''
+                        ? { overview: fenceText(r.overview, { service: this.id, field: 'overview' }) }
+                        : {})
+                } as Display)
+            ))
         };
     }
 

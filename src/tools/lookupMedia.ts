@@ -5,7 +5,8 @@ import type { ImdbDataset } from '../metadata/imdbDataset.ts';
 import type { LibraryKind } from '../core/resolver.ts';
 import type { ServiceAdapter } from '../services/types.ts';
 import { MediaKindSchema } from './mediaKind.ts';
-import { buildSearchMedia, searchLine, type GetSearchResult } from './searchMedia.ts';
+import { mediaCardsToolMeta } from '../mcp/apps.ts';
+import { buildSearchMedia, buildSearchMediaWithCards, searchLine, type GetSearchResult } from './searchMedia.ts';
 
 /**
  * `search_media` with `source` fixed to `discover`.
@@ -33,6 +34,7 @@ export function registerLookupMedia(
         {
             title: 'Look up a title externally',
             annotations: READ_ONLY,
+            _meta: mediaCardsToolMeta(),
             description:
                 'Metadata for something you may not have: title, year, and external ids, from Radarr, Sonarr, Whisparr, Lidarr and Seerr, plus books from Shelfmark (`kind: book`, whose id get_releases takes). A Lidarr hit is an artist, keyed by its MusicBrainz id under `ids.mbid`, which is what add_media takes for Lidarr. Query imdb:tt… to turn an IMDb id into a TMDB id; a bare tt… misses Seerr. Pass `kind` when you know what it is (`movie` for Radarr), and the other services are not asked. Reads only — nothing is added, requested or monitored.',
             outputSchema: PagedOutputSchema,
@@ -45,9 +47,9 @@ export function registerLookupMedia(
             })
         },
         async ({ query, kind, detail, limit, offset }) => {
-            const result = await buildLookupMedia(
+            const result = await buildSearchMediaWithCards(
                 adapters,
-                { query, detail, limit, offset, ...(kind === undefined ? {} : { kinds: [kind] }) },
+                { query, detail, limit, offset, source: 'discover', ...(kind === undefined ? {} : { kinds: [kind] }) },
                 dataset
             );
             const summary =

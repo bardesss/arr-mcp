@@ -5,6 +5,8 @@ import { apiKeyHeader } from '../core/auth.ts';
 import { LIBRARY_TTL_MS, TtlCache } from '../core/cache.ts';
 import { ServiceHttp } from '../core/http.ts';
 import { fenceText } from '../core/fence.ts';
+import type { RawImage } from '../core/display.ts';
+import { arrDisplay } from './arrDisplay.ts';
 import { applyLimit } from '../core/shape.ts';
 import type { IndexInput, SeasonSummary } from '../core/resolver.ts';
 import {
@@ -125,7 +127,8 @@ type RawSeries = {
     /** Flat, unlike Radarr's per-source map — see `flattenSeriesRating`. */
     ratings?: RawRating;
     added?: string | null;
-    statistics?: { sizeOnDisk?: number; episodeFileCount?: number };
+    statistics?: { sizeOnDisk?: number; episodeFileCount?: number; episodeCount?: number; seasonCount?: number };
+    images?: RawImage[] | null;
     /**
      * Present in every `/api/v3/series` response and unread until now.
      * `totalEpisodeCount` is TVDB's number for the season, which is why this
@@ -466,7 +469,8 @@ export class SonarrAdapter
                           .filter((x): x is typeof x & { seasonNumber: number } => typeof x.seasonNumber === 'number')
                           .map(x => ({ season: x.seasonNumber, monitored: x.monitored ?? false }))
                           .sort((a, b) => a.season - b.season)
-                  })
+                  }),
+            ...((display => (display === undefined ? {} : { display }))(arrDisplay(s, this.id, 'series')))
         };
 
         if (!opts.includeEpisodes) return base;
@@ -550,7 +554,10 @@ export class SonarrAdapter
                 ...(s.tvdbId === undefined ? {} : { tvdb: s.tvdbId }),
                 ...(s.imdbId === undefined ? {} : { imdb: s.imdbId })
             },
-            ...(s.monitored === undefined ? {} : { monitored: s.monitored })
+            ...(s.monitored === undefined ? {} : { monitored: s.monitored }),
+            ...((display => (display === undefined ? {} : { display }))(
+                arrDisplay(s, this.id, 'series', { lookup: source === 'discover' })
+            ))
         };
     }
 
@@ -622,7 +629,8 @@ export class SonarrAdapter
                 ...((r => (r === undefined ? {} : { ratings: r }))(
                     (raw => (raw?.tvdb === undefined ? undefined : { tvdb: raw.tvdb }))(flattenSeriesRating(s.ratings))
                 )),
-                ...(seasons === undefined ? {} : { seasons })
+                ...(seasons === undefined ? {} : { seasons }),
+                ...((display => (display === undefined ? {} : { display }))(arrDisplay(s, this.id, 'series')))
             };
         });
     }

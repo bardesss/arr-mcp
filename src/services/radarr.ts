@@ -5,6 +5,8 @@ import { apiKeyHeader } from '../core/auth.ts';
 import { LIBRARY_TTL_MS, TtlCache } from '../core/cache.ts';
 import { ServiceHttp } from '../core/http.ts';
 import { fenceText } from '../core/fence.ts';
+import type { RawImage } from '../core/display.ts';
+import { arrDisplay } from './arrDisplay.ts';
 import type { IndexInput } from '../core/resolver.ts';
 import {
     addArrMedia,
@@ -108,6 +110,9 @@ type RawMovie = {
     genres?: string[];
     qualityProfileId?: number;
     ratings?: Record<string, RawRating>;
+    /** Minutes; `0` when Radarr does not know. */
+    runtime?: number;
+    images?: RawImage[] | null;
     added?: string | null;
     movieFile?: { size?: number; quality?: { quality?: { name?: string } }; mediaInfo?: RawMediaInfo };
 };
@@ -338,7 +343,8 @@ export class RadarrAdapter
                 ...(m.tmdbId === undefined ? {} : { tmdb: m.tmdbId }),
                 ...(m.imdbId === undefined ? {} : { imdb: m.imdbId })
             },
-            ...(ratings === undefined ? {} : { ratings })
+            ...(ratings === undefined ? {} : { ratings }),
+            ...((display => (display === undefined ? {} : { display }))(arrDisplay(m, this.id, 'movie')))
         };
     }
 
@@ -416,7 +422,10 @@ export class RadarrAdapter
                 ...(m.imdbId === undefined ? {} : { imdb: m.imdbId })
             },
             ...(m.hasFile === undefined ? {} : { hasFile: m.hasFile }),
-            ...(m.monitored === undefined ? {} : { monitored: m.monitored })
+            ...(m.monitored === undefined ? {} : { monitored: m.monitored }),
+            ...((display => (display === undefined ? {} : { display }))(
+                arrDisplay(m, this.id, 'movie', { lookup: source === 'discover' })
+            ))
         };
     }
 
@@ -460,7 +469,8 @@ export class RadarrAdapter
                     : { quality: m.movieFile.quality.quality.name }),
                 ...(m.movieFile?.size === undefined ? {} : { sizeBytes: m.movieFile.size })
             },
-            ...((r => (r === undefined ? {} : { ratings: r }))(toMergedRatings(flattenRatings(m.ratings))))
+            ...((r => (r === undefined ? {} : { ratings: r }))(toMergedRatings(flattenRatings(m.ratings)))),
+            ...((display => (display === undefined ? {} : { display }))(arrDisplay(m, this.id, 'movie')))
         }));
     }
 
