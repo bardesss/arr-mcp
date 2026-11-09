@@ -1,8 +1,10 @@
 import { createHmac, randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
-import { readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
+import { writeFileAtomicSync } from './atomicFile.ts';
 import { logger } from './logger.ts';
+import { constantTimeEquals } from './secrets.ts';
 
 /**
  * Password storage and browser sessions for the config UI.
@@ -266,11 +268,9 @@ export class Sessions {
      *  the file was for: the next restart signs everyone out. */
     #persist(): void {
         if (this.#path === undefined) return;
-        const temp = `${this.#path}.tmp`;
         try {
             const body = { key: this.#baseKey.toString('hex'), revoked: Object.fromEntries(this.#revoked) };
-            writeFileSync(temp, JSON.stringify(body), { mode: 0o600 });
-            renameSync(temp, this.#path);
+            writeFileAtomicSync(this.#path, JSON.stringify(body));
         } catch (err) {
             logger.warn(
                 { code: (err as NodeJS.ErrnoException).code },
@@ -332,17 +332,6 @@ function readStored(path: string): { key: Buffer; revoked: [string, number][] } 
         }
         return undefined;
     }
-}
-
-/** Tolerates unequal lengths without leaking them by timing. */
-export function constantTimeEquals(a: string, b: string): boolean {
-    const left = Buffer.from(a);
-    const right = Buffer.from(b);
-    if (left.length !== right.length) {
-        timingSafeEqual(right, right);
-        return false;
-    }
-    return timingSafeEqual(left, right);
 }
 
 /** Minimal cookie parser — the UI sets one cookie and reads one cookie, and a

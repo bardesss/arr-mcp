@@ -7,6 +7,7 @@ import { ServiceError } from '../core/errors.ts';
 import { gather } from '../core/gather.ts';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, windowEnd, type DetailLevel } from '../core/shape.ts';
 import { hasWanted, type ServiceAdapter, type WantedCapable, type WantedItem, type WantedScope } from '../services/types.ts';
+import { episodeCode } from '../core/labels.ts';
 
 export type GetWantedResult = {
     items: WantedItem[];
@@ -60,7 +61,7 @@ export function wantedLine(item: WantedItem): string {
     const numbering =
         item.season === undefined || item.episode === undefined
             ? ''
-            : ` S${String(item.season).padStart(2, '0')}E${String(item.episode).padStart(2, '0')}`;
+            : ` ${episodeCode(item.season, item.episode)}`;
     const episode = item.episodeTitle === undefined ? '' : ` ${item.episodeTitle}`;
     const album = item.albumTitle === undefined ? '' : ` — ${item.albumTitle}`;
 

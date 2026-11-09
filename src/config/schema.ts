@@ -1,5 +1,5 @@
 import * as z from 'zod/v4';
-import { hashToken } from '../core/mcpTokens.ts';
+import { HASH_PATTERN, hashToken } from '../core/secrets.ts';
 
 export const ServiceIdSchema = z.enum([
     'radarr',
@@ -513,7 +513,7 @@ export const MIN_PLAINTEXT_TOKEN = 32;
 const McpTokenSchema = z.strictObject({
     name: InstanceNameSchema,
     tier: z.enum(['read', 'write', 'destructive']),
-    hash: z.string().regex(/^sha256:[0-9a-f]{64}$/, 'hash must be sha256:<64 hex>').optional(),
+    hash: z.string().regex(HASH_PATTERN, 'hash must be sha256:<64 hex>').optional(),
     token: z.string().optional(),
     expires: z.iso.date().optional()
 });
@@ -534,7 +534,7 @@ export function tokensNeedingRewrite(rawAuth: unknown): string[] {
 
 /** The single key from before named keys. Normalised into a `default` admin entry on parse. */
 const LegacyManagementKeySchema = z.strictObject({
-    hash: z.string().regex(/^sha256:[0-9a-f]{64}$/, 'hash must be sha256:<64 hex>'),
+    hash: z.string().regex(HASH_PATTERN, 'hash must be sha256:<64 hex>'),
     created: z.iso.date()
 });
 

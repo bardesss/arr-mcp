@@ -1,12 +1,14 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { LineCounter, parse, parseDocument, stringify } from 'yaml';
 import * as z from 'zod/v4';
+import { writeFileAtomic } from '../core/atomicFile.ts';
 import { logger } from '../core/logger.ts';
-import { writeConfigAtomic } from './save.ts';
 import { AuthSchema, ConfigSchema, tokensNeedingRewrite, type Config } from './schema.ts';
 
-export const CONFIG_FILENAME = 'config.yaml';
+const CONFIG_FILENAME = 'config.yaml';
+
+export const configPath = (configDir: string): string => join(configDir, CONFIG_FILENAME);
 
 /** What repair mode reads of an `auth` block that did not fully validate. */
 export type SalvagedAuth = Omit<z.infer<typeof AuthSchema>, 'oauth' | 'tokens' | 'bearer_token' | 'management_key' | 'management_keys'>;
@@ -163,8 +165,8 @@ export async function loadConfig(
 ): Promise<{ config: Config; created: boolean; plaintextOnDisk: string[] }> {
     const persist = opts.persist ?? true;
     const create = persist && (opts.create ?? true);
-    const write = opts.write ?? writeConfigAtomic;
-    const path = join(configDir, CONFIG_FILENAME);
+    const write = opts.write ?? writeFileAtomic;
+    const path = configPath(configDir);
     if (create) await mkdir(configDir, { recursive: true });
 
     let raw: string | undefined;
@@ -182,8 +184,7 @@ export async function loadConfig(
             );
         }
         const seeded = seedConfig();
-        // 0o600: the file holds every service API key.
-        await writeFile(path, stringify(seeded), { mode: 0o600 });
+        await writeFileAtomic(path, stringify(seeded));
         logger.info({ path }, 'created config.yaml — no password set yet');
         return { config: ConfigSchema.parse(seeded), created: true, plaintextOnDisk: [] };
     }

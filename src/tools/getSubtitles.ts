@@ -2,6 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import { logger } from '../core/logger.ts';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
 import type { ServiceAdapter, SubtitleCapable, SubtitleGap, SubtitleProvider } from '../services/types.ts';
+import { episodeCode } from '../core/labels.ts';
 
 export type GetSubtitlesResult = {
     items: SubtitleGap[];
@@ -67,7 +68,7 @@ export function subtitleLine(gap: SubtitleGap): string {
     const numbering =
         gap.season === undefined || gap.episode === undefined
             ? ''
-            : ` S${String(gap.season).padStart(2, '0')}E${String(gap.episode).padStart(2, '0')}`;
+            : ` ${episodeCode(gap.season, gap.episode)}`;
     const episode = gap.episodeTitle === undefined ? '' : ` ${gap.episodeTitle}`;
     const missing = gap.missing.map(m => m.name || m.code2).filter(v => v !== '');
 

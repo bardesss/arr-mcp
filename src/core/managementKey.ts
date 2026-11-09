@@ -1,27 +1,16 @@
-import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import type { Context } from 'hono';
-import { fingerprint, hashToken } from './mcpTokens.ts';
+import { findByHash, fingerprint } from './secrets.ts';
 
 export type ManagementKeyTier = 'read' | 'admin';
 export type StoredManagementKey = { name: string; tier: ManagementKeyTier; hash: string; created: string };
 
 export const generateManagementKey = (): string => `amk_${randomBytes(32).toString('hex')}`;
 
-// Every stored hash is compared, so timing says nothing about which one matched.
-export function matchManagementKey(
+export const matchManagementKey = (
     presented: string | undefined,
     keys: readonly StoredManagementKey[]
-): StoredManagementKey | undefined {
-    if (presented === undefined || presented === '') return undefined;
-    const digest = Buffer.from(hashToken(presented));
-    let found: StoredManagementKey | undefined;
-    for (const key of keys) {
-        const want = Buffer.from(key.hash);
-        const same = digest.length === want.length && timingSafeEqual(digest, want);
-        if (same && found === undefined) found = key;
-    }
-    return found;
-}
+): StoredManagementKey | undefined => findByHash(presented, keys);
 
 /** The field the API's log lines name their caller with, in the MCP tokens' `name#fingerprint` shape. */
 export const managementKeyLabel = (key: StoredManagementKey): string => `${key.name}#${fingerprint(key.hash)}`;

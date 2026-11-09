@@ -1,4 +1,5 @@
-import { expiresIn, generateMcpToken, hashToken, type ExpiryChoice, type TokenTier } from '../core/mcpTokens.ts';
+import { expiresIn, generateMcpToken, type ExpiryChoice, type TokenTier } from '../core/mcpTokens.ts';
+import { hashToken } from '../core/secrets.ts';
 import { instanceId } from './instances.ts';
 import {
     ConfigSchema,

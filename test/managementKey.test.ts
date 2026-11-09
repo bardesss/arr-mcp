@@ -7,7 +7,7 @@ import { ConfigInvalidError, loadConfig } from '../src/config/load.ts';
 import { saveConfig } from '../src/config/save.ts';
 import { ConfigSchema } from '../src/config/schema.ts';
 import { generateManagementKey, managementKeyLabel, matchManagementKey } from '../src/core/managementKey.ts';
-import { hashToken } from '../src/core/mcpTokens.ts';
+import { hashToken } from '../src/core/secrets.ts';
 
 const base = () => ConfigSchema.parse({ auth: { username: 'admin' }, services: {} });
 const HASH = hashToken('a stored key');

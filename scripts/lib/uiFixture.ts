@@ -20,7 +20,7 @@ import type { Config } from '../../src/config/schema.ts';
 import type { LogRow } from '../../src/core/logs.ts';
 import type { ConnectionDiagnosis, DiskSpace, HealthCheck, ScanState } from '../../src/services/types.ts';
 import type { AuditRow } from '../../src/core/audit.ts';
-import { hashToken } from '../../src/core/mcpTokens.ts';
+import { hashToken } from '../../src/core/secrets.ts';
 
 /** Frozen like the rest; the expiring token is dated relative to it. */
 export const NOW = new Date('2026-08-13T09:45:00Z');

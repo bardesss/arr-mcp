@@ -1,13 +1,13 @@
 import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { parseDocument } from 'yaml';
 import { MAX_BODY_BYTES } from './app.ts';
-import { CONFIG_FILENAME, validateConfigText } from './config/load.ts';
+import { configPath, validateConfigText } from './config/load.ts';
 import type { ConfigInvalidError, SalvagedAuth } from './config/load.ts';
-import { writeConfigAtomic } from './config/save.ts';
+import { writeFileAtomic } from './core/atomicFile.ts';
+import { serial } from './core/serial.ts';
 import { logger } from './core/logger.ts';
 import { LoginThrottle } from './core/loginThrottle.ts';
 import {
@@ -122,7 +122,7 @@ export function buildRepairApp(deps: RepairDeps): Hono {
     let auth: SalvagedAuth = authBlock;
     let claiming = false;
     /** Orders the save handler's write-and-promote turns. See `POST /ui/repair`. */
-    let saves: Promise<unknown> = Promise.resolve();
+    const saves = serial();
     /** Set once a save has promoted the process out of repair mode. */
     let started = false;
     const throttle = new LoginThrottle();
@@ -187,7 +187,7 @@ export function buildRepairApp(deps: RepairDeps): Hono {
         if (!unclaimed() || claiming) return c.redirect('/ui/login', 302);
         claiming = true;
         try {
-            const path = join(configDir, CONFIG_FILENAME);
+            const path = configPath(configDir);
             let text: string;
             try {
                 // Re-read rather than reusing the snapshot this server started
@@ -226,7 +226,7 @@ export function buildRepairApp(deps: RepairDeps): Hono {
             } catch {
                 return reject('config.yaml changed on disk and can no longer be edited here. Fix it directly, then restart.');
             }
-            await writeConfigAtomic(path, text);
+            await writeFileAtomic(path, text);
             raw = text;
             auth = { ...auth, username, password_hash };
         } finally {
@@ -308,7 +308,7 @@ export function buildRepairApp(deps: RepairDeps): Hono {
          *
          * Promotion re-reads config.yaml, and a second save renaming its own
          * copy into place while that read is open fails outright on Windows —
-         * the queue inside `writeConfigAtomic` orders writes against each other
+         * the queue inside `writeFileAtomic` orders writes against each other
          * but not against a reader. Ordering the whole sequence also means the
          * runtime and the file can never disagree about which save won.
          */
@@ -321,7 +321,7 @@ export function buildRepairApp(deps: RepairDeps): Hono {
 
             // No `expected` drift check: the premise of this page is a file on
             // disk that nothing else is running to change.
-            await writeConfigAtomic(join(configDir, CONFIG_FILENAME), text);
+            await writeFileAtomic(configPath(configDir), text);
             raw = text;
 
             const promoted = await deps.onPromote();
@@ -338,9 +338,7 @@ export function buildRepairApp(deps: RepairDeps): Hono {
             return c.redirect('/ui', 302);
         };
 
-        const run = saves.then(apply, apply);
-        saves = run.catch(() => undefined);
-        return run;
+        return saves(apply);
     });
 
     app.all('*', c => c.redirect('/ui/repair', 302));

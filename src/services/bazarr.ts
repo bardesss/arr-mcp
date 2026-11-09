@@ -3,7 +3,7 @@ import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import { apiKeyHeader } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
-import { fenceText } from '../core/fence.ts';
+import { fenceText, fencer } from '../core/fence.ts';
 import { LOG_LINES, foldLogLines } from './logLines.ts';
 import {
     diagnoseConnection,
@@ -170,7 +170,7 @@ export class BazarrAdapter
      * which is where the design spec wants partial-result handling to live.
      */
     async getMissingSubtitles(): Promise<SubtitleGap[]> {
-        const fence = (field: string, value: string) => fenceText(value, { service: this.id, field });
+        const fence = fencer(this.id);
 
         const [movies, episodes] = await Promise.all([
             this.#http.get<Envelope<RawWantedMovie[]>>('/api/movies/wanted'),
@@ -190,8 +190,8 @@ export class BazarrAdapter
                 service: this.id,
                 kind: 'movie' as const,
                 id: m.radarrId,
-                title: fence('title', m.title ?? ''),
-                ...(typeof m.sceneName === 'string' ? { releaseName: fence('sceneName', m.sceneName) } : {}),
+                title: fence(m.title ?? '', 'title'),
+                ...(typeof m.sceneName === 'string' ? { releaseName: fence(m.sceneName, 'sceneName') } : {}),
                 missing: (m.missing_subtitles ?? []).map(language)
             }));
 

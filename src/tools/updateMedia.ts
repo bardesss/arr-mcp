@@ -21,6 +21,7 @@ import { describeBookChange, diffBookFields } from './bookMetadata.ts';
 import { chooseOne, freeSpace, FOLDER_MATCH, PROFILE_MATCH, TAG_MATCH } from './chooseOne.ts';
 import { NO_ALBUMS_PROFILE, SEARCH_AFTER_REFRESH } from './lidarrProfiles.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
+import { titled } from '../core/labels.ts';
 
 /**
  * `add_media`'s counterpart, and the only way to change a **Radarr** item's
@@ -403,7 +404,7 @@ export function registerUpdateMedia(
                 metadata_profile === undefined || !hasMetadataProfiles(adapter) ? Promise.resolve([]) : adapter.listMetadataProfiles()
             ]);
 
-            const label = `${current.title}${current.year === undefined ? '' : ` (${current.year})`}`;
+            const label = titled(current.title, current.year);
             const profile =
                 quality_profile === undefined
                     ? undefined

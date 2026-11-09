@@ -1,4 +1,4 @@
-import { fenceText } from '../core/fence.ts';
+import { fencer } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
 import type { LibraryKind } from '../core/resolver.ts';
 import { pageSizeFor, readArrPages, readTotal } from './arrPaging.ts';
@@ -75,7 +75,7 @@ export async function readArrWanted(
     want?: number
 ): Promise<Window<WantedItem>> {
     const path = scope === 'missing' ? `${http.apiRoot}/wanted/missing` : `${http.apiRoot}/wanted/cutoff`;
-    const fence = (value: string, field: string) => fenceText(value, { service, field });
+    const fence = fencer(service);
     const paging =
         want === undefined ? {} : { pageSize: pageSizeFor(want), stopWhen: (_page: unknown[], kept: number) => kept >= want };
 

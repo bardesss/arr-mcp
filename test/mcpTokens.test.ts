@@ -1,16 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import {
-    bearerCaller,
-    expiresIn,
-    expiringSoon,
-    fingerprint,
-    generateMcpToken,
-    hashToken,
-    isExpired,
-    matchToken,
-    tiersOf,
-    type StoredToken
-} from '../src/core/mcpTokens.ts';
+import { bearerCaller, expiresIn, expiringSoon, generateMcpToken, isExpired, matchToken, tiersOf, type StoredToken } from '../src/core/mcpTokens.ts';
+import { fingerprint, hashToken } from '../src/core/secrets.ts';
 
 const NOW = new Date('2026-09-29T12:00:00Z');
 const PLAIN = 'amcp_' + 'c'.repeat(64);

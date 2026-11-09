@@ -1,6 +1,7 @@
-import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomBytes } from 'node:crypto';
 import type { Clock } from './cache.ts';
 import type { WriteTier } from './permissions.ts';
+import { constantTimeEquals } from './secrets.ts';
 
 /**
  * The per-call confirmation, built to survive a stateless transport.
@@ -122,17 +123,6 @@ function unwrap(presented: string): string {
     return out;
 }
 
-/** Timing-safe compare that tolerates unequal lengths without leaking them. */
-function signatureMatches(presented: string, expected: string): boolean {
-    const a = Buffer.from(presented);
-    const b = Buffer.from(expected);
-    if (a.length !== b.length) {
-        timingSafeEqual(b, b);
-        return false;
-    }
-    return timingSafeEqual(a, b);
-}
-
 export class ConfirmTokens {
     readonly #key: Buffer;
     readonly #now: Clock;
@@ -187,7 +177,7 @@ export class ConfirmTokens {
         const age = this.#now() - issuedAt;
         if (age < 0 || age > this.#ttlMs) return { ok: false, failure: 'expired', remedy: REMEDY.expired };
 
-        if (!signatureMatches(signature, this.#sign(intent, issuedAt))) {
+        if (!constantTimeEquals(signature, this.#sign(intent, issuedAt))) {
             return { ok: false, failure: 'mismatch', remedy: REMEDY.mismatch };
         }
 

@@ -1,5 +1,6 @@
 import { logger } from '../core/logger.ts';
 import { hasCleanup, type CleanupCandidate, type CleanupRemoval, type CleanupStatus, type ServiceAdapter } from '../services/types.ts';
+import { episodeCode } from '../core/labels.ts';
 
 /**
  * One title's standing with the cleanup service: what its rules matched, what
@@ -41,7 +42,7 @@ const part = (c: { scope: string; seasonNumber?: number; episodeNumber?: number 
         : c.scope === 'season' && c.seasonNumber !== undefined
         ? `season ${c.seasonNumber} `
         : c.scope === 'episode' && c.seasonNumber !== undefined && c.episodeNumber !== undefined
-          ? `S${String(c.seasonNumber).padStart(2, '0')}E${String(c.episodeNumber).padStart(2, '0')} `
+          ? `${episodeCode(c.seasonNumber, c.episodeNumber)} `
           : '';
 
 /** "Reclaimerr deleted it on 2026-11-02 under rule X." */

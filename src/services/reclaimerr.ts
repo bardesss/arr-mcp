@@ -1,7 +1,7 @@
 import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import { apiKeyHeader } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
-import { fenceText } from '../core/fence.ts';
+import { fenceText, fencer } from '../core/fence.ts';
 import { logger } from '../core/logger.ts';
 import { ServiceHttp } from '../core/http.ts';
 import {
@@ -303,7 +303,7 @@ export class ReclaimerrAdapter implements ServiceAdapter, HealthCheckCapable, Hi
     }
 
     #entryOf(e: RawEvent, rules: Map<number, RawRule> | undefined): HistoryEntry {
-        const fence = (value: string, field: string) => fenceText(value, { service: this.id, field });
+        const fence = fencer(this.id);
         const c = e.payload?.candidate;
         const p = e.payload?.protection;
         const reasons = [text(c?.lifecycle_reason) ?? text(e.payload?.reason ?? undefined), text(c?.reason), text(p?.reason)].filter(
@@ -325,7 +325,7 @@ export class ReclaimerrAdapter implements ServiceAdapter, HealthCheckCapable, Hi
     }
 
     #candidateOf(c: RawCandidate, rules: Map<number, RawRule> | undefined): CleanupCandidate {
-        const fence = (value: string, field: string) => fenceText(value, { service: this.id, field });
+        const fence = fencer(this.id);
         const state = STATES.has(c.auto_delete_state as CleanupState) ? (c.auto_delete_state as CleanupState) : 'disabled';
         const blockers = (c.blockers ?? []).filter(b => b !== '').map(b => fence(b, 'blocker'));
         return {
@@ -350,7 +350,7 @@ export class ReclaimerrAdapter implements ServiceAdapter, HealthCheckCapable, Hi
     }
 
     #protectionOf(p: RawProtection): CleanupProtection {
-        const fence = (value: string, field: string) => fenceText(value, { service: this.id, field });
+        const fence = fencer(this.id);
         return {
             kind: kindOf(p.media_type),
             scope: p.scope ?? kindOf(p.media_type),
@@ -366,7 +366,7 @@ export class ReclaimerrAdapter implements ServiceAdapter, HealthCheckCapable, Hi
 
     #removalOf(e: RawEvent, rules: Map<number, RawRule> | undefined): CleanupRemoval {
         const c = e.payload?.candidate ?? {};
-        const fence = (value: string, field: string) => fenceText(value, { service: this.id, field });
+        const fence = fencer(this.id);
         return {
             at: utc(e.occurred_at),
             kind: kindOf(c.media_type),
