@@ -77,7 +77,7 @@ describe('tools.media_cards: false', () => {
 });
 
 describe('the card view itself', () => {
-    const script = /<script>([\s\S]*)<\/script>/.exec(CARD_VIEW_HTML)?.[1] ?? '';
+    const script = /<script\b[^>]*>([\s\S]*)<\/script\s*>/i.exec(CARD_VIEW_HTML)?.[1] ?? '';
 
     it('is one self-contained page: no external script, stylesheet or font', () => {
         expect(CARD_VIEW_HTML).not.toMatch(/<script[^>]+src=|<link[^>]+href=|@import|url\(\s*["']?https?:/);

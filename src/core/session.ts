@@ -1,4 +1,4 @@
-import { createHmac, randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomBytes, randomInt, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -83,9 +83,10 @@ export async function verifyPassword(password: string, stored: string): Promise<
 const ALPHABET = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 export function generatePassword(length = 18): string {
-    const bytes = randomBytes(length);
+    // `randomInt` draws without modulo bias: a byte taken modulo the alphabet's
+    // 57 characters made the first 28 slightly likelier than the rest.
     let out = '';
-    for (const byte of bytes) out += ALPHABET[byte % ALPHABET.length];
+    for (let i = 0; i < length; i += 1) out += ALPHABET[randomInt(ALPHABET.length)];
     return out;
 }
 
