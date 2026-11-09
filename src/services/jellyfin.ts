@@ -475,10 +475,10 @@ export class JellyfinAdapter
     }
 
     /**
-     * `/Items?ids=…`, not `/Items/{id}` — the latter answers **400 Error
-     * processing request** on a live 10.11.11, and the per-user form
-     * `/Users/{userId}/Items/{id}` would drag an identity into a call that has
-     * no business needing one.
+     * `/Items?ids=…`, not a bare `/Items/{id}` — that form answers **400
+     * Error processing request** on a live 10.11.11 because it carries no
+     * `userId`. `readWatchTarget` sends one and reads `/Items/{id}` fine; this
+     * read has no business needing an identity, so it stays on `ids`.
      *
      * `Fields` is required for anything beyond the summary: without it there
      * are no provider ids, no path and no media sources.
