@@ -68,14 +68,6 @@ const ApiKeyShape = { api_key: z.string().min(1, 'api_key must not be empty') };
 /** Every service that takes an API key and nothing more, the *arrs and SABnzbd among them. */
 const KeyedServiceSchema = z.strictObject({ ...BaseServiceShape, ...ApiKeyShape });
 
-/** Services arr-mcp never writes to. */
-export const READ_ONLY_SERVICES: ReadonlySet<string> = new Set(['cleanuparr', 'reclaimerr', 'dispatcharr']);
-
-/**
- * Write flags on a service nothing writes to would be reported as granted
- * while granting nothing, so they are read as off whatever the file says.
- */
-const ReadOnlyKeyedServiceSchema = KeyedServiceSchema.transform(c => ({ ...c, permissions: { safe_write: false, destructive: false } }));
 export type KeyedServiceConfig = z.infer<typeof KeyedServiceSchema>;
 
 /**
@@ -93,33 +85,6 @@ const GrimmoryServiceSchema = z.strictObject({
 });
 export type GrimmoryServiceConfig = z.infer<typeof GrimmoryServiceSchema>;
 
-/**
- * Which services may appear more than once.
- *
- * Quality tiers are the reason anyone runs two *arrs, and a Bazarr follows each
- * pair because it connects to exactly one of each. A Lidarr tier can be, for
- * example, a lossless library beside a lossy one. The download clients and
- * Prowlarr are here for a different reason: nothing selects them by anything but
- * capability, so a second one is merged into reads and named on writes with no
- * special case.
- *
- * The ones left out are refusals, not omissions; most say why beside their key
- * in `ServicesSchema`, and the rest are here. `get_library`'s `presence` asks
- * whether the media server can see a file, which has no answer with two media
- * servers; and a Seerr request carries a user identity that a second instance
- * makes ambiguous.
- */
-export const MULTI_INSTANCE: readonly ServiceId[] = [
-    'bazarr',
-    'lidarr',
-    'nzbget',
-    'prowlarr',
-    'qbittorrent',
-    'radarr',
-    'sabnzbd',
-    'sonarr',
-    'transmission'
-];
 
 /**
  * Goes into the qualified id (`radarr/4k`), which reaches audit rows, log
@@ -130,12 +95,6 @@ const InstanceNameSchema = z
     .string()
     .min(1)
     .regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/, 'must be letters, digits, dashes or underscores, starting with one');
-
-const NamedKeyedServiceSchema = z.strictObject({
-    ...BaseServiceShape,
-    ...ApiKeyShape,
-    name: InstanceNameSchema
-});
 
 /**
  * Names are compared case-insensitively because `4K` and `4k` naming two
@@ -162,12 +121,6 @@ const uniqueNames = (list: readonly { name: string }[], ctx: z.RefinementCtx): v
     });
 };
 
-/** The list form, for services taking an api_key. */
-const InstanceListSchema = z
-    .array(NamedKeyedServiceSchema)
-    .min(1, 'list at least one instance, or use a single block instead of a list')
-    .superRefine(uniqueNames);
-
 /**
  * One block, as before, or a list of named ones. A union rather than a new key,
  * so every config that parses today parses unchanged — there is no migration
@@ -193,8 +146,6 @@ const listOrBlock = <B extends z.ZodType, L extends z.ZodType>(block: B, list: L
             for (const issue of result.error.issues) ctx.addIssue({ code: 'custom', message: issue.message, path: issue.path });
         })
         .pipe(z.union([block, list]));
-
-const MultiInstanceServiceSchema = listOrBlock(KeyedServiceSchema, InstanceListSchema);
 
 /**
  * A service config as an adapter receives it: the same shape, plus the name
@@ -249,20 +200,6 @@ const CredentialServiceSchema = z.strictObject({
     password: z.string().optional()
 });
 export type CredentialServiceConfig = z.infer<typeof CredentialServiceSchema>;
-
-const NamedCredentialServiceSchema = z.strictObject({
-    ...BaseServiceShape,
-    username: z.string().min(1).optional(),
-    password: z.string().optional(),
-    name: InstanceNameSchema
-});
-
-const CredentialInstanceListSchema = z
-    .array(NamedCredentialServiceSchema)
-    .min(1, 'list at least one instance, or use a single block instead of a list')
-    .superRefine(uniqueNames);
-
-const MultiInstanceCredentialSchema = listOrBlock(CredentialServiceSchema, CredentialInstanceListSchema);
 
 export type AnyServiceConfig = KeyedServiceConfig | MultiUserServiceConfig | PlexServiceConfig | CredentialServiceConfig;
 
@@ -320,6 +257,40 @@ export type ConfigByService = {
 };
 
 /**
+ * What a service's entry says about it, read off its own schema so the two
+ * cannot disagree: which fields it has, which it cannot do without, whether
+ * it can be a list, and whether arr-mcp ever writes to it.
+ */
+export type ServiceTraits = {
+    readonly multiInstance: boolean;
+    readonly readOnly: boolean;
+    readonly fields: ReadonlySet<string>;
+    readonly required: ReadonlySet<string>;
+};
+
+const traitsOf = (block: z.ZodObject, multiInstance: boolean, readOnly: boolean): ServiceTraits => {
+    const fields = Object.entries(block.shape) as [string, z.ZodType][];
+    return {
+        multiInstance,
+        readOnly,
+        fields: new Set(fields.map(([key]) => key)),
+        required: new Set(fields.filter(([, field]) => !field.safeParse(undefined).success).map(([key]) => key))
+    };
+};
+
+/** The list form: the same block, named, and no two names alike. */
+const multi = <Shape extends z.core.$ZodShape>(block: z.ZodObject<Shape, z.core.$strict>) => ({
+    schema: listOrBlock(
+        block,
+        z
+            .array(block.extend({ name: InstanceNameSchema }))
+            .min(1, 'list at least one instance, or use a single block instead of a list')
+            .superRefine((list, ctx) => uniqueNames(list as { name: string }[], ctx))
+    ),
+    traits: traitsOf(block, true, false)
+});
+
+/**
  * Refuses a list, and says which services take one.
  *
  * Without this the reader gets zod's `expected object, received array`, which
@@ -338,46 +309,87 @@ const singleOnly = <T extends z.ZodType>(schema: T) =>
         })
         .pipe(schema);
 
+const single = <B extends z.ZodObject>(block: B) => ({ schema: singleOnly(block), traits: traitsOf(block, false, false) });
+
+/**
+ * Write flags on a service nothing writes to would be reported as granted
+ * while granting nothing, so they are read as off whatever the file says.
+ */
+const readOnly = <B extends z.ZodObject>(block: B) => ({
+    schema: singleOnly(block.transform(c => ({ ...c, permissions: { safe_write: false, destructive: false } }))),
+    traits: traitsOf(block, false, true)
+});
+
+/**
+ * Every service, and which may appear more than once.
+ *
+ * Quality tiers are the reason anyone runs two *arrs, and a Bazarr follows each
+ * pair because it connects to exactly one of each. A Lidarr tier can be, for
+ * example, a lossless library beside a lossy one. The download clients and
+ * Prowlarr are here for a different reason: nothing selects them by anything but
+ * capability, so a second one is merged into reads and named on writes with no
+ * special case.
+ *
+ * The ones left out are refusals, not omissions; most say why beside their key
+ * in this table, and the rest are here. `get_library`'s `presence` asks
+ * whether the media server can see a file, which has no answer with two media
+ * servers; and a Seerr request carries a user identity that a second instance
+ * makes ambiguous.
+ */
+const SERVICES = {
+    radarr: multi(KeyedServiceSchema),
+    sonarr: multi(KeyedServiceSchema),
+    // Single only: the one deployment that wants two Whisparrs is V2
+    // beside V3 (Eros), and Eros is a different API with no adapter.
+    whisparr: single(KeyedServiceSchema),
+    // A list, like Radarr: a second Lidarr can be a quality tier too, for
+    // example lossless beside lossy. Reads name the instance a row came
+    // from (`lidarr/flac`), an artist both hold is one row as a film two
+    // Radarrs hold is, and writes refuse to guess between them.
+    lidarr: multi(KeyedServiceSchema),
+    bazarr: multi(KeyedServiceSchema),
+    prowlarr: multi(KeyedServiceSchema),
+    sabnzbd: multi(KeyedServiceSchema),
+    nzbget: multi(CredentialServiceSchema),
+    jellyfin: single(MultiUserServiceSchema),
+    seerr: single(MultiUserServiceSchema),
+    transmission: multi(CredentialServiceSchema),
+    qbittorrent: multi(CredentialServiceSchema),
+    plex: single(PlexServiceSchema),
+    // Single only: Profilarr is the one place that owns profile config,
+    // so two of them would mean two sources of truth.
+    profilarr: single(KeyedServiceSchema),
+    // Single only: one Cleanuparr cleans one stack.
+    cleanuparr: readOnly(KeyedServiceSchema),
+    // Single only: one Reclaimerr owns one library's cleanup rules.
+    reclaimerr: readOnly(KeyedServiceSchema),
+    // Single only: one Dispatcharr serves one set of playlists.
+    dispatcharr: readOnly(KeyedServiceSchema),
+    // Single only: one Shelfmark holds one download queue and one set of requests.
+    shelfmark: single(OptionalKeyServiceSchema),
+    // Single only: one Grimmory is the book library, and get_library's book rows need one source.
+    grimmory: single(GrimmoryServiceSchema)
+} satisfies Record<ServiceId, { schema: z.ZodType; traits: ServiceTraits }>;
+
+export const serviceTraits = (type: ServiceId): ServiceTraits => SERVICES[type].traits;
+
+export const MULTI_INSTANCE: readonly ServiceId[] = ServiceIdSchema.options.filter(id => SERVICES[id].traits.multiInstance).sort();
+
+/** The field a blank form entry keeps as it was, and that must not follow the instance to a new host. */
+export const secretFieldOf = (type: ServiceId): 'api_key' | 'password' =>
+    serviceTraits(type).fields.has('api_key') ? 'api_key' : 'password';
+
 /**
  * Strict as well, so an unknown service id is an error rather than a key that
  * silently vanishes. Someone adding `plex:` should be told it is unsupported,
  * not left wondering why nothing happened.
  */
 const ServicesSchema = z
-    .strictObject({
-        radarr: MultiInstanceServiceSchema.optional(),
-        sonarr: MultiInstanceServiceSchema.optional(),
-        // Single only: the one deployment that wants two Whisparrs is V2
-        // beside V3 (Eros), and Eros is a different API with no adapter.
-        whisparr: singleOnly(KeyedServiceSchema).optional(),
-        // A list, like Radarr: a second Lidarr can be a quality tier too, for
-        // example lossless beside lossy. Reads name the instance a row came
-        // from (`lidarr/flac`), an artist both hold is one row as a film two
-        // Radarrs hold is, and writes refuse to guess between them.
-        lidarr: MultiInstanceServiceSchema.optional(),
-        bazarr: MultiInstanceServiceSchema.optional(),
-        prowlarr: MultiInstanceServiceSchema.optional(),
-        sabnzbd: MultiInstanceServiceSchema.optional(),
-        nzbget: MultiInstanceCredentialSchema.optional(),
-        jellyfin: singleOnly(MultiUserServiceSchema).optional(),
-        seerr: singleOnly(MultiUserServiceSchema).optional(),
-        transmission: MultiInstanceCredentialSchema.optional(),
-        qbittorrent: MultiInstanceCredentialSchema.optional(),
-        plex: singleOnly(PlexServiceSchema).optional(),
-        // Single only: Profilarr is the one place that owns profile config,
-        // so two of them would mean two sources of truth.
-        profilarr: singleOnly(KeyedServiceSchema).optional(),
-        // Single only: one Cleanuparr cleans one stack.
-        cleanuparr: singleOnly(ReadOnlyKeyedServiceSchema).optional(),
-        // Single only: one Reclaimerr owns one library's cleanup rules.
-        reclaimerr: singleOnly(ReadOnlyKeyedServiceSchema).optional(),
-        // Single only: one Dispatcharr serves one set of playlists.
-        dispatcharr: singleOnly(ReadOnlyKeyedServiceSchema).optional(),
-        // Single only: one Shelfmark holds one download queue and one set of requests.
-        shelfmark: singleOnly(OptionalKeyServiceSchema).optional(),
-        // Single only: one Grimmory is the book library, and get_library's book rows need one source.
-        grimmory: singleOnly(GrimmoryServiceSchema).optional()
-    })
+    .strictObject(
+        Object.fromEntries(Object.entries(SERVICES).map(([id, entry]) => [id, entry.schema.optional()])) as {
+            [Id in keyof typeof SERVICES]: z.ZodOptional<(typeof SERVICES)[Id]['schema']>;
+        }
+    )
     .superRefine((services, ctx) => {
         /**
          * Jellyfin and Seerr issue one admin-scoped key that can answer for
@@ -597,6 +609,9 @@ export const AuthSchema = z.strictObject({
 export const MediaServerIdSchema = z.enum(['jellyfin', 'plex']);
 export type MediaServerId = z.infer<typeof MediaServerIdSchema>;
 
+export const mediaServersIn = (services: Readonly<Record<string, unknown>>): MediaServerId[] =>
+    MediaServerIdSchema.options.filter(id => services[id] !== undefined);
+
 /**
  * The library event log. A plain secret, like a service's `api_key` and unlike an
  * MCP token, because it has to be pasted into every *arr and can only write event
@@ -688,7 +703,7 @@ export const ConfigSchema = z.object({
     // together are admitted, and this rule says which one the tools default to.
     // Refused rather than guessed: a silent default would send a Plex question
     // to Jellyfin, or the reverse.
-    const configured = MediaServerIdSchema.options.filter(id => config.services[id] !== undefined);
+    const configured = mediaServersIn(config.services);
     const primary = config.primary_media_server;
     if (configured.length === 2 && primary === undefined) {
         ctx.addIssue({

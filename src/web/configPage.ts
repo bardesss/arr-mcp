@@ -1,10 +1,14 @@
 import { configEtag } from '../config/etag.ts';
 import { listInstances, type ServiceInstance } from '../config/instances.ts';
+import { isMultiInstance } from '../config/instances.ts';
 import {
+    MediaServerIdSchema,
+    mediaServersIn,
     MULTI_INSTANCE,
     OAuthSchema,
-    READ_ONLY_SERVICES,
+    secretFieldOf,
     ServiceIdSchema,
+    serviceTraits,
     type Config,
     type ServiceId,
     type Theme
@@ -68,18 +72,11 @@ export const SERVICE_IDS_ALPHABETICAL: readonly ServiceId[] = [...SERVICE_IDS].s
  */
 export function offerableTypes(config: Config): ServiceId[] {
     const configured = new Set(listInstances(config).map(i => i.type));
-    return SERVICE_IDS_ALPHABETICAL.filter(id => MULTI_INSTANCE.includes(id) || !configured.has(id));
+    return SERVICE_IDS_ALPHABETICAL.filter(id => isMultiInstance(id) || !configured.has(id));
 }
 
-/** Which extra fields each service actually has, so a card matches the schema
- *  rather than showing eight identical boxes. */
-const MULTI_USER: ReadonlySet<string> = new Set(['jellyfin', 'plex', 'seerr']);
-/** The media servers; when both are configured, one is primary. */
-const MEDIA_SERVERS: readonly ServiceId[] = ['jellyfin', 'plex'];
-const NO_API_KEY_IDS: readonly ServiceId[] = ['transmission', 'qbittorrent', 'nzbget', 'grimmory'];
-const NO_API_KEY: ReadonlySet<string> = new Set(NO_API_KEY_IDS);
-/** The ones that cannot connect without a username: the rest accept an unauthenticated install. */
-const REQUIRED_LOGIN: ReadonlySet<string> = new Set(['grimmory']);
+/** The services that sign in with a username and password rather than an API key. */
+const PASSWORD_SERVICES: readonly ServiceId[] = SERVICE_IDS.filter(id => secretFieldOf(id) === 'password');
 
 type AnyService = {
     url: string;
@@ -180,9 +177,10 @@ function serviceFields(
 ): SafeHtml {
     const type = instance.type;
     const service = instance.config as AnyService;
+    const { fields, required } = serviceTraits(type);
 
-    return html`${NO_API_KEY.has(type)
-        ? html`${field({ id: `${prefix}.username`, name: 'username', label: REQUIRED_LOGIN.has(type) ? 'Username' : 'Username (optional)', value: service.username ?? '' })}
+    return html`${secretFieldOf(type) === 'password'
+        ? html`${field({ id: `${prefix}.username`, name: 'username', label: required.has('username') ? 'Username' : 'Username (optional)', value: service.username ?? '' })}
           ${field({
               id: `${prefix}.password`,
               name: 'password',
@@ -199,7 +197,7 @@ function serviceFields(
               placeholder: 'unchanged',
               note: 'Leave blank to keep the current key. A new host, port or scheme needs it entered again.'
           })}
-    ${MULTI_USER.has(type)
+    ${fields.has('default_user')
         ? html`${field({
               id: `${prefix}.default_user`,
               name: 'default_user',
@@ -272,7 +270,7 @@ function instanceCard(
         ${serviceFields(instance, p, users)}
         ${field({ id: `${p}.timeout_ms`, name: 'timeout_ms', label: 'Timeout (ms)', type: 'number', value: service.timeout_ms })}
 
-        ${READ_ONLY_SERVICES.has(instance.type)
+        ${serviceTraits(instance.type).readOnly
             ? html`<p class="note" style="margin-top:.75rem">Read-only: arr-mcp never writes to ${instance.type}, so there is nothing to grant.</p>`
             : html`<p class="note" style="margin-top:.75rem">Writes — both off by default, and granted per instance.</p>
                   ${checkbox(`${p}.safe_write`, 'safe_write', 'safe_write — searches, monitoring, request verdicts', service.permissions.safe_write)}
@@ -282,7 +280,7 @@ function instanceCard(
                       'destructive — deletes files, queue items and requests (implies safe_write)',
                       service.permissions.destructive
                   )}`}
-        ${instance.type === 'plex'
+        ${serviceTraits(instance.type).fields.has('allow_metadata_repair')
             ? html`${checkbox(
                   `${p}.allow_metadata_repair`,
                   'allow_metadata_repair',
@@ -519,7 +517,7 @@ function addDialog(
     const configured = new Set(instances.map(i => i.type));
     const offerable = offerableTypes(config);
 
-    const keyed = offerable.filter(id => !NO_API_KEY.has(id));
+    const keyed = offerable.filter(id => secretFieldOf(id) === 'api_key');
     const needsName = MULTI_INSTANCE.filter(t => configured.has(t));
     const unnamedSingle = MULTI_INSTANCE.filter(t =>
         instances.some(i => i.type === t && i.name === undefined)
@@ -573,14 +571,14 @@ function addDialog(
                       name: 'username',
                       label: 'Username',
                       note: 'Optional for Transmission, qBittorrent and NZBGet. Grimmory needs one.',
-                      only: NO_API_KEY_IDS
+                      only: PASSWORD_SERVICES
                   })}
                   ${field({
                       id: 'add.password',
                       name: 'password',
                       label: 'Password',
                       secret: true,
-                      only: NO_API_KEY_IDS
+                      only: PASSWORD_SERVICES
                   })}`}
 
             ${needsName.length === 0
@@ -1009,7 +1007,7 @@ export function configPage(opts: {
     addPrefill?: { type: ServiceId; url: string } | undefined;
 }): string {
     const instances = listInstances(opts.config);
-    const bothMediaServers = MEDIA_SERVERS.every(id => instances.some(i => i.type === id));
+    const bothMediaServers = mediaServersIn(opts.config.services).length === MediaServerIdSchema.options.length;
     // The etag is what lets a save tell that the config moved since this page was built.
     const keys = html`<input type="hidden" name="csrf" value="${opts.csrf}">
         <input type="hidden" name="etag" value="${configEtag(opts.config)}">`;
@@ -1104,7 +1102,7 @@ export function configPage(opts: {
                   <div class="field">
                       <label for="primary_media_server">Primary</label>
                       <select id="primary_media_server" name="primary_media_server">
-                          ${MEDIA_SERVERS.map(id => html`<option value="${id}" ${opts.config.primary_media_server === id ? raw('selected') : raw('')}>${id}</option>`)}
+                          ${MediaServerIdSchema.options.map(id => html`<option value="${id}" ${opts.config.primary_media_server === id ? raw('selected') : raw('')}>${id}</option>`)}
                       </select>
                   </div>
                   <p class="note">The one every tool reads by default. The other still answers when a tool is given its name.</p>

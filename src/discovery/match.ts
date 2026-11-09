@@ -1,7 +1,7 @@
 import { lookup as dnsLookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
-import { listInstances } from '../config/instances.ts';
-import { MULTI_INSTANCE, type Config } from '../config/schema.ts';
+import { isMultiInstance, listInstances } from '../config/instances.ts';
+import type { Config } from '../config/schema.ts';
 import { LOOKUP_TIMEOUT_MS, lookupWithin } from './addresses.ts';
 import type { Found } from './probe.ts';
 
@@ -78,7 +78,7 @@ export async function matchResults(
         if (same.some(c => c.normalized === normalized || (second !== undefined && c.normalized === second))) {
             row.status = 'added';
         } else if (same.length > 0) {
-            row.status = MULTI_INSTANCE.includes(f.type) ? 'maybe-second' : 'configured';
+            row.status = isMultiInstance(f.type) ? 'maybe-second' : 'configured';
             row.existingUrl = same[0]!.url;
         }
         rows.push(row);

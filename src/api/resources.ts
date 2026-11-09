@@ -1,7 +1,6 @@
 import { instanceId, listInstances, type ServiceInstance } from '../config/instances.ts';
 import { configuredMediaServers } from '../config/edits.ts';
-import { MULTI_USER, NO_API_KEY } from '../config/mutate.ts';
-import { ServiceIdSchema, type Config, type ServiceId } from '../config/schema.ts';
+import { secretFieldOf, ServiceIdSchema, serviceTraits, type Config, type ServiceId } from '../config/schema.ts';
 import { isExpired } from '../core/mcpTokens.ts';
 import { fingerprint } from '../core/secrets.ts';
 import type { ImdbDataset } from '../metadata/imdbDataset.ts';
@@ -47,16 +46,15 @@ export function appResource(instance: ServiceInstance): AppResource {
         safeWrite: c.permissions.safe_write,
         destructive: c.permissions.destructive
     };
-    if (NO_API_KEY.has(instance.type)) {
+    if (secretFieldOf(instance.type) === 'password') {
         return { ...base, username: c.username ?? null, passwordSet: (c.password ?? '') !== '' };
     }
+    const { fields } = serviceTraits(instance.type);
     return {
         ...base,
         apiKeySet: (c.api_key ?? '') !== '',
-        ...(MULTI_USER.has(instance.type)
-            ? { defaultUser: c.default_user ?? null, allowOtherUsers: c.allow_other_users ?? false }
-            : {}),
-        ...(instance.type === 'plex' ? { allowMetadataRepair: c.allow_metadata_repair ?? true } : {})
+        ...(fields.has('default_user') ? { defaultUser: c.default_user ?? null, allowOtherUsers: c.allow_other_users ?? false } : {}),
+        ...(fields.has('allow_metadata_repair') ? { allowMetadataRepair: c.allow_metadata_repair ?? true } : {})
     };
 }
 
