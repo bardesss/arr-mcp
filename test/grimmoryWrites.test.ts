@@ -869,7 +869,7 @@ describe('update_media on a book', () => {
 
     it('refuses a metadata profile on a book, sending nothing', async () => {
         const { call, server } = editTool();
-        await expect(call({ service: 'grimmory', id: '58', metadata_profile: 'Standard' })).rejects.toThrow(
+        await expect(call({ service: 'grimmory', id: '58', metadata_profile: 'Standard', dry_run: true })).rejects.toThrow(
             'a book has no film, series or artist settings'
         );
         expect(server.sent).toHaveLength(0);
