@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import Database from 'better-sqlite3';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LEVELS, LOG_RING_SIZE, LogStore, logFields } from '../src/core/logs.ts';
 
 let store: LogStore | undefined;
@@ -175,5 +176,22 @@ describe('the fields a row carries', () => {
 
     it('shows an unparseable blob verbatim rather than dropping it', () => {
         expect(logFields('not json')).toEqual([['fields', 'not json']]);
+    });
+});
+
+describe('statement preparation', () => {
+    it('prepares nothing per write, prune, count or services call', () => {
+        const logs = open();
+        const prepare = vi.spyOn(Database.prototype, 'prepare');
+        try {
+            for (let i = 0; i < 3; i++) logs.write(JSON.stringify({ level: 30, time: Date.now(), msg: 'x' }));
+            logs.prune();
+            logs.count();
+            logs.services();
+            expect(prepare).not.toHaveBeenCalled();
+            expect(logs.count()).toBe(3);
+        } finally {
+            prepare.mockRestore();
+        }
     });
 });

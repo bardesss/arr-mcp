@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AUDIT_FILENAME, BEARER_CALLER, WriteAudit, type AuditRecord } from '../src/core/audit.ts';
 
 const record = (over: Partial<AuditRecord> = {}): AuditRecord => ({
@@ -242,5 +242,23 @@ describe('the caller column', () => {
         audit.begin(record());
         expect(audit.recent()[0]?.caller).toBe(BEARER_CALLER);
         audit.close();
+    });
+});
+
+describe('statement preparation', () => {
+    it('prepares nothing per begin, settle, recent or counts call', () => {
+        const trail = open();
+        const prepare = vi.spyOn(Database.prototype, 'prepare');
+        try {
+            for (let i = 0; i < 2; i++) {
+                const id = trail.begin(record());
+                trail.settle(id, 'applied');
+                trail.recent();
+                trail.counts();
+            }
+            expect(prepare).not.toHaveBeenCalled();
+        } finally {
+            prepare.mockRestore();
+        }
     });
 });

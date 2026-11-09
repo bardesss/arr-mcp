@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import type { Database as Db } from 'better-sqlite3';
+import type { Database as Db, Statement } from 'better-sqlite3';
 import { join } from 'node:path';
 
 /**
@@ -88,11 +88,26 @@ const PROMOTED = new Set(['time', 'level', 'msg', 'service', 'app', 'hostname', 
 
 export class LogStore {
     readonly #db: Db;
+    readonly #insert: Statement;
+    readonly #services: Statement;
+    readonly #count: Statement;
+    readonly #pruneStmt: Statement;
     #sincePrune = 0;
 
     private constructor(db: Db) {
         this.#db = db;
         db.exec(SCHEMA);
+        this.#insert = db.prepare(`INSERT INTO log (at, level, service, msg, fields) VALUES (?, ?, ?, ?, ?)`);
+        this.#services = db.prepare(`SELECT DISTINCT service FROM log WHERE service IS NOT NULL ORDER BY service`);
+        this.#count = db.prepare(`SELECT COUNT(*) AS n FROM log`);
+        this.#pruneStmt = db.prepare(
+            // `<`, not `<=`: the subquery returns the id of the row that
+            // should be the *oldest survivor*, so including it kept
+            // LOG_RING_SIZE - 1 rows.
+            `DELETE FROM log WHERE id < (
+                 SELECT id FROM log ORDER BY id DESC LIMIT 1 OFFSET ?
+             )`
+        );
     }
 
     static open(configDir: string): LogStore {
@@ -127,15 +142,13 @@ export class LogStore {
                 if (!PROMOTED.has(key)) extra[key] = value;
             }
 
-            this.#db
-                .prepare(`INSERT INTO log (at, level, service, msg, fields) VALUES (?, ?, ?, ?, ?)`)
-                .run(
-                    at,
-                    level,
-                    typeof parsed.service === 'string' ? parsed.service : null,
-                    typeof parsed.msg === 'string' ? parsed.msg : '',
-                    JSON.stringify(extra)
-                );
+            this.#insert.run(
+                at,
+                level,
+                typeof parsed.service === 'string' ? parsed.service : null,
+                typeof parsed.msg === 'string' ? parsed.msg : '',
+                JSON.stringify(extra)
+            );
 
             this.#sincePrune += 1;
             if (this.#sincePrune >= PRUNE_EVERY) {
@@ -179,14 +192,14 @@ export class LogStore {
      *  those rather than all eight regardless. */
     services(): string[] {
         return (
-            this.#db.prepare(`SELECT DISTINCT service FROM log WHERE service IS NOT NULL ORDER BY service`).all() as {
+            this.#services.all() as {
                 service: string;
             }[]
         ).map(r => r.service);
     }
 
     count(): number {
-        return (this.#db.prepare(`SELECT COUNT(*) AS n FROM log`).get() as { n: number }).n;
+        return (this.#count.get() as { n: number }).n;
     }
 
     /** Keeps the newest LOG_RING_SIZE rows. Exposed for tests; called
@@ -200,16 +213,7 @@ export class LogStore {
     }
 
     #prune(): void {
-        this.#db
-            .prepare(
-                // `<`, not `<=`: the subquery returns the id of the row that
-                // should be the *oldest survivor*, so including it kept
-                // LOG_RING_SIZE - 1 rows.
-                `DELETE FROM log WHERE id < (
-                     SELECT id FROM log ORDER BY id DESC LIMIT 1 OFFSET ?
-                 )`
-            )
-            .run(LOG_RING_SIZE - 1);
+        this.#pruneStmt.run(LOG_RING_SIZE - 1);
     }
 }
 

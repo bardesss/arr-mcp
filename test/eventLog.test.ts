@@ -1,3 +1,4 @@
+import Database from 'better-sqlite3';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -349,5 +350,22 @@ describe('the events tab on the Logs page', () => {
         await seed(ON);
         const res = await app.request('http://localhost:6060/ui/logs?stream=events');
         expect(res.status).toBe(302);
+    });
+});
+
+describe('statement preparation', () => {
+    it('prepares nothing per recorded event', async () => {
+        const events = WebhookEvents.ephemeral();
+        const entry = parseArrWebhook('radarr', 'movie', await fixture('radarr', 'Grab'), recently(1));
+        if (entry === undefined) throw new Error('Grab did not parse');
+        const prepare = vi.spyOn(Database.prototype, 'prepare');
+        try {
+            events.record(entry, 30);
+            events.record(entry, 30);
+            expect(prepare).not.toHaveBeenCalled();
+        } finally {
+            prepare.mockRestore();
+            events.close();
+        }
     });
 });

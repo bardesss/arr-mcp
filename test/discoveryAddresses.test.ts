@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   defaultSweepRange,
   isPrivateAddress,
+  lookupGate,
+  lookupWithin,
   parseSweepRange,
   requestHost,
   resolvePrivate,
@@ -138,5 +140,64 @@ describe('defaultSweepRange', () => {
   it('gives nothing for IPv6 or public', () => {
     expect(defaultSweepRange('fd00::5')).toBeUndefined();
     expect(defaultSweepRange('8.8.8.8')).toBeUndefined();
+  });
+});
+
+describe('lookupWithin through a gate', () => {
+  it('never runs more than three lookups at once', async () => {
+    const gate = lookupGate();
+    let now = 0;
+    let max = 0;
+    const lookup = async () => {
+      now += 1;
+      max = Math.max(max, now);
+      await new Promise((r) => setTimeout(r, 10));
+      now -= 1;
+      return ['10.0.0.1'];
+    };
+    const answers = await Promise.all(Array.from({ length: 10 }, (_, i) => lookupWithin(`h${i}`, lookup, 1000, gate)));
+    expect(max).toBe(3);
+    expect(answers.every((a) => a?.[0] === '10.0.0.1')).toBe(true);
+  });
+
+  it('starts the timeout when the lookup starts, not while it waits for a slot', async () => {
+    const gate = lookupGate(1);
+    const slow = lookupWithin('slow', () => new Promise((r) => setTimeout(() => r(['10.0.0.1']), 30)), 100, gate);
+    const queued = lookupWithin('queued', async () => ['10.0.0.2'], 20, gate);
+    expect(await queued).toEqual(['10.0.0.2']);
+    await slow;
+  });
+
+  it('keeps the slot until a timed-out lookup settles', async () => {
+    const gate = lookupGate(1);
+    let release = () => {};
+    let secondCalled = false;
+    void lookupWithin('stuck', () => new Promise<string[]>((r) => { release = () => r([]); }), 10, gate);
+    const second = lookupWithin('next', async () => { secondCalled = true; return ['10.0.0.3']; }, 1000, gate);
+    await new Promise((r) => setTimeout(r, 30));
+    expect(secondCalled).toBe(false);
+    release();
+    expect(await second).toEqual(['10.0.0.3']);
+  });
+
+  it('gives up on a lookup that waits too long for a slot, without ever running it', async () => {
+    const gate = lookupGate(1, 20);
+    void lookupWithin('stuck', () => new Promise<string[]>(() => {}), 10, gate);
+    let called = false;
+    const queued = await lookupWithin('late', async () => { called = true; return ['10.0.0.4']; }, 1000, gate);
+    expect(queued).toBeUndefined();
+    expect(called).toBe(false);
+  });
+
+  it('does not hand a slot to a waiter that gave up', async () => {
+    const gate = lookupGate(1, 20);
+    let release = () => {};
+    void lookupWithin('held', () => new Promise<string[]>((r) => { release = () => r([]); }), 10, gate);
+    let called = false;
+    await lookupWithin('late', async () => { called = true; return []; }, 1000, gate);
+    release();
+    await new Promise((r) => setTimeout(r, 10));
+    expect(called).toBe(false);
+    expect(await lookupWithin('after', async () => ['10.0.0.5'], 1000, gate)).toEqual(['10.0.0.5']);
   });
 });

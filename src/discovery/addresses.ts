@@ -32,22 +32,77 @@ async function defaultLookup(host: string): Promise<string[]> {
 }
 
 /**
- * How long a name lookup may take before it counts as not resolving. A bare
- * container name that does not exist takes seconds to fail, and lookups share
- * libuv's four threads, so without a cap one quick search queues behind them.
+ * How long one name lookup may take, counted from the moment it gets a slot,
+ * before it counts as not resolving. A bare container name that does not exist
+ * takes seconds to fail, and lookups share libuv's four threads.
  */
 export const LOOKUP_TIMEOUT_MS = 1000;
 
+/** How many name lookups may be in flight at once, leaving libuv's pool a thread for other work. */
+export const LOOKUP_CONCURRENCY = 3;
+
 /**
- * The lookup's answer, or undefined when it fails or outlasts `timeoutMs`. A
- * lookup that loses the race is left to settle on its own, with its rejection
- * handled, so a late failure is never an unhandled rejection.
+ * How long a name may wait for a lookup slot before it is given up as
+ * unresolved. Slots are held until a lookup settles, so a resolver that never
+ * answers (no DNS server reachable) pins all of them; without this bound every
+ * other name would wait forever. Long enough that a working resolver failing
+ * slowly on missing container names still gets through a normal catalog, short
+ * enough that a dead one costs a quick search only a few seconds.
+ */
+export const LOOKUP_QUEUE_TIMEOUT_MS = 4000;
+
+/** `acquire` resolves with a one-shot release, or undefined when no slot freed up within the wait. */
+export type LookupGate = { acquire(): Promise<(() => void) | undefined> };
+
+/** A counting gate: `acquire` waits up to `waitMs` for a free slot, in arrival order. */
+export function lookupGate(max: number = LOOKUP_CONCURRENCY, waitMs: number = LOOKUP_QUEUE_TIMEOUT_MS): LookupGate {
+  let active = 0;
+  const waiting: Array<() => void> = [];
+  const grant = (): (() => void) => {
+    active += 1;
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      active -= 1;
+      waiting.shift()?.();
+    };
+  };
+  return {
+    acquire: () =>
+      active < max
+        ? Promise.resolve(grant())
+        : new Promise<(() => void) | undefined>((resolve) => {
+            const turn = (): void => {
+              clearTimeout(timer);
+              resolve(grant());
+            };
+            const timer = setTimeout(() => {
+              const at = waiting.indexOf(turn);
+              if (at >= 0) waiting.splice(at, 1);
+              resolve(undefined);
+            }, waitMs);
+            waiting.push(turn);
+          }),
+  };
+}
+
+/**
+ * The lookup's answer, or undefined when it fails or outlasts `timeoutMs`. The
+ * timeout starts when the lookup does, after it has a slot from `gate`. A slot
+ * is held until the lookup itself settles, even past its timeout, so lookups
+ * that time out cannot pile up in the thread pool. A lookup that loses the race
+ * is left to settle on its own, with its rejection handled.
  */
 export async function lookupWithin(
   host: string,
   lookup: (h: string) => Promise<string[]>,
   timeoutMs: number,
+  gate?: LookupGate,
 ): Promise<string[] | undefined> {
+  const release = gate === undefined ? undefined : await gate.acquire();
+  // No slot in time: the name counts as not resolving, and its lookup never starts.
+  if (gate !== undefined && release === undefined) return undefined;
   // Started inside a promise so a lookup that throws outright counts as a failure too.
   const answer = Promise.resolve()
     .then(() => lookup(host))
@@ -55,6 +110,7 @@ export async function lookupWithin(
       (addresses) => addresses,
       () => undefined,
     );
+  if (release !== undefined) void answer.finally(release);
   const out = await withTimeout(answer, timeoutMs);
   return out === TIMED_OUT ? undefined : out;
 }
@@ -70,8 +126,9 @@ export async function resolvePrivate(
   host: string,
   lookup: (h: string) => Promise<string[]> = defaultLookup,
   timeoutMs: number = LOOKUP_TIMEOUT_MS,
+  gate?: LookupGate,
 ): Promise<HostOutcome> {
-  const addresses = isIP(host) ? [host] : await lookupWithin(host, lookup, timeoutMs);
+  const addresses = isIP(host) ? [host] : await lookupWithin(host, lookup, timeoutMs, gate);
   if (addresses === undefined || addresses.length === 0) return { ok: false, host, reason: `${host} does not resolve` };
   const usable = addresses.filter((a) => isPrivateAddress(a));
   const chosen = usable.find((a) => isIP(a) === 4) ?? usable[0];

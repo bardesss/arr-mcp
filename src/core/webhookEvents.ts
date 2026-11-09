@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import type { Database as Db } from 'better-sqlite3';
+import type { Database as Db, Statement } from 'better-sqlite3';
 import { join } from 'node:path';
 import type { HistoryEntry, HistoryQuery, Window } from '../services/types.ts';
 
@@ -37,11 +37,19 @@ export class WebhookEvents {
     readonly #db: Db;
     readonly #now: () => number;
     readonly #maxRows: number;
+    readonly #insert: Statement;
+    readonly #pruneByAge: Statement;
+    readonly #pruneByCount: Statement;
 
     private constructor(db: Db, now: () => number, maxRows: number) {
         this.#db = db;
         this.#now = now;
         this.#maxRows = maxRows;
+        this.#insert = db.prepare('INSERT INTO webhook_events (at, service, event, media_id, entry) VALUES (?, ?, ?, ?, ?)');
+        this.#pruneByAge = db.prepare('DELETE FROM webhook_events WHERE at < ?');
+        this.#pruneByCount = db.prepare(
+            'DELETE FROM webhook_events WHERE id IN (SELECT id FROM webhook_events ORDER BY at DESC, id DESC LIMIT -1 OFFSET ?)'
+        );
     }
 
     static open(configDir: string): WebhookEvents {
@@ -60,15 +68,11 @@ export class WebhookEvents {
 
     /** Pruned here, so nothing has to run on a timer for an event log that may sit idle. */
     record(entry: WebhookEntry, retentionDays: number): void {
-        this.#db
-            .prepare('INSERT INTO webhook_events (at, service, event, media_id, entry) VALUES (?, ?, ?, ?, ?)')
-            .run(entry.at, entry.service, entry.event, entry.mediaId ?? null, JSON.stringify(entry));
+        this.#insert.run(entry.at, entry.service, entry.event, entry.mediaId ?? null, JSON.stringify(entry));
 
         const cutoff = new Date(this.#now() - retentionDays * DAY_MS).toISOString();
-        this.#db.prepare('DELETE FROM webhook_events WHERE at < ?').run(cutoff);
-        this.#db
-            .prepare('DELETE FROM webhook_events WHERE id IN (SELECT id FROM webhook_events ORDER BY at DESC, id DESC LIMIT -1 OFFSET ?)')
-            .run(this.#maxRows);
+        this.#pruneByAge.run(cutoff);
+        this.#pruneByCount.run(this.#maxRows);
     }
 
     /** Newest first, in the shape `HistoryCapable` reads: `total` counts every match. */

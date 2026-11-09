@@ -81,6 +81,7 @@ export class ServiceHttp {
 
     #consecutiveFailures = 0;
     #openedAt: number | undefined;
+    #trialInFlight = false;
 
     /**
      * `opts.closeConnection` sends `Connection: close` on every request, for a
@@ -262,32 +263,27 @@ export class ServiceHttp {
         timeoutMs?: number,
         extraHeaders?: Record<string, string>
     ): Promise<T> {
-        if (this.#circuitOpen()) {
-            throw new ServiceError(
-                'Unreachable',
-                this.#id,
-                `circuit breaker is open after ${CIRCUIT_THRESHOLD} consecutive failures`,
-                { remedy: `Not retried for ${CIRCUIT_COOLDOWN_MS / 1000}s. Fix the service, then try again.` }
-            );
-        }
-
+        const admission = this.#admit();
+        const deadline = () => AbortSignal.timeout(timeoutMs ?? this.#timeoutMs);
         try {
-            const result = await this.#attempt<T>(method, path, body, true, read, timeoutMs, extraHeaders);
+            const result = await this.#attempt<T>(method, path, body, true, read, deadline(), extraHeaders);
             this.#recordSuccess();
             return result;
         } catch (err) {
             if (retryOnTimeout && err instanceof ServiceError && err.kind === 'Timeout') {
                 try {
-                    const result = await this.#attempt<T>(method, path, body, true, read, timeoutMs, extraHeaders);
+                    const result = await this.#attempt<T>(method, path, body, true, read, deadline(), extraHeaders);
                     this.#recordSuccess();
                     return result;
                 } catch (retryErr) {
-                    this.#record(retryErr);
+                    this.#record(retryErr, admission);
                     throw retryErr;
                 }
             }
-            this.#record(err);
+            this.#record(err, admission);
             throw err;
+        } finally {
+            if (admission === 'trial') this.#trialInFlight = false;
         }
     }
 
@@ -300,15 +296,18 @@ export class ServiceHttp {
      * missing-id lookups in a row making a healthy Radarr unreachable for the
      * whole cooldown, calls that would have worked included.
      */
-    #record(err: unknown): void {
+    #record(err: unknown, admission: 'closed' | 'trial'): void {
         if (err instanceof ServiceError && err.kind === 'NotFound') this.#recordSuccess();
-        else this.#recordFailure();
+        else this.#recordFailure(admission);
     }
 
     /**
      * One logical attempt. An auth strategy may consume one transport-level
      * recovery inside it — Transmission's 409 handshake — which by construction
      * neither consumes the timeout retry above nor reaches the breaker.
+     *
+     * The one `signal` is the attempt's whole deadline: the request, any
+     * redirects, the recovery and the replay all spend it.
      */
     async #attempt<T>(
         method: string,
@@ -316,7 +315,7 @@ export class ServiceHttp {
         body: RequestBody | undefined,
         allowRecovery = true,
         read: ReadAs = 'json',
-        timeoutMs?: number,
+        signal: AbortSignal,
         extraHeaders?: Record<string, string>
     ): Promise<T> {
         // Prefixed, not resolved: every adapter path is absolute, and `new URL`
@@ -334,7 +333,6 @@ export class ServiceHttp {
         if (basic !== undefined) headers.set('Authorization', basic);
         this.#auth.apply({ url, headers, method });
 
-        const signal = AbortSignal.timeout(timeoutMs ?? this.#timeoutMs);
         let target = url;
         let verb = method;
         let payload = encoded?.payload;
@@ -385,11 +383,12 @@ export class ServiceHttp {
         let recovered = false;
         if (allowRecovery) {
             try {
-                recovered = (await this.#auth.recover?.(response)) === true;
+                recovered = (await this.#auth.recover?.(response, signal)) === true;
             } catch (err) {
                 // A recover that throws leaves the original response unread on
                 // every other path out of this function.
                 await discard(response);
+                if (signal.aborted) throw classifyFetchError(signal.reason, this.#id, safeUrl(target));
                 throw err;
             }
         }
@@ -400,7 +399,7 @@ export class ServiceHttp {
             // of Transmission 409s or qBittorrent 403s otherwise degraded
             // connection reuse for everything behind the same origin.
             await discard(response);
-            return this.#attempt<T>(method, path, body, false, read, timeoutMs, extraHeaders);
+            return this.#attempt<T>(method, path, body, false, read, signal, extraHeaders);
         }
 
         const httpError = classifyHttpStatus(response.status, this.#id, safeUrl(target), this.#auth.remedy);
@@ -415,27 +414,48 @@ export class ServiceHttp {
             await discard(response);
             return undefined as T;
         }
-        if (read === 'text') return (await response.text()).trim() as T;
+        if (read === 'text') {
+            try {
+                return (await response.text()).trim() as T;
+            } catch (err) {
+                if (signal.aborted) throw classifyFetchError(signal.reason, this.#id, safeUrl(target));
+                throw new ServiceError('UpstreamError', this.#id, `could not read the response from ${target.pathname}`, {
+                    cause: err
+                });
+            }
+        }
 
         try {
             return (await response.json()) as T;
         } catch (err) {
+            if (signal.aborted) throw classifyFetchError(signal.reason, this.#id, safeUrl(target));
             throw new ServiceError('UpstreamError', this.#id, `response from ${target.pathname} was not valid JSON`, {
                 cause: err
             });
         }
     }
 
-    #circuitOpen(): boolean {
-        if (this.#openedAt === undefined) return false;
-        if (Date.now() - this.#openedAt >= CIRCUIT_COOLDOWN_MS) {
-            // Half-open: admit a single trial request. Leaving the count one
-            // below the threshold means one more failure re-opens immediately.
-            this.#openedAt = undefined;
-            this.#consecutiveFailures = CIRCUIT_THRESHOLD - 1;
-            return false;
+    /**
+     * Half-open admits one trial at a time: after the cooldown the first caller
+     * becomes the trial and everyone else is refused until it answers. A
+     * success closes the circuit; a failure re-opens it for another cooldown.
+     */
+    #admit(): 'closed' | 'trial' {
+        if (this.#openedAt === undefined) return 'closed';
+        if (this.#trialInFlight || Date.now() - this.#openedAt < CIRCUIT_COOLDOWN_MS) {
+            throw new ServiceError(
+                'Unreachable',
+                this.#id,
+                `circuit breaker is open after ${CIRCUIT_THRESHOLD} consecutive failures`,
+                {
+                    remedy: this.#trialInFlight
+                        ? 'A trial request is checking whether the service is back; try again shortly.'
+                        : `Not retried for ${CIRCUIT_COOLDOWN_MS / 1000}s. Fix the service, then try again.`
+                }
+            );
         }
-        return true;
+        this.#trialInFlight = true;
+        return 'trial';
     }
 
     #recordSuccess(): void {
@@ -443,7 +463,14 @@ export class ServiceHttp {
         this.#openedAt = undefined;
     }
 
-    #recordFailure(): void {
+    #recordFailure(admission: 'closed' | 'trial'): void {
+        // A straggler may have closed the circuit while the trial ran; then
+        // this failure is an ordinary one and counts like any other.
+        if (admission === 'trial' && this.#openedAt !== undefined) {
+            this.#openedAt = Date.now();
+            logger.warn({ service: this.#id }, 'circuit breaker re-opened after a failed trial');
+            return;
+        }
         this.#consecutiveFailures += 1;
         if (this.#consecutiveFailures >= CIRCUIT_THRESHOLD && this.#openedAt === undefined) {
             this.#openedAt = Date.now();

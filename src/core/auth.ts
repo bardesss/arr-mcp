@@ -27,9 +27,27 @@ export interface AuthStrategy {
      * retry budget and must not count toward the circuit breaker.
      *
      * Async is allowed because qBittorrent's recovery is a login round trip,
-     * not a header read.
+     * not a header read. `signal` is the request's deadline; a strategy that
+     * ignores it stays valid.
      */
-    recover?(response: Response): boolean | Promise<boolean>;
+    recover?(response: Response, signal?: AbortSignal): boolean | Promise<boolean>;
+}
+
+/**
+ * Waits for a shared promise, but only until *this* caller's signal aborts.
+ * The promise keeps running for whoever else is waiting on it.
+ */
+function untilAborted<T>(p: Promise<T>, signal?: AbortSignal): Promise<T> {
+    if (signal === undefined) return p;
+    if (signal.aborted) {
+        p.catch(() => undefined);
+        return Promise.reject(signal.reason as Error);
+    }
+    return new Promise<T>((resolve, reject) => {
+        const onAbort = () => reject(signal.reason as Error);
+        signal.addEventListener('abort', onAbort, { once: true });
+        p.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort));
+    });
 }
 
 /** A `%` not followed by two hex digits is sent as typed. */
@@ -207,16 +225,21 @@ export function qbittorrentSession(creds: {
         apply(ctx) {
             if (cookie !== undefined) ctx.headers.set('Cookie', `${cookie.name}=${cookie.value}`);
         },
-        async recover(response) {
+        async recover(response, signal) {
             if (response.status !== 403) return false;
             // Nothing to retry with; let the 403 stand as AuthFailed.
             if (creds.username === undefined) return false;
 
-            inFlight ??= qbittorrentLogin(creds, doFetch).finally(() => {
-                inFlight = undefined;
-            });
+            // The cookie is stored inside the shared chain, not by the waiting
+            // caller: a login that outlives every caller's deadline still
+            // leaves a session for the next call.
+            inFlight ??= qbittorrentLogin(creds, doFetch)
+                .then((c) => (cookie = c))
+                .finally(() => {
+                    inFlight = undefined;
+                });
 
-            cookie = await inFlight;
+            await untilAborted(inFlight, signal);
             return true;
         }
     };
@@ -411,15 +434,18 @@ export function grimmorySession(creds: {
         apply(ctx) {
             if (session !== undefined && now() < session.validUntil) ctx.headers.set('Authorization', `Bearer ${session.token}`);
         },
-        async recover(response) {
+        async recover(response, signal) {
             // A 403 is a permission answer, not a stale token.
             if (response.status !== 401) return false;
             if (inFlight === undefined && now() < lockedUntil()) throw locked();
 
-            inFlight ??= login().finally(() => {
-                inFlight = undefined;
-            });
-            session = await inFlight;
+            // Stored inside the shared chain, so a login every caller gave up on still lands.
+            inFlight ??= login()
+                .then((s) => (session = s))
+                .finally(() => {
+                    inFlight = undefined;
+                });
+            await untilAborted(inFlight, signal);
             return true;
         }
     };
