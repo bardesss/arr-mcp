@@ -597,10 +597,13 @@ export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable, Cl
             }
             const pages = Number.isFinite(body.totalPages) ? (body.totalPages as number) : 1;
             // Past the cap or on an empty page the read stops, and total is what was read.
-            if (page >= pages || page >= MAX_PAGES || (body.items ?? []).length === 0) return { items, total: items.length };
+            if (page >= pages || page >= MAX_PAGES || (body.items ?? []).length === 0) {
+                // A local filter that hit the cap before the last page has not seen the whole history.
+                return { items, total: items.length, ...(local && page < pages && page >= MAX_PAGES ? { atMost: true as const } : {}) };
+            }
             if (opts.want !== undefined && items.length >= opts.want) {
-                // A local filter has no upstream count to trust: total is the rows read so far.
-                if (local) return { items, total: items.length };
+                // A local filter stopped early: the upstream count is a ceiling, not the matches.
+                if (local) return { items, total: Math.max(items.length, (body.totalCount ?? 0) - dropped), atMost: true };
                 return { items, total: Math.max(items.length, (body.totalCount ?? 0) - dropped) };
             }
         }

@@ -300,10 +300,11 @@ describe('CleanuparrAdapter history', () => {
         const seen: string[] = [];
         const body = { items: [{ id: 'x', eventType: 'StalledStrike', timestamp: 't' }], page: 1, pageSize: 1, totalCount: 50, totalPages: 50 };
         const adapter = new CleanuparrAdapter(config, stub({ '/api/events': body }, seen));
-        const read = (await adapter.readHistory({ eventType: 'strike', want: 2 })) as { items: HistoryEntry[]; total: number };
+        const read = (await adapter.readHistory({ eventType: 'strike', want: 2 })) as { items: HistoryEntry[]; total: number; atMost?: true };
         expect(eventsRead(seen)).toHaveLength(2);
         expect(read.items).toHaveLength(2);
-        expect(read.total).toBe(2);
+        expect(read.total).toBe(50);
+        expect(read.atMost).toBe(true);
     });
 
     it('stops on an empty page whatever totalPages claims', async () => {
