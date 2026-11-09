@@ -99,6 +99,15 @@ export async function buildGetWanted(
     return { ...shaped, items: shaped.items.map(i => project(i, opts.detail)), degraded, counts };
 }
 
+const GetWantedInput = toolInput({
+    scope: WantedScopeSchema,
+    service: serviceOf(TARGET.services).optional().describe('Scope to one service.'),
+    instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
+    detail: DetailSchema,
+    limit: LimitSchema,
+    offset: OffsetSchema
+});
+
 export function registerGetWanted(server: McpServer, adapters: readonly ServiceAdapter[]): void {
     server.registerTool(
         'get_wanted',
@@ -108,14 +117,7 @@ export function registerGetWanted(server: McpServer, adapters: readonly ServiceA
             description:
                 'Radarr, Sonarr and Lidarr\'s own wanted lists. `scope` is required: `"missing"` is monitored items with no file, `"upgradable"` monitored items with a file below the profile\'s quality cutoff. Unlike get_library it lists missing episodes one by one. Sonarr rows carry `season`, `episode` and `episodeTitle`; [[lidarr: Lidarr rows are `kind: "artist"` with `albumId` and `albumTitle`, and `albumId` is what set_monitoring takes with `level: "album"`. On Lidarr an album missing any track counts as missing, so it can be in both lists, and albums of an unmonitored artist are left out.]] Unmonitored gaps never appear. `detail: "minimal"` drops titles and air dates. Field reference: arr://docs/get_wanted.',
             outputSchema: PagedOutputSchema,
-            inputSchema: toolInput({
-                scope: WantedScopeSchema,
-                service: serviceOf(TARGET.services).optional().describe('Scope to one service.'),
-                instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
-                detail: DetailSchema,
-                limit: LimitSchema,
-                offset: OffsetSchema
-            })
+            inputSchema: GetWantedInput
         },
         async ({ scope, service, instance, detail, limit, offset }) => {
             const result = await buildGetWanted(adapters, {

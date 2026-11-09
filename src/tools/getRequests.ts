@@ -104,6 +104,21 @@ export async function buildGetRequests(
     };
 }
 
+const GetRequestsInput = toolInput({
+    detail: DetailSchema,
+    limit: LimitSchema,
+    offset: OffsetSchema,
+    user: UserSchema,
+    status: StatusSchema
+});
+
+const GetRequestsOutput = PagedOutputSchema.extend({
+    issues: z
+        .array(z.unknown())
+        .optional()
+        .describe('What users reported as broken. Only at `detail: "full"`.')
+});
+
 export function registerGetRequests(
     server: McpServer,
     adapter: SeerrAdapter | undefined,
@@ -116,19 +131,8 @@ export function registerGetRequests(
             annotations: READ_ONLY,
             description:
                 'Media requests in Seerr — pending, approved or declined — for one user. Defaults to the configured user; reading another requires allow_other_users. At `detail: "full"` it also returns `issues`: what your users have reported as broken (video, audio, subtitle), each with its newest comments. Issues are everyone\'s, not just this user\'s, and a Seerr that cannot answer for them still answers for the requests. Approve or decline with respond_to_request, remove with delete_request.',
-            outputSchema: PagedOutputSchema.extend({
-                issues: z
-                    .array(z.unknown())
-                    .optional()
-                    .describe('What users reported as broken. Only at `detail: "full"`.')
-            }),
-            inputSchema: toolInput({
-                detail: DetailSchema,
-                limit: LimitSchema,
-                offset: OffsetSchema,
-                user: UserSchema,
-                status: StatusSchema
-            })
+            outputSchema: GetRequestsOutput,
+            inputSchema: GetRequestsInput
         },
         async ({ detail, limit, offset, user, status }) => {
             const result = await buildGetRequests(adapter, resolver, {

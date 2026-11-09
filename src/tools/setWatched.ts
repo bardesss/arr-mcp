@@ -5,7 +5,7 @@ import type { IdentityResolver } from '../core/identity.ts';
 import { hasBookReadStatus, hasWatchState, type BookReadStatusCapable, type ServiceAdapter, type WatchStateCapable, type WatchTarget } from '../services/types.ts';
 import { jellyfinIdByTitle } from './byTitle.ts';
 import type { LibraryLoader } from './library.ts';
-import { withBoth } from './mediaServers.ts';
+import { byMediaServers, withBoth } from './mediaServers.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 
 /**
@@ -104,6 +104,35 @@ async function pending(
     return { targets: episodes.filter(e => e.watched !== watched), total: episodes.length };
 }
 
+const setWatchedInput = byMediaServers(ids => z.object({
+    title: z
+        .string()
+        .min(1)
+        .optional()
+        .describe('A film or series title, in place of `item_id`. Resolved as get_media_details does; a title two items match equally is refused with both ids.'),
+    item_id: z
+        .string()
+        .min(1)
+        .optional()
+        .describe(
+            'The Jellyfin item id — 32 hex characters. `playback.itemId` on a get_library or get_media_details record, or the `itemId` get_playback reports.' +
+                withBoth(ids, 'Or `media_servers.jellyfin.itemId` when Plex is the primary media server.') +
+                ' Or `grimmory:<book id>` for a book. Not a Radarr or Sonarr id.'
+        ),
+    season: z
+        .number()
+        .int()
+        .optional()
+        .describe('One season of a series. Omit with a series id to mark the whole series. Refused on a film.'),
+    watched: z.boolean().describe('true to mark watched, false to unmark.'),
+    user: z
+        .string()
+        .optional()
+        .describe(
+            'Whose watch state to change. Defaults to services.jellyfin.default_user; naming anyone else needs services.jellyfin.allow_other_users.'
+        )
+}));
+
 export function registerSetWatched(
     server: McpServer,
     context: WriteContext,
@@ -132,34 +161,7 @@ export function registerSetWatched(
         description:
             'Marks a film, series, season or episode watched or unwatched in Jellyfin. Give a `title`, or `item_id`, the Jellyfin id: `playback.itemId` from get_library or get_media_details, or `itemId` from get_playback. A Radarr or Sonarr id is refused. A series id with `season` marks one season. [[grimmory: A Grimmory book is `grimmory:<book id>` (READ is watched; marking sets its finish date to now).]] Safe tier, but unmarking and re-marking loses the original play date and resume position. A `user` other than the default needs services.jellyfin.allow_other_users. Previews first; confirm to apply. Field reference: arr://docs/set_watched.' +
             withBoth(mediaServerIds, 'When Plex is the primary media server, take it from `media_servers.jellyfin.itemId` instead: `playback.itemId` is then a Plex id.'),
-        inputSchema: z.object({
-            title: z
-                .string()
-                .min(1)
-                .optional()
-                .describe('A film or series title, in place of `item_id`. Resolved as get_media_details does; a title two items match equally is refused with both ids.'),
-            item_id: z
-                .string()
-                .min(1)
-                .optional()
-                .describe(
-                    'The Jellyfin item id — 32 hex characters. `playback.itemId` on a get_library or get_media_details record, or the `itemId` get_playback reports.' +
-                        withBoth(mediaServerIds, 'Or `media_servers.jellyfin.itemId` when Plex is the primary media server.') +
-                        ' Or `grimmory:<book id>` for a book. Not a Radarr or Sonarr id.'
-                ),
-            season: z
-                .number()
-                .int()
-                .optional()
-                .describe('One season of a series. Omit with a series id to mark the whole series. Refused on a film.'),
-            watched: z.boolean().describe('true to mark watched, false to unmark.'),
-            user: z
-                .string()
-                .optional()
-                .describe(
-                    'Whose watch state to change. Defaults to services.jellyfin.default_user; naming anyone else needs services.jellyfin.allow_other_users.'
-                )
-        }),
+        inputSchema: setWatchedInput(mediaServerIds),
         service: ({ item_id }) => (item_id !== undefined && isBookId(item_id) ? (adapters.find(hasBookReadStatus)?.id ?? 'grimmory') : 'jellyfin'),
         operation: 'set_watched',
         tier: 'safe',

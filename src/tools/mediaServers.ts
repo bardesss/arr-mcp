@@ -2,6 +2,7 @@ import * as z from 'zod/v4';
 import type { Config, MultiUserServiceConfig, ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { IdentityResolver } from '../core/identity.ts';
+import { memoBy } from '../core/shape.ts';
 import type { MergedItem } from '../core/resolver.ts';
 import {
     hasPlayback,
@@ -83,6 +84,16 @@ export function bothIds(servers: MediaServers): [string, string] | undefined {
         ? [servers.primary.adapter.id, servers.secondary.adapter.id]
         : undefined;
 }
+
+/**
+ * A schema that depends on which media servers are configured, built once per
+ * distinct pair and shared by every request's server (#573). A reload that
+ * changes the pair gets a fresh schema, since the pair is the cache key.
+ */
+export const byMediaServers = <V>(build: (ids: [string, string] | undefined) => V): ((ids: [string, string] | undefined) => V) => {
+    const built = memoBy((key: string) => build(key === '' ? undefined : (key.split('|') as [string, string])));
+    return ids => built(ids === undefined ? '' : ids.join('|'));
+};
 
 /** A sentence that only applies with two media servers, so a single-server description stays as it was. */
 export const withBoth = (ids: [string, string] | undefined, sentence: string): string => (ids === undefined ? '' : ` ${sentence}`);

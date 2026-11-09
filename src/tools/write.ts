@@ -271,6 +271,22 @@ export function rawTarget(args: Record<string, unknown>): string {
 }
 
 /**
+ * A write tool's full input, built once per tool schema and reused by every
+ * request's server (#573). Keyed on the spec's own schema, which is a module
+ * constant (or, for the media-server tools, shared per server pair).
+ */
+const writeInputs = new WeakMap<z.ZodObject, z.ZodObject>();
+function writeInput(schema: z.ZodObject): z.ZodObject {
+    let full = writeInputs.get(schema);
+    if (full === undefined) {
+        // Rebuilt through `toolInput` rather than extended; see the note where it is registered.
+        full = toolInput({ ...schema.shape, dry_run: DryRunSchema, confirm: ConfirmSchema });
+        writeInputs.set(schema, full);
+    }
+    return full;
+}
+
+/**
  * The one place a write tool is turned into an MCP tool. Every branch below
  * either records an audit row or is a pure preview that records one as
  * `dry_run` — there is no path from arguments to `apply` that skips the tier
@@ -312,7 +328,7 @@ export function registerWriteTool<
             // that mistyped one argument would be told `dry_run` and `confirm`
             // — the two parameters the write protocol itself runs on — are not
             // parameters of this tool.
-            inputSchema: toolInput({ ...spec.inputSchema.shape, dry_run: DryRunSchema, confirm: ConfirmSchema }),
+            inputSchema: writeInput(spec.inputSchema),
             outputSchema: WriteOutputSchema
         },
         async (raw: Record<string, unknown>) => {

@@ -4,7 +4,7 @@ import type { ServiceInstance } from '../config/instances.ts';
 import type { ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { logger } from '../core/logger.ts';
-import { DetailSchema, LimitSchema, READ_ONLY, TruncationSchema, applyLimit, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, READ_ONLY, TruncationSchema, applyLimit, memoBy, toolInput, type DetailLevel } from '../core/shape.ts';
 import {
     hasCleanup,
     hasCleanuparrRemovals,
@@ -469,6 +469,59 @@ export function cleanupLine(cleanup: CleanupOverview | undefined): string {
     return ` ${cleanup.service}: ${candidates.total} cleanup candidate(s), ${going.count} set to go${going.firstAt === undefined ? '' : `, the first on ${going.firstAt.slice(0, 10)}`}.${off}`;
 }
 
+/**
+ * The one read tool whose answer is not a list, so it declares its own shape
+ * rather than the paged envelope. `disks` and `failures` are envelopes of
+ * their own — one `limit` budget spans both, spent on failures first, which is
+ * why neither is the top-level list. Keyed on whether a primary media server
+ * exists, the only thing the shape depends on.
+ */
+const stackHealthOutput = memoBy((withPrimary: boolean) => z.looseObject({
+    services: z.array(z.unknown()).describe('One row per configured instance: reachable, version, latency.'),
+    failures: TruncationSchema.describe('Health checks the services themselves are reporting.'),
+    disks: TruncationSchema.describe('Free space per root folder.'),
+    scans: z.array(z.unknown()).describe('When each library was last scanned. Never truncated — bounded by the number of services.'),
+    commands: z
+        .array(z.unknown())
+        .optional()
+        .describe('Queued or running tasks, plus anything finished in the last fifteen minutes. Absent at `minimal`.'),
+    permissions: z.array(z.unknown()).optional().describe('What each instance may do. Absent at `minimal` — a permission is not a fault.'),
+    endpoints: z.array(z.unknown()).optional().describe('Where each instance lives. Never a credential.'),
+    options: z
+        .array(z.unknown())
+        .optional()
+        .describe('Quality profiles, root folders and tags each Radarr, Sonarr, Whisparr and Lidarr instance has. Only at `detail: "full"`.'),
+    seedingRules: z
+        .object({
+            clients: z.array(z.unknown()),
+            indexers: z.array(z.unknown()),
+            cleanuparr: z.array(z.unknown()).optional(),
+            coverage: z.array(z.unknown()).optional(),
+            notes: z.array(z.string())
+        })
+        .optional()
+        .describe('Client seed limits, indexer seed criteria, and where they disagree. Only at `detail: "full"`.'),
+    cleanup: z
+        .looseObject({ service: z.string() })
+        .optional()
+        .describe('What Reclaimerr is set to delete, soonest first, its rules and whether auto-delete runs. Only at `detail: "full"`.'),
+    cleanuparrRemovals: z
+        .object({ service: z.string(), queueCleaner: z.unknown().optional(), malwareBlocker: z.unknown().optional(), notes: z.array(z.string()) })
+        .optional()
+        .describe('When Cleanuparr removes a download and what the removal does. Only at `detail: "full"`, with Cleanuparr configured.'),
+    logs: TruncationSchema.extend({
+        lines: z.array(z.unknown()).describe('Per instance, how many log lines were `read` and the `total` the log holds. `total` above counts folded rows from those lines, not the log.')
+    })
+        .optional()
+        .describe('Recent warnings and errors from each Radarr, Sonarr, Prowlarr, Seerr and Bazarr log, identical lines folded with a count. Only at `detail: "full"`.'),
+    ...(withPrimary
+        ? { primaryMediaServer: z.string().describe('The media server tools default to when `service` is not given.') }
+        : {}),
+    degraded: z.array(z.string())
+}));
+
+const StackHealthInput = toolInput({ detail: DetailSchema, limit: LimitSchema });
+
 export function registerStackHealth(
     server: McpServer,
     adapters: readonly ServiceAdapter[],
@@ -482,54 +535,8 @@ export function registerStackHealth(
             annotations: READ_ONLY,
             description:
                 'Health of every configured service: version, disk space, failing health checks, last library scan, and what each instance may do (`permissions`, whose ids are the valid `instance` values). Answers partially, with a `degraded` list, when a service is down. `commands` follows up trigger_search and trigger_scan: queued, running, and finished in the last 15 minutes, so a command not listed has finished (Whisparr\'s are not reported). `detail: "full"` adds `options` (the quality profiles, root folders and tags add_media and update_media need: read them here, never guess), `seedingRules` (client, indexer [[cleanuparr: and Cleanuparr ]]seed limits[[cleanuparr:  and removal rules]]), [[reclaimerr: Reclaimerr `cleanup` (what will be deleted or moved, and when), ]]and each service\'s recent warnings and errors in `logs`; check `lastSeen`, since an old line may no longer apply. API keys are never returned. Field reference: arr://docs/stack_health.',
-            inputSchema: toolInput({ detail: DetailSchema, limit: LimitSchema }),
-            // The one read tool whose answer is not a list, so it declares its
-            // own shape rather than the paged envelope. `disks` and `failures`
-            // are envelopes of their own — one `limit` budget spans both, spent
-            // on failures first, which is why neither is the top-level list.
-            outputSchema: z.looseObject({
-                services: z.array(z.unknown()).describe('One row per configured instance: reachable, version, latency.'),
-                failures: TruncationSchema.describe('Health checks the services themselves are reporting.'),
-                disks: TruncationSchema.describe('Free space per root folder.'),
-                scans: z.array(z.unknown()).describe('When each library was last scanned. Never truncated — bounded by the number of services.'),
-                commands: z
-                    .array(z.unknown())
-                    .optional()
-                    .describe('Queued or running tasks, plus anything finished in the last fifteen minutes. Absent at `minimal`.'),
-                permissions: z.array(z.unknown()).optional().describe('What each instance may do. Absent at `minimal` — a permission is not a fault.'),
-                endpoints: z.array(z.unknown()).optional().describe('Where each instance lives. Never a credential.'),
-                options: z
-                    .array(z.unknown())
-                    .optional()
-                    .describe('Quality profiles, root folders and tags each Radarr, Sonarr, Whisparr and Lidarr instance has. Only at `detail: "full"`.'),
-                seedingRules: z
-                    .object({
-                        clients: z.array(z.unknown()),
-                        indexers: z.array(z.unknown()),
-                        cleanuparr: z.array(z.unknown()).optional(),
-                        coverage: z.array(z.unknown()).optional(),
-                        notes: z.array(z.string())
-                    })
-                    .optional()
-                    .describe('Client seed limits, indexer seed criteria, and where they disagree. Only at `detail: "full"`.'),
-                cleanup: z
-                    .looseObject({ service: z.string() })
-                    .optional()
-                    .describe('What Reclaimerr is set to delete, soonest first, its rules and whether auto-delete runs. Only at `detail: "full"`.'),
-                cleanuparrRemovals: z
-                    .object({ service: z.string(), queueCleaner: z.unknown().optional(), malwareBlocker: z.unknown().optional(), notes: z.array(z.string()) })
-                    .optional()
-                    .describe('When Cleanuparr removes a download and what the removal does. Only at `detail: "full"`, with Cleanuparr configured.'),
-                logs: TruncationSchema.extend({
-                    lines: z.array(z.unknown()).describe('Per instance, how many log lines were `read` and the `total` the log holds. `total` above counts folded rows from those lines, not the log.')
-                })
-                    .optional()
-                    .describe('Recent warnings and errors from each Radarr, Sonarr, Prowlarr, Seerr and Bazarr log, identical lines folded with a count. Only at `detail: "full"`.'),
-                ...(primaryMediaServer === undefined
-                    ? {}
-                    : { primaryMediaServer: z.string().describe('The media server tools default to when `service` is not given.') }),
-                degraded: z.array(z.string())
-            })
+            inputSchema: StackHealthInput,
+            outputSchema: stackHealthOutput(primaryMediaServer !== undefined)
         },
         async ({ detail, limit }) => {
             const result = await buildStackHealth(adapters, { detail, limit }, instances, primaryMediaServer);

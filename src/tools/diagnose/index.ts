@@ -16,6 +16,42 @@ export async function buildDiagnose(deps: DiagnoseDeps, target: DiagnoseTarget):
     return buildChain(label, evidence, target.query !== undefined);
 }
 
+const DiagnoseInput = toolInput({
+    query: z.string().min(1).optional().describe('A title — how a person actually asks.'),
+    service: ServiceIdSchema.optional().describe('With `id`: an exact item, when one is already in hand.'),
+    id: z.string().min(1).optional(),
+    instance: z.string().min(1).optional().describe(INSTANCE_PARAM_DESCRIPTION),
+    user: z
+        .string()
+        .min(1)
+        .optional()
+        .describe(
+            'Whose watch state to consider. Defaults to the configured default_user; any other value requires allow_other_users.'
+        )
+});
+
+const DiagnoseOutput = z.looseObject({
+    query: z.string(),
+    resolved: z.looseObject({}).optional().describe('What the title resolved to. Absent when nothing matched.'),
+    steps: z.array(z.unknown()).describe('The chain, in the order it runs: requested, managed, monitored, downloaded, indexed, imported, scanned.'),
+    verdict: z.looseObject({
+        stage: z.string().describe('The first stage that explains the absence, or `playable`.'),
+        summary: z.string(),
+        remedy: z.string().optional(),
+        next_steps: z
+            .array(z.looseObject({ tool: z.string(), arguments: z.looseObject({}), why: z.string() }))
+            .optional()
+            .describe(
+                'The call that would act on `remedy`. Offer it to the person and say what it would do; do not run it. A write previews first and asks for confirmation.'
+            ),
+        certain: z
+            .boolean()
+            .describe('False when a step could not be checked. Report the verdict as provisional and say what was missed rather than guessing across the hole.')
+    }),
+    history: z.array(z.unknown()).optional().describe('Only when nothing in the library matched: the download-history row behind each release whose name matches, newest first.'),
+    degraded: z.array(z.string())
+});
+
 export function registerDiagnose(server: McpServer, deps: DiagnoseDeps): void {
     server.registerTool(
         'diagnose',
@@ -29,40 +65,8 @@ export function registerDiagnose(server: McpServer, deps: DiagnoseDeps): void {
             // read prose to find: a diagnosis reached across a service that
             // could not be checked is a guess, and reporting it as an answer is
             // how someone gets told their file is fine when nothing looked.
-            outputSchema: z.looseObject({
-                query: z.string(),
-                resolved: z.looseObject({}).optional().describe('What the title resolved to. Absent when nothing matched.'),
-                steps: z.array(z.unknown()).describe('The chain, in the order it runs: requested, managed, monitored, downloaded, indexed, imported, scanned.'),
-                verdict: z.looseObject({
-                    stage: z.string().describe('The first stage that explains the absence, or `playable`.'),
-                    summary: z.string(),
-                    remedy: z.string().optional(),
-                    next_steps: z
-                        .array(z.looseObject({ tool: z.string(), arguments: z.looseObject({}), why: z.string() }))
-                        .optional()
-                        .describe(
-                            'The call that would act on `remedy`. Offer it to the person and say what it would do; do not run it. A write previews first and asks for confirmation.'
-                        ),
-                    certain: z
-                        .boolean()
-                        .describe('False when a step could not be checked. Report the verdict as provisional and say what was missed rather than guessing across the hole.')
-                }),
-                history: z.array(z.unknown()).optional().describe('Only when nothing in the library matched: the download-history row behind each release whose name matches, newest first.'),
-                degraded: z.array(z.string())
-            }),
-            inputSchema: toolInput({
-                query: z.string().min(1).optional().describe('A title — how a person actually asks.'),
-                service: ServiceIdSchema.optional().describe('With `id`: an exact item, when one is already in hand.'),
-                id: z.string().min(1).optional(),
-                instance: z.string().min(1).optional().describe(INSTANCE_PARAM_DESCRIPTION),
-                user: z
-                    .string()
-                    .min(1)
-                    .optional()
-                    .describe(
-                        'Whose watch state to consider. Defaults to the configured default_user; any other value requires allow_other_users.'
-                    )
-            })
+            outputSchema: DiagnoseOutput,
+            inputSchema: DiagnoseInput
         },
         async ({ query, service, id, instance, user }) => {
             const result = await buildDiagnose(deps, {

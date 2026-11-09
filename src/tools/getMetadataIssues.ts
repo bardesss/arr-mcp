@@ -16,7 +16,7 @@ import type { PermissionSource } from '../core/permissions.ts';
 import { unfenced } from '../core/titleMatch.ts';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
 import { hasMetadataInspect, hasUserLibrary, type BookMetadataIssueCapable, type ServiceAdapter } from '../services/types.ts';
-import { bothIds, pickMediaServer, serviceInput, withBoth, type MediaServers } from './mediaServers.ts';
+import { bothIds, byMediaServers, pickMediaServer, serviceInput, withBoth, type MediaServers } from './mediaServers.ts';
 import { managedFolders, mergedHow, plexRepairAllowed, unlockHow, withLocks } from './fixMetadata.ts';
 import type { LibraryLoader } from './library.ts';
 import { BOOK_MATCH_THRESHOLD } from '../services/grimmory.ts';
@@ -377,6 +377,10 @@ async function sweepMedia(
     return { issues, degraded, scanned, skipped, notComparable };
 }
 
+const getMetadataIssuesInput = byMediaServers(ids =>
+    toolInput({ detail: DetailSchema, limit: LimitSchema, offset: OffsetSchema, ...serviceInput(ids) })
+);
+
 export function registerGetMetadataIssues(
     server: McpServer,
     servers: MediaServers,
@@ -393,7 +397,7 @@ export function registerGetMetadataIssues(
                 'Sweeps the whole media-server library for series whose metadata does not describe the files on disk: the discovery fix_metadata cannot do, since it needs a title. Each row has `numbering` findings (confident), `titleOnly` findings (advisory) and a `remedy`: `refresh_metadata`, `rename_files` (the filename is the outlier, which no refresh fixes) or `unlock_fields`. Pass a row\'s `service:itemId` to fix_metadata as `id`. **Slow**: one call per series. Read-only. [[grimmory: With Grimmory it also lists books whose match score is under 45, as `grimmory:<id>`.]] Titles and paths are fenced as untrusted data. Field reference: arr://docs/get_metadata_issues.' +
                 withBoth(bothIds(servers), 'With two media servers configured, `service` picks one; it defaults to the primary.'),
             outputSchema: PagedOutputSchema,
-            inputSchema: toolInput({ detail: DetailSchema, limit: LimitSchema, offset: OffsetSchema, ...serviceInput(bothIds(servers)) })
+            inputSchema: getMetadataIssuesInput(bothIds(servers))
         },
         async ({ detail, limit, offset, service }) => {
             const chosen = pickMediaServer(servers, service);

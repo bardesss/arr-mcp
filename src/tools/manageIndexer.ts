@@ -350,6 +350,35 @@ async function planAdd(adapter: Adapter, definition: string | undefined, args: S
     };
 }
 
+const ManageIndexerInput = z.object({
+    instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
+    action: z
+        .enum(['add', 'edit', 'disable', 'enable', 'delete'])
+        .describe(
+            'add a new public indexer; edit its settings; disable stops grabs and is reversible; enable undoes a disable; delete removes it for good.'
+        ),
+    id: z.coerce
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .describe('The indexer id from get_indexers: 21 for a row shown as prowlarr:21. Every action but add needs it.'),
+    definition: z
+        .string()
+        .optional()
+        .describe('add only: the indexer to add, by its name in Prowlarr\'s Add Indexer list ("Nyaa.si") or its definition name ("nyaasi").'),
+    priority: z.number().int().min(1).max(50).optional().describe('edit or add: 1 is searched first, 50 last. Prowlarr\'s default is 25.'),
+    app_profile: z.string().optional().describe('edit or add: the Prowlarr app profile, by name.'),
+    tags: z
+        .array(z.string())
+        .optional()
+        .describe('edit or add: the full tag list, by label, replacing what is there. [] removes every tag. Tags decide which apps get the indexer.'),
+    minimum_seeders: z.number().int().min(0).optional().describe('edit or add, torrent only.'),
+    seed_ratio: z.number().min(0).optional().describe('edit or add, torrent only.'),
+    seed_time: z.number().int().min(0).optional().describe('edit or add, torrent only: minutes.'),
+    pack_seed_time: z.number().int().min(0).optional().describe('edit or add, torrent only: minutes, for season packs.')
+});
+
 export function registerManageIndexer(
     server: McpServer,
     context: WriteContext,
@@ -360,34 +389,7 @@ export function registerManageIndexer(
         title: 'Add, edit, disable or delete an indexer',
         description:
             'Adds, edits, disables, re-enables or deletes one Prowlarr indexer, then syncs Prowlarr to Radarr and Sonarr. `add` takes a `definition` name and only adds public indexers that need no login; anything private or semi-private is refused, because arr-mcp never handles indexer credentials. `edit` changes priority, app profile, tags and torrent seed settings, nothing else. `disable` stops every grab through that indexer in every app, whatever its sync level, and `enable` undoes it. All of those are safe tier. `delete` removes the indexer from Prowlarr and from each app Prowlarr syncs to, needs the destructive tier, and cannot be undone here. Every action but add takes `id` from get_indexers. The preview says what each app will see, since apps at Add and Remove Only do not receive edits. Previews first; confirm to apply it.',
-        inputSchema: z.object({
-            instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
-            action: z
-                .enum(['add', 'edit', 'disable', 'enable', 'delete'])
-                .describe(
-                    'add a new public indexer; edit its settings; disable stops grabs and is reversible; enable undoes a disable; delete removes it for good.'
-                ),
-            id: z.coerce
-                .number()
-                .int()
-                .positive()
-                .optional()
-                .describe('The indexer id from get_indexers: 21 for a row shown as prowlarr:21. Every action but add needs it.'),
-            definition: z
-                .string()
-                .optional()
-                .describe('add only: the indexer to add, by its name in Prowlarr\'s Add Indexer list ("Nyaa.si") or its definition name ("nyaasi").'),
-            priority: z.number().int().min(1).max(50).optional().describe('edit or add: 1 is searched first, 50 last. Prowlarr\'s default is 25.'),
-            app_profile: z.string().optional().describe('edit or add: the Prowlarr app profile, by name.'),
-            tags: z
-                .array(z.string())
-                .optional()
-                .describe('edit or add: the full tag list, by label, replacing what is there. [] removes every tag. Tags decide which apps get the indexer.'),
-            minimum_seeders: z.number().int().min(0).optional().describe('edit or add, torrent only.'),
-            seed_ratio: z.number().min(0).optional().describe('edit or add, torrent only.'),
-            seed_time: z.number().int().min(0).optional().describe('edit or add, torrent only: minutes.'),
-            pack_seed_time: z.number().int().min(0).optional().describe('edit or add, torrent only: minutes, for season packs.')
-        }),
+        inputSchema: ManageIndexerInput,
         service: ({ instance }) => findAdapter(adapters, instance).id,
         operation: 'manage_indexer',
         tier: ({ action }) => (action === 'delete' ? 'destructive' : 'safe'),

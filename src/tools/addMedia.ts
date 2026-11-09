@@ -251,73 +251,75 @@ export function folderDoubt(path: string, candidate: AddCandidate, type: string,
     return undefined;
 }
 
+const AddMediaInput = z.object({
+    ...targetInput(TARGET, 'radarr for a film, sonarr for a series, whisparr for a site, lidarr for an artist.'),
+    external_id: z
+        .string()
+        .min(1)
+        .describe(
+            'TMDB id for radarr, TVDB id for sonarr or whisparr, as an integer string; the MusicBrainz artist id, a GUID, for lidarr. From lookup_media.'
+        ),
+    quality_profile: z
+        .string()
+        .optional()
+        .describe('Profile name or id. Optional only when the service has exactly one.'),
+    root_folder: z
+        .string()
+        .optional()
+        .describe('Root folder path, or any distinctive part of it. Optional only when the service has exactly one.'),
+    monitored: z.boolean().default(true).describe('Monitor it for downloads. Defaults to true.'),
+    monitor: z
+        .enum(['all', 'future', 'missing', 'existing', 'firstSeason', 'lastSeason', 'pilot', 'first', 'latest', 'none'])
+        .optional()
+        .describe(
+            'Sonarr or Whisparr: which seasons to monitor. `future` is "only what has not aired yet", `all` is everything, `none` monitors the series but no season. `pilot` is Sonarr only — a site has no pilot scene. Lidarr: which albums — `first` or `latest` album, or `all`, `future`, `missing`, `existing` or `none`; `firstSeason`, `lastSeason` and `pilot` are refused there, and `first` and `latest` everywhere else. Omit for the service\'s own default. Radarr has no seasons — use `monitored` there.'
+        ),
+    monitor_new_items: z
+        .enum(['all', 'none', 'new'])
+        .optional()
+        .describe(
+            'Lidarr only: the rule for albums Lidarr discovers later — `all`, `new` (only ones released on or after the newest album it already has) or `none`, as on set_monitoring. With no `monitor`, it also sets the albums the artist is added with. Omitted, the artist gets `all`: the root folder\'s own default applies only to an artist Lidarr adds on import.'
+        ),
+    metadata_profile: z
+        .string()
+        .optional()
+        .describe(
+            'Lidarr only: metadata profile name or id, which decides the album types and release statuses the artist gets. Optional when the root folder names a default, or when Lidarr has only one besides its reserved `None`, which gives an artist no albums and is used only when named or set as the root folder\'s default.'
+        ),
+    minimum_availability: z
+        .enum(['announced', 'inCinemas', 'released'])
+        .optional()
+        .describe(
+            'Radarr only: how early it may grab. Defaults to `released`, which is what stops a brand-new film grabbing a cinema recording the day it is announced.'
+        ),
+    series_type: z
+        .enum(['standard', 'daily', 'anime'])
+        .optional()
+        .describe('Sonarr only: the numbering scheme. `anime` for absolute numbering, `daily` for date-based.'),
+    tags: z
+        .array(z.string().min(1))
+        .optional()
+        .describe(
+            'Tag labels or ids the service already has. An unknown label is refused, listing the ones that exist — nothing here ever creates a tag.'
+        ),
+    search_now: z
+        .boolean()
+        .optional()
+        .describe('Start searching immediately. Defaults to true, or false with `path`.'),
+    path: z
+        .string()
+        .min(1)
+        .optional()
+        .describe('Not Lidarr: an existing folder under a root folder to adopt as it is, files and all.')
+});
+
 export function registerAddMedia(server: McpServer, context: WriteContext, adapters: readonly ServiceAdapter[]): void {
     registerWriteTool(server, context, {
         name: 'add_media',
         title: 'Add a film, series, site or artist',
         description:
             'Adds a film to Radarr, a series to Sonarr, a site to Whisparr or an artist to Lidarr, and by default starts a search. For a Seerr request that goes through approval, use request_media. Ids: TMDB for Radarr, TVDB for Sonarr and Whisparr (Whisparr\'s own scene id in that field), MusicBrainz for Lidarr; get them from lookup_media `ids`. With more than one quality profile or root folder, name one: call without them and the preview refuses with the list, so there is no need to check stack_health first. Sonarr and Whisparr take `monitor` (which seasons), Sonarr `series_type`, Radarr `minimum_availability`. [[lidarr: Lidarr takes `monitor` (which albums), `monitor_new_items` and `metadata_profile`; `monitor: "none"` needs `monitored: false` with it, and its search on add covers only monitored, released albums.]] An option sent to the wrong service is refused, not dropped. Previews first; confirm to add. Field reference: arr://docs/add_media.',
-        inputSchema: z.object({
-            ...targetInput(TARGET, 'radarr for a film, sonarr for a series, whisparr for a site, lidarr for an artist.'),
-            external_id: z
-                .string()
-                .min(1)
-                .describe(
-                    'TMDB id for radarr, TVDB id for sonarr or whisparr, as an integer string; the MusicBrainz artist id, a GUID, for lidarr. From lookup_media.'
-                ),
-            quality_profile: z
-                .string()
-                .optional()
-                .describe('Profile name or id. Optional only when the service has exactly one.'),
-            root_folder: z
-                .string()
-                .optional()
-                .describe('Root folder path, or any distinctive part of it. Optional only when the service has exactly one.'),
-            monitored: z.boolean().default(true).describe('Monitor it for downloads. Defaults to true.'),
-            monitor: z
-                .enum(['all', 'future', 'missing', 'existing', 'firstSeason', 'lastSeason', 'pilot', 'first', 'latest', 'none'])
-                .optional()
-                .describe(
-                    'Sonarr or Whisparr: which seasons to monitor. `future` is "only what has not aired yet", `all` is everything, `none` monitors the series but no season. `pilot` is Sonarr only — a site has no pilot scene. Lidarr: which albums — `first` or `latest` album, or `all`, `future`, `missing`, `existing` or `none`; `firstSeason`, `lastSeason` and `pilot` are refused there, and `first` and `latest` everywhere else. Omit for the service\'s own default. Radarr has no seasons — use `monitored` there.'
-                ),
-            monitor_new_items: z
-                .enum(['all', 'none', 'new'])
-                .optional()
-                .describe(
-                    'Lidarr only: the rule for albums Lidarr discovers later — `all`, `new` (only ones released on or after the newest album it already has) or `none`, as on set_monitoring. With no `monitor`, it also sets the albums the artist is added with. Omitted, the artist gets `all`: the root folder\'s own default applies only to an artist Lidarr adds on import.'
-                ),
-            metadata_profile: z
-                .string()
-                .optional()
-                .describe(
-                    'Lidarr only: metadata profile name or id, which decides the album types and release statuses the artist gets. Optional when the root folder names a default, or when Lidarr has only one besides its reserved `None`, which gives an artist no albums and is used only when named or set as the root folder\'s default.'
-                ),
-            minimum_availability: z
-                .enum(['announced', 'inCinemas', 'released'])
-                .optional()
-                .describe(
-                    'Radarr only: how early it may grab. Defaults to `released`, which is what stops a brand-new film grabbing a cinema recording the day it is announced.'
-                ),
-            series_type: z
-                .enum(['standard', 'daily', 'anime'])
-                .optional()
-                .describe('Sonarr only: the numbering scheme. `anime` for absolute numbering, `daily` for date-based.'),
-            tags: z
-                .array(z.string().min(1))
-                .optional()
-                .describe(
-                    'Tag labels or ids the service already has. An unknown label is refused, listing the ones that exist — nothing here ever creates a tag.'
-                ),
-            search_now: z
-                .boolean()
-                .optional()
-                .describe('Start searching immediately. Defaults to true, or false with `path`.'),
-            path: z
-                .string()
-                .min(1)
-                .optional()
-                .describe('Not Lidarr: an existing folder under a root folder to adopt as it is, files and all.')
-        }),
+        inputSchema: AddMediaInput,
         // The resolved instance id, not the bare type: permissions are granted per
         // instance, so checking `radarr` against a config that only grants
         // `radarr/hd` would deny a permitted write — or worse, the reverse.

@@ -35,7 +35,7 @@ import {
 import { bestCandidate, describeBookChange, diffBookFields, FIX_FIELDS, normaliseIsbn } from './bookMetadata.ts';
 import { buildResolvedMediaDetails } from './getMediaDetails.ts';
 import type { LibraryLoader } from './library.ts';
-import { bothIds, itemIdOn, pickMediaServer, serviceInput, withBoth, type MediaServers } from './mediaServers.ts';
+import { bothIds, byMediaServers, itemIdOn, pickMediaServer, serviceInput, withBoth, type MediaServers } from './mediaServers.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 import { titled } from '../core/labels.ts';
 
@@ -578,6 +578,39 @@ async function planBookFix(
 /** Errors a server gives while it rebuilds an item: Plex answers 503 mid-refresh. */
 const STILL_SETTLING = new Set(['UpstreamError', 'Timeout', 'Unreachable', 'NotFound']);
 
+const fixMetadataInput = byMediaServers(ids => z.object({
+    ...serviceInput(ids),
+    query: z
+        .string()
+        .min(1)
+        .optional()
+        .describe('A film or series title. Resolved through the library index, the same way get_media_details resolves one.'),
+    id: z
+        .string()
+        .min(1)
+        .optional()
+        .describe(
+            'The media server item id, as get_metadata_issues prints it (`plex:119962`) or bare, or a Grimmory book as `grimmory:<book id>`[[lidarr: , or a Lidarr artist as `lidarr:<artistId>`]]. Wins over `query`.'
+        ),
+    files: z
+        .array(z.number().int().positive())
+        .min(1)
+        .optional()
+        .describe('[[lidarr: Music only: the Lidarr track file ids to retag, as the preview prints them (`#123`). Omit for every file that differs.]]'),
+    user: z
+        .string()
+        .optional()
+        .describe(
+            "Whose view of the library to read the episodes through. Defaults to the media server's default_user; on Jellyfin, naming anyone else needs services.jellyfin.allow_other_users."
+        ),
+    isbn: z
+        .string()
+        .min(10)
+        .max(17)
+        .optional()
+        .describe("Books only: search Grimmory's providers by this ISBN instead of the book's own.")
+}));
+
 export function registerFixMetadata(
     server: McpServer,
     context: WriteContext,
@@ -598,38 +631,7 @@ export function registerFixMetadata(
                 bothIds(servers),
                 'With two media servers configured, `service` picks one; it defaults to the primary, and an `id` prefixed `plex:` or `jellyfin:` picks that server.'
             ),
-        inputSchema: z.object({
-            ...serviceInput(bothIds(servers)),
-            query: z
-                .string()
-                .min(1)
-                .optional()
-                .describe('A film or series title. Resolved through the library index, the same way get_media_details resolves one.'),
-            id: z
-                .string()
-                .min(1)
-                .optional()
-                .describe(
-                    'The media server item id, as get_metadata_issues prints it (`plex:119962`) or bare, or a Grimmory book as `grimmory:<book id>`[[lidarr: , or a Lidarr artist as `lidarr:<artistId>`]]. Wins over `query`.'
-                ),
-            files: z
-                .array(z.number().int().positive())
-                .min(1)
-                .optional()
-                .describe('[[lidarr: Music only: the Lidarr track file ids to retag, as the preview prints them (`#123`). Omit for every file that differs.]]'),
-            user: z
-                .string()
-                .optional()
-                .describe(
-                    "Whose view of the library to read the episodes through. Defaults to the media server's default_user; on Jellyfin, naming anyone else needs services.jellyfin.allow_other_users."
-                ),
-            isbn: z
-                .string()
-                .min(10)
-                .max(17)
-                .optional()
-                .describe("Books only: search Grimmory's providers by this ISBN instead of the book's own.")
-        }),
+        inputSchema: fixMetadataInput(bothIds(servers)),
         // `service` is enum-checked against the configured ids, so this cannot throw.
         // A `lidarr:` id first: that write goes to Lidarr.
         service: ({ service, id }) =>
