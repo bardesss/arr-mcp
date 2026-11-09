@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CleanuparrRule } from '../src/core/cleanuparrRules.ts';
 import { annotateCleanuparr, currentStrikes, dueWithin } from '../src/tools/cleanuparrQueue.ts';
-import { buildGetQueue, dueText, queueLine } from '../src/tools/getQueue.ts';
+import { buildGetQueue, dueText, queueLine, type QueueFilter } from '../src/tools/getQueue.ts';
 import type { CleanuparrSeeding, HistoryEntry, QueueItem, ServiceAdapter } from '../src/services/types.ts';
 
 const rule = (over: Partial<CleanuparrRule>): CleanuparrRule => ({
@@ -384,5 +384,40 @@ describe('when a Cleanuparr rule falls due', () => {
         const items = [row({})];
         await annotateCleanuparr(items, [cleanuparr(only(rule({}), { nextRunAt: '2026-10-29T11:05:00Z' })), transmission], () => {});
         expect(queueLine(items[0]!)).toContain('past Cleanuparr rule "Public: stop now", Cleanuparr stop due 2026-10-29T11:05:00Z');
+    });
+});
+
+describe('get_queue filters (#530)', () => {
+    const rows = (): QueueItem[] => [
+        row({ id: '1', torrent: facts({ hash: 'aaa', category: 'complete', private: false }) }),
+        row({ id: '2', status: 'seeding (no peers)', torrent: facts({ hash: 'bbb', category: 'cross-seed-link' }) }),
+        (({ seeding: _s, ...r }) => r)(row({ id: '3', status: 'downloading', torrent: facts({ hash: 'ccc', category: 'radarr', seeding: false }) }))
+    ];
+    const client = { ...transmission, getQueue: async () => rows() } as unknown as ServiceAdapter;
+    const events = [ev({ downloadId: 'bbb', rawEvent: 'StalledStrike', strikeCount: 1 })];
+    const ids = async (filter: QueueFilter, detail: 'standard' | 'full' = 'standard') =>
+        (await buildGetQueue([withEvents(seeding(), events), client], { detail, limit: 10, filter })).items.map(i => i.id).sort();
+
+    it('keeps only the categories asked for', async () => {
+        expect(await ids({ category: ['radarr', 'cross-seed-link'] })).toEqual(['2', '3']);
+    });
+
+    it('matches status by prefix, ignoring case', async () => {
+        expect(await ids({ status: 'Seeding' })).toEqual(['1', '2']);
+        expect(await ids({ status: 'downloading' })).toEqual(['3']);
+    });
+
+    it('reads Cleanuparr for its filters even below full detail', async () => {
+        expect(await ids({ struck: true })).toEqual(['2']);
+        expect(await ids({ unmatched: true })).toEqual(['2']);
+        expect(await ids({ over_limit: true })).toEqual(['1']);
+        expect(await ids({ due_within_days: 7 })).toEqual(['1']);
+        expect(await ids({ struck: false, status: 'seeding' })).toEqual(['1']);
+    });
+
+    it('counts matching rows in total but keeps cleanuparrDue whole-queue', async () => {
+        const result = await buildGetQueue([withEvents(seeding(), events), client], { detail: 'full', limit: 10, filter: { category: ['radarr'] } });
+        expect(result.total).toBe(1);
+        expect(result.cleanuparrDue?.stop?.count).toBe(1);
     });
 });

@@ -1,4 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/server';
+import * as z from 'zod/v4';
 import { gather } from '../core/gather.ts';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
 import { annotateCleanuparr, dueWithin, type CleanuparrDue } from './cleanuparrQueue.ts';
@@ -87,17 +88,48 @@ export function queueLine(item: QueueItem): string {
     return `${item.title} — ${facts.join(', ')}`;
 }
 
+/** Server-side filters (#530), all optional and combined with AND. */
+export type QueueFilter = {
+    category?: string[];
+    status?: string;
+    over_limit?: boolean;
+    struck?: boolean;
+    due_within_days?: number;
+    unmatched?: boolean;
+};
+
+const DAY_MS = 86_400_000;
+
+/** The filters that read what Cleanuparr adds, so the rows need annotating even below `detail: "full"`. */
+const needsCleanuparr = (f: QueueFilter): boolean =>
+    f.over_limit !== undefined || f.struck !== undefined || f.due_within_days !== undefined || f.unmatched !== undefined;
+
+export function matchesFilter(item: QueueItem, f: QueueFilter, now: number): boolean {
+    if (f.category !== undefined && (item.torrent === undefined || !f.category.includes(item.torrent.category))) return false;
+    if (f.status !== undefined && !item.status.toLowerCase().startsWith(f.status.toLowerCase())) return false;
+    if (f.over_limit !== undefined && (item.seeding?.overLimit === true) !== f.over_limit) return false;
+    if (f.struck !== undefined && ((item.strikes?.length ?? 0) > 0) !== f.struck) return false;
+    const c = item.seeding?.cleanuparr;
+    if (f.unmatched !== undefined && (c !== undefined && 'unmatched' in c) !== f.unmatched) return false;
+    if (f.due_within_days !== undefined) {
+        const dueAt = c !== undefined && 'rule' in c ? c.dueAt : undefined;
+        if (dueAt === undefined || Date.parse(dueAt) > now + f.due_within_days * DAY_MS) return false;
+    }
+    return true;
+}
+
 export async function buildGetQueue(
     adapters: readonly ServiceAdapter[],
-    opts: { detail: DetailLevel; limit: number; offset?: number; kind?: LibraryKind }
+    opts: { detail: DetailLevel; limit: number; offset?: number; kind?: LibraryKind; filter?: QueueFilter }
 ): Promise<GetQueueResult> {
+    const filter = opts.filter ?? {};
     const { items, degraded, counts } = await gather(
         adapters
             .filter(hasQueue)
             .filter(a => holds(a, opts.kind))
             .map(a => ({ id: a.id, fetch: () => a.getQueue() }))
     );
-    if (opts.detail === 'full') {
+    if (opts.detail === 'full' || needsCleanuparr(filter)) {
         await annotateCleanuparr(items, adapters, id => {
             if (!degraded.includes(id)) degraded.push(id);
         });
@@ -110,8 +142,11 @@ export async function buildGetQueue(
     // downloading" wants; unknown ETAs sort last rather than first.
     items.sort((a, b) => (a.etaSeconds ?? Infinity) - (b.etaSeconds ?? Infinity) || a.title.localeCompare(b.title));
 
-    const due = opts.detail === 'full' ? dueWithin(items, Date.now()) : undefined;
-    const shaped = applyLimit(items, opts.limit, opts.offset);
+    const now = Date.now();
+    // Due totals stay whole-queue: they answer "what goes this week", not "of these rows".
+    const due = opts.detail === 'full' ? dueWithin(items, now) : undefined;
+    const matching = Object.keys(filter).length === 0 ? items : items.filter(i => matchesFilter(i, filter, now));
+    const shaped = applyLimit(matching, opts.limit, opts.offset);
     return { ...shaped, items: shaped.items.map(i => project(i, opts.detail)), degraded, counts, ...(due === undefined ? {} : { cleanuparrDue: due }) };
 }
 
@@ -122,21 +157,29 @@ export function registerGetQueue(server: McpServer, adapters: readonly ServiceAd
             title: 'Download queue',
             annotations: READ_ONLY,
             description:
-                'Everything downloading or stalled, merged across Radarr, Sonarr, Whisparr, Lidarr, SABnzbd, NZBGet, Transmission and qBittorrent, plus files waiting in Grimmory\'s Bookdrop. Sizes are bytes, ETAs seconds; release names are fenced as untrusted data. An *arr row carries `downloadId` and `statusMessages`: a finished download stuck at `importState: "importBlocked"` is imported with trigger_scan `action: "import"` and that `downloadId`, but a title mismatch or unknown episode fails the same way on every retry and has to be fixed in the service. [[transmission|qbittorrent: At `detail: "full"` a torrent carries `seeding` (ratio, time seeded, the limit that applies, `overLimit`) and, with Cleanuparr, the rule that governs it, its `strikes` and `dueAt`; `cleanuparrDue` totals what falls due within 7 days.]] Remove a row with remove_queue_item. Field reference: arr://docs/get_queue.',
+                'Everything downloading or stalled, merged across Radarr, Sonarr, Whisparr, Lidarr, SABnzbd, NZBGet, Transmission and qBittorrent, plus files waiting in Grimmory\'s Bookdrop. Sizes are bytes, ETAs seconds; release names are fenced as untrusted data. An *arr row carries `downloadId` and `statusMessages`: a finished download stuck at `importState: "importBlocked"` is imported with trigger_scan `action: "import"` and that `downloadId`, but a title mismatch or unknown episode fails the same way on every retry and has to be fixed in the service. [[transmission|qbittorrent: At `detail: "full"` a torrent carries `seeding` (ratio, time seeded, the limit that applies, `overLimit`) and, with Cleanuparr, the rule that governs it, its `strikes` and `dueAt`; `cleanuparrDue` totals what falls due within 7 days.]] Filter on the server rather than reading the whole queue. Remove a row with remove_queue_item. Field reference: arr://docs/get_queue.',
             outputSchema: PagedOutputSchema,
             inputSchema: toolInput({
                 kind: MediaKindSchema.describe(
                     'Only one service\'s queue: `movie` (Radarr), `series` (Sonarr, Whisparr), `artist` (Lidarr), `book` (Shelfmark, Grimmory\'s Bookdrop). Pass it when the request names one of those services. Download clients are left out, since their rows are the same downloads. Omit for everything.'
                 ),
+                category: z.array(z.string()).min(1).optional().describe('Only torrents in these client categories.'),
+                status: z.string().min(1).optional().describe('Only rows whose status starts with this, e.g. `seeding`, `stalled`.'),
+                over_limit: z.boolean().optional().describe('Only rows past (true) or within (false) their seed limit.'),
+                struck: z.boolean().optional().describe('Only rows with (true) or without (false) Cleanuparr strikes.'),
+                due_within_days: z.number().int().min(0).max(365).optional().describe('Only rows Cleanuparr acts on within this many days.'),
+                unmatched: z.boolean().optional().describe('Only rows no Cleanuparr rule covers (true), or that one does (false).'),
                 detail: DetailSchema,
                 limit: LimitSchema,
                 offset: OffsetSchema
             })
         },
-        async ({ kind, detail, limit, offset }) => {
-            const result = await buildGetQueue(adapters, { detail, limit, offset, ...(kind === undefined ? {} : { kind }) });
+        async ({ kind, detail, limit, offset, ...rest }) => {
+            const filter = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined)) as QueueFilter;
+            const filtered = Object.keys(filter).length > 0;
+            const result = await buildGetQueue(adapters, { detail, limit, offset, filter, ...(kind === undefined ? {} : { kind }) });
             const summary =
-                `${result.returned} of ${result.total} item(s) in the queue` +
+                `${result.returned} of ${result.total} item(s) in the queue${filtered ? ' match' : ''}` +
                 (result.degraded.length > 0 ? `; ${result.degraded.join(', ')} unreachable.` : '.') +
                 (result.cleanuparrDue === undefined ? '' : ` ${dueText(result.cleanuparrDue)}`);
 
