@@ -957,17 +957,12 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         {
             name: 'request',
             path: '/api/v1/request?take=20',
-            // Requests name who made them, which is identity, not a secret.
+            // Requests name who made them and who last changed them, which is
+            // identity, not a secret.
             anonymise: body => {
                 const page = body as { results?: Row[] };
                 return Array.isArray(page.results)
-                    ? {
-                          ...page,
-                          results: page.results.map((r, i) => ({
-                              ...r,
-                              requestedBy: anonymiseSeerrUser((r.requestedBy ?? {}) as Row, i)
-                          }))
-                      }
+                    ? { ...page, results: page.results.map(anonymiseSeerrRequest) }
                     : body;
             }
         },
