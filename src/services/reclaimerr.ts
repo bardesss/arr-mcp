@@ -1,5 +1,6 @@
 import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import { apiKeyHeader } from '../core/auth.ts';
+import { cached } from '../core/cache.ts';
 import { ServiceError } from '../core/errors.ts';
 import { fenceText, fencer } from '../core/fence.ts';
 import { logger } from '../core/logger.ts';
@@ -131,25 +132,6 @@ const num = (v: number | null | undefined): number | undefined => (typeof v === 
 const text = (v: string | null | undefined): string | undefined => (typeof v === 'string' && v !== '' ? v : undefined);
 const daysAgo = (days: number): string => new Date(Date.now() - days * DAY_MS).toISOString();
 const isGoing = (state: CleanupState): boolean => state === 'eligible' || state === 'scheduled';
-
-/**
- * One in-flight or recent read, shared by every caller until `ttlMs` passes.
- * A failed read is dropped at once, so the next caller retries.
- */
-function cached<T>(ttlMs: number, load: () => Promise<T>): () => Promise<T> {
-    let entry: { at: number; value: Promise<T> } | undefined;
-    return () => {
-        if (entry === undefined || Date.now() - entry.at > ttlMs) {
-            const value = load();
-            const current = { at: Date.now(), value };
-            value.catch(() => {
-                if (entry === current) entry = undefined;
-            });
-            entry = current;
-        }
-        return entry.value;
-    };
-}
 
 /**
  * Reclaimerr's `/api/v1`, the versioned external API with scoped bearer

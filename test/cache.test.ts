@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { LIBRARY_TTL_MS, TtlCache } from '../src/core/cache.ts';
+import { LIBRARY_TTL_MS, TtlCache, cached } from '../src/core/cache.ts';
 
 /** A hand-cranked clock, so expiry is testable without waiting five minutes. */
 const clock = (start = 0) => {
@@ -258,5 +258,40 @@ describe('TtlCache value-dependent TTL', () => {
             return 'x';
         });
         expect(loads).toBe(0);
+    });
+});
+
+describe('cached', () => {
+    it('shares one read until the ttl passes', async () => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        try {
+            const load = vi.fn(async () => 'v');
+            const read = cached(1000, load);
+            await read();
+            await read();
+            expect(load).toHaveBeenCalledTimes(1);
+            vi.advanceTimersByTime(1001);
+            await read();
+            expect(load).toHaveBeenCalledTimes(2);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('drops a failed read so the next caller retries', async () => {
+        const load = vi.fn<() => Promise<string>>().mockRejectedValueOnce(new Error('down')).mockResolvedValue('ok');
+        const read = cached(1000, load);
+        await expect(read()).rejects.toThrow('down');
+        await expect(read()).resolves.toBe('ok');
+        expect(load).toHaveBeenCalledTimes(2);
+    });
+
+    it('reads again after clear', async () => {
+        const load = vi.fn(async () => 'v');
+        const read = cached(1000, load);
+        await read();
+        read.clear();
+        await read();
+        expect(load).toHaveBeenCalledTimes(2);
     });
 });
