@@ -116,7 +116,7 @@ describe('LidarrAdapter search and grab', () => {
 
     it('refuses a non-integer album id before posting anything', async () => {
         const { adapter, sent } = lidarr(library);
-        await expect(adapter.triggerSearch('4', { albums: ['album-1'] })).rejects.toThrow(/is not a Lidarr album id/);
+        await expect(adapter.triggerSearch('4', { albums: ['album-1'] })).rejects.toThrow(/is not a lidarr album id/);
         expect(sent).toHaveLength(0);
     });
 

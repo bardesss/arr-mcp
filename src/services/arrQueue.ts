@@ -1,7 +1,7 @@
-import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
 import type { ArrKind } from '../core/resolver.ts';
+import { arrItemId } from './arrCommands.ts';
 import { pageArr } from './arrPaging.ts';
 import { lidarrDate, mediaIdOf, protocolName } from './arrRecord.ts';
 import type { CalendarEntry, DeleteMediaOptions, QueueItem, RemoveQueueOptions } from './types.ts';
@@ -125,12 +125,7 @@ export async function removeArrQueueItem(
     id: string,
     opts: RemoveQueueOptions
 ): Promise<void> {
-    const numeric = Number(id);
-    if (!Number.isInteger(numeric)) {
-        throw new ServiceError('NotFound', service, `"${id}" is not a ${service} queue id`, {
-            remedy: `${service} queue ids are integers. Take one from get_queue.`
-        });
-    }
+    const numeric = arrItemId(service, 'queue', id);
 
     // Both flags are serialised explicitly rather than omitted when false:
     // Radarr defaults `removeFromClient` to true, so leaving it out on a
@@ -159,12 +154,7 @@ export async function deleteArrMedia(
     id: string,
     opts: DeleteMediaOptions
 ): Promise<void> {
-    const numeric = Number(id);
-    if (!Number.isInteger(numeric)) {
-        throw new ServiceError('NotFound', service, `"${id}" is not a ${service} ${resource} id`, {
-            remedy: `${service} ids are integers. Take one from \`acquisition.id\` on get_library or get_media_details.`
-        });
-    }
+    const numeric = arrItemId(service, resource, id);
 
     await http.delete(
         `${http.apiRoot}/${resource}/${numeric}?deleteFiles=${String(opts.deleteFiles)}` +

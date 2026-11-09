@@ -107,7 +107,7 @@ describe('WhisparrAdapter', () => {
     });
 
     it('refuses a non-integer site id before issuing a request', async () => {
-        await expect(adapter({}).listEpisodeFiles('not-an-id')).rejects.toThrow(/not a Whisparr site id/);
+        await expect(adapter({}).listEpisodeFiles('not-an-id')).rejects.toThrow(/not a whisparr site id/);
     });
 
     /** Records every request body, so a write can be checked for what it sent. */

@@ -2,7 +2,7 @@ import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
 import type { ArrKind } from '../core/resolver.ts';
-import { awaitArrCommand, postArrCommand, renamedCount } from './arrCommands.ts';
+import { arrItemId, awaitArrCommand, postArrCommand, renamedCount } from './arrCommands.ts';
 import { renameThroughTemporaryFormat } from './arrRename.ts';
 import { readArrQueue } from './arrQueue.ts';
 import type {
@@ -652,23 +652,13 @@ async function resolveEpisodeRemap(
     return { moves, emptied: [...emptied], rotation, chain };
 }
 
-const seriesIdOf = (service: string, seriesId: string): number => {
-    const id = Number(seriesId);
-    if (!Number.isInteger(id)) {
-        throw new ServiceError('NotFound', service, `"${seriesId}" is not a Sonarr series id`, {
-            remedy: 'Sonarr series ids are integers. Take one from `acquisition.id` on get_library or get_media_details.'
-        });
-    }
-    return id;
-};
-
 export async function planArrEpisodeRemap(
     http: ServiceHttp,
     service: string,
     seriesId: string,
     reassignments: EpisodeReassignment[]
 ): Promise<EpisodeRemapPlan> {
-    const { moves, emptied, rotation, chain } = await resolveEpisodeRemap(http, service, seriesIdOf(service, seriesId), reassignments);
+    const { moves, emptied, rotation, chain } = await resolveEpisodeRemap(http, service, arrItemId(service, 'series', seriesId), reassignments);
     return { moves: moves.map(({ display, from, to }) => ({ display, from, to })), emptied, rotation, chain };
 }
 
@@ -680,7 +670,7 @@ export async function runArrEpisodeRemap(
     seriesId: string,
     reassignments: EpisodeReassignment[]
 ): Promise<EpisodeRemapOutcome> {
-    const id = seriesIdOf(service, seriesId);
+    const id = arrItemId(service, 'series', seriesId);
     const { moves } = await resolveEpisodeRemap(http, service, id, reassignments);
 
     if (moves.length === 0) {

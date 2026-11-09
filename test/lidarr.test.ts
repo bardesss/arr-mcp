@@ -186,7 +186,7 @@ describe('LidarrAdapter', () => {
         it('refuses a non-integer album id rather than sending it on', async () => {
             const seen: string[] = [];
             await expect(adapter({ '/api/v1/album/7': ALBUM }, seen).getMonitorState('not-a-number')).rejects.toThrow(
-                /is not a Lidarr album id/
+                /is not a lidarr album id/
             );
             expect(seen).toEqual([]);
         });

@@ -122,7 +122,7 @@ describe('LidarrAdapter updating an artist', () => {
 
     it('refuses a non-integer id before any request', async () => {
         const { adapter, sent } = lidarr();
-        await expect(adapter.updateMedia('artist-1', { monitored: false, moveFiles: false })).rejects.toThrow(/is not a Lidarr artist id/);
+        await expect(adapter.updateMedia('artist-1', { monitored: false, moveFiles: false })).rejects.toThrow(/is not a lidarr artist id/);
         expect(sent).toHaveLength(0);
     });
 });

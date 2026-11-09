@@ -128,11 +128,25 @@ export async function readArrCommands(
 
 /** Refused before the POST: Radarr and Sonarr accept an id they cannot
  *  resolve and report a queued command that runs against nothing. */
-export function arrItemId(service: string, resource: ArrKind, value: string): number {
+export type ArrIdKind = ArrKind | 'episode' | 'album' | 'site' | 'scene' | 'queue';
+
+const LIBRARY_ID = 'Take one from `acquisition.id` on get_library or get_media_details.';
+const WHERE: Record<ArrIdKind, string> = {
+    movie: LIBRARY_ID,
+    series: LIBRARY_ID,
+    artist: LIBRARY_ID,
+    site: LIBRARY_ID,
+    episode: 'Take one from get_wanted.',
+    scene: 'Take one from get_wanted.',
+    album: 'Take one from get_media_details on the artist, at `detail: "full"`.',
+    queue: 'Take one from get_queue.'
+};
+
+export function arrItemId(service: string, resource: ArrIdKind, value: string): number {
     const id = Number(value);
     if (!Number.isInteger(id) || id <= 0) {
         throw new ServiceError('NotFound', service, `"${value}" is not a ${service} ${resource} id`, {
-            remedy: `${service} ids are integers. Take one from \`acquisition.id\` on get_library or get_media_details.`
+            remedy: `${service} ${resource} ids are integers. ${WHERE[resource]}`
         });
     }
     return id;

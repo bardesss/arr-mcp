@@ -3,7 +3,6 @@ import { instanceId } from '../config/instances.ts';
 import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import { apiKeyHeader } from '../core/auth.ts';
 import { LIBRARY_TTL_MS, TtlCache } from '../core/cache.ts';
-import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
 import { fenceText } from '../core/fence.ts';
 import type { IndexInput } from '../core/resolver.ts';
@@ -19,9 +18,9 @@ import {
 import { readArrProfileDiagnostics } from './arrProfiles.ts';
 import { readArrHistory } from './arrHistory.ts';
 import { traceArrDownload } from './arrDownloadTrace.ts';
-import { readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
+import { arrItemId, readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
 import { listArrImportCandidates, runArrManualImport } from './arrManualImport.ts';
-import { numericId, readArrForUpdate, updateArrMedia } from './arrUpdate.ts';
+import { readArrForUpdate, updateArrMedia } from './arrUpdate.ts';
 import { calendarPath, deleteArrMedia, readArrQueue, readRadarrCalendar, removeArrQueueItem } from './arrQueue.ts';
 import { readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
 import { readSeedCriteria } from './arrSeedCriteria.ts';
@@ -312,7 +311,7 @@ export class RadarrAdapter
     }
 
     async getMediaDetails(id: string): Promise<MediaDetails> {
-        const m = await this.#http.get<RawMovie>(`/api/v3/movie/${numericId(this.id, 'movie', id)}`);
+        const m = await this.#http.get<RawMovie>(`/api/v3/movie/${arrItemId(this.id, 'movie', id)}`);
         const ratings = flattenRatings(m.ratings);
         // No second read, unlike Sonarr's: Radarr embeds the file in the movie.
         const audioLanguages = readAudioLanguages(m.movieFile?.mediaInfo);
@@ -354,12 +353,7 @@ export class RadarrAdapter
      * ran.
      */
     async triggerSearch(id: string): Promise<CommandHandle> {
-        const movieId = Number(id);
-        if (!Number.isInteger(movieId)) {
-            throw new ServiceError('NotFound', this.id, `"${id}" is not a Radarr movie id`, {
-                remedy: 'Radarr movie ids are integers. Take one from `acquisition.id` on get_library or get_media_details.'
-            });
-        }
+        const movieId = arrItemId(this.id, 'movie', id);
 
         const command = await this.#http.post<RawCommand>('/api/v3/command', {
             name: 'MoviesSearch',

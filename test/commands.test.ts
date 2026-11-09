@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { KeyedServiceConfig } from '../src/config/schema.ts';
 import { apiKeyHeader } from '../src/core/auth.ts';
 import { ServiceHttp } from '../src/core/http.ts';
-import { COMMAND_WAIT_MS, awaitArrCommand, readArrCommands, renamedCount } from '../src/services/arrCommands.ts';
+import { COMMAND_WAIT_MS, arrItemId, awaitArrCommand, readArrCommands, renamedCount } from '../src/services/arrCommands.ts';
 import { ProwlarrAdapter } from '../src/services/prowlarr.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
@@ -255,4 +255,14 @@ describe('renamedCount', () => {
         expect(renamedCount('')).toBeUndefined();
         expect(renamedCount('Renamed some files')).toBeUndefined();
     });
+});
+
+describe('arrItemId', () => {
+    it('takes a positive integer', () => expect(arrItemId('sonarr', 'episode', '901')).toBe(901));
+    it.each(['0', '-3', '1.5', 'abc', ''])('refuses %j', v =>
+        expect(() => arrItemId('sonarr', 'episode', v)).toThrow(`"${v}" is not a sonarr episode id`));
+    it('points a queue id at get_queue', () =>
+        expect(() => arrItemId('radarr', 'queue', 'x')).toThrow(/get_queue/));
+    it("points an album id at the artist's details", () =>
+        expect(() => arrItemId('lidarr', 'album', 'x')).toThrow(/detail: "full"/));
 });

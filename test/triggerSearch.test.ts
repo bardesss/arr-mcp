@@ -77,6 +77,16 @@ describe('RadarrAdapter.triggerSearch', () => {
 });
 
 describe('SonarrAdapter.triggerSearch', () => {
+    it('refuses an episode id that is not an integer, and posts nothing', async () => {
+        const { impl, sent } = recordingFetch({ '/api/v3/command': { id: 101, name: 'EpisodeSearch' } });
+        await expect(new SonarrAdapter(keyed(8989), impl).triggerSearch('7', { episodes: ['abc'] }))
+            .rejects.toThrow('"abc" is not a sonarr episode id');
+        expect(sent.filter(s => s.method === 'POST')).toHaveLength(0);
+    });
+    it('refuses series id 0', async () => {
+        const { impl } = recordingFetch({});
+        await expect(new SonarrAdapter(keyed(8989), impl).triggerSearch('0')).rejects.toThrow('"0" is not a sonarr series id');
+    });
     // Upstream's own asymmetry: a bare id here, an array in Radarr. Passing
     // Radarr's shape is accepted and searches nothing.
     it('posts SeriesSearch with a bare seriesId, not an array when no target is given', async () => {
