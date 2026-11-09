@@ -677,7 +677,7 @@ Jellyfin play from it:
 |---|---|
 | An M3U account failed to refresh | error |
 | An M3U account is still pending setup | warning |
-| An M3U account has not refreshed in three of its refresh intervals (skipped on a cron schedule or an interval of 0) | warning |
+| An M3U account has not refreshed in three of its refresh intervals, or has no recorded refresh (skipped on a cron schedule, an interval of 0 or an account still pending setup) | warning |
 | A provider account's expiry date has passed | error |
 | A provider account expires within 14 days | warning |
 | An EPG source failed to refresh | error |

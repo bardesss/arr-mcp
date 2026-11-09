@@ -197,6 +197,20 @@ describe('DispatcharrAdapter health findings', () => {
         ]);
     });
 
+    it('calls an active account with no refresh time stale', async () => {
+        const expected = [
+            { service: 'dispatcharr', source: 'm3u', type: 'warning', message: `M3U account ${f('Example Provider 1')} has no recorded refresh; it is set to refresh every 24h` }
+        ];
+        expect(await findings([account({ updated_at: null })])).toEqual(expected);
+        expect(await findings([account({ updated_at: 'not a date' })])).toEqual(expected);
+    });
+
+    it('does not add staleness to an account still pending setup', async () => {
+        expect(await findings([account({ updated_at: null, status: 'pending_setup' })])).toEqual([
+            { service: 'dispatcharr', source: 'm3u', type: 'warning', message: `M3U account ${f('Example Provider 1')} is still pending setup` }
+        ]);
+    });
+
     it('does not call an account stale inside three intervals', async () => {
         expect(await findings([account({ updated_at: hoursAgo(71) })])).toEqual([]);
     });

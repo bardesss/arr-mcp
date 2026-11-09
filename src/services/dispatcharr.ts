@@ -215,8 +215,12 @@ export class DispatcharrAdapter implements ServiceAdapter, HealthCheckCapable {
             if (a.status === 'error') out.push(check('m3u', 'error', `M3U account ${name(a.name)} failed to refresh: ${a.reason ?? 'refresh failed'}`));
             if (a.status === 'pending_setup') out.push(check('m3u', 'warning', `M3U account ${name(a.name)} is still pending setup`));
             const refreshed = a.refreshedAt === undefined ? NaN : Date.parse(a.refreshedAt);
-            if (!a.cron && a.intervalHours > 0 && now - refreshed > STALE_INTERVALS * a.intervalHours * HOUR_MS) {
-                out.push(check('m3u', 'warning', `M3U account ${name(a.name)} has not refreshed since ${a.refreshedAt}; it is set to refresh every ${a.intervalHours}h`));
+            if (!a.cron && a.intervalHours > 0 && a.status !== 'pending_setup') {
+                if (Number.isNaN(refreshed)) {
+                    out.push(check('m3u', 'warning', `M3U account ${name(a.name)} has no recorded refresh; it is set to refresh every ${a.intervalHours}h`));
+                } else if (now - refreshed > STALE_INTERVALS * a.intervalHours * HOUR_MS) {
+                    out.push(check('m3u', 'warning', `M3U account ${name(a.name)} has not refreshed since ${a.refreshedAt}; it is set to refresh every ${a.intervalHours}h`));
+                }
             }
             for (const p of a.profiles.filter(p => p.active && p.expiresAt !== undefined)) {
                 const at = Date.parse(p.expiresAt as string);
