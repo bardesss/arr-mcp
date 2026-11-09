@@ -181,7 +181,7 @@ quality profile, and links to TMDB and IMDb. `search_media`, `lookup_media` and
 `get_library` show a grid of up to twenty posters, each with its status.
 
 <img src="screenshots/cards-detail-dark.png" alt="A detail card: poster, title and year, Series and Monitored badges, quality profile, seasons and genres, an episode progress bar, the synopsis and TMDB and IMDb links" width="560">
-<img src="screenshots/cards-grid-light.png" alt="A grid of poster tiles, each with a title, year, type and a coloured status label; one tile without artwork shows its title on a plain background" width="560">
+<img src="screenshots/cards-grid-light.png" alt="A grid of poster tiles, each with its status as a labelled pill on the poster, then its title, year and type; one tile without artwork shows its title on a plain background" width="560">
 
 **Nothing to configure, and no TMDB key.** The artwork is what Radarr and Sonarr
 already hold (`remoteUrl`, from TMDB and TheTVDB) and the poster paths Seerr

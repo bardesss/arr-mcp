@@ -87,8 +87,8 @@ html, body { margin: 0; background: transparent; color: var(--fg); font: 14px/1.
 
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 12px; }
 .tile { min-width: 0; }
-.tile .state { display: flex; align-items: center; gap: 5px; margin-top: 3px; font-size: 12px; font-weight: 500; color: var(--fg); }
-.tile .state::before { content: ""; flex: 0 0 8px; height: 8px; border-radius: 50%; background: var(--status); }
+.tile .state { position: absolute; left: 6px; bottom: 6px; max-width: calc(100% - 12px); display: flex; align-items: center; gap: 5px; padding: 2px 8px 2px 6px; border-radius: 999px; background: rgba(0, 0, 0, 0.68); color: #fff; font-size: 11px; font-weight: 500; line-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.tile .state::before { content: ""; flex: 0 0 7px; height: 7px; border-radius: 50%; background: var(--status); }
 .tile .name { margin-top: 6px; font-size: 13px; font-weight: 600; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .tile .sub { font-size: 12px; color: var(--fg-2); }
 .more { margin-top: 10px; font-size: 12px; color: var(--fg-2); }
@@ -282,10 +282,10 @@ html, body { margin: 0; background: transparent; color: var(--fg); font: 14px/1.
     node.style.setProperty("--status", status.color);
     node.title = title + (card.year ? " (" + card.year + ")" : "") + " — " + status.label;
     var art = artwork(card, title);
+    art.appendChild(el("span", "state", status.label));
     node.appendChild(art);
     node.appendChild(el("div", "name", title));
     node.appendChild(el("div", "sub", [card.year, card.type === "series" ? "Series" : "Movie"].filter(Boolean).join(" · ")));
-    node.appendChild(el("div", "state", status.label));
     return node;
   }
 
