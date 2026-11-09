@@ -67,11 +67,10 @@ function stack(resource: 'movie' | 'series' = 'movie', current: Record<string, u
         if (url.pathname === '/api/v3/qualityprofile') return jsonResponse(PROFILES);
         if (url.pathname === '/api/v3/rootfolder') return jsonResponse(FOLDERS);
         if (url.pathname === '/api/v3/tag') return jsonResponse(TAGS);
-        if (url.pathname === `/api/v3/${resource}/${id}`) {
-            return jsonResponse(
-                method === 'PUT' ? { ...current, ...(JSON.parse(String(init?.body)) as object) } : current
-            );
-        }
+        // Not recorded: the specs give the editor PUT a bare 200 with no schema, and the
+        // code discards the body and reads the item back, so its shape is never read.
+        if (url.pathname === `/api/v3/${resource}/editor` && method === 'PUT') return jsonResponse([]);
+        if (url.pathname === `/api/v3/${resource}/${id}` && method === 'GET') return jsonResponse(current);
         return jsonResponse({ message: 'not found' }, 404);
     }) as unknown as typeof fetch;
 
@@ -181,7 +180,7 @@ describe('update_media applying', () => {
         const result = await apply(h, { service: 'radarr', id: '15', quality_profile: 'Ultra-HD' });
 
         expect(result.structuredContent.applied).toBe(true);
-        expect(s.sent.find(x => x.method === 'PUT')?.body).toMatchObject({ qualityProfileId: 5, title: 'Heat' });
+        expect(s.sent.find(x => x.method === 'PUT')?.body).toMatchObject({ qualityProfileId: 5, movieIds: [15] });
         expect(h.invalidate).toHaveBeenCalledTimes(1);
     });
 
@@ -199,7 +198,7 @@ describe('update_media applying', () => {
 
         const put = s.sent.find(x => x.method === 'PUT');
         expect(put?.body?.rootFolderPath).toBe('/movies-4k');
-        expect(put?.search).toContain('moveFiles=true');
+        expect(put?.body?.moveFiles).toBe(true);
         expect(JSON.stringify(put?.body)).not.toContain('untrusted');
     });
 
@@ -207,14 +206,14 @@ describe('update_media applying', () => {
         const s = stack('movie', { ...MOVIE, tags: [2] });
         const h = harness({ adapters: [new RadarrAdapter(keyed(7878), s.impl)] });
         await apply(h, { service: 'radarr', id: '15', tags: ['4k'] });
-        expect(s.sent.find(x => x.method === 'PUT')?.body?.tags).toEqual([1]);
+        expect(s.sent.find(x => x.method === 'PUT')?.body).toMatchObject({ tags: [1], applyTags: 'replace' });
     });
 
     it('clears the tags when given an empty list', async () => {
         const s = stack('movie', { ...MOVIE, tags: [1] });
         const h = harness({ adapters: [new RadarrAdapter(keyed(7878), s.impl)] });
         await apply(h, { service: 'radarr', id: '15', tags: [] });
-        expect(s.sent.find(x => x.method === 'PUT')?.body?.tags).toEqual([]);
+        expect(s.sent.find(x => x.method === 'PUT')?.body).toMatchObject({ tags: [], applyTags: 'replace' });
     });
 
     it('changes the series type on Sonarr', async () => {
