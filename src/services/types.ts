@@ -1311,6 +1311,19 @@ export type BookLibrary = {
     label: string;
     /** A library with `watch` on is rescanned by Grimmory's own file watcher. */
     watch: boolean;
+    /** The ids of its folders, which a Bookdrop import names one of. */
+    pathIds: string[];
+};
+
+/** One file waiting in Grimmory's Bookdrop, for approving it (#532). */
+export type BookdropFile = {
+    id: string;
+    /** The file name, fenced. */
+    label: string;
+    /** The metadata Grimmory read from the file itself, sent back as it is. Absent until Grimmory has read it. */
+    original?: Record<string, unknown>;
+    /** Fenced title, authors, publisher and series from `original`, for the preview. */
+    shown: string[];
 };
 
 /**
@@ -1324,6 +1337,10 @@ export interface BookLibraryScanCapable {
     refreshBookLibrary(id: string): Promise<void>;
     /** Asks Grimmory to look in the Bookdrop folder again. */
     rescanBookdrop(): Promise<void>;
+    /** One pending Bookdrop file, or undefined when nothing by that id waits. */
+    readBookdropFile(id: string): Promise<BookdropFile | undefined>;
+    /** Imports one Bookdrop file into a library folder with the metadata given. Returns the new book's id when it can be told. */
+    finalizeBookdropFile(f: { fileId: string; libraryId: string; pathId: string; metadata: Record<string, unknown>; title: string }): Promise<{ bookId?: string }>;
 }
 
 export const hasBookLibraryScan = (a: ServiceAdapter): a is ServiceAdapter & BookLibraryScanCapable =>

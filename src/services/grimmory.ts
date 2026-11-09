@@ -11,6 +11,7 @@ import {
     type ConnectionDiagnosis,
     type HealthCheck,
     type BookLibrary,
+    type BookdropFile,
     type BookCandidate,
     type BookField,
     type BookFields,
@@ -730,7 +731,8 @@ export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, Sear
             const id = num(lib.id);
             if (id === undefined) return [];
             const name = str(lib.name) ?? `#${String(id)}`;
-            return [{ id: String(id), name, label: this.#fence(name, 'library_name'), watch: lib.watch === true }];
+            const pathIds = list(lib.paths).flatMap(p => (num(p.id) === undefined ? [] : [String(num(p.id))]));
+            return [{ id: String(id), name, label: this.#fence(name, 'library_name'), watch: lib.watch === true, pathIds }];
         });
     }
 
@@ -758,7 +760,25 @@ export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, Sear
      * an empty Bookdrop.
      */
     async getQueue(): Promise<QueueItem[]> {
-        const out: QueueItem[] = [];
+        return (await this.#pendingFiles()).flatMap(file => {
+            const id = num(file.id);
+            if (id === undefined) return [];
+            const addedAt = isoDate(file.createdAt);
+            return [
+                {
+                    service: this.id,
+                    id: String(id),
+                    title: this.#fence(str(file.fileName) ?? 'unnamed', 'file_name'),
+                    status: 'pending review',
+                    ...(addedAt === undefined ? {} : { addedAt })
+                }
+            ];
+        });
+    }
+
+    /** Every pending Bookdrop file as Grimmory returns it, paged like `getQueue`. */
+    async #pendingFiles(): Promise<Raw[]> {
+        const out: Raw[] = [];
         for (let page = 0; ; page += 1) {
             if (page >= MAX_BOOKDROP_PAGES) {
                 throw new ServiceError(
@@ -769,21 +789,56 @@ export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, Sear
             }
             const body = await this.#write('read the Bookdrop', 'canAccessBookdrop', 'Bookdrop', () => this.#bookdropPage(page, BOOKDROP_PAGE_SIZE));
             const rows = list(body.content);
-            for (const file of rows) {
-                const id = num(file.id);
-                if (id === undefined) continue;
-                const addedAt = isoDate(file.createdAt);
-                out.push({
-                    service: this.id,
-                    id: String(id),
-                    title: this.#fence(str(file.fileName) ?? 'unnamed', 'file_name'),
-                    status: 'pending review',
-                    ...(addedAt === undefined ? {} : { addedAt })
-                });
-            }
+            out.push(...rows);
             const totalPages = num(obj(body.page).totalPages);
             if (rows.length === 0 || totalPages === undefined || page + 1 >= totalPages) return out;
         }
+    }
+
+    async readBookdropFile(id: string): Promise<BookdropFile | undefined> {
+        const file = (await this.#pendingFiles()).find(f => String(num(f.id)) === id);
+        if (file === undefined) return undefined;
+        const meta = file.originalMetadata;
+        const original = typeof meta === 'object' && meta !== null && !Array.isArray(meta) ? (meta as Record<string, unknown>) : undefined;
+        const m = obj(original);
+        const authors = (Array.isArray(m.authors) ? m.authors : []).filter((a): a is string => typeof a === 'string' && a !== '');
+        const series = str(m.seriesName);
+        const shown = [
+            ...(str(m.title) === undefined ? [] : [`title ${this.#fence(str(m.title)!, 'title')}`]),
+            ...(authors.length === 0 ? [] : [`by ${this.#fence(authors.join(', '), 'authors')}`]),
+            ...(str(m.publisher) === undefined ? [] : [`publisher ${this.#fence(str(m.publisher)!, 'publisher')}`]),
+            ...(series === undefined ? [] : [`series ${this.#fence(series, 'series')}${num(m.seriesNumber) === undefined ? '' : ` #${num(m.seriesNumber)}`}`])
+        ];
+        return { id, label: this.#fence(str(file.fileName) ?? 'unnamed', 'file_name'), ...(original === undefined ? {} : { original }), shown };
+    }
+
+    /**
+     * Grimmory's finalize answers a count, not the book it made, so the new id
+     * is the one a title search finds after the import and did not find before.
+     */
+    async finalizeBookdropFile(f: { fileId: string; libraryId: string; pathId: string; metadata: Record<string, unknown>; title: string }): Promise<{ bookId?: string }> {
+        const ids = async () => new Set((await this.search(f.title, 'library').catch(() => [])).map(h => h.id));
+        const before = await ids();
+        const body = {
+            selectAll: false,
+            files: [{ fileId: Number(f.fileId), libraryId: Number(f.libraryId), pathId: Number(f.pathId), metadata: f.metadata }]
+        };
+        const result = obj(
+            await this.#write(
+                'import Bookdrop files',
+                'canAccessBookdrop',
+                `Bookdrop file ${f.fileId}`,
+                () => this.#http.post<unknown>('/api/v1/bookdrop/imports/finalize', body),
+                'The file may already have been imported or discarded in Grimmory. get_queue lists what is waiting.'
+            )
+        );
+        const failed = list(result.results).find(r => r.success === false);
+        if (num(result.successfullyImported) !== 1 || failed !== undefined) {
+            const why = str(failed?.message);
+            throw new ServiceError('UpstreamError', this.id, `Grimmory did not import Bookdrop file ${f.fileId}${why === undefined ? '' : `: ${this.#fence(why, 'message')}`}`);
+        }
+        const fresh = [...(await ids())].filter(id => !before.has(id));
+        return fresh.length === 1 ? { bookId: fresh[0]! } : {};
     }
 
     /** Deletes the file from disk and takes it off the Bookdrop; Grimmory has no keep-the-file discard. */
