@@ -125,7 +125,7 @@ export function registerGetCalendar(server: McpServer, adapters: readonly Servic
             title: 'Upcoming releases',
             annotations: READ_ONLY,
             description:
-                'Films, episodes and albums due in a date window, merged from Radarr, Sonarr, Whisparr and Lidarr and sorted by date. Covers both upcoming releases and recently aired items, with whether each already has a file (an album only once every track is on disk).',
+                'Films, episodes and albums due in a date window, merged from Radarr, Sonarr, Whisparr and Lidarr and sorted by date. Covers both upcoming releases and recently aired items, with whether each already has a file. What is already overdue is get_wanted.',
             outputSchema: PagedOutputSchema.extend({
                 missingFiles: z
                     .number()

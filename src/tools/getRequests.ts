@@ -115,7 +115,7 @@ export function registerGetRequests(
             title: 'Requests',
             annotations: READ_ONLY,
             description:
-                'Media requests in Seerr — pending, approved or declined — for one user. Defaults to the configured user; reading another requires allow_other_users. At `detail: "full"` it also returns `issues`: what your users have reported as broken (video, audio, subtitle), each with its newest comments. Issues are everyone\'s, not just this user\'s, and a Seerr that cannot answer for them still answers for the requests.',
+                'Media requests in Seerr — pending, approved or declined — for one user. Defaults to the configured user; reading another requires allow_other_users. At `detail: "full"` it also returns `issues`: what your users have reported as broken (video, audio, subtitle), each with its newest comments. Issues are everyone\'s, not just this user\'s, and a Seerr that cannot answer for them still answers for the requests. Approve or decline with respond_to_request, remove with delete_request.',
             outputSchema: PagedOutputSchema.extend({
                 issues: z
                     .array(z.unknown())

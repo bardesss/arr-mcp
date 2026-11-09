@@ -224,7 +224,7 @@ export function registerDiscoverMedia(
             title: 'Discover trending media',
             annotations: READ_ONLY,
             description:
-                'Browse what exists rather than what you have: films or series by genre, year and minimum rating, or things similar to one you know via similar_to. Nothing is requested or added. Answered by Seerr when it is configured — TMDB-backed, so the rating is TMDB’s. With no Seerr, genre/year/min_rating are answered from the local IMDb dataset instead, where the rating is IMDb’s; similar_to needs Seerr and has no dataset fallback.',
+                'Browse what exists rather than what you have: films or series by genre, year and minimum rating, or things similar to one you know via similar_to. To find one title by name, use lookup_media. Answered by Seerr when it is configured — TMDB-backed, so the rating is TMDB’s. With no Seerr, genre/year/min_rating are answered from the local IMDb dataset instead, where the rating is IMDb’s; similar_to needs Seerr and has no dataset fallback.',
             outputSchema: PagedOutputSchema.extend({
                 note: z
                     .string()
