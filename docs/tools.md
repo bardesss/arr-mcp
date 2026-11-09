@@ -718,6 +718,9 @@ unfiltered window held 37 rows, every one of them a poller, which is how the
 one row you asked about gets lost. Filtering on the command's `trigger` would
 not have helped — Radarr reports its own per-minute refresh as `manual`.
 
+A command the service accepts without returning a command id fails rather than
+waiting, since there would be nothing to follow.
+
 Radarr, Sonarr, Lidarr and Prowlarr are read. Whisparr is not, because its
 command list has no captured fixture yet, so nothing can be concluded from a
 Whisparr command being absent.
@@ -1742,6 +1745,8 @@ Prowlarr that leaves about 88 of its 650 definitions.
 
 The indexer is posted as Prowlarr's own template with only the settings you
 named changed, enabled, on your first app profile unless you name another.
+If Prowlarr has no app profile at all, `add` is refused and the answer says to
+create one under Settings → Apps → App Profiles.
 Prowlarr tests it before saving, which means a request to the site from
 Prowlarr's network; if that fails nothing is added, and Prowlarr's logs have
 the reason. A definition already configured is a no-op naming its id.
@@ -1809,7 +1814,8 @@ restores the watched flag but **not** the original play date or resume
 position. That history is not recoverable.
 
 `user` names whose watch state changes; anyone but `default_user` needs
-`services.jellyfin.allow_other_users`.
+`services.jellyfin.allow_other_users`. The confirmation token is also bound to
+that user, so a token previewed for one user cannot be confirmed for another.
 
 ### Grimmory
 
@@ -2280,7 +2286,9 @@ download client — SABnzbd, NZBGet, Transmission or qBittorrent — or one item
 queue when `id` is given.
 
 `action: "limit"` throttles instead of stopping: `speed_limit_kbps` is the cap
-in KB/s, and `0` removes it. Always client-wide, never per item.
+in KB/s, and `0` removes it. Always client-wide, never per item, so `id` with
+`action: "limit"` is refused. Drop `id`, or use `action: "pause"` for that one
+item.
 
 Each client speaks a different unit, and the wrong one throttles a stack to
 nothing — SABnzbd reads a bare number as a *percentage* of the configured line
@@ -2406,6 +2414,11 @@ confirmation token is bound to those exact ids, so an item that appears in the
 queue between preview and confirm is not swept up by a token issued before it
 existed.
 
+The text reports what actually happened, not what was planned: if only some of
+the items go it says so ("1 of 2 removed"), not only in `result`.
+`trigger_scan` and `trigger_subtitle_search` do the same when part of a remap or
+a subtitle search did not run.
+
 ## `trigger_subtitle_search`
 
 The write half of `get_subtitles`, and it takes its arguments straight from
@@ -2455,6 +2468,10 @@ and, on the *arrs, with its metadata provider.
 | `action: "bookdrop"` | Has Grimmory look in its Bookdrop folder again. With `action: "scan"`, `library` rescans one Grimmory library. See [On Grimmory](#on-grimmory). |
 
 Everything here queues a command and returns, except `remap` and `postprocess` — see below.
+An `id` on a Radarr, Sonarr, Whisparr or Lidarr call must be a positive whole
+number. Zero, negative and fractional ids are refused before any call, with an
+error that says where to find a valid one. That holds for every tool that takes
+one of these ids, Sonarr episode ids included.
 `stack_health`'s `commands` list says whether it has finished; do not assume it
 has. Whisparr's commands are not reported there.
 
@@ -2595,9 +2612,10 @@ Outcomes that look alike and are not:
   `downloadClientUnavailable`, `fallback`) is reported only as not completed,
   with no claim about what the client is doing.
 
-The import re-reads the candidates when it runs rather than trusting the
-preview's list, so a download whose files have changed in between imports what
-is there now or fails — never a path that no longer exists.
+The import re-reads the candidates when it runs, and imports exactly the files
+the preview listed. If one of them is no longer importable, because the files
+changed in between, it refuses and imports nothing. Run the preview again to
+see what is there now.
 
 ### Running NZBGet's post-processing again
 
