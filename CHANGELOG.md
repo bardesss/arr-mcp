@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.75.2](https://github.com/bardesss/arr-mcp/compare/v1.75.1...v1.75.2) (2026-11-09)
+
+
+### Bug Fixes
+
+* **lidarr:** say when a new metadata profile applies ([#550](https://github.com/bardesss/arr-mcp/issues/550)) ([c275f4e](https://github.com/bardesss/arr-mcp/commit/c275f4e216169e1fc6478bc240c41badf575e567))
+
 ## [1.75.1](https://github.com/bardesss/arr-mcp/compare/v1.75.0...v1.75.1) (2026-11-09)
 
 
