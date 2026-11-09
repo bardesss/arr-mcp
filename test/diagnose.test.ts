@@ -1,12 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { KeyedServiceConfig } from '../src/config/schema.ts';
 import { ServiceError } from '../src/core/errors.ts';
 import { IdentityResolver } from '../src/core/identity.ts';
 import type { IndexInput } from '../src/core/resolver.ts';
 import { buildChain as chain, type Diagnosis, type Evidence } from '../src/tools/diagnose/chain.ts';
-import { collectEvidence } from '../src/tools/diagnose/evidence.ts';
+import { collectEvidence, DIAGNOSE_BUDGET_MS } from '../src/tools/diagnose/evidence.ts';
 import { buildDiagnose, type DiagnoseDeps } from '../src/tools/diagnose/index.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
 import { GrimmoryAdapter } from '../src/services/grimmory.ts';
@@ -1479,5 +1479,29 @@ describe('diagnose by name and a partial match', () => {
 
     it('still prefers a film of exactly the same name', async () => {
         expect((await resolve('Daft Punk')).resolved?.kind).toBe('movie');
+    });
+});
+
+describe('the diagnose budget', () => {
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+    it('reports a service that outlasts the budget as unknown, and answers anyway', async () => {
+        vi.useFakeTimers();
+        const adapters = [
+            stub('radarr', { listLibrary: async () => [FILM], getQueue: async () => [] }),
+            stub('seerr', { getRequests: () => new Promise(() => {}) })
+        ];
+        const pending = buildDiagnose({ adapters, library: new LibraryLoader(adapters, undefined) }, { query: 'some film' });
+        await vi.advanceTimersByTimeAsync(DIAGNOSE_BUDGET_MS);
+        const d = await pending;
+        expect(d.degraded).toContain('seerr');
+        expect(d.steps.find(s => s.stage === 'request')?.status).toBe('unknown');
+        expect(d.verdict.certain).toBe(false);
+    });
+    it('leaves no timer running once it answers', async () => {
+        vi.useFakeTimers();
+        await buildDiagnose(deps(), { query: 'some film' });
+        expect(vi.getTimerCount()).toBe(0);
     });
 });
