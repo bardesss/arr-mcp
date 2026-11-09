@@ -67,6 +67,8 @@ function stack(resource: 'movie' | 'series' = 'movie', current: Record<string, u
         if (url.pathname === '/api/v3/qualityprofile') return jsonResponse(PROFILES);
         if (url.pathname === '/api/v3/rootfolder') return jsonResponse(FOLDERS);
         if (url.pathname === '/api/v3/tag') return jsonResponse(TAGS);
+        // Not recorded: the specs give the editor PUT a bare 200 with no schema, and the
+        // code discards the body and reads the item back, so its shape is never read.
         if (url.pathname === `/api/v3/${resource}/editor` && method === 'PUT') return jsonResponse([]);
         if (url.pathname === `/api/v3/${resource}/${id}` && method === 'GET') return jsonResponse(current);
         return jsonResponse({ message: 'not found' }, 404);

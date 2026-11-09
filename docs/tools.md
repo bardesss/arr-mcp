@@ -2857,6 +2857,10 @@ or Lidarr is set to — `quality_profile`, `root_folder`, `monitored`, `tags`,
 Radarr's `minimum_availability`, Sonarr's `series_type`, Lidarr's
 `metadata_profile`.
 
+Radarr and Sonarr are written through their editors (`PUT /movie/editor`,
+`PUT /series/editor`), which change only the fields sent. A new `root_folder`
+moves the files there unless `move_files` is false.
+
 It is also **the only way to change a Radarr item's monitoring**.
 `set_monitoring` covers series and artists, and has never covered films.
 

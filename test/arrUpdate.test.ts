@@ -41,6 +41,8 @@ function stack(resource: 'movie' | 'series', current: Record<string, unknown> = 
             body: typeof init?.body === 'string' ? (JSON.parse(init.body) as Record<string, unknown>) : undefined
         });
 
+        // Not recorded: the specs give the editor PUT a bare 200 with no schema, and the
+        // code discards the body and reads the item back, so its shape is never read.
         if (url.pathname === `/api/v3/${resource}/editor` && method === 'PUT') return jsonResponse([]);
         if (url.pathname === `/api/v3/${resource}/15` && method === 'GET') return jsonResponse(current);
         return jsonResponse({ message: 'not found' }, 404);
