@@ -1,5 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
+import { toolUsable, type SurfaceOptions } from './toolSurface.ts';
 
 /**
  * The five questions this stack actually gets asked (0.9 spec ).
@@ -27,7 +28,22 @@ const user = (text: string) => ({
     messages: [{ role: 'user' as const, content: { type: 'text' as const, text } }]
 });
 
-export function registerAllPrompts(server: McpServer): void {
+/** One line of a numbered list; `tool` is the tool it sends the model to, if any. */
+type PromptStep = { tool?: string; text: string };
+
+/**
+ * The steps whose tool the client can still see, numbered from 1. A step that
+ * names a tool `hide_unusable` removed would send the model to a call that
+ * does not exist.
+ */
+function numbered(steps: readonly PromptStep[], surface: SurfaceOptions): string {
+    return steps
+        .filter(s => s.tool === undefined || toolUsable(s.tool, surface))
+        .map((s, i) => `${i + 1}. ${s.text}`)
+        .join('\n');
+}
+
+export function registerAllPrompts(server: McpServer, surface: SurfaceOptions): void {
     server.registerPrompt(
         'why_not_playable',
         {
@@ -61,10 +77,15 @@ Answer with the cause and the next action, not a transcript of the checks.`
             user(
                 `Sweep the stack and tell me what needs me. In order:
 
-1. \`stack_health\` — unreachable services, failing health checks, disks running out, libraries that have not been scanned recently.
-2. \`get_queue\` — anything stalled, failed, or sitting at 0% across every download client.
-3. \`get_indexers\` — indexers that are unhealthy or recently rejecting.
-4. \`get_subtitles\` — what is missing subtitles, and which providers are throttled.
+${numbered(
+    [
+        { tool: 'stack_health', text: '`stack_health` — unreachable services, failing health checks, disks running out, libraries that have not been scanned recently.' },
+        { tool: 'get_queue', text: '`get_queue` — anything stalled, failed, or sitting at 0% across every download client.' },
+        { tool: 'get_indexers', text: '`get_indexers` — indexers that are unhealthy or recently rejecting.' },
+        { tool: 'get_subtitles', text: '`get_subtitles` — what is missing subtitles, and which providers are throttled.' }
+    ],
+    surface
+)}
 
 Then reconcile: a stalled download and an unhealthy indexer are usually one problem, not two. Say so rather than listing both.
 
@@ -88,9 +109,14 @@ One thing you cannot see, so do not claim to: the write audit is not exposed as 
             user(
                 `Recommend something to watch tonight.
 
-1. \`get_library\` with \`watched: false\`, \`has_file: true\`${kind === undefined ? '' : `, \`kind: "${kind}"\``}, \`rating_source: "imdb"\`, \`sort: "rating"\` and a small \`limit\`. \`has_file: true\` matters — recommending something not downloaded wastes the answer.
-2. \`get_playback\` — anything part-watched is usually a better suggestion than something new.
-3. If \`ratingCoverage\` reports many unrated items, say so. It means the ranking saw less of the library than it looks like, and it usually means the IMDb dataset is off or still ingesting.
+${numbered(
+    [
+        { tool: 'get_library', text: `\`get_library\` with \`watched: false\`, \`has_file: true\`${kind === undefined ? '' : `, \`kind: "${kind}"\``}, \`rating_source: "imdb"\`, \`sort: "rating"\` and a small \`limit\`. \`has_file: true\` matters — recommending something not downloaded wastes the answer.` },
+        { tool: 'get_playback', text: '`get_playback` — anything part-watched is usually a better suggestion than something new.' },
+        { text: 'If `ratingCoverage` reports many unrated items, say so. It means the ranking saw less of the library than it looks like, and it usually means the IMDb dataset is off or still ingesting.' }
+    ],
+    surface
+)}
 
 Give a handful of suggestions with one line each on why. Rank them; do not just list what came back.`
             )
@@ -138,10 +164,15 @@ For a series, \`rating_source: "imdb"\` is worth naming explicitly — the defau
             return user(
                 `Summarise the last ${window} days.
 
-1. \`get_library\` with \`sort: "added"\` and a small \`limit\` — what arrived, newest first. Items no *arr manages carry no added date and are left out; that is expected, not an error.
-2. \`get_calendar\` — what aired or is due.
-3. \`get_history\` with \`since: "${since}"\` — what imported and what failed. A failure carries the download client's own message, so say what it was.
-4. \`get_queue\` — what is still in flight.
+${numbered(
+    [
+        { tool: 'get_library', text: '`get_library` with `sort: "added"` and a small `limit` — what arrived, newest first. Items no *arr manages carry no added date and are left out; that is expected, not an error.' },
+        { tool: 'get_calendar', text: '`get_calendar` — what aired or is due.' },
+        { tool: 'get_history', text: `\`get_history\` with \`since: "${since}"\` — what imported and what failed. A failure carries the download client's own message, so say what it was.` },
+        { tool: 'get_queue', text: '`get_queue` — what is still in flight.' }
+    ],
+    surface
+)}
 
 Write it as a digest a person would read: counts first, then anything that went wrong. Do not list every episode.`
             );

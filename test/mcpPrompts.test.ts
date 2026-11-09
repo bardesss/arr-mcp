@@ -1,6 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/server';
 import { describe, expect, it } from 'vitest';
 import { registerAllPrompts } from '../src/mcp/prompts.ts';
+import { toolUsable, type SurfaceOptions } from '../src/mcp/toolSurface.ts';
 import { TOOL_NAMES } from '../src/tools/register.ts';
 
 /**
@@ -20,14 +21,14 @@ type Registered = {
     ) => Promise<{ messages: { content: { text: string } }[] }>;
 };
 
-const registered = (): Record<string, Registered> => {
+const registered = (surface: SurfaceOptions = { configured: new Set(), hideUnusable: false }): Record<string, Registered> => {
     const server = new McpServer({ name: 'test', version: '0' });
-    registerAllPrompts(server);
+    registerAllPrompts(server, surface);
     return (server as unknown as { _registeredPrompts: Record<string, Registered> })._registeredPrompts;
 };
 
-const textOf = async (name: string, args: Record<string, unknown> = {}): Promise<string> =>
-    (await registered()[name]!.handler(args, {})).messages[0]!.content.text;
+const textOf = async (name: string, args: Record<string, unknown> = {}, surface?: SurfaceOptions): Promise<string> =>
+    (await registered(surface)[name]!.handler(args, {})).messages[0]!.content.text;
 
 const ALL = ['best_in_library', 'what_to_watch', 'whats_new', 'whats_wrong', 'why_not_playable'];
 /** The SDK validates arguments before calling the handler, so a prompt with a
@@ -147,5 +148,34 @@ describe('being honest about what it cannot reach', () => {
 
     it('falls back to seven days on a days value that is not a positive number', async () => {
         expect(await textOf('whats_new', { days: 'soon' })).toContain('last 7 days');
+    });
+});
+
+describe('scoped to the tools the client sees', () => {
+    const RADARR_ONLY: SurfaceOptions = { configured: new Set(['radarr', 'sabnzbd']), hideUnusable: true };
+
+    it('leaves out a step whose tool hide_unusable removed, and renumbers', async () => {
+        const text = await textOf('whats_wrong', {}, RADARR_ONLY);
+        expect(text).not.toContain('`get_indexers`');
+        expect(text).not.toContain('`get_subtitles`');
+        expect(text).toContain('1. `stack_health`');
+        expect(text).toContain('2. `get_queue`');
+        expect(text).not.toMatch(/^3\. /m);
+    });
+
+    it('keeps every step without hide_unusable', async () => {
+        const text = await textOf('whats_wrong', {}, { ...RADARR_ONLY, hideUnusable: false });
+        expect(text).toContain('4. `get_subtitles`');
+    });
+
+    it('names no tool the shaped surface hides', async () => {
+        const surface: SurfaceOptions = { configured: new Set(['radarr']), hideUnusable: true };
+        for (const name of ALL) {
+            const text = await textOf(name, MINIMUM_ARGS[name] ?? {}, surface);
+            for (const m of text.match(/`([a-z_]+)`/g) ?? []) {
+                const tool = m.replaceAll('`', '');
+                if (TOOLS.has(tool)) expect(toolUsable(tool, surface), `${name} names ${tool}`).toBe(true);
+            }
+        }
     });
 });

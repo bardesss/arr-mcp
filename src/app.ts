@@ -22,7 +22,7 @@ import { claimJsonBody } from './mcp/jsonBody.ts';
 import { JwksUnavailable } from './mcp/oauthVerifier.ts';
 import { acceptingBoth, acceptsStream, asPlainJson } from './mcp/plainJson.ts';
 import { registerAllPrompts } from './mcp/prompts.ts';
-import { shapeToolSurface } from './mcp/toolSurface.ts';
+import { shapeToolSurface, type SurfaceOptions } from './mcp/toolSurface.ts';
 import { registerAppResources } from './mcp/apps.ts';
 import { registerAllResources } from './mcp/resources.ts';
 import { RESOURCE_METADATA_PATHS, resourceMetadata, resourceMetadataUrl } from './mcp/resourceMetadata.ts';
@@ -228,16 +228,17 @@ export function mcpServerFactory(
         );
         // Before any tool registers: trims what tools/list sends, and tailors
         // it to the services this config has (#518).
-        shapeToolSurface(server, {
+        const surface: SurfaceOptions = {
             configured: new Set(tools.instances.map(i => i.type)),
             hideUnusable: snapshot.config.tools?.hide_unusable === true
-        });
+        };
+        shapeToolSurface(server, surface);
         registerAllTools(server, tools);
         // Registered beside the tools, never instead of them. Client support
         // for prompts and resources is uneven and arr-mcp has to work on all of
         // them, so a client that surfaces neither is exactly as capable as
         // before — `test/mcp.test.ts` asserts that rather than trusting it.
-        registerAllPrompts(server);
+        registerAllPrompts(server, surface);
         registerAllResources(server, tools);
         // MCP Apps: the poster-card view the card tools point at (`mcp/apps.ts`).
         if (tools.mediaCards) registerAppResources(server);
