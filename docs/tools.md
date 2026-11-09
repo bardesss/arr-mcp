@@ -166,6 +166,17 @@ unpaginable, never having learned that `limit` was the parameter it wanted.
 
 [#103]: https://github.com/bardesss/arr-mcp/issues/103
 
+## Filtering the queue
+
+`get_queue` takes filters, combined with AND, so a question about a few
+torrents does not need the whole queue back: `category` (any of the client
+categories given), `status` (a prefix, so `seeding` also matches `seeding (no
+peers)`), and four that read Cleanuparr: `over_limit`, `struck`,
+`due_within_days` and `unmatched`. Those four read Cleanuparr at any `detail`,
+and each takes `false` for the opposite set. `total` counts the matching rows;
+`cleanuparrDue` and `counts` still describe the whole queue. A download that has
+not finished carries no `seeding`, so no Cleanuparr filter matches it.
+
 ## Narrowing a read to one kind
 
 `search_media`, `lookup_media`, `get_queue` and `get_calendar` take an optional
