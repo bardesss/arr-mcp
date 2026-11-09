@@ -66,7 +66,7 @@ export const TOOL_SERVICES: Readonly<Record<string, readonly ServiceId[]>> = {
     set_monitoring: ['sonarr', 'whisparr', 'lidarr'],
     delete_episode_files: ['sonarr', 'whisparr'],
     update_media: ['radarr', 'sonarr', 'lidarr', 'grimmory'],
-    delete_media: ['radarr', 'sonarr', 'whisparr', 'grimmory'],
+    delete_media: ['radarr', 'sonarr', 'whisparr', 'lidarr', 'grimmory'],
     get_releases: ['radarr', 'sonarr', 'whisparr', 'lidarr', 'shelfmark'],
     grab_release: ['radarr', 'sonarr', 'whisparr', 'lidarr', 'shelfmark', 'transmission', 'qbittorrent']
 };

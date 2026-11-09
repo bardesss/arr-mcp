@@ -115,12 +115,13 @@ describe('LidarrAdapter', () => {
      * Listing the prototype covers all 46 guards; sampling a few of them stays
      * green when someone adds the one that was not sampled.
      */
-    it('claims library reads, search, monitoring, queue, history and blocklist reads and removals, trigger_scan, the stack_health reads, the wanted list and calendar, indexer search and grab, adding, updating, and nothing else', () => {
+    it('claims library reads, search, monitoring, queue, history and blocklist reads and removals, trigger_scan, the stack_health reads, the wanted list and calendar, indexer search and grab, adding, updating, deleting, and nothing else', () => {
         const a = adapter({});
         const own = Object.getOwnPropertyNames(LidarrAdapter.prototype).filter(name => name !== 'constructor');
 
         expect(own.sort()).toEqual([
             'addMedia',
+            'deleteMedia',
             'findReleases',
             'getCalendar',
             'getDiskSpace',

@@ -242,9 +242,10 @@ A series is matched on the TMDB id Sonarr itself holds, so Reclaimerr is asked w
 
 Whisparr is never checked, on any of these. It keeps its own scene id in the TVDB
 field, so a Seerr match on it would be a different title that shares a number.
-Lidarr is not checked either, on `trigger_search` or `grab_release`: the checks
-are written for films and series, and Seerr and Reclaimerr hold no music. A
-magnet sent to a torrent client is not checked either.
+Lidarr is not checked either, on `trigger_search`, `grab_release` or
+`delete_media`: the checks are written for films and series, and Seerr and
+Reclaimerr hold no music. A magnet sent to a torrent client is not checked
+either.
 
 The checks share one five-second budget. A service that is slow or down is listed
 under **Could not check** and the preview comes back without it. Warnings never
@@ -296,6 +297,10 @@ preview says what Lidarr will actually grab:
 `delete_episode_files` (destructive) deletes the files for one season or
 specific episodes. There is no whole-series form, because that is what
 `delete_media` already does.
+
+On Lidarr, `delete_media` deletes a whole artist, every album with it, with
+Lidarr's own `deleteFiles` and `addImportListExclusion`. It cannot delete one
+album, and its `id` is an artist id, never an album id.
 
 ### Unmonitor before you delete
 

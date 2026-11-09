@@ -11,7 +11,7 @@ import { readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
 import { arrItemId, postArrCommand, readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
 import { readArrHistory } from './arrHistory.ts';
 import { listArrImportCandidates, runArrManualImport } from './arrManualImport.ts';
-import { lidarrCalendarPath, readArrQueue, readLidarrCalendar, removeArrQueueItem } from './arrQueue.ts';
+import { deleteArrMedia, lidarrCalendarPath, readArrQueue, readLidarrCalendar, removeArrQueueItem } from './arrQueue.ts';
 import { findLidarrReleases, grabLidarrRelease } from './arrRelease.ts';
 import { arrDiskSpace, arrFailedHealthChecks, arrScanState, arrStartLibraryScan, arrVersion } from './arrSystem.ts';
 import { readArrWanted } from './arrWanted.ts';
@@ -30,6 +30,7 @@ import {
     type CommandStatus,
     type CommandStatusCapable,
     type ConnectionDiagnosis,
+    type DeleteMediaOptions,
     type DiskSpace,
     type DiskSpaceCapable,
     type HealthCheck,
@@ -44,6 +45,7 @@ import {
     type LibraryScanCapable,
     type ManualImportCapable,
     type MediaAddCapable,
+    type MediaDeleteCapable,
     type MediaDetailCapable,
     type MediaDetails,
     type MediaUpdateCapable,
@@ -243,6 +245,9 @@ const LIBRARY_SCAN_TASK = 'RescanFolders';
  * profiles, root folder, monitoring and tags, changed through the Artist
  * Editor (see `updateMedia`).
  *
+ * `MediaDeleteCapable` is `delete_media`'s: the whole artist, through the
+ * shared `deleteArrMedia` with `resource: 'artist'`.
+ *
  * An artist is the row rather than a track or an album, for the reason Radarr
  * and Sonarr row on a film and a series: it is the level a person asks about,
  * it is what joins to a media server on the MusicBrainz artist id, and Lidarr
@@ -281,7 +286,8 @@ export class LidarrAdapter
         ReleaseGrabCapable,
         MediaAddCapable,
         MetadataProfileCapable,
-        MediaUpdateCapable
+        MediaUpdateCapable,
+        MediaDeleteCapable
 {
     readonly type: ServiceId = 'lidarr';
     readonly instance: string | undefined;
@@ -877,6 +883,15 @@ export class LidarrAdapter
             });
         }
         return artist;
+    }
+
+    /**
+     * The whole artist, with Lidarr's own flags: `deleteFiles` and
+     * `addImportListExclusion`, Sonarr's spelling of the exclusion.
+     */
+    async deleteMedia(id: string, opts: DeleteMediaOptions): Promise<void> {
+        await deleteArrMedia(this.#http, this.id, 'artist', id, opts);
+        this.#libraryCache.clear();
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {
