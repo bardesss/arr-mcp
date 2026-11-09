@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../src/app.ts';
 import { loadConfig } from '../src/config/load.ts';
 import { WriteAudit } from '../src/core/audit.ts';
@@ -125,6 +125,24 @@ describe('get_history over the event log', () => {
         const result = read(undefined, false);
         expect(result.total).toBe(1);
         expect(result.note).toMatch(/off/);
+    });
+
+    it('asks the store twice for an answer with rows', async () => {
+        await storeCaptured(store, 'radarr', 'Grab', recently(1));
+        const reads = vi.spyOn(store, 'read');
+        const counts = vi.spyOn(store, 'counts');
+        read();
+        expect(reads).toHaveBeenCalledTimes(1);
+        expect(counts).toHaveBeenCalledTimes(1);
+    });
+
+    it('asks once more only when a filter matched nothing', async () => {
+        await storeCaptured(store, 'radarr', 'Grab', recently(1));
+        const counts = vi.spyOn(store, 'counts');
+        const result = read({ service: 'sonarr', detail: 'standard', limit: 50 });
+        expect(result.total).toBe(0);
+        expect(counts).toHaveBeenCalledTimes(2);
+        expect(result.note).toBeUndefined();
     });
 
     it('says nothing has arrived when the log is on and empty', () => {
