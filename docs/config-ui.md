@@ -97,10 +97,11 @@ unchanged — so testing a card you have not touched tests what is already
 configured.
 
 **Jellyfin and Seerr suggest their own users.** The default-user field is backed
-by the real list, fetched from the service when the page loads, so the name you
-save is one the service actually knows rather than one you typed from memory. If
-the service does not answer, the field stays a plain text box and says so — you
-can always configure a service that is currently down.
+by the real list, which the page fetches from the service just after it loads
+(so a slow or dead service never holds the page up), and the name you save is
+one the service actually knows rather than one you typed from memory. Without
+scripting, or if the service does not answer, the field stays a plain text box
+and says so — you can always configure a service that is currently down.
 
 Adding a second instance of a service that takes several asks you to name the
 one you already have, and says why: the name becomes part of the id, and that id

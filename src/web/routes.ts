@@ -41,7 +41,7 @@ import {
     type InstanceFields
 } from '../config/mutate.ts';
 import type { ExpiryChoice, TokenTier } from '../core/mcpTokens.ts';
-import { configPage, configTabForPost, configTabNamed, offerableTypes, type OAuthDraft } from './configPage.ts';
+import { configPage, configTabForPost, configTabNamed, defaultUserNote, offerableTypes, type OAuthDraft } from './configPage.ts';
 import { probeJwks } from './jwksProbe.ts';
 import { apiEndpoint, mcpEndpoint, sameOrigin } from './origin.ts';
 import type { WebhookEvents } from '../core/webhookEvents.ts';
@@ -408,22 +408,34 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     };
 
     /**
-     * A running scan reloads the services tab every two seconds, and asking
-     * for users can wait up to `USER_LOOKUP_MS` each time. So a plain view
-     * during a run asks once and reuses the answer until the run ends.
+     * The page no longer waits on this: it is fetched after the page loads, and
+     * a scan's two-second reloads would otherwise ask again each time. So the
+     * answer is kept for a short while, and for as long as the config is the one
+     * it was asked about — a save swaps `runtime.config`, which is the refresh.
      */
-    let usersForRun: { run: string; config: Config; users: Promise<Record<string, readonly string[]>> } | undefined;
-    const usersDuring = (run: RunState | undefined): Promise<Record<string, readonly string[]>> => {
-        if (run?.running !== true) {
-            usersForRun = undefined;
-            return usersByInstance();
+    const USERS_TTL_MS = 30_000;
+    let usersCache: { config: Config; at: number; users: Promise<Record<string, readonly string[]>> } | undefined;
+    const usersCached = (): Promise<Record<string, readonly string[]>> => {
+        if (usersCache?.config !== runtime.config || Date.now() - usersCache.at >= USERS_TTL_MS) {
+            usersCache = { config: runtime.config, at: Date.now(), users: usersByInstance() };
         }
-        // A save during the run changes the config, and with it whom to ask.
-        if (usersForRun?.run !== run.id || usersForRun.config !== runtime.config) {
-            usersForRun = { run: run.id, config: runtime.config, users: usersByInstance() };
-        }
-        return usersForRun.users;
+        return usersCache.users;
     };
+
+    app.get('/ui/config/users.json', async c => {
+        if (guard(c) === undefined) return c.json({ error: 'unauthorized' }, 401);
+
+        const found = await usersCached();
+        const users: Record<string, { names?: string[]; note: string }> = {};
+        for (const adapter of runtime.current.adapters.filter(hasUserDirectory)) {
+            const names = found[adapter.id];
+            users[adapter.id] = {
+                ...(names === undefined ? {} : { names: [...names] }),
+                note: defaultUserNote(adapter.type, names)
+            };
+        }
+        return c.json({ users }, 200, NO_STORE);
+    });
 
     app.get('/ui/config', async c => {
         const session = guard(c);
@@ -440,9 +452,6 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                 version,
                 config: runtime.config,
                 csrf: runtime.sessions.csrfFor(session),
-                // Only the service cards suggest users, and asking waits on every
-                // user-aware service. The other tabs have no reason to.
-                users: tab !== 'services' ? {} : prefill === undefined ? await usersDuring(run) : await usersByInstance(),
                 plaintextOnDisk: runtime.plaintextOnDisk,
                 ...discoveryOpts(run),
                 ...(prefill === undefined ? {} : { addPrefill: prefill, openAdd: true })
@@ -554,10 +563,6 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
             // an add, whose form carries no instance id — there is no card yet.
             const touched = str(form.instance) === '' ? undefined : str(form.instance);
 
-            // Re-asks who the users are, as a plain page load does: a save that
-            // dropped the suggestions would have the card claim the service went
-            // quiet, and a save that changed a Jellyfin key is exactly when the
-            // list is worth refreshing.
             const render = async (
                 message: { kind: 'ok' | 'err'; text: string } | undefined,
                 status: 200 | 400 | 403 | 409,
@@ -571,7 +576,6 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                         version,
                         config: runtime.config,
                         csrf: runtime.sessions.csrfFor(activeSession),
-                        users: tab === 'services' ? await usersByInstance() : {},
                         plaintextOnDisk: runtime.plaintextOnDisk,
                         ...(touched === undefined ? {} : { openInstance: touched }),
                         ...(opts.reopensAdd === true && status !== 200 ? { openAdd: true } : {}),
@@ -901,7 +905,6 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                     version,
                     config: runtime.config,
                     csrf: runtime.sessions.csrfFor(session),
-                    users: await usersByInstance(),
                     plaintextOnDisk: runtime.plaintextOnDisk,
                     ...(isAdd ? { openAdd: true } : {}),
                     ...extra

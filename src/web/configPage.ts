@@ -118,11 +118,13 @@ const field = (opts: {
     /** The service types this field belongs to. The add dialog's picker hides it
      *  for every other type; without scripting it simply stays visible. */
     only?: readonly string[];
-    /** Suggestions from the service itself. A `<datalist>` rather than a
-     *  `<select>` on purpose: the service is often unreachable at exactly the
-     *  moment you are configuring it, and a dropdown with nothing in it would
-     *  make the field unfillable until it came back. */
-    suggestions?: readonly string[];
+    /** The instance whose users the page fetches after it loads and offers in
+     *  this field. A `<datalist>` rather than a `<select>` on purpose: the
+     *  service is often unreachable at exactly the moment you are configuring
+     *  it, and a dropdown with nothing in it would make the field unfillable.
+     *  Rendered empty for the client to fill; without scripting the field is
+     *  simply a text box. */
+    usersFor?: string;
 }): SafeHtml => html`<div class="field"${
     opts.only === undefined ? raw('') : html` data-only="${opts.only.join(' ')}"`
 }>
@@ -133,14 +135,10 @@ const field = (opts: {
         type="${opts.secret === true ? 'text' : (opts.type ?? 'text')}"
         value="${opts.value ?? ''}"
         placeholder="${opts.placeholder ?? ''}"
-        ${opts.suggestions === undefined ? raw('') : html`list="${opts.id}.options" `}${IGNORE}
+        ${opts.usersFor === undefined ? raw('') : html`list="${opts.id}.options" data-users-for="${opts.usersFor}" `}${IGNORE}
     >
-    ${opts.suggestions === undefined
-        ? raw('')
-        : html`<datalist id="${opts.id}.options">
-              ${opts.suggestions.map(value => html`<option value="${value}"></option>`)}
-          </datalist>`}
-    ${opts.note === undefined ? raw('') : html`<p class="note">${opts.note}</p>`}
+    ${opts.usersFor === undefined ? raw('') : html`<datalist id="${opts.id}.options"></datalist>`}
+    ${opts.note === undefined ? raw('') : html`<p class="note" id="${opts.id}.note">${opts.note}</p>`}
 </div>`;
 
 const checkbox = (id: string, name: string, label: string, checked: boolean, disabled = false): SafeHtml =>
@@ -156,12 +154,15 @@ const checkbox = (id: string, name: string, label: string, checked: boolean, dis
  * which is worth saying because the empty suggestion list is otherwise
  * indistinguishable from a service with no users at all.
  */
-function defaultUserNote(type: string, users: readonly string[] | undefined): string {
+export function defaultUserNote(type: string, users: readonly string[] | undefined | 'pending'): string {
     const purpose =
         type === 'jellyfin'
             ? 'Optional. Without it, get_library returns the Radarr and Sonarr halves with Jellyfin marked degraded.'
             : 'Optional.';
 
+    if (users === 'pending') {
+        return `${purpose} Type the name. With scripting on, the users ${type} reports are offered as you type.`;
+    }
     if (users === undefined) {
         return `${purpose} ${type} did not answer when asked who its users are, so there is nothing to pick from — type the name.`;
     }
@@ -170,11 +171,7 @@ function defaultUserNote(type: string, users: readonly string[] | undefined): st
 }
 
 /** The credential and identity fields a given service actually has. */
-function serviceFields(
-    instance: ServiceInstance,
-    prefix: string,
-    users: readonly string[] | undefined
-): SafeHtml {
+function serviceFields(instance: ServiceInstance, prefix: string): SafeHtml {
     const type = instance.type;
     const service = instance.config as AnyService;
     const { fields, required } = serviceTraits(type);
@@ -203,8 +200,8 @@ function serviceFields(
               name: 'default_user',
               label: 'Default user',
               value: service.default_user ?? '',
-              ...(users === undefined ? {} : { suggestions: users }),
-              note: defaultUserNote(type, users)
+              usersFor: instance.id,
+              note: defaultUserNote(type, 'pending')
           })}
           ${checkbox(
               `${prefix}.allow_other_users`,
@@ -246,7 +243,6 @@ function instanceCard(
     instance: ServiceInstance,
     keys: SafeHtml,
     confirming: string | undefined,
-    users: readonly string[] | undefined,
     tested: ConnectionDiagnosis | undefined,
     open: boolean
 ): SafeHtml {
@@ -267,7 +263,7 @@ function instanceCard(
         </summary>
 
         ${field({ id: `${p}.url`, name: 'url', label: 'URL', value: withoutCredentials(service.url) })}
-        ${serviceFields(instance, p, users)}
+        ${serviceFields(instance, p)}
         ${field({ id: `${p}.timeout_ms`, name: 'timeout_ms', label: 'Timeout (ms)', type: 'number', value: service.timeout_ms })}
 
         ${serviceTraits(instance.type).readOnly
@@ -974,9 +970,6 @@ export function configPage(opts: {
     /** Set when an add was refused: the message and the form it is about have to
      *  arrive together, or the dialog has swallowed the reason. */
     openAdd?: boolean;
-    /** Per instance id, the users that instance reported. An absent id means it
-     *  was not asked or did not answer — which the card says out loud. */
-    users?: Record<string, readonly string[]>;
     /** The one instance whose Test button was pressed, and what came back. */
     tested?: { instance: string; diagnosis: ConnectionDiagnosis } | undefined;
     /** The instance a submit just touched, so its card is not collapsed over
@@ -1044,7 +1037,6 @@ export function configPage(opts: {
                 i,
                 keys,
                 opts.confirmingRemoval,
-                opts.users?.[i.id],
                 opts.tested?.instance === i.id ? opts.tested.diagnosis : undefined,
                 // Collapsed by default — the page is a stack inventory first.
                 // Three things reopen a card: a Test whose result is inside it,

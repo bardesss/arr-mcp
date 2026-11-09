@@ -937,35 +937,58 @@ describe('the default user field', () => {
         globalThis.fetch = realFetch;
     });
 
+    const usersJson = async () =>
+        (await (await call('/ui/config/users.json', { headers: { accept: 'application/json' } })).json()) as unknown;
+
     // The mock goes in before `seed`, because that is when the adapters are
     // built and each one captures the `fetch` it will use.
-    it('suggests the users the service reported', async () => {
-        withUsers(['bartus', 'guest']);
-        await seed(JELLYFIN);
-        await signIn();
-
-        const page = await everyConfigTab();
-
-        expect(page).toContain('<datalist id="svc.jellyfin.default_user.options">');
-        expect(page).toContain('<option value="bartus">');
-        expect(page).toContain('<option value="guest">');
-        expect(page).toContain('Pick one of the 2 users jellyfin reported');
-    });
-
-    /** The field has to stay usable when the service is down — that is most of
-     *  why anyone opens this page. */
-    it('falls back to a typeable field when the service does not answer', async () => {
-        globalThis.fetch = (async () => {
-            throw new Error('connection refused');
+    it('renders the field without asking the service', async () => {
+        let asked = 0;
+        globalThis.fetch = (async (input: string | URL | Request) => {
+            if (String(input).includes('/Users')) asked += 1;
+            return new Response('[]', { headers: { 'content-type': 'application/json' } });
         }) as typeof fetch;
         await seed(JELLYFIN);
         await signIn();
 
         const page = await everyConfigTab();
 
-        expect(page).not.toContain('<datalist');
-        expect(page).toContain('did not answer when asked who its users are');
+        expect(asked).toBe(0);
+        expect(page).toContain('data-users-for="jellyfin"');
+        expect(page).toContain('<datalist id="svc.jellyfin.default_user.options">');
+        expect(page).toContain('value="me"');
+        expect(page).toContain('With scripting on, the users jellyfin reports');
+    });
+
+    it('suggests the users the service reported', async () => {
+        withUsers(['bartus', 'guest']);
+        await seed(JELLYFIN);
+        await signIn();
+
+        expect(await usersJson()).toEqual({
+            users: {
+                jellyfin: {
+                    names: ['bartus', 'guest'],
+                    note: expect.stringContaining('Pick one of the 2 users jellyfin reported')
+                }
+            }
+        });
+    });
+
+    /** The field has to stay usable when the service is down — that is most of
+     *  why anyone opens this page. */
+    it('says when the service does not answer', async () => {
+        globalThis.fetch = (async () => {
+            throw new Error('connection refused');
+        }) as typeof fetch;
+        await seed(JELLYFIN);
+        await signIn();
+
+        expect(await usersJson()).toEqual({
+            users: { jellyfin: { note: expect.stringContaining('did not answer when asked who its users are') } }
+        });
         // Still an editable field holding what is configured.
+        const page = await everyConfigTab();
         expect(page).toContain('name="default_user"');
         expect(page).toContain('value="me"');
     });
@@ -975,7 +998,17 @@ describe('the default user field', () => {
         await seed(JELLYFIN);
         await signIn();
 
-        expect(await everyConfigTab()).toContain('jellyfin reports no users yet');
+        expect(await usersJson()).toEqual({
+            users: { jellyfin: { names: [], note: expect.stringContaining('jellyfin reports no users yet') } }
+        });
+    });
+
+    it('refuses the users list without a session', async () => {
+        withUsers(['bartus']);
+        await seed(JELLYFIN);
+        cookie = '';
+
+        expect((await call('/ui/config/users.json')).status).toBe(401);
     });
 });
 
@@ -3383,7 +3416,7 @@ describe('finding services', () => {
         expect(page).not.toContain('add_type=radarr');
     });
 
-    it('asks a user-aware service for its users once per run while a sweep reloads the page', async () => {
+    it('asks a user-aware service for its users once while a sweep reloads the page and the list is fetched', async () => {
         let asked = 0;
         const realFetch = globalThis.fetch;
         globalThis.fetch = (async (input: string | URL | Request) => {
@@ -3398,9 +3431,12 @@ describe('finding services', () => {
             app = buildApp({ runtime, audit, logs, discovery: stub() });
             await signIn();
             state = baseRun({ phase: 'sweep', running: true, range: '192.168.1.0/24', tried: 10, total: 256 });
-            const first = await servicesPage();
             await servicesPage();
             await servicesPage();
+            expect(asked).toBe(0);
+            const first = await (await call('/ui/config/users.json')).text();
+            await call('/ui/config/users.json');
+            await call('/ui/config/users.json');
             expect(asked).toBe(1);
             expect(first).toContain('bartus');
         } finally {

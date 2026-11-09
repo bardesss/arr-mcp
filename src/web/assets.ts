@@ -8,7 +8,8 @@
  *
  * There is no build step and no framework, by design. The page is server
  * rendered; this is the small amount of behaviour that genuinely needs a
- * client — polling the log stream and copying the token.
+ * client — polling the log stream, copying the token, and filling the
+ * default-user suggestions in after the page has rendered.
  */
 
 /**
@@ -594,5 +595,34 @@ if (stream) {
 
   const timer = setInterval(tick, 4000);
   window.addEventListener('beforeunload', () => clearInterval(timer));
+}
+
+// Default-user suggestions arrive after the page, as JSON, so the page never
+// waits on a service that may be down. Options are nodes with option.value and
+// the note is textContent: user names come from the service. A failed fetch
+// leaves the field and its pending note exactly as the server rendered them.
+if (document.querySelector('[data-users-for]')) {
+  (async () => {
+    try {
+      const res = await fetch('/ui/config/users.json', { headers: { accept: 'application/json' } });
+      if (!res.ok) return;
+      const data = await res.json();
+      const users = data && data.users ? data.users : {};
+      for (const input of document.querySelectorAll('[data-users-for]')) {
+        const entry = users[input.dataset.usersFor];
+        if (!entry) continue;
+        if (input.list && Array.isArray(entry.names)) {
+          const options = entry.names.map((name) => {
+            const o = document.createElement('option');
+            o.value = name;
+            return o;
+          });
+          input.list.replaceChildren(...options);
+        }
+        const note = document.getElementById(input.id + '.note');
+        if (note && typeof entry.note === 'string') note.textContent = entry.note;
+      }
+    } catch { /* the field stays as rendered */ }
+  })();
 }
 `;
