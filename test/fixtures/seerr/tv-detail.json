@@ -1,0 +1,6042 @@
+{
+  "createdBy": [
+    {
+      "id": 66633,
+      "credit_id": "52542286760ee31328001a7b",
+      "name": "Vince Gilligan",
+      "original_name": "Vince Gilligan",
+      "gender": 2,
+      "profile_path": "/wJIxATESjzsjSgvRhVavOmdamXc.jpg"
+    }
+  ],
+  "episodeRunTime": [],
+  "firstAirDate": "2008-01-20",
+  "genres": [
+    {
+      "id": 18,
+      "name": "Drama"
+    },
+    {
+      "id": 80,
+      "name": "Misdaad"
+    }
+  ],
+  "relatedVideos": [
+    {
+      "site": "YouTube",
+      "key": "VFkjBy2b50Q",
+      "name": "Breaking Bad - Full Series Trailer",
+      "size": 1080,
+      "type": "Trailer",
+      "url": "https://www.youtube.com/watch?v=VFkjBy2b50Q"
+    }
+  ],
+  "homepage": "https://www.sonypictures.com/tv/breakingbad",
+  "id": 1396,
+  "inProduction": false,
+  "languages": [
+    "en",
+    "de",
+    "es"
+  ],
+  "lastAirDate": "2013-09-29",
+  "name": "Breaking Bad",
+  "networks": [
+    {
+      "id": 174,
+      "name": "AMC",
+      "originCountry": "US",
+      "logoPath": "/pmvRmATOCaDykE6JrVoeYxlFHw3.png"
+    }
+  ],
+  "numberOfEpisodes": 62,
+  "numberOfSeasons": 5,
+  "originCountry": [
+    "US"
+  ],
+  "originalLanguage": "en",
+  "originalName": "Breaking Bad",
+  "tagline": "",
+  "overview": "Walter White is scheikundeleraar. Op het moment dat zijn vrouw zwanger is van hun tweede kind, stort Walters wereld in. De dokter heeft namelijk vastgesteld dat hij terminaal ziek is. Walter heeft longkanker en lijkt niet lang meer te zullen leven. Om ervoor te zorgen dat zijn gezin na zijn dood niet in een financiële crisis belandt, besluit Walter over te schakelen naar een leven als crimineel. Met de hulp van Jesse Pinkman, een uitgevallen leerling die in zijn klas heeft gezeten, maakt en verkoopt hij de drug crystal meth.",
+  "popularity": 160.0525,
+  "productionCompanies": [
+    {
+      "id": 11073,
+      "name": "Sony Pictures Television",
+      "originCountry": "US",
+      "logoPath": "/wHs44fktdoj6c378ZbSWfzKsM2Z.png"
+    },
+    {
+      "id": 33742,
+      "name": "High Bridge Productions",
+      "originCountry": "US",
+      "logoPath": "/2jdh2sEa0R6y6uT0F7g0IgA2WO8.png"
+    },
+    {
+      "id": 2605,
+      "name": "Gran Via Productions",
+      "originCountry": "US",
+      "logoPath": null
+    }
+  ],
+  "productionCountries": [
+    {
+      "iso_3166_1": "US",
+      "name": "United States of America"
+    }
+  ],
+  "contentRatings": {
+    "results": [
+      {
+        "descriptors": [],
+        "iso_3166_1": "DE",
+        "rating": "16"
+      },
+      {
+        "descriptors": [],
+        "iso_3166_1": "GB",
+        "rating": "18"
+      },
+      {
+        "descriptors": [],
+        "iso_3166_1": "US",
+        "rating": "TV-MA"
+      },
+      {
+        "descriptors": [],
+        "iso_3166_1": "FR",
+        "rating": "16"
+      },
+      {
+        "descriptors": [],
+        "iso_3166_1": "RU",
+        "rating": "18+"
+      },
+      {
+        "descriptors": [],
+        "iso_3166_1": "KR",
+        "rating": "19"
+      },
+      {
+        "descriptors": [],
+        "iso_3166_1": "BR",
+        "rating": "16"
+      },
+      {
+        "descriptors": [],
+        "iso_3166_1": "NL",
+        "rating": "16"
+      },
+      {
+        "descriptors": [],
+        "iso_3166_1": "PT",
+        "rating": "18"
+      },
+      {
+        "descriptors": [],
+        "iso_3166_1": "HU",
+        "rating": "16"
+      },
+      {
+        "descriptors": [],
+        "iso_3166_1": "LT",
+        "rating": "N-14"
+      },
+      {
+        "descriptors": [],
+        "iso_3166_1": "ES",
+        "rating": "16"
+      },
+      {
+        "descriptors": [],
+        "iso_3166_1": "SG",
+        "rating": "M18"
+      },
+      {
+        "descriptors": [],
+        "iso_3166_1": "IN",
+        "rating": "A"
+      },
+      {
+        "descriptors": [],
+        "iso_3166_1": "MX",
+        "rating": "C"
+      },
+      {
+        "descriptors": [],
+        "iso_3166_1": "TR",
+        "rating": "18+"
+      },
+      {
+        "descriptors": [],
+        "iso_3166_1": "MX",
+        "rating": "B-15"
+      },
+      {
+        "descriptors": [],
+        "iso_3166_1": "AU",
+        "rating": "MA 15+"
+      },
+      {
+        "descriptors": [],
+        "iso_3166_1": "ES",
+        "rating": "18"
+      },
+      {
+        "descriptors": [],
+        "iso_3166_1": "DK",
+        "rating": "15"
+      },
+      {
+        "descriptors": [],
+        "iso_3166_1": "PT",
+        "rating": "12AP"
+      },
+      {
+        "descriptors": [],
+        "iso_3166_1": "BR",
+        "rating": "18"
+      },
+      {
+        "descriptors": [],
+        "iso_3166_1": "SE",
+        "rating": "Från 15 år"
+      },
+      {
+        "descriptors": [],
+        "iso_3166_1": "CA",
+        "rating": "14+"
+      },
+      {
+        "descriptors": [],
+        "iso_3166_1": "AT",
+        "rating": "16"
+      },
+      {
+        "descriptors": [],
+        "iso_3166_1": "IE",
+        "rating": "18"
+      },
+      {
+        "descriptors": [],
+        "iso_3166_1": "CH",
+        "rating": "16"
+      },
+      {
+        "descriptors": [],
+        "iso_3166_1": "CZ",
+        "rating": "18+"
+      },
+      {
+        "descriptors": [],
+        "iso_3166_1": "RO",
+        "rating": "18"
+      },
+      {
+        "descriptors": [],
+        "iso_3166_1": "FI",
+        "rating": "K16"
+      },
+      {
+        "descriptors": [],
+        "iso_3166_1": "NO",
+        "rating": "15"
+      }
+    ]
+  },
+  "spokenLanguages": [
+    {
+      "englishName": "English",
+      "iso_639_1": "en",
+      "name": "English"
+    },
+    {
+      "englishName": "German",
+      "iso_639_1": "de",
+      "name": "Deutsch"
+    },
+    {
+      "englishName": "Spanish",
+      "iso_639_1": "es",
+      "name": "Español"
+    }
+  ],
+  "seasons": [
+    {
+      "airDate": "",
+      "episodeCount": 18,
+      "id": 81189,
+      "name": "0",
+      "overview": "",
+      "seasonNumber": 0,
+      "posterPath": ""
+    },
+    {
+      "airDate": "",
+      "episodeCount": 7,
+      "id": 81189,
+      "name": "1",
+      "overview": "",
+      "seasonNumber": 1,
+      "posterPath": ""
+    },
+    {
+      "airDate": "",
+      "episodeCount": 13,
+      "id": 81189,
+      "name": "2",
+      "overview": "",
+      "seasonNumber": 2,
+      "posterPath": ""
+    },
+    {
+      "airDate": "",
+      "episodeCount": 13,
+      "id": 81189,
+      "name": "3",
+      "overview": "",
+      "seasonNumber": 3,
+      "posterPath": ""
+    },
+    {
+      "airDate": "",
+      "episodeCount": 13,
+      "id": 81189,
+      "name": "4",
+      "overview": "",
+      "seasonNumber": 4,
+      "posterPath": ""
+    },
+    {
+      "airDate": "",
+      "episodeCount": 16,
+      "id": 81189,
+      "name": "5",
+      "overview": "",
+      "seasonNumber": 5,
+      "posterPath": ""
+    }
+  ],
+  "status": "Ended",
+  "type": "Scripted",
+  "voteAverage": 8.959,
+  "voteCount": 19067,
+  "backdropPath": "/tsRy63Mu5cu8etL1X7ZLyf7UP1M.jpg",
+  "lastEpisodeToAir": {
+    "id": 62161,
+    "airDate": "2013-09-29",
+    "episodeNumber": 16,
+    "name": "Felina",
+    "overview": "Walt keert terug met nog één laatste doel; hij wil geld aan zijn familie geven, Jesse bevrijden en wraak nemen op de oom van Todd.",
+    "productionCode": "",
+    "seasonNumber": 5,
+    "showId": 1396,
+    "voteAverage": 9.291,
+    "voteCount": 333,
+    "stillPath": "/pA0YwyhvdDXP3BEGL2grrIhq8aM.jpg"
+  },
+  "posterPath": "/anFx9aTOOYqgS3v7x3R84Kz67ly.jpg",
+  "credits": {
+    "cast": [
+      {
+        "character": "Walter White",
+        "creditId": "52542282760ee313280017f9",
+        "id": 17419,
+        "name": "Bryan Cranston",
+        "order": 0,
+        "gender": 2,
+        "profilePath": "/7Jahy5LZX2Fo8fGJltMreAI49hC.jpg"
+      },
+      {
+        "character": "Jesse Pinkman",
+        "creditId": "52542282760ee31328001845",
+        "id": 84497,
+        "name": "Aaron Paul",
+        "order": 1,
+        "gender": 2,
+        "profilePath": "/8Ac9uuoYwZoYVAIJfRLzzLsGGJn.jpg"
+      },
+      {
+        "character": "Skyler White",
+        "creditId": "52542282760ee3132800181b",
+        "id": 134531,
+        "name": "Anna Gunn",
+        "order": 2,
+        "gender": 1,
+        "profilePath": "/adppyeu1a4REN3khtgmXusrapFi.jpg"
+      },
+      {
+        "character": "Walter White Jr.",
+        "creditId": "52542284760ee313280018a9",
+        "id": 209674,
+        "name": "RJ Mitte",
+        "order": 3,
+        "gender": 2,
+        "profilePath": "/sNPA92ZrssYhlaB1UA2pWcLD9db.jpg"
+      },
+      {
+        "character": "Hank Schrader",
+        "creditId": "52542283760ee3132800187b",
+        "id": 14329,
+        "name": "Dean Norris",
+        "order": 4,
+        "gender": 2,
+        "profilePath": "/mKRrEbsxAX3ro700HsViFArRM7l.jpg"
+      },
+      {
+        "character": "Marie Schrader",
+        "creditId": "52542283760ee31328001891",
+        "id": 1217934,
+        "name": "Betsy Brandt",
+        "order": 5,
+        "gender": 1,
+        "profilePath": "/xAnuzyjdMbQq9L1c4JNwXL52Wm4.jpg"
+      },
+      {
+        "character": "Saul Goodman",
+        "creditId": "5271b180760ee35afc09bb8d",
+        "id": 59410,
+        "name": "Bob Odenkirk",
+        "order": 7,
+        "gender": 2,
+        "profilePath": "/rF0Lb6SBhGSTvjRffmlKRSeI3jE.jpg"
+      },
+      {
+        "character": "Mike Ehrmantraut",
+        "creditId": "5271b1e6760ee35af60941ad",
+        "id": 783,
+        "name": "Jonathan Banks",
+        "order": 9,
+        "gender": 2,
+        "profilePath": "/8AEK7E3Tl7L80Tz2KpsYEjhCeXw.jpg"
+      },
+      {
+        "character": "Steven Gomez",
+        "creditId": "5271b489760ee35b3e0881a7",
+        "id": 61535,
+        "name": "Steven Michael Quezada",
+        "order": 8,
+        "gender": 2,
+        "profilePath": "/pVYrDkwI6GWvCNL2kJhpDJfBFyd.jpg"
+      },
+      {
+        "character": "Gustavo Fring",
+        "creditId": "5271b1a7760ee35afc09c4e5",
+        "id": 4808,
+        "name": "Giancarlo Esposito",
+        "order": 6,
+        "gender": 2,
+        "profilePath": "/MJOo4QZgMAb3y8QzOUDVFQusQZ.jpg"
+      },
+      {
+        "character": "Skinny Pete",
+        "creditId": "52744007760ee356f6076365",
+        "id": 82945,
+        "name": "Charles Baker",
+        "order": 656,
+        "gender": 2,
+        "profilePath": "/l2plWtvYRcLX4CXf8azXIyANq.jpg"
+      },
+      {
+        "character": "Ted Beneke",
+        "creditId": "527504f6760ee347c912980c",
+        "id": 20379,
+        "name": "Christopher Cousins",
+        "order": 604,
+        "gender": 2,
+        "profilePath": "/9fmoeZLGbJfiYU6mIbrUkjF9wsR.jpg"
+      },
+      {
+        "character": "Badger",
+        "creditId": "52744535760ee3572209100e",
+        "id": 191202,
+        "name": "Matt Jones",
+        "order": 658,
+        "gender": 2,
+        "profilePath": "/x13vFDaJHY1CxNvSPWujYe12bMc.jpg"
+      },
+      {
+        "character": "ASAC George Merkert",
+        "creditId": "5271b622760ee35b0709869c",
+        "id": 9291,
+        "name": "Michael Shamus Wiles",
+        "order": 606,
+        "gender": 2,
+        "profilePath": "/qfCBvbCac2LO8ayIY2pre0eIMkv.jpg"
+      },
+      {
+        "character": "Huell",
+        "creditId": "52763ec8760ee35a9a0f7511",
+        "id": 564348,
+        "name": "Lavell Crawford",
+        "order": 637,
+        "gender": 2,
+        "profilePath": "/mvDs3bWKicnC98nGJNqrm4NaALd.jpg"
+      },
+      {
+        "character": "Todd",
+        "creditId": "6524ae29447f9c010048439b",
+        "id": 88124,
+        "name": "Jesse Plemons",
+        "order": 724,
+        "gender": 2,
+        "profilePath": "/og4I51GsuwohdPgoELOHVMMqMre.jpg"
+      },
+      {
+        "character": "Tyrus Kitt",
+        "creditId": "52765341760ee3603300f575",
+        "id": 159334,
+        "name": "Ray Campbell",
+        "order": 599,
+        "gender": 2,
+        "profilePath": "/nbapP8LvO1KZrmlpNWthEP40H75.jpg"
+      },
+      {
+        "character": "Francesca",
+        "creditId": "52753cc8760ee3157002006b",
+        "id": 147085,
+        "name": "Tina Parker",
+        "order": 628,
+        "gender": 1,
+        "profilePath": "/qa4BFhrCGQKwqdTgLJ8S2rr95hD.jpg"
+      },
+      {
+        "character": "Carmen Molina",
+        "creditId": "52542273760ee31328000676",
+        "id": 115688,
+        "name": "Carmen Serano",
+        "order": 643,
+        "gender": 1,
+        "profilePath": "/nzJEe2UqvvMIBJZP1aeFEj4EunN.jpg"
+      },
+      {
+        "character": "Andrea Cantillo",
+        "creditId": "5276391d760ee33e440250f4",
+        "id": 211474,
+        "name": "Emily Rios",
+        "order": 645,
+        "gender": 1,
+        "profilePath": "/h8d9eg0wpyXcvJlunpZklh2asVY.jpg"
+      },
+      {
+        "character": "Jane Margolis",
+        "creditId": "631aff6577b1fb00807bf819",
+        "id": 78080,
+        "name": "Krysten Ritter",
+        "order": 704,
+        "gender": 1,
+        "profilePath": "/sOlFqP13d3GFp7ccCHgcfTgWIWu.jpg"
+      },
+      {
+        "character": "Lydia Rodarte-Quayle",
+        "creditId": "6524ad8ed399e6011d14adb3",
+        "id": 42279,
+        "name": "Laura Fraser",
+        "order": 723,
+        "gender": 1,
+        "profilePath": "/4aD3xDLA22CIf6jdK0IAs75h8pp.jpg"
+      },
+      {
+        "character": "Victor",
+        "creditId": "5275464a760ee33556010f2a",
+        "id": 582668,
+        "name": "Jeremiah Bitsui",
+        "order": 622,
+        "gender": 2,
+        "profilePath": "/jB4u8jekprqQeB0xhdB4YSgO8FG.jpg"
+      },
+      {
+        "character": "Tío Salamanca",
+        "creditId": "5254227b760ee31328000e52",
+        "id": 1173,
+        "name": "Mark Margolis",
+        "order": 673,
+        "gender": 2,
+        "profilePath": "/rT5TYJIPLBkTqsrUs00AixGeaMM.jpg"
+      },
+      {
+        "character": "Brock Cantillo",
+        "creditId": "653eac27cc9683012cf478f0",
+        "id": 2162380,
+        "name": "Ian Posada",
+        "order": 788,
+        "gender": 2,
+        "profilePath": "/7iI6saMN1wROXgTUdQWCgYJfzoo.jpg"
+      },
+      {
+        "character": "Dr. Delcavoli",
+        "creditId": "5271b65b760ee35b0c090f74",
+        "id": 79211,
+        "name": "David House",
+        "order": 532,
+        "gender": 2,
+        "profilePath": "/t67HnLsCMecFLMdhtJQbkiQiyXq.jpg"
+      },
+      {
+        "character": "Gale Boetticher",
+        "creditId": "527630ad760ee3353f281211",
+        "id": 82167,
+        "name": "David Costabile",
+        "order": 584,
+        "gender": 2,
+        "profilePath": "/jTouM1QK24TXy5Q3T40t4AhR8GH.jpg"
+      },
+      {
+        "character": "Uncle Jack",
+        "creditId": "52780156760ee3397038de79",
+        "id": 2234,
+        "name": "Michael Bowen",
+        "order": 660,
+        "gender": 2,
+        "profilePath": "/dYIzQQ4yozTIlpqJbmDkSyDd86C.jpg"
+      },
+      {
+        "character": "Kenny",
+        "creditId": "527801a9760ee331ce03af8a",
+        "id": 114000,
+        "name": "Kevin Rankin",
+        "order": 661,
+        "gender": 2,
+        "profilePath": "/fOW5R6BSgRvMrt2R7KAxSk7L4H2.jpg"
+      },
+      {
+        "character": "Frankie",
+        "creditId": "527811bc760ee35e8e226e09",
+        "id": 1268114,
+        "name": "Patrick Sane",
+        "order": 663,
+        "gender": 2,
+        "profilePath": "/AnT9tInB0UNpZszdUiT5wT1AzpI.jpg"
+      },
+      {
+        "character": "Leonel Salamanca",
+        "creditId": "626a3ab257176f0050ccd6f6",
+        "id": 1371007,
+        "name": "Daniel Moncada",
+        "order": 667,
+        "gender": 2,
+        "profilePath": "/pfR9dEo0RWq62rNqzclqx0zUQmp.jpg"
+      },
+      {
+        "character": "Marco Salamanca",
+        "creditId": "52754b23760ee3353f017890",
+        "id": 945491,
+        "name": "Luis Moncada",
+        "order": 551,
+        "gender": 2,
+        "profilePath": "/t3H7bTAu3lYKvHAEYtevOd91kzx.jpg"
+      },
+      {
+        "character": "Bogdan Wolynetz",
+        "creditId": "5272587a760ee3045009ddec",
+        "id": 1223197,
+        "name": "Marius Stan",
+        "order": 575,
+        "gender": 2,
+        "profilePath": "/zX8fpNkyKEtQX3zTvks1hVhrOz7.jpg"
+      },
+      {
+        "character": "Kuby",
+        "creditId": "52765756760ee3603601643b",
+        "id": 109708,
+        "name": "Bill Burr",
+        "order": 632,
+        "gender": 2,
+        "profilePath": "/4U95TX23X97OK9csaKVwzqAjFUV.jpg"
+      },
+      {
+        "character": "SAC Ramey",
+        "creditId": "52745106760ee3570909e16b",
+        "id": 1178637,
+        "name": "Todd Terry",
+        "order": 650,
+        "gender": 2,
+        "profilePath": "/vB9zZNg8qZPlSijYs84F4LpwVpo.jpg"
+      },
+      {
+        "character": "Gretchen Schwartz",
+        "creditId": "52542275760ee31328000768",
+        "id": 14984,
+        "name": "Jessica Hecht",
+        "order": 655,
+        "gender": 1,
+        "profilePath": "/5JVd1ZLnhdZVFInDy8Zut9M1M5C.jpg"
+      },
+      {
+        "character": "Lester",
+        "creditId": "52782a42760ee375d4023968",
+        "id": 1105706,
+        "name": "Tait Fletcher",
+        "order": 662,
+        "gender": 2,
+        "profilePath": "/zAVsHT2GBLPaQ4RpTopnHvIrCbv.jpg"
+      },
+      {
+        "character": "Combo",
+        "creditId": "62361a15db4ed60045128de2",
+        "id": 3471782,
+        "name": "Rodney Rush",
+        "order": 666,
+        "gender": 2,
+        "profilePath": "/vJiq3Gf1L7XEDJuaLkS2Doma4wm.jpg"
+      },
+      {
+        "character": "Kaylee Ehrmantraut",
+        "creditId": "62d400f8d399e6004bfbf95b",
+        "id": 3627380,
+        "name": "Kaija Bales",
+        "order": 670,
+        "gender": 1,
+        "profilePath": "/b9sbXXwftPLRG2ZU7XUZ7qvWdMT.jpg"
+      },
+      {
+        "character": "Matt",
+        "creditId": "653eb897e894a600c516eb26",
+        "id": 1719996,
+        "name": "Matthew T. Metzler",
+        "order": 834,
+        "gender": 2,
+        "profilePath": "/ivNVgsAbsyoBMFSt4Ek3kujxqWF.jpg"
+      },
+      {
+        "character": "Donald Margolis",
+        "creditId": "52542280760ee31328001390",
+        "id": 11077,
+        "name": "John de Lancie",
+        "order": 535,
+        "gender": 2,
+        "profilePath": "/e9GsjWaW9fabT22ceLzesJhUgzd.jpg"
+      },
+      {
+        "character": "Clovis",
+        "creditId": "52745042760ee3570909ac98",
+        "id": 76537,
+        "name": "Tom Kiesche",
+        "order": 547,
+        "gender": 2,
+        "profilePath": "/6H51QyuUUWMIJqc2Ich1D6RhoHh.jpg"
+      },
+      {
+        "character": "Group Leader",
+        "creditId": "525423ca760ee3132800202b",
+        "id": 57167,
+        "name": "Jere Burns",
+        "order": 582,
+        "gender": 2,
+        "profilePath": "/nAWNCtD4DDOIAR63zVA4XZ4C8eg.jpg"
+      },
+      {
+        "character": "Gaff",
+        "creditId": "527682ea760ee37a9307494c",
+        "id": 48530,
+        "name": "Maurice Compte",
+        "order": 592,
+        "gender": 2,
+        "profilePath": "/9PFInf2I0kqjAU0CmZhdDWmHfwT.jpg"
+      },
+      {
+        "character": "Declan's Driver",
+        "creditId": "5277fe8e760ee331ce03390f",
+        "id": 223395,
+        "name": "Morse Bicknell",
+        "order": 627,
+        "gender": 0,
+        "profilePath": "/14z7m7PpgLpNWN5EShCmKmm12zb.jpg"
+      },
+      {
+        "character": "Tim Roberts",
+        "creditId": "52744e08760ee356ea0a5260",
+        "id": 11915,
+        "name": "Nigel Gibbs",
+        "order": 668,
+        "gender": 2,
+        "profilePath": "/eqDPaZWlBOriugBzUoy9ES4HKdA.jpg"
+      },
+      {
+        "character": "Mrs. Pinkman",
+        "creditId": "52542277760ee31328000a61",
+        "id": 41249,
+        "name": "Tess Harper",
+        "order": 672,
+        "gender": 1,
+        "profilePath": "/8Z770Kk13MK1NP7skWmTxvRGx3V.jpg"
+      },
+      {
+        "character": "Tuco Salamanca",
+        "creditId": "5254227b760ee31328000cd6",
+        "id": 58650,
+        "name": "Raymond Cruz",
+        "order": 674,
+        "gender": 2,
+        "profilePath": "/ndhc53yEQeeFn01QoOxtPa6GroU.jpg"
+      },
+      {
+        "character": "Krazy-8",
+        "creditId": "52725845760ee3046b09426e",
+        "id": 1046460,
+        "name": "Max Arciniega",
+        "order": 504,
+        "gender": 2,
+        "profilePath": "/eqKAJKPpt41KpsLIkkBnAY4HMAL.jpg"
+      },
+      {
+        "character": "No-Doze",
+        "creditId": "527447ca760ee356ea08e165",
+        "id": 53255,
+        "name": "Cesar Garcia",
+        "order": 515,
+        "gender": 2,
+        "profilePath": "/ry4IVQM4n3v7Br9S6AibYKar1Dy.jpg"
+      },
+      {
+        "character": "Gonzo",
+        "creditId": "527447b3760ee3571308a638",
+        "id": 1260529,
+        "name": "Jesus Jr.",
+        "order": 516,
+        "gender": 2,
+        "profilePath": "/g9FFHKY95LLALg7DuqeX6akAJSG.jpg"
+      },
+      {
+        "character": "Mr. Pinkman",
+        "creditId": "527440ce760ee3570906ada3",
+        "id": 95195,
+        "name": "Michael Bofshever",
+        "order": 537,
+        "gender": 2,
+        "profilePath": "/t7vAtGPSUfvPRIAvKfaCJ2JNrQW.jpg"
+      },
+      {
+        "character": "Pamela",
+        "creditId": "52754a72760ee33556019f36",
+        "id": 156990,
+        "name": "Julie Dretzin",
+        "order": 545,
+        "gender": 1,
+        "profilePath": "/fba0rgwlp1iwDdmuLU0PiCOdi4R.jpg"
+      },
+      {
+        "character": "Rival Dealer #1",
+        "creditId": "52754578760ee33562013f99",
+        "id": 1123871,
+        "name": "Mike Seal",
+        "order": 562,
+        "gender": 2,
+        "profilePath": "/qUja8e2k4XMWWV3k4ocMCZb4HBl.jpg"
+      },
+      {
+        "character": "ER Doctor #1",
+        "creditId": "5276352e760ee35aa00c9c27",
+        "id": 36135,
+        "name": "Christopher Dempsey",
+        "order": 582,
+        "gender": 2,
+        "profilePath": "/pTngvks30p74j40TaniMkg4tbhn.jpg"
+      },
+      {
+        "character": "Juan Bolsa",
+        "creditId": "5275a26a760ee3352b11a79f",
+        "id": 66148,
+        "name": "Javier Grajeda",
+        "order": 588,
+        "gender": 2,
+        "profilePath": "/unwjwqAcrfnIcpDv9EcnlgfD67p.jpg"
+      },
+      {
+        "character": "Dennis Markowski",
+        "creditId": "5276f379760ee34f980c1dff",
+        "id": 109687,
+        "name": "Mike Batayeh",
+        "order": 619,
+        "gender": 2,
+        "profilePath": "/9uMJaSYCHjwRaXIe7ajpvDeURVC.jpg"
+      },
+      {
+        "character": "Dan Wachsberger",
+        "creditId": "5277f141760ee36033476505",
+        "id": 2128853,
+        "name": "Chris Freihofer",
+        "order": 620,
+        "gender": 2,
+        "profilePath": "/2hrz73LkQoTFCa7jZJMJUj5S5oc.jpg"
+      },
+      {
+        "character": "Declan",
+        "creditId": "5277fe02760ee331cb02f9f3",
+        "id": 51036,
+        "name": "Louis Ferreira",
+        "order": 626,
+        "gender": 2,
+        "profilePath": "/7xUTd7N6XbB3uWvob12qpmGzPzA.jpg"
+      },
+      {
+        "character": "Detective Kalanchoe",
+        "creditId": "5276f551760ee34f980c7576",
+        "id": 84754,
+        "name": "Gonzalo Menendez",
+        "order": 630,
+        "gender": 2,
+        "profilePath": "/nWvWfIwLZVXjZUru5DG08nAnPW4.jpg"
+      },
+      {
+        "character": "Detective Munn",
+        "creditId": "5276f5c9760ee34ca70c6628",
+        "id": 20496,
+        "name": "Jason Douglas",
+        "order": 633,
+        "gender": 2,
+        "profilePath": "/9vvygaziqPt23AafWHJY8TlUK8d.jpg"
+      },
+      {
+        "character": "Elliott Schwartz",
+        "creditId": "527444c1760ee3572208fbc2",
+        "id": 23429,
+        "name": "Adam Godley",
+        "order": 659,
+        "gender": 2,
+        "profilePath": "/5a7c36DeI6GA73D5XC7rNX2VIvv.jpg"
+      },
+      {
+        "character": "Meth Whore",
+        "creditId": "64426b0ee2bca804df435597",
+        "id": 1834391,
+        "name": "Julia Minesci",
+        "order": 709,
+        "gender": 1,
+        "profilePath": "/gnaYzsPxBlevEzeH4nUTdWFTuCa.jpg"
+      },
+      {
+        "character": "Rival Dealer #2",
+        "creditId": "6525d31ecedac400ff2892de",
+        "id": 1488519,
+        "name": "Antonio Leyba",
+        "order": 727,
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "character": "Boy",
+        "creditId": "6525d3becedac400e2127fab",
+        "id": 4315263,
+        "name": "Angelo Martinez",
+        "order": 729,
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "character": "Restaurant Manager",
+        "creditId": "653051db1fb94f00e2507ec2",
+        "id": 4327774,
+        "name": "Ashley Kajiki",
+        "order": 759,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Janice",
+        "creditId": "653ea6b6c8a5ac013a876bb4",
+        "id": 1448096,
+        "name": "Mary Sue Evans",
+        "order": 769,
+        "gender": 1,
+        "profilePath": null
+      },
+      {
+        "character": "Office Manager",
+        "creditId": "52744834760ee37c3e010cc7",
+        "id": 210057,
+        "name": "Judith Rane",
+        "order": 522,
+        "gender": 1,
+        "profilePath": "/yY8fuyFCaXSjBRtDXaF178AwVqq.jpg"
+      },
+      {
+        "character": "Spooge",
+        "creditId": "5274ef24760ee343700ef4dd",
+        "id": 1237876,
+        "name": "David Ury",
+        "order": 524,
+        "gender": 2,
+        "profilePath": "/7PxPrnttpomJ9FuX4iSUwapRqR3.jpg"
+      },
+      {
+        "character": "Spooge's Woman",
+        "creditId": "5274ee2e760ee345a90f7240",
+        "id": 46814,
+        "name": "Dale Dickey",
+        "order": 526,
+        "gender": 1,
+        "profilePath": "/588WXHw17JYi2rAqIVQXzgYENu3.jpg"
+      },
+      {
+        "character": "Victor Bravenec",
+        "creditId": "5271b55e760ee35b220a9959",
+        "id": 5176,
+        "name": "Sam McMurray",
+        "order": 534,
+        "gender": 2,
+        "profilePath": "/pbZSG0hprUcRkUF3q4NUUzvQX3E.jpg"
+      },
+      {
+        "character": "Tortuga",
+        "creditId": "5254227f760ee313280011d7",
+        "id": 11160,
+        "name": "Danny Trejo",
+        "order": 536,
+        "gender": 2,
+        "profilePath": "/7JrUkRGBscZ1Hy5JinaaXjjzSCF.jpg"
+      },
+      {
+        "character": "Mr. Gardiner",
+        "creditId": "5274e93e760ee37c93080336",
+        "id": 1217972,
+        "name": "Dan Desmond",
+        "order": 538,
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "character": "Louis",
+        "creditId": "5274ec60760ee37c9308874c",
+        "id": 572541,
+        "name": "Caleb Landry Jones",
+        "order": 540,
+        "gender": 2,
+        "profilePath": "/8M5lPHrERwAIfWK56RkH30FOjhV.jpg"
+      },
+      {
+        "character": "Doctor",
+        "creditId": "527634ab760ee3354c290334",
+        "id": 1224374,
+        "name": "Michael Bryan French",
+        "order": 554,
+        "gender": 2,
+        "profilePath": "/pWPCAhPpmFAIKzybnmIWTDyPqWp.jpg"
+      },
+      {
+        "character": "Sketchy",
+        "creditId": "5276578e760ee36d75000dc0",
+        "id": 15034,
+        "name": "Jeremy Howard",
+        "order": 577,
+        "gender": 2,
+        "profilePath": "/tkZNfmlNkiH7UZxYDaDqO9z1TuV.jpg"
+      },
+      {
+        "character": "Cartel Henchman",
+        "creditId": "52768549760ee37a9307a96e",
+        "id": 1069550,
+        "name": "Lou Pimber",
+        "order": 587,
+        "gender": 2,
+        "profilePath": "/oEWHQjHjnGcNlFC1pi7KWMRe2oW.jpg"
+      },
+      {
+        "character": "Don Eladio",
+        "creditId": "527688d9760ee360330c59fd",
+        "id": 1159,
+        "name": "Steven Bauer",
+        "order": 594,
+        "gender": 2,
+        "profilePath": "/eMSeKPgfilE2v5VcmwSt5pxbp0x.jpg"
+      },
+      {
+        "character": "Grandma",
+        "creditId": "52763984760ee33e44026131",
+        "id": 927801,
+        "name": "Virginia Montero",
+        "order": 597,
+        "gender": 1,
+        "profilePath": "/f5ybu9cl2tjo0YXSPRmpxifrx6Y.jpg"
+      },
+      {
+        "character": "Old Joe",
+        "creditId": "5276312a760ee33e4400b8c7",
+        "id": 11519,
+        "name": "Larry Hankin",
+        "order": 602,
+        "gender": 2,
+        "profilePath": "/2uR8SZ9geiSQOpBhKrerh9qY7CX.jpg"
+      },
+      {
+        "character": "Lawson",
+        "creditId": "5276518e760ee36036009db6",
+        "id": 29862,
+        "name": "Jim Beaver",
+        "order": 603,
+        "gender": 2,
+        "profilePath": "/mvawGDw5ge5rxgMKhTSggasOyin.jpg"
+      },
+      {
+        "character": "Barry Goodman",
+        "creditId": "5276f211760ee34f980bdc6a",
+        "id": 136152,
+        "name": "JB Blanc",
+        "order": 605,
+        "gender": 2,
+        "profilePath": "/fHLyXboPlBDo1aoAl085YqaPjO8.jpg"
+      },
+      {
+        "character": "Fernando",
+        "creditId": "5277f9a8760ee35ba20de492",
+        "id": 1007881,
+        "name": "Miguel Martinez",
+        "order": 616,
+        "gender": 0,
+        "profilePath": "/3khjt3XRFhqFJUFdeQMYtQbLpkn.jpg"
+      },
+      {
+        "character": "Mariano",
+        "creditId": "5278133f760ee35e8e22b180",
+        "id": 1077794,
+        "name": "Pedro García",
+        "order": 628,
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "character": "Van Oster",
+        "creditId": "52783046760ee3046f01bc36",
+        "id": 1145262,
+        "name": "Phil Duran",
+        "order": 628,
+        "gender": 2,
+        "profilePath": "/2UI8j6zf8WFkq2yjHOuJNtpSD9F.jpg"
+      },
+      {
+        "character": "DEA Agent Scott",
+        "creditId": "52781aa7760ee36324007300",
+        "id": 110999,
+        "name": "Joe Nemmers",
+        "order": 649,
+        "gender": 2,
+        "profilePath": "/9Pd12b0Ii8Qio0Gyprwuu62UUQi.jpg"
+      },
+      {
+        "character": "Ben",
+        "creditId": "63012d2111c066007cbc37b1",
+        "id": 3670897,
+        "name": "Jason Byrd",
+        "order": 680,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Emilio Koyama",
+        "creditId": "631aff1f62f335007ed32cb3",
+        "id": 92495,
+        "name": "John Koyama",
+        "order": 703,
+        "gender": 2,
+        "profilePath": "/AwtHbt8qO7D3EFonG5lqml8xgwb.jpg"
+      },
+      {
+        "character": "Barry",
+        "creditId": "647139dda199a60116c68a5f",
+        "id": 4082804,
+        "name": "Jonathan Ragsdale",
+        "order": 714,
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "character": "Receptionist",
+        "creditId": "64713a00dd731b01178ecccb",
+        "id": 1570632,
+        "name": "Catherine Haun",
+        "order": 715,
+        "gender": 1,
+        "profilePath": "/mxN9RFEdu2octsLkXwu4dS9xxKM.jpg"
+      },
+      {
+        "character": "Anchor #4",
+        "creditId": "653ea0575907de011bc560a9",
+        "id": 3944044,
+        "name": "Dana Cortez",
+        "order": 736,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Big Biker",
+        "creditId": "64713a22dd731b00fae9d49b",
+        "id": 4082806,
+        "name": "John Christopher Hicks",
+        "order": 754,
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "character": "DEA Point Man",
+        "creditId": "64426b6f651fcf04dc9c8d23",
+        "id": 3955141,
+        "name": "David Priemazon",
+        "order": 777,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Duane Chow",
+        "creditId": "653ead685907de00c496ca7c",
+        "id": 1310671,
+        "name": "James Ning",
+        "order": 790,
+        "gender": 2,
+        "profilePath": "/tlO5YAUNiDY7OlMiK5V23xPMmno.jpg"
+      },
+      {
+        "character": "Mike's Security Team Member",
+        "creditId": "653eb135519bbb00fe5d117b",
+        "id": 1283043,
+        "name": "Eric Steinig",
+        "order": 805,
+        "gender": 2,
+        "profilePath": "/13k3JlULwttWFfCByfOcwMpQsmv.jpg"
+      },
+      {
+        "character": "DEA Agent",
+        "creditId": "653eb262bc2cb3014d4b518a",
+        "id": 3016433,
+        "name": "Matt Berlin",
+        "order": 809,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Ron Forenall",
+        "creditId": "653eb5b4c8a5ac011d6d9ef9",
+        "id": 1808731,
+        "name": "Russ Dillen",
+        "order": 825,
+        "gender": 0,
+        "profilePath": "/iVDlokqyhNPuoEC0pGtEq0BI9i2.jpg"
+      },
+      {
+        "character": "Drew Sharp",
+        "creditId": "653eb66e5907de00e1a2b0cc",
+        "id": 1673616,
+        "name": "Sam Webb",
+        "order": 827,
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "character": "TV Reporter",
+        "creditId": "653eb6f030813100ae619803",
+        "id": 1797280,
+        "name": "Antoinette Antonio",
+        "order": 828,
+        "gender": 1,
+        "profilePath": "/tzyXZlK7iF89Cnm1xsUOWioK3N0.jpg"
+      },
+      {
+        "character": "Student on Bus (uncredited)",
+        "creditId": "698ac427bb7da9dcd0822f4c",
+        "id": 1223199,
+        "name": "Melissa Bernstein",
+        "order": 853,
+        "gender": 1,
+        "profilePath": "/rSztwqMUIko8RkmwjxBse1XDW3g.jpg"
+      },
+      {
+        "character": "Jock",
+        "creditId": "52542275760ee313280006b4",
+        "id": 1216132,
+        "name": "Aaron Hill",
+        "order": 500,
+        "gender": 2,
+        "profilePath": "/rNp31SeoVqSQU6OZWxZUhGwAgyq.jpg"
+      },
+      {
+        "character": "Dr. Chavez",
+        "creditId": "5254227c760ee31328000f01",
+        "id": 35518,
+        "name": "Harry Groener",
+        "order": 501,
+        "gender": 2,
+        "profilePath": "/3MAsDC1JtNqef1O4MwqakGjJkkI.jpg"
+      },
+      {
+        "character": "Dr. Belknap",
+        "creditId": "52725cb1760ee3044d0b9984",
+        "id": 161591,
+        "name": "Gregory Chase",
+        "order": 502,
+        "gender": 2,
+        "profilePath": "/gNdodev00CROpXuAh5EFmkWTVOo.jpg"
+      },
+      {
+        "character": "Ken Wins",
+        "creditId": "52743e4d760ee35a69055194",
+        "id": 1215836,
+        "name": "Kyle Bornheimer",
+        "order": 503,
+        "gender": 2,
+        "profilePath": "/79KUwXqB2FdKqxsAMppkJ8Aa78e.jpg"
+      },
+      {
+        "character": "Jake Pinkman",
+        "creditId": "527442eb760ee3572b078715",
+        "id": 220118,
+        "name": "Benjamin Petry",
+        "order": 505,
+        "gender": 2,
+        "profilePath": "/xoCIpS2wG2JiP1BXL2qTun8q85o.jpg"
+      },
+      {
+        "character": "Manager",
+        "creditId": "527445a9760ee356ff077e53",
+        "id": 202830,
+        "name": "William Sterchi",
+        "order": 506,
+        "gender": 2,
+        "profilePath": "/6Pbp5BWDPZ7NhkcnjTkUhKEx3QU.jpg"
+      },
+      {
+        "character": "Hugo Archuleta",
+        "creditId": "52744776760ee356ea0892f3",
+        "id": 210056,
+        "name": "Pierre Barrera",
+        "order": 507,
+        "gender": 2,
+        "profilePath": "/4JHYsaULy3LwSHig94olNyuYkx5.jpg"
+      },
+      {
+        "character": "Farley",
+        "creditId": "527445f5760ee357130849b9",
+        "id": 59303,
+        "name": "Marc Mouchet",
+        "order": 508,
+        "gender": 2,
+        "profilePath": "/8RRgHjKnTnRnhwbUTFn1V6vvc2S.jpg"
+      },
+      {
+        "character": "Mrs. Pope",
+        "creditId": "527447f4760ee37c3e00f81f",
+        "id": 187505,
+        "name": "Vivian Nesbitt",
+        "order": 509,
+        "gender": 1,
+        "profilePath": "/9ox3VUolTMVCvHHsxkY2DfGPRFa.jpg"
+      },
+      {
+        "character": "Student",
+        "creditId": "52744908760ee35a690730ed",
+        "id": 1089016,
+        "name": "Seri DeYoung",
+        "order": 510,
+        "gender": 1,
+        "profilePath": "/nS0I9N5LOb8TmH4kIa7tIgpIy2z.jpg"
+      },
+      {
+        "character": "Realtor",
+        "creditId": "52744bd7760ee356ff08c286",
+        "id": 967071,
+        "name": "Beth Bailey",
+        "order": 511,
+        "gender": 1,
+        "profilePath": "/eoedvwzfma84LRwfCYhkb69wky7.jpg"
+      },
+      {
+        "character": "Lookout",
+        "creditId": "52744a4a760ee35a69077c8c",
+        "id": 1221121,
+        "name": "Dennis Keiffer",
+        "order": 512,
+        "gender": 2,
+        "profilePath": "/jb6FR0OZgCqbPOkKq2KikXr31WW.jpg"
+      },
+      {
+        "character": "Police Officer",
+        "creditId": "52744c32760ee37c3e01cba4",
+        "id": 58651,
+        "name": "Geoffrey Rivas",
+        "order": 513,
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "character": "Jewelry Store Owner",
+        "creditId": "52744cd0760ee357130a126e",
+        "id": 210154,
+        "name": "Mike Miller",
+        "order": 514,
+        "gender": 2,
+        "profilePath": "/10ODVdP1Hl6OxQ5tUzw4DR9MZ5y.jpg"
+      },
+      {
+        "character": "Dr. Soper",
+        "creditId": "52745180760ee357220beabd",
+        "id": 162098,
+        "name": "Kat Sawyer-Young",
+        "order": 518,
+        "gender": 1,
+        "profilePath": "/y20zuHaRfkYWeCsljk7P6fSiFCE.jpg"
+      },
+      {
+        "character": "Paul Tyree",
+        "creditId": "5274ea5e760ee347c90dc622",
+        "id": 211742,
+        "name": "Drew Waters",
+        "order": 519,
+        "gender": 2,
+        "profilePath": "/rFOMmuqDisSdKSZVxEbgptH84Oy.jpg"
+      },
+      {
+        "character": "Sara Tyree",
+        "creditId": "5274eb39760ee345a90ea99c",
+        "id": 207201,
+        "name": "Shauna McLean",
+        "order": 520,
+        "gender": 1,
+        "profilePath": null
+      },
+      {
+        "character": "Wino",
+        "creditId": "5274ecc7760ee314b5058b54",
+        "id": 569548,
+        "name": "Argos MacCallum",
+        "order": 521,
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "character": "Agent Buddy",
+        "creditId": "5274f786760ee347c91056ff",
+        "id": 61566,
+        "name": "Lawrence Varnado",
+        "order": 523,
+        "gender": 2,
+        "profilePath": "/455paVSfl1yQtcX5pQ6I2EJCpKv.jpg"
+      },
+      {
+        "character": "Mail Lady",
+        "creditId": "527503b0760ee343c010eaa6",
+        "id": 999320,
+        "name": "Cocoa Brown",
+        "order": 525,
+        "gender": 1,
+        "profilePath": "/s8Lel80TmLqMV0YMEkplpy58H4l.jpg"
+      },
+      {
+        "character": "DEA Agent Vanco",
+        "creditId": "52750782760ee345a913b54e",
+        "id": 85954,
+        "name": "J.D. Garfield",
+        "order": 527,
+        "gender": 2,
+        "profilePath": "/7omIUAP7WPEXkS0OtFUmqXCgTq9.jpg"
+      },
+      {
+        "character": "Federale",
+        "creditId": "5275081e760ee314b50a2ea2",
+        "id": 42201,
+        "name": "Rio Alexander",
+        "order": 528,
+        "gender": 2,
+        "profilePath": "/93MLQQdtSSpEkultJdOsC77Lq8Z.jpg"
+      },
+      {
+        "character": "Getz",
+        "creditId": "527538ac760ee31552011ef3",
+        "id": 132078,
+        "name": "DJ Qualls",
+        "order": 529,
+        "gender": 2,
+        "profilePath": "/mzA2ZxEcBHlUvSjlYRZzH5bVAGL.jpg"
+      },
+      {
+        "character": "Urinal Guy",
+        "creditId": "52753f28760ee3155a02727d",
+        "id": 1129124,
+        "name": "Jeff Fenter",
+        "order": 530,
+        "gender": 0,
+        "profilePath": "/nx0ItdfjwE52xBPz8smZ6vAma9T.jpg"
+      },
+      {
+        "character": "Technician",
+        "creditId": "52753f6b760ee3157a0271ab",
+        "id": 205521,
+        "name": "Marcus M. Mauldin",
+        "order": 531,
+        "gender": 2,
+        "profilePath": "/gTY6cPYeJ9IuIyN2AJX2Bdt2IN1.jpg"
+      },
+      {
+        "character": "Bob",
+        "creditId": "52754154760ee335780056e8",
+        "id": 111014,
+        "name": "Carl Savering",
+        "order": 533,
+        "gender": 2,
+        "profilePath": "/r1MMdtH3zPf7fnCNceDWRYIvCtH.jpg"
+      },
+      {
+        "character": "Policeman",
+        "creditId": "5275a2ee760ee33562121029",
+        "id": 19491,
+        "name": "Stoney Westmoreland",
+        "order": 539,
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "character": "Bingo Lady",
+        "creditId": "5275a363760ee33562121b5e",
+        "id": 12435,
+        "name": "Shari Rhodes",
+        "order": 541,
+        "gender": 1,
+        "profilePath": "/eXQ9dUdKqqP6NUbpMfUl2xWCcaA.jpg"
+      },
+      {
+        "character": "Cara",
+        "creditId": "5275a56f760ee31a0e01f504",
+        "id": 20088,
+        "name": "Jolene Purdy",
+        "order": 542,
+        "gender": 1,
+        "profilePath": "/hq66UInEJuDjS3M4aCqgTFEcIzA.jpg"
+      },
+      {
+        "character": "Burnout",
+        "creditId": "5275a639760ee3354c134a68",
+        "id": 35566,
+        "name": "Mark Hanson",
+        "order": 543,
+        "gender": 2,
+        "profilePath": "/brqpJ3MQuQQYommR1Qud7PcBx06.jpg"
+      },
+      {
+        "character": "Mrs. Ortega",
+        "creditId": "52762e0a760ee36b3709ce03",
+        "id": 167759,
+        "name": "Carole Gutierrez",
+        "order": 544,
+        "gender": 1,
+        "profilePath": "/kBF3tccPYqG3Ns708nbhSzwU4g9.jpg"
+      },
+      {
+        "character": "Ma Kettle",
+        "creditId": "52762f9f760ee35a9d0d7351",
+        "id": 138266,
+        "name": "Kathy Rose Center",
+        "order": 546,
+        "gender": 1,
+        "profilePath": "/qp2kddgWdNBBDHqpIvArE6qwvDe.jpg"
+      },
+      {
+        "character": "Realtor",
+        "creditId": "527631bb760ee3354c287607",
+        "id": 210697,
+        "name": "Frank Bond",
+        "order": 548,
+        "gender": 2,
+        "profilePath": "/5EyqkOeNDzksCPgvZCwvPyujPbz.jpg"
+      },
+      {
+        "character": "Mother",
+        "creditId": "52763214760ee36b370aa6a1",
+        "id": 223397,
+        "name": "Jiji Hise",
+        "order": 549,
+        "gender": 1,
+        "profilePath": "/ttGiAfKXVjNNdKfNhFxxCibQ1QJ.jpg"
+      },
+      {
+        "character": "Arms Dealer",
+        "creditId": "527632fc760ee36b370ac9eb",
+        "id": 74538,
+        "name": "Nate Mooney",
+        "order": 550,
+        "gender": 2,
+        "profilePath": "/kBcIrVvc9hTAiUOERK2pCQgX1Iw.jpg"
+      },
+      {
+        "character": "Union Rep",
+        "creditId": "52763381760ee33449026de3",
+        "id": 109787,
+        "name": "Michael Showers",
+        "order": 552,
+        "gender": 2,
+        "profilePath": "/7QAkmhrZVgRYflui9rj9Jf8fiYS.jpg"
+      },
+      {
+        "character": "ABQ Detective #1",
+        "creditId": "5276339a760ee35a9d0ec267",
+        "id": 156605,
+        "name": "Mark Sivertsen",
+        "order": 553,
+        "gender": 2,
+        "profilePath": "/MXbRFhkhmu1qpAD2vqyPaAfuNt.jpg"
+      },
+      {
+        "character": "ER Doctor #2",
+        "creditId": "5276354f760ee33e44017683",
+        "id": 1151637,
+        "name": "Lora Martinez-Cunningham",
+        "order": 556,
+        "gender": 1,
+        "profilePath": "/gjbnJZCzNkshj2bKEe51sEcnPOV.jpg"
+      },
+      {
+        "character": "Doctor",
+        "creditId": "527636e8760ee35a9d0f3073",
+        "id": 88949,
+        "name": "Mark Harelik",
+        "order": 557,
+        "gender": 2,
+        "profilePath": "/tzLd27s8dduLh3c22gSt2QfI6wY.jpg"
+      },
+      {
+        "character": "Hospital Administrator",
+        "creditId": "52763733760ee35a9a0de06a",
+        "id": 156667,
+        "name": "Cynthia Ruffin",
+        "order": 558,
+        "gender": 1,
+        "profilePath": "/v9pRPxUbs8Cbm9c39Nshnzoi6gD.jpg"
+      },
+      {
+        "character": "Realtor",
+        "creditId": "52763bf0760ee35a9d1044d7",
+        "id": 93228,
+        "name": "Louis Herthum",
+        "order": 559,
+        "gender": 2,
+        "profilePath": "/7QarKov7OLIKKv6m152rnEyOnfq.jpg"
+      },
+      {
+        "character": "Commercial Narrator (voice)",
+        "creditId": "52763765760ee35a9a0defae",
+        "id": 176463,
+        "name": "Fernando Escandon",
+        "order": 560,
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "character": "Peng",
+        "creditId": "52763c18760ee3353f2a331d",
+        "id": 201975,
+        "name": "Tiley Chao",
+        "order": 561,
+        "gender": 1,
+        "profilePath": "/65ue0kHyuHMxbeGaVn5S1k5zkZb.jpg"
+      },
+      {
+        "character": "Cartel Gunman #1",
+        "creditId": "52763c4c760ee3353f2a3e45",
+        "id": 18300,
+        "name": "Eddie J. Fernandez",
+        "order": 563,
+        "gender": 2,
+        "profilePath": "/3PKetF8v4zTVVhWsVxNUPjUOjxQ.jpg"
+      },
+      {
+        "character": "Cartel Gunman #2",
+        "creditId": "52763c65760ee33e4402e056",
+        "id": 59674,
+        "name": "Ben Hernandez Bray",
+        "order": 564,
+        "gender": 2,
+        "profilePath": "/bl5f89xS7JddYe7hfBUej7EUs6U.jpg"
+      },
+      {
+        "character": "Cartel Gunman #3",
+        "creditId": "52763c7c760ee35aa00dfb1c",
+        "id": 179882,
+        "name": "Toby Holguin",
+        "order": 565,
+        "gender": 2,
+        "profilePath": "/4jjsgFJYudtaIaX7ITxiFoBEQlo.jpg"
+      },
+      {
+        "character": "Cartel Gunman #4",
+        "creditId": "52763cb2760ee3354c2a876f",
+        "id": 1031469,
+        "name": "Eddie Perez",
+        "order": 566,
+        "gender": 2,
+        "profilePath": "/lJ0584zfHNwj2QywbBvF7TcEy8w.jpg"
+      },
+      {
+        "character": "Locksmith",
+        "creditId": "52763f74760ee35a9a0f9afa",
+        "id": 102454,
+        "name": "John Lawlor",
+        "order": 568,
+        "gender": 2,
+        "profilePath": "/2MAGzh7EyyyFfeBVxmUQQc8STFZ.jpg"
+      },
+      {
+        "character": "Neighbor",
+        "creditId": "52764013760ee33e440391df",
+        "id": 1232036,
+        "name": "John Barbour",
+        "order": 569,
+        "gender": 2,
+        "profilePath": "/zZnDhvj97LSbwrueg6hdsKUIzFz.jpg"
+      },
+      {
+        "character": "Chuck",
+        "creditId": "52765395760ee35aa0119bf0",
+        "id": 61883,
+        "name": "Tank Jones",
+        "order": 570,
+        "gender": 2,
+        "profilePath": "/cUMseyEe7JxY0uAZm76PyCX4hm8.jpg"
+      },
+      {
+        "character": "Delivery Man",
+        "creditId": "527653b3760ee33449071b76",
+        "id": 1059256,
+        "name": "Jefferson Arca",
+        "order": 571,
+        "gender": 2,
+        "profilePath": "/uzy0J3RmshYaDWmWJcsPmjN0n0z.jpg"
+      },
+      {
+        "character": "Party Girl",
+        "creditId": "5276540a760ee3354c2d9a41",
+        "id": 1260554,
+        "name": "Sarah Minnich",
+        "order": 572,
+        "gender": 1,
+        "profilePath": "/b9HKZ5Q4RmMKhiDfIGHzADmZ45c.jpg"
+      },
+      {
+        "character": "Stephanie Doswell",
+        "creditId": "527655c0760ee360360133eb",
+        "id": 191897,
+        "name": "Jennifer Hasty",
+        "order": 573,
+        "gender": 1,
+        "profilePath": "/93wJj5pTLByM4PtGrZdzAyF0dQd.jpg"
+      },
+      {
+        "character": "First Realtor",
+        "creditId": "527659f8760ee3354c2e969c",
+        "id": 61161,
+        "name": "Ralph Alderman",
+        "order": 574,
+        "gender": 2,
+        "profilePath": "/cwhyblIX4r8V5Mmrm6u4r9v4Etw.jpg"
+      },
+      {
+        "character": "Female Homeowner",
+        "creditId": "52765a3d760ee33449080d54",
+        "id": 155876,
+        "name": "Delana Michaels",
+        "order": 576,
+        "gender": 1,
+        "profilePath": "/tYAarmro0T2P4J4NDqsrY0amCgo.jpg"
+      },
+      {
+        "character": "Mortgage Broker",
+        "creditId": "5276825d760ee3354c36d9a3",
+        "id": 1234823,
+        "name": "Rutherford Cravens",
+        "order": 578,
+        "gender": 2,
+        "profilePath": "/qrwiysLs4u5nEAWYtSBIG4Gd2Cn.jpg"
+      },
+      {
+        "character": "Scary Skell",
+        "creditId": "52768328760ee37a93075234",
+        "id": 62752,
+        "name": "Damon Herriman",
+        "order": 579,
+        "gender": 2,
+        "profilePath": "/hzh9i0BlAEQDAhJxEgkEcBxMlJv.jpg"
+      },
+      {
+        "character": "Tucker",
+        "creditId": "5276840a760ee3354c37371b",
+        "id": 1218789,
+        "name": "Blake Berris",
+        "order": 580,
+        "gender": 2,
+        "profilePath": "/pm6J4LQIFEnCbKsRrbCAcRr8Ejs.jpg"
+      },
+      {
+        "character": "Truck Guard 2",
+        "creditId": "52768513760ee36d5f0a384d",
+        "id": 210698,
+        "name": "Henry Herman",
+        "order": 581,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Colleen",
+        "creditId": "527686b8760ee360330bcc44",
+        "id": 1054505,
+        "name": "Fran Martone",
+        "order": 583,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Support Group Member",
+        "creditId": "527686d2760ee35a9a1dce65",
+        "id": 982297,
+        "name": "J. Michael Oliva",
+        "order": 585,
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "character": "Mike's Security Team 1",
+        "creditId": "527686fd760ee33449146bab",
+        "id": 1155333,
+        "name": "Keith Meriweather",
+        "order": 586,
+        "gender": 2,
+        "profilePath": "/9piO8NoPCQzOB189KM4terAhoF.jpg"
+      },
+      {
+        "character": "CID Special Agent",
+        "creditId": "527689e1760ee360330c96b4",
+        "id": 62146,
+        "name": "Rob Brownstein",
+        "order": 589,
+        "gender": 2,
+        "profilePath": "/sk9VcGhw7XenZMJTNi9l8nI1v6o.jpg"
+      },
+      {
+        "character": "Car Wash Customer",
+        "creditId": "52768a1f760ee35a9a1e83cc",
+        "id": 1140569,
+        "name": "Scott Sharot",
+        "order": 590,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Benicio Fuentes",
+        "creditId": "52768ab6760ee37a9308e349",
+        "id": 54793,
+        "name": "Carlo Rota",
+        "order": 591,
+        "gender": 2,
+        "profilePath": "/rS0i9g7L0oLyIkCJ3w9GQzIT0Pr.jpg"
+      },
+      {
+        "character": "Miguel",
+        "creditId": "52768b2a760ee36d750c5dda",
+        "id": 989813,
+        "name": "Stephen Eiland",
+        "order": 595,
+        "gender": 2,
+        "profilePath": "/bdpyGtNlwHS9y4Cdq4kirmeQRAU.jpg"
+      },
+      {
+        "character": "Pediatric Nurse",
+        "creditId": "5276f3ef760ee35a9a31d180",
+        "id": 178654,
+        "name": "T.C. Warner",
+        "order": 596,
+        "gender": 1,
+        "profilePath": null
+      },
+      {
+        "character": "Caregiver",
+        "creditId": "5276f517760ee34ca70c3f55",
+        "id": 1219610,
+        "name": "Myra Turley",
+        "order": 598,
+        "gender": 1,
+        "profilePath": "/896M6BggJ6vcjviVvZV9trcSV93.jpg"
+      },
+      {
+        "character": "Gus' Operative",
+        "creditId": "5276f641760ee36033200f51",
+        "id": 1240490,
+        "name": "Kevin Wiggins",
+        "order": 600,
+        "gender": 2,
+        "profilePath": "/9wVPnBSwCYEZXS6gWGxaYwxUIVv.jpg"
+      },
+      {
+        "character": "Lucy",
+        "creditId": "5277000c760ee34f980dca0c",
+        "id": 1264845,
+        "name": "Monique Candelaria",
+        "order": 601,
+        "gender": 1,
+        "profilePath": "/jndsq3PlaIGmRExZHKrfvrMS3Uj.jpg"
+      },
+      {
+        "character": "Peter Schuler",
+        "creditId": "527702a7760ee3215f01527d",
+        "id": 6701,
+        "name": "Norbert Weisser",
+        "order": 607,
+        "gender": 2,
+        "profilePath": "/A2QeLaigXmj1dtJHVLl27N8qNFd.jpg"
+      },
+      {
+        "character": "Herr Herzog",
+        "creditId": "5277038c760ee34f980e4bd6",
+        "id": 1219524,
+        "name": "Wolf Muser",
+        "order": 608,
+        "gender": 2,
+        "profilePath": "/pjtffZMshARfyYvFdFJrPqykkXl.jpg"
+      },
+      {
+        "character": "Delores",
+        "creditId": "52770445760ee339701307f0",
+        "id": 121277,
+        "name": "Norma Maldonado",
+        "order": 609,
+        "gender": 1,
+        "profilePath": "/hD9iSbqkRU5dpxr3OScKIiYjLnN.jpg"
+      },
+      {
+        "character": "Fran",
+        "creditId": "5277046e760ee3215f018e69",
+        "id": 239997,
+        "name": "Debrianna Mansini",
+        "order": 610,
+        "gender": 1,
+        "profilePath": "/xG3T8QWMmEgD47tyWGOy4NibYMN.jpg"
+      },
+      {
+        "character": "Ira",
+        "creditId": "5277f0f0760ee35ba20c6abc",
+        "id": 116233,
+        "name": "Franc Ross",
+        "order": 611,
+        "gender": 2,
+        "profilePath": "/ryhu0C5dAatcI2vDpi2crx0NbBE.jpg"
+      },
+      {
+        "character": "Darla",
+        "creditId": "5277f185760ee331cb010fc8",
+        "id": 1170374,
+        "name": "Kristin Hansen",
+        "order": 612,
+        "gender": 0,
+        "profilePath": "/kVK61O0lHcXNaXTS03HGqtcRcwh.jpg"
+      },
+      {
+        "character": "Salesman",
+        "creditId": "5277f20b760ee331ce012975",
+        "id": 307885,
+        "name": "Alex Knight",
+        "order": 613,
+        "gender": 2,
+        "profilePath": "/eojFYCdbTnv5VegIMoCVrJXur3K.jpg"
+      },
+      {
+        "character": "Conductor",
+        "creditId": "5277f521760ee331cb019d13",
+        "id": 79079,
+        "name": "Jamie McShane",
+        "order": 614,
+        "gender": 2,
+        "profilePath": "/wojvRZMpAwytyoFTMFOpvZ26qJq.jpg"
+      },
+      {
+        "character": "Engineer",
+        "creditId": "5277f920760ee3397037ab99",
+        "id": 84955,
+        "name": "Myk Watford",
+        "order": 615,
+        "gender": 2,
+        "profilePath": "/atyeOUzaR5f6Ew3gA2qE9N0Tvcr.jpg"
+      },
+      {
+        "character": "Good Samaritan",
+        "creditId": "5277faee760ee331ce02b84e",
+        "id": 1194992,
+        "name": "Ryan Begay",
+        "order": 617,
+        "gender": 2,
+        "profilePath": "/oIzcJxPs0gcW5Ne6beuwaXKTZrJ.jpg"
+      },
+      {
+        "character": "Asst. US Attorney",
+        "creditId": "5278121c760ee36b951e53f1",
+        "id": 197857,
+        "name": "Craig Nigh",
+        "order": 621,
+        "gender": 2,
+        "profilePath": "/6dUivUU1OEmixR7ettlonsL5KDX.jpg"
+      },
+      {
+        "character": "Min-Ye",
+        "creditId": "52781a00760ee3764e103a31",
+        "id": 61152,
+        "name": "Debi Parker",
+        "order": 622,
+        "gender": 1,
+        "profilePath": null
+      },
+      {
+        "character": "DEA Agent Artie",
+        "creditId": "52781a3d760ee35b14023699",
+        "id": 208061,
+        "name": "Chad Brummett",
+        "order": 623,
+        "gender": 2,
+        "profilePath": "/e4Ga0wrAIC3jy9d0aUb4YFnDvpy.jpg"
+      },
+      {
+        "character": "Homeless Man",
+        "creditId": "52781aeb760ee35e8e247957",
+        "id": 1193431,
+        "name": "Wayne Dehart",
+        "order": 624,
+        "gender": 2,
+        "profilePath": "/lvSDWQ0TpkhsTmk9obaZLIxU0j2.jpg"
+      },
+      {
+        "character": "Skater",
+        "creditId": "52781bc6760ee375bb0007ca",
+        "id": 963009,
+        "name": "Ray Chavez",
+        "order": 625,
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "character": "Jack's Henchman",
+        "creditId": "52782a7c760ee375d40245c0",
+        "id": 191132,
+        "name": "Mark Vasconcellos",
+        "order": 629,
+        "gender": 2,
+        "profilePath": "/sq75o4tKduBBiBeTsNQALBkJoBS.jpg"
+      },
+      {
+        "character": "Dave",
+        "creditId": "52782ee0760ee3046f019146",
+        "id": 962861,
+        "name": "Bruce McKenzie",
+        "order": 631,
+        "gender": 2,
+        "profilePath": "/hzXLV3EzPFVTTgZ8lHves52GIb0.jpg"
+      },
+      {
+        "character": "Locksmith",
+        "creditId": "52782f10760ee30b9d0040a8",
+        "id": 131420,
+        "name": "Wray Crawford",
+        "order": 635,
+        "gender": 2,
+        "profilePath": "/vfELFDthE2iIXurrdfJ53UtqkWY.jpg"
+      },
+      {
+        "character": "Homeless Man",
+        "creditId": "52782f67760ee3046f019e6f",
+        "id": 199836,
+        "name": "Jack Burning",
+        "order": 636,
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "character": "Customer",
+        "creditId": "52783068760ee3046f01bf54",
+        "id": 1102383,
+        "name": "Merritt C. Glover",
+        "order": 639,
+        "gender": 1,
+        "profilePath": "/lq56TU2LP7i2GCgT2v8b79cV19i.jpg"
+      },
+      {
+        "character": "Native American Man",
+        "creditId": "52783137760ee37c54027895",
+        "id": 126829,
+        "name": "Saginaw Grant",
+        "order": 640,
+        "gender": 2,
+        "profilePath": "/pQdS21e9ddOcSS2JzKsibdZexbd.jpg"
+      },
+      {
+        "character": "Detective #1",
+        "creditId": "52783157760ee3757203bccd",
+        "id": 167145,
+        "name": "Hank Rogerson",
+        "order": 641,
+        "gender": 2,
+        "profilePath": "/iP4XcHwxQsgeoRb9izKXGyXk3DQ.jpg"
+      },
+      {
+        "character": "Detective #2",
+        "creditId": "52783181760ee375b3039628",
+        "id": 967704,
+        "name": "Billy Lockwood",
+        "order": 642,
+        "gender": 2,
+        "profilePath": "/kH1J0HhK7GgAwqkpAJxOyRbPL2D.jpg"
+      },
+      {
+        "character": "US Attorney",
+        "creditId": "527832b6760ee3757e0437cf",
+        "id": 1218149,
+        "name": "Brennan Brown",
+        "order": 644,
+        "gender": 2,
+        "profilePath": "/fvAxFTEApSBVoe5xDbjAGEJOVOF.jpg"
+      },
+      {
+        "character": "Public Defender",
+        "creditId": "52783571760ee3046f026795",
+        "id": 1063149,
+        "name": "Eric Price",
+        "order": 646,
+        "gender": 2,
+        "profilePath": "/ubz1x3b3osigzaaitLuGnofDE.jpg"
+      },
+      {
+        "character": "Ed",
+        "creditId": "527835f4760ee37572044673",
+        "id": 5694,
+        "name": "Robert Forster",
+        "order": 647,
+        "gender": 2,
+        "profilePath": "/vGDifxN2PnO69rnpg6FoWkocFCD.jpg"
+      },
+      {
+        "character": "Bartender",
+        "creditId": "527836c3760ee375a605416f",
+        "id": 173129,
+        "name": "Kurt Soderstrom",
+        "order": 648,
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "character": "Chad's Girlfriend",
+        "creditId": "56846abbc3a36836280008d4",
+        "id": 1223192,
+        "name": "Roberta Marquez Seret",
+        "order": 651,
+        "gender": 1,
+        "profilePath": null
+      },
+      {
+        "character": "School Office Worker",
+        "creditId": "527836e6760ee375b3044064",
+        "id": 208060,
+        "name": "Deborah Martinez",
+        "order": 652,
+        "gender": 1,
+        "profilePath": null
+      },
+      {
+        "character": "Off Duty Cop",
+        "creditId": "54e89b13c3a36836e0001dc9",
+        "id": 209680,
+        "name": "Frederic Doss",
+        "order": 653,
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "character": "Charlie Rose",
+        "creditId": "5278372e760ee37c54032bbf",
+        "id": 70177,
+        "name": "Charlie Rose",
+        "order": 654,
+        "gender": 2,
+        "profilePath": "/dJLH4tc8Kf6oVLXSliK7l382E8W.jpg"
+      },
+      {
+        "character": "DEA Agent",
+        "creditId": "527838cc760ee3046f02c0e8",
+        "id": 175895,
+        "name": "Steve Stafford",
+        "order": 657,
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "character": "Max Arsiniega",
+        "creditId": "527a42d8760ee3483017f5a3",
+        "id": 104482,
+        "name": "James Martinez",
+        "order": 664,
+        "gender": 2,
+        "profilePath": "/xWGHtcBUmNO9MBqoDHPtetQZ3k7.jpg"
+      },
+      {
+        "character": "Pa Kettle",
+        "creditId": "60599eb66bdec300548b4f2f",
+        "id": 3021273,
+        "name": "Michael McCormick",
+        "order": 665,
+        "gender": 2,
+        "profilePath": "/4JsEn7M5eC5XDxuiBn6Izq86ERj.jpg"
+      },
+      {
+        "character": "Trent",
+        "creditId": "5ef3bae59661fc003625f338",
+        "id": 1313823,
+        "name": "Guy Wilson",
+        "order": 669,
+        "gender": 2,
+        "profilePath": "/qoBVJOg8yYo5UpZoyrAV0jhhl0n.jpg"
+      },
+      {
+        "character": "Sad Faced Girl",
+        "creditId": "62f29cf4880c92007aefda8b",
+        "id": 1731714,
+        "name": "Taylor Dearden",
+        "order": 671,
+        "gender": 1,
+        "profilePath": "/9FQlLsWxiheH8QJvOaISsHg6KvZ.jpg"
+      },
+      {
+        "character": "Chad",
+        "creditId": "63012a1a33a376007a442d63",
+        "id": 3670896,
+        "name": "Evan Bobrick",
+        "order": 675,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Irving",
+        "creditId": "63012a5c33a376007f87247b",
+        "id": 2969089,
+        "name": "Allan Pacheco",
+        "order": 677,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Sexy Neighbor",
+        "creditId": "63012a7e33a376007f872481",
+        "id": 219124,
+        "name": "Linda Speciale",
+        "order": 679,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Jock's Friend #1",
+        "creditId": "63012a8bfb5299007d660bc8",
+        "id": 3212534,
+        "name": "Jesús Ramírez",
+        "order": 680,
+        "gender": 0,
+        "profilePath": "/1EfPZxdFNNi3LFLR9laLcVROAko.jpg"
+      },
+      {
+        "character": "Jock's Friend #2",
+        "creditId": "63012ac4c2f44b007d249b54",
+        "id": 3670906,
+        "name": "Joshua S. Patton",
+        "order": 681,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Ob-Gyn",
+        "creditId": "63012c9c5f4b73008267ba53",
+        "id": 1448105,
+        "name": "Shane Marinson",
+        "order": 682,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Backhoe Operator",
+        "creditId": "63012d2abb2602007ceea8d2",
+        "id": 3670933,
+        "name": "Anthony Wamego",
+        "order": 684,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Sales Girl",
+        "creditId": "63012e36dfe31d0080103f2c",
+        "id": 939366,
+        "name": "Anna Felix",
+        "order": 685,
+        "gender": 1,
+        "profilePath": null
+      },
+      {
+        "character": "Meth Drug Dealer",
+        "creditId": "63012e72426ae8007a5b6b5a",
+        "id": 2085663,
+        "name": "Daniel Serrano",
+        "order": 686,
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "character": "DEA Agent",
+        "creditId": "63012ebb426ae800823a6bac",
+        "id": 1673624,
+        "name": "Jon Kristian Moore",
+        "order": 687,
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "character": "Bank Teller",
+        "creditId": "63012ec897eab40082b1a672",
+        "id": 1302829,
+        "name": "Tish Rayburn-Miller",
+        "order": 688,
+        "gender": 1,
+        "profilePath": null
+      },
+      {
+        "character": "Server",
+        "creditId": "63012f961da7a6007db08d8a",
+        "id": 2430293,
+        "name": "Kiira Arai",
+        "order": 689,
+        "gender": 1,
+        "profilePath": null
+      },
+      {
+        "character": "Scientist",
+        "creditId": "63012fa39653f6007fee8185",
+        "id": 92756,
+        "name": "Bill Allen",
+        "order": 690,
+        "gender": 2,
+        "profilePath": "/uLMRXLS5kDMr9W1LzJBp5lOnSJD.jpg"
+      },
+      {
+        "character": "Music Producer",
+        "creditId": "63012fc4839d93007e4c2dbf",
+        "id": 193285,
+        "name": "Loren Haynes",
+        "order": 691,
+        "gender": 2,
+        "profilePath": "/1wGpIMPHzx9lEZa2PkLfZ0Y6PXn.jpg"
+      },
+      {
+        "character": "Louis",
+        "creditId": "63012fd111c066007f8de38f",
+        "id": 3670958,
+        "name": "Kyle Swimmer",
+        "order": 692,
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "character": "Soren",
+        "creditId": "63012fd93e6f2b0082b3ba66",
+        "id": 3670960,
+        "name": "Robert Arrington",
+        "order": 693,
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "character": "Medical Technician",
+        "creditId": "63012fe5839d93007b62c31e",
+        "id": 3670961,
+        "name": "Juanita Trad",
+        "order": 694,
+        "gender": 1,
+        "profilePath": null
+      },
+      {
+        "character": "Concerned Parent",
+        "creditId": "6301b920097c4900911058ab",
+        "id": 1803314,
+        "name": "Lorri Oliver",
+        "order": 695,
+        "gender": 1,
+        "profilePath": null
+      },
+      {
+        "character": "Concerned Parent",
+        "creditId": "6301b927532acb007bd3b1cf",
+        "id": 3671381,
+        "name": "Kristen Loree",
+        "order": 696,
+        "gender": 1,
+        "profilePath": null
+      },
+      {
+        "character": "Concerned Parent",
+        "creditId": "6301b930532acb007bd3b1d4",
+        "id": 79236,
+        "name": "Dave Colon",
+        "order": 697,
+        "gender": 2,
+        "profilePath": "/lr1wAcs7fX3Kq2HzR33yUI0cP9p.jpg"
+      },
+      {
+        "character": "Yuppie Woman",
+        "creditId": "6301b987fb5299007d66336f",
+        "id": 209844,
+        "name": "Carrie Fleming",
+        "order": 698,
+        "gender": 1,
+        "profilePath": "/sa8ey6b8wTFYhm170tE7pPWS1An.jpg"
+      },
+      {
+        "character": "Chemical Plant Guard",
+        "creditId": "6301b9db839d93008b6133ea",
+        "id": 1094319,
+        "name": "Matthew Page",
+        "order": 699,
+        "gender": 2,
+        "profilePath": "/vMI1zxybJONZYqL8MI9gGxyfqfC.jpg"
+      },
+      {
+        "character": "Prospective Buyer",
+        "creditId": "6301b9f1839d93007b62e5e1",
+        "id": 1847290,
+        "name": "Jacob O'Brien Mulliken",
+        "order": 700,
+        "gender": 0,
+        "profilePath": "/i4JNHM5dcWNGw5XaJhy7wDMK7du.jpg"
+      },
+      {
+        "character": "Mr. Wilson",
+        "creditId": "6301ba0f097c490091105904",
+        "id": 3671392,
+        "name": "Charles Dowdy III",
+        "order": 701,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Car Wash Customer (uncredited)",
+        "creditId": "6315fec4326c190079d3f992",
+        "id": 1223198,
+        "name": "Moira Walley-Beckett",
+        "order": 702,
+        "gender": 1,
+        "profilePath": "/1sRNcxMZVsVcY6NFNQzASJuR8By.jpg"
+      },
+      {
+        "character": "Rowdy Prisoner",
+        "creditId": "63ff4b8cc7176d00db594b09",
+        "id": 1884648,
+        "name": "Isaac Kappy",
+        "order": 705,
+        "gender": 2,
+        "profilePath": "/t2Yy4YwlmQGHCp6IOaCeWnMKENh.jpg"
+      },
+      {
+        "character": "Neighborhood Kid",
+        "creditId": "63ff4b979f1be7007ca6968f",
+        "id": 456066,
+        "name": "Ryan Lee",
+        "order": 706,
+        "gender": 2,
+        "profilePath": "/1DpDbF9qi9nnMfKfGKnyhNPkNCb.jpg"
+      },
+      {
+        "character": "Detective",
+        "creditId": "63ff4ba3cf62cd00811c281f",
+        "id": 1006144,
+        "name": "Vic Browder",
+        "order": 707,
+        "gender": 2,
+        "profilePath": "/adh0XNdhb3l8PU8n6tZhdgBR89T.jpg"
+      },
+      {
+        "character": "Tio's Nurse",
+        "creditId": "64426b52d35dea04d9faed2b",
+        "id": 2266095,
+        "name": "Sheran Goodspeed Keyton",
+        "order": 711,
+        "gender": 1,
+        "profilePath": null
+      },
+      {
+        "character": "Supermarket Clerk",
+        "creditId": "64426b7afcec2e0439d975de",
+        "id": 1785041,
+        "name": "Ramsey Williams",
+        "order": 713,
+        "gender": 1,
+        "profilePath": null
+      },
+      {
+        "character": "Narcocorridos Band #1",
+        "creditId": "64713a3d9ae61300e593c46d",
+        "id": 4082808,
+        "name": "Gabriel Berrelleza",
+        "order": 717,
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "character": "Narcocorridos Band #2",
+        "creditId": "64713a47dd731b00c0ba3bdb",
+        "id": 4082809,
+        "name": "Martiniano Berrelleza Alvarado",
+        "order": 718,
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "character": "Carpet Cleaner #2",
+        "creditId": "64d24191549dda00e2ded27e",
+        "id": 1582083,
+        "name": "Rafael Herrera",
+        "order": 719,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Young Boy",
+        "creditId": "6521d3c595c0af01001fc19c",
+        "id": 4310260,
+        "name": "Brandon Carr",
+        "order": 720,
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "character": "Young Boy",
+        "creditId": "6521d3cac50ad200c91fc4de",
+        "id": 4310261,
+        "name": "Dylan Carr",
+        "order": 721,
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "character": "Jeffrey",
+        "creditId": "6521d43d07216600e2da229d",
+        "id": 1392034,
+        "name": "Andrew Lutheran",
+        "order": 722,
+        "gender": 2,
+        "profilePath": "/xQcso4XpNnHollWR8nRSEC40nWR.jpg"
+      },
+      {
+        "character": "Tweaky Dude",
+        "creditId": "6525d2cecedac4012217726f",
+        "id": 227950,
+        "name": "Shannon McCormick",
+        "order": 725,
+        "gender": 2,
+        "profilePath": "/4N9QRqzD4J6RsxDAD6KBfXK06Oy.jpg"
+      },
+      {
+        "character": "Thug Buddy",
+        "creditId": "6525d2d407216645b40032c1",
+        "id": 1559825,
+        "name": "Ka Beesler",
+        "order": 726,
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "character": "OB/GYN",
+        "creditId": "6525d32ecedac400ace3e3ac",
+        "id": 4315262,
+        "name": "Reis Myers Mccormick",
+        "order": 728,
+        "gender": 1,
+        "profilePath": null
+      },
+      {
+        "character": "Restaurant Employee",
+        "creditId": "653051cfedeb4300fe7c48c6",
+        "id": 4327773,
+        "name": "Erin Miller-Gibbs",
+        "order": 731,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Beneke Employee #1",
+        "creditId": "653051ed1fb94f00e2507ec8",
+        "id": 1086459,
+        "name": "Maggie Fine",
+        "order": 734,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Beneke Employee #2",
+        "creditId": "6530525b1fb94f011c606ef5",
+        "id": 2950986,
+        "name": "Kate Schroeder",
+        "order": 735,
+        "gender": 1,
+        "profilePath": null
+      },
+      {
+        "character": "Henry Tyree",
+        "creditId": "653e9a9950733c013e34ecac",
+        "id": 4346500,
+        "name": "Liam Ruggles",
+        "order": 737,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Jimmy in-'N-Out / James Edward Kilkelly",
+        "creditId": "653e9bddcc9683014eb9bea7",
+        "id": 4346512,
+        "name": "Jimmy Daniels",
+        "order": 738,
+        "gender": 0,
+        "profilePath": "/4crdHU3eNKfknX9mTq9MOxB85Rx.jpg"
+      },
+      {
+        "character": "Schlubby Guy #1",
+        "creditId": "653e9be8bc2cb300aca419a9",
+        "id": 1119011,
+        "name": "Shenoah Allen",
+        "order": 739,
+        "gender": 2,
+        "profilePath": "/7nwXUC5O9dtyMliiOst1lluEiTU.jpg"
+      },
+      {
+        "character": "Schlubby Guy #2",
+        "creditId": "653e9bf3519bbb00c434ae6a",
+        "id": 2128839,
+        "name": "Drew Pollock",
+        "order": 740,
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "character": "Hot Chick Cop",
+        "creditId": "653e9bfccc9683012cf474a7",
+        "id": 4346518,
+        "name": "Casey Cerutti",
+        "order": 741,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Tattooed Biker",
+        "creditId": "653e9cd5bc2cb300c97f1922",
+        "id": 4346540,
+        "name": "Tomas Potts",
+        "order": 742,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Tattooed Woman",
+        "creditId": "653e9ce05907de0138e231a3",
+        "id": 1204048,
+        "name": "Cyd Schulte",
+        "order": 743,
+        "gender": 1,
+        "profilePath": "/AfAoN0l9UskufTqPrBYsDZKDBno.jpg"
+      },
+      {
+        "character": "Addict",
+        "creditId": "653e9cee519bbb00c434aead",
+        "id": 4112702,
+        "name": "Tony Whitecrow",
+        "order": 744,
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "character": "Nurse",
+        "creditId": "653e9cfe50733c00ff4abbc7",
+        "id": 2870318,
+        "name": "Wendy Scott",
+        "order": 745,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "NA Sponsor",
+        "creditId": "653e9d12519bbb00fe5d0c1b",
+        "id": 927751,
+        "name": "Erik J. Bockemeier",
+        "order": 746,
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "character": "O.M.I. Attendant",
+        "creditId": "653e9d61cc9683014eb9bf15",
+        "id": 4346543,
+        "name": "Phil Howell",
+        "order": 747,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "O.M.I. Officer",
+        "creditId": "653e9d785907de011bc55fdd",
+        "id": 1194993,
+        "name": "Juliet Lopez",
+        "order": 748,
+        "gender": 1,
+        "profilePath": "/aZHUeji9oZQ6kphgIQ2AocNp8FW.jpg"
+      },
+      {
+        "character": "Local Correspondant",
+        "creditId": "653e9d845907de011bc55fe4",
+        "id": 1366004,
+        "name": "Kieran Sequoia",
+        "order": 749,
+        "gender": 1,
+        "profilePath": "/gbf96AvsWygK5dRkYZM0K0eEo2N.jpg"
+      },
+      {
+        "character": "Business Community Leader #1",
+        "creditId": "653e9dac519bbb011b4576e8",
+        "id": 4346546,
+        "name": "Richard Williams",
+        "order": 750,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Business Community Leader #2",
+        "creditId": "653e9ec4519bbb00fe5d0ca5",
+        "id": 589041,
+        "name": "Daniel D. Halleck",
+        "order": 751,
+        "gender": 2,
+        "profilePath": "/q5qe5SZinxrkPdruiWPUTGP4gQ.jpg"
+      },
+      {
+        "character": "Stew",
+        "creditId": "653e9edce894a600e2ce84ba",
+        "id": 169410,
+        "name": "Dick Christie",
+        "order": 752,
+        "gender": 2,
+        "profilePath": "/OncqVE0uPNrVQT5ONOQElJa5mO.jpg"
+      },
+      {
+        "character": "Nurse",
+        "creditId": "653e9f05519bbb011b45775a",
+        "id": 4346571,
+        "name": "Ravenna Fahey",
+        "order": 753,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Emotional Woman",
+        "creditId": "653e9f49109cd000ad631699",
+        "id": 166124,
+        "name": "Robin Dearden",
+        "order": 754,
+        "gender": 1,
+        "profilePath": null
+      },
+      {
+        "character": "Wide Eyed Boy",
+        "creditId": "653e9f52c8a5ac00ad37c734",
+        "id": 1112415,
+        "name": "Galen Hutchison",
+        "order": 755,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Friendly Guy",
+        "creditId": "653e9f67c8a5ac0100fa9a96",
+        "id": 204196,
+        "name": "Jesus Mayorga",
+        "order": 756,
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "character": "Daughter",
+        "creditId": "653e9f7f519bbb00fe5d0ce0",
+        "id": 1381152,
+        "name": "Lorél Medina",
+        "order": 757,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Father",
+        "creditId": "653e9fd8519bbb011b457785",
+        "id": 2521312,
+        "name": "Mario Moreno",
+        "order": 758,
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "character": "Mother",
+        "creditId": "653e9ff1519bbb011b45778a",
+        "id": 239998,
+        "name": "Maria Bethke",
+        "order": 759,
+        "gender": 1,
+        "profilePath": "/ikAxFd7DybY1TQm70LfiuHFUOjT.jpg"
+      },
+      {
+        "character": "Old Crawler",
+        "creditId": "653e9ffe109cd0012cffccbb",
+        "id": 4346579,
+        "name": "Cicelo Solano",
+        "order": 760,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Anchor #1",
+        "creditId": "653ea007519bbb00e18d2a47",
+        "id": 1230050,
+        "name": "Ashleigh Banfield",
+        "order": 761,
+        "gender": 1,
+        "profilePath": null
+      },
+      {
+        "character": "Anchor #2",
+        "creditId": "653ea0305907de0138e2329e",
+        "id": 4346581,
+        "name": "Marla Tellez",
+        "order": 762,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Anchor #3",
+        "creditId": "653ea04e5907de00ac01f888",
+        "id": 4346583,
+        "name": "Jeff Maher",
+        "order": 763,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Cop",
+        "creditId": "653ea517cc968300ade75760",
+        "id": 4346631,
+        "name": "J. Taylor",
+        "order": 765,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Rookie Officer",
+        "creditId": "653ea552519bbb00ab695b0e",
+        "id": 4346635,
+        "name": "Daniel Champine",
+        "order": 766,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Beto",
+        "creditId": "653ea55b519bbb00ab695b15",
+        "id": 1794930,
+        "name": "James Espinoza",
+        "order": 767,
+        "gender": 2,
+        "profilePath": "/aGog9grUQNEl06LKEBwMigvpQJY.jpg"
+      },
+      {
+        "character": "Saul's Client",
+        "creditId": "653ea66650733c00ff4abe6d",
+        "id": 4346665,
+        "name": "Parker Sisty",
+        "order": 768,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Waitress",
+        "creditId": "653ea6d0c8a5ac00ad37c904",
+        "id": 2456335,
+        "name": "Amanda Schofield",
+        "order": 770,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Stripper #1",
+        "creditId": "653ea765519bbb00ab695ba8",
+        "id": 3136482,
+        "name": "Erin Elliott",
+        "order": 771,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Stripper #2",
+        "creditId": "653ea77550733c00adbcc44e",
+        "id": 4346689,
+        "name": "Portia Cline",
+        "order": 772,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Deputy Kee",
+        "creditId": "653ea865e894a600ff1767d4",
+        "id": 4346702,
+        "name": "Jose Avila",
+        "order": 774,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Nurse",
+        "creditId": "653ea876519bbb00e18d2c60",
+        "id": 1803318,
+        "name": "Trina Siopy",
+        "order": 775,
+        "gender": 1,
+        "profilePath": "/mMV1Bj6kdiocP0EGkcUAFRBDEeY.jpg"
+      },
+      {
+        "character": "Young Marco",
+        "creditId": "653ea9ba5907de0138e23559",
+        "id": 4346722,
+        "name": "Ruben Munoz-Soto",
+        "order": 776,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Young Leonel",
+        "creditId": "653ea9d3cc9683012cf47836",
+        "id": 4346724,
+        "name": "Victor Munoz-Soto",
+        "order": 777,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Preppy Shopper",
+        "creditId": "653ea9e4519bbb00e18d2cc9",
+        "id": 4346726,
+        "name": "Matthew Feight",
+        "order": 778,
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "character": "ABQ Detective #2",
+        "creditId": "653ea9f95907de00fe1f48ff",
+        "id": 1740851,
+        "name": "Chris Ranney",
+        "order": 779,
+        "gender": 2,
+        "profilePath": "/z0vjQIYxJ8ip435wshxem0cKyQh.jpg"
+      },
+      {
+        "character": "OPR Official #1",
+        "creditId": "653eaa0ebc2cb3012c31f894",
+        "id": 1668460,
+        "name": "Steve Cormier",
+        "order": 780,
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "character": "Screaming Shopper",
+        "creditId": "653eaa1bbc2cb3010b4b99a2",
+        "id": 4346730,
+        "name": "Wendy Kostora",
+        "order": 781,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Orderly",
+        "creditId": "653eaa69e894a600e2ce87f5",
+        "id": 1452636,
+        "name": "Steve Corona",
+        "order": 782,
+        "gender": 2,
+        "profilePath": "/oTpREkLQMmyHXHd13yfnDMAJBe2.jpg"
+      },
+      {
+        "character": "EMT",
+        "creditId": "653eaa7fc8a5ac00e3a1a39b",
+        "id": 4346738,
+        "name": "Brian G. Lax",
+        "order": 783,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Lead Doctor",
+        "creditId": "653eaa88e894a600ad57539b",
+        "id": 4346739,
+        "name": "John Welker",
+        "order": 784,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "APD Officer",
+        "creditId": "653eaa97c8a5ac00ad37ca13",
+        "id": 582669,
+        "name": "Kevin Christopher Brown",
+        "order": 785,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Friendly Agent",
+        "creditId": "653eaaa5bc2cb3010b4b99cb",
+        "id": 59456,
+        "name": "Ken Thomas",
+        "order": 786,
+        "gender": 2,
+        "profilePath": "/iqdbZ2TyLqr05MDNmoGA5RJfJOl.jpg"
+      },
+      {
+        "character": "Doctor",
+        "creditId": "653eaac0109cd0010b0432f6",
+        "id": 2837875,
+        "name": "Rosa Estrada",
+        "order": 787,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Physical Therapist",
+        "creditId": "653eac4cbc2cb300aca41dc3",
+        "id": 4346781,
+        "name": "Rebecca Crago",
+        "order": 789,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Waitress",
+        "creditId": "653eadb8cc9683012cf47969",
+        "id": 4346794,
+        "name": "Victoria Aultman",
+        "order": 791,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Commercial Voice Over (voice)",
+        "creditId": "653eae8cc8a5ac00e3a1a4ac",
+        "id": 4346806,
+        "name": "David Robinson Jr.",
+        "order": 793,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Male Homeowner",
+        "creditId": "653eaf2c109cd000c948a794",
+        "id": 4346814,
+        "name": "Jonathan Richards",
+        "order": 794,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Partygoer",
+        "creditId": "653eaf35cc9683014eb9c3ad",
+        "id": 4346816,
+        "name": "Stephen Braddock",
+        "order": 795,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Tweaker Thief",
+        "creditId": "653eaf68308131011d8d7f23",
+        "id": 3101108,
+        "name": "Frank Andrade",
+        "order": 796,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Support Group Leader",
+        "creditId": "653eaf75308131013a150e24",
+        "id": 4346818,
+        "name": "Paul Neis",
+        "order": 797,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Morning After Girl",
+        "creditId": "653eaf7fc8a5ac011d6d9d76",
+        "id": 4346819,
+        "name": "Brittany Gustin",
+        "order": 798,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Gunman #1 (uncredited)",
+        "creditId": "653eafaacc9683012cf479cc",
+        "id": 202930,
+        "name": "Anthony Molinari",
+        "order": 799,
+        "gender": 2,
+        "profilePath": "/8Gl1b5Y7QLrdv5vvOwAmJk29joM.jpg"
+      },
+      {
+        "character": "Truck Guard #1",
+        "creditId": "653eb01830813100e3b218c1",
+        "id": 1333907,
+        "name": "Jason E. Hill",
+        "order": 800,
+        "gender": 2,
+        "profilePath": "/72vwVXFK7tb0IFt22WYQ8X0uPCy.jpg"
+      },
+      {
+        "character": "Laundry Woman 1",
+        "creditId": "653eb02ee894a600c516e904",
+        "id": 4346827,
+        "name": "Celia Anaya",
+        "order": 801,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Laundry Woman 2",
+        "creditId": "653eb037519bbb00fe5d1124",
+        "id": 4346828,
+        "name": "Maria L. Pardo",
+        "order": 802,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Laundry Woman 3",
+        "creditId": "653eb04050733c00c53586c1",
+        "id": 4346829,
+        "name": "Veronica Jaquez",
+        "order": 803,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Cancer Patient",
+        "creditId": "653eb107e894a600ad5754ff",
+        "id": 1494546,
+        "name": "Michael Sheets",
+        "order": 805,
+        "gender": 2,
+        "profilePath": "/rOlI3xD8vgHgkCd07JA0OeEyI58.jpg"
+      },
+      {
+        "character": "Waiter",
+        "creditId": "653eb16430813100ae619662",
+        "id": 2671876,
+        "name": "Rick A. Ortega Jr.",
+        "order": 807,
+        "gender": 2,
+        "profilePath": "/2eTonxzRVM64UbI3bcWVTVKJFq4.jpg"
+      },
+      {
+        "character": "Sexy Cartel Girl",
+        "creditId": "653eb173e894a600ff1769df",
+        "id": 1936778,
+        "name": "Amanda Fresquez",
+        "order": 808,
+        "gender": 1,
+        "profilePath": null
+      },
+      {
+        "character": "Dog Handler",
+        "creditId": "653eb2b450733c00ff4ac1a5",
+        "id": 4346867,
+        "name": "Michael Valverde",
+        "order": 810,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "News Reporter",
+        "creditId": "653eb335e894a600e2ce89ee",
+        "id": 4346877,
+        "name": "Augusta Meyers",
+        "order": 811,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Little Old Lady",
+        "creditId": "653eb33e50733c00adbcc7ab",
+        "id": 4346878,
+        "name": "Lorenzita Anaya",
+        "order": 812,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Bingo Caller",
+        "creditId": "653eb37dcc9683010b3f6a76",
+        "id": 4346880,
+        "name": "Marty Smith",
+        "order": 813,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Radio DJ #1 (voice)",
+        "creditId": "653eb3a8cc968300ea719214",
+        "id": 4346881,
+        "name": "Erica Viking",
+        "order": 814,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Radio DJ #2 (voice)",
+        "creditId": "653eb3b5109cd000eae41879",
+        "id": 4346883,
+        "name": "Steve Ruiz",
+        "order": 815,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Duty Officer",
+        "creditId": "653eb43c109cd000c948a8bd",
+        "id": 4346886,
+        "name": "James Harris",
+        "order": 816,
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "character": "Nurse",
+        "creditId": "653eb449519bbb011b457cfb",
+        "id": 4346889,
+        "name": "Gail Starr",
+        "order": 817,
+        "gender": 1,
+        "profilePath": null
+      },
+      {
+        "character": "Chief Food Technician",
+        "creditId": "653eb4825907de0138e23801",
+        "id": 1314555,
+        "name": "Carrington Vilmont",
+        "order": 818,
+        "gender": 2,
+        "profilePath": "/xfYxpKsD9DHiZTH0aIqVvHwmCSR.jpg"
+      },
+      {
+        "character": "Chris Mara",
+        "creditId": "653eb4ad308131013a150f96",
+        "id": 4346894,
+        "name": "Christopher King",
+        "order": 819,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Ms. Tromel",
+        "creditId": "653eb4becc9683014eb9c4f6",
+        "id": 2803722,
+        "name": "Trine Christensen",
+        "order": 820,
+        "gender": 1,
+        "profilePath": "/4hHK96AiRvRjLIepEAQKoW6gMNZ.jpg"
+      },
+      {
+        "character": "Lawyer",
+        "creditId": "653eb4cf30813100ae619757",
+        "id": 4346897,
+        "name": "Mathias Kaesebier",
+        "order": 821,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Detective",
+        "creditId": "653eb4e0c8a5ac00c6d7500b",
+        "id": 4346899,
+        "name": "Brennan Foster",
+        "order": 822,
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "character": "Kiira",
+        "creditId": "653eb4f0bc2cb3010b4b9c9b",
+        "id": 3955228,
+        "name": "Lillian Presley Leyba",
+        "order": 823,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Homeowner",
+        "creditId": "653eb55e50733c00adbcc820",
+        "id": 1391889,
+        "name": "Mike Ostroski",
+        "order": 824,
+        "gender": 2,
+        "profilePath": "/tSHW9pmdaHCGxbzdqkNtAedMcbL.jpg"
+      },
+      {
+        "character": "Secretary",
+        "creditId": "653eb5c6308131011d8d80f3",
+        "id": 1276800,
+        "name": "Melissa McCurley",
+        "order": 826,
+        "gender": 1,
+        "profilePath": "/dPdn1KjlZ0vrWYSwqRoPNWJ1pt1.jpg"
+      },
+      {
+        "character": "Dorothy Yobs",
+        "creditId": "653eb739e894a600e2ce8ada",
+        "id": 2649509,
+        "name": "Kathleen Brady",
+        "order": 829,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "DEA Agent",
+        "creditId": "653eb74a109cd0012cffd2aa",
+        "id": 4346915,
+        "name": "Phillip Hart",
+        "order": 830,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Carol",
+        "creditId": "653eb7da109cd0012cffd2cc",
+        "id": 4346922,
+        "name": "Cheryl Ford-Mente",
+        "order": 831,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Homeowner",
+        "creditId": "653eb7fc50733c013e34f4f9",
+        "id": 4346926,
+        "name": "Brett Shane Cooley",
+        "order": 832,
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "character": "DEA Agent",
+        "creditId": "653eb85acc968300ade75bd2",
+        "id": 4346927,
+        "name": "Victoria Lease",
+        "order": 833,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Old Man",
+        "creditId": "653eb8eb5907de00fe1f4c77",
+        "id": 4346930,
+        "name": "Michael Davis",
+        "order": 835,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Meth Cook",
+        "creditId": "653eb903bc2cb3014d4b5325",
+        "id": 132424,
+        "name": "Kevin Owen McDonald",
+        "order": 836,
+        "gender": 2,
+        "profilePath": "/bQLhtyqYcnWsNHAYB6ie8obgaMr.jpg"
+      },
+      {
+        "character": "Customer",
+        "creditId": "653eb93e109cd000c948a9e6",
+        "id": 4346939,
+        "name": "Mickey Drexler",
+        "order": 837,
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "character": "Waitress",
+        "creditId": "653eb945519bbb00fe5d1357",
+        "id": 2834952,
+        "name": "Caroline Patz",
+        "order": 838,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Kid",
+        "creditId": "653eb991c8a5ac00ad37cdbd",
+        "id": 1930686,
+        "name": "Sachie Capitani",
+        "order": 839,
+        "gender": 1,
+        "profilePath": "/vo496Peu1qRdoPO1bO4qvzC59q7.jpg"
+      },
+      {
+        "character": "Fireman (uncredited)",
+        "creditId": "653eba22109cd000eae419ca",
+        "id": 48312,
+        "name": "Noah Segan",
+        "order": 840,
+        "gender": 2,
+        "profilePath": "/j1mjH6uOZlKaiQ18U4SaTnmnjMl.jpg"
+      },
+      {
+        "character": "Cop #1",
+        "creditId": "653eba71e894a600ad5756cc",
+        "id": 4346960,
+        "name": "Patricio Delgado",
+        "order": 841,
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "character": "Debuty #1",
+        "creditId": "653ebb22308131013a1510e9",
+        "id": 4346967,
+        "name": "Aaron Wright",
+        "order": 842,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Waitress",
+        "creditId": "653ebb4b5907de011bc56696",
+        "id": 1639193,
+        "name": "Julianne Flores",
+        "order": 844,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Government Lawyer",
+        "creditId": "653ebb5fcc968300ade75c6e",
+        "id": 1570629,
+        "name": "William R. Stafford",
+        "order": 845,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Barfly",
+        "creditId": "653ebb74519bbb011b457e76",
+        "id": 3957062,
+        "name": "Leslie O'Carroll",
+        "order": 846,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "Waiter",
+        "creditId": "653ebbb130813100ae61990b",
+        "id": 1283875,
+        "name": "Alex Gianopoulos",
+        "order": 847,
+        "gender": 0,
+        "profilePath": null
+      },
+      {
+        "character": "DEA Agent #1 (uncredited)",
+        "creditId": "655bb4fa10923000ab494163",
+        "id": 1335375,
+        "name": "Ed Duran",
+        "order": 848,
+        "gender": 2,
+        "profilePath": "/mzPJkVKg7ve3whmvyf2TyDIuewr.jpg"
+      },
+      {
+        "character": "Cop #2",
+        "creditId": "659b1f2d5b12400148038445",
+        "id": 2569929,
+        "name": "Carlos Telles",
+        "order": 849,
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "character": "Public Defender",
+        "creditId": "659dad671d35630095d6aa8c",
+        "id": 4472830,
+        "name": "Scott Ward",
+        "order": 850,
+        "gender": 0,
+        "profilePath": null
+      }
+    ],
+    "crew": [
+      {
+        "creditId": "67ac7225f85f19913a9b8a2d",
+        "department": "Production",
+        "id": 24951,
+        "job": "Co-Executive Producer",
+        "name": "Peter Gould",
+        "gender": 2,
+        "profilePath": "/a2dJSpUiXQ2NAxqSzztr6WsnhOJ.jpg"
+      },
+      {
+        "creditId": "67ac7024f71a3783e1bb4ea5",
+        "department": "Production",
+        "id": 103009,
+        "job": "Co-Executive Producer",
+        "name": "Thomas Schnauz",
+        "gender": 2,
+        "profilePath": "/uMz5wsgv6QQAgFI809SgCCbwYn9.jpg"
+      },
+      {
+        "creditId": "64189e9c6a2227008de8d158",
+        "department": "Production",
+        "id": 1223193,
+        "job": "Co-Executive Producer",
+        "name": "George Mastras",
+        "gender": 2,
+        "profilePath": "/2K0NELbA0Ow45ECudbO2eFc1Fe4.jpg"
+      },
+      {
+        "creditId": "6418a1a7a14bef00b815158a",
+        "department": "Costume & Make-Up",
+        "id": 1537674,
+        "job": "Costume Design",
+        "name": "Jennifer Bryan",
+        "gender": 1,
+        "profilePath": "/oA5QovyVfEG0SUIs0DIhGsriyok.jpg"
+      },
+      {
+        "creditId": "67ac74429ed73a4324b0952e",
+        "department": "Production",
+        "id": 1223202,
+        "job": "Producer",
+        "name": "Diane Mercer",
+        "gender": 1,
+        "profilePath": "/giIfRTqeWPIS5n63DOHLz2z9k41.jpg"
+      },
+      {
+        "creditId": "5254228d760ee31328001cc7",
+        "department": "Production",
+        "id": 17419,
+        "job": "Producer",
+        "name": "Bryan Cranston",
+        "gender": 2,
+        "profilePath": "/7Jahy5LZX2Fo8fGJltMreAI49hC.jpg"
+      },
+      {
+        "creditId": "6449841d05a53304be1b880d",
+        "department": "Production",
+        "id": 1930718,
+        "job": "Location Manager",
+        "name": "Christian Diaz de Bedoya",
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "creditId": "64189dcea14bef008100712b",
+        "department": "Production",
+        "id": 1223199,
+        "job": "Co-Executive Producer",
+        "name": "Melissa Bernstein",
+        "gender": 1,
+        "profilePath": "/rSztwqMUIko8RkmwjxBse1XDW3g.jpg"
+      },
+      {
+        "creditId": "64189e12a14bef00b81514a9",
+        "department": "Production",
+        "id": 1223194,
+        "job": "Co-Executive Producer",
+        "name": "Sam Catlin",
+        "gender": 2,
+        "profilePath": "/xc9Ax2kpvQLayUaFL1d1NTUQ7df.jpg"
+      },
+      {
+        "creditId": "64189e5f6a2227008de8d147",
+        "department": "Production",
+        "id": 29779,
+        "job": "Executive Producer",
+        "name": "Michelle MacLaren",
+        "gender": 1,
+        "profilePath": "/3LcH5eNiysMWaepARllVrS4Dzn7.jpg"
+      },
+      {
+        "creditId": "64189f7aa14bef0099c8395a",
+        "department": "Production",
+        "id": 3970747,
+        "job": "Associate Producer",
+        "name": "Andrew Ortner",
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "creditId": "539980a1c3a3681d0d00148b",
+        "department": "Art",
+        "id": 12706,
+        "job": "Production Design",
+        "name": "Mark S. Freeborn",
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "creditId": "64634c54ef8b3200fe7e825f",
+        "department": "Crew",
+        "id": 4065202,
+        "job": "Thanks",
+        "name": "Richard J. Berry",
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "creditId": "690e575cdc4f028746a0bd66",
+        "department": "Art",
+        "id": 1494529,
+        "job": "Property Master",
+        "name": "Mark Hansen",
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "creditId": "644465ffd38b580521114ec4",
+        "department": "Production",
+        "id": 1537675,
+        "job": "Casting Associate",
+        "name": "Russell Scott",
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "creditId": "64189d12310325010151b7b7",
+        "department": "Production",
+        "id": 1223200,
+        "job": "Producer",
+        "name": "Stewart Lyons",
+        "gender": 2,
+        "profilePath": "/dCAN4EMn8rsqALwDIjf9aNjuVTm.jpg"
+      },
+      {
+        "creditId": "539980c8c3a3681d0700143a",
+        "department": "Art",
+        "id": 1330079,
+        "job": "Art Direction",
+        "name": "Bjarne Sletteland",
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "creditId": "6444663ccee2f6049f36d7d3",
+        "department": "Production",
+        "id": 6479,
+        "job": "Casting",
+        "name": "Sharon Bialy",
+        "gender": 1,
+        "profilePath": "/uOex6LpaQYncD0sQfVYD1frI5uJ.jpg"
+      },
+      {
+        "creditId": "64446643cee2f604f336e877",
+        "department": "Production",
+        "id": 959387,
+        "job": "Casting",
+        "name": "Sherry Thomas",
+        "gender": 1,
+        "profilePath": null
+      },
+      {
+        "creditId": "64634e45e3fa2f00e404a628",
+        "department": "Sound",
+        "id": 1069688,
+        "job": "Music Supervisor",
+        "name": "Thomas Golubić",
+        "gender": 2,
+        "profilePath": "/umzkpmX3p3GdrSutAHFX7Rij0Sm.jpg"
+      },
+      {
+        "creditId": "644986702fdec604e4a1236a",
+        "department": "Sound",
+        "id": 1537682,
+        "job": "Supervising Sound Editor",
+        "name": "Nick Forshager",
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "creditId": "6450485343501100ea397cba",
+        "department": "Crew",
+        "id": 1537690,
+        "job": "Stunt Coordinator",
+        "name": "Al Goto",
+        "gender": 2,
+        "profilePath": "/iH29BHKpmUO3iSKuhBSuj365VPl.jpg"
+      },
+      {
+        "creditId": "52b7008819c29559eb03dd72",
+        "department": "Sound",
+        "id": 1280070,
+        "job": "Original Music Composer",
+        "name": "Dave Porter",
+        "gender": 2,
+        "profilePath": "/flRW9QknVtU8HG7lLjMvflbhl2a.jpg"
+      },
+      {
+        "creditId": "52542287760ee31328001b69",
+        "department": "Production",
+        "id": 5162,
+        "job": "Executive Producer",
+        "name": "Mark Johnson",
+        "gender": 2,
+        "profilePath": "/gLuXkOQjqB81aHMGJ2OtYzEpHQu.jpg"
+      },
+      {
+        "creditId": "68dc6b335afb57f2ce5315dd",
+        "department": "Sound",
+        "id": 1440228,
+        "job": "Sound Re-Recording Mixer",
+        "name": "Eric Justen",
+        "gender": 2,
+        "profilePath": "/6XH9DhMhbWctzYRjMOHSXlNh9Es.jpg"
+      },
+      {
+        "creditId": "68dc79d76c365b970d5313ce",
+        "department": "Sound",
+        "id": 143921,
+        "job": "Sound Re-Recording Mixer",
+        "name": "Jeffrey Perkins",
+        "gender": 2,
+        "profilePath": null
+      },
+      {
+        "creditId": "52542287760ee31328001af1",
+        "department": "Production",
+        "id": 66633,
+        "job": "Executive Producer",
+        "name": "Vince Gilligan",
+        "gender": 2,
+        "profilePath": "/wJIxATESjzsjSgvRhVavOmdamXc.jpg"
+      }
+    ]
+  },
+  "externalIds": {
+    "facebookId": "BreakingBad",
+    "freebaseId": "/en/breaking_bad",
+    "freebaseMid": "/m/03d34x8",
+    "imdbId": "tt0903747",
+    "instagramId": "breakingbad",
+    "tvdbId": 81189,
+    "tvrageId": 18164,
+    "twitterId": "BreakingBad"
+  },
+  "keywords": [
+    {
+      "id": 1508,
+      "name": "new mexico"
+    },
+    {
+      "id": 2231,
+      "name": "drug dealer"
+    },
+    {
+      "id": 5857,
+      "name": "narcissism"
+    },
+    {
+      "id": 6259,
+      "name": "psychopath"
+    },
+    {
+      "id": 6564,
+      "name": "terminal illness"
+    },
+    {
+      "id": 9503,
+      "name": "outlaw"
+    },
+    {
+      "id": 10123,
+      "name": "dark comedy"
+    },
+    {
+      "id": 10163,
+      "name": "cancer"
+    },
+    {
+      "id": 10614,
+      "name": "tragedy"
+    },
+    {
+      "id": 14964,
+      "name": "drugs"
+    },
+    {
+      "id": 15009,
+      "name": "criminal"
+    },
+    {
+      "id": 15484,
+      "name": "meth lab"
+    },
+    {
+      "id": 18026,
+      "name": "drug lord"
+    },
+    {
+      "id": 41525,
+      "name": "high school teacher"
+    },
+    {
+      "id": 156805,
+      "name": "dea agent"
+    },
+    {
+      "id": 168713,
+      "name": "neo-western"
+    },
+    {
+      "id": 191005,
+      "name": "albuquerque, new mexico"
+    },
+    {
+      "id": 191199,
+      "name": "criminal lawyer"
+    },
+    {
+      "id": 199660,
+      "name": "fall from grace"
+    },
+    {
+      "id": 206594,
+      "name": "cartel"
+    },
+    {
+      "id": 217064,
+      "name": "mexican cartel"
+    },
+    {
+      "id": 217104,
+      "name": "male egos"
+    },
+    {
+      "id": 239108,
+      "name": "crystal meth"
+    },
+    {
+      "id": 259094,
+      "name": "dark"
+    },
+    {
+      "id": 281692,
+      "name": "methamphetamine"
+    },
+    {
+      "id": 316362,
+      "name": "thriller"
+    },
+    {
+      "id": 325781,
+      "name": "celebratory"
+    },
+    {
+      "id": 342828,
+      "name": "violent"
+    },
+    {
+      "id": 360934,
+      "name": "tortured genius"
+    }
+  ],
+  "mediaInfo": {
+    "downloadStatus": [],
+    "downloadStatus4k": [],
+    "id": 1090,
+    "mediaType": "tv",
+    "tmdbId": 1396,
+    "tvdbId": 81189,
+    "imdbId": null,
+    "status": 3,
+    "status4k": 1,
+    "createdAt": "2026-11-09T13:55:10.000Z",
+    "updatedAt": "2026-11-09T13:55:10.000Z",
+    "lastSeasonChange": "2026-11-09T13:55:10.000Z",
+    "mediaAddedAt": "2026-11-09T13:55:10.000Z",
+    "serviceId": null,
+    "serviceId4k": null,
+    "externalServiceId": null,
+    "externalServiceId4k": null,
+    "externalServiceSlug": null,
+    "externalServiceSlug4k": null,
+    "ratingKey": null,
+    "ratingKey4k": null,
+    "jellyfinMediaId": null,
+    "jellyfinMediaId4k": null,
+    "requests": [
+      {
+        "id": 27,
+        "status": 2,
+        "createdAt": "2026-11-09T13:55:10.000Z",
+        "updatedAt": "2026-11-09T13:55:10.000Z",
+        "type": "tv",
+        "is4k": false,
+        "serverId": null,
+        "profileId": null,
+        "rootFolder": null,
+        "languageProfileId": null,
+        "tags": null,
+        "isAutoRequest": false,
+        "ignoreQuota": false,
+        "media": {
+          "downloadStatus": [],
+          "downloadStatus4k": [],
+          "id": 1090,
+          "mediaType": "tv",
+          "tmdbId": 1396,
+          "tvdbId": 81189,
+          "imdbId": null,
+          "status": 3,
+          "status4k": 1,
+          "createdAt": "2026-11-09T13:55:10.000Z",
+          "updatedAt": "2026-11-09T13:55:10.000Z",
+          "lastSeasonChange": "2026-11-09T13:55:10.000Z",
+          "mediaAddedAt": "2026-11-09T13:55:10.000Z",
+          "serviceId": null,
+          "serviceId4k": null,
+          "externalServiceId": null,
+          "externalServiceId4k": null,
+          "externalServiceSlug": null,
+          "externalServiceSlug4k": null,
+          "ratingKey": null,
+          "ratingKey4k": null,
+          "jellyfinMediaId": null,
+          "jellyfinMediaId4k": null
+        },
+        "requestedBy": {
+          "permissions": 32,
+          "warnings": [],
+          "id": 2,
+          "plexUsername": null,
+          "jellyfinUsername": "user1",
+          "username": null,
+          "recoveryLinkExpirationDate": null,
+          "userType": 3,
+          "jellyfinUserId": "d50a238bb88045419ab14206d6b8b7d5",
+          "avatar": "/avatarproxy/anonymous",
+          "avatarETag": "59c1226cef6f28faee03e3c4da5ed63f3a1bb0b50d5f958a2ef06eaca9feac26",
+          "avatarVersion": "1755533772000",
+          "movieQuotaLimit": null,
+          "movieQuotaDays": null,
+          "tvQuotaLimit": null,
+          "tvQuotaDays": null,
+          "createdAt": "2024-07-03T18:09:26.000Z",
+          "updatedAt": "2025-05-02T17:45:18.000Z",
+          "requestCount": 2,
+          "displayName": "User 1"
+        },
+        "modifiedBy": {
+          "permissions": 2,
+          "warnings": [],
+          "id": 1,
+          "plexUsername": null,
+          "jellyfinUsername": "user1",
+          "username": null,
+          "recoveryLinkExpirationDate": null,
+          "userType": 3,
+          "jellyfinUserId": "472c0639eaa641ebadd06d9d5107b730",
+          "avatar": "/avatarproxy/anonymous",
+          "avatarETag": "d0951add190a2aa743a05ce86d56f39ad00d6c3d05bc62deab617dfab19dc9d6",
+          "avatarVersion": "1755533786000",
+          "movieQuotaLimit": null,
+          "movieQuotaDays": null,
+          "tvQuotaLimit": null,
+          "tvQuotaDays": null,
+          "createdAt": "2024-07-02T07:38:29.000Z",
+          "updatedAt": "2024-12-24T16:06:09.000Z",
+          "requestCount": 0,
+          "displayName": "User 1"
+        },
+        "seasons": [
+          {
+            "id": 7,
+            "seasonNumber": 1,
+            "status": 2,
+            "createdAt": "2026-11-09T13:55:10.000Z",
+            "updatedAt": "2026-11-09T13:55:10.000Z"
+          }
+        ],
+        "seasonCount": 1
+      }
+    ],
+    "issues": [],
+    "seasons": []
+  },
+  "watchProviders": [
+    {
+      "iso_3166_1": "AD",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=AD",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "AE",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=AE",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "AG",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=AG",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "AL",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=AL",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "AO",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=AO",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "AR",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=AR",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "AT",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=AT",
+      "buy": [
+        {
+          "displayPriority": 5,
+          "logoPath": "/jn6TLbtaTZntTRX9UYucHJvpQx1.png",
+          "id": 10,
+          "name": "Amazon Video"
+        },
+        {
+          "displayPriority": 15,
+          "logoPath": "/mjB4eyswPoC0XeJPUd1W1oitOlh.png",
+          "id": 20,
+          "name": "maxdome Store"
+        }
+      ],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "AU",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=AU",
+      "buy": [
+        {
+          "displayPriority": 15,
+          "logoPath": "/qdEGArH3lKfFnAtYXMkSYk5wxuG.png",
+          "id": 2,
+          "name": "Apple TV Store"
+        },
+        {
+          "displayPriority": 16,
+          "logoPath": "/jn6TLbtaTZntTRX9UYucHJvpQx1.png",
+          "id": 10,
+          "name": "Amazon Video"
+        },
+        {
+          "displayPriority": 32,
+          "logoPath": "/hFTUerTxMwrM9RIo9z48qxCsi7z.png",
+          "id": 436,
+          "name": "Fetch TV"
+        }
+      ],
+      "flatrate": [
+        {
+          "displayPriority": 14,
+          "logoPath": "/6dOWQKIRIxDmX5FD4g5dPsHxFn3.png",
+          "id": 21,
+          "name": "Stan"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "AZ",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=AZ",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "BA",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=BA",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "BB",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=BB",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "BE",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=BE",
+      "buy": [
+        {
+          "displayPriority": 32,
+          "logoPath": "/jn6TLbtaTZntTRX9UYucHJvpQx1.png",
+          "id": 10,
+          "name": "Amazon Video"
+        }
+      ],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "BG",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=BG",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "BH",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=BH",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "BO",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=BO",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "BR",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=BR",
+      "buy": [
+        {
+          "displayPriority": 13,
+          "logoPath": "/jn6TLbtaTZntTRX9UYucHJvpQx1.png",
+          "id": 10,
+          "name": "Amazon Video"
+        }
+      ],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        },
+        {
+          "displayPriority": 40,
+          "logoPath": "/eGUwOOIxcazwEBxqJpSN5sWEu6V.png",
+          "id": 1796,
+          "name": "Netflix Standard with Ads"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "BS",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=BS",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "BY",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=BY",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "BZ",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=BZ",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "CA",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=CA",
+      "buy": [
+        {
+          "displayPriority": 7,
+          "logoPath": "/qdEGArH3lKfFnAtYXMkSYk5wxuG.png",
+          "id": 2,
+          "name": "Apple TV Store"
+        },
+        {
+          "displayPriority": 57,
+          "logoPath": "/jn6TLbtaTZntTRX9UYucHJvpQx1.png",
+          "id": 10,
+          "name": "Amazon Video"
+        }
+      ],
+      "flatrate": [
+        {
+          "displayPriority": 4,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        },
+        {
+          "displayPriority": 92,
+          "logoPath": "/eGUwOOIxcazwEBxqJpSN5sWEu6V.png",
+          "id": 1796,
+          "name": "Netflix Standard with Ads"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "CH",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=CH",
+      "buy": [
+        {
+          "displayPriority": 71,
+          "logoPath": "/jn6TLbtaTZntTRX9UYucHJvpQx1.png",
+          "id": 10,
+          "name": "Amazon Video"
+        }
+      ],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "CI",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=CI",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "CL",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=CL",
+      "buy": [
+        {
+          "displayPriority": 54,
+          "logoPath": "/jn6TLbtaTZntTRX9UYucHJvpQx1.png",
+          "id": 10,
+          "name": "Amazon Video"
+        }
+      ],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "CM",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=CM",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "CO",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=CO",
+      "buy": [
+        {
+          "displayPriority": 55,
+          "logoPath": "/jn6TLbtaTZntTRX9UYucHJvpQx1.png",
+          "id": 10,
+          "name": "Amazon Video"
+        }
+      ],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "CR",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=CR",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "CU",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=CU",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "CV",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=CV",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "CY",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=CY",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "CZ",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=CZ",
+      "buy": [
+        {
+          "displayPriority": 39,
+          "logoPath": "/jn6TLbtaTZntTRX9UYucHJvpQx1.png",
+          "id": 10,
+          "name": "Amazon Video"
+        }
+      ],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "DE",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=DE",
+      "buy": [
+        {
+          "displayPriority": 6,
+          "logoPath": "/qdEGArH3lKfFnAtYXMkSYk5wxuG.png",
+          "id": 2,
+          "name": "Apple TV Store"
+        },
+        {
+          "displayPriority": 8,
+          "logoPath": "/jn6TLbtaTZntTRX9UYucHJvpQx1.png",
+          "id": 10,
+          "name": "Amazon Video"
+        },
+        {
+          "displayPriority": 17,
+          "logoPath": "/f1uWfExJA6DSAvuTL0YJ9Kyftfg.png",
+          "id": 178,
+          "name": "MagentaTV"
+        },
+        {
+          "displayPriority": 20,
+          "logoPath": "/mjB4eyswPoC0XeJPUd1W1oitOlh.png",
+          "id": 20,
+          "name": "maxdome Store"
+        },
+        {
+          "displayPriority": 105,
+          "logoPath": "/kWgg0b4wHDr4pwSyOXVK8nAsNKB.png",
+          "id": 1993,
+          "name": "Videoload"
+        }
+      ],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        },
+        {
+          "displayPriority": 85,
+          "logoPath": "/eGUwOOIxcazwEBxqJpSN5sWEu6V.png",
+          "id": 1796,
+          "name": "Netflix Standard with Ads"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "DK",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=DK",
+      "buy": [
+        {
+          "displayPriority": 14,
+          "logoPath": "/q8EUxAMcTw7qjdMKMcTPLl06gum.png",
+          "id": 423,
+          "name": "Blockbuster"
+        },
+        {
+          "displayPriority": 15,
+          "logoPath": "/fVuqy8kmzsULoJjc3ROOcurRH7S.png",
+          "id": 426,
+          "name": "SF Anytime"
+        },
+        {
+          "displayPriority": 45,
+          "logoPath": "/jn6TLbtaTZntTRX9UYucHJvpQx1.png",
+          "id": 10,
+          "name": "Amazon Video"
+        }
+      ],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "DO",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=DO",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "DZ",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=DZ",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "EC",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=EC",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "EE",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=EE",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "EG",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=EG",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "ES",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=ES",
+      "buy": [
+        {
+          "displayPriority": 34,
+          "logoPath": "/jn6TLbtaTZntTRX9UYucHJvpQx1.png",
+          "id": 10,
+          "name": "Amazon Video"
+        }
+      ],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        },
+        {
+          "displayPriority": 52,
+          "logoPath": "/eGUwOOIxcazwEBxqJpSN5sWEu6V.png",
+          "id": 1796,
+          "name": "Netflix Standard with Ads"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "FI",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=FI",
+      "buy": [
+        {
+          "displayPriority": 12,
+          "logoPath": "/q8EUxAMcTw7qjdMKMcTPLl06gum.png",
+          "id": 423,
+          "name": "Blockbuster"
+        },
+        {
+          "displayPriority": 13,
+          "logoPath": "/fVuqy8kmzsULoJjc3ROOcurRH7S.png",
+          "id": 426,
+          "name": "SF Anytime"
+        },
+        {
+          "displayPriority": 51,
+          "logoPath": "/jn6TLbtaTZntTRX9UYucHJvpQx1.png",
+          "id": 10,
+          "name": "Amazon Video"
+        }
+      ],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "FJ",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=FJ",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "FR",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=FR",
+      "buy": [
+        {
+          "displayPriority": 6,
+          "logoPath": "/qdEGArH3lKfFnAtYXMkSYk5wxuG.png",
+          "id": 2,
+          "name": "Apple TV Store"
+        },
+        {
+          "displayPriority": 11,
+          "logoPath": "/73lu1dtE9uJLWK1laXpeaAFh48j.png",
+          "id": 61,
+          "name": "Orange VOD"
+        },
+        {
+          "displayPriority": 16,
+          "logoPath": "/51fX3l4yElitnfui0IkbMUmfmgF.png",
+          "id": 58,
+          "name": "Canal VOD"
+        },
+        {
+          "displayPriority": 34,
+          "logoPath": "/jn6TLbtaTZntTRX9UYucHJvpQx1.png",
+          "id": 10,
+          "name": "Amazon Video"
+        },
+        {
+          "displayPriority": 74,
+          "logoPath": "/uzTONLCUH92RRMSzs206OYtWVml.png",
+          "id": 2286,
+          "name": "VIVA by videofutur"
+        },
+        {
+          "displayPriority": 76,
+          "logoPath": "/yERf5EH3GjWMB0ZSWPaov1kCKrR.png",
+          "id": 2307,
+          "name": "Premiere Max"
+        }
+      ],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        },
+        {
+          "displayPriority": 49,
+          "logoPath": "/eGUwOOIxcazwEBxqJpSN5sWEu6V.png",
+          "id": 1796,
+          "name": "Netflix Standard with Ads"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "GB",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=GB",
+      "buy": [
+        {
+          "displayPriority": 6,
+          "logoPath": "/qdEGArH3lKfFnAtYXMkSYk5wxuG.png",
+          "id": 2,
+          "name": "Apple TV Store"
+        },
+        {
+          "displayPriority": 10,
+          "logoPath": "/jn6TLbtaTZntTRX9UYucHJvpQx1.png",
+          "id": 10,
+          "name": "Amazon Video"
+        },
+        {
+          "displayPriority": 20,
+          "logoPath": "/nNkZ1JKe6vNhzti14KiKEUWHE6H.png",
+          "id": 130,
+          "name": "Sky Store"
+        }
+      ],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        },
+        {
+          "displayPriority": 86,
+          "logoPath": "/eGUwOOIxcazwEBxqJpSN5sWEu6V.png",
+          "id": 1796,
+          "name": "Netflix Standard with Ads"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "GF",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=GF",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "GG",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=GG",
+      "buy": [
+        {
+          "displayPriority": 81,
+          "logoPath": "/jn6TLbtaTZntTRX9UYucHJvpQx1.png",
+          "id": 10,
+          "name": "Amazon Video"
+        }
+      ],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "GH",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=GH",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "GQ",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=GQ",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "GR",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=GR",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "GT",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=GT",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "HK",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=HK",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "HN",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=HN",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "HU",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=HU",
+      "buy": [
+        {
+          "displayPriority": 36,
+          "logoPath": "/jn6TLbtaTZntTRX9UYucHJvpQx1.png",
+          "id": 10,
+          "name": "Amazon Video"
+        }
+      ],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "ID",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=ID",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "IE",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=IE",
+      "buy": [
+        {
+          "displayPriority": 10,
+          "logoPath": "/nNkZ1JKe6vNhzti14KiKEUWHE6H.png",
+          "id": 130,
+          "name": "Sky Store"
+        },
+        {
+          "displayPriority": 43,
+          "logoPath": "/jn6TLbtaTZntTRX9UYucHJvpQx1.png",
+          "id": 10,
+          "name": "Amazon Video"
+        }
+      ],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "IL",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=IL",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "IN",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=IN",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "IQ",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=IQ",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "IS",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=IS",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "IT",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=IT",
+      "buy": [
+        {
+          "displayPriority": 35,
+          "logoPath": "/jn6TLbtaTZntTRX9UYucHJvpQx1.png",
+          "id": 10,
+          "name": "Amazon Video"
+        }
+      ],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "JM",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=JM",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "JO",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=JO",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "JP",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=JP",
+      "buy": [
+        {
+          "displayPriority": 7,
+          "logoPath": "/jn6TLbtaTZntTRX9UYucHJvpQx1.png",
+          "id": 10,
+          "name": "Amazon Video"
+        }
+      ],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        },
+        {
+          "displayPriority": 5,
+          "logoPath": "/44uAnmSqvA4yBOdbPWN8YgQHjWm.png",
+          "id": 15,
+          "name": "Hulu"
+        },
+        {
+          "displayPriority": 23,
+          "logoPath": "/eGUwOOIxcazwEBxqJpSN5sWEu6V.png",
+          "id": 1796,
+          "name": "Netflix Standard with Ads"
+        },
+        {
+          "displayPriority": 64,
+          "logoPath": "/dxwJfLhqjYTmSFJAUxD8uJciVP9.png",
+          "id": 2517,
+          "name": "BS10 STAR CHANNEL EX Amazon Channel"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "KE",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=KE",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "KR",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=KR",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        },
+        {
+          "displayPriority": 25,
+          "logoPath": "/eGUwOOIxcazwEBxqJpSN5sWEu6V.png",
+          "id": 1796,
+          "name": "Netflix Standard with Ads"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "KW",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=KW",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "LB",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=LB",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "LC",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=LC",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "LI",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=LI",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "LT",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=LT",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "LU",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=LU",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "LV",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=LV",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "LY",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=LY",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "MA",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=MA",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "MC",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=MC",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "ME",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=ME",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "MG",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=MG",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "MK",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=MK",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "ML",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=ML",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "MT",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=MT",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "MU",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=MU",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "MX",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=MX",
+      "buy": [
+        {
+          "displayPriority": 8,
+          "logoPath": "/jn6TLbtaTZntTRX9UYucHJvpQx1.png",
+          "id": 10,
+          "name": "Amazon Video"
+        }
+      ],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        },
+        {
+          "displayPriority": 39,
+          "logoPath": "/eGUwOOIxcazwEBxqJpSN5sWEu6V.png",
+          "id": 1796,
+          "name": "Netflix Standard with Ads"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "MY",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=MY",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "MZ",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=MZ",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "NE",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=NE",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "NG",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=NG",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "NI",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=NI",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "NL",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=NL",
+      "buy": [
+        {
+          "displayPriority": 35,
+          "logoPath": "/jn6TLbtaTZntTRX9UYucHJvpQx1.png",
+          "id": 10,
+          "name": "Amazon Video"
+        }
+      ],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "NO",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=NO",
+      "buy": [
+        {
+          "displayPriority": 14,
+          "logoPath": "/q8EUxAMcTw7qjdMKMcTPLl06gum.png",
+          "id": 423,
+          "name": "Blockbuster"
+        },
+        {
+          "displayPriority": 15,
+          "logoPath": "/fVuqy8kmzsULoJjc3ROOcurRH7S.png",
+          "id": 426,
+          "name": "SF Anytime"
+        },
+        {
+          "displayPriority": 47,
+          "logoPath": "/jn6TLbtaTZntTRX9UYucHJvpQx1.png",
+          "id": 10,
+          "name": "Amazon Video"
+        }
+      ],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "NZ",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=NZ",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 5,
+          "logoPath": "/68KYULhVkHI6TVrmPSE0LlPXB1U.png",
+          "id": 273,
+          "name": "Neon TV"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "OM",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=OM",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "PA",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=PA",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "PE",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=PE",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "PF",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=PF",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "PH",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=PH",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "PK",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=PK",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "PL",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=PL",
+      "buy": [
+        {
+          "displayPriority": 26,
+          "logoPath": "/jn6TLbtaTZntTRX9UYucHJvpQx1.png",
+          "id": 10,
+          "name": "Amazon Video"
+        }
+      ],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "PT",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=PT",
+      "buy": [
+        {
+          "displayPriority": 42,
+          "logoPath": "/jn6TLbtaTZntTRX9UYucHJvpQx1.png",
+          "id": 10,
+          "name": "Amazon Video"
+        }
+      ],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "PY",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=PY",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "QA",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=QA",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "RO",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=RO",
+      "buy": [
+        {
+          "displayPriority": 34,
+          "logoPath": "/jn6TLbtaTZntTRX9UYucHJvpQx1.png",
+          "id": 10,
+          "name": "Amazon Video"
+        }
+      ],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "RS",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=RS",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "RU",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=RU",
+      "buy": [],
+      "flatrate": []
+    },
+    {
+      "iso_3166_1": "SA",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=SA",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "SC",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=SC",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "SE",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=SE",
+      "buy": [
+        {
+          "displayPriority": 14,
+          "logoPath": "/q8EUxAMcTw7qjdMKMcTPLl06gum.png",
+          "id": 423,
+          "name": "Blockbuster"
+        },
+        {
+          "displayPriority": 15,
+          "logoPath": "/fVuqy8kmzsULoJjc3ROOcurRH7S.png",
+          "id": 426,
+          "name": "SF Anytime"
+        },
+        {
+          "displayPriority": 37,
+          "logoPath": "/jn6TLbtaTZntTRX9UYucHJvpQx1.png",
+          "id": 10,
+          "name": "Amazon Video"
+        }
+      ],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "SG",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=SG",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "SI",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=SI",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "SK",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=SK",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "SM",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=SM",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "SN",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=SN",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "SV",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=SV",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "TC",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=TC",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "TD",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=TD",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "TH",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=TH",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "TN",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=TN",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "TR",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=TR",
+      "buy": [
+        {
+          "displayPriority": 36,
+          "logoPath": "/jn6TLbtaTZntTRX9UYucHJvpQx1.png",
+          "id": 10,
+          "name": "Amazon Video"
+        }
+      ],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "TT",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=TT",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "TW",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=TW",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "TZ",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=TZ",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "UG",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=UG",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "US",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=US",
+      "buy": [
+        {
+          "displayPriority": 9,
+          "logoPath": "/jn6TLbtaTZntTRX9UYucHJvpQx1.png",
+          "id": 10,
+          "name": "Amazon Video"
+        },
+        {
+          "displayPriority": 10,
+          "logoPath": "/qdEGArH3lKfFnAtYXMkSYk5wxuG.png",
+          "id": 2,
+          "name": "Apple TV Store"
+        },
+        {
+          "displayPriority": 23,
+          "logoPath": "/aZRENwYILujqs0RVOZutTh0BVGV.png",
+          "id": 3,
+          "name": "Google Play Movies"
+        },
+        {
+          "displayPriority": 40,
+          "logoPath": "/wpOt6x0dRxTrIzuBosto4LGd7E9.png",
+          "id": 7,
+          "name": "Fandango At Home"
+        }
+      ],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        },
+        {
+          "displayPriority": 152,
+          "logoPath": "/eGUwOOIxcazwEBxqJpSN5sWEu6V.png",
+          "id": 1796,
+          "name": "Netflix Standard with Ads"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "UY",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=UY",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 1,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "VE",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=VE",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "YE",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=YE",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "ZA",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=ZA",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "ZM",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=ZM",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    },
+    {
+      "iso_3166_1": "ZW",
+      "link": "https://www.themoviedb.org/tv/1396-breaking-bad/watch?locale=ZW",
+      "buy": [],
+      "flatrate": [
+        {
+          "displayPriority": 0,
+          "logoPath": "/rK1KljqmbvO9HQa1PBFLILWah72.png",
+          "id": 8,
+          "name": "Netflix"
+        }
+      ]
+    }
+  ],
+  "onUserWatchlist": false
+}
