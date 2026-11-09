@@ -1,12 +1,12 @@
-import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { type ServiceId, serviceOf } from '../config/schema.ts';
+import type { ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
-import { hasBookDelete, hasMediaDelete, hasMediaDetails, type BookDeleteCapable, type ServiceAdapter } from '../services/types.ts';
+import { hasBookDelete, hasMediaDelete, hasMediaDetails, type BookDeleteCapable, type MediaDeleteCapable, type ServiceAdapter } from '../services/types.ts';
 import { arrSubject } from './crossChecks.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 import { titled } from '../core/labels.ts';
+import { targetInput, writeTarget } from './writeTarget.ts';
 
 /**
  * The first destructive-tier write. Everything the harness does matters more
@@ -30,15 +30,11 @@ function humanSize(bytes: number | undefined): string | undefined {
     return bytes >= GIB ? `${(bytes / GIB).toFixed(1)} GB` : `${Math.round(bytes / 1024 ** 2)} MB`;
 }
 
-const findAdapter = (adapters: readonly ServiceAdapter[], service: ServiceId, instance?: string) => {
-    const adapter = resolveInstance(adapters, service, instance);
-    if (!hasMediaDelete(adapter) && !hasBookDelete(adapter)) {
-        throw new ServiceError('NotFound', service, `${service} has no media to delete`, {
-            remedy: 'Only radarr, sonarr, whisparr, lidarr and grimmory manage media that delete_media can remove.'
-        });
-    }
-    return adapter;
-};
+const TARGET = writeTarget({
+    services: ['radarr', 'sonarr', 'whisparr', 'lidarr', 'grimmory'],
+    can: (a): a is ServiceAdapter & (MediaDeleteCapable | BookDeleteCapable) => hasMediaDelete(a) || hasBookDelete(a),
+    cannot: 'has no media to delete'
+});
 
 /** `58` or `grimmory:58`; a book is addressed by its integer id and nothing else. */
 function bookIdOf(id: string): string {
@@ -99,8 +95,7 @@ export function registerDeleteMedia(
         description:
             'Removes a film from Radarr, a whole series (or Whisparr site) from Sonarr or Whisparr, [[lidarr: a whole artist from Lidarr (by artist id, never an album id),]] or a book from Grimmory, optionally deleting its files from disk. Grimmory always deletes the files of a book, so it needs `delete_files: true` and takes no import exclusion. Destructive and not undoable — files are gone, not moved to a recycle bin unless the service itself is configured for one. Takes `service` and `id`, never a title: take `id` from `acquisition.id` on a get_library or get_media_details record. Sonarr and Whisparr delete the entire series/site; to remove one season\'s files or specific episodes, use delete_episode_files instead. Previews first; confirm to delete.',
         inputSchema: z.object({
-            service: serviceOf(['radarr', 'sonarr', 'whisparr', 'lidarr', 'grimmory']),
-            instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
+            ...targetInput(TARGET),
             id: z.string().min(1).describe("The item's id within that service, as an integer string."),
             delete_files: z
                 .boolean()
@@ -115,16 +110,12 @@ export function registerDeleteMedia(
                     'Also add an import exclusion so it is never re-added automatically. Defaults to false.'
                 )
         }),
-        // The resolved instance id, not the bare type: permissions are granted per
-        // instance, so checking `radarr` against a config that only grants
-        // `radarr/hd` would deny a permitted write — or worse, the reverse.
-        service: ({ service, instance }) => findAdapter(adapters, service, instance).id,
+        target: { adapters, to: TARGET },
         operation: 'delete_media',
         tier: 'destructive',
         crossCheck: 'delete',
 
-        async plan({ service, instance, id, delete_files, add_import_exclusion }): Promise<WritePlan> {
-            const adapter = findAdapter(adapters, service, instance);
+        async plan({ service, id, delete_files, add_import_exclusion }, adapter): Promise<WritePlan> {
             if (!hasMediaDelete(adapter)) {
                 return planBook(adapter, id, delete_files, add_import_exclusion);
             }
@@ -194,8 +185,7 @@ export function registerDeleteMedia(
             };
         },
 
-        async apply(_plan, { service, instance, id, delete_files, add_import_exclusion }) {
-            const adapter = findAdapter(adapters, service, instance);
+        async apply(_plan, { id, delete_files, add_import_exclusion }, adapter) {
             if (!hasMediaDelete(adapter)) {
                 const bookId = bookIdOf(id);
                 const outcome = await adapter.deleteBook(bookId);

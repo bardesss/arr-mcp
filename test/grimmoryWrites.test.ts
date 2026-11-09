@@ -742,6 +742,15 @@ describe('update_media on a book', () => {
         expect(Object.keys((puts()[0]!.body as { metadata: object }).metadata).sort()).toEqual(['bookId', 'title']);
     });
 
+    it('writes to the book a prefixed id names', async () => {
+        const { call, puts } = editTool();
+        const args = { service: 'grimmory', id: 'grimmory:58', title: 'New' };
+        const preview = await call(args);
+        const done = await call({ ...args, confirm: preview.structuredContent.confirm_token });
+        expect(done.structuredContent.applied).toBe(true);
+        expect(puts()[0]).toMatchObject({ path: '/api/v1/books/58/metadata', body: { metadata: { bookId: 58, title: 'New' } } });
+    });
+
     it('previews each change from and to, fenced, and says the file may be rewritten', async () => {
         const { call, puts } = editTool();
         const { structuredContent } = await call({ service: 'grimmory', id: '58', title: 'New', authors: ['A B'], series: 'Saga', series_number: 2 });

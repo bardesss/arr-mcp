@@ -1,10 +1,9 @@
-import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { type ServiceId, serviceOf } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { hasQueue, hasQueueRemove, type ServiceAdapter } from '../services/types.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
+import { targetInput, writeTarget } from './writeTarget.ts';
 
 /**
  * "This has been stuck at 0% for two days, get rid of it" — the other thing
@@ -17,15 +16,12 @@ import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts
  * mysteriously never grabs.
  */
 
-const findAdapter = (adapters: readonly ServiceAdapter[], service: ServiceId, instance?: string) => {
-    const adapter = resolveInstance(adapters, service, instance);
-    if (!hasQueueRemove(adapter)) {
-        throw new ServiceError('NotFound', service, `${service} has no download queue`, {
-            remedy: 'Queue items live on radarr, sonarr, whisparr, lidarr, sabnzbd, nzbget, transmission, qbittorrent and shelfmark. Take a service and id from get_queue.'
-        });
-    }
-    return adapter;
-};
+const TARGET = writeTarget({
+    services: ['radarr', 'sonarr', 'whisparr', 'lidarr', 'sabnzbd', 'nzbget', 'transmission', 'qbittorrent', 'shelfmark', 'grimmory'],
+    can: hasQueueRemove,
+    cannot: 'has no download queue',
+    hint: 'Take a service and id from get_queue.'
+});
 
 export function registerRemoveQueueItem(
     server: McpServer,
@@ -38,8 +34,7 @@ export function registerRemoveQueueItem(
         description:
             'Removes one item from a download queue — the stuck-at-0%, wrong-release, or stalled download. Works against Radarr, Sonarr, Whisparr, Lidarr, SABnzbd, NZBGet, Transmission, qBittorrent, Shelfmark and Grimmory; take `service` and `id` from get_queue. Optionally deletes partial data and, on Radarr, Sonarr, Whisparr and Lidarr only, blocklists the release so it will not be grabbed again. On NZBGet, keeping the data parks the download in its history rather than deleting it. On Shelfmark it cancels a queued or running book, and a failed one has nothing to cancel. On Grimmory it discards a file waiting in the Bookdrop, which deletes the file from disk (so `remove_from_client: false` is refused). Previews first; confirm to remove it.',
         inputSchema: z.object({
-            service: serviceOf(['radarr', 'sonarr', 'whisparr', 'lidarr', 'sabnzbd', 'nzbget', 'transmission', 'qbittorrent', 'shelfmark', 'grimmory']),
-            instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
+            ...targetInput(TARGET),
             id: z.string().min(1).describe('The queue item id, exactly as get_queue reported it.'),
             remove_from_client: z
                 .boolean()
@@ -57,12 +52,11 @@ export function registerRemoveQueueItem(
         // The resolved instance id, not the bare type: permissions are granted per
         // instance, so checking `radarr` against a config that only grants
         // `radarr/hd` would deny a permitted write — or worse, the reverse.
-        service: ({ service, instance }) => findAdapter(adapters, service, instance).id,
+        target: { adapters, to: TARGET },
         operation: 'remove_queue_item',
         tier: 'destructive',
 
-        async plan({ service, instance, id, remove_from_client, blocklist }): Promise<WritePlan> {
-            const adapter = findAdapter(adapters, service, instance);
+        async plan({ id, remove_from_client, blocklist }, adapter): Promise<WritePlan> {
 
             // Read the live queue so the preview names the release rather than
             // an opaque id, and so an id that has already finished downloading
@@ -132,8 +126,7 @@ export function registerRemoveQueueItem(
             };
         },
 
-        async apply(_plan, { service, instance, id, remove_from_client, blocklist }) {
-            const adapter = findAdapter(adapters, service, instance);
+        async apply(_plan, { id, remove_from_client, blocklist }, adapter) {
             await adapter.removeQueueItem(id, {
                 removeFromClient: remove_from_client,
                 blocklist: blocklist && adapter.supportsBlocklist
