@@ -180,7 +180,7 @@ export function registerTriggerSearch(
                         service,
                         `Could not find album(s) ${unresolved.join(', ')} on ${label}` +
                             (details.albumsTruncated === true
-                                ? ' — the album list was truncated at ${EPISODE_LIMIT}, so they may simply not have been fetched.'
+                                ? ' — the album list was truncated at 500, so they may simply not have been fetched.'
                                 : '.'),
                         { remedy: 'Check the album ids from get_media_details on this artist, at detail: "full".' }
                     );

@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { type ServiceId} from '../config/schema.ts';
+import { type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { MUSICBRAINZ_ID } from '../services/lidarr.ts';
 import {

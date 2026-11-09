@@ -1,4 +1,4 @@
-import { instancesOfType} from './resolveInstance.ts';
+import { instancesOfType } from './resolveInstance.ts';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { ServiceError } from '../core/errors.ts';
