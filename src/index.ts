@@ -37,6 +37,18 @@ const events = WebhookEvents.open(CONFIG_DIR);
 // Node is PID 1 in the container (`exec gosu`), and PID 1 has no default signal
 // handling: without these handlers SIGTERM is ignored, and `docker stop` waited
 // its 10 s and then sent SIGKILL.
+// Until the real handlers exist, nothing is open beyond the stores, so a stop
+// that lands while the dataset is being opened can simply exit.
+const exitNow = (): void => process.exit(0);
+process.once('SIGTERM', exitNow);
+process.once('SIGINT', exitNow);
+const swapSignalHandlers = (shutdown: (reason: string) => Promise<void>): void => {
+    process.removeListener('SIGTERM', exitNow);
+    process.removeListener('SIGINT', exitNow);
+    process.on('SIGTERM', () => void shutdown('SIGTERM'));
+    process.on('SIGINT', () => void shutdown('SIGINT'));
+};
+
 const closeStores: ShutdownStep[] = [
     { name: 'events', run: () => events.close() },
     { name: 'audit', run: () => audit.close() },
@@ -64,8 +76,7 @@ if (STDIO) {
     // The client closing stdin ends the session. The IMDb refresh timer and
     // the open databases would otherwise keep the process alive.
     process.stdin.once('end', () => void shutdown('stdin closed'));
-    process.on('SIGTERM', () => void shutdown('SIGTERM'));
-    process.on('SIGINT', () => void shutdown('SIGINT'));
+    swapSignalHandlers(shutdown);
 } else {
     const app = await bootstrap({ configDir: CONFIG_DIR, audit, logs, events, sessions, version: VERSION, port: PORT });
 
@@ -77,6 +88,5 @@ if (STDIO) {
         { name: 'runtime', run: () => app.close() },
         ...closeStores
     ]);
-    process.on('SIGTERM', () => void shutdown('SIGTERM'));
-    process.on('SIGINT', () => void shutdown('SIGINT'));
+    swapSignalHandlers(shutdown);
 }

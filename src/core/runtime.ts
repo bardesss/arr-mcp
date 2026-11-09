@@ -137,19 +137,18 @@ export class Runtime {
         // Before the snapshot, not after: the tool context closes over the
         // dataset, so it has to exist by the time it is built.
         const next = this.#prepareDataset(config);
+        try {
+            this.#snapshot = buildSnapshot(config, audit, this.confirm, next.dataset, this.#oauthKeys);
+        } catch (err) {
+            next.opened?.close();
+            throw err;
+        }
         this.#commitDataset(next);
-        this.#snapshot = buildSnapshot(config, audit, this.confirm, this.#dataset, this.#oauthKeys);
     }
 
     /**
-     * Open or close the dataset to match the config — and start or stop its
-     * refresh with it — doing nothing at all when the answer has not changed,
-     * which is the common case on reload.
-     *
-     * The "unchanged" branch is what stops every unrelated save from stacking
-     * up refreshers: editing a timeout reloads the runtime, and a second timer
-     * per edit would mean a day of configuring left a pile of them all
-     * downloading 223 MB on the same schedule.
+     * Opens a dataset when one is wanted and none is open, and starts nothing:
+     * the caller closes `opened` if it never commits.
      *
      * `ImdbDataset.open` touches the filesystem, so it is skipped entirely
      * when there is no real config directory: `fromConfig`'s default is a
@@ -165,8 +164,16 @@ export class Runtime {
     }
 
     /**
-     * The commit half: nothing here can fail on the config, so it runs only
-     * once the snapshot that needs the dataset has been built.
+     * The commit half: opens or closes the dataset to match the config — and
+     * starts or stops its refresh with it — doing nothing at all when the
+     * answer has not changed, which is the common case on reload. Nothing here
+     * can fail on the config, so it runs only once the snapshot that needs the
+     * dataset has been built.
+     *
+     * The "unchanged" branch is what stops every unrelated save from stacking
+     * up refreshers: editing a timeout reloads the runtime, and a second timer
+     * per edit would mean a day of configuring left a pile of them all
+     * downloading 223 MB on the same schedule.
      */
     #commitDataset(next: { dataset: ImdbDataset | undefined; opened: ImdbDataset | undefined }): void {
         if (next.opened !== undefined) {

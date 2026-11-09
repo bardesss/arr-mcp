@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WriteAudit } from '../src/core/audit.ts';
 import { Runtime } from '../src/core/runtime.ts';
+import { ImdbDataset } from '../src/metadata/imdbDataset.ts';
 
 // The first load taken while `hold` is set reads the file, reports `read`, then waits for `hold`.
 const gate = vi.hoisted(() => ({ hold: undefined as Promise<void> | undefined, read: undefined as (() => void) | undefined, calls: 0, failBuild: false }));
@@ -109,8 +110,22 @@ describe('Runtime.reload', () => {
         const runtime = Runtime.fromConfig(config, audit, { configDir: dir, refresh });
         await writeFile(join(dir, 'config.yaml'), 'auth:\n  username: first\nservices: {}\nmetadata:\n  imdb:\n    enabled: true\n', 'utf8');
         gate.failBuild = true;
+        const close = vi.spyOn(ImdbDataset.prototype, 'close');
         await expect(runtime.reload()).rejects.toThrow('build failed');
+        expect(close).toHaveBeenCalledTimes(1);
         expect(refresh).not.toHaveBeenCalled();
         expect(runtime.dataset).toBeUndefined();
+    });
+
+    it('opens no refresh and closes the dataset when the first snapshot cannot be built', async () => {
+        const { dir } = await seeded();
+        const refresh = vi.fn(() => () => {});
+        const { config } = await loadConfig(dir);
+        config.metadata = { imdb: { enabled: true } } as typeof config.metadata;
+        const close = vi.spyOn(ImdbDataset.prototype, 'close');
+        gate.failBuild = true;
+        expect(() => Runtime.fromConfig(config, audit, { configDir: dir, refresh })).toThrow('build failed');
+        expect(refresh).not.toHaveBeenCalled();
+        expect(close).toHaveBeenCalledTimes(1);
     });
 });
