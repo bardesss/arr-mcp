@@ -37,6 +37,7 @@ import {
     type SeedCriteriaCapable,
     type ServiceAdapter
 } from './types.ts';
+import { compareVersions, parseVersion } from './versions.ts';
 
 type RawStatus = components['schemas']['SystemResource'];
 type RawHealthCheck = components['schemas']['HealthResource'];
@@ -165,6 +166,7 @@ export class ProwlarrAdapter
         ]);
         const indexer = indexers.find(i => i.id === id);
         if (indexer === undefined) return undefined;
+        const parsed = parseVersion(version);
         const tags = indexer.tags ?? [];
 
         return {
@@ -180,7 +182,7 @@ export class ProwlarrAdapter
                 ...categoriesOf(indexer)
             },
             apps: appsFor(apps),
-            bulkEdit: atLeast(version, 1, 8)
+            bulkEdit: parsed !== undefined && compareVersions(parsed, [1, 8]) >= 0
         };
     }
 
@@ -505,11 +507,6 @@ const appsFor = (apps: RawApplication[]): IndexerSyncApp[] =>
             ...(synced.length === 0 ? {} : { categories })
         };
     });
-
-const atLeast = (version: string, major: number, minor: number): boolean => {
-    const [a = 0, b = 0] = version.split('.').map(Number);
-    return a > major || (a === major && b >= minor);
-};
 
 const syncLevelOf = (raw: string | undefined): IndexerSyncLevel =>
     raw === 'addOnly' || raw === 'fullSync' ? raw : 'disabled';
