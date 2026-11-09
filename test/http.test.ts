@@ -600,6 +600,38 @@ describe('ServiceHttp circuit breaker', () => {
         expect(calls).toBe(6);
     });
 
+    it('admits only one trial while half-open, refusing the rest until it answers', async () => {
+        vi.useFakeTimers();
+        try {
+            let calls = 0;
+            let answer: ((r: Response) => void) | undefined;
+            let failing = true;
+            const client = http(async () => {
+                calls += 1;
+                if (failing) throw refusedError();
+                return new Promise<Response>(resolve => {
+                    answer = resolve;
+                });
+            });
+            for (let i = 0; i < 5; i += 1) await expect(client.get('/x')).rejects.toThrow();
+            const callsAfterFive = calls;
+            vi.advanceTimersByTime(60_001);
+            failing = false;
+            const trial = client.get('/x');
+            await expect(client.get('/x')).rejects.toThrow(/circuit/i);
+            expect(calls).toBe(callsAfterFive + 1);
+            answer?.(json({ ok: true }));
+            expect(await trial).toEqual({ ok: true });
+            answer = undefined;
+            const after = client.get('/x');
+            await vi.waitFor(() => expect(answer).toBeDefined());
+            (answer as ((r: Response) => void) | undefined)?.(json({ ok: true }));
+            expect(await after).toEqual({ ok: true });
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
     it('admits a single trial request after the cooldown', async () => {
         vi.useFakeTimers();
         try {

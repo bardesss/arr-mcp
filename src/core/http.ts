@@ -81,6 +81,7 @@ export class ServiceHttp {
 
     #consecutiveFailures = 0;
     #openedAt: number | undefined;
+    #trialInFlight = false;
 
     /**
      * `opts.closeConnection` sends `Connection: close` on every request, for a
@@ -262,15 +263,7 @@ export class ServiceHttp {
         timeoutMs?: number,
         extraHeaders?: Record<string, string>
     ): Promise<T> {
-        if (this.#circuitOpen()) {
-            throw new ServiceError(
-                'Unreachable',
-                this.#id,
-                `circuit breaker is open after ${CIRCUIT_THRESHOLD} consecutive failures`,
-                { remedy: `Not retried for ${CIRCUIT_COOLDOWN_MS / 1000}s. Fix the service, then try again.` }
-            );
-        }
-
+        const admission = this.#admit();
         try {
             const result = await this.#attempt<T>(method, path, body, true, read, timeoutMs, extraHeaders);
             this.#recordSuccess();
@@ -282,12 +275,14 @@ export class ServiceHttp {
                     this.#recordSuccess();
                     return result;
                 } catch (retryErr) {
-                    this.#record(retryErr);
+                    this.#record(retryErr, admission);
                     throw retryErr;
                 }
             }
-            this.#record(err);
+            this.#record(err, admission);
             throw err;
+        } finally {
+            if (admission === 'trial') this.#trialInFlight = false;
         }
     }
 
@@ -300,9 +295,9 @@ export class ServiceHttp {
      * missing-id lookups in a row making a healthy Radarr unreachable for the
      * whole cooldown, calls that would have worked included.
      */
-    #record(err: unknown): void {
+    #record(err: unknown, admission: 'closed' | 'trial'): void {
         if (err instanceof ServiceError && err.kind === 'NotFound') this.#recordSuccess();
-        else this.#recordFailure();
+        else this.#recordFailure(admission);
     }
 
     /**
@@ -426,16 +421,23 @@ export class ServiceHttp {
         }
     }
 
-    #circuitOpen(): boolean {
-        if (this.#openedAt === undefined) return false;
-        if (Date.now() - this.#openedAt >= CIRCUIT_COOLDOWN_MS) {
-            // Half-open: admit a single trial request. Leaving the count one
-            // below the threshold means one more failure re-opens immediately.
-            this.#openedAt = undefined;
-            this.#consecutiveFailures = CIRCUIT_THRESHOLD - 1;
-            return false;
+    /**
+     * Half-open admits one trial at a time: after the cooldown the first caller
+     * becomes the trial and everyone else is refused until it answers. A
+     * success closes the circuit; a failure re-opens it for another cooldown.
+     */
+    #admit(): 'closed' | 'trial' {
+        if (this.#openedAt === undefined) return 'closed';
+        if (this.#trialInFlight || Date.now() - this.#openedAt < CIRCUIT_COOLDOWN_MS) {
+            throw new ServiceError(
+                'Unreachable',
+                this.#id,
+                `circuit breaker is open after ${CIRCUIT_THRESHOLD} consecutive failures`,
+                { remedy: `Not retried for ${CIRCUIT_COOLDOWN_MS / 1000}s. Fix the service, then try again.` }
+            );
         }
-        return true;
+        this.#trialInFlight = true;
+        return 'trial';
     }
 
     #recordSuccess(): void {
@@ -443,7 +445,12 @@ export class ServiceHttp {
         this.#openedAt = undefined;
     }
 
-    #recordFailure(): void {
+    #recordFailure(admission: 'closed' | 'trial'): void {
+        if (admission === 'trial') {
+            this.#openedAt = Date.now();
+            logger.warn({ service: this.#id }, 'circuit breaker re-opened after a failed trial');
+            return;
+        }
         this.#consecutiveFailures += 1;
         if (this.#consecutiveFailures >= CIRCUIT_THRESHOLD && this.#openedAt === undefined) {
             this.#openedAt = Date.now();
