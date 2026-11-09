@@ -1,5 +1,5 @@
 import type { CredentialServiceConfig, KeyedServiceConfig } from '../src/config/schema.ts';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -8,7 +8,7 @@ import { ConfigSchema } from '../src/config/schema.ts';
 import { appResource } from '../src/api/resources.ts';
 import { listInstances } from '../src/config/instances.ts';
 import { loadConfig } from '../src/config/load.ts';
-import { writeFileAtomic } from '../src/core/atomicFile.ts';
+import { writeFileAtomic, writeFileAtomicSync } from '../src/core/atomicFile.ts';
 import { saveConfig } from '../src/config/save.ts';
 
 /** The list form makes each service key a union; every assertion here is
@@ -1065,6 +1065,20 @@ auth:
 });
 
 describe('writeFileAtomic', () => {
+    it('removes its temp file when the rename fails', async () => {
+        const dir = await freshDir();
+        const path = join(dir, 'config.yaml');
+        await mkdir(path); // a directory where the file goes: rename fails (EISDIR on Linux, EPERM on Windows)
+        await expect(writeFileAtomic(path, 'api_key: secret\n')).rejects.toThrow();
+        expect(await readdir(dir)).toEqual(['config.yaml']);
+    });
+    it('removes its temp file when a synchronous rename fails', async () => {
+        const dir = await freshDir();
+        const path = join(dir, 'sessions.json');
+        await mkdir(path);
+        expect(() => writeFileAtomicSync(path, '{}')).toThrow();
+        expect(await readdir(dir)).toEqual(['sessions.json']);
+    });
     // `saveConfig` serialises its writes through a queue; callers that reach
     // `writeFileAtomic` directly — the repair page and the bearer-token
     // backfill — did not, so two of them raced the rename. On Windows that
