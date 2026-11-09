@@ -506,6 +506,19 @@ describe('PlexAdapter', () => {
             expect(items.find(i => i.title.includes('Partly'))?.playback?.watched).toBe(false);
         });
 
+        it('marks a show with no episodes empty (#535), and nothing else', async () => {
+            const { adapter } = plex({
+                '/library/sections': { MediaContainer: { Directory: [{ key: '2', type: 'show' }] } },
+                [`/library/sections/2/all${withPaging(0)}`]: page([
+                    { ratingKey: 's1', title: 'Empty', viewedLeafCount: 0, leafCount: 0 },
+                    { ratingKey: 's2', title: 'Full', viewedLeafCount: 0, leafCount: 4 }
+                ])
+            });
+            const items = await adapter.listUserLibrary({ id: '1', name: 'Bartus' });
+            expect(items.find(i => i.title.includes('Empty'))?.playback?.empty).toBe(true);
+            expect(items.find(i => i.title.includes('Full'))?.playback).not.toHaveProperty('empty');
+        });
+
         it('omits watched for a series with no leaf counts, rather than guessing from viewCount', async () => {
             const { adapter } = plex({
                 '/library/sections': { MediaContainer: { Directory: [{ key: '2', type: 'show' }] } },

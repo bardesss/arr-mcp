@@ -321,7 +321,7 @@ describe('Jellyfin.listUserMusic', () => {
 
 describe('Jellyfin.listUserLibrary', () => {
     const path =
-        '/Items?userId=u1&Recursive=true&IncludeItemTypes=Movie,Series&Fields=ProviderIds,Genres,OriginalTitle&EnableUserData=true';
+        '/Items?userId=u1&Recursive=true&IncludeItemTypes=Movie,Series&Fields=ProviderIds,Genres,OriginalTitle,RecursiveItemCount&EnableUserData=true';
     const adapter = () => new JellyfinAdapter(multi, serving({ [path]: ITEMS }));
     const user = { id: 'u1', name: 'Someone' };
 
@@ -651,5 +651,21 @@ describe('Jellyfin.getWatchHistory with the activity log', () => {
     it('still answers from IsPlayed when the activity log cannot be read', async () => {
         const entries = await new JellyfinAdapter(multi, serving({ [HISTORY_ROUTE]: HISTORY })).getWatchHistory(someone);
         expect(entries.map(e => e.itemId)).toEqual(['h-1']);
+    });
+});
+
+describe('Jellyfin.listUserLibrary empty series (#535)', () => {
+    const path =
+        '/Items?userId=u1&Recursive=true&IncludeItemTypes=Movie,Series&Fields=ProviderIds,Genres,OriginalTitle,RecursiveItemCount&EnableUserData=true';
+    it('marks a series with no episodes empty, and leaves films and full series alone', async () => {
+        const items = {
+            Items: [
+                { Id: 'a', Name: 'Empty Show', Type: 'Series', RecursiveItemCount: 0 },
+                { Id: 'b', Name: 'Full Show', Type: 'Series', RecursiveItemCount: 7 },
+                { Id: 'c', Name: 'A Film', Type: 'Movie', RecursiveItemCount: 0 }
+            ]
+        };
+        const rows = await new JellyfinAdapter(multi, serving({ [path]: items })).listUserLibrary({ id: 'u1', name: 'Someone' });
+        expect(rows.map(r => r.playback?.empty)).toEqual([true, undefined, undefined]);
     });
 });
