@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
+import { INSTANCE_PARAM_DESCRIPTION, instancesOfType, resolveInstance } from './resolveInstance.ts';
 import type { ServiceId } from '../config/schema.ts';
 import { ServiceIdSchema } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
@@ -174,14 +174,21 @@ type EventLogOptions = {
     offset?: number;
 };
 
+/** Every configured instance's id; none configured is `resolveInstance`'s refusal. */
+function everyInstance(adapters: readonly ServiceAdapter[], service: ServiceId): string[] {
+    const all = instancesOfType(adapters, service);
+    return all.length === 0 ? [resolveInstance(adapters, service).id] : all.map(a => a.id);
+}
+
 /**
  * `source: "webhooks"`: what Radarr and Sonarr reported, read from arr-mcp's own
  * store. A separate read from `buildGetHistory`, because a stored row and the
  * service's own row for the same grab would otherwise both appear.
  *
- * `service` goes through `resolveInstance`, so a stack with two Radarrs is asked
- * which, as the default source asks. That means events from an instance since
- * removed from the config are reachable only without a `service`.
+ * `service` scopes the same way the default source does: with an `id` or an
+ * `instance` it is one instance, alone it is every configured instance of it.
+ * Events from an instance since removed from the config are reachable only
+ * without a `service`.
  */
 export function readEventLog(
     adapters: readonly ServiceAdapter[],
@@ -197,7 +204,14 @@ export function readEventLog(
             remedy: 'The event log only holds what Radarr and Sonarr report. Leave `source` out to read the service\'s own history.'
         });
     }
-    const service = opts.service === undefined ? undefined : resolveInstance(adapters, opts.service, opts.instance).id;
+    // As the default source: an id or a named instance is one instance, a
+    // service alone is every configured instance of it.
+    const service =
+        opts.service === undefined
+            ? undefined
+            : opts.id !== undefined || (opts.instance !== undefined && opts.instance !== '')
+              ? resolveInstance(adapters, opts.service, opts.instance).id
+              : everyInstance(adapters, opts.service);
     const query = {
         ...(service === undefined ? {} : { service }),
         ...(opts.id === undefined ? {} : { id: opts.id }),

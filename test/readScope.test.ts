@@ -4,6 +4,7 @@ import type { KeyedServiceConfig } from '../src/config/schema.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
 import { buildGetBlocklist } from '../src/tools/getBlocklist.ts';
+import { buildGetHistory } from '../src/tools/getHistory.ts';
 import { buildGetWanted } from '../src/tools/getWanted.ts';
 import { registerLookupMedia } from '../src/tools/lookupMedia.ts';
 import { registerSearchMedia } from '../src/tools/searchMedia.ts';
@@ -52,6 +53,38 @@ describe('a read scoped to a service', () => {
         const uhd = new RadarrAdapter(keyed(7879, '4k'), wanted([{ id: 2, title: 'Aliens', monitored: true, hasFile: false }]));
         const result = await buildGetWanted([hd, uhd], { service: 'radarr', scope: 'missing', detail: 'full', limit: 50 });
         expect(result.items.map(i => i.service).sort()).toEqual(['radarr/4k', 'radarr/hd']);
+    });
+
+    describe('get_history', () => {
+        const asked: string[] = [];
+        const history = (id: string, total: number) =>
+            ({
+                id,
+                type: 'radarr',
+                instance: id.split('/')[1],
+                getVersion: async () => '5.0.0',
+                testConnection: async () => ({ ok: true, service: id, latency_ms: 1 }),
+                readHistory: async () => {
+                    asked.push(id);
+                    return { items: [{ service: id, at: '2026-11-01T00:00:00Z', title: 'Alien', event: 'grabbed' }], total };
+                }
+            }) as unknown as ServiceAdapter;
+        const both = [history('radarr/hd', 4), history('radarr/4k', 7)];
+
+        it('asks every instance without an id, counting each one whole', async () => {
+            asked.length = 0;
+            const result = await buildGetHistory(both, { service: 'radarr', detail: 'full', limit: 50 });
+            expect(asked.sort()).toEqual(['radarr/4k', 'radarr/hd']);
+            expect(result.counts).toEqual({ 'radarr/hd': 4, 'radarr/4k': 7 });
+            expect(result.total).toBe(11);
+        });
+
+        it('takes one instance with an id, because each has its own ids', async () => {
+            await expect(buildGetHistory(both, { service: 'radarr', id: '12', detail: 'full', limit: 50 })).rejects.toThrow(/instance/);
+            asked.length = 0;
+            await buildGetHistory(both, { service: 'radarr', instance: '4k', id: '12', detail: 'full', limit: 50 });
+            expect(asked).toEqual(['radarr/4k']);
+        });
     });
 
     it('refuses a service that cannot answer, naming every one that can', async () => {
