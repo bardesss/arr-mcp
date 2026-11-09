@@ -17,6 +17,7 @@ import { hashPassword } from '../src/core/session.ts';
 import * as session from '../src/core/session.ts';
 import { hashToken } from '../src/core/secrets.ts';
 import { CONFIG_TABS, configTabForPost } from '../src/web/configPage.ts';
+import { isLoopbackHost } from '../src/web/jwksProbe.ts';
 import { buildMcpConfig } from '../src/web/routes.ts';
 
 /**
@@ -2638,7 +2639,9 @@ describe('the OAuth card', async () => {
     const jwk = { ...(await exportJWK(publicKey)), kid: 'test-key', alg: 'RS256' };
     const MIB = 1024 * 1024;
     const json = { 'content-type': 'application/json' };
+    let served = 0;
     const jwks = createServer((_req, res) => {
+        served += 1;
         if (mode === 'http502') return void res.writeHead(502).end('{}');
         if (mode === 'html') return void res.writeHead(200, { 'content-type': 'text/html' }).end('<html>login</html>');
         if (mode === 'empty') return void res.writeHead(200, json).end('{"keys":[]}');
@@ -2751,6 +2754,12 @@ describe('the OAuth card', async () => {
         expect(runtime.config.services).toEqual(before.services);
     });
 
+    it('still saves a loopback key set', async () => {
+        await signIn();
+        expect((await post('/ui/config/oauth', fields())).status).toBe(200);
+        expect(runtime.config.auth.oauth?.jwks_uri).toBe(JWKS_URI);
+    });
+
     it('pre-fills every field with the current values once configured', async () => {
         await signIn();
         await post('/ui/config/oauth', fields({ 'auth.oauth.scopes.read': 'mcp.read' }));
@@ -2845,9 +2854,25 @@ describe('the OAuth card', async () => {
     });
 
     describe('Test', () => {
+        // Test refuses a loopback key set, so the tests reach the local servers
+        // through a public-looking name that fetch maps back.
+        const REMOTE = 'https://jwks.example.com/jwks';
+        const CLOSED_REMOTE = 'https://closed.example.com/jwks';
+        beforeEach(() => {
+            const real = globalThis.fetch;
+            vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+                const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+                const target = url === REMOTE ? JWKS_URI : url === CLOSED_REMOTE ? CLOSED_URI : input;
+                return real(target, init);
+            });
+        });
+        afterEach(() => {
+            vi.restoreAllMocks();
+        });
+
         const test = async (over: Record<string, string> = {}) => {
             const before = runtime.config;
-            const res = await post('/ui/config/oauth/test', fields(over));
+            const res = await post('/ui/config/oauth/test', fields({ 'auth.oauth.jwks_uri': REMOTE, ...over }));
             const page = await decoded(res);
             // A test never saves, whatever it finds.
             expect(runtime.config).toBe(before);
@@ -2878,13 +2903,13 @@ describe('the OAuth card', async () => {
 
         // jose fetches with `redirect: 'manual'` and wants exactly 200, so a
         // redirect that a browser would follow is a 503 at /mcp.
-        it('reports a redirect without following it, naming the target escaped, and never logs it', async () => {
+        it('reports a redirect without following it, and leaves the target out of the page and the log', async () => {
             await signIn();
             mode = 'redirect';
             attachLogStore(logs);
             let raw: string;
             try {
-                const res = await post('/ui/config/oauth/test', fields());
+                const res = await post('/ui/config/oauth/test', fields({ 'auth.oauth.jwks_uri': REMOTE }));
                 raw = await res.text();
             } finally {
                 detachLogStore();
@@ -2892,11 +2917,42 @@ describe('the OAuth card', async () => {
 
             expect(raw).toContain('HTTP 301');
             expect(raw).toContain('redirects are not followed');
-            // Resolved against jwks_uri, so it can be pasted straight back in.
-            expect(raw).toContain(`${JWKS_URI}/&#39;x&#39;?a=1&amp;b=2`);
+            // The target is the issuer's to name, so it is left out.
+            expect(raw).not.toContain('example.com/jwks/');
+            expect(raw).not.toContain('&#39;x&#39;');
             expect(raw).not.toContain("'x'?a=1&b");
             expect(raw).not.toContain('test-key');
             expect(JSON.stringify(logs.recent({ limit: 50 }))).not.toContain('/jwks/');
+        });
+
+        it('refuses to test a loopback key set, and fetches nothing', async () => {
+            await signIn();
+            const before = runtime.config;
+            const servedBefore = served;
+            const res = await post('/ui/config/oauth/test', fields({ 'auth.oauth.jwks_uri': JWKS_URI }));
+            const page = await decoded(res);
+
+            expect(res.status).toBe(400);
+            expect(page).toContain('class="msg err"');
+            expect(page).toContain('will not test a key set on this machine');
+            expect(served).toBe(servedBefore);
+            expect(runtime.config).toBe(before);
+        });
+
+        it.each([
+            ['localhost', true],
+            ['app.localhost', true],
+            ['127.0.0.1', true],
+            ['127.1.2.3', true],
+            ['::1', true],
+            ['[::1]', true],
+            ['0.0.0.0', true],
+            ['::', true],
+            ['[::]', true],
+            ['::ffff:127.0.0.1', true],
+            ['auth.example.com', false]
+        ])('isLoopbackHost(%s) is %s', (host, expected) => {
+            expect(isLoopbackHost(host)).toBe(expected);
         });
 
         it('refuses a 2xx that is not 200', async () => {
@@ -2961,7 +3017,7 @@ describe('the OAuth card', async () => {
 
         it('reports an unreachable key set', async () => {
             await signIn();
-            expect((await test({ 'auth.oauth.jwks_uri': CLOSED_URI })).page).toContain('unreachable');
+            expect((await test({ 'auth.oauth.jwks_uri': CLOSED_REMOTE })).page).toContain('unreachable');
         });
 
         it('reports a key set with no keys', async () => {

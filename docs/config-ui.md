@@ -112,7 +112,10 @@ re-adding it.
 **OAuth** has its own card under Access, for when an identity provider issues
 your clients' tokens. Fill in the issuer, audience, JWKS URI and the three scope
 names (pre-filled with the defaults), and **Test** fetches the key set as typed
-and lists the keys it found, flagging any arr-mcp would refuse. Remove asks once
+and lists the keys it found, flagging any arr-mcp would refuse. Test refuses a
+key set on this machine (localhost, 127.x, `::1`), since the answer would
+describe local ports; saving one is still allowed. A redirect is reported by
+status only, without its target. Remove asks once
 first. Named MCP tokens keep working whatever this card says. See
 [`auth.oauth`](configuration.md#authoauth) for what each field means.
 

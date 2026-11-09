@@ -42,7 +42,7 @@ import {
 } from '../config/mutate.ts';
 import type { ExpiryChoice, TokenTier } from '../core/mcpTokens.ts';
 import { configPage, configTabForPost, configTabNamed, defaultUserNote, offerableTypes, type OAuthDraft } from './configPage.ts';
-import { probeJwks } from './jwksProbe.ts';
+import { isLoopbackHost, probeJwks } from './jwksProbe.ts';
 import { apiEndpoint, mcpEndpoint, requestIsHttps, sameOrigin } from './origin.ts';
 import type { WebhookEvents } from '../core/webhookEvents.ts';
 import type { HistoryEntry, Window } from '../services/types.ts';
@@ -858,8 +858,17 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
             return render(400, { message: { kind: 'err', text: (err as Error).message } });
         }
 
+        if (isLoopbackHost(new URL(jwksUri).hostname)) {
+            return render(400, {
+                message: {
+                    kind: 'err',
+                    text: 'arr-mcp will not test a key set on this machine, because the answer would describe local ports. Saving it is still allowed.'
+                }
+            });
+        }
+
         const probe = await probeJwks(jwksUri);
-        // The outcome word only: a summary can carry a redirect's Location.
+        // The outcome word only, never the issuer's own text.
         logger.info({ host: new URL(jwksUri).host, outcome: probe.outcome }, 'OAuth key set tested from the config UI');
         return render(200, {
             tested: probe,
