@@ -67,7 +67,9 @@ jobs:
           platforms: linux/arm64
           tags: arr-mcp:arm64-smoke
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # A run whose token cannot write the cache (a PR event delivered after
+          # the PR closed) failed the build on the write. A cache is optional.
+          cache-to: type=gha,mode=max,ignore-error=true
 
       - name: Smoke-test the arm64 native addon
         run: |
