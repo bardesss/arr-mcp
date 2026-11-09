@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.75.1](https://github.com/bardesss/arr-mcp/compare/v1.75.0...v1.75.1) (2026-11-09)
+
+
+### Bug Fixes
+
+* draw generated passwords without modulo bias, and keep a denied cache write from failing the image build ([#551](https://github.com/bardesss/arr-mcp/issues/551)) ([be09aff](https://github.com/bardesss/arr-mcp/commit/be09aff48fffa2316684142e4b5ef7e0cef8d481))
+
 ## [1.75.0](https://github.com/bardesss/arr-mcp/compare/v1.74.0...v1.75.0) (2026-11-09)
 
 
