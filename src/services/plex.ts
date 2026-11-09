@@ -565,7 +565,8 @@ export class PlexAdapter
                 ...(item.ratingKey === undefined ? {} : { itemId: item.ratingKey }),
                 ...(watched === undefined ? {} : { watched }),
                 ...(item.viewCount === undefined ? {} : { playCount: item.viewCount }),
-                ...(lastPlayed === undefined ? {} : { lastPlayed })
+                ...(lastPlayed === undefined ? {} : { lastPlayed }),
+                ...(kind === 'series' && item.leafCount === 0 ? { empty: true as const } : {})
             }
         };
     }

@@ -162,7 +162,8 @@ export type MergedItem = {
      * a Plex series reporting no leaf counts has genuinely unknown completion,
      * which is a different fact from "not watched".
      */
-    playback?: { user: string; itemId?: string; watched?: boolean; playCount?: number; lastPlayed?: string };
+    /** `empty`: a series the media server holds with no episodes, an empty folder (#535). Only on `jellyfin_only` rows in get_library. */
+    playback?: { user: string; itemId?: string; watched?: boolean; playCount?: number; lastPlayed?: string; empty?: true };
     /** Series only. Films have no seasons and carry this field never. */
     seasons?: SeasonSummary[];
     ratings?: MergedRatings;

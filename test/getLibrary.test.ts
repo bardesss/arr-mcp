@@ -5,7 +5,7 @@ import { LibraryIndex, type IndexInput, type MergedItem } from '../src/core/reso
 import { IdentityResolver } from '../src/core/identity.ts';
 import { ImdbDataset } from '../src/metadata/imdbDataset.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
-import { buildGetLibrary, libraryLine, registerGetLibrary } from '../src/tools/getLibrary.ts';
+import { buildGetLibrary, libraryLine, registerGetLibrary, withoutEmpty } from '../src/tools/getLibrary.ts';
 import { fenceText } from '../src/core/fence.ts';
 import { PlexAdapter } from '../src/services/plex.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
@@ -1188,5 +1188,25 @@ describe('books from Grimmory', () => {
         const unmonitored = film({ acquisition: { service: 'radarr', monitored: false, hasFile: true } });
         const loader = bookLoader([book(58)], [unmonitored]);
         expect((await buildGetLibrary(loader, { ...base, monitored: false })).items.map(i => i.kind)).toEqual(['movie']);
+    });
+});
+
+describe('empty media-server series (#535)', () => {
+    const series = (presence: MergedItem['presence']): MergedItem => ({
+        kind: 'series',
+        title: 'Some Show',
+        ids: { tvdb: 1 },
+        presence,
+        playback: { user: 'u', itemId: 'x', empty: true }
+    });
+
+    it('says empty folder on media nothing manages', () => {
+        expect(libraryLine(series('jellyfin_only'))).toContain('empty folder');
+        expect(withoutEmpty(series('jellyfin_only')).playback).toHaveProperty('empty', true);
+    });
+
+    it('drops it where a service manages the series, which has_file already covers', () => {
+        expect(libraryLine(series('both'))).not.toContain('empty folder');
+        expect(withoutEmpty(series('both')).playback).not.toHaveProperty('empty');
     });
 });

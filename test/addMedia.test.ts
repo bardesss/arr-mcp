@@ -864,3 +864,39 @@ describe('add_media cross-checks', () => {
         expect(crossChecks).toHaveBeenCalledTimes(1);
     });
 });
+
+describe('add_media adopting an existing folder (#535)', () => {
+    const effects = (r: { structuredContent: WriteToolResult }) => JSON.stringify(r.structuredContent);
+
+    it('adopts the folder under its own root, with search off, and posts the path', async () => {
+        const h = harness({ folders: MANY_FOLDERS });
+        const first = await h.call({ service: 'radarr', external_id: '603', path: '/movies-4k/The Matrix (1999)' });
+        expect(effects(first)).toContain('Adopts the existing folder');
+        expect(effects(first)).not.toContain('Check first');
+        await h.call({ service: 'radarr', external_id: '603', path: '/movies-4k/The Matrix (1999)', confirm: first.structuredContent.confirm_token });
+        expect(posted(h)).toMatchObject({ rootFolderPath: '/movies-4k', path: '/movies-4k/The Matrix (1999)', addOptions: { searchForMovie: false } });
+    });
+
+    it('still searches when asked to', async () => {
+        const h = harness();
+        const first = await h.call({ service: 'radarr', external_id: '603', path: '/movies/The Matrix (1999)', search_now: true });
+        await h.call({ service: 'radarr', external_id: '603', path: '/movies/The Matrix (1999)', search_now: true, confirm: first.structuredContent.confirm_token });
+        expect(posted(h)).toMatchObject({ addOptions: { searchForMovie: true } });
+    });
+
+    it('refuses a folder outside every root, or outside the root named', async () => {
+        await expect(harness().call({ service: 'radarr', external_id: '603', path: '/downloads/The Matrix' })).rejects.toThrow(/not a folder inside/);
+        await expect(harness().call({ service: 'radarr', external_id: '603', path: '/movies' })).rejects.toThrow(/not a folder inside/);
+        await expect(
+            harness({ folders: MANY_FOLDERS }).call({ service: 'radarr', external_id: '603', path: '/movies/The Matrix', root_folder: '/movies-4k' })
+        ).rejects.toThrow(/not a folder inside/);
+    });
+
+    it('warns when the folder name disagrees with the title', async () => {
+        const h = harness();
+        expect(effects(await h.call({ service: 'radarr', external_id: '603', path: '/movies/The Matrix (2003)' }))).toContain('says 2003, the lookup 1999');
+        expect(effects(await h.call({ service: 'radarr', external_id: '603', path: '/movies/The Matrix {tmdb-604}' }))).toContain('carries id 604, not 603');
+        expect(effects(await h.call({ service: 'radarr', external_id: '603', path: '/movies/Idiots' }))).toContain('does not match the title');
+        expect(effects(await h.call({ service: 'radarr', external_id: '603', path: '/movies/Matrix [tmdbid-603]' }))).not.toContain('Check first');
+    });
+});

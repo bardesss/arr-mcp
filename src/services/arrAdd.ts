@@ -281,6 +281,9 @@ export async function addArrMedia(
     // film grabbing a cinema recording the day it is announced.
     if (shape.resource === 'movie') body.minimumAvailability = opts.minimumAvailability ?? 'released';
     if (opts.tagIds !== undefined && opts.tagIds.length > 0) body.tags = opts.tagIds;
+    // Radarr and Sonarr build the folder from the root only when `path` is
+    // empty, and scan a given one on add, so its files count as on disk.
+    if (opts.path !== undefined) body.path = opts.path;
 
     const created = await http.post<RawLookup>(`${http.apiRoot}/${shape.resource}`, body);
     if (typeof created.id !== 'number' || created.id <= 0) {

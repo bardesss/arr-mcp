@@ -1096,6 +1096,30 @@ only when the managing *arr imported nothing after it. A season or episode
 removal is mentioned beside the verdict instead, since the rest may still be on
 disk, and so is a version removal on a film that still has a file.
 
+### Adopting what nothing manages
+
+`presence: "jellyfin_only"` lists media the media server shows and no *arr
+manages. Two kinds of row there need care before anything is added:
+
+- **An empty folder.** A series the media server holds with no episodes
+  carries `playback.empty` and reads `empty folder` in the text. Adding it with
+  a search would download the whole series. Only `jellyfin_only` rows carry it;
+  where an *arr manages the series, `has_file` already says the same. Jellyfin
+  counts episodes per user (`RecursiveItemCount`), Plex with `leafCount`.
+- **A wrong match.** An old folder with no id in its name can be matched by the
+  media server to another title. `add_media` with `path` checks the folder name
+  against the lookup (see below).
+
+`add_media` takes `path`, an existing folder inside one of the service's root
+folders, as the service sees the disk, to adopt the folder as it is (Radarr,
+Sonarr and Whisparr; not Lidarr, which has its own Library Import). The root is
+the one holding the folder, or the one `root_folder` names, which must hold it;
+a folder outside every root is refused. The service scans the folder on add,
+so its files count as on disk. `search_now` defaults to `false` with `path`.
+The preview warns when the folder name disagrees with the lookup: a
+`tmdb-`/`tvdb-` id in the name that is not the one given, a year in parentheses
+that differs, or a name that shares nothing with the title.
+
 ## `get_playback`
 
 `scope` picks which of three Jellyfin reads answers the call, and defaults to

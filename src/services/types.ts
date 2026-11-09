@@ -1868,6 +1868,8 @@ export type AddMediaOptions = {
     metadataProfileId?: number;
     /** Lidarr only: the standing rule for albums it discovers later. */
     monitorNewItems?: ArtistMonitorNewItems;
+    /** An existing folder under `rootFolderPath` to adopt instead of creating one (#535). Not on Lidarr. */
+    path?: string;
 };
 
 export interface MediaAddCapable {
