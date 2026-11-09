@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createGzip } from 'node:zlib';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ImdbDataset } from '../src/metadata/imdbDataset.ts';
+import { ImdbDataset, type DatasetStatus } from '../src/metadata/imdbDataset.ts';
 import { ingestOnce, linesOf, startRefresh } from '../src/metadata/refresh.ts';
 
 /**
@@ -154,6 +154,9 @@ describe('reading a staged dump', () => {
     });
 });
 
+const fake = (status: DatasetStatus = { titles: 0, ratings: 0 }, dir?: string): ImdbDataset =>
+    ({ dir, status: () => status }) as unknown as ImdbDataset;
+
 describe('the weekly schedule', () => {
     /**
      * `setInterval` fired regardless of whether the previous ingest had
@@ -166,7 +169,7 @@ describe('the weekly schedule', () => {
             release = resolve;
         });
 
-        const stop = startRefresh({ dir: undefined } as unknown as ImdbDataset, {
+        const stop = startRefresh(fake(), {
             ingest: async () => {
                 started += 1;
                 await blocked;
@@ -178,13 +181,13 @@ describe('the weekly schedule', () => {
         expect(started).toBe(1);
 
         release?.();
-        stop();
+        await stop();
         await blocked;
     });
 
     it('starts the next one once the previous has finished', async () => {
         let started = 0;
-        const stop = startRefresh({ dir: undefined } as unknown as ImdbDataset, {
+        const stop = startRefresh(fake(), {
             ingest: async () => {
                 started += 1;
             },
@@ -192,14 +195,14 @@ describe('the weekly schedule', () => {
         });
 
         await new Promise(r => setTimeout(r, 60));
-        stop();
+        await stop();
         expect(started).toBeGreaterThan(1);
     });
 
     // A failing ingest must not wedge the guard shut for ever.
     it('clears the guard when an ingest fails', async () => {
         let started = 0;
-        const stop = startRefresh({ dir: undefined } as unknown as ImdbDataset, {
+        const stop = startRefresh(fake(), {
             ingest: async () => {
                 started += 1;
                 throw new Error('nope');
@@ -208,7 +211,58 @@ describe('the weekly schedule', () => {
         });
 
         await new Promise(r => setTimeout(r, 60));
-        stop();
+        await stop();
         expect(started).toBeGreaterThan(1);
+    });
+
+    it('ingests at once when the dataset is empty', async () => {
+        let started = 0;
+        const stop = startRefresh(fake(), {
+            ingest: async () => {
+                started += 1;
+            },
+            intervalMs: 1000
+        });
+        await new Promise(r => setImmediate(r));
+        expect(started).toBe(1);
+        await stop();
+    });
+
+    it('waits until a week after the last ingest when the dataset is current', async () => {
+        vi.useFakeTimers({ now: 10_000 });
+        try {
+            let started = 0;
+            const stop = startRefresh(fake({ titles: 5, ratings: 5, ingestedAt: new Date(9_500).toISOString() }), {
+                ingest: async () => {
+                    started += 1;
+                },
+                intervalMs: 1000
+            });
+            await vi.advanceTimersByTimeAsync(499);
+            expect(started).toBe(0);
+            await vi.advanceTimersByTimeAsync(1);
+            expect(started).toBe(1);
+            await stop();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('ingests at once when the last ingest is older than the interval', async () => {
+        vi.useFakeTimers({ now: 10_000 });
+        try {
+            let started = 0;
+            const stop = startRefresh(fake({ titles: 5, ratings: 5, ingestedAt: new Date(8_000).toISOString() }), {
+                ingest: async () => {
+                    started += 1;
+                },
+                intervalMs: 1000
+            });
+            await vi.advanceTimersByTimeAsync(0);
+            expect(started).toBe(1);
+            await stop();
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });

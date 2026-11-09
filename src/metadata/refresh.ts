@@ -275,10 +275,12 @@ export async function runIngest(dataset: ImdbDataset, opts: { baseUrl?: string }
 /**
  * Start the weekly refresh, returning a function that stops it.
  *
- * Runs once immediately, then on the interval — which is what makes switching
- * the dataset on from the config UI produce ratings rather than an empty
- * database that waits a week. `Runtime` calls this the moment it opens the
- * database, and calls the returned stop function when it closes it.
+ * Runs immediately only when the dataset is empty or stale, which is what makes
+ * switching it on from the config UI produce ratings rather than an empty
+ * database that waits a week. Otherwise the first run waits until a week after
+ * the last ingest, so a restart no longer re-downloads 224 MB. `Runtime` calls
+ * this the moment it opens the database, and calls the returned stop function
+ * when it closes it.
  *
  * **Startup never awaits this.** A first run of several minutes is several
  * minutes of normal service, not a container that looks broken — every tool
@@ -293,7 +295,7 @@ export function startRefresh(
         ingest?: (dataset: ImdbDataset, o: { baseUrl?: string }) => Promise<void>;
         intervalMs?: number;
     } = {}
-): () => void {
+): () => Promise<void> {
     const ingest = opts.ingest ?? runIngest;
     const ingestOpts = opts.baseUrl === undefined ? {} : { baseUrl: opts.baseUrl };
 
@@ -322,11 +324,31 @@ export function startRefresh(
             });
     };
 
-    run();
+    const interval = opts.intervalMs ?? REFRESH_INTERVAL_MS;
+    const { titles, ingestedAt } = dataset.status();
+    const age = ingestedAt === undefined ? Number.NaN : Date.parse(ingestedAt);
+    const delay = titles === 0 || Number.isNaN(age) ? 0 : Math.max(0, age + interval - Date.now());
+    if (delay > 0) {
+        logger.info({ at: new Date(Date.now() + delay).toISOString() }, 'IMDb dataset is current — next refresh scheduled');
+    }
 
-    const timer = setInterval(run, opts.intervalMs ?? REFRESH_INTERVAL_MS);
-    // Unreffed so a pending refresh never holds the process open at shutdown.
-    timer.unref();
+    let timer: NodeJS.Timeout | undefined;
+    const begin = (): void => {
+        run();
+        timer = setInterval(run, interval);
+        // Unreffed so a pending refresh never holds the process open at shutdown.
+        timer.unref();
+    };
 
-    return () => clearInterval(timer);
+    // No timer hop when there is nothing to wait for: an empty dataset starts
+    // filling this tick, as it always did.
+    let first: NodeJS.Timeout | undefined;
+    if (delay === 0) begin();
+    else first = setTimeout(begin, delay).unref();
+
+    return () => {
+        clearTimeout(first);
+        clearInterval(timer);
+        return Promise.resolve();
+    };
 }
