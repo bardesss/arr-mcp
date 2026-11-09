@@ -8,6 +8,13 @@ import { MediaKindSchema } from './mediaKind.ts';
 import { mediaCardsToolMeta, wantsCards, withCards } from '../mcp/apps.ts';
 import { buildSearchMedia, buildSearchMediaWithCards, searchLine, type GetSearchResult } from './searchMedia.ts';
 
+export function lookupSummary(result: Pick<GetSearchResult, 'total' | 'returned' | 'degraded'>, query: string): string {
+    return (
+        (result.total === 0 ? `Nothing found for "${query}"` : `${result.returned} of ${result.total} match(es) for "${query}"`) +
+        unreachableTail(result.degraded)
+    );
+}
+
 /**
  * `search_media` with `source` fixed to `discover`.
  *
@@ -55,9 +62,7 @@ export function registerLookupMedia(
                 dataset,
                 wantsCards(mediaCards, server, ctx)
             );
-            const summary =
-                (result.total === 0 ? `Nothing found for "${query}"` : `${result.returned} of ${result.total} match(es) for "${query}"`) +
-                unreachableTail(result.degraded);
+            const summary = lookupSummary(result, query);
 
             return withCards({ content: [{ type: 'text' as const, text: listText(summary, result.items, searchLine) }], structuredContent: result }, cards);
         }

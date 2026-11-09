@@ -13,8 +13,8 @@ import { buildDiscoverMedia } from '../src/tools/discoverMedia.ts';
 import { buildGetMediaDetails, registerGetMediaDetails, resolveMediaDetails } from '../src/tools/getMediaDetails.ts';
 import { GrimmoryAdapter } from '../src/services/grimmory.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
-import { buildLookupMedia } from '../src/tools/lookupMedia.ts';
-import { buildSearchMedia } from '../src/tools/searchMedia.ts';
+import { buildLookupMedia, lookupSummary } from '../src/tools/lookupMedia.ts';
+import { buildSearchMedia, searchSummary } from '../src/tools/searchMedia.ts';
 import { repeat } from './helpers/bigFixture.ts';
 import { expectWithinBudget } from './helpers/budget.ts';
 import { jsonResponse, serving } from './helpers/serve.ts';
@@ -229,6 +229,12 @@ describe('search_media', () => {
 });
 
 describe('lookup_media', () => {
+    it('says which service did not answer, as search_media does', () => {
+        expect(lookupSummary({ total: 0, returned: 0, degraded: ['seerr'] }, 'x')).toBe('Nothing found for "x"; seerr unreachable.');
+        expect(lookupSummary({ total: 1, returned: 1, degraded: ['seerr'] }, 'x')).toBe('1 of 1 match(es) for "x"; seerr unreachable.');
+        expect(searchSummary({ total: 0, returned: 0, degraded: ['radarr'] }, 'x', 'library')).toBe('No library results for "x"; radarr unreachable.');
+    });
+
     const lookupRadarr = new RadarrAdapter(
         keyed(7878),
         serving({
@@ -893,6 +899,13 @@ describe('discover_media', () => {
         }) as unknown as typeof fetch;
         return { urls, adapter: new SeerrAdapter(seerrConfig, fetchImpl) };
     };
+
+    it('keys counts by the adapter id', async () => {
+        const { adapter } = recording();
+        Object.defineProperty(adapter, 'id', { value: 'seerr/alt' });
+        const result = await buildDiscoverMedia(adapter, { kind: 'movie', detail: 'full', limit: 50 });
+        expect(result.counts).toEqual({ 'seerr/alt': 2 });
+    });
 
     it('returns TMDB-backed results as search hits', async () => {
         const { adapter } = recording();

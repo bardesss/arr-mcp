@@ -36,6 +36,13 @@ export function searchLine(hit: SearchHit): string {
     return `${titled(hit.title, hit.year)} — ${facts.join(', ')}`;
 }
 
+export function searchSummary(result: Pick<GetSearchResult, 'total' | 'returned' | 'degraded'>, query: string, source: string): string {
+    return (
+        (result.total === 0 ? `No ${source} results for "${query}"` : `${result.returned} of ${result.total} ${source} result(s) for "${query}"`) +
+        unreachableTail(result.degraded)
+    );
+}
+
 export type GetSearchResult = {
     items: SearchHit[];
     total: number;
@@ -183,10 +190,7 @@ export function registerSearchMedia(
                 dataset,
                 wantsCards(mediaCards, server, ctx)
             );
-            const summary =
-                (result.total === 0
-                    ? `No ${source} results for "${query}"`
-                    : `${result.returned} of ${result.total} ${source} result(s) for "${query}"`) + unreachableTail(result.degraded);
+            const summary = searchSummary(result, query, source);
 
             return withCards({ content: [{ type: 'text' as const, text: listText(summary, result.items, searchLine) }], structuredContent: result }, cards);
         }
