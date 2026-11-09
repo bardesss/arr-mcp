@@ -655,8 +655,8 @@ export class LidarrAdapter
         return listArrImportCandidates(this.#http, this.id, 'artist', downloadId, mapping);
     }
 
-    async runManualImport(downloadId: string, mapping?: ImportMapping[]): Promise<CommandHandle> {
-        return runArrManualImport(this.#http, this.id, 'artist', downloadId, mapping);
+    async runManualImport(downloadId: string, mapping?: ImportMapping[], paths?: string[]): Promise<CommandHandle> {
+        return runArrManualImport(this.#http, this.id, 'artist', downloadId, mapping, paths);
     }
 
     async listCommands(): Promise<CommandStatus[]> {

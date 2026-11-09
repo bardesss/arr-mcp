@@ -276,8 +276,8 @@ export class RadarrAdapter
         return listArrImportCandidates(this.#http, this.id, 'movie', downloadId, mapping);
     }
 
-    async runManualImport(downloadId: string, mapping?: ImportMapping[]): Promise<CommandHandle> {
-        return runArrManualImport(this.#http, this.id, 'movie', downloadId, mapping);
+    async runManualImport(downloadId: string, mapping?: ImportMapping[], paths?: string[]): Promise<CommandHandle> {
+        return runArrManualImport(this.#http, this.id, 'movie', downloadId, mapping, paths);
     }
 
     async refreshItem(id: string): Promise<CommandHandle> {

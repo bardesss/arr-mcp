@@ -491,6 +491,45 @@ describe('trigger_scan importing a finished download', () => {
         expect(h.radarr.sent.filter(x => x.method === 'POST' && x.url === '/api/v3/command')).toHaveLength(1);
     });
 
+    it('imports only the previewed files when the list grows between the confirm and the apply', async () => {
+        // Reads: 1 the preview, 2 the confirm's re-plan (same list, so the
+        // token still matches), 3 the apply's own re-read, by which time a
+        // clean file has appeared.
+        let reads = 0;
+        const grown = [
+            CANDIDATES[0],
+            { ...CANDIDATES[0], path: '/downloads/Heat.1995.extra.mkv', relativePath: 'Heat.1995.extra.mkv' }
+        ];
+        const posted: { files: { path: string }[] }[] = [];
+        const impl = (async (input: string | URL | Request, init?: RequestInit) => {
+            const url = new URL(input instanceof Request ? input.url : String(input));
+            if (url.pathname === '/api/v3/manualimport') return jsonResponse(++reads >= 3 ? grown : [CANDIDATES[0]]);
+            if (url.pathname === '/api/v3/command') {
+                posted.push(JSON.parse(String(init?.body)) as { files: { path: string }[] });
+                return jsonResponse({ id: 5, name: 'ManualImport', status: 'queued' });
+            }
+            return jsonResponse({ message: 'not found' }, 404);
+        }) as unknown as typeof fetch;
+        const h = harness({
+            adapters: [new RadarrAdapter(keyed(7878), impl)],
+            permissions: { radarr: permissive(true) }
+        });
+
+        const first = await h.call({ service: 'radarr', action: 'import', download_id: 'nzo_abc' });
+        expect(first.structuredContent.confirm_token).toBeDefined();
+
+        const second = await h.call({
+            service: 'radarr',
+            action: 'import',
+            download_id: 'nzo_abc',
+            confirm: first.structuredContent.confirm_token
+        });
+
+        expect(second.structuredContent.applied).toBe(true);
+        expect(posted).toHaveLength(1);
+        expect(posted[0]?.files.map(f => f.path)).toEqual(['/downloads/Heat.1995.mkv']);
+    });
+
     it('needs a download_id', async () => {
         const h = importHarness();
         await expect(h.call({ service: 'radarr', action: 'import', dry_run: true })).rejects.toThrow(/download_id/);

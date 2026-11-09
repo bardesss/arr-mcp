@@ -504,6 +504,7 @@ export function registerTriggerScan(
                         service,
                         action,
                         downloadId: download_id,
+                        paths: importable.map(c => c.path).sort(),
                         ...(mapping === undefined ? {} : { mapping }),
                         ...(instance === undefined ? {} : { instance })
                     }
@@ -653,7 +654,11 @@ export function registerTriggerScan(
 
             if (action === 'import' && download_id !== undefined) {
                 const importer = findImportAdapter(adapters, service, instance);
-                const queued = await importer.runManualImport(download_id, toImportMapping(mapping));
+                const queued = await importer.runManualImport(
+                    download_id,
+                    toImportMapping(mapping),
+                    plan.args?.paths as string[] | undefined
+                );
                 return `${importer.id} queued ${queued.name} for download ${download_id}. Importing runs in the background — check get_queue and stack_health's \`commands\` rather than expecting it to be done now.`;
             }
 

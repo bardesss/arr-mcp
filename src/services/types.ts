@@ -1381,7 +1381,7 @@ export type ImportMapping = {
 
 export interface ManualImportCapable {
     listImportCandidates(downloadId: string, mapping?: ImportMapping[]): Promise<ImportCandidate[]>;
-    runManualImport(downloadId: string, mapping?: ImportMapping[]): Promise<CommandHandle>;
+    runManualImport(downloadId: string, mapping?: ImportMapping[], paths?: string[]): Promise<CommandHandle>;
 }
 
 export const hasManualImport = (a: ServiceAdapter): a is ServiceAdapter & ManualImportCapable =>

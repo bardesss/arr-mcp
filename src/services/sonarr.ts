@@ -310,8 +310,8 @@ export class SonarrAdapter
         return listArrImportCandidates(this.#http, this.id, 'series', downloadId, mapping);
     }
 
-    async runManualImport(downloadId: string, mapping?: ImportMapping[]): Promise<CommandHandle> {
-        return runArrManualImport(this.#http, this.id, 'series', downloadId, mapping);
+    async runManualImport(downloadId: string, mapping?: ImportMapping[], paths?: string[]): Promise<CommandHandle> {
+        return runArrManualImport(this.#http, this.id, 'series', downloadId, mapping, paths);
     }
 
     async planEpisodeRemap(seriesId: string, reassignments: EpisodeReassignment[]): Promise<EpisodeRemapPlan> {

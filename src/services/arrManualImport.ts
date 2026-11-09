@@ -433,16 +433,17 @@ export async function listArrImportCandidates(
 }
 
 /**
- * Re-reads the candidates rather than taking them from the preview: the token
- * binds to the download, and a file list that has moved on should import what
- * is there now or refuse — never a path that no longer exists.
+ * Re-reads the candidates to post their current quality and ids, but imports
+ * exactly the files the preview listed (`paths`) or refuses: a file list that
+ * has moved on since the preview is never imported on the old confirmation.
  */
 export async function runArrManualImport(
     http: ServiceHttp,
     service: string,
     resource: ArrKind,
     downloadId: string,
-    mapping?: ImportMapping[]
+    mapping?: ImportMapping[],
+    paths?: string[]
 ): Promise<CommandHandle> {
     const { raw, judged, candidates } = await readCandidates(http, service, resource, downloadId, mapping);
 
@@ -450,7 +451,7 @@ export async function runArrManualImport(
     // shorter than `raw` whenever a row had no path, and pairing it with
     // `raw` by position put the next file's verdict on the wrong row, posting
     // a pathless row or a file the service had rejected.
-    const importable = raw.filter((_, i) => {
+    let importable = raw.filter((_, i) => {
         const candidate = judged[i];
         return candidate !== undefined && candidate.rejections.length === 0 && candidate.matchedId !== undefined;
     });
@@ -467,6 +468,22 @@ export async function runArrManualImport(
                     ? `${service} reported no importable files for that download id. Check it is still in get_queue — ids do not survive an item leaving the queue.`
                     : `It rejected every file: ${reasons}. ${fix}`
         });
+    }
+
+    if (paths !== undefined) {
+        const present = new Set(importable.map(r => r.path));
+        const gone = paths.filter(p => !present.has(p));
+        if (gone.length > 0) {
+            // The paths are not echoed: they come from the download and are unfenced.
+            throw new ServiceError(
+                'UpstreamError',
+                service,
+                `${service}'s files for ${downloadId} have changed since the preview: ${gone.length} previewed file(s) are no longer importable`,
+                { remedy: 'Preview the import again and confirm the new token.' }
+            );
+        }
+        const wanted = new Set(paths);
+        importable = importable.filter(r => r.path !== undefined && wanted.has(r.path));
     }
 
     if (resource === 'artist') {
