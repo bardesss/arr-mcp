@@ -28,22 +28,30 @@ async function measure(label: string, hideUnusable: boolean): Promise<void> {
         ...(hideUnusable ? { tools: { hide_unusable: true } } : {}),
         services: { radarr: { url: 'http://192.0.2.10:7878', api_key: 'k' } }
     });
-    const runtime = Runtime.fromConfig(config, WriteAudit.ephemeral());
-    const factory = mcpServerFactory(runtime, WebhookEvents.ephemeral(), stdioCeiling);
+    const audit = WriteAudit.ephemeral();
+    const events = WebhookEvents.ephemeral();
+    const runtime = Runtime.fromConfig(config, audit);
+    try {
+        const factory = mcpServerFactory(runtime, events, stdioCeiling);
 
-    for (let i = 0; i < WARMUP; i++) await factory({ era: 'modern' });
+        for (let i = 0; i < WARMUP; i++) await factory({ era: 'modern' });
 
-    const times: number[] = [];
-    for (let i = 0; i < RUNS; i++) {
-        const start = performance.now();
-        await factory({ era: 'modern' });
-        times.push(performance.now() - start);
+        const times: number[] = [];
+        for (let i = 0; i < RUNS; i++) {
+            const start = performance.now();
+            await factory({ era: 'modern' });
+            times.push(performance.now() - start);
+        }
+        times.sort((a, b) => a - b);
+        const at = (p: number): number => times[Math.min(times.length - 1, Math.floor(times.length * p))] ?? 0;
+        console.log(
+            `${label.padEnd(24)} median ${ms(at(0.5))} ms  p95 ${ms(at(0.95))} ms  max ${ms(times[times.length - 1] ?? 0)} ms`
+        );
+    } finally {
+        await runtime.close();
+        events.close();
+        audit.close();
     }
-    times.sort((a, b) => a - b);
-    const at = (p: number): number => times[Math.min(times.length - 1, Math.floor(times.length * p))] ?? 0;
-    console.log(
-        `${label.padEnd(24)} median ${ms(at(0.5))} ms  p95 ${ms(at(0.95))} ms  max ${ms(times[times.length - 1] ?? 0)} ms`
-    );
 }
 
 console.log(`node ${process.version}, ${RUNS} calls after ${WARMUP} warm-up`);

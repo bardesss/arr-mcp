@@ -180,10 +180,10 @@ function cappedTools(tools: ToolContext, ceiling: Ceiling): ToolContext {
  *   | default             | 2.85 ms | 11.20 ms |
  *   | tools.hide_unusable | 2.41 ms | 10.24 ms |
  *
- * That is over the 2 ms line, so a cache is proposed separately. It cannot be
- * the server itself, which must stay fresh per request; only part of the
- * registration (zod schema construction dominates the profile) could be
- * shared per `RuntimeSnapshot`.
+ * That is a few ms of schema building on every request, so a cache is
+ * proposed separately. It cannot be the server itself, which must stay fresh
+ * per request; only part of the registration (zod schema construction
+ * dominates the profile) could be shared per `RuntimeSnapshot`.
  *
  * `runtime.current` is read here, per call, rather than captured when the
  * factory is built: that is what lets a config change take effect without a
