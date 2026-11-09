@@ -376,7 +376,7 @@ export class WhisparrAdapter
     }
 
     async findReleases(opts: ReleaseScope): Promise<ReleaseCandidate[]> {
-        return findArrReleases(this.#http, this.id, 'series', opts);
+        return findArrReleases(this.#http, this.id, 'site', opts);
     }
 
     async grabRelease(opts: { guid: string; indexerId: number }): Promise<void> {

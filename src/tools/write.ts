@@ -221,7 +221,18 @@ export type WriteToolResult = {
     next_steps?: NextStep[];
 };
 
-const TARGET_KEYS = ['id', 'item_id', 'title', 'external_id', 'media_id', 'definition', 'query', 'database'];
+const TARGET_KEYS = [
+    'id',
+    'item_id',
+    'download_id',
+    'external_id',
+    'media_id',
+    'library',
+    'title',
+    'definition',
+    'query',
+    'database'
+] as const;
 
 /** The identifying argument as the caller gave it, for a refusal that never resolved the plan. */
 export function rawTarget(args: Record<string, unknown>): string {

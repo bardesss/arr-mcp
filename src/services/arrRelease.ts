@@ -1,6 +1,7 @@
 import { fenceText, sanitizeGuid } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
 import { ServiceError } from '../core/errors.ts';
+import { arrItemId } from './arrCommands.ts';
 import { protocolName } from './arrRecord.ts';
 import type { ReleaseCandidate, ReleaseScope } from './types.ts';
 
@@ -35,7 +36,7 @@ type RawRelease = {
 export async function findArrReleases(
     http: ServiceHttp,
     service: string,
-    kind: 'movie' | 'series',
+    kind: 'movie' | 'series' | 'site',
     opts: ReleaseScope
 ): Promise<ReleaseCandidate[]> {
     // Refused rather than dropped: without it the search would cover the
@@ -56,14 +57,20 @@ export async function findArrReleases(
         });
     }
 
+    // Ids go into a query string, so they are checked here rather than
+    // encoded: `0` or `abc` would search for nothing and answer an empty list.
+    const itemId = arrItemId(service, kind, opts.id);
+    const episodeId =
+        opts.episode === undefined ? undefined : arrItemId(service, kind === 'site' ? 'scene' : 'episode', opts.episode);
+
     // Sonarr runs one indexer search per episode, so a season or series
     // search costs that many sweeps; `episodeId` alone is a single one.
     const query =
         kind === 'movie'
-            ? `movieId=${encodeURIComponent(opts.id)}`
-            : opts.episode !== undefined
-              ? `episodeId=${encodeURIComponent(opts.episode)}`
-              : `seriesId=${encodeURIComponent(opts.id)}${
+            ? `movieId=${itemId}`
+            : episodeId !== undefined
+              ? `episodeId=${episodeId}`
+              : `seriesId=${itemId}${
                     opts.season === undefined ? '' : `&seasonNumber=${opts.season}`
                 }`;
 

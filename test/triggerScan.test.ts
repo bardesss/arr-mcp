@@ -610,6 +610,12 @@ describe('trigger_scan importing a finished download', () => {
             mapping: [{ path: 'Good.Boy.2025.mkv', movie_id: movieId }]
         });
 
+        it('refuses a mapped movie id of "0" at the schema, before any call', async () => {
+            const h = mappingHarness();
+            await expect(async () => h.call(args('0'))).rejects.toThrow(/numeric id/);
+            expect(h.sent).toHaveLength(0);
+        });
+
         it('previews the file as the movie it was mapped to, importing nothing', async () => {
             const h = mappingHarness();
             const { structuredContent } = await h.call(args('42'));

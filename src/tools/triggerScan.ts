@@ -133,7 +133,7 @@ const findRemapAdapter = (
 const scannableMediaServers = (adapters: readonly ServiceAdapter[]): ServiceAdapter[] =>
     adapters.filter(a => hasUserLibrary(a) && hasLibraryScan(a));
 
-const IdSchema = z.string().regex(/^\d+$/, 'a numeric id, as `acquisition.id` on get_library');
+const IdSchema = z.string().regex(/^[1-9]\d*$/, 'a numeric id, as `acquisition.id` on get_library');
 
 type MappingInput = {
     path: string;

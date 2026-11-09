@@ -97,6 +97,22 @@ describe('findArrReleases', () => {
         );
     });
 
+    it('refuses a bad item or episode id before any fetch', async () => {
+        const fetchImpl = vi.fn(async () => json([]));
+        const client = http(fetchImpl);
+        await expect(findArrReleases(client, 'radarr', 'movie', { id: '0' })).rejects.toThrow(/not a radarr movie id/);
+        await expect(findArrReleases(client, 'sonarr', 'series', { id: '15', episode: 'abc' })).rejects.toThrow(
+            /not a sonarr episode id/
+        );
+        await expect(findArrReleases(client, 'whisparr', 'site', { id: '-3' })).rejects.toThrow(
+            /not a whisparr site id/
+        );
+        await expect(findArrReleases(client, 'whisparr', 'site', { id: '3', episode: '0' })).rejects.toThrow(
+            /not a whisparr scene id/
+        );
+        expect(fetchImpl).not.toHaveBeenCalled();
+    });
+
     it('sends the request with the extended release-search timeout', async () => {
         const spy = vi.spyOn(AbortSignal, 'timeout');
         try {

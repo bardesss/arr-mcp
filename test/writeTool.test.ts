@@ -8,7 +8,7 @@ import { ServiceError } from '../src/core/errors.ts';
 import { permissionSourceFrom } from '../src/core/permissions.ts';
 import type { LibraryLoader } from '../src/tools/library.ts';
 import type { CrossChecker, CrossCheckProfile } from '../src/tools/crossChecks.ts';
-import { registerWriteTool, type WritePlan, type WriteToolResult } from '../src/tools/write.ts';
+import { rawTarget, registerWriteTool, type WritePlan, type WriteToolResult } from '../src/tools/write.ts';
 
 /**
  * A stand-in for McpServer that keeps the one behaviour the harness depends on:
@@ -551,5 +551,20 @@ describe('write tool harness — cross-checks', () => {
         const h = buildHarness({ plan: SUBJECT_PLAN, crossChecks: advised(), crossCheck: 'delete' });
         await h.call('delete_media', { id: '5' });
         expect(outcomes(h)).toEqual(['unconfirmed']);
+    });
+});
+
+describe('rawTarget', () => {
+    it.each([
+        [{ id: '7', title: 'Alien' }, '7'],
+        [{ title: 'Alien', item_id: 'x' }, 'x'],
+        [{ download_id: 'SABnzbd_nzo_1', title: 'T' }, 'SABnzbd_nzo_1'],
+        [{ library: 'Books' }, 'Books'],
+        [{ id: 15 }, '15'],
+        [{ id: 5, item_id: 'x' }, '5'],
+        [{ id: null, dry_run: true }, ''],
+        [{}, '']
+    ])('%j gives %j', (args, expected) => {
+        expect(rawTarget(args as Record<string, unknown>)).toBe(expected);
     });
 });
