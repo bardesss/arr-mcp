@@ -1,7 +1,6 @@
-import { INSTANCE_PARAM_DESCRIPTION, instanceArgs, resolveInstance } from './resolveInstance.ts';
+import { instanceArgs, resolveInstance } from './resolveInstance.ts';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { type ServiceId, serviceOf } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import type { NextStep } from '../core/nextStep.ts';
 import {
@@ -23,6 +22,7 @@ import { chooseOne, freeSpace, FOLDER_MATCH, PROFILE_MATCH, TAG_MATCH } from './
 import { NO_ALBUMS_PROFILE, SEARCH_AFTER_REFRESH } from './lidarrProfiles.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 import { titled } from '../core/labels.ts';
+import { targetInput, writeTarget } from './writeTarget.ts';
 
 /**
  * `add_media`'s counterpart, and the only way to change a **Radarr** item's
@@ -129,19 +129,14 @@ function artistMonitoredEffect(service: string, label: string, monitored: boolea
     return `${service} stops grabbing automatically for ${label}: RSS sync and its own searches skip it. The albums keep their own flags, trigger_search can still grab the monitored ones, and files already on disk are untouched.`;
 }
 
-const findAdapter = (
-    adapters: readonly ServiceAdapter[],
-    service: ServiceId,
-    instance?: string
-): ServiceAdapter & MediaUpdateCapable & MediaAddCapable => {
-    const adapter = resolveInstance(adapters, service, instance);
-    if (!hasMediaUpdate(adapter) || !hasMediaAdd(adapter)) {
-        throw new ServiceError('NotFound', service, `${service} cannot update media`, {
-            remedy: 'Only radarr (films), sonarr (series) and lidarr (artists) manage what a library item is set to.'
-        });
-    }
-    return adapter;
-};
+type Updatable = ServiceAdapter & ((MediaUpdateCapable & MediaAddCapable) | BookMetadataCapable);
+
+const TARGET = writeTarget({
+    services: ['radarr', 'sonarr', 'lidarr', 'grimmory'],
+    can: (a): a is Updatable => hasBookMetadata(a) || (hasMediaUpdate(a) && hasMediaAdd(a)),
+    cannot: 'cannot update media',
+    hint: 'Radarr manages films, Sonarr series, Lidarr artists and Grimmory books.'
+});
 
 /** The book fields `update_media` can lock or unlock, by the name a caller uses. */
 const LOCKABLE = ['title', 'authors', 'series', 'series_number', 'tags'] as const;
@@ -160,15 +155,6 @@ const nameOf = (field: BookField): string => NAME_OF[field] ?? field;
 
 const BOOK_ONLY = 'Grimmory books only. ';
 
-/** The book library `service`/`instance` names, or undefined when it is not one. */
-const bookLibrary = (
-    adapters: readonly ServiceAdapter[],
-    service: ServiceId,
-    instance?: string
-): (ServiceAdapter & BookMetadataCapable) | undefined => {
-    const adapter = resolveInstance(adapters, service, instance);
-    return hasBookMetadata(adapter) ? adapter : undefined;
-};
 
 type BookArgs = {
     title?: string | undefined;
@@ -256,7 +242,7 @@ async function planBook(book: ServiceAdapter & BookMetadataCapable, rawId: strin
     const lockNow = lock.filter(f => !state.locked.includes(f));
     const unlockNow = unlock.filter(f => state.locked.includes(f));
 
-    const target = `grimmory:${id}`;
+    const target = `${book.id}:${id}`;
     if (changed.length === 0 && lockNow.length === 0 && unlockNow.length === 0) {
         return { target, summary: `${state.label} already has those values and locks in Grimmory.`, effects: [], noop: true };
     }
@@ -294,8 +280,7 @@ export function registerUpdateMedia(
         description:
             'Changes settings on an item already in Radarr[[lidarr: , Lidarr]] or Sonarr (quality profile, root folder, monitoring, tags, Radarr\'s minimum availability, Sonarr\'s series type[[lidarr: , Lidarr\'s metadata profile]]), or edits a Grimmory book\'s title, authors, series, series number and tags, with `lock_fields` or `unlock_fields`. The only way to change a Radarr item\'s monitoring. [[lidarr: On Lidarr, `id` is an artist, `monitor_new_items` stays with set_monitoring, and a new metadata profile applies at the artist\'s next refresh, which can remove albums.]] Takes `service` and `id`. Changing `root_folder` **moves the files on disk** unless `move_files: false`. `tags` replaces the whole set and an unknown tag is refused; stack_health at `detail: "full"` lists profiles, folders and tags. [[grimmory: A locked book field is refused unless the same call unlocks it, and Grimmory may write the change into the book file and rename it.]] Previews first; confirm to apply. Field reference: arr://docs/update_media.',
         inputSchema: z.object({
-            service: serviceOf(['radarr', 'sonarr', 'lidarr', 'grimmory']).describe('radarr for a film, sonarr for a series, lidarr for an artist, grimmory for a book.'),
-            instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
+            ...targetInput(TARGET, 'radarr for a film, sonarr for a series, lidarr for an artist, grimmory for a book.'),
             id: z
                 .string()
                 .min(1)
@@ -350,15 +335,13 @@ export function registerUpdateMedia(
                     'With root_folder: whether the service moves the files to the new folder. Defaults to true. False only when you have already moved them yourself.'
                 )
         }),
-        // The resolved instance id, not the bare type — permissions are
-        // granted per instance.
-        service: ({ service, instance }) => (bookLibrary(adapters, service, instance) ?? findAdapter(adapters, service, instance)).id,
+        target: { adapters, to: TARGET },
         operation: 'update_media',
         tier: ({ metadata_profile }) => (metadata_profile === undefined ? 'safe' : 'destructive'),
 
-        async plan({
+        async plan(
+            {
             service,
-            instance,
             id,
             quality_profile,
             root_folder,
@@ -374,9 +357,11 @@ export function registerUpdateMedia(
             lock_fields,
             unlock_fields,
             metadata_profile
-        }): Promise<WritePlan> {
-            const books = bookLibrary(adapters, service, instance);
-            if (books !== undefined) {
+            },
+            adapter
+        ): Promise<WritePlan> {
+            if (hasBookMetadata(adapter)) {
+                const books = adapter;
                 if (
                     quality_profile !== undefined ||
                     root_folder !== undefined ||
@@ -403,7 +388,6 @@ export function registerUpdateMedia(
                     remedy: 'Films, series and artists are not edited by hand here. Drop them, or name a Grimmory book.'
                 });
             }
-            const adapter = findAdapter(adapters, service, instance);
             const lidarr = adapter.type === 'lidarr';
 
             if (
@@ -595,21 +579,21 @@ export function registerUpdateMedia(
             return [
                 {
                     tool: 'trigger_scan',
-                    arguments: { ...instanceArgs(findAdapter(adapters, service, instance).id), id },
+                    arguments: { ...instanceArgs(resolveInstance(adapters, service, instance).id), id },
                     why: "Refreshes the artist now, and rescans every root folder unless Lidarr's 'Rescan Artist Folder after Refresh' is set to Never, so Lidarr applies the new metadata profile, with the album changes the preview described."
                 }
             ];
         },
 
-        async apply(plan, { service, instance, id }) {
-            const books = bookLibrary(adapters, service, instance);
-            if (books !== undefined) {
-                // From the plan the token was verified against. Unlock first so
-                // the write can land, lock last so the new values are kept.
-                const bound = plan.args as { fields: BookFields; clear: BookField[]; lock: BookField[]; unlock: BookField[] };
-                if (bound.unlock.length > 0) await books.setBookFieldLocks(id, bound.unlock, false);
-                if (Object.keys(bound.fields).length > 0 || bound.clear.length > 0) await books.writeBookMetadata(id, bound.fields, bound.clear);
-                if (bound.lock.length > 0) await books.setBookFieldLocks(id, bound.lock, true);
+        async apply(plan, { id }, adapter) {
+            if (hasBookMetadata(adapter)) {
+                // From the plan the token was verified against, the book id
+                // included: `id` as given may still carry its `grimmory:` prefix.
+                // Unlock first so the write can land, lock last so the new values are kept.
+                const bound = plan.args as { id: string; fields: BookFields; clear: BookField[]; lock: BookField[]; unlock: BookField[] };
+                if (bound.unlock.length > 0) await adapter.setBookFieldLocks(bound.id, bound.unlock, false);
+                if (Object.keys(bound.fields).length > 0 || bound.clear.length > 0) await adapter.writeBookMetadata(bound.id, bound.fields, bound.clear);
+                if (bound.lock.length > 0) await adapter.setBookFieldLocks(bound.id, bound.lock, true);
                 return { changed: [...Object.keys(bound.fields), ...bound.clear] };
             }
             const a = plan.args as {
@@ -626,7 +610,7 @@ export function registerUpdateMedia(
             // From the plan rather than re-resolved: re-running `chooseOne`
             // here could land on a profile added in between, and the token
             // guaranteed the one that was previewed.
-            const state = await findAdapter(adapters, service, instance).updateMedia(id, {
+            const state = await adapter.updateMedia(id, {
                 ...(a.qualityProfileId === undefined ? {} : { qualityProfileId: a.qualityProfileId }),
                 ...(a.rootFolderPath === undefined ? {} : { rootFolderPath: a.rootFolderPath }),
                 ...(a.monitored === undefined ? {} : { monitored: a.monitored }),

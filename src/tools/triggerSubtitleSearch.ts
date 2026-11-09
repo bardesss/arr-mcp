@@ -1,10 +1,9 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { type ServiceId, serviceOf } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
-import { hasSubtitleSearch, hasSubtitles, type ServiceAdapter, type SubtitleGap } from '../services/types.ts';
-import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
+import { hasSubtitleSearch, hasSubtitles, type ServiceAdapter, type SubtitleGap, type SubtitleSearchCapable, type SubtitleCapable } from '../services/types.ts';
 import { outcomeText, registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
+import { targetInput, writeTarget } from './writeTarget.ts';
 
 /**
  * The other half of `get_subtitles`, which until now could only say what was
@@ -12,15 +11,11 @@ import { outcomeText, registerWriteTool, type WriteContext, type WritePlan } fro
  * outcome is a wrong one you can replace.
  */
 
-const findAdapter = (adapters: readonly ServiceAdapter[], service: ServiceId, instance?: string) => {
-    const adapter = resolveInstance(adapters, service, instance);
-    if (!hasSubtitleSearch(adapter) || !hasSubtitles(adapter)) {
-        throw new ServiceError('NotFound', service, `${service} cannot search for subtitles`, {
-            remedy: 'Only bazarr manages subtitles.'
-        });
-    }
-    return adapter;
-};
+const TARGET = writeTarget({
+    services: ['bazarr'],
+    can: (a): a is ServiceAdapter & SubtitleSearchCapable & SubtitleCapable => hasSubtitleSearch(a) && hasSubtitles(a),
+    cannot: 'cannot search for subtitles'
+});
 
 const label = (gap: SubtitleGap): string =>
     gap.kind === 'movie'
@@ -38,8 +33,7 @@ export function registerTriggerSubtitleSearch(
         description:
             'Asks Bazarr to go looking for one language of subtitles for one item it already tracks — the "it is missing Dutch subs and I do not want to wait for the next round" action. Takes `kind`, `id` and `language` exactly as get_subtitles reports them. By default it only searches for something Bazarr lists as missing; `search_anyway: true` searches regardless, which is how you replace a subtitle you already have but do not want (for an episode outside that list, pass `series_id` too). This queues a search and returns immediately; it does not wait, and finding a subtitle is not guaranteed. Previews first; confirm to run it.',
         inputSchema: z.object({
-            service: serviceOf(['bazarr']),
-            instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
+            ...targetInput(TARGET),
             kind: z.enum(['movie', 'episode']).describe('Which of the two lists get_subtitles reported the item in.'),
             id: z
                 .string()
@@ -65,13 +59,13 @@ export function registerTriggerSubtitleSearch(
             forced: z.boolean().default(false).describe('Search for a forced subtitle track.'),
             hearing_impaired: z.boolean().default(false).describe('Search for a hearing-impaired subtitle track.')
         }),
-        service: ({ service, instance }) => findAdapter(adapters, service, instance).id,
+        target: { adapters, to: TARGET },
         operation: 'trigger_subtitle_search',
         tier: 'safe',
 
         async plan({
-            service,
-            instance,
+            
+            
             kind,
             id,
             language,
@@ -79,8 +73,7 @@ export function registerTriggerSubtitleSearch(
             hearing_impaired,
             search_anyway,
             series_id
-        }): Promise<WritePlan> {
-            const adapter = findAdapter(adapters, service, instance);
+        }, adapter): Promise<WritePlan> {
 
             // The wanted list is both the preview's source of a real title and
             // the only place an episode's series id is offered.
@@ -175,8 +168,7 @@ export function registerTriggerSubtitleSearch(
 
         applied: outcomeText,
 
-        async apply(plan, { service, instance, kind, id, language, forced, hearing_impaired }) {
-            const adapter = findAdapter(adapters, service, instance);
+        async apply(plan, { kind, id, language, forced, hearing_impaired }, adapter) {
             const seriesId = plan.args?.seriesId as number | undefined;
 
             await adapter.triggerSubtitleSearch({

@@ -1,10 +1,9 @@
-import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { type ServiceId, serviceOf } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { hasBlocklist, hasQueueRemove, type ServiceAdapter } from '../services/types.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
+import { targetInput, writeTarget } from './writeTarget.ts';
 
 /**
  * Un-blocklisting one release, so it can be grabbed again.
@@ -16,15 +15,12 @@ import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts
  * `remove_queue_item` can do it.
  */
 
-const findAdapter = (adapters: readonly ServiceAdapter[], service: ServiceId, instance?: string) => {
-    const adapter = resolveInstance(adapters, service, instance);
-    if (!hasBlocklist(adapter)) {
-        throw new ServiceError('NotFound', service, `${service} has no blocklist`, {
-            remedy: 'Only radarr, sonarr, whisparr and lidarr keep a blocklist. Take `service` and `id` from get_blocklist.'
-        });
-    }
-    return adapter;
-};
+const TARGET = writeTarget({
+    services: ['radarr', 'sonarr', 'whisparr', 'lidarr'],
+    can: hasBlocklist,
+    cannot: 'has no blocklist',
+    hint: 'Take `service` and `id` from get_blocklist.'
+});
 
 export function registerRemoveBlocklistItem(
     server: McpServer,
@@ -37,16 +33,14 @@ export function registerRemoveBlocklistItem(
         description:
             'Removes one entry from Radarr, Sonarr, Whisparr or Lidarr\'s blocklist, so that release can be grabbed again. The fix for "this never downloads and I do not know why" once get_blocklist has said why. Take `service` and `id` from a get_blocklist row. Safe tier: the entry is a refusal to grab, and removing it only withdraws that refusal — nothing on disk changes, and on Radarr, Sonarr, Whisparr and Lidarr the release can be blocklisted again through remove_queue_item\'s `blocklist` flag. Previews first; confirm to remove it.',
         inputSchema: z.object({
-            service: serviceOf(['radarr', 'sonarr', 'whisparr', 'lidarr']),
-            instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
+            ...targetInput(TARGET),
             id: z.string().min(1).describe('The blocklist entry id, exactly as get_blocklist reported it.')
         }),
-        service: ({ service, instance }) => findAdapter(adapters, service, instance).id,
+        target: { adapters, to: TARGET },
         operation: 'remove_blocklist_item',
         tier: 'safe',
 
-        async plan({ service, instance, id }): Promise<WritePlan> {
-            const adapter = findAdapter(adapters, service, instance);
+        async plan({ service, id }, adapter): Promise<WritePlan> {
 
             // Not optional. Probed live against both services: DELETE of a
             // blocklist id that does not exist answers success, so without
@@ -76,8 +70,7 @@ export function registerRemoveBlocklistItem(
             };
         },
 
-        async apply(_plan, { service, instance, id }) {
-            const adapter = findAdapter(adapters, service, instance);
+        async apply(_plan, { id }, adapter) {
             await adapter.removeBlocklistItem(id);
             return { removed: `${adapter.id}:${id}` };
         }

@@ -1,7 +1,6 @@
-import { INSTANCE_PARAM_DESCRIPTION, instancesOfType, resolveInstance } from './resolveInstance.ts';
+import { instancesOfType } from './resolveInstance.ts';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { type ServiceId, serviceOf } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import {
     hasArtistMonitor,
@@ -15,16 +14,15 @@ import { managedIdByTitle } from './byTitle.ts';
 import type { LibraryLoader } from './library.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 import { titled } from '../core/labels.ts';
+import { targetInput, writeTarget } from './writeTarget.ts';
+import { checkScope, EPISODE_LIMIT, refuseBoth } from './itemScope.ts';
 
-const findAdapter = (adapters: readonly ServiceAdapter[], service: ServiceId, instance?: string) => {
-    const adapter = resolveInstance(adapters, service, instance);
-    if (!hasMonitoring(adapter)) {
-        throw new ServiceError('NotFound', service, `${service} has no monitoring to set`, {
-            remedy: 'Only sonarr and whisparr can be monitored per season or episode, and lidarr per album or artist. Films have no seasons.'
-        });
-    }
-    return adapter;
-};
+const TARGET = writeTarget({
+    services: ['sonarr', 'whisparr', 'lidarr'],
+    can: hasMonitoring,
+    cannot: 'has no monitoring to set',
+    hint: 'Sonarr and Whisparr monitor per season or episode, and Lidarr per album or artist. Films have no seasons.'
+});
 
 /** How many artists sit at each new-album policy and each monitor flag, so a
  *  preview says what the library holds rather than only what it is about to
@@ -89,8 +87,7 @@ export function registerSetMonitoring(
         description:
             'Turns monitoring on or off. Sonarr and Whisparr: a series (by `id` or `title`), one `season`, or `episodes` (not both). [[lidarr: Lidarr takes `level`: `album` sets one album\'s flag; `artist` sets the artist flag and `monitor_new_items` (`none` is the only value that stops the wanted list growing by itself), and omitting `artists` reaches every artist. **The artist flag is not the album flag**: an unmonitored artist\'s albums drop out of get_wanted but keep their own flags and come back with the artist, so stop wanting one album with `level: "album"` (ids from get_media_details on the artist, or a get_wanted `albumId`).]] Radarr monitoring is update_media. Unmonitor **before** delete_episode_files, or Sonarr downloads the files again. Safe tier. The preview shows the current state; a season, episode or artist that does not exist is refused rather than silently written. Previews first; confirm to apply. Field reference: arr://docs/set_monitoring.',
         inputSchema: z.object({
-            service: serviceOf(['sonarr', 'whisparr', 'lidarr']),
-            instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
+            ...targetInput(TARGET),
             title: z
                 .string()
                 .min(1)
@@ -142,12 +139,11 @@ export function registerSetMonitoring(
                 .optional()
                 .describe('Specific episode ids, as integer strings. Mutually exclusive with `season`.')
         }),
-        service: ({ service, instance }) => findAdapter(adapters, service, instance).id,
+        target: { adapters, to: TARGET },
         operation: 'set_monitoring',
         tier: 'safe',
 
-        async plan({ service, instance, id: given, title, monitored, season, episodes, level, artists, monitor_new_items }): Promise<WritePlan> {
-            const adapter = findAdapter(adapters, service, instance);
+        async plan({ service, instance, id: given, title, monitored, season, episodes, level, artists, monitor_new_items }, adapter): Promise<WritePlan> {
             const id = await idOf(adapter.id, given, title, service);
 
             // ---- Lidarr's artist level: a policy over a set, not a flag on one item.
@@ -299,11 +295,7 @@ export function registerSetMonitoring(
             if (monitored === undefined) {
                 throw new Error('`monitored` is required. Say which way: true to monitor, false to stop.');
             }
-            if (season !== undefined && episodes !== undefined) {
-                throw new Error(
-                    '`season` and `episodes` were both given. They are different targets — send one. Omit both to monitor the whole series.'
-                );
-            }
+            refuseBoth(season, episodes, 'Omit both to monitor the whole series.');
 
             const verb = monitored ? 'Monitor' : 'Unmonitor';
             const who = service.charAt(0).toUpperCase() + service.slice(1);
@@ -339,7 +331,7 @@ export function registerSetMonitoring(
                 // id that does not exist reached Sonarr as a write.
                 const details = await adapter.getMediaDetails(id, {
                     includeEpisodes: episodes !== undefined,
-                    episodeLimit: 500
+                    episodeLimit: EPISODE_LIMIT
                 });
                 label = titled(details.title, details.year);
 
@@ -351,35 +343,7 @@ export function registerSetMonitoring(
                 // instead, exactly as delete_episode_files refuses an episode id it
                 // cannot resolve. Only when Sonarr actually reported seasons: no
                 // list is no evidence, and refusing on that would be a guess.
-                if (season !== undefined && details.seasons !== undefined) {
-                    const known = details.seasons.map(s => s.season);
-                    if (!known.includes(season)) {
-                        throw new ServiceError('NotFound', service, `${label} has no season ${season}`, {
-                            remedy: `Seasons on this series: ${known.join(', ')}. Get them from get_media_details.`
-                        });
-                    }
-                }
-
-                // The same refusal one level down, and for the same reason its
-                // sibling gives: an id `getMediaDetails` never returned — wrong, or
-                // past the 500-episode cap — is not "nothing to change"; it is "I
-                // could not see that episode at all", and the episode endpoint
-                // accepts ids it cannot find without complaint.
-                if (episodes !== undefined) {
-                    const found = new Set((details.episodes ?? []).map(e => String(e.id)));
-                    const unresolved = episodes.filter(eid => !found.has(eid));
-                    if (unresolved.length > 0) {
-                        throw new ServiceError(
-                            'NotFound',
-                            service,
-                            `Could not find episode(s) ${unresolved.join(', ')} on ${label}` +
-                                (details.episodesTruncated === true
-                                    ? ' — the episode list was truncated at 500, so they may simply not have been fetched.'
-                                    : '.'),
-                            { remedy: 'Check the episode ids from get_media_details.' }
-                        );
-                    }
-                }
+                checkScope(details, label, service, { season, episodes });
 
                 scope =
                     episodes !== undefined
@@ -434,8 +398,7 @@ export function registerSetMonitoring(
             };
         },
 
-        async apply(plan, { service, instance, id: given, title, monitored, season, episodes, level, monitor_new_items }) {
-            const adapter = findAdapter(adapters, service, instance);
+        async apply(plan, { service, id: given, title, monitored, season, episodes, level, monitor_new_items }, adapter) {
             const id = await idOf(adapter.id, given, title, service);
 
             if (level === 'artist' && hasArtistMonitor(adapter)) {
