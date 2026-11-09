@@ -316,7 +316,7 @@ describe('update_media on Lidarr', () => {
         const notFound = (async () => new Response('{}', { status: 404 })) as unknown as typeof fetch;
         const whisparr = updateMedia([new WhisparrAdapter(config(6969), notFound)]);
         await expect(whisparr({ service: 'whisparr', id: '1', monitored: false })).rejects.toThrow(
-            'Only radarr (films), sonarr (series) and lidarr (artists) manage what a library item is set to.'
+            'Radarr manages films, Sonarr series, Lidarr artists and Grimmory books.'
         );
     });
 

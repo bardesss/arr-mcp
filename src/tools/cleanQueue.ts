@@ -1,21 +1,17 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { type ServiceId, serviceOf } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { logger } from '../core/logger.ts';
-import { hasQueue, hasQueueRemove, type QueueItem, type ServiceAdapter } from '../services/types.ts';
-import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
+import { hasQueue, hasQueueRemove, type QueueItem, type ServiceAdapter, type QueueRemoveCapable, type QueueCapable } from '../services/types.ts';
 import { outcomeText, registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
+import { targetInput, writeTarget } from './writeTarget.ts';
 
-const findAdapter = (adapters: readonly ServiceAdapter[], service: ServiceId, instance?: string) => {
-    const adapter = resolveInstance(adapters, service, instance);
-    if (!hasQueueRemove(adapter) || !hasQueue(adapter)) {
-        throw new ServiceError('NotFound', service, `${service} has no download queue`, {
-            remedy: 'Only radarr, sonarr, whisparr and lidarr report the orphaned items this cleans up.'
-        });
-    }
-    return adapter;
-};
+const TARGET = writeTarget({
+    services: ['radarr', 'sonarr', 'whisparr', 'lidarr'],
+    can: (a): a is ServiceAdapter & QueueRemoveCapable & QueueCapable => hasQueueRemove(a) && hasQueue(a),
+    cannot: 'has no download queue',
+    hint: 'They report the orphaned items this cleans up.'
+});
 
 // Narrow and not caller-configurable: `orphaned` alone matches unlinked items
 // that are still transferring, and deleting one destroys a download in progress.
@@ -32,15 +28,13 @@ export function registerCleanQueue(
         description:
             'Removes every completed download stuck in a Radarr, Sonarr, Whisparr or Lidarr queue because the film, series or artist it belongs to no longer exists — the ones that pile up at "importBlocked" for years. Also drops them from the download client. Only touches items that are both orphaned and import-blocked, so a download still in progress is never affected, and it never blocklists: the release was fine, the media was deleted. On Lidarr before 2.10.1 nothing is ever marked `importBlocked` — a deleted artist\'s finished download stays `completed` with a warning — so this finds nothing there; remove such a row with remove_queue_item. Previews first; confirm to remove them.',
         inputSchema: z.object({
-            service: serviceOf(['radarr', 'sonarr', 'whisparr', 'lidarr']),
-            instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION)
+            ...targetInput(TARGET)
         }),
-        service: ({ service, instance }) => findAdapter(adapters, service, instance).id,
+        target: { adapters, to: TARGET },
         operation: 'clean_queue',
         tier: 'destructive',
 
-        async plan({ service, instance }): Promise<WritePlan> {
-            const adapter = findAdapter(adapters, service, instance);
+        async plan(_args, adapter): Promise<WritePlan<{ ids: string[] }>> {
             const litter = (await adapter.getQueue()).filter(isLitter);
             const target = `${adapter.id}:orphaned`;
 
@@ -74,9 +68,8 @@ export function registerCleanQueue(
 
         applied: outcomeText,
 
-        async apply(plan, { service, instance }) {
-            const adapter = findAdapter(adapters, service, instance);
-            const ids = (plan.args?.ids ?? []) as string[];
+        async apply(plan, _args, adapter) {
+            const ids = plan.args?.ids ?? [];
 
             // Caught per item. Throwing on the first failure audited the whole
             // write as failed and told the caller nothing about the ones that

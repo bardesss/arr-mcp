@@ -1,10 +1,11 @@
-import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
+import { resolveInstance } from './resolveInstance.ts';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { type ServiceId, serviceOf } from '../config/schema.ts';
+import { type ServiceId} from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { hasPause, hasSpeedLimit, type ServiceAdapter } from '../services/types.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
+import { targetInput, writeTarget } from './writeTarget.ts';
 
 /**
  * "Stop downloading, I need the bandwidth" — and its inverse, which is the
@@ -21,15 +22,12 @@ import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts
  * wrong permission is not.
  */
 
-const findAdapter = (adapters: readonly ServiceAdapter[], service: ServiceId, instance?: string) => {
-    const adapter = resolveInstance(adapters, service, instance);
-    if (!hasPause(adapter)) {
-        throw new ServiceError('NotFound', service, `${service} cannot be paused`, {
-            remedy: 'Only the download clients pause: sabnzbd, nzbget, transmission and qbittorrent. Radarr and Sonarr have no pause — they keep grabbing, and the grabs queue up in whichever client is configured.'
-        });
-    }
-    return adapter;
-};
+const TARGET = writeTarget({
+    services: ['sabnzbd', 'nzbget', 'transmission', 'qbittorrent'],
+    can: hasPause,
+    cannot: 'cannot be paused',
+    hint: 'Radarr and Sonarr have no pause — they keep grabbing, and the grabs queue up in whichever client is configured.'
+});
 
 /** A speed cap is its own capability: a client can pause without having one,
  *  and reporting a limit that was never applied is worse than refusing. */
@@ -54,8 +52,7 @@ export function registerPauseDownloads(
         description:
             'Pauses, resumes or throttles one download client — SABnzbd, NZBGet, Transmission or qBittorrent — or pauses one item in its queue when `id` is given. The bandwidth answer: "stop downloading for an hour", or `action: "limit"` with `speed_limit_kbps` to slow it down instead of stopping it (0 removes the cap). A limit is always client-wide, never per item. Safe tier, because the undo is this same tool with the other action. It does NOT stop Radarr or Sonarr grabbing: they carry on finding and sending releases, which then sit in the paused client. `service` is required and names one client; pausing "everything" means one call each. Previews first; confirm to apply it.',
         inputSchema: z.object({
-            service: serviceOf(['sabnzbd', 'nzbget', 'transmission', 'qbittorrent']),
-            instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
+            ...targetInput(TARGET),
             action: z
                 .enum(['pause', 'resume', 'limit'])
                 .describe('pause, resume, or limit to cap the download speed without stopping anything.'),
@@ -76,11 +73,11 @@ export function registerPauseDownloads(
         }),
         // The resolved instance id, not the bare type — permissions are
         // granted per instance.
-        service: ({ service, instance }) => findAdapter(adapters, service, instance).id,
+        target: { adapters, to: TARGET },
         operation: 'pause_downloads',
         tier: 'safe',
 
-        async plan({ service, instance, action, id, speed_limit_kbps }): Promise<WritePlan> {
+        async plan({ service, instance, action, id, speed_limit_kbps }, adapter): Promise<WritePlan> {
             if (action === 'limit') {
                 if (id !== undefined) {
                     throw new Error(
@@ -124,8 +121,6 @@ export function registerPauseDownloads(
                     args: { action, kbps: speed_limit_kbps }
                 };
             }
-
-            const adapter = findAdapter(adapters, service, instance);
             const paused = action === 'pause';
             const state = await adapter.readPauseState(id);
 
@@ -162,15 +157,13 @@ export function registerPauseDownloads(
             };
         },
 
-        async apply(_plan, { service, instance, action, id, speed_limit_kbps }) {
+        async apply(_plan, { service, instance, action, id, speed_limit_kbps }, adapter) {
             if (action === 'limit') {
                 const kbps = speed_limit_kbps === undefined || speed_limit_kbps === 0 ? undefined : speed_limit_kbps;
                 const client = findLimitAdapter(adapters, service, instance);
                 await client.setSpeedLimit(kbps);
                 return { limitKbps: kbps ?? null, service: client.id };
             }
-
-            const adapter = findAdapter(adapters, service, instance);
             await adapter.setPaused(action === 'pause', id);
             return { [action === 'pause' ? 'paused' : 'resumed']: `${adapter.id}:${id ?? 'all'}` };
         }

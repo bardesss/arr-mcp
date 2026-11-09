@@ -1,8 +1,5 @@
-import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { type ServiceId, serviceOf } from '../config/schema.ts';
-import { ServiceError } from '../core/errors.ts';
 import {
     hasDownloadTrace,
     hasRetry,
@@ -13,6 +10,7 @@ import {
     type ServiceAdapter
 } from '../services/types.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
+import { targetInput, writeTarget } from './writeTarget.ts';
 
 /**
  * "The download failed, try it again" — on the usenet client itself, which is
@@ -26,15 +24,11 @@ import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts
  * the audit log scrubs; it never reaches the summary, effects or result.
  */
 
-const findRetryAdapter = (adapters: readonly ServiceAdapter[], service: ServiceId, instance?: string) => {
-    const adapter = resolveInstance(adapters, service, instance);
-    if (!hasRetry(adapter)) {
-        throw new ServiceError('NotFound', service, `${service} cannot retry a download`, {
-            remedy: 'retry_download is for sabnzbd, nzbget and shelfmark.'
-        });
-    }
-    return adapter;
-};
+const TARGET = writeTarget({
+    services: ['sabnzbd', 'nzbget', 'shelfmark'],
+    can: hasRetry,
+    cannot: 'cannot retry a download'
+});
 
 /** What each method does, in the words a person would use for it. */
 const METHOD_TEXT: Record<RetryMethod, (client: string) => string> = {
@@ -152,19 +146,17 @@ export function registerRetryDownload(server: McpServer, context: WriteContext, 
         description:
             'Retries one failed download on SABnzbd or NZBGet, the client that holds the files, or a failed or cancelled book on Shelfmark, which queues it again if Shelfmark says it can. It picks what to send from the job itself: a SABnzbd job paused for a password is unlocked, a failed SABnzbd job is retried, an NZBGet download with missing articles fetches them again, and one that only failed to unpack is post-processed again. Give `password` when the failure was an encrypted archive; it comes from the site the NZB came from and is never shown back. Take `id` from the get_history or get_queue row. The preview checks whether Radarr or Sonarr already grabbed a replacement, since retrying then can leave two copies. If no *arr imports the result, trigger_scan with action: "import" does. Safe tier. Previews first; confirm to apply it.',
         inputSchema: z.object({
-            service: serviceOf(['sabnzbd', 'nzbget', 'shelfmark']),
-            instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
+            ...targetInput(TARGET),
             id: z.string().min(1).describe("the id on that client's get_history or get_queue row"),
             password: z.string().min(1).optional().describe('the archive password, from the site the NZB came from')
         }),
         // The resolved instance id, not the bare type — permissions are
         // granted per instance.
-        service: ({ service, instance }) => findRetryAdapter(adapters, service, instance).id,
+        target: { adapters, to: TARGET },
         operation: 'retry_download',
         tier: 'safe',
 
-        async plan({ service, instance, id, password }): Promise<WritePlan> {
-            const adapter = findRetryAdapter(adapters, service, instance);
+        async plan({ service, instance, id, password }, adapter): Promise<WritePlan> {
             const target = await adapter.findRetryTarget(id, { hasPassword: password !== undefined });
 
             const effects = [METHOD_TEXT[target.method](adapter.id), describeTarget(target, adapter.id)];
@@ -198,8 +190,7 @@ export function registerRetryDownload(server: McpServer, context: WriteContext, 
             return plan;
         },
 
-        async apply(plan, { service, instance, id, password }) {
-            const adapter = findRetryAdapter(adapters, service, instance);
+        async apply(plan, { id, password }, adapter) {
             const outcome = await adapter.runRetry(id, {
                 method: plan.args?.method as RetryMethod,
                 ...(password === undefined ? {} : { password })

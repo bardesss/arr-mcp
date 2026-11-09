@@ -1,12 +1,11 @@
-import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { type ServiceId, serviceOf } from '../config/schema.ts';
-import { ServiceError } from '../core/errors.ts';
-import { hasEpisodeFiles, hasMediaDetails, type EpisodeSummary, type ServiceAdapter } from '../services/types.ts';
+import { hasEpisodeFiles, type EpisodeSummary, type ServiceAdapter } from '../services/types.ts';
 import { arrSubject } from './crossChecks.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 import { titled } from '../core/labels.ts';
+import { targetInput, writeTarget } from './writeTarget.ts';
+import { checkScope, describable, EPISODE_LIMIT, refuseBoth } from './itemScope.ts';
 
 const GIB = 1024 ** 3;
 
@@ -17,15 +16,12 @@ function humanSize(bytes: number): string | undefined {
     return bytes >= GIB ? `${(bytes / GIB).toFixed(1)} GB` : `${Math.round(bytes / 1024 ** 2)} MB`;
 }
 
-const findAdapter = (adapters: readonly ServiceAdapter[], service: ServiceId, instance?: string) => {
-    const adapter = resolveInstance(adapters, service, instance);
-    if (!hasEpisodeFiles(adapter)) {
-        throw new ServiceError('NotFound', service, `${service} has no episode files to delete`, {
-            remedy: 'Only sonarr and whisparr have per-episode files. Use delete_media for a film.'
-        });
-    }
-    return adapter;
-};
+const TARGET = writeTarget({
+    services: ['sonarr', 'whisparr'],
+    can: hasEpisodeFiles,
+    cannot: 'has no episode files to delete',
+    hint: 'Use delete_media for a film.'
+});
 
 export function registerDeleteEpisodeFiles(
     server: McpServer,
@@ -38,8 +34,7 @@ export function registerDeleteEpisodeFiles(
         description:
             'Deletes the files for one Sonarr season, or for specific episodes, from disk. Destructive and not undoable. Give `season` or `episodes`, never both; there is no whole-series form — that is delete_media. **Unmonitor first with set_monitoring**, or Sonarr treats the episodes as missing and re-downloads exactly what you just deleted; the preview says so when the target is still monitored. Leaves the series, its monitoring and its history in Sonarr — only the files go. Previews first; confirm to delete.',
         inputSchema: z.object({
-            service: serviceOf(['sonarr', 'whisparr']),
-            instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
+            ...targetInput(TARGET),
             id: z.string().min(1).describe('The series id, as an integer string.'),
             season: z
                 .number()
@@ -53,26 +48,17 @@ export function registerDeleteEpisodeFiles(
                 .optional()
                 .describe('Specific episode ids, as integer strings. Mutually exclusive with `season`.')
         }),
-        service: ({ service, instance }) => findAdapter(adapters, service, instance).id,
+        target: { adapters, to: TARGET },
         operation: 'delete_episode_files',
         tier: 'destructive',
         crossCheck: 'delete',
 
-        async plan({ service, instance, id, season, episodes }): Promise<WritePlan> {
-            if (season !== undefined && episodes !== undefined) {
-                throw new Error(
-                    '`season` and `episodes` were both given. They are different targets — send one.'
-                );
-            }
+        async plan({ service, id, season, episodes }, adapter): Promise<WritePlan<{ service: string; id: string; fileIds: number[] }>> {
+            refuseBoth(season, episodes);
             if (season === undefined && episodes === undefined) {
                 throw new Error(
                     'Give either `season` or `episodes`. There is no whole-series form here — use delete_media with `delete_files: true` for that.'
                 );
-            }
-
-            const adapter = findAdapter(adapters, service, instance);
-            if (!hasMediaDetails(adapter)) {
-                throw new ServiceError('NotFound', service, `${service} cannot describe its own items`);
             }
 
             // Episodes on both paths, not just the `episodes` one. The
@@ -85,18 +71,14 @@ export function registerDeleteEpisodeFiles(
             // while its episodes are monitored. Reading the aggregate here
             // would leave the warning silent in exactly the state this branch
             // can create.
-            const details = await adapter.getMediaDetails(id, { includeEpisodes: true, episodeLimit: 500 });
+            const details = await describable(adapter, service).getMediaDetails(id, { includeEpisodes: true, episodeLimit: EPISODE_LIMIT });
             const label = titled(details.title, details.year);
             // A season the series does not have is refused, not reported as
             // "no files on disk": that sentence claims the season was looked
             // at, and on Whisparr — where a season is a release year — `season:
             // 1` is the likeliest wrong input. Only when seasons were reported:
             // no list is no evidence, and refusing on that would be a guess.
-            if (season !== undefined && details.seasons !== undefined && !details.seasons.some(s => s.season === season)) {
-                throw new ServiceError('NotFound', service, `${label} has no season ${season}.`, {
-                    remedy: `Seasons on this series: ${details.seasons.map(s => s.season).join(', ')}.`
-                });
-            }
+            checkScope(details, label, service, { season, episodes });
 
             const all = await adapter.listEpisodeFiles(id);
 
@@ -117,25 +99,6 @@ export function registerDeleteEpisodeFiles(
             } else {
                 const requested = episodes ?? [];
                 const allEpisodes = details.episodes ?? [];
-                const foundIds = new Set(allEpisodes.map(e => String(e.id)));
-
-                // An id `getMediaDetails` never returned — wrong, or past the
-                // 500-episode cap — is not "nothing to delete"; it is "I
-                // could not see that episode at all". Reporting a noop or a
-                // quietly-short count for that would misdescribe the request,
-                // so this refuses instead of guessing.
-                const unresolved = requested.filter(rid => !foundIds.has(rid));
-                if (unresolved.length > 0) {
-                    throw new ServiceError(
-                        'NotFound',
-                        service,
-                        `Could not find episode(s) ${unresolved.join(', ')} on ${label}` +
-                            (details.episodesTruncated === true
-                                ? ' — the episode list was truncated at 500, so they may simply not have been fetched.'
-                                : '.'),
-                        { remedy: 'Check the episode ids from get_media_details.' }
-                    );
-                }
 
                 const requestedIdSet = new Set(requested);
                 const targeted = allEpisodes.filter(e => requestedIdSet.has(String(e.id)));
@@ -247,9 +210,9 @@ export function registerDeleteEpisodeFiles(
             };
         },
 
-        async apply(plan, { service, instance }) {
-            const fileIds = (plan.args?.fileIds ?? []) as number[];
-            await findAdapter(adapters, service, instance).deleteEpisodeFiles(fileIds);
+        async apply(plan, _args, adapter) {
+            const fileIds = plan.args?.fileIds ?? [];
+            await adapter.deleteEpisodeFiles(fileIds);
             return { deleted: fileIds.length, target: plan.target };
         }
     });

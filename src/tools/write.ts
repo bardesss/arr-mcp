@@ -9,6 +9,9 @@ import { toolInput } from '../core/shape.ts';
 import { logger } from '../core/logger.ts';
 import type { CrossCheckProfile, CrossCheckSubject, CrossChecker } from './crossChecks.ts';
 import type { LibraryLoader } from './library.ts';
+import { resolveTarget, type WriteTarget } from './writeTarget.ts';
+import type { ServiceId } from '../config/schema.ts';
+import type { ServiceAdapter } from '../services/types.ts';
 
 /**
  * The four properties every write must have — permission tier, `dry_run`, an
@@ -25,7 +28,7 @@ import type { LibraryLoader } from './library.ts';
 
 /** What `plan` resolved the request into: a concrete target and a description
  *  of the effect, in the model's words rather than the service's. */
-export type WritePlan = {
+export type WritePlan<Bound extends Record<string, unknown> = Record<string, unknown>> = {
     /** The resolved id the write will act on. The confirmation token binds to
      *  this, so a token cannot survive re-resolving a title to a different film. */
     target: string;
@@ -36,7 +39,7 @@ export type WritePlan = {
     effects: string[];
     /** Effect-bearing arguments, folded into the token binding. Anything that
      *  changes what `apply` does belongs here or the token would not commit to it. */
-    args?: Record<string, unknown>;
+    args?: Bound;
     /**
      * Set when the plan resolved successfully but there is nothing to do — the
      * film is already monitored, the request is already approved. The harness
@@ -57,7 +60,42 @@ export type WritePlan = {
 /** For a tool whose `apply` returns the sentence to show: use it as the applied text. */
 export const outcomeText = (outcome: unknown): string | undefined => (typeof outcome === 'string' ? outcome : undefined);
 
-export type WriteToolSpec<Schema extends z.ZodObject> = {
+/**
+ * Which service's permissions govern a call: either worked out from the
+ * arguments, or the adapter a `target` resolves them to, which `plan` and
+ * `apply` then receive rather than looking it up again.
+ */
+type Routing<Schema extends z.ZodObject, Adapter> =
+    | {
+          /**
+           * A fixed id for a single-service tool, or a function of the
+           * arguments for one that spans several.
+           *
+           * It must be derived from the arguments and nothing else. Resolving it from
+           * the *plan* would let a tool that had already done a read decide its own
+           * permission scope, and a fixed id on a multi-service tool is worse still:
+           * it would check Sonarr writes against Radarr's `permissions` block, so
+           * enabling one service would quietly enable the other.
+           */
+          service: string | ((args: z.infer<Schema>) => string);
+          target?: never;
+      }
+    | {
+          /**
+           * The instance the `service` and `instance` arguments name, refused unless
+           * it can do this write. Its id is the permission key, not the bare type:
+           * checking `radarr` against a config that only grants `radarr/hd` would
+           * deny a permitted write, or worse, the reverse.
+           */
+          target: { adapters: readonly ServiceAdapter[]; to: WriteTarget<Adapter & ServiceAdapter> };
+          service?: never;
+      };
+
+export type WriteToolSpec<
+    Schema extends z.ZodObject,
+    Adapter = undefined,
+    Bound extends Record<string, unknown> = Record<string, unknown>
+> = Routing<Schema, Adapter> & {
     name: string;
     /** What a client shows a person in place of `delete_episode_files`. */
     title: string;
@@ -65,18 +103,6 @@ export type WriteToolSpec<Schema extends z.ZodObject> = {
     /** Tool-specific arguments. `dry_run` and `confirm` are added here, so no
      *  write tool can accidentally omit or redefine them. */
     inputSchema: Schema;
-    /**
-     * Which service's permissions govern this call — a fixed id for a
-     * single-service tool, or a function of the arguments for one that spans
-     * several (`trigger_search` reaches both Radarr and Sonarr).
-     *
-     * It must be derived from the arguments and nothing else. Resolving it from
-     * the *plan* would let a tool that had already done a read decide its own
-     * permission scope, and a fixed id on a multi-service tool is worse still:
-     * it would check Sonarr writes against Radarr's `permissions` block, so
-     * enabling one service would quietly enable the other.
-     */
-    service: string | ((args: z.infer<Schema>) => string);
     /** The adapter-level verb, e.g. `delete_movie`; one tool may reach several. */
     operation: string;
     /**
@@ -86,8 +112,9 @@ export type WriteToolSpec<Schema extends z.ZodObject> = {
      * since it can be.
      */
     tier: WriteTier | ((args: z.infer<Schema>) => WriteTier);
-    plan(args: z.infer<Schema>): Promise<WritePlan>;
-    apply(plan: WritePlan, args: z.infer<Schema>): Promise<unknown>;
+    /** `adapter` is the one `target` resolved; a tool routed by `service` has none. */
+    plan(args: z.infer<Schema>, adapter: Adapter & ServiceAdapter): Promise<WritePlan<Bound>>;
+    apply(plan: WritePlan<Bound>, args: z.infer<Schema>, adapter: Adapter & ServiceAdapter): Promise<unknown>;
     /**
      * Optional override for the sentence shown after a successful apply.
      * Most tools need none — `plan.summary` describes the effect and the
@@ -96,13 +123,13 @@ export type WriteToolSpec<Schema extends z.ZodObject> = {
      * nothing to pull) supplies this to say so; returning `undefined` falls
      * back to the default sentence.
      */
-    applied?(outcome: unknown, plan: WritePlan): string | undefined;
+    applied?(outcome: unknown, plan: WritePlan<Bound>): string | undefined;
     /**
      * Calls worth offering now that the write has landed, as data for a client
      * to put to the person. Never run here. Called after the write only: a
      * throw is logged and the write is still reported, since it already happened.
      */
-    followUps?(outcome: unknown, args: z.infer<Schema>, plan: WritePlan): NextStep[];
+    followUps?(outcome: unknown, args: z.infer<Schema>, plan: WritePlan<Bound>): NextStep[];
     /**
      * Which questions to ask the rest of the stack when this write is
      * previewed. Run by the harness, not by `plan`: `plan` runs again on the
@@ -249,11 +276,11 @@ export function rawTarget(args: Record<string, unknown>): string {
  * `dry_run` — there is no path from arguments to `apply` that skips the tier
  * check, the confirmation, or the trail.
  */
-export function registerWriteTool<Schema extends z.ZodObject>(
-    server: McpServer,
-    context: WriteContext,
-    spec: WriteToolSpec<Schema>
-): void {
+export function registerWriteTool<
+    Schema extends z.ZodObject,
+    Adapter = undefined,
+    Bound extends Record<string, unknown> = Record<string, unknown>
+>(server: McpServer, context: WriteContext, spec: WriteToolSpec<Schema, Adapter, Bound>): void {
     const { permissions, confirm, audit, library } = context;
     // Resolved once per registration, not per call: the context is rebuilt per
     // request, so a tool registered from it already belongs to one credential.
@@ -299,8 +326,24 @@ export function registerWriteTool<Schema extends z.ZodObject>(
             // the service whose permissions are checked is the service the
             // audit names and the token binds to. Deriving it later — from the
             // plan, say — would let the three disagree.
-            const service = typeof spec.service === 'function' ? spec.service(args) : spec.service;
             const tier = typeof spec.tier === 'function' ? spec.tier(args) : spec.tier;
+            let service: string;
+            let adapter: Adapter & ServiceAdapter;
+            if (spec.target !== undefined) {
+                const { service: type, instance } = args as { service: ServiceId; instance?: string };
+                try {
+                    adapter = resolveTarget(spec.target.adapters, spec.target.to, type, instance);
+                } catch (err) {
+                    // Refused before anything else ran, and recorded like any other refusal.
+                    const id = audit.begin({ tool: spec.name, service: type, operation: spec.operation, tier, target: rawTarget(args), args: {}, caller });
+                    audit.settle(id, 'denied', err instanceof Error ? err.message : String(err));
+                    throw err;
+                }
+                service = adapter.id;
+            } else {
+                service = typeof spec.service === 'function' ? spec.service(args) : spec.service;
+                adapter = undefined as unknown as Adapter & ServiceAdapter;
+            }
 
             // A refusal costs no upstream read, so it names the argument as
             // given rather than the resolved title. A dry run still resolves
@@ -331,7 +374,7 @@ export function registerWriteTool<Schema extends z.ZodObject>(
                 );
             }
 
-            const plan = await spec.plan(args);
+            const plan = await spec.plan(args, adapter);
 
             const record = {
                 tool: spec.name,
@@ -496,7 +539,7 @@ export function registerWriteTool<Schema extends z.ZodObject>(
             const id = audit.begin(record);
             let outcome: unknown;
             try {
-                outcome = await spec.apply(plan, args);
+                outcome = await spec.apply(plan, args, adapter);
             } catch (err) {
                 audit.settle(id, 'failed', err instanceof Error ? err.message : String(err));
                 throw err;

@@ -1,14 +1,12 @@
-import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { type ServiceId, serviceOf } from '../config/schema.ts';
+import { type ServiceId} from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { MUSICBRAINZ_ID } from '../services/lidarr.ts';
 import {
     hasMediaAdd,
     hasMetadataProfiles,
     type ArtistMonitorNewItems,
-    type MediaAddCapable,
     type QualityProfile,
     type ServiceAdapter
 } from '../services/types.ts';
@@ -19,6 +17,7 @@ import { arrSubject } from './crossChecks.ts';
 import { NO_ALBUMS_PROFILE, SEARCH_AFTER_REFRESH } from './lidarrProfiles.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 import { titled } from '../core/labels.ts';
+import { targetInput, writeTarget } from './writeTarget.ts';
 
 /**
  * The last of the writes, and the only one that has to *choose*
@@ -37,19 +36,12 @@ import { titled } from '../core/labels.ts';
  * cheaper than it is.
  */
 
-const findAdapter = (
-    adapters: readonly ServiceAdapter[],
-    service: ServiceId,
-    instance?: string
-): ServiceAdapter & MediaAddCapable => {
-    const adapter = resolveInstance(adapters, service, instance);
-    if (!hasMediaAdd(adapter)) {
-        throw new ServiceError('NotFound', service, `${service} cannot add media`, {
-            remedy: 'Only radarr (films, by TMDB id), sonarr or whisparr (series or a site, by TVDB id) and lidarr (artists, by MusicBrainz id) can.'
-        });
-    }
-    return adapter;
-};
+const TARGET = writeTarget({
+    services: ['radarr', 'sonarr', 'whisparr', 'lidarr'],
+    can: hasMediaAdd,
+    cannot: 'cannot add media',
+    hint: 'Radarr adds films by TMDB id, Sonarr and Whisparr series or a site by TVDB id, and Lidarr artists by MusicBrainz id.'
+});
 
 /**
  * Lidarr's monitored check is skipped during any search (nothing sets
@@ -266,8 +258,7 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
         description:
             'Adds a film to Radarr, a series to Sonarr, a site to Whisparr or an artist to Lidarr, and by default starts a search. For a Seerr request that goes through approval, use request_media. Ids: TMDB for Radarr, TVDB for Sonarr and Whisparr (Whisparr\'s own scene id in that field), MusicBrainz for Lidarr; get them from lookup_media `ids`. With more than one quality profile or root folder, name one: call without them and the preview refuses with the list, so there is no need to check stack_health first. Sonarr and Whisparr take `monitor` (which seasons), Sonarr `series_type`, Radarr `minimum_availability`. [[lidarr: Lidarr takes `monitor` (which albums), `monitor_new_items` and `metadata_profile`; `monitor: "none"` needs `monitored: false` with it, and its search on add covers only monitored, released albums.]] An option sent to the wrong service is refused, not dropped. Previews first; confirm to add. Field reference: arr://docs/add_media.',
         inputSchema: z.object({
-            service: serviceOf(['radarr', 'sonarr', 'whisparr', 'lidarr']).describe('radarr for a film, sonarr for a series, whisparr for a site, lidarr for an artist.'),
-            instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
+            ...targetInput(TARGET, 'radarr for a film, sonarr for a series, whisparr for a site, lidarr for an artist.'),
             external_id: z
                 .string()
                 .min(1)
@@ -330,14 +321,14 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
         // The resolved instance id, not the bare type: permissions are granted per
         // instance, so checking `radarr` against a config that only grants
         // `radarr/hd` would deny a permitted write — or worse, the reverse.
-        service: ({ service, instance }) => findAdapter(adapters, service, instance).id,
+        target: { adapters, to: TARGET },
         operation: 'add_media',
         tier: 'safe',
         crossCheck: 'acquire',
 
         async plan({
             service,
-            instance,
+            
             external_id,
             quality_profile,
             root_folder,
@@ -350,8 +341,7 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
             monitor_new_items,
             metadata_profile,
             path
-        }): Promise<WritePlan> {
-            const adapter = findAdapter(adapters, service, instance);
+        }, adapter): Promise<WritePlan> {
             const lidarr = adapter.type === 'lidarr';
             if (lidarr && path !== undefined) {
                 throw new ServiceError('NotFound', service, 'path is not a Lidarr option', {
@@ -554,7 +544,7 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
             };
         },
 
-        async apply(plan, { service, instance }) {
+        async apply(plan, _args, adapter) {
             const a = plan.args as {
                 externalId: string;
                 qualityProfileId: number;
@@ -574,7 +564,7 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
             // re-running `chooseOne` here could land on a different profile if
             // one was added in between, and the token guaranteed the one that
             // was previewed.
-            return findAdapter(adapters, service, instance).addMedia({
+            return adapter.addMedia({
                 externalId: a.externalId,
                 qualityProfileId: a.qualityProfileId,
                 rootFolderPath: a.rootFolderPath,

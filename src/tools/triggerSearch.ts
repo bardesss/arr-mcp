@@ -1,12 +1,12 @@
-import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { type ServiceId, serviceOf } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
-import { hasMediaDetails, hasSearchTrigger, type AlbumSummary, type MediaDetails, type ServiceAdapter } from '../services/types.ts';
+import { hasSearchTrigger, type AlbumSummary, type MediaDetails, type ServiceAdapter } from '../services/types.ts';
 import { arrSubject } from './crossChecks.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 import { titled } from '../core/labels.ts';
+import { targetInput, writeTarget } from './writeTarget.ts';
+import { checkScope, describable, EPISODE_LIMIT, refuseBoth } from './itemScope.ts';
 
 /**
  * The first write, and the shape every later one follows.
@@ -19,15 +19,11 @@ import { titled } from '../core/labels.ts';
  * user could have seen before the write, not one this tool invented.
  */
 
-const findAdapter = (adapters: readonly ServiceAdapter[], service: ServiceId, instance?: string) => {
-    const adapter = resolveInstance(adapters, service, instance);
-    if (!hasSearchTrigger(adapter)) {
-        throw new ServiceError('NotFound', service, `${service} cannot be told to search`, {
-            remedy: 'Only radarr, sonarr, whisparr and lidarr support trigger_search.'
-        });
-    }
-    return adapter;
-};
+const TARGET = writeTarget({
+    services: ['radarr', 'sonarr', 'whisparr', 'lidarr'],
+    can: hasSearchTrigger,
+    cannot: 'cannot be told to search'
+});
 
 /**
  * What a Lidarr search will grab. `ArtistSearch` asks for the artist's
@@ -104,8 +100,7 @@ export function registerTriggerSearch(
         description:
             'Asks Radarr, Sonarr, Whisparr or Lidarr to go looking for releases for one item it already tracks — the "it never downloaded, try again" action. Takes `service` and `id`, deliberately not a title: take `id` from `acquisition.id` on a get_library or get_media_details record. On Sonarr or Whisparr, give `season` to search one season or `episodes` for specific episode ids; giving both is refused rather than resolved, and neither on Radarr, which has no seasons. On Lidarr, `id` is the artist: give `albums` for specific album ids of that artist (from get_media_details at `detail: "full"`), or omit it to search the artist\'s monitored albums. This queues a search and returns immediately; it does not wait for a release to be found, and finding one is not guaranteed. Previews first; confirm to run it.',
         inputSchema: z.object({
-            service: serviceOf(['radarr', 'sonarr', 'whisparr', 'lidarr']),
-            instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
+            ...targetInput(TARGET),
             id: z.string().min(1).describe("The item's id within that service, as an integer string."),
             season: z
                 .number()
@@ -135,17 +130,13 @@ export function registerTriggerSearch(
         // The resolved instance id, not the bare type: permissions are granted per
         // instance, so checking `radarr` against a config that only grants
         // `radarr/hd` would deny a permitted write — or worse, the reverse.
-        service: ({ service, instance }) => findAdapter(adapters, service, instance).id,
+        target: { adapters, to: TARGET },
         operation: 'trigger_search',
         tier: 'safe',
         crossCheck: 'acquire',
 
-        async plan({ service, instance, id, season, episodes, albums }): Promise<WritePlan> {
-            if (season !== undefined && episodes !== undefined) {
-                throw new Error(
-                    '`season` and `episodes` were both given. They are different targets — send one. Omit both to search the whole series.'
-                );
-            }
+        async plan({ service, id, season, episodes, albums }, adapter): Promise<WritePlan> {
+            refuseBoth(season, episodes, 'Omit both to search the whole series.');
             if ((season !== undefined || episodes !== undefined) && service === 'lidarr') {
                 throw new ServiceError('NotFound', service, 'a Lidarr artist has no seasons or episodes', {
                     remedy: 'Pass `albums` with album ids from get_media_details to search specific albums, or neither to search the whole artist.'
@@ -162,52 +153,21 @@ export function registerTriggerSearch(
                 });
             }
 
-            const adapter = findAdapter(adapters, service, instance);
-
             // A read before the write, for two reasons: it fails early and
             // legibly if the id does not exist ("Radarr has no movie 9999"
             // rather than a 404 from a command endpoint), and it puts a real
             // title in the preview — a confirmation prompt that says "search
             // for item 5" is one nobody can meaningfully approve.
-            if (!hasMediaDetails(adapter)) {
-                throw new ServiceError('NotFound', service, `${service} cannot describe its own items`);
-            }
             // A Lidarr artist's albums are read every time: they are what an
             // `albums` list is checked against, and what tells the preview how
             // much of the artist a whole-artist search covers.
-            const details = await adapter.getMediaDetails(id, {
+            const details = await describable(adapter, service).getMediaDetails(id, {
                 includeEpisodes: episodes !== undefined || service === 'lidarr',
-                episodeLimit: 500
+                episodeLimit: EPISODE_LIMIT
             });
             const label = titled(details.title, details.year);
 
-            // A season or episode id that does not resolve is not "search
-            // nothing interesting" — Sonarr accepts a command matching nothing
-            // and reports success, so an unvalidated write here is a search
-            // that silently searches for nothing at all.
-            if (season !== undefined && details.seasons !== undefined) {
-                const known = details.seasons.map(s => s.season);
-                if (!known.includes(season)) {
-                    throw new ServiceError('NotFound', service, `${label} has no season ${season}`, {
-                        remedy: `Seasons on this series: ${known.join(', ')}. Get them from get_media_details.`
-                    });
-                }
-            }
-            if (episodes !== undefined) {
-                const found = new Set((details.episodes ?? []).map(e => String(e.id)));
-                const unresolved = episodes.filter(eid => !found.has(eid));
-                if (unresolved.length > 0) {
-                    throw new ServiceError(
-                        'NotFound',
-                        service,
-                        `Could not find episode(s) ${unresolved.join(', ')} on ${label}` +
-                            (details.episodesTruncated === true
-                                ? ' — the episode list was truncated at 500, so they may simply not have been fetched.'
-                                : '.'),
-                        { remedy: 'Check the episode ids from get_media_details.' }
-                    );
-                }
-            }
+            checkScope(details, label, service, { season, episodes });
 
             const known = details.albums ?? [];
             const named = albums === undefined ? [] : known.filter(a => albums.includes(a.id));
@@ -220,7 +180,7 @@ export function registerTriggerSearch(
                         service,
                         `Could not find album(s) ${unresolved.join(', ')} on ${label}` +
                             (details.albumsTruncated === true
-                                ? ' — the album list was truncated at 500, so they may simply not have been fetched.'
+                                ? ' — the album list was truncated at ${EPISODE_LIMIT}, so they may simply not have been fetched.'
                                 : '.'),
                         { remedy: 'Check the album ids from get_media_details on this artist, at detail: "full".' }
                     );
@@ -284,8 +244,8 @@ export function registerTriggerSearch(
             };
         },
 
-        async apply(_plan, { service, instance, id, season, episodes, albums }) {
-            return findAdapter(adapters, service, instance).triggerSearch(id, {
+        async apply(_plan, { id, season, episodes, albums }, adapter) {
+            return adapter.triggerSearch(id, {
                 ...(season === undefined ? {} : { season }),
                 ...(episodes === undefined ? {} : { episodes }),
                 ...(albums === undefined ? {} : { albums })
