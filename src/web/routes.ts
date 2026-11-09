@@ -43,7 +43,7 @@ import {
 import type { ExpiryChoice, TokenTier } from '../core/mcpTokens.ts';
 import { configPage, configTabForPost, configTabNamed, defaultUserNote, offerableTypes, type OAuthDraft } from './configPage.ts';
 import { probeJwks } from './jwksProbe.ts';
-import { apiEndpoint, mcpEndpoint, sameOrigin } from './origin.ts';
+import { apiEndpoint, mcpEndpoint, requestIsHttps, sameOrigin } from './origin.ts';
 import type { WebhookEvents } from '../core/webhookEvents.ts';
 import type { HistoryEntry, Window } from '../services/types.ts';
 import {
@@ -105,7 +105,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         if (c.req.method !== 'GET' || runtime.config.auth.password_hash === undefined) return;
         if (c.res.headers.has('set-cookie') || !c.res.headers.get('content-type')?.startsWith('text/html')) return;
         const renewed = runtime.sessions.renew(readCookie(c.req.header('cookie'), SESSION_COOKIE));
-        if (renewed !== undefined) c.header('set-cookie', sessionCookie(renewed, Math.floor(SESSION_TTL_MS / 1000)));
+        if (renewed !== undefined) c.header('set-cookie', sessionCookie(renewed, Math.floor(SESSION_TTL_MS / 1000), secureFor(c)));
     });
 
     app.get('/ui/app.css', c => c.body(CSS, 200, { 'content-type': 'text/css; charset=utf-8', ...CACHE }));
@@ -173,7 +173,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         await runtime.reload();
 
         const token = runtime.sessions.issue();
-        c.header('set-cookie', sessionCookie(token, Math.floor(SESSION_TTL_MS / 1000)));
+        c.header('set-cookie', sessionCookie(token, Math.floor(SESSION_TTL_MS / 1000), secureFor(c)));
         logger.info({ ...originOf(c), username }, 'config UI claimed');
         return c.redirect('/ui', 302);
     });
@@ -240,7 +240,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
 
         loginThrottle.recordSuccess(key);
         const token = runtime.sessions.issue();
-        c.header('set-cookie', sessionCookie(token, Math.floor(SESSION_TTL_MS / 1000)));
+        c.header('set-cookie', sessionCookie(token, Math.floor(SESSION_TTL_MS / 1000), secureFor(c)));
         logger.info({ ...originOf(c), username }, 'config UI sign-in');
         return c.redirect('/ui', 302);
     });
@@ -254,7 +254,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         // Clearing the cookie only ends the session for the browser holding it.
         // Anyone with a copy of the token kept access until it expired.
         runtime.sessions.revoke(session);
-        c.header('set-cookie', clearedSessionCookie());
+        c.header('set-cookie', clearedSessionCookie(secureFor(c)));
         return c.redirect('/ui/login', 302);
     });
 
@@ -654,7 +654,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                     // you out of the page you changed it on.
                     runtime.sessions.rotateKey();
                     activeSession = runtime.sessions.issue();
-                    c.header('set-cookie', sessionCookie(activeSession, Math.floor(SESSION_TTL_MS / 1000)));
+                    c.header('set-cookie', sessionCookie(activeSession, Math.floor(SESSION_TTL_MS / 1000), secureFor(c)));
                 }
             } catch (err) {
                 // The file is written atomically and validated first, so
@@ -1030,6 +1030,8 @@ export const originOf = (c: Context): { ip: string; forwardedFor?: string } => {
  * bucket: the address behind a proxy is unverifiable, so keying on it would let
  * an attacker rotate a header to reset their counter.
  */
+const secureFor = (c: Pick<Context, 'req'>): boolean => requestIsHttps(c.req.url, c.req.header('x-forwarded-proto'));
+
 export const throttleKey = (c: Context): string =>
     c.req.header('x-forwarded-for') !== undefined || c.req.header('forwarded') !== undefined
         ? 'proxied'

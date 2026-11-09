@@ -328,7 +328,10 @@ so far.
   the Logs auto-refresh does not count. It survives restarts and updates, because
   the signing key is kept in `sessions.json` beside `config.yaml`, with owner-only
   permissions. It is a bigger target than the MCP endpoint, because it displays
-  every service's API key and can change them, so sign out on a shared machine.
+  every service's API key and can change them, so sign out on a shared machine. The cookie is marked `Secure` when the page was
+  reached over https, directly or through a proxy sending `X-Forwarded-Proto: https`.
+  Over plain http on a LAN it is not, since a browser would refuse to store it
+  and nobody could sign in.
 - `/ui/login` throttles itself after 5 free failed attempts, then delays each
   further one with a growing backoff capped at 5 minutes. The counter is kept
   per socket peer, which cannot be forged. A request carrying `X-Forwarded-For`

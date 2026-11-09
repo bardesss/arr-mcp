@@ -334,6 +334,20 @@ describe('access control', () => {
         }
     });
 
+    it('marks the session cookie Secure only when the page was reached over https', async () => {
+        const wrong = form({ username: 'admin', password: PASSWORD });
+        cookie = '';
+        const plain = await call('/ui/login', wrong);
+        expect(plain.headers.get('set-cookie')).not.toContain('Secure');
+
+        cookie = '';
+        const proxied = await call('/ui/login', {
+            ...wrong,
+            headers: { ...wrong.headers, 'x-forwarded-proto': 'https' }
+        });
+        expect(proxied.headers.get('set-cookie')).toContain('Secure');
+    });
+
     it('blocks a proxied burst without blocking a direct sign-in', async () => {
         cookie = '';
         vi.useFakeTimers({ toFake: ['Date'] });

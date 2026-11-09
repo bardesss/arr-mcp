@@ -19,7 +19,7 @@ import {
     verifyPassword
 } from './core/session.ts';
 import type { Sessions } from './core/session.ts';
-import { sameOrigin } from './web/origin.ts';
+import { requestIsHttps, sameOrigin } from './web/origin.ts';
 import { CSS, JS } from './web/assets.ts';
 import { MARK_SVG } from './web/icons.ts';
 import { loginPage, setupPage } from './web/pages.ts';
@@ -152,10 +152,12 @@ export function buildRepairApp(deps: RepairDeps): Hono {
     // survives the swap unless a save really did change the password.
     sessions.bindCredentials(auth.password_hash);
 
+    const secureFor = (c: Context): boolean => requestIsHttps(c.req.url, c.req.header('x-forwarded-proto'));
+
     const signIn = (c: Context): string => {
         sessions.bindCredentials(auth.password_hash);
         const token = sessions.issue();
-        c.header('set-cookie', sessionCookie(token, Math.floor(SESSION_TTL_MS / 1000)));
+        c.header('set-cookie', sessionCookie(token, Math.floor(SESSION_TTL_MS / 1000), secureFor(c)));
         return token;
     };
 
