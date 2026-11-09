@@ -190,10 +190,8 @@ export class DispatcharrAdapter implements ServiceAdapter, HealthCheckCapable {
             try {
                 await this.#http.get<unknown>(ACCOUNTS_PATH);
             } catch (err) {
-                if (err instanceof ServiceError && err.kind === 'AuthFailed') {
-                    if (err.detail.includes('HTTP 403')) throw new ServiceError('AuthFailed', this.id, err.detail, { remedy: REMEDY_403 });
-                    if (err.detail.includes('HTTP 401')) throw new ServiceError('AuthFailed', this.id, err.detail, { remedy: REMEDY_401 });
-                }
+                if (err instanceof ServiceError && err.status === 403) throw new ServiceError('AuthFailed', this.id, err.detail, { remedy: REMEDY_403, status: 403 });
+                if (err instanceof ServiceError && err.status === 401) throw new ServiceError('AuthFailed', this.id, err.detail, { remedy: REMEDY_401, status: 401 });
                 throw err;
             }
             return version;

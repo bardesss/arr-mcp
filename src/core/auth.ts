@@ -15,6 +15,8 @@ export interface AuthContext {
 
 export interface AuthStrategy {
     readonly id: string;
+    /** What to tell the operator when the service answers 401 or 403. Defaults to the API key remedy. */
+    readonly remedy?: string;
     apply(ctx: AuthContext): void;
     /**
      * Given a failed response, mutate internal state and return true when the
@@ -65,10 +67,16 @@ export function apiKeyHeader(header: string, key: string): AuthStrategy {
 /** A route or a service that takes no credential. Shelfmark's `/api/health`, and all of it until auth is set up. */
 export const noAuth: AuthStrategy = { id: 'none', apply() {} };
 
+export const LOGIN_REMEDY = 'The username or password is wrong.';
+
 /** HTTP Basic authentication for services that do not have a session login. */
-export function basicAuth(creds: { username?: string | undefined; password?: string | undefined }): AuthStrategy {
+export function basicAuth(
+    creds: { username?: string | undefined; password?: string | undefined },
+    remedy: string = LOGIN_REMEDY
+): AuthStrategy {
     return {
         id: 'basic-auth',
+        remedy,
         apply(ctx) {
             if (creds.username === undefined) return;
             const basic = Buffer.from(`${creds.username}:${creds.password ?? ''}`).toString('base64');
@@ -130,6 +138,7 @@ export function transmissionRpc(creds: { username?: string; password?: string })
 
     return {
         id: 'transmission-rpc',
+        remedy: LOGIN_REMEDY,
         apply(ctx) {
             basic.apply(ctx);
             if (sessionId !== undefined) {
@@ -186,6 +195,7 @@ export function qbittorrentSession(creds: {
 
     return {
         id: 'qbittorrent-session',
+        remedy: LOGIN_REMEDY,
         apply(ctx) {
             if (cookie !== undefined) ctx.headers.set('Cookie', `${cookie.name}=${cookie.value}`);
         },
@@ -209,12 +219,20 @@ interface SessionCookie {
     value: string;
 }
 
-async function qbittorrentLogin(
-    creds: { id: string; url: string; username?: string; password?: string; timeoutMs: number },
+/**
+ * POSTs a login form outside ServiceHttp, which cannot send it: its auth
+ * strategy is the thing being set up. Returns the answer with its body read,
+ * because an unread body pins the connection, and a banned client reads a 403
+ * on every attempt.
+ */
+async function postLogin(
+    creds: { id: string; url: string; timeoutMs: number },
+    login: { path: string; product: string; sameOriginRemedy: string; keepUserinfo: boolean; headers: Record<string, string>; body: string },
     doFetch: typeof fetch
-): Promise<SessionCookie> {
+): Promise<{ response: Response; text: string }> {
     const base = new URL(creds.url);
-    const url = new URL(base.pathname.replace(/\/+$/, '') + QB_LOGIN_PATH, base);
+    const url = new URL(base.pathname.replace(/\/+$/, '') + login.path, base);
+    // fetch refuses a URL with credentials and its error would carry them.
     const basic = takeUserinfo(url);
 
     let response: Response;
@@ -222,13 +240,10 @@ async function qbittorrentLogin(
         response = await doFetch(url.toString(), {
             method: 'POST',
             headers: {
-                'content-type': 'application/x-www-form-urlencoded',
-                ...(basic === undefined ? {} : { authorization: basic })
+                ...login.headers,
+                ...(login.keepUserinfo && basic !== undefined ? { authorization: basic } : {})
             },
-            body: new URLSearchParams({
-                username: creds.username ?? '',
-                password: creds.password ?? ''
-            }).toString(),
+            body: login.body,
             signal: AbortSignal.timeout(creds.timeoutMs),
             // The body carries the password: never follow a redirect with it.
             redirect: 'manual'
@@ -237,10 +252,7 @@ async function qbittorrentLogin(
         throw new ServiceError('AuthFailed', creds.id, 'the login request failed', { cause: err });
     }
 
-    // Read before the status check, not after: a banned client sees 403 on
-    // every future login, and skipping this on that path would leak one
-    // pinned connection per attempt for as long as the ban lasts.
-    const body = (await response.text()).trim();
+    const text = await response.text();
 
     const location = response.status >= 300 && response.status < 400 ? response.headers.get('location') : null;
     if (location !== null) {
@@ -252,13 +264,32 @@ async function qbittorrentLogin(
         }
         // Naming our own origin back as the fix would send the user in a circle.
         const elsewhere = origin !== undefined && origin !== url.origin;
-        const detail = elsewhere ? `login redirected to ${origin}` : 'login was redirected';
-        throw new ServiceError('AuthFailed', creds.id, detail, {
-            remedy: elsewhere
-                ? 'Set its url in the config to the address qBittorrent redirects the login to.'
-                : 'Check the qBittorrent url: its login page redirected instead of answering. A reverse proxy or a URL base is the usual cause.'
+        throw new ServiceError('AuthFailed', creds.id, elsewhere ? `login redirected to ${origin}` : 'login was redirected', {
+            remedy: elsewhere ? `Set its url in the config to the address ${login.product} redirects the login to.` : login.sameOriginRemedy
         });
     }
+
+    return { response, text };
+}
+
+async function qbittorrentLogin(
+    creds: { id: string; url: string; username?: string; password?: string; timeoutMs: number },
+    doFetch: typeof fetch
+): Promise<SessionCookie> {
+    const { response, text } = await postLogin(
+        creds,
+        {
+            path: QB_LOGIN_PATH,
+            product: 'qBittorrent',
+            sameOriginRemedy:
+                'Check the qBittorrent url: its login page redirected instead of answering. A reverse proxy or a URL base is the usual cause.',
+            keepUserinfo: true,
+            headers: { 'content-type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ username: creds.username ?? '', password: creds.password ?? '' }).toString()
+        },
+        doFetch
+    );
+    const body = text.trim();
 
     if (response.status === 403) {
         throw new ServiceError('AuthFailed', creds.id, 'login refused', {
@@ -368,6 +399,7 @@ export function grimmorySession(creds: {
 
     return {
         id: 'grimmory-session',
+        remedy: LOGIN_REMEDY,
         apply(ctx) {
             if (session !== undefined && now() < session.validUntil) ctx.headers.set('Authorization', `Bearer ${session.token}`);
         },
@@ -389,44 +421,20 @@ async function grimmoryLogin(
     creds: { id: string; url: string; username: string; password: string; timeoutMs: number },
     doFetch: typeof fetch
 ): Promise<{ token: string; expiresS: number }> {
-    const base = new URL(creds.url);
-    const url = new URL(base.pathname.replace(/\/+$/, '') + GRIMMORY_LOGIN_PATH, base);
-    // fetch refuses a URL with credentials and its error would carry them.
-    // The bearer token owns the Authorization header, so proxy Basic auth is
-    // dropped here, as the url cannot carry it.
-    takeUserinfo(url);
-
-    let response: Response;
-    try {
-        response = await doFetch(url.toString(), {
-            method: 'POST',
+    // The bearer token owns the Authorization header, so proxy Basic auth in the url is dropped.
+    const { response, text } = await postLogin(
+        creds,
+        {
+            path: GRIMMORY_LOGIN_PATH,
+            product: 'Grimmory',
+            sameOriginRemedy:
+                'Check the Grimmory url: its login redirected instead of answering. A reverse proxy or a path prefix is the usual cause.',
+            keepUserinfo: false,
             headers: { 'content-type': 'application/json', accept: 'application/json' },
-            body: JSON.stringify({ username: creds.username, password: creds.password }),
-            signal: AbortSignal.timeout(creds.timeoutMs),
-            // The body carries the password: never follow a redirect with it.
-            redirect: 'manual'
-        });
-    } catch (err) {
-        throw new ServiceError('AuthFailed', creds.id, 'the login request failed', { cause: err });
-    }
-
-    const text = await response.text();
-
-    const location = response.status >= 300 && response.status < 400 ? response.headers.get('location') : null;
-    if (location !== null) {
-        let origin: string | undefined;
-        try {
-            origin = new URL(location, url).origin;
-        } catch {
-            // Unparseable: name no address at all.
-        }
-        const elsewhere = origin !== undefined && origin !== url.origin;
-        throw new ServiceError('AuthFailed', creds.id, elsewhere ? `login redirected to ${origin}` : 'login was redirected', {
-            remedy: elsewhere
-                ? 'Set its url in the config to the address Grimmory redirects the login to.'
-                : 'Check the Grimmory url: its login redirected instead of answering. A reverse proxy or a path prefix is the usual cause.'
-        });
-    }
+            body: JSON.stringify({ username: creds.username, password: creds.password })
+        },
+        doFetch
+    );
 
     if (response.status === 401 || response.status === 403 || response.status === 429) throw new GrimmoryRejected();
 
