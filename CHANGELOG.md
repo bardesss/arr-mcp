@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.76.1](https://github.com/bardesss/arr-mcp/compare/v1.76.0...v1.76.1) (2026-11-09)
+
+
+### Bug Fixes
+
+* **arr:** window the blocklist and filtered-history reads, refuse a non-list response ([#563](https://github.com/bardesss/arr-mcp/issues/563)) ([3417135](https://github.com/bardesss/arr-mcp/commit/3417135f321852b1eb54d18bb91973c4b6f3ccc2))
+* correct the server instructions, scope prompts to the surface and align cross-tool details ([#560](https://github.com/bardesss/arr-mcp/issues/560)) ([44ca536](https://github.com/bardesss/arr-mcp/commit/44ca536fe6dad85f56f74d6f9f1e258c88706bfd))
+* **diagnose:** skip item probes on a title miss, read Bazarr per item and bound the whole call ([#562](https://github.com/bardesss/arr-mcp/issues/562)) ([e3a9aa7](https://github.com/bardesss/arr-mcp/commit/e3a9aa736de172e2a19cbc614d6c7e393a837ded))
+* **seerr:** read one page of issues and one title's requests, not the whole request history ([#561](https://github.com/bardesss/arr-mcp/issues/561)) ([661dae9](https://github.com/bardesss/arr-mcp/commit/661dae9a9e37968a51c092db902e6ee00f2c2202))
+* shut down cleanly on SIGTERM and stop re-downloading IMDb on every restart ([#559](https://github.com/bardesss/arr-mcp/issues/559)) ([cfb0a3d](https://github.com/bardesss/arr-mcp/commit/cfb0a3dd87fed27229978dcf9dad19e01be136ea))
+
 ## [1.76.0](https://github.com/bardesss/arr-mcp/compare/v1.75.2...v1.76.0) (2026-11-09)
 
 
