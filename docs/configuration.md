@@ -1037,3 +1037,20 @@ Profilarr, and so on. The reads that merge across services (`get_library`,
 `get_queue`, `get_history`, `diagnose`, the lookups) always stay. It is set in
 `config.yaml` only, and takes effect after a restart (or the next save from the
 configuration page, which reloads the config).
+
+### Poster cards
+
+In a client that renders [MCP Apps](https://github.com/modelcontextprotocol/ext-apps),
+`get_media_details`, `search_media`, `lookup_media` and `get_library` show films
+and series as poster cards. Building them reads the Radarr and Sonarr queues for
+the "downloading" badge, so it only happens for a client that declares MCP Apps
+support. Over stateless HTTP a client cannot declare anything the server keeps,
+so the cards are built there unless you turn them off:
+
+```yaml
+tools:
+  media_cards: false   # default true
+```
+
+That also removes the `_meta.ui` key from those four tools and the
+`ui://arr-mcp/media-cards.html` resource.

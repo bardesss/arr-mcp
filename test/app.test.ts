@@ -1292,7 +1292,8 @@ describe('prompts and resources, beside the tools rather than instead of them', 
 
     it('advertises the four data resources beside the tool references', async () => {
         const { resources } = (await list('resources/list')) as { resources: { uri: string }[] };
-        expect(resources.map(r => r.uri).filter(u => !u.startsWith('arr://docs/')).sort()).toEqual([
+        // `ui://` is the MCP Apps card view, a view of tool answers rather than data (test/mcpApps.test.ts).
+        expect(resources.map(r => r.uri).filter(u => u.startsWith('arr://') && !u.startsWith('arr://docs/')).sort()).toEqual([
             'arr://health',
             'arr://instances',
             'arr://library/summary',

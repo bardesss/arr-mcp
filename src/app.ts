@@ -23,6 +23,7 @@ import { JwksUnavailable } from './mcp/oauthVerifier.ts';
 import { acceptingBoth, acceptsStream, asPlainJson } from './mcp/plainJson.ts';
 import { registerAllPrompts } from './mcp/prompts.ts';
 import { shapeToolSurface } from './mcp/toolSurface.ts';
+import { registerAppResources } from './mcp/apps.ts';
 import { registerAllResources } from './mcp/resources.ts';
 import { RESOURCE_METADATA_PATHS, resourceMetadata, resourceMetadataUrl } from './mcp/resourceMetadata.ts';
 import { cappedTo, oauthRefusal, tiersFor, tokenRefusal } from './mcp/scopes.ts';
@@ -238,6 +239,8 @@ export function mcpServerFactory(
         // before — `test/mcp.test.ts` asserts that rather than trusting it.
         registerAllPrompts(server);
         registerAllResources(server, tools);
+        // MCP Apps: the poster-card view the card tools point at (`mcp/apps.ts`).
+        if (tools.mediaCards) registerAppResources(server);
         return server;
     };
 }

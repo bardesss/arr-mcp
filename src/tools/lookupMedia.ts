@@ -5,7 +5,8 @@ import type { ImdbDataset } from '../metadata/imdbDataset.ts';
 import type { LibraryKind } from '../core/resolver.ts';
 import type { ServiceAdapter } from '../services/types.ts';
 import { MediaKindSchema } from './mediaKind.ts';
-import { buildSearchMedia, searchLine, type GetSearchResult } from './searchMedia.ts';
+import { mediaCardsToolMeta, wantsCards, withCards } from '../mcp/apps.ts';
+import { buildSearchMedia, buildSearchMediaWithCards, searchLine, type GetSearchResult } from './searchMedia.ts';
 
 /**
  * `search_media` with `source` fixed to `discover`.
@@ -26,13 +27,16 @@ export async function buildLookupMedia(
 export function registerLookupMedia(
     server: McpServer,
     adapters: readonly ServiceAdapter[],
-    dataset?: ImdbDataset
+    dataset?: ImdbDataset,
+    /** `tools.media_cards`. */
+    mediaCards = true
 ): void {
     server.registerTool(
         'lookup_media',
         {
             title: 'Look up a title externally',
             annotations: READ_ONLY,
+            ...(mediaCards ? { _meta: mediaCardsToolMeta() } : {}),
             description:
                 'Metadata for something you may not have: title, year, and external ids, from Radarr, Sonarr, Whisparr, Lidarr and Seerr, plus books from Shelfmark (`kind: book`, whose id get_releases takes). A Lidarr hit is an artist, keyed by its MusicBrainz id under `ids.mbid`, which is what add_media takes for Lidarr. Query imdb:tt… to turn an IMDb id into a TMDB id; a bare tt… misses Seerr. Pass `kind` when you know what it is (`movie` for Radarr), and the other services are not asked. Reads only — nothing is added, requested or monitored.',
             outputSchema: PagedOutputSchema,
@@ -44,18 +48,19 @@ export function registerLookupMedia(
                 offset: OffsetSchema
             })
         },
-        async ({ query, kind, detail, limit, offset }) => {
-            const result = await buildLookupMedia(
+        async ({ query, kind, detail, limit, offset }, ctx) => {
+            const { result, cards } = await buildSearchMediaWithCards(
                 adapters,
-                { query, detail, limit, offset, ...(kind === undefined ? {} : { kinds: [kind] }) },
-                dataset
+                { query, detail, limit, offset, source: 'discover', ...(kind === undefined ? {} : { kinds: [kind] }) },
+                dataset,
+                wantsCards(mediaCards, server, ctx)
             );
             const summary =
                 result.total === 0
                     ? `Nothing found for "${query}".`
                     : `${result.returned} of ${result.total} match(es) for "${query}".`;
 
-            return { content: [{ type: 'text', text: listText(summary, result.items, searchLine) }], structuredContent: result };
+            return withCards({ content: [{ type: 'text' as const, text: listText(summary, result.items, searchLine) }], structuredContent: result }, cards);
         }
     );
 }

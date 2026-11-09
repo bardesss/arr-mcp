@@ -1,3 +1,4 @@
+import type { Display } from './display.ts';
 import { RANK_NONE, literalTitle, rankTitle, unfenced } from './titleMatch.ts';
 
 export type ExternalIds = { tmdb?: number; tvdb?: number; imdb?: string; mbid?: string };
@@ -206,6 +207,11 @@ export type IndexInput = Omit<MergedItem, 'presence'> & {
      * row would carry them.
      */
     aliases?: string[];
+    /**
+     * What a poster card shows. Kept off `MergedItem` for the reason `aliases`
+     * is: every row of every list would carry it. Read with `displayOf`.
+     */
+    display?: Display;
 };
 
 /** One `search` hit and how well it matched, lower is better (`titleMatch.ts`). */
@@ -269,7 +275,18 @@ function mergeSeasons(target: SeasonSummary[] | undefined, input: readonly Seaso
     return [...rows.values()].sort((a, b) => a.season - b.season);
 }
 
-function mergeInto(target: MergedItem, input: IndexInput, aliases: Map<MergedItem, Set<string>>): void {
+function mergeInto(
+    target: MergedItem,
+    input: IndexInput,
+    aliases: Map<MergedItem, Set<string>>,
+    displays: Map<MergedItem, Display>
+): void {
+    // The *arr's artwork wins for the reason its title does; the media
+    // server's own images are internal URLs and never reach this field.
+    if (input.display !== undefined && (input.acquisition !== undefined || !displays.has(target))) {
+        displays.set(target, input.display);
+    }
+
     // The *arr title wins: it is the managed one, and the one a user sees in
     // the service they would go and fix something in. The losing title is
     // kept as an alias, because people still ask by it (#517).
@@ -397,15 +414,23 @@ export class LibraryIndex {
     readonly #items: MergedItem[];
     readonly #byKey: Map<string, MergedItem>;
     readonly #aliases: ReadonlyMap<MergedItem, ReadonlySet<string>>;
+    readonly #displays: ReadonlyMap<MergedItem, Display>;
 
     private constructor(
         items: MergedItem[],
         byKey: Map<string, MergedItem>,
-        aliases: ReadonlyMap<MergedItem, ReadonlySet<string>>
+        aliases: ReadonlyMap<MergedItem, ReadonlySet<string>>,
+        displays: ReadonlyMap<MergedItem, Display> = new Map()
     ) {
         this.#items = items;
         this.#byKey = byKey;
         this.#aliases = aliases;
+        this.#displays = displays;
+    }
+
+    /** What a poster card shows for this item, from whichever service had artwork. */
+    displayOf(item: MergedItem): Display | undefined {
+        return this.#displays.get(item);
     }
 
     static build(inputs: readonly IndexInput[], opts: BuildOptions = {}): LibraryIndex {
@@ -425,6 +450,7 @@ export class LibraryIndex {
         // that lost the merge: Jellyfin's "Runner" when Radarr's French
         // "Le Transport" wins the display title (#517).
         const aliases = new Map<MergedItem, Set<string>>();
+        const displays = new Map<MergedItem, Display>();
 
         for (const input of inputs) {
             const keys = keysOf(input.kind, input.ids);
@@ -452,9 +478,10 @@ export class LibraryIndex {
 
             if (matches.length === 0) {
                 // Recomputed by `presenceVerdict` below; a book is `unknown` from the start.
-                const { aliases: inputAliases, ...rest } = input;
+                const { aliases: inputAliases, display, ...rest } = input;
                 const created: MergedItem = { ...rest, presence: input.kind === 'book' ? 'unknown' : 'arr_only' };
                 if (inputAliases !== undefined && inputAliases.length > 0) aliases.set(created, new Set(inputAliases));
+                if (display !== undefined) displays.set(created, display);
                 items.push(created);
                 live.add(created);
                 for (const key of keys) byKey.set(key, created);
@@ -467,11 +494,18 @@ export class LibraryIndex {
             // survivor if the loser is the one carrying acquisition.
             const survivor = matches[0]!;
             for (const loser of matches.slice(1)) {
-                mergeInto(survivor, { ...loser, aliases: [...(aliases.get(loser) ?? [])] }, aliases);
+                const loserDisplay = displays.get(loser);
+                mergeInto(
+                    survivor,
+                    { ...loser, aliases: [...(aliases.get(loser) ?? [])], ...(loserDisplay === undefined ? {} : { display: loserDisplay }) },
+                    aliases,
+                    displays
+                );
                 aliases.delete(loser);
+                displays.delete(loser);
                 live.delete(loser);
             }
-            mergeInto(survivor, input, aliases);
+            mergeInto(survivor, input, aliases, displays);
 
             // Re-index under every id the survivor now knows — from fused
             // losers and from this input — so a later record carrying any of
@@ -513,7 +547,7 @@ export class LibraryIndex {
             for (const key of keysOf(item.kind, item.ids)) finalByKey.set(key, item);
         }
 
-        return new LibraryIndex(merged, finalByKey, aliases);
+        return new LibraryIndex(merged, finalByKey, aliases, displays);
     }
 
     /**

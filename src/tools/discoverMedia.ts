@@ -19,13 +19,15 @@ import { fenceText } from '../core/fence.ts';
 import { enrichWithImdb } from '../metadata/enrich.ts';
 import type { ImdbDataset } from '../metadata/imdbDataset.ts';
 import type { SearchHit } from '../services/types.ts';
+import { withoutDisplay } from '../core/display.ts';
 import { searchLine, type GetSearchResult } from './searchMedia.ts';
 
 const project = (h: SearchHit, detail: DetailLevel): SearchHit => {
     if (detail === 'minimal') {
         return { service: h.service, source: h.source, kind: h.kind, id: h.id, title: h.title, ids: h.ids };
     }
-    return h;
+    // Seerr's hits carry poster cards' artwork, which is no part of this answer.
+    return withoutDisplay(h);
 };
 
 export async function buildDiscoverMedia(
