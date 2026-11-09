@@ -438,7 +438,7 @@ export class ProwlarrAdapter
     async search(query: string, source: SearchSource): Promise<SearchHit[]> {
         if (source !== 'indexers') return [];
 
-        const releases = await this.#http.get<RawRelease[]>(`/api/v1/search?query=${encodeURIComponent(query)}`);
+        const releases = await this.#http.getArray<RawRelease>(`/api/v1/search?query=${encodeURIComponent(query)}`);
 
         return releases.map((r, index) => ({
             service: this.id,

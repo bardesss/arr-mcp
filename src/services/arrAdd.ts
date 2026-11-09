@@ -114,7 +114,7 @@ export async function readMetadataProfiles(http: ServiceHttp, service: string): 
 }
 
 async function readProfiles(http: ServiceHttp, service: string, resource: string): Promise<QualityProfile[]> {
-    const rows = await http.get<RawProfile[]>(`${http.apiRoot}/${resource}`);
+    const rows = await http.getArray<RawProfile>(`${http.apiRoot}/${resource}`);
     return rows
         .filter((p): p is RawProfile & { id: number } => typeof p.id === 'number')
         .map(p => {
@@ -144,7 +144,7 @@ export async function readProfileNames(
 }
 
 export async function readRootFolders(http: ServiceHttp, service: string): Promise<RootFolder[]> {
-    const rows = await http.get<RawRootFolder[]>(`${http.apiRoot}/rootfolder`);
+    const rows = await http.getArray<RawRootFolder>(`${http.apiRoot}/rootfolder`);
     return rows
         .filter((r): r is RawRootFolder & { path: string } => typeof r.path === 'string' && r.path !== '')
         .map(r => {
@@ -202,8 +202,8 @@ async function lookupRaw(
         remedy: `Check the id with lookup_media. ${service} resolves this against its own metadata provider, so an id that is right for the other service will not match here — Radarr takes TMDB, Sonarr takes TVDB.`
     });
 
-    const payload = await http.get<RawLookup | RawLookup[]>(shape.lookupPath(numeric));
-    const first = shape.lookupReturnsArray ? (payload as RawLookup[])[0] : (payload as RawLookup);
+    const path = shape.lookupPath(numeric);
+    const first = shape.lookupReturnsArray ? (await http.getArray<RawLookup>(path))[0] : await http.get<RawLookup>(path);
     // A term search ranks by title, not by id — the top hit is not
     // guaranteed to be the id that was asked for. Trusting it anyway is how
     // Whisparr's ranked-text fallback (see WHISPARR_ADD) could have stored a

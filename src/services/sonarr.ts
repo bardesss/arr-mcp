@@ -385,7 +385,7 @@ export class SonarrAdapter
 
     async listEpisodeFiles(seriesId: string): Promise<EpisodeFile[]> {
         const id = arrItemId(this.id, 'series', seriesId);
-        const files = await this.#http.get<RawEpisodeFile[]>(`/api/v3/episodefile?seriesId=${id}`);
+        const files = await this.#http.getArray<RawEpisodeFile>(`/api/v3/episodefile?seriesId=${id}`);
 
         return files
             .filter((f): f is RawEpisodeFile & { id: number } => typeof f.id === 'number')

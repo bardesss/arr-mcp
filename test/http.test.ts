@@ -949,3 +949,26 @@ describe('ServiceHttp redirects', () => {
         }
     });
 });
+
+describe('ServiceHttp.getArray', () => {
+    it('returns a list unchanged', async () => {
+        expect(await http(async () => json([{ id: 1 }])).getArray('/api/v3/tag')).toEqual([{ id: 1 }]);
+    });
+    it('refuses an object where a list was expected', async () => {
+        await expect(http(async () => json({ records: [] })).getArray('/api/v3/tag')).rejects.toMatchObject({
+            kind: 'UpstreamError',
+            service: 'radarr',
+            detail: 'expected a JSON array from /api/v3/tag, got object'
+        });
+    });
+    it('refuses null', async () => {
+        await expect(http(async () => json(null)).getArray('/api/v3/health')).rejects.toMatchObject({
+            detail: 'expected a JSON array from /api/v3/health, got null'
+        });
+    });
+    it('is what the shared *arr list reads go through', async () => {
+        await expect(readQualityProfiles(http(async () => json({})), 'radarr')).rejects.toMatchObject({
+            kind: 'UpstreamError'
+        });
+    });
+});
