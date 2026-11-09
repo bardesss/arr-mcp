@@ -356,14 +356,14 @@ export function readCookie(header: string | undefined, name: string): string | u
 }
 
 /**
- * `Secure` is deliberately absent: this is reached over plain http:// on a LAN
- * by design (the README tells people to use http on the LAN), and a Secure
- * cookie would simply never be stored, locking everyone out. HttpOnly and
- * SameSite=Strict are what actually matter here.
+ * `Secure` is added only when the page was reached over https. Plain http on a
+ * LAN is supported by design (the README tells people to use it), and a Secure
+ * cookie would never be stored there, so it must stay off for that case or it
+ * would lock everyone out. HttpOnly and SameSite=Strict apply either way.
  */
-export function sessionCookie(token: string, maxAgeSeconds: number): string {
-    return `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAgeSeconds}`;
+export function sessionCookie(token: string, maxAgeSeconds: number, secure = false): string {
+    return `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAgeSeconds}${secure ? '; Secure' : ''}`;
 }
 
-export const clearedSessionCookie = (): string =>
-    `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`;
+export const clearedSessionCookie = (secure = false): string =>
+    `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0${secure ? '; Secure' : ''}`;

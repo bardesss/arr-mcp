@@ -41,9 +41,9 @@ import {
     type InstanceFields
 } from '../config/mutate.ts';
 import type { ExpiryChoice, TokenTier } from '../core/mcpTokens.ts';
-import { configPage, configTabForPost, configTabNamed, offerableTypes, type OAuthDraft } from './configPage.ts';
-import { probeJwks } from './jwksProbe.ts';
-import { apiEndpoint, mcpEndpoint, sameOrigin } from './origin.ts';
+import { configPage, configTabForPost, configTabNamed, defaultUserNote, offerableTypes, type OAuthDraft } from './configPage.ts';
+import { isLoopbackHost, probeJwks } from './jwksProbe.ts';
+import { apiEndpoint, mcpEndpoint, requestIsHttps, sameOrigin } from './origin.ts';
 import type { WebhookEvents } from '../core/webhookEvents.ts';
 import type { HistoryEntry, Window } from '../services/types.ts';
 import {
@@ -105,7 +105,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         if (c.req.method !== 'GET' || runtime.config.auth.password_hash === undefined) return;
         if (c.res.headers.has('set-cookie') || !c.res.headers.get('content-type')?.startsWith('text/html')) return;
         const renewed = runtime.sessions.renew(readCookie(c.req.header('cookie'), SESSION_COOKIE));
-        if (renewed !== undefined) c.header('set-cookie', sessionCookie(renewed, Math.floor(SESSION_TTL_MS / 1000)));
+        if (renewed !== undefined) c.header('set-cookie', sessionCookie(renewed, Math.floor(SESSION_TTL_MS / 1000), secureFor(c)));
     });
 
     app.get('/ui/app.css', c => c.body(CSS, 200, { 'content-type': 'text/css; charset=utf-8', ...CACHE }));
@@ -173,7 +173,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         await runtime.reload();
 
         const token = runtime.sessions.issue();
-        c.header('set-cookie', sessionCookie(token, Math.floor(SESSION_TTL_MS / 1000)));
+        c.header('set-cookie', sessionCookie(token, Math.floor(SESSION_TTL_MS / 1000), secureFor(c)));
         logger.info({ ...originOf(c), username }, 'config UI claimed');
         return c.redirect('/ui', 302);
     });
@@ -193,7 +193,8 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     app.post('/ui/login', async c => {
         if (unclaimed()) return c.redirect('/ui/setup', 302);
 
-        const waitMs = loginThrottle.blockedFor();
+        const key = throttleKey(c);
+        const waitMs = loginThrottle.blockedFor(key);
         if (waitMs > 0) {
             const seconds = Math.ceil(waitMs / 1000);
             c.header('retry-after', String(seconds));
@@ -212,9 +213,9 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         // resolves `verifyPassword`, so without this every one of them would
         // reach the scrypt hash regardless of FREE_ATTEMPTS. A real login
         // clears the reservation below, via `recordSuccess`.
-        const justBlocked = loginThrottle.recordFailure();
+        const justBlocked = loginThrottle.recordFailure(key);
         if (justBlocked) {
-            const seconds = Math.ceil(loginThrottle.blockedFor() / 1000);
+            const seconds = Math.ceil(loginThrottle.blockedFor(key) / 1000);
             logger.warn({ ...originOf(c), seconds }, 'throttled config UI sign-in');
         }
 
@@ -237,9 +238,9 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
             return c.html(loginPage({ version, error: 'Wrong username or password.', theme: theme() }), 401);
         }
 
-        loginThrottle.recordSuccess();
+        loginThrottle.recordSuccess(key);
         const token = runtime.sessions.issue();
-        c.header('set-cookie', sessionCookie(token, Math.floor(SESSION_TTL_MS / 1000)));
+        c.header('set-cookie', sessionCookie(token, Math.floor(SESSION_TTL_MS / 1000), secureFor(c)));
         logger.info({ ...originOf(c), username }, 'config UI sign-in');
         return c.redirect('/ui', 302);
     });
@@ -253,7 +254,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         // Clearing the cookie only ends the session for the browser holding it.
         // Anyone with a copy of the token kept access until it expired.
         runtime.sessions.revoke(session);
-        c.header('set-cookie', clearedSessionCookie());
+        c.header('set-cookie', clearedSessionCookie(secureFor(c)));
         return c.redirect('/ui/login', 302);
     });
 
@@ -282,7 +283,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         // It is live, not cached: a dashboard showing cached status is one
         // that tells you a dead service is fine, and it degrades rather than
         // failing when a service is unreachable.
-        const health = await buildStackHealth(snapshot.adapters, { detail: 'full', limit: 50 });
+        const health = await buildStackHealth(snapshot.adapters, { detail: 'standard', limit: 50 });
 
         return c.html(
             dashboardPage({
@@ -408,22 +409,34 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     };
 
     /**
-     * A running scan reloads the services tab every two seconds, and asking
-     * for users can wait up to `USER_LOOKUP_MS` each time. So a plain view
-     * during a run asks once and reuses the answer until the run ends.
+     * The page no longer waits on this: it is fetched after the page loads, and
+     * a scan's two-second reloads would otherwise ask again each time. So the
+     * answer is kept for a short while, and for as long as the config is the one
+     * it was asked about — a save swaps `runtime.config`, which is the refresh.
      */
-    let usersForRun: { run: string; config: Config; users: Promise<Record<string, readonly string[]>> } | undefined;
-    const usersDuring = (run: RunState | undefined): Promise<Record<string, readonly string[]>> => {
-        if (run?.running !== true) {
-            usersForRun = undefined;
-            return usersByInstance();
+    const USERS_TTL_MS = 30_000;
+    let usersCache: { config: Config; at: number; users: Promise<Record<string, readonly string[]>> } | undefined;
+    const usersCached = (): Promise<Record<string, readonly string[]>> => {
+        if (usersCache?.config !== runtime.config || Date.now() - usersCache.at >= USERS_TTL_MS) {
+            usersCache = { config: runtime.config, at: Date.now(), users: usersByInstance() };
         }
-        // A save during the run changes the config, and with it whom to ask.
-        if (usersForRun?.run !== run.id || usersForRun.config !== runtime.config) {
-            usersForRun = { run: run.id, config: runtime.config, users: usersByInstance() };
-        }
-        return usersForRun.users;
+        return usersCache.users;
     };
+
+    app.get('/ui/config/users.json', async c => {
+        if (guard(c) === undefined) return c.json({ error: 'unauthorized' }, 401);
+
+        const found = await usersCached();
+        const users: Record<string, { names?: string[]; note: string }> = {};
+        for (const adapter of runtime.current.adapters.filter(hasUserDirectory)) {
+            const names = found[adapter.id];
+            users[adapter.id] = {
+                ...(names === undefined ? {} : { names: [...names] }),
+                note: defaultUserNote(adapter.type, names)
+            };
+        }
+        return c.json({ users }, 200, NO_STORE);
+    });
 
     app.get('/ui/config', async c => {
         const session = guard(c);
@@ -440,9 +453,6 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                 version,
                 config: runtime.config,
                 csrf: runtime.sessions.csrfFor(session),
-                // Only the service cards suggest users, and asking waits on every
-                // user-aware service. The other tabs have no reason to.
-                users: tab !== 'services' ? {} : prefill === undefined ? await usersDuring(run) : await usersByInstance(),
                 plaintextOnDisk: runtime.plaintextOnDisk,
                 ...discoveryOpts(run),
                 ...(prefill === undefined ? {} : { addPrefill: prefill, openAdd: true })
@@ -554,10 +564,6 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
             // an add, whose form carries no instance id — there is no card yet.
             const touched = str(form.instance) === '' ? undefined : str(form.instance);
 
-            // Re-asks who the users are, as a plain page load does: a save that
-            // dropped the suggestions would have the card claim the service went
-            // quiet, and a save that changed a Jellyfin key is exactly when the
-            // list is worth refreshing.
             const render = async (
                 message: { kind: 'ok' | 'err'; text: string } | undefined,
                 status: 200 | 400 | 403 | 409,
@@ -571,7 +577,6 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                         version,
                         config: runtime.config,
                         csrf: runtime.sessions.csrfFor(activeSession),
-                        users: tab === 'services' ? await usersByInstance() : {},
                         plaintextOnDisk: runtime.plaintextOnDisk,
                         ...(touched === undefined ? {} : { openInstance: touched }),
                         ...(opts.reopensAdd === true && status !== 200 ? { openAdd: true } : {}),
@@ -649,7 +654,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                     // you out of the page you changed it on.
                     runtime.sessions.rotateKey();
                     activeSession = runtime.sessions.issue();
-                    c.header('set-cookie', sessionCookie(activeSession, Math.floor(SESSION_TTL_MS / 1000)));
+                    c.header('set-cookie', sessionCookie(activeSession, Math.floor(SESSION_TTL_MS / 1000), secureFor(c)));
                 }
             } catch (err) {
                 // The file is written atomically and validated first, so
@@ -853,8 +858,17 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
             return render(400, { message: { kind: 'err', text: (err as Error).message } });
         }
 
+        if (isLoopbackHost(new URL(jwksUri).hostname)) {
+            return render(400, {
+                message: {
+                    kind: 'err',
+                    text: 'arr-mcp will not test a key set on this machine, because the answer would describe local ports. Saving it is still allowed.'
+                }
+            });
+        }
+
         const probe = await probeJwks(jwksUri);
-        // The outcome word only: a summary can carry a redirect's Location.
+        // The outcome word only, never the issuer's own text.
         logger.info({ host: new URL(jwksUri).host, outcome: probe.outcome }, 'OAuth key set tested from the config UI');
         return render(200, {
             tested: probe,
@@ -901,7 +915,6 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                     version,
                     config: runtime.config,
                     csrf: runtime.sessions.csrfFor(session),
-                    users: await usersByInstance(),
                     plaintextOnDisk: runtime.plaintextOnDisk,
                     ...(isAdd ? { openAdd: true } : {}),
                     ...extra
@@ -1019,6 +1032,19 @@ export const originOf = (c: Context): { ip: string; forwardedFor?: string } => {
         ...(claimed === undefined || claimed === '' ? {} : { forwardedFor: claimed })
     };
 };
+
+const secureFor = (c: Pick<Context, 'req'>): boolean => requestIsHttps(c.req.url, c.req.header('x-forwarded-proto'));
+
+/**
+ * What the sign-in throttle counts a request against. The socket peer cannot be
+ * forged, so it is the key. A request that says it was forwarded shares one
+ * bucket: the address behind a proxy is unverifiable, so keying on it would let
+ * an attacker rotate a header to reset their counter.
+ */
+export const throttleKey = (c: Context): string =>
+    c.req.header('x-forwarded-for') !== undefined || c.req.header('forwarded') !== undefined
+        ? 'proxied'
+        : `peer:${peerAddress(c)}`;
 
 export const warnIfCredentialMove = (c: Context, err: unknown): void => {
     if (err instanceof CredentialWouldMoveError) {

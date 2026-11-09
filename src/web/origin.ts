@@ -30,6 +30,19 @@ import type { Context } from 'hono';
 const HOST = /^(\[[0-9A-Fa-f:.]+\]|[A-Za-z0-9.-]+)(:\d{1,5})?$/;
 
 /**
+ * Whether the browser reached this page over https: the URL says so, or the
+ * first hop of `X-Forwarded-Proto` does. Chained proxies append rather than
+ * replace, so the header arrives as `https, http` and only the first hop
+ * describes what the browser spoke.
+ */
+export function requestIsHttps(requestUrl: string, proto: string | undefined): boolean {
+    return requestUrl.toLowerCase().startsWith('https:') || forwardedHttps(proto);
+}
+
+const forwardedHttps = (proto: string | undefined): boolean =>
+    (proto ?? '').split(',')[0]?.trim().toLowerCase() === 'https';
+
+/**
  * `X-Forwarded-Proto` is the only forwarded header read here, and only because
  * omitting it breaks the TLS-terminating-proxy case outright — the page would
  * hand out an `http://` URL that cannot work.
@@ -56,10 +69,9 @@ export function mcpEndpoint(requestUrl: string, proto: string | undefined): stri
     }
     if (!HOST.test(host)) return undefined;
 
-    // Chained proxies append rather than replace, so this arrives as
-    // `https, http` and only the first hop describes what the browser spoke.
-    const first = (proto ?? '').split(',')[0]?.trim().toLowerCase();
-    const scheme = first === 'https' ? 'https' : 'http';
+    // Only the header counts here: the scheme of the URL a server sees is its
+    // own listener's, not what the browser typed.
+    const scheme = forwardedHttps(proto) ? 'https' : 'http';
 
     return `${scheme}://${host}/mcp`;
 }

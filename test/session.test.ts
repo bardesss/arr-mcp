@@ -319,7 +319,14 @@ describe('cookies', () => {
         expect(readCookie('not_arr_mcp_session=xyz', SESSION_COOKIE)).toBeUndefined();
     });
 
-    it('sets HttpOnly and SameSite, and deliberately not Secure', () => {
+    it('adds Secure only when asked to', () => {
+        expect(sessionCookie('tok', 3600, true)).toContain('; Secure');
+        expect(sessionCookie('tok', 3600)).not.toContain('Secure');
+        expect(clearedSessionCookie(true)).toContain('; Secure');
+        expect(clearedSessionCookie()).not.toContain('Secure');
+    });
+
+    it('sets HttpOnly and SameSite, and no Secure by default', () => {
         const cookie = sessionCookie('tok', 3600);
         expect(cookie).toContain('HttpOnly');
         expect(cookie).toContain('SameSite=Strict');

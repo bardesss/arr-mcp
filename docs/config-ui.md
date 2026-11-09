@@ -97,10 +97,11 @@ unchanged — so testing a card you have not touched tests what is already
 configured.
 
 **Jellyfin and Seerr suggest their own users.** The default-user field is backed
-by the real list, fetched from the service when the page loads, so the name you
-save is one the service actually knows rather than one you typed from memory. If
-the service does not answer, the field stays a plain text box and says so — you
-can always configure a service that is currently down.
+by the real list, which the page fetches from the service just after it loads
+(so a slow or dead service never holds the page up), and the name you save is
+one the service actually knows rather than one you typed from memory. Without
+scripting, or if the service does not answer, the field stays a plain text box
+and says so — you can always configure a service that is currently down.
 
 Adding a second instance of a service that takes several asks you to name the
 one you already have, and says why: the name becomes part of the id, and that id
@@ -111,7 +112,10 @@ re-adding it.
 **OAuth** has its own card under Access, for when an identity provider issues
 your clients' tokens. Fill in the issuer, audience, JWKS URI and the three scope
 names (pre-filled with the defaults), and **Test** fetches the key set as typed
-and lists the keys it found, flagging any arr-mcp would refuse. Remove asks once
+and lists the keys it found, flagging any arr-mcp would refuse. Test refuses a
+key set on this machine (localhost, 127.x, `::1`), since the answer would
+describe local ports; saving one is still allowed. A redirect is reported by
+status only, without its target. Remove asks once
 first. Named MCP tokens keep working whatever this card says. See
 [`auth.oauth`](configuration.md#authoauth) for what each field means.
 

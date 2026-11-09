@@ -269,6 +269,21 @@ describe('repair server sign-in', () => {
         expect(page.headers.get('cache-control')).toBe('no-store');
     });
 
+    it('marks the session cookie Secure only behind an https proxy', async () => {
+        const signIn = async (headers: Record<string, string>) => {
+            const res = await get(await claimed(), '/ui/login', {
+                method: 'POST',
+                headers: { 'content-type': 'application/x-www-form-urlencoded', ...headers },
+                body: new URLSearchParams({ username: 'admin', password: PASSWORD }).toString()
+            });
+            expect(res.status).toBe(302);
+            return res.headers.get('set-cookie') ?? '';
+        };
+
+        expect(await signIn({})).not.toContain('Secure');
+        expect(await signIn({ 'x-forwarded-proto': 'https' })).toContain('Secure');
+    });
+
     it('refuses a wrong password', async () => {
         const res = await get(await claimed(), '/ui/login', {
             method: 'POST',

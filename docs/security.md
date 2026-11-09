@@ -329,10 +329,18 @@ so far.
   the signing key is kept in `sessions.json` beside `config.yaml`, with owner-only
   permissions. It is a bigger target than the MCP endpoint, because it displays
   every service's API key and can change them, so sign out on a shared machine.
+  The cookie is marked `Secure` when the page was reached over https, directly
+  or through a proxy sending `X-Forwarded-Proto: https`. Over plain http on a
+  LAN it is not, since a browser would refuse to store it and nobody could sign
+  in. Cookies are scoped to the hostname, not the port, so use one scheme per
+  hostname: after signing in over https, a plain-http sign-in on the same
+  hostname can bounce back to the login page until you clear the cookie.
 - `/ui/login` throttles itself after 5 free failed attempts, then delays each
-  further one with a growing backoff capped at 5 minutes. The counter is
-  global rather than per-IP — deliberate, since nothing validates the client's
-  claimed address.
+  further one with a growing backoff capped at 5 minutes. The counter is kept
+  per socket peer, which cannot be forged. A request carrying `X-Forwarded-For`
+  or `Forwarded` shares one bucket instead, since the address behind a proxy is
+  unverifiable; that bucket behaves like the old global counter, and a
+  direct client can also fill it.
 - A log line records two addresses where they differ: `ip` is the peer the
   socket actually came from, and `forwardedFor` is the first hop of
   `X-Forwarded-For` when a request carried one. Beside, not instead — the

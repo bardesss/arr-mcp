@@ -17,6 +17,7 @@ import { hashPassword } from '../src/core/session.ts';
 import * as session from '../src/core/session.ts';
 import { hashToken } from '../src/core/secrets.ts';
 import { CONFIG_TABS, configTabForPost } from '../src/web/configPage.ts';
+import { isLoopbackHost } from '../src/web/jwksProbe.ts';
 import { buildMcpConfig } from '../src/web/routes.ts';
 
 /**
@@ -334,6 +335,38 @@ describe('access control', () => {
         }
     });
 
+    it('marks the session cookie Secure only when the page was reached over https', async () => {
+        const right = form({ username: 'admin', password: PASSWORD });
+        cookie = '';
+        const plain = await call('/ui/login', right);
+        expect(plain.headers.get('set-cookie')).not.toContain('Secure');
+
+        cookie = '';
+        const proxied = await call('/ui/login', {
+            ...right,
+            headers: { ...right.headers, 'x-forwarded-proto': 'https' }
+        });
+        expect(proxied.headers.get('set-cookie')).toContain('Secure');
+    });
+
+    it('blocks a proxied burst without blocking a direct sign-in', async () => {
+        cookie = '';
+        vi.useFakeTimers({ toFake: ['Date'] });
+
+        try {
+            const wrong = form({ username: 'admin', password: 'wrong' });
+            const forwarded = { ...wrong, headers: { ...wrong.headers, 'x-forwarded-for': '203.0.113.9' } };
+            for (let i = 0; i < FREE_ATTEMPTS; i++) await call('/ui/login', forwarded);
+            const blocked = await call('/ui/login', forwarded);
+            expect(blocked.status).toBe(429);
+
+            const direct = await call('/ui/login', wrong);
+            expect(direct.status).toBe(401);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
     // Regression guard for the race the throttle exists to close: a burst of
     // concurrent posts all read `blockedFor() === 0` before any of them
     // resolves `verifyPassword`, so the reservation has to happen ahead of
@@ -369,6 +402,25 @@ describe('access control', () => {
         const res = await call('/ui');
         expect(res.status).toBe(200);
         expect(await res.text()).toContain('MCP endpoint');
+    });
+
+    it('builds the dashboard without the full-detail reads', async () => {
+        const realFetch = globalThis.fetch;
+        const paths: string[] = [];
+        globalThis.fetch = (async (input: string | URL | Request) => {
+            paths.push(new URL(String(input)).pathname);
+            return new Response('{}', { headers: { 'content-type': 'application/json' } });
+        }) as typeof fetch;
+        try {
+            await seed('  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n');
+            await signIn();
+
+            expect((await call('/ui')).status).toBe(200);
+        } finally {
+            globalThis.fetch = realFetch;
+        }
+
+        expect(paths.filter(p => p.includes('/api/v3/log') || p.includes('/api/v3/qualityprofile'))).toEqual([]);
     });
 
     it('signs out', async () => {
@@ -918,35 +970,58 @@ describe('the default user field', () => {
         globalThis.fetch = realFetch;
     });
 
+    const usersJson = async () =>
+        (await (await call('/ui/config/users.json', { headers: { accept: 'application/json' } })).json()) as unknown;
+
     // The mock goes in before `seed`, because that is when the adapters are
     // built and each one captures the `fetch` it will use.
-    it('suggests the users the service reported', async () => {
-        withUsers(['bartus', 'guest']);
-        await seed(JELLYFIN);
-        await signIn();
-
-        const page = await everyConfigTab();
-
-        expect(page).toContain('<datalist id="svc.jellyfin.default_user.options">');
-        expect(page).toContain('<option value="bartus">');
-        expect(page).toContain('<option value="guest">');
-        expect(page).toContain('Pick one of the 2 users jellyfin reported');
-    });
-
-    /** The field has to stay usable when the service is down — that is most of
-     *  why anyone opens this page. */
-    it('falls back to a typeable field when the service does not answer', async () => {
-        globalThis.fetch = (async () => {
-            throw new Error('connection refused');
+    it('renders the field without asking the service', async () => {
+        let asked = 0;
+        globalThis.fetch = (async (input: string | URL | Request) => {
+            if (String(input).includes('/Users')) asked += 1;
+            return new Response('[]', { headers: { 'content-type': 'application/json' } });
         }) as typeof fetch;
         await seed(JELLYFIN);
         await signIn();
 
         const page = await everyConfigTab();
 
-        expect(page).not.toContain('<datalist');
-        expect(page).toContain('did not answer when asked who its users are');
+        expect(asked).toBe(0);
+        expect(page).toContain('data-users-for="jellyfin"');
+        expect(page).toContain('<datalist id="svc.jellyfin.default_user.options">');
+        expect(page).toContain('value="me"');
+        expect(page).toContain('With scripting on, the users jellyfin reports');
+    });
+
+    it('suggests the users the service reported', async () => {
+        withUsers(['bartus', 'guest']);
+        await seed(JELLYFIN);
+        await signIn();
+
+        expect(await usersJson()).toEqual({
+            users: {
+                jellyfin: {
+                    names: ['bartus', 'guest'],
+                    note: expect.stringContaining('Pick one of the 2 users jellyfin reported')
+                }
+            }
+        });
+    });
+
+    /** The field has to stay usable when the service is down — that is most of
+     *  why anyone opens this page. */
+    it('says when the service does not answer', async () => {
+        globalThis.fetch = (async () => {
+            throw new Error('connection refused');
+        }) as typeof fetch;
+        await seed(JELLYFIN);
+        await signIn();
+
+        expect(await usersJson()).toEqual({
+            users: { jellyfin: { note: expect.stringContaining('did not answer when asked who its users are') } }
+        });
         // Still an editable field holding what is configured.
+        const page = await everyConfigTab();
         expect(page).toContain('name="default_user"');
         expect(page).toContain('value="me"');
     });
@@ -956,7 +1031,52 @@ describe('the default user field', () => {
         await seed(JELLYFIN);
         await signIn();
 
-        expect(await everyConfigTab()).toContain('jellyfin reports no users yet');
+        expect(await usersJson()).toEqual({
+            users: { jellyfin: { names: [], note: expect.stringContaining('jellyfin reports no users yet') } }
+        });
+    });
+
+    it('never lets the users list be cached', async () => {
+        withUsers(['bartus']);
+        await seed(JELLYFIN);
+        await signIn();
+
+        const res = await call('/ui/config/users.json', { headers: { accept: 'application/json' } });
+        expect(res.status).toBe(200);
+        expect(res.headers.get('cache-control')).toBe('no-store');
+    });
+
+    it('asks again after the config is saved', async () => {
+        let asked = 0;
+        globalThis.fetch = (async (input: string | URL | Request) => {
+            if (String(input).includes('/Users')) asked += 1;
+            return new Response('[]', { headers: { 'content-type': 'application/json' } });
+        }) as typeof fetch;
+        await seed(JELLYFIN);
+        await signIn();
+
+        await usersJson();
+        await usersJson();
+        expect(asked).toBe(1);
+
+        const saved = await call(
+            '/ui/config/save',
+            form({ csrf: await csrfFrom(), instance: 'jellyfin', url: 'http://192.0.2.10:8096', api_key: 'k2', default_user: 'me' })
+        );
+        expect(saved.status).toBe(200);
+
+        await usersJson();
+        expect(asked).toBe(2);
+    });
+
+    it('refuses the users list without a session', async () => {
+        withUsers(['bartus']);
+        await seed(JELLYFIN);
+        cookie = '';
+
+        const res = await call('/ui/config/users.json');
+        expect(res.status).toBe(401);
+        expect(await res.json()).toEqual(expect.objectContaining({ error: expect.any(String) }));
     });
 });
 
@@ -2554,7 +2674,9 @@ describe('the OAuth card', async () => {
     const jwk = { ...(await exportJWK(publicKey)), kid: 'test-key', alg: 'RS256' };
     const MIB = 1024 * 1024;
     const json = { 'content-type': 'application/json' };
+    let served = 0;
     const jwks = createServer((_req, res) => {
+        served += 1;
         if (mode === 'http502') return void res.writeHead(502).end('{}');
         if (mode === 'html') return void res.writeHead(200, { 'content-type': 'text/html' }).end('<html>login</html>');
         if (mode === 'empty') return void res.writeHead(200, json).end('{"keys":[]}');
@@ -2667,6 +2789,12 @@ describe('the OAuth card', async () => {
         expect(runtime.config.services).toEqual(before.services);
     });
 
+    it('still saves a loopback key set', async () => {
+        await signIn();
+        expect((await post('/ui/config/oauth', fields())).status).toBe(200);
+        expect(runtime.config.auth.oauth?.jwks_uri).toBe(JWKS_URI);
+    });
+
     it('pre-fills every field with the current values once configured', async () => {
         await signIn();
         await post('/ui/config/oauth', fields({ 'auth.oauth.scopes.read': 'mcp.read' }));
@@ -2761,9 +2889,25 @@ describe('the OAuth card', async () => {
     });
 
     describe('Test', () => {
+        // Test refuses a loopback key set, so the tests reach the local servers
+        // through a public-looking name that fetch maps back.
+        const REMOTE = 'https://jwks.example.com/jwks';
+        const CLOSED_REMOTE = 'https://closed.example.com/jwks';
+        beforeEach(() => {
+            const real = globalThis.fetch;
+            vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+                const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+                const target = url === REMOTE ? JWKS_URI : url === CLOSED_REMOTE ? CLOSED_URI : input;
+                return real(target, init);
+            });
+        });
+        afterEach(() => {
+            vi.restoreAllMocks();
+        });
+
         const test = async (over: Record<string, string> = {}) => {
             const before = runtime.config;
-            const res = await post('/ui/config/oauth/test', fields(over));
+            const res = await post('/ui/config/oauth/test', fields({ 'auth.oauth.jwks_uri': REMOTE, ...over }));
             const page = await decoded(res);
             // A test never saves, whatever it finds.
             expect(runtime.config).toBe(before);
@@ -2794,13 +2938,13 @@ describe('the OAuth card', async () => {
 
         // jose fetches with `redirect: 'manual'` and wants exactly 200, so a
         // redirect that a browser would follow is a 503 at /mcp.
-        it('reports a redirect without following it, naming the target escaped, and never logs it', async () => {
+        it('reports a redirect without following it, and leaves the target out of the page and the log', async () => {
             await signIn();
             mode = 'redirect';
             attachLogStore(logs);
             let raw: string;
             try {
-                const res = await post('/ui/config/oauth/test', fields());
+                const res = await post('/ui/config/oauth/test', fields({ 'auth.oauth.jwks_uri': REMOTE }));
                 raw = await res.text();
             } finally {
                 detachLogStore();
@@ -2808,11 +2952,62 @@ describe('the OAuth card', async () => {
 
             expect(raw).toContain('HTTP 301');
             expect(raw).toContain('redirects are not followed');
-            // Resolved against jwks_uri, so it can be pasted straight back in.
-            expect(raw).toContain(`${JWKS_URI}/&#39;x&#39;?a=1&amp;b=2`);
+            // The target is the issuer's to name, so it is left out.
+            expect(raw).not.toContain('example.com/jwks/');
+            expect(raw).not.toContain('&#39;x&#39;');
             expect(raw).not.toContain("'x'?a=1&b");
             expect(raw).not.toContain('test-key');
             expect(JSON.stringify(logs.recent({ limit: 50 }))).not.toContain('/jwks/');
+        });
+
+        it('refuses to test a loopback key set, and fetches nothing', async () => {
+            await signIn();
+            const before = runtime.config;
+            const servedBefore = served;
+            const res = await post('/ui/config/oauth/test', fields({ 'auth.oauth.jwks_uri': JWKS_URI }));
+            const page = await decoded(res);
+
+            expect(res.status).toBe(400);
+            expect(page).toContain('class="msg err"');
+            expect(page).toContain('will not test a key set on this machine');
+            expect(served).toBe(servedBefore);
+            expect(runtime.config).toBe(before);
+        });
+
+        it.each([
+            ['localhost', true],
+            ['app.localhost', true],
+            ['127.0.0.1', true],
+            ['127.1.2.3', true],
+            ['[::1]', true],
+            ['0.0.0.0', true],
+            ['[::]', true],
+            ['[::ffff:127.0.0.1]', true],
+            ['[::ffff:7f00:1]', true],
+            ['[::ffff:7f12:3456]', true],
+            ['[::ffff:808:808]', false],
+            ['localhost.', true],
+            ['foo.localhost.', true],
+            ['[0:0:0:0:0:0:0:1]', true],
+            ['2130706433', true],
+            ['auth.example.com', false]
+        ])('isLoopbackHost(new URL(https://%s/).hostname) is %s', (host, expected) => {
+            expect(isLoopbackHost(new URL(`https://${host}/`).hostname)).toBe(expected);
+        });
+
+        it.each([
+            'https://[::ffff:127.0.0.1]/jwks',
+            'https://localhost./jwks',
+            'https://foo.localhost./jwks'
+        ])('refuses %s through the Test button, and fetches nothing', async (uri) => {
+            await signIn();
+            const servedBefore = served;
+            const res = await post('/ui/config/oauth/test', fields({ 'auth.oauth.jwks_uri': uri }));
+            const page = await decoded(res);
+
+            expect(res.status).toBe(400);
+            expect(page).toContain('will not test a key set on this machine');
+            expect(served).toBe(servedBefore);
         });
 
         it('refuses a 2xx that is not 200', async () => {
@@ -2877,7 +3072,7 @@ describe('the OAuth card', async () => {
 
         it('reports an unreachable key set', async () => {
             await signIn();
-            expect((await test({ 'auth.oauth.jwks_uri': CLOSED_URI })).page).toContain('unreachable');
+            expect((await test({ 'auth.oauth.jwks_uri': CLOSED_REMOTE })).page).toContain('unreachable');
         });
 
         it('reports a key set with no keys', async () => {
@@ -3364,7 +3559,7 @@ describe('finding services', () => {
         expect(page).not.toContain('add_type=radarr');
     });
 
-    it('asks a user-aware service for its users once per run while a sweep reloads the page', async () => {
+    it('asks a user-aware service for its users once while a sweep reloads the page and the list is fetched', async () => {
         let asked = 0;
         const realFetch = globalThis.fetch;
         globalThis.fetch = (async (input: string | URL | Request) => {
@@ -3379,9 +3574,12 @@ describe('finding services', () => {
             app = buildApp({ runtime, audit, logs, discovery: stub() });
             await signIn();
             state = baseRun({ phase: 'sweep', running: true, range: '192.168.1.0/24', tried: 10, total: 256 });
-            const first = await servicesPage();
             await servicesPage();
             await servicesPage();
+            expect(asked).toBe(0);
+            const first = await (await call('/ui/config/users.json')).text();
+            await call('/ui/config/users.json');
+            await call('/ui/config/users.json');
             expect(asked).toBe(1);
             expect(first).toContain('bartus');
         } finally {

@@ -620,7 +620,9 @@ loud:
   `textContent`.** Not `innerHTML`. Everything else on the page is
   server-rendered through the escaping template, which is sound — but that one
   surface carries indexer text on a timer, and building nodes makes an XSS
-  impossible rather than merely unlikely.
+  impossible rather than merely unlikely. The default-user suggestions work the
+  same way: they arrive from `/ui/config/users.json` as JSON and are built with
+  `option.value` and `textContent`, and the field works unscripted.
 - **A secret is never rendered back.** API keys, the NZBGet and torrent-client
   passwords and the UI password all render as empty fields meaning *unchanged*. That is also
   why an empty field can never mean "clear this" — clearing is expressed by

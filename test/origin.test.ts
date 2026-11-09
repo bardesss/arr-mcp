@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { mcpEndpoint, sameOrigin } from '../src/web/origin.ts';
+import { mcpEndpoint, requestIsHttps, sameOrigin } from '../src/web/origin.ts';
 import type { Context } from 'hono';
+
+describe('requestIsHttps', () => {
+    it.each([
+        ['https://h/ui', undefined, true],
+        ['http://h/ui', 'https, http', true],
+        ['http://h/ui', 'http, https', false],
+        ['http://h/ui', undefined, false]
+    ])('%s with proto %s is %s', (url, proto, expected) => {
+        expect(requestIsHttps(url, proto)).toBe(expected);
+    });
+});
 
 describe('mcpEndpoint', () => {
     it('builds the endpoint from the address the browser actually used', () => {

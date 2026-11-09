@@ -26,14 +26,21 @@ function reason(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
 }
 
-/** Absolute, so a relative Location can be pasted straight into the field. */
-function resolved(location: string | null, base: string): string | null {
-    if (location === null) return null;
-    try {
-        return new URL(location, base).href;
-    } catch {
-        return location;
-    }
+/** A host that names this machine, whose answer would describe local ports
+ *  rather than the identity provider. Literal forms only. */
+export function isLoopbackHost(hostname: string): boolean {
+    const h = hostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
+    return (
+        h === 'localhost' ||
+        h.endsWith('.localhost') ||
+        h === '::1' ||
+        h === '::' ||
+        h === '0.0.0.0' ||
+        h.startsWith('127.') ||
+        h.startsWith('::ffff:127.') ||
+        // `new URL` rewrites a mapped address into hex: 127.x.y.z is 7fxx:yyzz.
+        /^::ffff:7f[0-9a-f]{2}:[0-9a-f]{1,4}$/.test(h)
+    );
 }
 
 async function readCapped(res: Response): Promise<string> {
@@ -100,11 +107,7 @@ export async function probeJwks(uri: string): Promise<JwksProbe> {
 
     if (res.status >= 300 && res.status < 400) {
         await res.body?.cancel();
-        const location = resolved(res.headers.get('location'), uri);
-        return fail(
-            'redirect',
-            `The key set answered HTTP ${res.status} (redirects are not followed${location === null ? '' : `; use ${location}`}).`
-        );
+        return fail('redirect', `The key set answered HTTP ${res.status} (redirects are not followed).`);
     }
     if (res.status !== 200) {
         await res.body?.cancel();
