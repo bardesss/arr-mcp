@@ -336,15 +336,15 @@ describe('access control', () => {
     });
 
     it('marks the session cookie Secure only when the page was reached over https', async () => {
-        const wrong = form({ username: 'admin', password: PASSWORD });
+        const right = form({ username: 'admin', password: PASSWORD });
         cookie = '';
-        const plain = await call('/ui/login', wrong);
+        const plain = await call('/ui/login', right);
         expect(plain.headers.get('set-cookie')).not.toContain('Secure');
 
         cookie = '';
         const proxied = await call('/ui/login', {
-            ...wrong,
-            headers: { ...wrong.headers, 'x-forwarded-proto': 'https' }
+            ...right,
+            headers: { ...right.headers, 'x-forwarded-proto': 'https' }
         });
         expect(proxied.headers.get('set-cookie')).toContain('Secure');
     });
@@ -1036,12 +1036,47 @@ describe('the default user field', () => {
         });
     });
 
+    it('never lets the users list be cached', async () => {
+        withUsers(['bartus']);
+        await seed(JELLYFIN);
+        await signIn();
+
+        const res = await call('/ui/config/users.json', { headers: { accept: 'application/json' } });
+        expect(res.status).toBe(200);
+        expect(res.headers.get('cache-control')).toBe('no-store');
+    });
+
+    it('asks again after the config is saved', async () => {
+        let asked = 0;
+        globalThis.fetch = (async (input: string | URL | Request) => {
+            if (String(input).includes('/Users')) asked += 1;
+            return new Response('[]', { headers: { 'content-type': 'application/json' } });
+        }) as typeof fetch;
+        await seed(JELLYFIN);
+        await signIn();
+
+        await usersJson();
+        await usersJson();
+        expect(asked).toBe(1);
+
+        const saved = await call(
+            '/ui/config/save',
+            form({ csrf: await csrfFrom(), instance: 'jellyfin', url: 'http://192.0.2.10:8096', api_key: 'k2', default_user: 'me' })
+        );
+        expect(saved.status).toBe(200);
+
+        await usersJson();
+        expect(asked).toBe(2);
+    });
+
     it('refuses the users list without a session', async () => {
         withUsers(['bartus']);
         await seed(JELLYFIN);
         cookie = '';
 
-        expect((await call('/ui/config/users.json')).status).toBe(401);
+        const res = await call('/ui/config/users.json');
+        expect(res.status).toBe(401);
+        expect(await res.json()).toEqual(expect.objectContaining({ error: expect.any(String) }));
     });
 });
 
@@ -2944,15 +2979,35 @@ describe('the OAuth card', async () => {
             ['app.localhost', true],
             ['127.0.0.1', true],
             ['127.1.2.3', true],
-            ['::1', true],
             ['[::1]', true],
             ['0.0.0.0', true],
-            ['::', true],
             ['[::]', true],
-            ['::ffff:127.0.0.1', true],
+            ['[::ffff:127.0.0.1]', true],
+            ['[::ffff:7f00:1]', true],
+            ['[::ffff:7f12:3456]', true],
+            ['[::ffff:808:808]', false],
+            ['localhost.', true],
+            ['foo.localhost.', true],
+            ['[0:0:0:0:0:0:0:1]', true],
+            ['2130706433', true],
             ['auth.example.com', false]
-        ])('isLoopbackHost(%s) is %s', (host, expected) => {
-            expect(isLoopbackHost(host)).toBe(expected);
+        ])('isLoopbackHost(new URL(https://%s/).hostname) is %s', (host, expected) => {
+            expect(isLoopbackHost(new URL(`https://${host}/`).hostname)).toBe(expected);
+        });
+
+        it.each([
+            'https://[::ffff:127.0.0.1]/jwks',
+            'https://localhost./jwks',
+            'https://foo.localhost./jwks'
+        ])('refuses %s through the Test button, and fetches nothing', async (uri) => {
+            await signIn();
+            const servedBefore = served;
+            const res = await post('/ui/config/oauth/test', fields({ 'auth.oauth.jwks_uri': uri }));
+            const page = await decoded(res);
+
+            expect(res.status).toBe(400);
+            expect(page).toContain('will not test a key set on this machine');
+            expect(served).toBe(servedBefore);
         });
 
         it('refuses a 2xx that is not 200', async () => {
