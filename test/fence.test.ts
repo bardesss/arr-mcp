@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FENCE_MAX_LENGTH, GUID_MAX_LENGTH, fenceText, guidForText, sanitizeGuid, stripDangerous } from '../src/core/fence.ts';
+import { FENCE_MAX_LENGTH, GUID_MAX_LENGTH, fenceText, guidForText, sanitizeGuid, stripDangerous, unfence } from '../src/core/fence.ts';
 
 const src = { service: 'prowlarr' as const, field: 'title' };
 
@@ -106,5 +106,12 @@ describe('guidForText', () => {
         for (const guid of ['two words', 'x]y', 'a[b', '<<untrusted:x>>', 'tab\there']) {
             expect(guidForText(guid, 'radarr')).toMatch(/^<<untrusted:radarr\.guid>>/u);
         }
+    });
+});
+
+describe('unfence', () => {
+    it('reads the current closing marker and the one stored before #524', () => {
+        expect(unfence(`x ${fenceText('NAZA', { service: 'radarr', field: 'title' })} y`)).toBe('x NAZA y');
+        expect(unfence('<<untrusted:radarr.title>>The Odyssey<</untrusted>>, <<untrusted:radarr.reason>>upgrade<</untrusted>>')).toBe('The Odyssey, upgrade');
     });
 });

@@ -119,7 +119,8 @@ export function fenceText(value: string, source: { service: string; field: strin
     return `${OPEN}${source.service}.${source.field}>>${clean}${CLOSE}`;
 }
 
-const FENCED = /<<untrusted:[^>]*>>([\s\S]*?)<<\/>>/g;
+/** `<</untrusted>>` closed a fence until #524, and event rows stored before then still carry it. */
+const FENCED = /<<untrusted:[^>]*>>([\s\S]*?)<<\/(?:untrusted)?>>/g;
 
 /**
  * The value as its service said it, for a person reading the web UI. The fence
