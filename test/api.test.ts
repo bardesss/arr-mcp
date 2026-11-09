@@ -197,6 +197,16 @@ describe('GET /log', () => {
         expect(await read('limit=1')).toHaveLength(1);
     });
 
+    it('refuses an app that is neither configured nor in the log', async () => {
+        expect((await api('/log?app=sonarr/nope')).status).toBe(400);
+    });
+
+    it('answers an empty list for a configured app that has logged nothing', async () => {
+        const res = await api('/log?app=transmission');
+        expect(res.status).toBe(200);
+        expect(((await res.json()) as { records: unknown[] }).records).toEqual([]);
+    });
+
     it('refuses a bad level, cursor or limit', async () => {
         for (const q of ['level=loud', 'afterId=-1', 'afterId=x', 'limit=0', 'limit=301', 'limit=x', 'level=constructor']) {
             expect((await api(`/log?${q}`)).status, q).toBe(400);

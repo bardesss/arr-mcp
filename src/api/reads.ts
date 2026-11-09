@@ -54,6 +54,12 @@ export function registerReads(app: Hono, deps: ApiDeps): void {
         }
 
         const appFilter = c.req.query('app');
+        if (appFilter !== undefined) {
+            const known = new Set([...logs.services(), ...listInstances(runtime.config).map(i => i.id)]);
+            if (!known.has(appFilter)) {
+                return apiError(c, 400, `app must be an instance id from ${API_BASE}/app or a source that has logged.`);
+            }
+        }
         const records = logs
             .recent({
                 minLevel: LEVELS[level as keyof typeof LEVELS],
