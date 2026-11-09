@@ -173,15 +173,16 @@ function cappedTools(tools: ToolContext, ceiling: Ceiling): ToolContext {
  * server out of the closure. Over stdio it runs once per connection.
  *
  * What a build costs, from `scripts/measure-mcp-factory.ts` (2026-11-09,
- * Node v26.12.1, 1000 calls after 100 warm-up, middle of three runs):
+ * Node v26.12.1, 1000 calls after 100 warm-up, two runs):
  *
- *   | config              | median  | p95      |
- *   | ------------------- | ------- | -------- |
- *   | default             | 2.85 ms | 11.20 ms |
- *   | tools.hide_unusable | 2.41 ms | 10.24 ms |
+ *   | config              | median         | p95      |
+ *   | ------------------- | -------------- | -------- |
+ *   | default             | 2.0 - 2.9 ms   | ~11 ms   |
+ *   | tools.hide_unusable | 2.0 - 2.9 ms   | ~10 ms   |
  *
- * That is a few ms of schema building on every request, so a cache is
- * proposed separately. It cannot be the server itself, which must stay fresh
+ * The median moves by about 0.8 ms between runs and sits around the 2 ms
+ * line, so this is 2 to 3 ms of schema building on every request. A
+ * cache is proposed separately. It cannot be the server itself, which must stay fresh
  * per request; only part of the registration (zod schema construction
  * dominates the profile) could be shared per `RuntimeSnapshot`.
  *
