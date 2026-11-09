@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import { mkdtempSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -168,5 +168,14 @@ describe('giving space back', () => {
         const small = statSync(path()).size;
 
         expect(small).toBeLessThan(big / 2);
+    });
+
+    // The WAL kept a full copy of the vacuumed file, so the database's size sat
+    // on disk a second time until the next checkpoint.
+    it('leaves no write-ahead log the size of the database behind', () => {
+        db = ImdbDataset.open(dir);
+        db.replaceAll(rows(20_000));
+        const wal = `${path()}-wal`;
+        expect(existsSync(wal) ? statSync(wal).size : 0).toBe(0);
     });
 });

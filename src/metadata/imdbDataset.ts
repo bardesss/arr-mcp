@@ -175,6 +175,9 @@ export class ImdbDataset {
         // tool calls read, and a reader must never block on a twenty-minute
         // rebuild.
         this.#db.pragma('journal_mode = WAL');
+        // The WAL kept a full copy of the vacuumed file; this caps what a
+        // checkpoint blocked by a reader can leave behind.
+        this.#db.pragma('journal_size_limit = 16777216');
         this.#dropSuperseded();
         this.#db.exec(SCHEMA);
     }
@@ -452,5 +455,8 @@ export class ImdbDataset {
         // vacuumed afterwards and the running server never did. Costs a full
         // rewrite once a week, on a file that has just been rewritten anyway.
         this.#db.exec('VACUUM');
+        // VACUUM goes through the WAL, which now holds a full copy of the
+        // vacuumed file; truncate it so that copy does not sit on disk.
+        this.#db.pragma('wal_checkpoint(TRUNCATE)');
     }
 }
