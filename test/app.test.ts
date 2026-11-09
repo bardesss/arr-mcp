@@ -570,7 +570,6 @@ describe('what the server says about itself at initialize', () => {
     it('does not claim a write never takes a title', async () => {
         const { instructions = '' } = await initialize();
         expect(instructions).not.toContain('never a title');
-        expect(instructions).toContain('a few also accept a title');
     });
 
     it('names the two rules no single tool description can carry', async () => {

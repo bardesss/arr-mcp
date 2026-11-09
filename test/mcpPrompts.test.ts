@@ -163,6 +163,11 @@ describe('scoped to the tools the client sees', () => {
         expect(text).not.toMatch(/^3\. /m);
     });
 
+    it('drops the indexer reconcile sentence with the get_indexers step', async () => {
+        expect(await textOf('whats_wrong', {}, RADARR_ONLY)).not.toContain('unhealthy indexer');
+        expect(await textOf('whats_wrong', {}, { ...RADARR_ONLY, hideUnusable: false })).toContain('unhealthy indexer');
+    });
+
     it('keeps every step without hide_unusable', async () => {
         const text = await textOf('whats_wrong', {}, { ...RADARR_ONLY, hideUnusable: false });
         expect(text).toContain('4. `get_subtitles`');

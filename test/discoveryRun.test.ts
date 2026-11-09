@@ -62,6 +62,17 @@ describe('quick', () => {
         expect(d.current()?.id).toBe(state.id);
     });
 
+    it('keeps two versionless finds at different addresses as two rows', async () => {
+        const d = new Discovery({
+            catalog,
+            lookup,
+            probe: async (host, entries, source) => entries.map(e => ({ type: e.type, url: `http://${host}:${e.port}`, source }))
+        });
+        const state = await d.quick('nas.lan:3000', config);
+        expect(state.rows.filter(r => r.type === 'radarr').map(r => r.url).sort()).toEqual(['http://nas.lan:7878', 'http://radarr:7878']);
+        expect(state.rows.some(r => r.alsoAt !== undefined)).toBe(false);
+    });
+
     it('records a refused request host with its reason', async () => {
         const d = new Discovery({ catalog, lookup, probe: async () => [] });
         const state = await d.quick('example.com', config);

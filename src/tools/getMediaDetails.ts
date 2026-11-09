@@ -52,9 +52,10 @@ export async function buildGetMediaDetails(
 /**
  * Rotten Tomatoes, and IMDb for a film, from Seerr.
  *
- * Only here, on both forms, and only for one item. It costs an HTTP call per title, so it has
- * no business on a path that returns a page of them — `lookup_media` uses the
- * `voteAverage` Seerr already puts in its search payload instead.
+ * Only here, on both forms, and only for one item. It costs an HTTP call per
+ * title, so it has no business on a path that returns a page of them —
+ * `lookup_media` uses the `voteAverage` Seerr already puts in its search
+ * payload instead.
  *
  * Worth the call here because this is the "tell me everything about this one
  * thing" tool, and Rotten Tomatoes is the one score nothing else in the stack

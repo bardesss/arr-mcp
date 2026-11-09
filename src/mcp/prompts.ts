@@ -87,9 +87,7 @@ ${numbered(
     surface
 )}
 
-Then reconcile: a stalled download and an unhealthy indexer are usually one problem, not two. Say so rather than listing both.
-
-Report only what needs action, most urgent first, with what to do about each. If nothing does, say that in one line — do not pad it with everything that is fine.
+${toolUsable('get_indexers', surface) ? 'Then reconcile: a stalled download and an unhealthy indexer are usually one problem, not two. Say so rather than listing both.\n\n' : ''}Report only what needs action, most urgent first, with what to do about each. If nothing does, say that in one line — do not pad it with everything that is fine.
 
 One thing you cannot see, so do not claim to: the write audit is not exposed as a tool and lives in the config UI at /ui/audit. If a stale scan is the problem, offer \`trigger_scan\` and say what it would do.`
             )

@@ -59,7 +59,7 @@ export const MAX_WEBHOOK_BODY_BYTES = 256 * 1024;
  * configured services (`shapeToolSurface`, `registerAllPrompts`), so a reload
  * can leave a client's cached list up to an hour behind, as it already could
  * for tools. Nothing else changes them. Without this the SDK emits the conservative default
- * `ttlMs: 0` and every client reloads thirty-three tool descriptions every
+ * `ttlMs: 0` and every client reloads every tool description every
  * session.
  *
  * `resources/read` is deliberately absent: each resource carries its own
@@ -94,7 +94,7 @@ Reading:
 
 Writing:
 - Writes happen in two calls. The first previews: read \`summary\` and \`effects\`, then call again passing the returned \`confirm\` token to apply it. \`applied\` says which of the two just happened. \`dry_run: true\` previews without ever issuing a token.
-- Most writes take a service and an id from \`get_library\` or \`get_media_details\`; a few also accept a title.
+- Most writes take a service and an id from \`get_library\` or \`get_media_details\`.
 - Read \`warnings\` as well, and tell the user about them before confirming.
 - A write refused for permissions names the config key that would allow it. Report that key rather than retrying.
 
