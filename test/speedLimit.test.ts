@@ -223,6 +223,20 @@ describe('pause_downloads limit', () => {
         expect(structuredContent.noop).toBe(true);
     });
 
+    it('refuses an item id, since a limit is client-wide', async () => {
+        const { adapter, seen } = sab({ queue: {} });
+        await expect(
+            harness(adapter)({
+                service: 'sabnzbd',
+                action: 'limit',
+                speed_limit_kbps: 1000,
+                id: 'SABnzbd_nzo_1',
+                dry_run: true
+            })
+        ).rejects.toThrow(/`id` cannot be used with action "limit"/);
+        expect(seen).toHaveLength(0);
+    });
+
     it('needs a value', async () => {
         const { adapter } = sab({ queue: {} });
         await expect(harness(adapter)({ service: 'sabnzbd', action: 'limit', dry_run: true })).rejects.toThrow(

@@ -71,7 +71,7 @@ export function registerPauseDownloads(
                 .string()
                 .optional()
                 .describe(
-                    'One queue item to pause, exactly as get_queue reported its id. Omit to pause the whole client.'
+                    'One queue item to pause, exactly as get_queue reported its id. Omit to pause the whole client. Refused with action "limit".'
                 )
         }),
         // The resolved instance id, not the bare type — permissions are
@@ -82,6 +82,11 @@ export function registerPauseDownloads(
 
         async plan({ service, instance, action, id, speed_limit_kbps }): Promise<WritePlan> {
             if (action === 'limit') {
+                if (id !== undefined) {
+                    throw new Error(
+                        '`id` cannot be used with action "limit": a limit is always client-wide. Drop `id`, or use action "pause" to pause that one item.'
+                    );
+                }
                 if (speed_limit_kbps === undefined) {
                     throw new Error('limit needs `speed_limit_kbps` — the cap in KB/s, or 0 to remove it.');
                 }

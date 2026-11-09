@@ -121,7 +121,7 @@ type Call = (args: Record<string, unknown>) => Promise<{
     structuredContent: WriteToolResult;
 }>;
 
-function harness(opts: { destructive?: boolean; version?: string; addFails?: boolean } = {}) {
+function harness(opts: { destructive?: boolean; version?: string; addFails?: boolean; profiles?: unknown[] } = {}) {
     const writes: { method: string; path: string; body?: unknown }[] = [];
     const impl = (async (input: string | URL | Request, init?: RequestInit) => {
         const url = new URL(input instanceof Request ? input.url : String(input));
@@ -145,7 +145,7 @@ function harness(opts: { destructive?: boolean; version?: string; addFails?: boo
         if (url.pathname === '/api/v1/indexer') return jsonResponse(INDEXERS);
         if (url.pathname === '/api/v1/applications') return jsonResponse(APPS);
         if (url.pathname === '/api/v1/indexer/schema') return jsonResponse(SCHEMA);
-        if (url.pathname === '/api/v1/appprofile') return jsonResponse(PROFILES);
+        if (url.pathname === '/api/v1/appprofile') return jsonResponse(opts.profiles ?? PROFILES);
         if (url.pathname === '/api/v1/tag') return jsonResponse(TAGS);
         if (url.pathname === '/api/v1/system/status') return jsonResponse({ version: opts.version ?? '2.6.5.5623' });
         return jsonResponse({ message: 'not found' }, 404);
@@ -379,6 +379,12 @@ describe('manage_indexer edit', () => {
 });
 
 describe('manage_indexer add', () => {
+    it('refuses to add when Prowlarr has no app profile', async () => {
+        const h = harness({ profiles: [] });
+        await expect(h.call({ action: 'add', definition: 'EZTV' })).rejects.toThrow(/Prowlarr has no app profile/);
+        expect(h.writes).toEqual([]);
+    });
+
     it('previews a public indexer with the first profile and what each app will do', async () => {
         const h = harness();
         const { structuredContent } = await h.call({ action: 'add', definition: 'EZTV' });

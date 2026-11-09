@@ -316,6 +316,11 @@ async function planAdd(adapter: Adapter, definition: string | undefined, args: S
 
     const settings = resolveSettings(adapter, args, lookups);
     refuseSeedingOnUsenet(adapter, settings, found.protocol, found.name);
+    if (settings.appProfileId === undefined && lookups.appProfiles.length === 0) {
+        throw new ServiceError('NotFound', adapter.id, 'Prowlarr has no app profile', {
+            remedy: 'Create one in Prowlarr under Settings → Apps → App Profiles, or pass one with `app_profile`, then add the indexer again.'
+        });
+    }
     const profileId = settings.appProfileId ?? Math.min(...lookups.appProfiles.map(p => p.id));
     const resolved: IndexerSettings = { ...settings, appProfileId: profileId };
     const tags = resolved.tags ?? [];
