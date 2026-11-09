@@ -189,6 +189,7 @@ describe('statement preparation', () => {
             logs.count();
             logs.services();
             expect(prepare).not.toHaveBeenCalled();
+            expect(logs.count()).toBe(3);
         } finally {
             prepare.mockRestore();
         }
