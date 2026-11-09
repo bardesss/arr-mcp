@@ -20,6 +20,9 @@ import { titled } from '../core/labels.ts';
 
 const GIB = 1024 ** 3;
 
+/** What each *arr calls the item it deletes; Sonarr's is the fallback. */
+const ITEM_NOUN: Readonly<Partial<Record<ServiceId, string>>> = { radarr: 'film', whisparr: 'site', lidarr: 'artist' };
+
 /** Deliberately coarse. This number exists to make someone hesitate, not to
  *  balance a ledger, and false precision reads as machine noise. */
 function humanSize(bytes: number | undefined): string | undefined {
@@ -31,7 +34,7 @@ const findAdapter = (adapters: readonly ServiceAdapter[], service: ServiceId, in
     const adapter = resolveInstance(adapters, service, instance);
     if (!hasMediaDelete(adapter) && !hasBookDelete(adapter)) {
         throw new ServiceError('NotFound', service, `${service} has no media to delete`, {
-            remedy: 'Only radarr, sonarr, whisparr and grimmory manage media that delete_media can remove.'
+            remedy: 'Only radarr, sonarr, whisparr, lidarr and grimmory manage media that delete_media can remove.'
         });
     }
     return adapter;
@@ -92,11 +95,11 @@ export function registerDeleteMedia(
 ): void {
     registerWriteTool(server, context, {
         name: 'delete_media',
-        title: 'Delete a film, series or book',
+        title: 'Delete a film, series, artist or book',
         description:
-            'Removes a film from Radarr, a whole series (or Whisparr site) from Sonarr or Whisparr, or a book from Grimmory, optionally deleting its files from disk. Grimmory always deletes the files of a book, so it needs `delete_files: true` and takes no import exclusion. Destructive and not undoable — files are gone, not moved to a recycle bin unless the service itself is configured for one. Takes `service` and `id`, never a title: take `id` from `acquisition.id` on a get_library or get_media_details record. Sonarr and Whisparr delete the entire series/site; to remove one season\'s files or specific episodes, use delete_episode_files instead. Previews first; confirm to delete.',
+            'Removes a film from Radarr, a whole series (or Whisparr site) from Sonarr or Whisparr, [[lidarr: a whole artist from Lidarr (by artist id, never an album id),]] or a book from Grimmory, optionally deleting its files from disk. Grimmory always deletes the files of a book, so it needs `delete_files: true` and takes no import exclusion. Destructive and not undoable — files are gone, not moved to a recycle bin unless the service itself is configured for one. Takes `service` and `id`, never a title: take `id` from `acquisition.id` on a get_library or get_media_details record. Sonarr and Whisparr delete the entire series/site; to remove one season\'s files or specific episodes, use delete_episode_files instead. Previews first; confirm to delete.',
         inputSchema: z.object({
-            service: serviceOf(['radarr', 'sonarr', 'whisparr', 'grimmory']),
+            service: serviceOf(['radarr', 'sonarr', 'whisparr', 'lidarr', 'grimmory']),
             instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
             id: z.string().min(1).describe("The item's id within that service, as an integer string."),
             delete_files: z
@@ -133,7 +136,7 @@ export function registerDeleteMedia(
             // legibly on a bad id rather than issuing a DELETE into the dark.
             const details = await adapter.getMediaDetails(id, { includeEpisodes: false, episodeLimit: 0 });
             const label = titled(details.title, details.year);
-            const noun = service === 'radarr' ? 'film' : service === 'whisparr' ? 'site' : 'series';
+            const noun = ITEM_NOUN[service] ?? 'series';
 
             const effects: string[] = [];
             const size = humanSize(details.sizeBytes);
@@ -148,6 +151,8 @@ export function registerDeleteMedia(
                     effects.push('Deletes every episode of the series, not one season or one episode.');
                 } else if (service === 'whisparr') {
                     effects.push('Deletes every scene of the site, not one season or one scene.');
+                } else if (service === 'lidarr') {
+                    effects.push('Deletes every album of the artist.');
                 }
             } else {
                 effects.push(`Leaves the files on disk — only the ${service} entry is removed.`);
@@ -155,8 +160,14 @@ export function registerDeleteMedia(
 
             effects.push(`Removes ${label} from ${service}, along with its monitoring and history.`);
 
+            // Lidarr's exclusion stops only its import lists: an artist added through
+            // the API is not checked against it (`ImportListSyncService`).
             if (add_import_exclusion) {
-                effects.push('Adds an import exclusion, so it will not be re-added automatically by a list or request.');
+                effects.push(
+                    service === 'lidarr'
+                        ? "Adds an import list exclusion, so Lidarr's import lists will not add it again."
+                        : 'Adds an import exclusion, so it will not be re-added automatically by a list or request.'
+                );
             }
 
             return {

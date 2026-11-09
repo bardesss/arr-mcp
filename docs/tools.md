@@ -34,7 +34,7 @@ off until you turn them on — see [writes](writes.md).
 | `remove_queue_item` | Get rid of this stuck or wrong download; on Grimmory, discard a file waiting in the Bookdrop |
 | `remove_blocklist_item` | Let this blocklisted release be grabbed again |
 | `clean_queue` | Clear out completed downloads whose film, series or artist no longer exists |
-| `delete_media` | Remove this film or series, optionally from disk; on Grimmory, delete a book and its files |
+| `delete_media` | Remove this film, series or artist, optionally from disk; on Grimmory, delete a book and its files |
 | `delete_episode_files` | Free disk from one season or a handful of episodes, without touching the series |
 | `respond_to_request` | Approve or decline what someone asked for |
 | `delete_request` | Drop a request record entirely |
@@ -833,11 +833,12 @@ and, under `playback`, `itemId` — the media server's own id, which is what
 [below](#which-media-server-has-it).
 
 **An artist's `acquisition.id` is Lidarr's artist id**, which `set_monitoring`
-takes with `level: "artist"`. An album id is not on a library row at all: take it
-from `get_media_details` on the artist, and pass it with `level: "album"`.
+takes with `level: "artist"`. An album id is not on a library row at all: take
+it from `get_media_details` on the artist, and pass it with `level: "album"`.
 `trigger_search`, `get_releases` and `grab_release` take the artist id as `id`,
-with album ids in `albums` or `album` to narrow the search, and `update_media`
-takes it as `id` to change the artist's profiles, folder, monitoring or tags.
+with album ids in `albums` or `album` to narrow the search, `update_media` takes
+it as `id` to change the artist's profiles, folder, monitoring or tags, and
+`delete_media` takes it as `id` to delete the artist.
 
 Before this, a caller had the external ids and nothing a write would accept,
 so answering "delete this" meant a second `search_media(source: "library")` hop
@@ -880,7 +881,7 @@ MusicBrainz artist id — the one id both Jellyfin and Plex publish for an artis
 | `title` | The artist name, fenced like every other service string |
 | `ids.mbid` | The artist's MusicBrainz id: Lidarr's `foreignArtistId`, Jellyfin's `ProviderIds.MusicBrainzArtist`, Plex's `mbid://` guid. Matched case-insensitively |
 | `albumCount` | How many albums Lidarr holds for the artist. The albums themselves are in `get_media_details` |
-| `acquisition.id` | Lidarr's artist id, which `set_monitoring` takes with `level: "artist"` and `update_media` takes as `id` |
+| `acquisition.id` | Lidarr's artist id, which `set_monitoring` takes with `level: "artist"`, and `update_media` and `delete_media` take as `id` |
 | `acquisition.status` | Lidarr's own artist status — `continuing` or `ended` — passed through |
 | `acquisition.addedAt` | When Lidarr added the artist, so `sort: "added"` works |
 | `acquisition.hasFile` | At least one track of any album is on disk, the same meaning `has_file` has for a series |
@@ -2834,10 +2835,28 @@ format would change rather than promising it will not.
 
 ## `delete_media`
 
-Removes a film from Radarr, a series or site from Sonarr or Whisparr, or a book
-from Grimmory. It takes `service` and `id`, never a title, with `id` from
-`acquisition.id` on a `get_library` or `get_media_details` record. `destructive`
-tier, and the preview comes first.
+Removes a film from Radarr, a series or site from Sonarr or Whisparr, an artist
+from Lidarr, or a book from Grimmory. It takes `service` and `id`, never a
+title, with `id` from `acquisition.id` on a `get_library` or `get_media_details`
+record. `destructive` tier, and the preview comes first.
+
+### Lidarr
+
+`service: "lidarr"` deletes a whole artist, every album with it; `delete_media`
+cannot delete one album. `id` is the artist id, `acquisition.id` on a
+`get_library` artist row, never an album id: the two are separate, so an album
+id would read whichever artist has that number. It is Lidarr's
+`DELETE /artist/{id}` with Lidarr's own `deleteFiles` and
+`addImportListExclusion` (Sonarr's spelling of the exclusion). The preview reads
+the artist first, so a wrong id fails with a clear error, and names it and its
+size on disk.
+
+With `delete_files: true` Lidarr deletes the artist's folder, through its
+recycle bin when one is set, unless that folder holds another artist's or is the
+same as one, when it deletes no files at all. The artist's history goes with it,
+and Lidarr's events are not in arr-mcp's event log, so only arr-mcp's audit
+trail keeps a record of the delete. The preview runs none of the cross-checks
+(see [writes](writes.md)).
 
 ### Grimmory
 

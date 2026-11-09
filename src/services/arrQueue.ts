@@ -138,19 +138,24 @@ export async function removeArrQueueItem(
 
 /**
  * Radarr spells the import-list exclusion `addImportExclusion`; Sonarr spells
- * the same flag `addImportListExclusion`, and so does Whisparr, which forked
- * it. Both names are in the vendored specs. The difference matters because
+ * the same flag `addImportListExclusion`, and so do Whisparr, which forked
+ * it, and Lidarr (`ArtistController.DeleteArtist`). Both names are in the
+ * vendored specs. The difference matters because
  * ASP.NET drops a query parameter it cannot bind rather than refusing the
  * request, so Radarr's name sent to Sonarr deleted the series with the
  * exclusion defaulted to false and still answered 200.
  */
-const EXCLUSION_PARAM = { movie: 'addImportExclusion', series: 'addImportListExclusion' } as const;
+const EXCLUSION_PARAM = {
+    movie: 'addImportExclusion',
+    series: 'addImportListExclusion',
+    artist: 'addImportListExclusion'
+} as const satisfies Record<ArrKind, string>;
 
-/** Radarr's `/movie/{id}`, Sonarr's `/series/{id}` — same flags, different noun. */
+/** Radarr's `/movie/{id}`, Sonarr's `/series/{id}`, Lidarr's `/artist/{id}` — same flags, different noun. */
 export async function deleteArrMedia(
     http: ServiceHttp,
     service: string,
-    resource: 'movie' | 'series',
+    resource: ArrKind,
     id: string,
     opts: DeleteMediaOptions
 ): Promise<void> {
