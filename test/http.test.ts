@@ -731,6 +731,24 @@ describe('ServiceHttp auth recovery', () => {
 });
 
 describe('ServiceHttp body encoding and response reading', () => {
+    it('reports a text body that fails mid-read as an UpstreamError naming the path', async () => {
+        const client = http(
+            async () =>
+                new Response(
+                    new ReadableStream({
+                        start(c) {
+                            c.error(new TypeError('terminated'));
+                        }
+                    }),
+                    { status: 200 }
+                )
+        );
+        await expect(client.getText('/x')).rejects.toMatchObject({
+            kind: 'UpstreamError',
+            message: expect.stringContaining('could not read the response from /x')
+        });
+    });
+
     it('sends form fields as urlencoded, not as JSON', async () => {
         let seen: { type: string | null; body: string } | undefined;
         const client = http(async (_i: string, init?: RequestInit) => {

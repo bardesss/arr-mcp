@@ -414,11 +414,21 @@ export class ServiceHttp {
             await discard(response);
             return undefined as T;
         }
-        if (read === 'text') return (await response.text()).trim() as T;
+        if (read === 'text') {
+            try {
+                return (await response.text()).trim() as T;
+            } catch (err) {
+                if (signal.aborted) throw classifyFetchError(err, this.#id, safeUrl(target));
+                throw new ServiceError('UpstreamError', this.#id, `could not read the response from ${target.pathname}`, {
+                    cause: err
+                });
+            }
+        }
 
         try {
             return (await response.json()) as T;
         } catch (err) {
+            if (signal.aborted) throw classifyFetchError(err, this.#id, safeUrl(target));
             throw new ServiceError('UpstreamError', this.#id, `response from ${target.pathname} was not valid JSON`, {
                 cause: err
             });
