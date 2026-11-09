@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ServiceError } from '../src/core/errors.ts';
 import type { MergedItem, SeasonSummary } from '../src/core/resolver.ts';
 import type {
     CleanupCandidate,
@@ -31,6 +32,10 @@ type World = {
     libraryHangs?: boolean;
     /** Called with what Reclaimerr was asked. */
     asked?: (kind: string, tmdb: number) => void;
+    /** Collects what Seerr was asked: `list`, or `<type>:<tmdb id>` for one title. */
+    seerrAsked?: string[];
+    /** What a title lookup throws instead of answering. */
+    titleError?: Error;
 };
 
 const settle = async <T>(source: Source<T>): Promise<T> => {
@@ -45,7 +50,25 @@ function adaptersFor(world: World): ServiceAdapter[] {
     const adapters: ServiceAdapter[] = [];
     if (world.seerr !== undefined) {
         const source = world.seerr;
-        adapters.push(stub('seerr', { getRequests: () => settle(source) }));
+        const asked = world.seerrAsked;
+        adapters.push(
+            stub(
+                'seerr',
+                asked === undefined
+                    ? { getRequests: () => settle(source) }
+                    : {
+                          getRequests: () => {
+                              asked.push('list');
+                              return settle(source);
+                          },
+                          getMediaRequests: (t: string, id: number) => {
+                              asked.push(`${t}:${id}`);
+                              if (world.titleError !== undefined) return Promise.reject(world.titleError);
+                              return settle(source).then(requests => ({ requests }));
+                          }
+                      }
+            )
+        );
     }
     if (world.reclaimerr !== undefined) {
         const source = world.reclaimerr;
@@ -148,6 +171,53 @@ afterEach(() => {
 });
 
 describe('cross-checks — delete', () => {
+    it('asks Seerr for this title only when it has a TMDB id', async () => {
+        const seerrAsked: string[] = [];
+        const result = await check(subject, 'delete', { seerr: [request('approved')], seerrAsked });
+        expect(seerrAsked).toEqual(['movie:348']);
+        expect(result.warnings.join(' ')).toContain('Seerr still has a request');
+    });
+
+    it('asks for a series by its TMDB id as a tv title', async () => {
+        const seerrAsked: string[] = [];
+        await check({ kind: 'series', label: 'Breaking Bad', ids: { tmdb: 1396, tvdb: 81189 } }, 'delete', {
+            seerr: [request('approved', { mediaType: 'tv', tmdbId: 1396 })],
+            seerrAsked
+        });
+        expect(seerrAsked).toEqual(['tv:1396']);
+    });
+
+    it.each([
+        ['an upstream error', new ServiceError('UpstreamError', 'seerr', 'Unable to retrieve movie.')],
+        ['a not-found', new ServiceError('NotFound', 'seerr', 'no such title')]
+    ])('still warns from the request list when the title lookup fails with %s', async (_n, titleError) => {
+        const seerrAsked: string[] = [];
+        const result = await check(subject, 'delete', { seerr: [request('approved')], seerrAsked, titleError });
+        expect(seerrAsked).toEqual(['movie:348', 'list']);
+        expect(result.warnings.join(' ')).toContain('Seerr still has a request');
+    });
+
+    it('does not hide another kind of failure behind the request list', async () => {
+        const seerrAsked: string[] = [];
+        const result = await check(subject, 'delete', {
+            seerr: [request('approved')],
+            seerrAsked,
+            titleError: new ServiceError('Unreachable', 'seerr', 'connection refused')
+        });
+        expect(seerrAsked).toEqual(['movie:348']);
+        expect(result.warnings).toEqual([]);
+        expect(result.unchecked.join(' ')).toContain('seerr');
+    });
+
+    it('falls back to the request list for a series known only by TVDB', async () => {
+        const seerrAsked: string[] = [];
+        await check({ kind: 'series', label: 'Lost', ids: { tvdb: 73739 } }, 'delete', {
+            seerr: [request('approved', { mediaType: 'tv', tvdbId: 73739 })],
+            seerrAsked
+        });
+        expect(seerrAsked).toEqual(['list']);
+    });
+
     it('warns that a Seerr request exists, and that delete_request removes it', async () => {
         const advice = await check(subject, 'delete', { seerr: [request('approved')] });
         expect(advice.warnings).toHaveLength(1);

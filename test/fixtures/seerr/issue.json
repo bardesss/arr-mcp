@@ -1,0 +1,85 @@
+{
+  "pageInfo": {
+    "pages": 1,
+    "pageSize": 5,
+    "results": 1,
+    "page": 1
+  },
+  "results": [
+    {
+      "id": 1,
+      "issueType": 4,
+      "status": 1,
+      "problemSeason": 0,
+      "problemEpisode": 0,
+      "createdAt": "2026-11-09T13:55:10.000Z",
+      "updatedAt": "2026-11-09T13:55:10.547Z",
+      "createdBy": {
+        "permissions": 2,
+        "warnings": [],
+        "id": 1,
+        "email": "user1@example.test",
+        "plexUsername": null,
+        "jellyfinUsername": "user1",
+        "username": null,
+        "recoveryLinkExpirationDate": null,
+        "userType": 3,
+        "plexId": null,
+        "jellyfinUserId": "472c0639eaa641ebadd06d9d5107b730",
+        "avatar": "/avatarproxy/anonymous",
+        "avatarETag": "d0951add190a2aa743a05ce86d56f39ad00d6c3d05bc62deab617dfab19dc9d6",
+        "avatarVersion": "1755533786000",
+        "movieQuotaLimit": null,
+        "movieQuotaDays": null,
+        "tvQuotaLimit": null,
+        "tvQuotaDays": null,
+        "createdAt": "2024-07-02T07:38:29.000Z",
+        "updatedAt": "2024-12-24T16:06:09.000Z",
+        "requestCount": 0,
+        "displayName": "User 1"
+      },
+      "media": {
+        "downloadStatus": [],
+        "downloadStatus4k": [],
+        "id": 1084,
+        "mediaType": "movie",
+        "tmdbId": 1629051,
+        "tvdbId": null,
+        "imdbId": "tt38589433",
+        "status": 5,
+        "status4k": 5,
+        "createdAt": "2026-11-03T12:55:00.000Z",
+        "updatedAt": "2026-11-04T03:00:17.000Z",
+        "lastSeasonChange": "2026-11-03T12:55:00.000Z",
+        "mediaAddedAt": "2026-11-03T12:50:22.104Z",
+        "serviceId": null,
+        "serviceId4k": 0,
+        "externalServiceId": null,
+        "externalServiceId4k": 1745,
+        "externalServiceSlug": null,
+        "externalServiceSlug4k": "1629051",
+        "ratingKey": null,
+        "ratingKey4k": null,
+        "jellyfinMediaId": "9b6d468041d8db1add32c8b105e5a21c",
+        "jellyfinMediaId4k": null,
+        "mediaUrl": "http://service.example.test:8096/web/index.html#!/details?id=9b6d468041d8db1add32c8b105e5a21c&context=home&serverId=03b5e7fd4c8a4de8b4164d4d21b72608",
+        "serviceUrl4k": "http://service.example.test/movie/1629051"
+      },
+      "modifiedBy": null,
+      "comments": [
+        {
+          "id": 1,
+          "message": "Comment 1",
+          "createdAt": "2026-11-09T13:55:10.000Z",
+          "updatedAt": "2026-11-09T13:55:10.000Z"
+        },
+        {
+          "id": 2,
+          "message": "Comment 2",
+          "createdAt": "2026-11-09T13:55:10.000Z",
+          "updatedAt": "2026-11-09T13:55:10.000Z"
+        }
+      ]
+    }
+  ]
+}

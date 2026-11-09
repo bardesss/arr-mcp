@@ -5,11 +5,11 @@ import { fenceText } from '../core/fence.ts';
 import type { IdentityResolver } from '../core/identity.ts';
 import {
     hasRequestCreate,
-    hasRequestManage,
+    hasRequestLookup,
     hasRequests,
-    type MediaRequest,
     type RequestCreateCapable,
-    type ServiceAdapter
+    type ServiceAdapter,
+    type TitleRequests
 } from '../services/types.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 import { titled } from '../core/labels.ts';
@@ -51,23 +51,11 @@ const seerrAdapter = (adapters: readonly ServiceAdapter[]): ServiceAdapter & Req
 
 /** Seerr answers HTTP 500, not 404, for a TMDB id it cannot resolve, so both
  *  mean "wrong id" here. An unreachable Seerr or a bad key passes through. */
-const describe = async (
-    adapter: ServiceAdapter,
-    request: MediaRequest,
-    strict: boolean
-): Promise<{ title: string; year?: number } | undefined> => {
-    if (!hasRequestManage(adapter)) return undefined;
-    try {
-        return await adapter.describeRequestMedia(request, { strict });
-    } catch (err) {
-        if (!(err instanceof ServiceError) || (err.kind !== 'NotFound' && err.kind !== 'UpstreamError')) throw err;
-        const kind = request.mediaType === 'movie' ? 'movie' : 'tv';
-        throw new ServiceError('NotFound', 'seerr', `no TMDB ${kind} with id ${request.tmdbId} (${err.detail})`, {
-            remedy: 'media_id must be a TMDB id. Resolve it with lookup_media first. An IMDb tt… id is not a TMDB id, but lookup_media finds its TMDB id when queried as imdb:tt….',
-            cause: err
-        });
-    }
-};
+const wrongId = (err: ServiceError, mediaType: 'movie' | 'tv', tmdbId: number): ServiceError =>
+    new ServiceError('NotFound', 'seerr', `no TMDB ${mediaType} with id ${tmdbId} (${err.detail})`, {
+        remedy: 'media_id must be a TMDB id. Resolve it with lookup_media first. An IMDb tt… id is not a TMDB id, but lookup_media finds its TMDB id when queried as imdb:tt….',
+        cause: err
+    });
 
 export function registerRequestMedia(
     server: McpServer,
@@ -119,30 +107,42 @@ export function registerRequestMedia(
             // media creates a second row. So "already requested" is answered
             // here, and answered as a no-op — a confirmation prompt for a
             // no-op trains a model to confirm reflexively.
-            if (!hasRequests(adapter)) {
-                throw new ServiceError('NotFound', 'seerr', 'this seerr adapter cannot list requests');
+            if (!hasRequestLookup(adapter)) {
+                throw new ServiceError('NotFound', 'seerr', 'this seerr adapter cannot look up the requests for a title');
             }
-            const existing = (await adapter.getRequests({})).find(
-                r => r.tmdbId === media_id && r.mediaType === media_type
-            );
 
-            // Seerr's request payload carries no title, so naming the media
-            // takes a second lookup — the same one the other request previews
-            // pay for, and for the same reason: "request 438631" is not
-            // something anyone can approve. Strict only when creating: there a
-            // failed lookup means a wrong id, and a token for it applies as a 500.
-            const media = await describe(
-                adapter,
-                {
-                    service: adapter.id,
-                    id: 0,
-                    status: 'unknown',
-                    mediaType: media_type,
-                    tmdbId: media_id,
-                    requestedBy: requester.name
-                },
-                existing === undefined
-            );
+            // One call answers both questions: the title's own requests, and
+            // its name — Seerr's request payload carries no title, and
+            // "request 438631" is not something anyone can approve.
+            let lookup: TitleRequests;
+            try {
+                lookup = await adapter.getMediaRequests(media_type, media_id);
+            } catch (err) {
+                if (!(err instanceof ServiceError) || (err.kind !== 'NotFound' && err.kind !== 'UpstreamError')) throw err;
+                // A no-op creates nothing, so a request already on record still
+                // answers even when the title lookup fails.
+                const found = hasRequests(adapter)
+                    ? (await adapter.getRequests({})).find(r => r.tmdbId === media_id && r.mediaType === media_type)
+                    : undefined;
+                if (found === undefined) throw wrongId(err, media_type, media_id);
+                lookup = { requests: [found] };
+            }
+
+            // The request that describes the title: one waiting on somebody
+            // first, otherwise the newest.
+            const existing =
+                lookup.requests.find(r => r.status === 'pending') ??
+                [...lookup.requests].sort((a, b) => b.id - a.id)[0];
+            const media = lookup.media;
+            // Creating for a title that has none means a wrong id, and a token
+            // for it applies as a 500.
+            if (existing === undefined && media === undefined) {
+                throw wrongId(
+                    new ServiceError('NotFound', 'seerr', `/api/v1/${media_type}/${media_id} has no title`),
+                    media_type,
+                    media_id
+                );
+            }
             const label =
                 media === undefined
                     ? `${media_type === 'movie' ? 'movie' : 'series'} ${media_id} (title unavailable)`

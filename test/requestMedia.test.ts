@@ -57,10 +57,26 @@ function harness(
 ) {
     const config = opts.config ?? seerrConfig();
     const posted: unknown[] = [];
+    const seen: string[] = [];
+
+    // What the title's own detail answers: the nested rows Seerr records under
+    // `mediaInfo.requests`, rows that carry their own `media` as recorded.
+    const detail = (tmdbId: number, type: string, base: Record<string, unknown>) => ({
+        ...base,
+        mediaInfo: {
+            tmdbId,
+            requests: (opts.existing ?? [])
+                .filter(r => {
+                    const m = r.media as { tmdbId?: number; mediaType?: string } | undefined;
+                    return m?.tmdbId === tmdbId && m?.mediaType === type;
+                })
+        }
+    });
 
     const impl = (async (input: string | URL | Request, init?: RequestInit) => {
         const url = new URL(input instanceof Request ? input.url : String(input));
         const method = init?.method ?? 'GET';
+        if (method === 'GET') seen.push(url.pathname);
 
         if (method === 'POST' && url.pathname === '/api/v1/request') {
             posted.push(typeof init?.body === 'string' ? JSON.parse(init.body) : undefined);
@@ -70,9 +86,9 @@ function harness(
         if (url.pathname === '/api/v1/request') {
             return jsonResponse({ pageInfo: { pages: 1 }, results: opts.existing ?? [] });
         }
-        if (url.pathname === '/api/v1/movie/438631') return jsonResponse({ title: 'Dune', releaseDate: '2021-10-22' });
-        if (url.pathname === '/api/v1/tv/1396') return jsonResponse({ name: 'Breaking Bad', firstAirDate: '2008-01-20' });
-        if (url.pathname === '/api/v1/movie/999') return jsonResponse({ title: 'Other', releaseDate: '2020-01-01' });
+        if (url.pathname === '/api/v1/movie/438631') return jsonResponse(detail(438631, 'movie', { title: 'Dune', releaseDate: '2021-10-22' }));
+        if (url.pathname === '/api/v1/tv/1396') return jsonResponse(detail(1396, 'tv', { name: 'Breaking Bad', firstAirDate: '2008-01-20' }));
+        if (url.pathname === '/api/v1/movie/999') return jsonResponse(detail(999, 'movie', { title: 'Other', releaseDate: '2020-01-01' }));
         // What a live Seerr 3.4.1 answers for an id TMDB does not have: a 500,
         // not a 404.
         if (url.pathname === '/api/v1/tv/31510819') return jsonResponse({ message: 'Unable to retrieve series.' }, 500);
@@ -102,7 +118,7 @@ function harness(
         new IdentityResolver(adapter, config)
     );
 
-    return { call: (a: Record<string, unknown>) => call(a), posted, audit };
+    return { call: (a: Record<string, unknown>) => call(a), posted, audit, seen };
 }
 
 const MOVIE = { media_type: 'movie', media_id: 438631 };
@@ -188,6 +204,25 @@ describe('request_media', () => {
         expect(structuredContent.confirm_token).toBeUndefined();
         expect(h.posted).toHaveLength(0);
         expect(structuredContent.summary).toContain('requested by <<untrusted:seerr.user>>Sam<</>>');
+    });
+
+    it('names the pending request when a title has several, otherwise the newest', async () => {
+        const row = (id: number, status: number, name: string) =>
+            requestRow({ id, status, requestedBy: { id: 1, displayName: name } });
+
+        const pending = harness({ existing: [row(30, 2, 'Approved'), row(20, 1, 'Waiting'), row(10, 2, 'Old')] });
+        expect((await pending.call(MOVIE)).structuredContent.summary).toContain('Waiting');
+
+        const newest = harness({ existing: [row(10, 2, 'Old'), row(30, 3, 'Newest'), row(20, 2, 'Middle')] });
+        expect((await newest.call(MOVIE)).structuredContent.summary).toContain('Newest');
+    });
+
+    it('checks for a duplicate from the title lookup, not the whole request history', async () => {
+        const h = harness({ existing: [requestRow()] });
+        const { structuredContent } = await h.call(MOVIE);
+        expect(structuredContent.noop).toBe(true);
+        expect(h.seen).not.toContain('/api/v1/request');
+        expect(h.seen.filter(p => p === '/api/v1/movie/438631')).toHaveLength(1);
     });
 
     it('still requests when an existing request is for a different media type', async () => {

@@ -11,6 +11,7 @@ import {
     hasIndexers,
     hasMediaDetails,
     hasQueue,
+    hasRequestLookup,
     hasRequests,
     hasScanState,
     hasSubtitles,
@@ -19,6 +20,7 @@ import {
     type IndexerRejection,
     type MediaRequest,
     type QueueItem,
+    type RequestCapable,
     type ScanState,
     type ServiceAdapter
 } from '../../services/types.ts';
@@ -250,6 +252,28 @@ export function requestsFor(requests: readonly MediaRequest[], ids: ExternalIds,
 }
 
 /**
+ * One title's requests. Seerr answers that per TMDB id, so the whole request
+ * history is read only when the title has no TMDB id (a series known only by
+ * TVDB, which Seerr cannot look up) or the adapter cannot look a title up. It
+ * is also read when the title lookup fails: Seerr answers 500 for a TMDB id it
+ * cannot resolve and during a TMDB outage, and the request list needs only
+ * Seerr's own database, so it still answers.
+ */
+export async function readTitleRequests(
+    seerr: ServiceAdapter & RequestCapable,
+    ids: ExternalIds,
+    kind: 'movie' | 'series'
+): Promise<MediaRequest[]> {
+    if (!hasRequestLookup(seerr) || ids.tmdb === undefined) return seerr.getRequests({});
+    try {
+        return (await seerr.getMediaRequests(kind === 'movie' ? 'movie' : 'tv', ids.tmdb)).requests;
+    } catch (err) {
+        if (!(err instanceof ServiceError) || (err.kind !== 'NotFound' && err.kind !== 'UpstreamError')) throw err;
+        return seerr.getRequests({});
+    }
+}
+
+/**
  * The one request that describes the title. A pending one wins over an approved
  * one for the same series, since that is the one waiting on somebody; then a
  * TMDB match before a TVDB one. The write cross-checks read every match instead.
@@ -329,10 +353,14 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
     const scanAdapter =
         mediaServerAdapter !== undefined && hasScanState(mediaServerAdapter) ? mediaServerAdapter : undefined;
 
+    // Read per title when the item is resolved (the item-miss read of the whole
+    // history is removed in a later change).
     // `null` here is a third state the chain needs: not configured, as
     // distinct from asked-and-empty (`[]`) or could-not-ask (`undefined`).
     const requestsP: Promise<MediaRequest[] | null | undefined> =
-        seerr === undefined ? Promise.resolve(null) : probe(seerr.id, degraded, () => seerr.getRequests({}));
+        seerr === undefined ? Promise.resolve(null) : probe(seerr.id, degraded, () =>
+              item !== undefined && item.kind !== 'artist' ? readTitleRequests(seerr, item.ids, item.kind) : seerr.getRequests({})
+          );
 
     // Multi-service: `gather` already distinguishes "some clients answered,
     // some didn't" from "all of them did" — exactly the queue shape asks

@@ -93,6 +93,14 @@ export const publicAddresses = (text: string): string[] => {
         .filter(a => !ALLOWED_ADDRESS.test(a));
 };
 
+/** Domains an anonymised address may end in: the one the capture script writes
+ *  and the reserved documentation domains. */
+const PLACEHOLDER_EMAIL = /@(?:[\w-]+\.)*(?:example\.test|example\.com|example\.org|example\.net)$/i;
+
+/** Every `"email"` value in raw text that is not a placeholder address. */
+export const realEmails = (text: string): string[] =>
+    [...text.matchAll(/"email"\s*:\s*"([^"]*)"/gi)].map(m => m[1]!).filter(e => e !== '' && !PLACEHOLDER_EMAIL.test(e));
+
 type Finding = { file: string; path: string; reason: string };
 
 export function scan(file: string, node: unknown, path = '$', out: Finding[] = []): Finding[] {
@@ -144,6 +152,13 @@ describe('committed fixtures', () => {
         expect(findings).toEqual([]);
     });
 
+    it('hold only placeholder email addresses', async () => {
+        const findings = (await fixtureContents()).flatMap(({ file, text }) =>
+            realEmails(text).map(address => `${file}: ${address}`)
+        );
+        expect(findings).toEqual([]);
+    });
+
     it('contain no public IP address anywhere in the file', async () => {
         const findings = (await fixtureContents()).flatMap(({ file, text }) =>
             publicAddresses(text).map(address => `${file}: ${address}`)
@@ -164,6 +179,17 @@ describe('the guard itself', () => {
         expect(publicAddresses('{"anything":"8.8.8.8","v6":"2606:4700::1111"}')).toEqual(['8.8.8.8', '2606:4700::1111']);
         expect(publicAddresses('{"version":"2.2.0.108"}')).toEqual([]);
         expect(publicAddresses('"192.168.1.5 10.0.0.1 192.0.2.10 2001:db8::a fe80::1 ::1 4.0.5.1234 09:22:10"')).toEqual([]);
+    });
+
+    it('flags an email that is not on a placeholder domain', () => {
+        expect(realEmails('{"email":"someone@gmail.com","b":{"email":"user1@example.test"}}')).toEqual(['someone@gmail.com']);
+        expect(realEmails('{"email":"a@example.com","email2":"x@y.nl","email":""}')).toEqual([]);
+    });
+
+    it('reads pretty-printed JSON, and does not let a look-alike domain pass', () => {
+        expect(realEmails('{\n  "email": "x@gmail.com"\n}')).toEqual(['x@gmail.com']);
+        expect(realEmails('{\n  "email": "x@exampleXtest"\n}')).toEqual(['x@exampleXtest']);
+        expect(realEmails('{\n  "email": "x@notexample.test.evil.nl"\n}')).toEqual(['x@notexample.test.evil.nl']);
     });
 
     it('flags a session id, which the capture script also redacts', () => {

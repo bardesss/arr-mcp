@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { instancesOf } from './helpers/instances.ts';
 import { describe, expect, it, vi } from 'vitest';
 import * as z from 'zod/v4';
@@ -70,6 +71,12 @@ function recordingFetch(handlers: {
         if (url.pathname === '/api/v1/request') {
             return jsonResponse(handlers.requests ?? { results: [PENDING] });
         }
+        const byId = /^\/api\/v1\/request\/(\d+)$/.exec(url.pathname);
+        if (byId !== null) {
+            const rows = (handlers.requests ?? { results: [PENDING] }) as { results: { id: number }[] };
+            const row = rows.results.find(r => String(r.id) === byId[1]);
+            return row === undefined ? jsonResponse({ message: 'Request not found.' }, 404) : jsonResponse(row);
+        }
         if (url.pathname === '/api/v1/user') {
             return jsonResponse({ pageInfo: { pages: 1 }, results: handlers.users ?? [
                     { id: 1, displayName: 'Bartus' },
@@ -140,6 +147,75 @@ function harness(
 // --- adapter -------------------------------------------------------------
 
 describe('SeerrAdapter request writes', () => {
+    it('looks a request up by id, and says undefined when there is none', async () => {
+        const { impl, sent } = recordingFetch({});
+        const adapter = new SeerrAdapter(seerrConfig, impl);
+
+        expect((await adapter.getRequest('31'))?.id).toBe(31);
+        expect(await adapter.getRequest('404')).toBeUndefined();
+
+        sent.length = 0;
+        expect(await adapter.getRequest('abc')).toBeUndefined();
+        expect(sent).toEqual([]);
+    });
+
+    it("reads a title's own requests from its detail", async () => {
+        const recorded = JSON.parse(
+            readFileSync(new URL('./fixtures/seerr/movie-detail.json', import.meta.url), 'utf8')
+        ) as { id: number };
+        const impl = (async () => jsonResponse(recorded)) as unknown as typeof fetch;
+        const adapter = new SeerrAdapter(seerrConfig, impl);
+        const found = await adapter.getMediaRequests('movie', recorded.id);
+
+        expect(found.media?.title).toContain('<<untrusted:seerr.title>>');
+        expect(found.requests.length).toBeGreaterThan(0);
+        for (const r of found.requests) {
+            expect(r.tmdbId).toBe(recorded.id);
+            expect(r.mediaType).toBe('movie');
+            expect(r.requestedBy).not.toBe('unknown');
+        }
+
+        const bare = (async () => jsonResponse({ title: 'X' })) as unknown as typeof fetch;
+        expect((await new SeerrAdapter(seerrConfig, bare).getMediaRequests('movie', 1)).requests).toEqual([]);
+    });
+
+    it("reads a series' own requests from its detail", async () => {
+        const recorded = JSON.parse(
+            readFileSync(new URL('./fixtures/seerr/tv-detail.json', import.meta.url), 'utf8')
+        ) as { id: number };
+        const paths: string[] = [];
+        const impl = (async (input: string | URL | Request) => {
+            paths.push(new URL(input instanceof Request ? input.url : String(input)).pathname);
+            return jsonResponse(recorded);
+        }) as unknown as typeof fetch;
+        const found = await new SeerrAdapter(seerrConfig, impl).getMediaRequests('tv', recorded.id);
+
+        expect(paths).toEqual([`/api/v1/tv/${recorded.id}`]);
+        expect(found.requests.length).toBeGreaterThan(0);
+        for (const r of found.requests) {
+            expect(r.tmdbId).toBe(recorded.id);
+            expect(r.mediaType).toBe('tv');
+        }
+    });
+
+    it('reads a zero-padded id as the number it names', async () => {
+        const { impl, sent } = recordingFetch({});
+        const adapter = new SeerrAdapter(seerrConfig, impl);
+        expect((await adapter.getRequest('031'))?.id).toBe(31);
+        expect(sent.map(s => s.path)).toEqual(['/api/v1/request/31']);
+    });
+
+    it('maps the recorded single-request response', async () => {
+        const recorded = JSON.parse(
+            readFileSync(new URL('./fixtures/seerr/request-by-id.json', import.meta.url), 'utf8')
+        ) as { id: number };
+        const impl = (async () => jsonResponse(recorded)) as unknown as typeof fetch;
+        const request = await new SeerrAdapter(seerrConfig, impl).getRequest(String(recorded.id));
+
+        expect(request?.id).toBe(recorded.id);
+        expect(['movie', 'tv']).toContain(request?.mediaType);
+    });
+
     it('posts to the verdict endpoint and reports what the request became', async () => {
         const { impl, sent } = recordingFetch({ onWrite: () => jsonResponse(APPROVED) });
         const updated = await new SeerrAdapter(seerrConfig, impl).respondToRequest('31', 'approve');
@@ -260,6 +336,22 @@ describe('SeerrAdapter request writes', () => {
 // --- respond_to_request --------------------------------------------------
 
 describe('respond_to_request', () => {
+    it('reads the one request by id, not the whole request history', async () => {
+        const h = harness(registerRespondToRequest, { permissions: { seerr: tiered(true, false) } });
+        await h.call({ id: '31', verdict: 'approve' });
+        const gets = h.fetchImpl.sent.filter(s => s.method === 'GET').map(s => s.path);
+        expect(gets).toContain('/api/v1/request/31');
+        expect(gets).not.toContain('/api/v1/request');
+    });
+
+    it('names a zero-padded id by the request it resolves to', async () => {
+        const h = harness(registerRespondToRequest, { permissions: { seerr: tiered(true, false) } });
+        const { structuredContent } = await h.call({ id: '031', verdict: 'approve', dry_run: true });
+        expect(h.fetchImpl.sent.filter(s => s.method === 'GET').map(s => s.path)).toContain('/api/v1/request/31');
+        expect(JSON.stringify(structuredContent)).toContain('seerr:31');
+        expect(JSON.stringify(structuredContent)).not.toContain('seerr:031');
+    });
+
     it("refuses to act on another user's request while allow_other_users is off", async () => {
         // get_requests will not so much as list Sam's requests to a server
         // configured for Bartus. Acting on one — and previewing its title and

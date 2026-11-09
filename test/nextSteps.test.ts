@@ -649,6 +649,8 @@ const world = (): ServiceAdapter[] => [
     }),
     stub('seerr', {
         getRequests: async () => [{ service: 'seerr', id: 12, status: 'pending', mediaType: 'movie', requestedBy: 'Someone' }],
+        getRequest: async () => ({ service: 'seerr', id: 12, status: 'pending', mediaType: 'movie', requestedBy: 'Someone' }),
+        getMediaRequests: async () => ({ requests: [] }),
         respondToRequest: async () => ({ id: 12, status: 'approved' }),
         describeRequestMedia: async () => undefined,
         deleteRequest: async () => undefined

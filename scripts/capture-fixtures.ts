@@ -365,6 +365,36 @@ function anonymiseSeerrUser(row: Row, index: number): Row {
 }
 
 /**
+ * A Seerr request row names two people, the requester and whoever last
+ * modified it; both are identity. The row is the same shape in the request
+ * list, in `/request/{id}` and nested under a title's `mediaInfo.requests`.
+ */
+function anonymiseSeerrRequest(r: Row, i: number): Row {
+    return {
+        ...r,
+        requestedBy: anonymiseSeerrUser((r.requestedBy ?? {}) as Row, i),
+        ...(isRow(r.modifiedBy) ? { modifiedBy: anonymiseSeerrUser(r.modifiedBy, i) } : {})
+    };
+}
+
+/** tmdbId of the first captured `request` row of the given media type. */
+const seerrTmdbIdOf = (mediaType: 'movie' | 'tv') => (captured: Map<string, unknown>): number | undefined => {
+    const results = (captured.get('request') as { results?: Row[] } | undefined)?.results;
+    const row = Array.isArray(results)
+        ? results.find(r => isRow(r.media) && r.media.mediaType === mediaType && typeof r.media.tmdbId === 'number')
+        : undefined;
+    return isRow(row?.media) ? (row.media.tmdbId as number) : undefined;
+};
+
+/** Anonymise every request nested under a title's `mediaInfo.requests`. */
+const anonymiseSeerrTitle = (body: unknown): unknown => {
+    const title = body as Row;
+    const info = title.mediaInfo;
+    if (!isRow(info) || !Array.isArray(info.requests)) return body;
+    return { ...title, mediaInfo: { ...info, requests: (info.requests as Row[]).map(anonymiseSeerrRequest) } };
+};
+
+/**
  * Whisparr is the one service here whose *library* is the sensitive part.
  *
  * Everywhere else the fixtures carry film and series titles that are already
@@ -927,22 +957,66 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         {
             name: 'request',
             path: '/api/v1/request?take=20',
-            // Requests name who made them, which is identity, not a secret.
+            // Requests name who made them and who last changed them, which is
+            // identity, not a secret.
             anonymise: body => {
                 const page = body as { results?: Row[] };
                 return Array.isArray(page.results)
-                    ? {
-                          ...page,
-                          results: page.results.map((r, i) => ({
-                              ...r,
-                              requestedBy: anonymiseSeerrUser((r.requestedBy ?? {}) as Row, i)
-                          }))
-                      }
+                    ? { ...page, results: page.results.map(anonymiseSeerrRequest) }
                     : body;
             }
         },
         { name: 'search', path: '/api/v1/search?query=matrix' },
-        { name: 'discover-movies', path: '/api/v1/discover/movies' }
+        { name: 'discover-movies', path: '/api/v1/discover/movies' },
+        {
+            name: 'issue',
+            path: '/api/v1/issue?take=5&skip=0&sort=added&filter=all',
+            anonymise: body => {
+                const page = body as { results?: Row[] };
+                if (!Array.isArray(page.results)) return body;
+                const person = (v: unknown, i: number): unknown => (isRow(v) ? anonymiseSeerrUser(v, i) : v);
+                return {
+                    ...page,
+                    results: page.results.map((r, i) => ({
+                        ...r,
+                        createdBy: person(r.createdBy, i),
+                        modifiedBy: person(r.modifiedBy, i),
+                        comments: Array.isArray(r.comments)
+                            ? (r.comments as Row[]).map((c, j) => ({
+                                  ...c,
+                                  user: person(c.user, i),
+                                  message: `Comment ${j + 1}`
+                              }))
+                            : r.comments
+                    }))
+                };
+            }
+        },
+        {
+            name: 'request-by-id',
+            path: captured => {
+                const results = (captured.get('request') as { results?: Row[] } | undefined)?.results;
+                const id = Array.isArray(results) ? results[0]?.id : undefined;
+                return typeof id === 'number' ? `/api/v1/request/${id}` : undefined;
+            },
+            anonymise: body => anonymiseSeerrRequest(body as Row, 0)
+        },
+        {
+            name: 'movie-detail',
+            path: captured => {
+                const id = seerrTmdbIdOf('movie')(captured);
+                return id === undefined ? undefined : `/api/v1/movie/${id}`;
+            },
+            anonymise: anonymiseSeerrTitle
+        },
+        {
+            name: 'tv-detail',
+            path: captured => {
+                const id = seerrTmdbIdOf('tv')(captured);
+                return id === undefined ? undefined : `/api/v1/tv/${id}`;
+            },
+            anonymise: anonymiseSeerrTitle
+        }
     ],
     sabnzbd: [
         { name: 'version', path: '/api?mode=version&output=json' },

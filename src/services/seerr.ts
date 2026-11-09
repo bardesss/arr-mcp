@@ -17,7 +17,9 @@ import {
     type MediaIssue,
     type MediaRequest,
     type RecentLogs,
+    type RequestLookupCapable,
     type RequestManageCapable,
+    type TitleRequests,
     type RequestStatus,
     type RequestVerdict,
     type SearchCapable,
@@ -144,7 +146,7 @@ type RawLogRow = { timestamp?: string; level?: string; label?: string; message?:
 const nameOf = (u: RawUser): string | undefined => u.displayName ?? u.username ?? u.email?.split('@')[0];
 
 export class SeerrAdapter
-    implements ServiceAdapter, LogCapable, UserDirectoryCapable, SearchCapable, DiscoverCapable, RequestManageCapable, IssueCapable
+    implements ServiceAdapter, LogCapable, UserDirectoryCapable, SearchCapable, DiscoverCapable, RequestManageCapable, RequestLookupCapable, IssueCapable
 {
     readonly type: ServiceId = 'seerr';
     readonly id: string = 'seerr';
@@ -260,6 +262,62 @@ export class SeerrAdapter
     }
 
     /**
+     * One request by id. A guess at an id is cheap to get wrong, so a missing
+     * request is `undefined` rather than an error, and an id that cannot be a
+     * Seerr id never costs a call.
+     */
+    async getRequest(id: string): Promise<MediaRequest | undefined> {
+        if (!/^[0-9]+$/.test(id) || !Number.isSafeInteger(Number(id))) return undefined;
+        try {
+            // The canonical number, so "031" reads request 31.
+            const body = await this.#http.get<RawRequest>(`/api/v1/request/${Number(id)}`);
+            return typeof body.id === 'number' ? this.#toRequest(body as RawRequest & { id: number }) : undefined;
+        } catch (err) {
+            if (err instanceof ServiceError && err.kind === 'NotFound') return undefined;
+            throw err;
+        }
+    }
+
+    /**
+     * A title's own requests, read from its detail: `mediaInfo.requests` lists
+     * every request for that title, so the duplicate check costs one call
+     * however long the request history is. Errors propagate; the caller decides
+     * what a failed lookup means.
+     *
+     * The nested rows carry no tmdbId or mediaType of their own that can be
+     * trusted, so the arguments decide both.
+     */
+    async getMediaRequests(mediaType: 'movie' | 'tv', tmdbId: number): Promise<TitleRequests> {
+        const path = mediaType === 'movie' ? `/api/v1/movie/${tmdbId}` : `/api/v1/tv/${tmdbId}`;
+        const raw = await this.#http.get<
+            RawMediaDetails & { mediaInfo?: { tvdbId?: number | null; requests?: RawRequest[] } }
+        >(path);
+
+        const title = raw.title ?? raw.name;
+        const year = yearOf(raw.releaseDate ?? raw.firstAirDate);
+        const requests = (raw.mediaInfo?.requests ?? [])
+            .filter((r): r is RawRequest & { id: number } => typeof r.id === 'number')
+            .map(r =>
+                this.#toRequest({
+                    ...r,
+                    media: { ...(r.media ?? {}), tvdbId: raw.mediaInfo?.tvdbId ?? null, tmdbId, mediaType }
+                })
+            );
+
+        return {
+            ...(title === undefined || title === ''
+                ? {}
+                : {
+                      media: {
+                          title: fenceText(title, { service: this.id, field: 'title' }),
+                          ...(year === undefined ? {} : { year })
+                      }
+                  }),
+            requests
+        };
+    }
+
+    /**
      * The issues a household has raised — "the audio is out of sync", "there
      * are no subtitles" — which nothing in this stack could report.
      *
@@ -267,10 +325,24 @@ export class SeerrAdapter
      * handed `issueType: 2` cannot say what is wrong with the film. Comments
      * are the user's own text and are fenced, and capped at the newest few:
      * an argument twenty comments long is not what the caller asked for.
+     *
+     * One page of `limit` rows, not the whole list: a caller asking for a few
+     * issues should not cost a request per hundred issues ever raised. The
+     * request `sort=added` is sent, and on the request list that returns newest
+     * first. The issue order itself was not observed: the live store held a
+     * single issue.
      */
     async getIssues(opts: { limit: number }): Promise<MediaIssue[]> {
-        const params = new URLSearchParams({ take: String(Math.max(1, opts.limit)), sort: 'added', filter: 'all' });
-        const rows = await this.#allPages<RawIssue>('/api/v1/issue', params);
+        const params = new URLSearchParams({
+            take: String(Math.max(1, opts.limit)),
+            skip: '0',
+            sort: 'added',
+            filter: 'all'
+        });
+        const page = await this.#http.get<{ pageInfo?: PageInfo; results?: RawIssue[] }>(
+            `/api/v1/issue?${params.toString()}`
+        );
+        const rows = page.results ?? [];
 
         return rows
             .filter((i): i is RawIssue & { id: number } => typeof i.id === 'number')

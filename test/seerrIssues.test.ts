@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { MultiUserServiceConfig } from '../src/config/schema.ts';
 import type { IdentityResolver } from '../src/core/identity.ts';
@@ -82,6 +83,31 @@ describe('Seerr issues', () => {
         const rows = await new SeerrAdapter(config, serving()).getIssues({ limit: 50 });
         expect(rows[0]?.reportedBy).toBe('<<untrusted:seerr.user>>Someone<</>>');
         expect(rows[0]?.title).toContain('Heat');
+    });
+
+    it('reads one page of `limit` issues rather than paging the whole list', async () => {
+        const seen: URL[] = [];
+        const impl = (async (input: string | URL | Request) => {
+            const url = new URL(input instanceof Request ? input.url : String(input));
+            seen.push(url);
+            return jsonResponse({ ...ISSUES, pageInfo: { pages: 250, page: 1, results: 500 } });
+        }) as unknown as typeof fetch;
+        const rows = await new SeerrAdapter(config, impl).getIssues({ limit: 1 });
+        expect(seen).toHaveLength(1);
+        expect(Object.fromEntries(seen[0]!.searchParams)).toEqual({ take: '1', skip: '0', sort: 'added', filter: 'all' });
+        expect(rows.map(r => r.id)).toEqual(['7']);
+    });
+
+    it('maps the recorded issue page', async () => {
+        const recorded = JSON.parse(
+            readFileSync(new URL('./fixtures/seerr/issue.json', import.meta.url), 'utf8')
+        ) as unknown;
+        const rows = await new SeerrAdapter(config, serving(recorded)).getIssues({ limit: 50 });
+        expect(rows.length).toBeGreaterThan(0);
+        for (const row of rows) {
+            expect(['video', 'audio', 'subtitle', 'other']).toContain(row.kind);
+            expect(['open', 'resolved', 'unknown']).toContain(row.status);
+        }
     });
 });
 
