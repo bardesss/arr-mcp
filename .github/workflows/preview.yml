@@ -88,11 +88,10 @@ jobs:
           tags: ghcr.io/bardesss/arr-mcp:preview-${{ inputs.slug }}
           build-args: |
             ARR_MCP_VERSION=${{ steps.describe.outputs.version }}
-          # Reads release's cache first: it is the one written from main.
-          cache-from: |
-            type=gha,scope=release
-            type=gha,scope=preview
-          cache-to: type=gha,mode=max,scope=preview,ignore-error=true
+          # Reads the cache main's release builds write, and writes none: the
+          # repo cache is capped at 10 GB, and throwaway preview layers would
+          # push out the release cache.
+          cache-from: type=gha,scope=release
 
       # So the pull command can be copied straight into the issue thread that
       # asked for the build.

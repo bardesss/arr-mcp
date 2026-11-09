@@ -44,7 +44,7 @@ describe('the GitHub workflows', () => {
     });
 
     it('caches every image build under its own scope', () => {
-        const scopes: Record<string, string[]> = { 'ci.yml': ['amd64', 'arm64'], 'release.yml': ['release'], 'preview.yml': ['preview'] };
+        const scopes: Record<string, string[]> = { 'ci.yml': ['amd64', 'arm64'], 'release.yml': ['release'] };
         for (const [file, expected] of Object.entries(scopes)) {
             const steps = buildSteps(file);
             expect(steps, file).toHaveLength(expected.length);
@@ -55,6 +55,15 @@ describe('the GitHub workflows', () => {
                 expect(step.with?.['cache-to'], file).toContain(`scope=${expected[i]},`);
             });
         }
+    });
+
+    it('lets a preview build read the release cache and write none', () => {
+        // The repo cache is capped at 10 GB, and throwaway preview layers
+        // would push out the release cache every other build reads.
+        const steps = buildSteps('preview.yml');
+        expect(steps).toHaveLength(1);
+        expect(steps[0]!.with?.['cache-from']).toMatch(/^type=gha,scope=release\s*$/);
+        expect(steps[0]!.with?.['cache-to']).toBeUndefined();
     });
 
     it('grants release permissions per job', () => {
