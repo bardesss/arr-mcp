@@ -5,8 +5,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { bootstrap, type BootstrapDeps } from '../src/bootstrap.ts';
 import { WriteAudit } from '../src/core/audit.ts';
 import { LogStore } from '../src/core/logs.ts';
+import { logger } from '../src/core/logger.ts';
 import { Runtime } from '../src/core/runtime.ts';
 import { Sessions } from '../src/core/session.ts';
+import { ImdbDataset } from '../src/metadata/imdbDataset.ts';
+
+// A real refresher would start a 223 MB download for an empty dataset.
+vi.mock('../src/metadata/refresh.ts', () => ({ startRefresh: () => () => {} }));
 
 const fail = vi.hoisted(() => ({ build: false }));
 
@@ -57,5 +62,31 @@ describe('bootstrap', () => {
         const close = vi.spyOn(Runtime.prototype, 'close');
         await (await bootstrap(deps)).close();
         expect(close).toHaveBeenCalledTimes(1);
+    });
+
+    describe('the IMDb startup line', () => {
+        const enable = (): Promise<void> =>
+            writeFile(
+                join(dir, 'config.yaml'),
+                ['auth:', '  username: admin', '  allowed_hosts: []', 'services: {}', 'metadata:', '  imdb:', '    enabled: true', ''].join('\n'),
+                'utf8'
+            );
+        const announced = (info: { mock: { calls: unknown[][] } }): boolean =>
+            info.mock.calls.some(call => call.some(arg => typeof arg === 'string' && arg.includes('ratings appear once')));
+
+        it('says ratings are coming when the dataset is empty', async () => {
+            await enable();
+            const info = vi.spyOn(logger, 'info');
+            await (await bootstrap(deps)).close();
+            expect(announced(info)).toBe(true);
+        });
+
+        it('stays quiet about a first ingest when the dataset already holds titles', async () => {
+            await enable();
+            vi.spyOn(ImdbDataset.prototype, 'status').mockReturnValue({ titles: 5, ratings: 5, ingestedAt: new Date().toISOString() });
+            const info = vi.spyOn(logger, 'info');
+            await (await bootstrap(deps)).close();
+            expect(announced(info)).toBe(false);
+        });
     });
 });

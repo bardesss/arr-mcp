@@ -383,9 +383,21 @@ export function startRefresh(
     };
 
     const interval = opts.intervalMs ?? REFRESH_INTERVAL_MS;
-    const { titles, ingestedAt } = dataset.status();
-    const age = ingestedAt === undefined ? Number.NaN : Date.parse(ingestedAt);
-    const delay = titles === 0 || Number.isNaN(age) ? 0 : Math.max(0, age + interval - Date.now());
+    // A status that cannot be read must not throw into the caller — the
+    // runtime commits a reload around this call — so it falls back to
+    // ingesting at once, as an empty dataset does.
+    let status: { titles: number; ingestedAt?: string | undefined } = { titles: 0 };
+    try {
+        status = dataset.status();
+    } catch (err) {
+        logger.warn({ err }, 'could not read the IMDb dataset status; refreshing now');
+    }
+    const age = status.ingestedAt === undefined ? Number.NaN : Date.parse(status.ingestedAt);
+    // Clamped to one interval: an ingest dated in the future (clock skew, a
+    // database copied from another host) would otherwise wait past the 2^31-1
+    // ms timer limit, and Node fires such a timer after 1 ms.
+    const delay =
+        status.titles === 0 || Number.isNaN(age) ? 0 : Math.min(interval, Math.max(0, age + interval - Date.now()));
     if (delay > 0) {
         logger.info({ at: new Date(Date.now() + delay).toISOString() }, 'IMDb dataset is current — next refresh scheduled');
     }

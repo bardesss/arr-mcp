@@ -7,9 +7,18 @@ import type { LogStore } from './core/logs.ts';
 import { Runtime } from './core/runtime.ts';
 import type { Sessions } from './core/session.ts';
 import type { WebhookEvents } from './core/webhookEvents.ts';
+import type { ImdbDataset } from './metadata/imdbDataset.ts';
 import { startRefresh } from './metadata/refresh.ts';
 import { buildRepairApp } from './repair.ts';
 import type { PromoteResult } from './repair.ts';
+
+const datasetIsEmpty = (dataset: ImdbDataset): boolean => {
+    try {
+        return dataset.status().titles === 0;
+    } catch {
+        return false;
+    }
+};
 
 export type BootstrapDeps = {
     configDir: string;
@@ -63,7 +72,9 @@ export async function bootstrap(deps: BootstrapDeps): Promise<Booted> {
                 );
             }
 
-            if (runtime.dataset !== undefined) {
+            // Only an empty dataset ingests at once; a current one waits for its
+            // week, and startRefresh says so itself.
+            if (runtime.dataset !== undefined && datasetIsEmpty(runtime.dataset)) {
                 logger.info(
                     'IMDb dataset enabled — refreshing in the background; ratings appear once the first ingest finishes'
                 );

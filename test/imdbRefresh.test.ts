@@ -266,6 +266,64 @@ describe('the weekly schedule', () => {
         }
     });
 
+    it('ingests at once when the last ingest left no titles, however recent', async () => {
+        vi.useFakeTimers({ now: 10_000_000 });
+        try {
+            let started = 0;
+            const stop = startRefresh(
+                fake({ titles: 0, ratings: 0, ingestedAt: new Date(10_000_000 - 3_600_000).toISOString() }),
+                {
+                    ingest: async () => {
+                        started += 1;
+                    },
+                    intervalMs: 7 * 24 * 3_600_000
+                }
+            );
+            await vi.advanceTimersByTimeAsync(0);
+            expect(started).toBe(1);
+            await stop();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('waits at most one interval when the last ingest is dated in the future', async () => {
+        vi.useFakeTimers({ now: 10_000 });
+        try {
+            let started = 0;
+            const stop = startRefresh(fake({ titles: 5, ratings: 5, ingestedAt: new Date(10_000 + 10 * 1000).toISOString() }), {
+                ingest: async () => {
+                    started += 1;
+                },
+                intervalMs: 1000
+            });
+            await vi.advanceTimersByTimeAsync(999);
+            expect(started).toBe(0);
+            await vi.advanceTimersByTimeAsync(1);
+            expect(started).toBe(1);
+            await stop();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('ingests at once, and does not throw, when the dataset status cannot be read', async () => {
+        let started = 0;
+        const broken = {
+            status: () => {
+                throw new Error('database is locked');
+            }
+        } as unknown as ImdbDataset;
+        const stop = startRefresh(broken, {
+            ingest: async () => {
+                started += 1;
+            }
+        });
+        await new Promise(r => setImmediate(r));
+        expect(started).toBe(1);
+        await stop();
+    });
+
     it('aborts the running ingest when stopped', async () => {
         let seen: AbortSignal | undefined;
         const stop = startRefresh(fake(), {
