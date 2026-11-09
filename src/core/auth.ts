@@ -67,7 +67,7 @@ export function apiKeyHeader(header: string, key: string): AuthStrategy {
 /** A route or a service that takes no credential. Shelfmark's `/api/health`, and all of it until auth is set up. */
 export const noAuth: AuthStrategy = {
     id: 'none',
-    remedy: 'This service asks for a credential arr-mcp was not given. Add its api_key to the config.',
+    remedy: 'This route asked for a credential arr-mcp does not send. Check the service authentication settings.',
     apply() {}
 };
 
@@ -407,7 +407,7 @@ export function grimmorySession(creds: {
 
     return {
         id: 'grimmory-session',
-        remedy: 'Grimmory turned the login user away. Check the username and password, and that the user has the permission this read needs.',
+        remedy: 'Grimmory turned the login user away. Check the username and password, and that the user has the permission this call needs.',
         apply(ctx) {
             if (session !== undefined && now() < session.validUntil) ctx.headers.set('Authorization', `Bearer ${session.token}`);
         },

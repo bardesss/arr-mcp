@@ -350,9 +350,9 @@ describe('the remedy a 401 or 403 carries', () => {
             'grimmorySession',
             () => grimmorySession({ id: 'svc', url: 'http://h:1234', username: 'u', password: 'p', timeoutMs: 5000 }),
             403,
-            'Grimmory turned the login user away. Check the username and password, and that the user has the permission this read needs.'
+            'Grimmory turned the login user away. Check the username and password, and that the user has the permission this call needs.'
         ],
-        ['noAuth', () => noAuth, 401, 'This service asks for a credential arr-mcp was not given. Add its api_key to the config.']
+        ['noAuth', () => noAuth, 401, 'This route asked for a credential arr-mcp does not send. Check the service authentication settings.']
     ])('%s', async (_name, make, status, remedy) => {
         await expect(answer(make(), status)).rejects.toMatchObject({ kind: 'AuthFailed', remedy });
     });

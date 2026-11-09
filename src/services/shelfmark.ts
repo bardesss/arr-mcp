@@ -138,7 +138,9 @@ export class ShelfmarkAdapter
     readonly #listed = new Map<string, { at: number; rows: RawRelease[] }>();
 
     constructor(config: ConfigByService['shelfmark'], fetchImpl: typeof fetch = fetch) {
-        this.#http = new ServiceHttp(this.id, config, config.api_key === undefined ? noAuth : apiKeyHeader('X-Api-Key', config.api_key), fetchImpl);
+        // With auth on and no key set, the fix is the key; the public routes below have none to add.
+        const keyless = { ...noAuth, remedy: 'This service asks for a credential arr-mcp was not given. Add its api_key to the config.' };
+        this.#http = new ServiceHttp(this.id, config, config.api_key === undefined ? keyless : apiKeyHeader('X-Api-Key', config.api_key), fetchImpl);
         // `/api/health` is public, and the read-only key is refused everywhere but `/api/stats`.
         this.#public = new ServiceHttp(this.id, config, noAuth, fetchImpl);
     }
