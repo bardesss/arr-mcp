@@ -99,7 +99,7 @@ export function registerPauseDownloads(
                         summary:
                             wanted === undefined
                                 ? `${client.id} already has no download limit.`
-                                : `${client.id} is already limited to ${wanted} KB/s.`,
+                                : `${client.id} is already limited to ${wanted} KiB/s.`,
                         effects: [],
                         noop: true
                     };
@@ -110,11 +110,11 @@ export function registerPauseDownloads(
                     summary:
                         wanted === undefined
                             ? `Remove the download limit on ${client.id}.`
-                            : `Limit ${client.id} to ${wanted} KB/s.`,
+                            : `Limit ${client.id} to ${wanted} KiB/s.`,
                     effects: [
                         wanted === undefined
-                            ? `${client.id} will download as fast as the line allows${current.kbps === undefined ? '' : `, instead of the current ${current.kbps} KB/s`}.`
-                            : `Caps ${client.id} at ${wanted} KB/s${current.kbps === undefined ? ', which currently has no limit' : `, from ${current.kbps} KB/s`}. Client-wide, not per item.`,
+                            ? `${client.id} will download as fast as the line allows${current.kbps === undefined ? '' : `, instead of the current ${current.kbps} KiB/s`}.`
+                            : `Caps ${client.id} at ${wanted} KiB/s${current.kbps === undefined ? ', which currently has no limit' : `, from ${current.kbps} KiB/s`}. Client-wide, not per item.`,
                         'Does NOT stop Radarr or Sonarr grabbing. They keep sending releases; they just arrive more slowly.',
                         'Undo it by calling this tool again with action: "limit" and a different value — 0 removes the cap.'
                     ],

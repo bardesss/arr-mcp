@@ -364,7 +364,7 @@ export class QbittorrentAdapter
 
     /**
      * qBittorrent speaks **bytes per second** here, where this boundary
-     * speaks KB/s. `0` means unlimited, both ways.
+     * speaks KiB/s. `0` means unlimited, both ways.
      *
      * Spec-derived, like the pause paths above: there is no qBittorrent on
      * the stack these adapters were probed against.

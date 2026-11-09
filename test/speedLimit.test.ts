@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import * as z from 'zod/v4';
 import type { AnyServiceConfig, CredentialServiceConfig, KeyedServiceConfig } from '../src/config/schema.ts';
@@ -64,7 +66,7 @@ describe('SABnzbd speed limit', () => {
     });
 
     /** A bare `value=100` is 100 *percent* of the configured line speed. */
-    it('sends the K suffix, which is what makes it KB/s rather than a percentage', async () => {
+    it('sends the K suffix, which is what makes it KiB/s rather than a percentage', async () => {
         const { impl, sent } = recording(() => jsonResponse({ status: true }));
         await new SabnzbdAdapter(sabConfig, impl).setSpeedLimit(2000);
         expect(sent.at(-1)?.search).toContain('value=2000K');
@@ -111,6 +113,20 @@ describe('Transmission speed limit', () => {
         });
     });
 
+    it('reads the unit from a recorded session-get', async () => {
+        const recorded = JSON.parse(readFileSync(join(import.meta.dirname, 'fixtures', 'transmission', 'session-get.json'), 'utf8')) as {
+            arguments: Record<string, unknown> & { 'speed-limit-down': number; units: { 'speed-bytes': number } };
+        };
+        // The capture has the cap switched off; only the flag is changed.
+        const body = { ...recorded, arguments: { ...recorded.arguments, 'speed-limit-down-enabled': true } };
+        const { impl } = recording(() => jsonResponse(body));
+        const { 'speed-limit-down': limit, units } = recorded.arguments;
+        expect(await new TransmissionAdapter(clientConfig, impl).readSpeedLimit()).toEqual({
+            service: 'transmission',
+            kbps: Math.round((limit * units['speed-bytes']) / 1024)
+        });
+    });
+
     it('uses the unit the daemon reports', async () => {
         const { impl, sent } = recording(() =>
             jsonResponse({ result: 'success', arguments: { units: { 'speed-bytes': 1024 } } })
@@ -124,6 +140,8 @@ describe('Transmission speed limit', () => {
     it('zeroes the number when clearing, not just the flag', async () => {
         const { impl, sent } = recording(() => jsonResponse({ result: 'success' }));
         await new TransmissionAdapter(clientConfig, impl).setSpeedLimit(undefined);
+        // Clearing needs no unit, so it does not read the session first.
+        expect(sent.map(s => (JSON.parse(s.body ?? '{}') as { method?: string }).method)).toEqual(['session-set']);
         expect(JSON.parse(sent.at(-1)?.body ?? '{}')).toMatchObject({
             arguments: { 'speed-limit-down': 0, 'speed-limit-down-enabled': false }
         });
@@ -138,7 +156,7 @@ describe('Transmission speed limit', () => {
 });
 
 describe('qBittorrent speed limit', () => {
-    it('converts bytes per second to KB/s on the way in', async () => {
+    it('converts bytes per second to KiB/s on the way in', async () => {
         const { impl } = recording(() => new Response('512000', { status: 200 }));
         expect(await new QbittorrentAdapter(clientConfig, impl).readSpeedLimit()).toEqual({
             service: 'qbittorrent',
@@ -209,8 +227,8 @@ describe('pause_downloads limit', () => {
             dry_run: true
         });
 
-        expect(structuredContent.summary).toContain('1000 KB/s');
-        expect(structuredContent.effects.join(' ')).toContain('5120 KB/s');
+        expect(structuredContent.summary).toContain('1000 KiB/s');
+        expect(structuredContent.effects.join(' ')).toContain('5120 KiB/s');
     });
 
     it('says the *arrs keep grabbing regardless', async () => {

@@ -359,15 +359,15 @@ export class TransmissionAdapter
 
     async setSpeedLimit(kbps: number | undefined): Promise<void> {
         const clearing = kbps === undefined || kbps <= 0;
-        const session = await this.#session();
+        const unit = clearing ? 1000 : speedBytes(await this.#session());
         const body = await this.#http.post<RpcResponse<unknown>>(RPC_PATH, {
             method: 'session-set',
             arguments: {
                 'speed-limit-down-enabled': !clearing,
                 // Sent even when clearing: Transmission keeps the number
-                // behind the flag, and leaving a stale 50 KB/s there is how a
+                // behind the flag, and leaving a stale cap there is how a
                 // later "pause and resume" comes back throttled.
-                'speed-limit-down': clearing ? 0 : Math.round((kbps * 1024) / speedBytes(session))
+                'speed-limit-down': clearing ? 0 : Math.round((kbps * 1024) / unit)
             }
         });
 
