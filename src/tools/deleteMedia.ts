@@ -6,6 +6,7 @@ import { ServiceError } from '../core/errors.ts';
 import { hasBookDelete, hasMediaDelete, hasMediaDetails, type BookDeleteCapable, type ServiceAdapter } from '../services/types.ts';
 import { arrSubject } from './crossChecks.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
+import { titled } from '../core/labels.ts';
 
 /**
  * The first destructive-tier write. Everything the harness does matters more
@@ -131,7 +132,7 @@ export function registerDeleteMedia(
             // The read that makes the preview approvable, and that fails
             // legibly on a bad id rather than issuing a DELETE into the dark.
             const details = await adapter.getMediaDetails(id, { includeEpisodes: false, episodeLimit: 0 });
-            const label = `${details.title}${details.year === undefined ? '' : ` (${details.year})`}`;
+            const label = titled(details.title, details.year);
             const noun = service === 'radarr' ? 'film' : service === 'whisparr' ? 'site' : 'series';
 
             const effects: string[] = [];

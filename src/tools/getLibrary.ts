@@ -17,6 +17,7 @@ import { unfenced } from '../core/titleMatch.ts';
 import { UserSchema } from './getPlayback.ts';
 import type { LibraryLoader } from './library.ts';
 import { withBoth } from './mediaServers.ts';
+import { titled } from '../core/labels.ts';
 
 /** Every rating source a title can carry. */
 export const RATING_SOURCES = ['imdb', 'tmdb', 'trakt', 'metacritic', 'rottenTomatoes', 'tvdb'] as const;
@@ -378,7 +379,7 @@ export function libraryLine(item: MergedItem): string {
     }
 
     if (item.albumCount !== undefined) facts.push(`${item.albumCount} albums`);
-    return `${item.title}${item.year === undefined ? '' : ` (${item.year})`} — ${facts.join(', ')}`;
+    return `${titled(item.title, item.year)} — ${facts.join(', ')}`;
 }
 
 export async function buildGetLibrary(loader: LibraryLoader, opts: LibraryQuery): Promise<GetLibraryResult> {

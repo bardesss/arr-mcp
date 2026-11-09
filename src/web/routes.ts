@@ -57,6 +57,7 @@ import {
     LOG_STREAMS,
     type LogStreamKey
 } from './pages.ts';
+import { TIMED_OUT, withTimeout } from '../core/timeout.ts';
 
 /** Same as the log tabs. */
 const EVENT_ROWS_SHOWN = 300;
@@ -394,12 +395,8 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         await Promise.all(
             runtime.current.adapters.filter(hasUserDirectory).map(async adapter => {
                 try {
-                    const users = await Promise.race([
-                        adapter.listUsers(),
-                        new Promise<never>((_, reject) =>
-                            setTimeout(() => reject(new Error('timed out')), USER_LOOKUP_MS).unref()
-                        )
-                    ]);
+                    const users = await withTimeout(adapter.listUsers(), USER_LOOKUP_MS);
+                    if (users === TIMED_OUT) throw new Error('timed out');
                     found[adapter.id] = users.map(u => u.name);
                 } catch (err) {
                     logger.warn({ service: adapter.id, err }, 'could not list users for the configuration page');

@@ -2,7 +2,7 @@ import { instanceId } from '../config/instances.ts';
 import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import { basicAuth, decodeOrRaw } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
-import { fenceText } from '../core/fence.ts';
+import { fenceText, fencer } from '../core/fence.ts';
 import { ServiceHttp } from '../core/http.ts';
 import {
     diagnoseConnection,
@@ -712,7 +712,7 @@ export class NzbgetAdapter
     }
 
     #postProcessTarget(row: RawHistory & { ID: number }): PostProcessTarget {
-        const fence = (value: string, field: string) => fenceText(value, { service: this.id, field });
+        const fence = fencer(this.id);
         // Post-processing runs in DestDir, and NZBGet refuses when it is gone;
         // FinalDir is only where a finished download was moved to afterwards.
         const destDir = row.DestDir ?? '';
@@ -913,7 +913,7 @@ export class NzbgetAdapter
             throw new ServiceError('NotFound', this.id, `nothing in NZBGet's history has id "${id}"`, { remedy: RETRY_MISSING_REMEDY });
         }
 
-        const fence = (value: string, field: string) => fenceText(value, { service: this.id, field });
+        const fence = fencer(this.id);
         const raw = row.Status ?? 'unknown';
         if (!isFailedStatus(raw)) {
             throw new ServiceError('NotFound', this.id, `download ${id} did not fail; only a failed download can be retried`, {

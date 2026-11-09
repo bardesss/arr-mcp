@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { LEVELS } from '../src/core/logs.ts';
-import { hashToken } from '../src/core/mcpTokens.ts';
+import { hashToken } from '../src/core/secrets.ts';
 import { api, closeApi, json, KEY, MCP, mcp, RADARR_KEY, READ_KEY, seedApi, stack, TX_PASSWORD } from './helpers/apiStack.ts';
 
 beforeEach(async () => {

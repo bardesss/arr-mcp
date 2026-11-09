@@ -1,7 +1,7 @@
 import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import { apiKeyHeader } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
-import { fenceText } from '../core/fence.ts';
+import { fenceText, fencer } from '../core/fence.ts';
 import type { CleanuparrRule, RuleAction, RulePrivacy } from '../core/cleanuparrRules.ts';
 import { hostPort } from '../core/hostPort.ts';
 import { ServiceHttp } from '../core/http.ts';
@@ -602,7 +602,7 @@ export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable, Cl
 
     #entryOf(e: RawEvent, clients: Map<string, string> | undefined): HistoryEntry | undefined {
         if (e.id === undefined || e.eventType === undefined || DROPPED.has(e.eventType)) return undefined;
-        const fence = (value: string, field: string) => fenceText(value, { service: this.id, field });
+        const fence = fencer(this.id);
         const strikeType = strikeTypeOf(e);
         const reasons = [e.deleteReason, e.cleanReason, ...(e.failedImportReasons ?? [])].filter((r): r is string => typeof r === 'string' && r !== '');
         return {

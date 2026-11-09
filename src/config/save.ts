@@ -1,11 +1,10 @@
-import { randomUUID } from 'node:crypto';
-import { readFile, rename, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { readFile } from 'node:fs/promises';
 import { isMap, parseDocument, type Document } from 'yaml';
 import * as z from 'zod/v4';
+import { writeFileAtomic } from '../core/atomicFile.ts';
+import { serial } from '../core/serial.ts';
+import { configPath } from './load.ts';
 import { ConfigSchema, type Config } from './schema.ts';
-
-const FILENAME = 'config.yaml';
 
 /**
  * Write `value` into `doc` at `path`, one key at a time.
@@ -111,17 +110,10 @@ function driftedFrom(doc: Document, expected: Config): boolean {
  * second silently overwrote the first. Atomic replacement (property 3) does not
  * help: both writes are individually atomic and the last one still wins.
  */
-let writes: Promise<unknown> = Promise.resolve();
+const writes = serial();
 
-export function saveConfig(configDir: string, next: Config, opts: { expected?: Config } = {}): Promise<void> {
-    const run = writes.then(
-        () => writeConfig(configDir, next, opts),
-        () => writeConfig(configDir, next, opts)
-    );
-    // Swallowed on the queue only — `run` still rejects for the caller.
-    writes = run.catch(() => undefined);
-    return run;
-}
+export const saveConfig = (configDir: string, next: Config, opts: { expected?: Config } = {}): Promise<void> =>
+    writes(() => writeConfig(configDir, next, opts));
 
 async function writeConfig(configDir: string, next: Config, opts: { expected?: Config }): Promise<void> {
     // Validated first: the caller assembles `next` from form fields, and a
@@ -132,7 +124,7 @@ async function writeConfig(configDir: string, next: Config, opts: { expected?: C
     }
     const value = parsed.data;
 
-    const path = join(configDir, FILENAME);
+    const path = configPath(configDir);
     const doc = parseDocument(await readFile(path, 'utf8'));
 
     // The caller assembles `next` from the snapshot its page was rendered
@@ -163,39 +155,6 @@ async function writeConfig(configDir: string, next: Config, opts: { expected?: C
     const blocks = value as Record<string, unknown>;
     for (const key of Object.keys(ConfigSchema.shape)) mergeInto(doc, [key], blocks[key]);
 
-    await writeConfigAtomic(path, doc.toString());
+    await writeFileAtomic(path, doc.toString());
 }
 
-/**
- * Replaces `path` atomically, 0o600. Property 3 above, reusable — the loader's
- * token rewrite needs the same guarantee.
- *
- * A unique temp name per write: a fixed `config.yaml.tmp` meant two overlapping
- * writes shared one file and both renamed it into place, so one could rename a
- * half-written copy of the other. 0o600 on the temp file too — it holds the
- * same secrets for the moment it exists, and a default-umask temp file is a
- * readable one.
- */
-export function writeConfigAtomic(path: string, text: string): Promise<void> {
-    const run = replaces.then(
-        () => replaceFile(path, text),
-        () => replaceFile(path, text)
-    );
-    replaces = run.catch(() => undefined);
-    return run;
-}
-
-/**
- * Serialises the replacements themselves, for the callers that do not go
- * through `saveConfig`'s queue: the repair page and the loader's token rewrite
- * both call `writeConfigAtomic` directly. Two overlapping calls raced the
- * rename — on Windows that fails outright with EPERM, and everywhere else it
- * last-write-wins, which is the outcome the queue above exists to prevent.
- */
-let replaces: Promise<unknown> = Promise.resolve();
-
-async function replaceFile(path: string, text: string): Promise<void> {
-    const tmp = `${path}.${process.pid}.${randomUUID()}.tmp`;
-    await writeFile(tmp, text, { mode: 0o600 });
-    await rename(tmp, path);
-}

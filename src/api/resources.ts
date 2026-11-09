@@ -2,7 +2,8 @@ import { instanceId, listInstances, type ServiceInstance } from '../config/insta
 import { configuredMediaServers } from '../config/edits.ts';
 import { MULTI_USER, NO_API_KEY } from '../config/mutate.ts';
 import { ServiceIdSchema, type Config, type ServiceId } from '../config/schema.ts';
-import { fingerprint, isExpired } from '../core/mcpTokens.ts';
+import { isExpired } from '../core/mcpTokens.ts';
+import { fingerprint } from '../core/secrets.ts';
 import type { ImdbDataset } from '../metadata/imdbDataset.ts';
 import { withoutCredentials } from '../tools/stackHealth.ts';
 

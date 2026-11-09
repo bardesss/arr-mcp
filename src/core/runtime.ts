@@ -9,6 +9,7 @@ import { buildToolContext, type ToolContext } from '../tools/register.ts';
 import type { WriteAudit } from './audit.ts';
 import { ConfirmTokens } from './confirm.ts';
 import { logger } from './logger.ts';
+import { serial } from './serial.ts';
 import { Sessions } from './session.ts';
 
 /**
@@ -58,7 +59,7 @@ export class Runtime {
     #snapshot: RuntimeSnapshot;
     readonly #configDir: string;
     #plaintextOnDisk: readonly string[] = [];
-    #reloads: Promise<unknown> = Promise.resolve();
+    readonly #reloads = serial();
     readonly #audit: WriteAudit;
     readonly #refresh: Refresher;
 
@@ -274,9 +275,7 @@ export class Runtime {
      * apply in completion order, and an older file could win.
      */
     reload(): Promise<void> {
-        const run = this.#reloads.then(() => this.#reloadNow());
-        this.#reloads = run.catch(() => undefined);
-        return run;
+        return this.#reloads(() => this.#reloadNow());
     }
 
     async #reloadNow(): Promise<void> {

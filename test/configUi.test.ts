@@ -15,7 +15,7 @@ import { Runtime } from '../src/core/runtime.ts';
 import { attachLogStore, detachLogStore, logger } from '../src/core/logger.ts';
 import { hashPassword } from '../src/core/session.ts';
 import * as session from '../src/core/session.ts';
-import { hashToken } from '../src/core/mcpTokens.ts';
+import { hashToken } from '../src/core/secrets.ts';
 import { CONFIG_TABS, configTabForPost } from '../src/web/configPage.ts';
 import { buildMcpConfig } from '../src/web/routes.ts';
 

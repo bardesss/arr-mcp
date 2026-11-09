@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { listInstances } from '../src/config/instances.ts';
 import { ConfigEditError, addInstance, addToken, removeInstance, revokeToken, updateInstance } from '../src/config/mutate.ts';
 import { ConfigSchema, type Config } from '../src/config/schema.ts';
-import { hashToken } from '../src/core/mcpTokens.ts';
+import { hashToken } from '../src/core/secrets.ts';
 import { buildMediaServerConfig } from '../src/web/routes.ts';
 
 /**

@@ -6,6 +6,7 @@ import { ServiceError } from '../core/errors.ts';
 import { hasMediaDetails, hasSearchTrigger, type AlbumSummary, type MediaDetails, type ServiceAdapter } from '../services/types.ts';
 import { arrSubject } from './crossChecks.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
+import { titled } from '../core/labels.ts';
 
 /**
  * The first write, and the shape every later one follows.
@@ -178,7 +179,7 @@ export function registerTriggerSearch(
                 includeEpisodes: episodes !== undefined || service === 'lidarr',
                 episodeLimit: 500
             });
-            const label = `${details.title}${details.year === undefined ? '' : ` (${details.year})`}`;
+            const label = titled(details.title, details.year);
 
             // A season or episode id that does not resolve is not "search
             // nothing interesting" — Sonarr accepts a command matching nothing

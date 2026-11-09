@@ -3,6 +3,7 @@ import { fenceText } from '../core/fence.ts';
 import type { ArrKind } from '../core/resolver.ts';
 import type { WebhookEntry } from '../core/webhookEvents.ts';
 import type { HistoryEventType } from './types.ts';
+import { episodeCode } from '../core/labels.ts';
 
 /**
  * Services with captured payloads (`test/fixtures/webhooks/`). Anything else gets
@@ -53,7 +54,7 @@ function episodeLabel(episode: Row): string | undefined {
     const season = positive(episode.seasonNumber) ?? (episode.seasonNumber === 0 ? 0 : undefined);
     const number = positive(episode.episodeNumber);
     if (season === undefined || number === undefined) return undefined;
-    return `S${String(season).padStart(2, '0')}E${String(number).padStart(2, '0')}`;
+    return episodeCode(season, number);
 }
 
 /** A file delete says why. A title delete only says whether the files went too. */

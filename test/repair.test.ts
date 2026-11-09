@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { bootstrap } from '../src/bootstrap.ts';
 import { loadConfig, validateConfigText } from '../src/config/load.ts';
-import { hashToken } from '../src/core/mcpTokens.ts';
+import { hashToken } from '../src/core/secrets.ts';
 import { WriteAudit } from '../src/core/audit.ts';
 import { LogStore } from '../src/core/logs.ts';
 import { Runtime } from '../src/core/runtime.ts';

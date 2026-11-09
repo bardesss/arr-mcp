@@ -1,4 +1,4 @@
-import { fenceText } from '../core/fence.ts';
+import { fencer } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
 import type { DownloadTrace } from './types.ts';
 
@@ -36,7 +36,7 @@ export async function traceArrDownload(
     kind: 'movie' | 'series',
     downloadId: string
 ): Promise<DownloadTrace | undefined> {
-    const fence = (value: string, field: string) => fenceText(value, { service, field });
+    const fence = fencer(service);
     const read = async (query: string): Promise<RawTraceRecord[]> =>
         (await http.get<Page>(`${http.apiRoot}/history?${query}&${PAGE}`)).records ?? [];
 

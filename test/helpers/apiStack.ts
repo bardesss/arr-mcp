@@ -5,7 +5,7 @@ import { buildApp } from '../../src/app.ts';
 import { loadConfig } from '../../src/config/load.ts';
 import { WriteAudit } from '../../src/core/audit.ts';
 import { LogStore } from '../../src/core/logs.ts';
-import { hashToken } from '../../src/core/mcpTokens.ts';
+import { hashToken } from '../../src/core/secrets.ts';
 import { Runtime } from '../../src/core/runtime.ts';
 
 export const KEY = `amk_${'1'.repeat(64)}`;

@@ -1,5 +1,6 @@
 import { serveStdio, type StdioServerHandle } from '@modelcontextprotocol/server/stdio';
 import { mcpServerFactory, type Ceiling } from './app.ts';
+import { configPath } from './config/load.ts';
 import type { WriteAudit } from './core/audit.ts';
 import { logger } from './core/logger.ts';
 import { Runtime } from './core/runtime.ts';
@@ -54,7 +55,7 @@ export async function serveOverStdio(deps: StdioDeps): Promise<StdioServerHandle
 
     logger.info({ adapters: runtime.current.adapters.map(a => a.id) }, 'arr-mcp serving MCP over stdio, read-only');
     if (runtime.current.adapters.length === 0) {
-        logger.warn({ config: `${configDir}/config.yaml` }, 'no services configured — every tool will report that');
+        logger.warn({ config: configPath(configDir) }, 'no services configured — every tool will report that');
     }
 
     return serveStdio(mcpServerFactory(runtime, events, stdioCeiling), {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ConfigSchema, tokensNeedingRewrite } from '../src/config/schema.ts';
-import { hashToken } from '../src/core/mcpTokens.ts';
+import { hashToken } from '../src/core/secrets.ts';
 
 const LEGACY = 'a'.repeat(64);
 const HAND = 'h'.repeat(40);

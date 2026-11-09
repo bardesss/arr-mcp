@@ -1,7 +1,7 @@
 import { ConfigEditError } from './mutate.ts';
 import { ConfigSchema, MediaServerIdSchema, type Config, type MediaServerId } from './schema.ts';
 import { generateManagementKey, type ManagementKeyTier } from '../core/managementKey.ts';
-import { hashToken } from '../core/mcpTokens.ts';
+import { hashToken } from '../core/secrets.ts';
 
 /**
  * Settings edits shared by the config UI and the management API. Each owns its
