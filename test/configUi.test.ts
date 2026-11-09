@@ -334,6 +334,24 @@ describe('access control', () => {
         }
     });
 
+    it('blocks a proxied burst without blocking a direct sign-in', async () => {
+        cookie = '';
+        vi.useFakeTimers({ toFake: ['Date'] });
+
+        try {
+            const wrong = form({ username: 'admin', password: 'wrong' });
+            const forwarded = { ...wrong, headers: { ...wrong.headers, 'x-forwarded-for': '203.0.113.9' } };
+            for (let i = 0; i < FREE_ATTEMPTS; i++) await call('/ui/login', forwarded);
+            const blocked = await call('/ui/login', forwarded);
+            expect(blocked.status).toBe(429);
+
+            const direct = await call('/ui/login', wrong);
+            expect(direct.status).toBe(401);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
     // Regression guard for the race the throttle exists to close: a burst of
     // concurrent posts all read `blockedFor() === 0` before any of them
     // resolves `verifyPassword`, so the reservation has to happen ahead of

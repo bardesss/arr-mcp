@@ -193,7 +193,8 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     app.post('/ui/login', async c => {
         if (unclaimed()) return c.redirect('/ui/setup', 302);
 
-        const waitMs = loginThrottle.blockedFor();
+        const key = throttleKey(c);
+        const waitMs = loginThrottle.blockedFor(key);
         if (waitMs > 0) {
             const seconds = Math.ceil(waitMs / 1000);
             c.header('retry-after', String(seconds));
@@ -212,9 +213,9 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         // resolves `verifyPassword`, so without this every one of them would
         // reach the scrypt hash regardless of FREE_ATTEMPTS. A real login
         // clears the reservation below, via `recordSuccess`.
-        const justBlocked = loginThrottle.recordFailure();
+        const justBlocked = loginThrottle.recordFailure(key);
         if (justBlocked) {
-            const seconds = Math.ceil(loginThrottle.blockedFor() / 1000);
+            const seconds = Math.ceil(loginThrottle.blockedFor(key) / 1000);
             logger.warn({ ...originOf(c), seconds }, 'throttled config UI sign-in');
         }
 
@@ -237,7 +238,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
             return c.html(loginPage({ version, error: 'Wrong username or password.', theme: theme() }), 401);
         }
 
-        loginThrottle.recordSuccess();
+        loginThrottle.recordSuccess(key);
         const token = runtime.sessions.issue();
         c.header('set-cookie', sessionCookie(token, Math.floor(SESSION_TTL_MS / 1000)));
         logger.info({ ...originOf(c), username }, 'config UI sign-in');
@@ -1022,6 +1023,17 @@ export const originOf = (c: Context): { ip: string; forwardedFor?: string } => {
         ...(claimed === undefined || claimed === '' ? {} : { forwardedFor: claimed })
     };
 };
+
+/**
+ * What the sign-in throttle counts a request against. The socket peer cannot be
+ * forged, so it is the key. A request that says it was forwarded shares one
+ * bucket: the address behind a proxy is unverifiable, so keying on it would let
+ * an attacker rotate a header to reset their counter.
+ */
+export const throttleKey = (c: Context): string =>
+    c.req.header('x-forwarded-for') !== undefined || c.req.header('forwarded') !== undefined
+        ? 'proxied'
+        : `peer:${peerAddress(c)}`;
 
 export const warnIfCredentialMove = (c: Context, err: unknown): void => {
     if (err instanceof CredentialWouldMoveError) {

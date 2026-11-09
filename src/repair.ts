@@ -23,7 +23,7 @@ import { sameOrigin } from './web/origin.ts';
 import { CSS, JS } from './web/assets.ts';
 import { MARK_SVG } from './web/icons.ts';
 import { loginPage, setupPage } from './web/pages.ts';
-import { originOf } from './web/routes.ts';
+import { originOf, throttleKey } from './web/routes.ts';
 import { repairPage, unreadableAuthPage } from './web/repairPage.ts';
 
 const NAME = 'arr-mcp';
@@ -248,7 +248,8 @@ export function buildRepairApp(deps: RepairDeps): Hono {
     app.post('/ui/login', async c => {
         if (unclaimed()) return c.redirect('/ui/setup', 302);
 
-        const waitMs = throttle.blockedFor();
+        const key = throttleKey(c);
+        const waitMs = throttle.blockedFor(key);
         if (waitMs > 0) {
             const seconds = Math.ceil(waitMs / 1000);
             c.header('retry-after', String(seconds));
@@ -257,7 +258,7 @@ export function buildRepairApp(deps: RepairDeps): Hono {
                 429
             );
         }
-        throttle.recordFailure();
+        throttle.recordFailure(key);
 
         const form = await c.req.parseBody();
         const nameOk = str(form.username) === auth.username;
@@ -271,7 +272,7 @@ export function buildRepairApp(deps: RepairDeps): Hono {
             return c.html(loginPage({ version, error: 'Wrong username or password.' }), 401);
         }
 
-        throttle.recordSuccess();
+        throttle.recordSuccess(key);
         signIn(c);
         return c.redirect('/ui/repair', 302);
     });

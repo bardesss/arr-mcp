@@ -61,4 +61,21 @@ describe('LoginThrottle', () => {
             throttle.recordFailure();
         }
     });
+
+    it('blocks one key without blocking another', () => {
+        const { clock } = at();
+        const throttle = new LoginThrottle(clock);
+        for (let i = 0; i < FREE_ATTEMPTS; i++) throttle.recordFailure('peer:a');
+        expect(throttle.blockedFor('peer:a')).toBeGreaterThan(0);
+        expect(throttle.blockedFor('peer:b')).toBe(0);
+    });
+
+    it('forgets the oldest key past the cap', () => {
+        const { clock } = at();
+        const throttle = new LoginThrottle(clock);
+        throttle.recordFailure('k0');
+        for (let i = 1; i <= 1024; i++) throttle.recordFailure(`k${i}`);
+        for (let i = 0; i < FREE_ATTEMPTS - 1; i++) throttle.recordFailure('k0');
+        expect(throttle.blockedFor('k0')).toBe(0);
+    });
 });
