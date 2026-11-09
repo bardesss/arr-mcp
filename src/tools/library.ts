@@ -35,6 +35,9 @@ export type LibrarySnapshot = {
      * reason; every existing key is unchanged.
      */
     counts: Record<string, number>;
+    /** The id of the media server whose rows fill `playback`; set only when it
+     *  was read without degrading. */
+    playbackFrom?: string;
     /** Set when the media server half is missing — no server configured, or one
      *  configured with no `default_user` — or when a secondary is not read
      *  because its `default_user` is missing (Jellyfin; Plex falls back to the
@@ -374,6 +377,7 @@ export class LibraryLoader {
             index,
             degraded,
             counts,
+            ...(playbackGathered ? { playbackFrom: mediaServer.id } : {}),
             ...(note === undefined ? {} : { note })
         };
     }

@@ -9,6 +9,7 @@ import {
     type Remedy
 } from '../core/episodeMismatch.ts';
 import { fenceText } from '../core/fence.ts';
+import { mapLimit } from '../core/gather.ts';
 import { logger } from '../core/logger.ts';
 import type { IdentityResolver } from '../core/identity.ts';
 import type { PermissionSource } from '../core/permissions.ts';
@@ -221,6 +222,14 @@ export async function buildGetMetadataIssues(
     };
 }
 
+const SERIES_CONCURRENCY = 4;
+
+type SeriesResult =
+    | { kind: 'issue'; issue: MetadataIssue }
+    | { kind: 'notComparable'; title: string }
+    | { kind: 'clean' }
+    | { kind: 'skipped' };
+
 async function sweepMedia(
     adapters: readonly ServiceAdapter[],
     identity: IdentityResolver | undefined,
@@ -236,7 +245,10 @@ async function sweepMedia(
 
     const viewer = await identity.resolve(opts.user);
     const repairAllowed = opts.permissions !== undefined && plexRepairAllowed(opts.permissions);
-    const library = await adapter.listUserLibrary(viewer);
+    // The loader already holds this server's rows when it read them itself, so
+    // a sweep that follows a get_library call does not list the library twice.
+    const snapshot = opts.library === undefined ? undefined : await opts.library.load(opts.user).catch(() => undefined);
+    const library = snapshot?.playbackFrom === adapter.id ? snapshot.index.all() : await adapter.listUserLibrary(viewer);
     const series = library.filter(i => i.kind === 'series' && i.playback?.itemId !== undefined);
 
     const issues: MetadataIssue[] = [];
@@ -289,9 +301,9 @@ async function sweepMedia(
         if (!degraded.includes(adapter.id)) degraded.push(adapter.id);
     }
 
-    for (const item of series) {
+    const results = await mapLimit(series, SERIES_CONCURRENCY, async (item): Promise<SeriesResult> => {
         const itemId = item.playback?.itemId;
-        if (itemId === undefined) continue;
+        if (itemId === undefined) return { kind: 'clean' };
         try {
             const listed = await adapter.readEpisodeMetadata(viewer, itemId);
 
@@ -302,21 +314,19 @@ async function sweepMedia(
             // fix_metadata already refuses this exact state as an error; the two
             // must not contradict each other about the same input.
             if (listed.length > 0 && listed.every(e => e.path === undefined || e.path.trim() === '')) {
-                notComparable.push(item.title);
-                continue;
+                return { kind: 'notComparable', title: item.title };
             }
 
-            scanned += 1;
             const { rows: episodes, mismatches } = await withLocks(adapter, listed, findMismatches);
-            if (mismatches.length === 0) continue;
+            if (mismatches.length === 0) return { kind: 'clean' };
             const verdict = summariseSeries(episodes, await sonarrFolders());
-            if (verdict === undefined) continue;
+            if (verdict === undefined) return { kind: 'clean' };
 
             const examples = findMismatches(episodes)
                 .slice(0, EXAMPLE_LIMIT)
                 .map(m => `${unfenced(m.path).split(/[/\\]/).at(-1) ?? ''} → ${unfenced(m.serverTitle)}`);
 
-            issues.push({
+            const issue: MetadataIssue = {
                 service: adapter.id,
                 itemId,
                 kind: 'series',
@@ -340,14 +350,28 @@ async function sweepMedia(
                 // contains a slash, so splitting a fenced path on separators
                 // returns the tail of the marker instead of the filename.
                 examples: examples.map(e => fenceText(e, { service: adapter.id, field: 'Path/Name' }))
-            });
+            };
+            return { kind: 'issue', issue };
         } catch (err) {
             // One unreadable series must not turn a useful sweep into an
             // error. Named rather than swallowed, so a short list is legible.
             logger.warn({ service: adapter.id, itemId, err }, 'metadata sweep skipped a series');
+            return { kind: 'skipped' };
+        }
+    });
+
+    for (const result of results) {
+        if (result.kind === 'skipped') {
             skipped += 1;
             if (!degraded.includes(adapter.id)) degraded.push(adapter.id);
+            continue;
         }
+        if (result.kind === 'notComparable') {
+            notComparable.push(result.title);
+            continue;
+        }
+        scanned += 1;
+        if (result.kind === 'issue') issues.push(result.issue);
     }
 
     return { issues, degraded, scanned, skipped, notComparable };

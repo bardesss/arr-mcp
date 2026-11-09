@@ -50,6 +50,23 @@ const healthyJellyfinIdentity = { resolve: async () => ({ id: 'u1', name: 'Someo
 const loaderOf = (items: IndexInput[], id: 'radarr' | 'sonarr' = 'radarr') =>
     new LibraryLoader([stub(id, items), jellyfinStub()], healthyJellyfinIdentity);
 
+describe('LibraryLoader playbackFrom', () => {
+    it('names the media server whose rows fill playback', async () => {
+        expect((await loaderOf([film()]).load()).playbackFrom).toBe('jellyfin');
+    });
+
+    it('is absent when the media server could not be read', async () => {
+        const down = {
+            ...jellyfinStub(),
+            listUserLibrary: async () => {
+                throw new Error('down');
+            }
+        } as unknown as ServiceAdapter;
+        const loader = new LibraryLoader([stub('radarr', [film()]), down], healthyJellyfinIdentity);
+        expect((await loader.load()).playbackFrom).toBeUndefined();
+    });
+});
+
 const film = (over: Partial<IndexInput> = {}): IndexInput => ({
     kind: 'movie',
     title: 'Some Film',
