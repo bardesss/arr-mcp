@@ -121,9 +121,14 @@ export class ServiceHttp {
      * so a timed-out first attempt retrying by default turned a 120s budget
      * into two full indexer sweeps stacked on top of each other, against
      * indexers with real rate limits and ban policies.
+     *
+     * `headers` are extra request headers for this one call. They are applied
+     * after the defaults (`Accept`, `Connection`), so they can override those,
+     * and before auth, so they can never override it. A retry or a recovery
+     * re-attempt resends them.
      */
-    async get<T>(path: string, opts?: { timeoutMs?: number; retry?: boolean }): Promise<T> {
-        return this.#request<T>('GET', path, undefined, opts?.retry ?? true, 'json', opts?.timeoutMs);
+    async get<T>(path: string, opts?: { timeoutMs?: number; retry?: boolean; headers?: Record<string, string> }): Promise<T> {
+        return this.#request<T>('GET', path, undefined, opts?.retry ?? true, 'json', opts?.timeoutMs, opts?.headers);
     }
 
     /**
@@ -254,7 +259,8 @@ export class ServiceHttp {
         body: RequestBody | undefined,
         retryOnTimeout: boolean,
         read: ReadAs = 'json',
-        timeoutMs?: number
+        timeoutMs?: number,
+        extraHeaders?: Record<string, string>
     ): Promise<T> {
         if (this.#circuitOpen()) {
             throw new ServiceError(
@@ -266,13 +272,13 @@ export class ServiceHttp {
         }
 
         try {
-            const result = await this.#attempt<T>(method, path, body, true, read, timeoutMs);
+            const result = await this.#attempt<T>(method, path, body, true, read, timeoutMs, extraHeaders);
             this.#recordSuccess();
             return result;
         } catch (err) {
             if (retryOnTimeout && err instanceof ServiceError && err.kind === 'Timeout') {
                 try {
-                    const result = await this.#attempt<T>(method, path, body, true, read, timeoutMs);
+                    const result = await this.#attempt<T>(method, path, body, true, read, timeoutMs, extraHeaders);
                     this.#recordSuccess();
                     return result;
                 } catch (retryErr) {
@@ -310,7 +316,8 @@ export class ServiceHttp {
         body: RequestBody | undefined,
         allowRecovery = true,
         read: ReadAs = 'json',
-        timeoutMs?: number
+        timeoutMs?: number,
+        extraHeaders?: Record<string, string>
     ): Promise<T> {
         // Prefixed, not resolved: every adapter path is absolute, and `new URL`
         // given an absolute path throws the base's own path away — which is how
@@ -320,6 +327,7 @@ export class ServiceHttp {
         const encoded = body === undefined ? undefined : encodeBody(body);
         if (encoded !== undefined) headers.set('content-type', encoded.contentType);
         if (this.#closeConnection) headers.set('Connection', 'close');
+        for (const [name, value] of Object.entries(extraHeaders ?? {})) headers.set(name, value);
 
         // Before the strategy, so a service's own Authorization header wins.
         const basic = takeUserinfo(url);
@@ -392,7 +400,7 @@ export class ServiceHttp {
             // of Transmission 409s or qBittorrent 403s otherwise degraded
             // connection reuse for everything behind the same origin.
             await discard(response);
-            return this.#attempt<T>(method, path, body, false, read, timeoutMs);
+            return this.#attempt<T>(method, path, body, false, read, timeoutMs, extraHeaders);
         }
 
         const httpError = classifyHttpStatus(response.status, this.#id, safeUrl(target), this.#auth.remedy);

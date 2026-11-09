@@ -35,6 +35,13 @@ export type LibrarySnapshot = {
      * reason; every existing key is unchanged.
      */
     counts: Record<string, number>;
+    /** The id of the media server whose rows fill `playback`; set only when it
+     *  was read without degrading. */
+    playbackFrom?: string;
+    /** That server's own rows, before the join. The index fuses rows that share
+     *  an external id, so a caller that must see every server item (the
+     *  metadata sweep) reads these. Set together with `playbackFrom`. */
+    playbackRows?: readonly IndexInput[];
     /** Set when the media server half is missing — no server configured, or one
      *  configured with no `default_user` — or when a secondary is not read
      *  because its `default_user` is missing (Jellyfin; Plex falls back to the
@@ -221,6 +228,7 @@ export class LibraryLoader {
         const primaryId = this.#mediaServers?.primaryId;
         const isPrimary = (a: ServiceAdapter) => primaryId === undefined || a.id === primaryId;
         const mediaServer = this.#adapters.filter(hasUserLibrary).find(isPrimary);
+        let mediaServerRows: readonly IndexInput[] = [];
         if (mediaServer !== undefined) {
             sources.push({
                 id: mediaServer.id,
@@ -229,7 +237,7 @@ export class LibraryLoader {
                         ? // Reported as degraded rather than silently absent: the
                           // answer really is missing a service's contribution.
                           () => Promise.reject(new Error(`no ${mediaServer.id} user resolved`))
-                        : () => mediaServer.listUserLibrary(user)
+                        : async () => (mediaServerRows = await mediaServer.listUserLibrary(user))
             });
         }
 
@@ -374,6 +382,7 @@ export class LibraryLoader {
             index,
             degraded,
             counts,
+            ...(playbackGathered ? { playbackFrom: mediaServer.id, playbackRows: mediaServerRows } : {}),
             ...(note === undefined ? {} : { note })
         };
     }

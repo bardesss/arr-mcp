@@ -917,6 +917,27 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
             anonymise: neutraliseWatchState
         },
         {
+            name: 'watch-target',
+            // set_watched's target read: one item by id, with the asking user's
+            // watched state. The /Items/{id}?userId= form was captured on Jellyfin
+            // 12.4.0; a bare /Items/{id} answered 400 on 10.11.11, cause unproven.
+            // Images are stripped because a blurhash trips the fixture secret
+            // guard.
+            path: captured => {
+                const users = captured.get('users');
+                const userId = Array.isArray(users) ? (users[0] as { Id?: string } | undefined)?.Id : undefined;
+                const items = (captured.get('items-library') as { Items?: { Id?: string }[] } | undefined)?.Items;
+                const itemId = Array.isArray(items) ? items[0]?.Id : undefined;
+                return userId === undefined || itemId === undefined
+                    ? undefined
+                    : `/Items/${itemId}?userId=${userId}`;
+            },
+            anonymise: body => {
+                const { ImageTags: _t, BackdropImageTags: _b, ImageBlurHashes: _h, ...rest } = body as Row;
+                return { ...rest, UserData: { Played: false } };
+            }
+        },
+        {
             name: 'album-artists',
             /**
              * The music half of a library build, and the only Jellyfin read that

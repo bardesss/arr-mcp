@@ -205,13 +205,10 @@ const PLEX_TYPE_EPISODE = 4;
 const PLEX_TYPE_ARTIST = 8;
 
 /**
- * `ServiceHttp` has no per-request header hook. Plex's documented paging is
- * `X-Plex-Container-Start`/`X-Plex-Container-Size` **headers**, but those are
- * passed here as query parameters instead — Plex accepts both forms, and a
- * query parameter keeps paging a transport-agnostic adapter concern rather
- * than growing a header hook every other service would also need. If a live
- * server ignores the query form, that is when `ServiceHttp` grows one, for
- * every service — not just this one.
+ * Plex's documented paging is the `X-Plex-Container-Start`/`X-Plex-Container-Size`
+ * **headers**, sent through `ServiceHttp`'s per-request header option. The same
+ * two values are also kept as query parameters, which Plex accepts too, until
+ * a server with a section over 500 items confirms the headers alone advance.
  */
 const PAGE_SIZE = 500;
 const LOCK_READ_BATCH = 8;
@@ -454,8 +451,8 @@ export class PlexAdapter
      * live risk, not a theoretical one — looping until a short page comes
      * back is what stops one call pulling the whole thing at once.
      *
-     * The query-parameter paging form is a guess (see `PAGE_SIZE`'s comment);
-     * if the server ignores it, every page is identical and `rows.length <
+     * The paging is sent as headers and query parameters (see `PAGE_SIZE`'s
+     * comment); if the server ignores both, every page is identical and `rows.length <
      * PAGE_SIZE` never fires. Rather than spin until timeout or OOM, a
      * repeated fingerprint of the *whole page* across two calls is treated as
      * proof paging did not advance and thrown as a diagnosis. Deliberately
@@ -497,12 +494,14 @@ export class PlexAdapter
                     remedy: 'This is a backstop, not an expected outcome — check whether the section genuinely holds that many items.'
                 });
             }
-            const body = await this.#http.get<unknown>(request(start));
+            const body = await this.#http.get<unknown>(request(start), {
+                headers: { 'X-Plex-Container-Start': String(start), 'X-Plex-Container-Size': String(PAGE_SIZE) }
+            });
             const rows = unwrap<RawPlexItem>(body, 'Metadata');
             const fingerprint = JSON.stringify(rows.map(r => (typeof r.ratingKey === 'string' ? r.ratingKey : r)));
             if (start > 0 && fingerprint === previousFingerprint) {
                 throw new ServiceError('UpstreamError', this.id, 'did not advance past start=0 — the whole page repeated', {
-                    remedy: 'Plex appears to be ignoring X-Plex-Container-Start/Size as query parameters. It documents these as request headers instead, which ServiceHttp does not yet send.'
+                    remedy: 'Plex appears to be ignoring the X-Plex-Container-Start/Size paging, so paging never advanced.'
                 });
             }
             previousFingerprint = fingerprint;

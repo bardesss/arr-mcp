@@ -241,7 +241,11 @@ export function readEventLog(
     try {
         read = log.store.read({ ...query, want: windowEnd(opts.limit, opts.offset) });
         counts = log.store.counts(query);
-        anything = log.store.read({ want: 0 }).total;
+        // A row in the answer is proof the log holds something; only an empty
+        // filtered answer needs the whole log counted to tell "nothing matched"
+        // from "nothing arrived".
+        const filtered = Object.keys(query).length > 0;
+        anything = read.total > 0 || !filtered ? read.total : Object.values(log.store.counts({})).reduce((a, b) => a + b, 0);
     } catch (err) {
         logger.warn({ err }, 'could not read the library event log');
         return { ...empty, degraded: [EVENT_LOG_SOURCE] };

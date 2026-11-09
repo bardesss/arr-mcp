@@ -50,6 +50,31 @@ const healthyJellyfinIdentity = { resolve: async () => ({ id: 'u1', name: 'Someo
 const loaderOf = (items: IndexInput[], id: 'radarr' | 'sonarr' = 'radarr') =>
     new LibraryLoader([stub(id, items), jellyfinStub()], healthyJellyfinIdentity);
 
+describe('LibraryLoader playbackFrom', () => {
+    it('names the media server whose rows fill playback', async () => {
+        expect((await loaderOf([film()]).load()).playbackFrom).toBe('jellyfin');
+    });
+
+    it("carries the media server's own rows, unmerged", async () => {
+        const rows = [film({ title: 'A' }), film({ title: 'B' })];
+        const snapshot = await new LibraryLoader([stub('radarr', [film()]), { ...jellyfinStub(), listUserLibrary: async () => rows } as unknown as ServiceAdapter], healthyJellyfinIdentity).load();
+        expect(snapshot.playbackRows).toEqual(rows);
+    });
+
+    it('is absent when the media server could not be read', async () => {
+        const down = {
+            ...jellyfinStub(),
+            listUserLibrary: async () => {
+                throw new Error('down');
+            }
+        } as unknown as ServiceAdapter;
+        const loader = new LibraryLoader([stub('radarr', [film()]), down], healthyJellyfinIdentity);
+        const snapshot = await loader.load();
+        expect(snapshot.playbackFrom).toBeUndefined();
+        expect(snapshot.playbackRows).toBeUndefined();
+    });
+});
+
 const film = (over: Partial<IndexInput> = {}): IndexInput => ({
     kind: 'movie',
     title: 'Some Film',

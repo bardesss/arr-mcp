@@ -711,6 +711,15 @@ const CONTRACTS: Record<string, ServiceContract> = {
                 // fix_metadata compares it against `Name` and the index
                 // numbers, which is the whole mismatch heuristic.
                 fields: ['Items.Id', 'Items.Name', 'Items.IndexNumber', 'Items.ParentIndexNumber', 'Items.Path', 'Items.UserData.Played']
+            },
+            {
+                // set_watched's target read. Without `userId` Jellyfin answers
+                // this path 400; with it, `Type` picks the kind, `Name` titles
+                // the confirmation and `UserData.Played` is the before-state.
+                path: '/Items/{itemId}',
+                method: 'get',
+                fixture: 'test/fixtures/jellyfin/watch-target.json',
+                fields: ['Type', 'Name', 'UserData.Played']
             }
         ]
     },

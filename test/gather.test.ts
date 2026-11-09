@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { gather } from '../src/core/gather.ts';
+import { gather, mapLimit } from '../src/core/gather.ts';
 
 const boom = async (): Promise<never[]> => {
     throw new Error('down');
@@ -110,5 +110,27 @@ describe('gather', () => {
         // The tool will applyLimit(items, 50) and drop the transmission row.
         // counts is what stops that reading as "nothing in Transmission".
         expect(out.counts).toEqual({ radarr: 60, transmission: 1 });
+    });
+});
+
+describe('mapLimit', () => {
+    it('mapLimit keeps order and never runs more than the limit', async () => {
+        let inFlight = 0;
+        let peak = 0;
+        const inputs = Array.from({ length: 10 }, (_, i) => i);
+        const out = await mapLimit(inputs, 3, async n => {
+            inFlight += 1;
+            peak = Math.max(peak, inFlight);
+            await new Promise(resolve => setTimeout(resolve, 5));
+            inFlight -= 1;
+            return n * 2;
+        });
+        expect(out).toEqual(inputs.map(n => n * 2));
+        expect(peak).toBe(3);
+    });
+
+    it('still runs every item when the limit is below one', async () => {
+        const out = await mapLimit([1, 2, 3], 0, async n => n * 2);
+        expect(out).toEqual([2, 4, 6]);
     });
 });
