@@ -107,6 +107,17 @@ describe('CleanuparrAdapter health', () => {
         await expect(new CleanuparrAdapter(config, stub(routes)).getFailedHealthChecks()).rejects.toThrow();
     });
 
+    it('reads the version once for a connection test and the health checks after it', async () => {
+        const seen: string[] = [];
+        const a = new CleanuparrAdapter(config, stub(healthRoutes(), seen));
+        const reads = () => seen.filter(s => s === 'GET /api/status').length;
+        await a.testConnection();
+        await a.getFailedHealthChecks();
+        expect(reads()).toBe(1);
+        await a.testConnection();
+        expect(reads()).toBe(2);
+    });
+
     it('never asks for the download client configuration, which holds passwords', async () => {
         const seen: string[] = [];
         const adapter = new CleanuparrAdapter(config, stub(healthRoutes(), seen));
@@ -283,6 +294,17 @@ describe('CleanuparrAdapter history', () => {
         const read = (await adapter.readHistory({ eventType: 'strike' })) as { items: HistoryEntry[]; total: number };
         expect(eventsRead(seen)).toHaveLength(50);
         expect(read.total).toBe(read.items.length);
+    });
+
+    it('stops a local filter once want matches are found', async () => {
+        const seen: string[] = [];
+        const body = { items: [{ id: 'x', eventType: 'StalledStrike', timestamp: 't' }], page: 1, pageSize: 1, totalCount: 50, totalPages: 50 };
+        const adapter = new CleanuparrAdapter(config, stub({ '/api/events': body }, seen));
+        const read = (await adapter.readHistory({ eventType: 'strike', want: 2 })) as { items: HistoryEntry[]; total: number; atMost?: true };
+        expect(eventsRead(seen)).toHaveLength(2);
+        expect(read.items).toHaveLength(2);
+        expect(read.total).toBe(50);
+        expect(read.atMost).toBe(true);
     });
 
     it('stops on an empty page whatever totalPages claims', async () => {

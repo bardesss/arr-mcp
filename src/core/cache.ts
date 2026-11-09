@@ -111,3 +111,35 @@ export class TtlCache {
         return this.#entries.size;
     }
 }
+
+/** How long a read shared inside one stack_health pass stays fresh. */
+export const SHORT_READ_TTL_MS = 10_000;
+
+export type Cached<T> = (() => Promise<T>) & { clear(): void };
+
+/**
+ * One in-flight or recent read, shared by every caller until `ttlMs` passes.
+ * The ttl counts from the start of a load, so a load slower than `ttlMs`
+ * is already stale when it resolves and shares nothing.
+ * A failed read is dropped at once, so the next caller retries. `clear()`
+ * forgets the current read, for a caller that must see fresh data.
+ */
+export function cached<T>(ttlMs: number, load: () => Promise<T>): Cached<T> {
+    let entry: { at: number; value: Promise<T> } | undefined;
+    const read = (): Promise<T> => {
+        if (entry === undefined || Date.now() - entry.at > ttlMs) {
+            const value = load();
+            const current = { at: Date.now(), value };
+            value.catch(() => {
+                if (entry === current) entry = undefined;
+            });
+            entry = current;
+        }
+        return entry.value;
+    };
+    return Object.assign(read, {
+        clear: (): void => {
+            entry = undefined;
+        },
+    });
+}

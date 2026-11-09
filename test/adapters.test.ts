@@ -938,6 +938,36 @@ describe('TransmissionAdapter', () => {
     const adapter = new TransmissionAdapter(transmissionConfig, (async () =>
         jsonResponse(session)) as unknown as typeof fetch);
 
+    it('reads session-get once for a connection test and the disk check after it', async () => {
+        let reads = 0;
+        const counting = (async (_i: string, init?: RequestInit) => {
+            const body = JSON.parse((init?.body as string) ?? '{}') as { method?: string };
+            if (body.method === 'session-get') reads += 1;
+            return jsonResponse(session);
+        }) as unknown as typeof fetch;
+        const a = new TransmissionAdapter(transmissionConfig, counting);
+        await a.testConnection();
+        await a.getDiskSpace();
+        await a.getSeedLimits();
+        expect(reads).toBe(1);
+        await a.testConnection();
+        expect(reads).toBe(2);
+    });
+
+    it('reads the session again after changing the speed limit', async () => {
+        let reads = 0;
+        const counting = (async (_i: string, init?: RequestInit) => {
+            const body = JSON.parse((init?.body as string) ?? '{}') as { method?: string };
+            if (body.method === 'session-get') reads += 1;
+            return jsonResponse(body.method === 'session-set' ? { result: 'success', arguments: {} } : session);
+        }) as unknown as typeof fetch;
+        const a = new TransmissionAdapter(transmissionConfig, counting);
+        await a.readSpeedLimit();
+        await a.setSpeedLimit(100);
+        await a.readSpeedLimit();
+        expect(reads).toBe(2);
+    });
+
     it('posts a session-get RPC call rather than issuing a GET', async () => {
         let method: string | undefined;
         let payload: string | undefined;
@@ -1055,6 +1085,19 @@ describe('QbittorrentAdapter', () => {
         expect(disks[0]?.path).toBe('/downloads');
         expect(disks[0]?.totalSpace).toBeUndefined();
         expect(disks[0]?.freeSpace).toBeGreaterThan(0);
+    });
+
+    it('reads app/preferences once across disk space and seed limits', async () => {
+        let reads = 0;
+        const inner = serving(routes);
+        const counting = (async (input: string | URL | Request, init?: RequestInit) => {
+            if (new URL(input instanceof Request ? input.url : String(input)).pathname === '/api/v2/app/preferences') reads += 1;
+            return inner(input, init);
+        }) as unknown as typeof fetch;
+        const a = new QbittorrentAdapter(qbittorrentConfig, counting);
+        await a.getDiskSpace();
+        await a.getSeedLimits();
+        expect(reads).toBe(1);
     });
 
     it('returns no disk rows when free space is absent', async () => {

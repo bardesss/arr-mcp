@@ -1,5 +1,6 @@
 import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import { apiKeyHeader } from '../core/auth.ts';
+import { SHORT_READ_TTL_MS, cached } from '../core/cache.ts';
 import { ServiceError } from '../core/errors.ts';
 import { fenceText, fencer } from '../core/fence.ts';
 import { logger } from '../core/logger.ts';
@@ -133,25 +134,6 @@ const daysAgo = (days: number): string => new Date(Date.now() - days * DAY_MS).t
 const isGoing = (state: CleanupState): boolean => state === 'eligible' || state === 'scheduled';
 
 /**
- * One in-flight or recent read, shared by every caller until `ttlMs` passes.
- * A failed read is dropped at once, so the next caller retries.
- */
-function cached<T>(ttlMs: number, load: () => Promise<T>): () => Promise<T> {
-    let entry: { at: number; value: Promise<T> } | undefined;
-    return () => {
-        if (entry === undefined || Date.now() - entry.at > ttlMs) {
-            const value = load();
-            const current = { at: Date.now(), value };
-            value.catch(() => {
-                if (entry === current) entry = undefined;
-            });
-            entry = current;
-        }
-        return entry.value;
-    };
-}
-
-/**
  * Reclaimerr's `/api/v1`, the versioned external API with scoped bearer
  * tokens, checked live on 0.6.5. Read only: every call needs a `:read` scope,
  * and the scopes are read first so a missing one is reported rather than
@@ -161,6 +143,8 @@ export class ReclaimerrAdapter implements ServiceAdapter, HealthCheckCapable, Hi
     readonly type: ServiceId = 'reclaimerr';
     readonly id = 'reclaimerr';
     readonly #http: ServiceHttp;
+    /** One system read serves the version and the health checks of a stack_health pass. */
+    readonly #system = cached(SHORT_READ_TTL_MS, () => this.#http.get<RawSystem>(`${RECLAIMERR_API}/system`));
     readonly #grantedScopes = cached(SCOPES_TTL_MS, () => this.#readScopes());
     readonly #ruleMap = cached(RULES_TTL_MS, () => this.#readRules());
     readonly #candidates = cached(READ_TTL_MS, () => this.#readAll<RawCandidate>(`${RECLAIMERR_API}/candidates`));
@@ -173,12 +157,13 @@ export class ReclaimerrAdapter implements ServiceAdapter, HealthCheckCapable, Hi
 
     async getVersion(): Promise<string> {
         await this.#need('system:read');
-        const system = await this.#http.get<RawSystem>(`${RECLAIMERR_API}/system`);
+        const system = await this.#system();
         if (!system.version) throw new ServiceError('UpstreamError', this.id, 'system returned no version field');
         return system.version;
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {
+        this.#system.clear();
         return diagnoseConnection(this.id, this.type, () => this.getVersion());
     }
 
@@ -198,7 +183,7 @@ export class ReclaimerrAdapter implements ServiceAdapter, HealthCheckCapable, Hi
         }
 
         if (scopes.has('system:read')) {
-            const system = await this.#http.get<RawSystem>(`${RECLAIMERR_API}/system`);
+            const system = await this.#system();
             if (system.status !== undefined && system.status !== 'ok') out.push(check('system', 'error', fence(`Reclaimerr reports status ${system.status}`)));
             if (system.has_main_media_server === false) {
                 out.push(check('system', 'warning', 'No main media server is set in Reclaimerr, so rules based on watch history cannot match'));

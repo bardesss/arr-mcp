@@ -103,6 +103,17 @@ describe('DispatcharrAdapter connection', () => {
         expect(header).toBe('dsp-key');
     });
 
+    it('reads the version once for a connection test and the health checks after it', async () => {
+        const seen: string[] = [];
+        const a = new DispatcharrAdapter(config, stub(routes(), seen));
+        const reads = () => seen.filter(s => s === 'GET /api/core/version/').length;
+        await a.testConnection();
+        await a.getFailedHealthChecks();
+        expect(reads()).toBe(1);
+        await a.testConnection();
+        expect(reads()).toBe(2);
+    });
+
     it('testConnection reads accounts too, since the version route answers anyone', async () => {
         const seen: string[] = [];
         const result = await new DispatcharrAdapter(config, stub(routes(), seen)).testConnection();
@@ -183,6 +194,20 @@ describe('DispatcharrAdapter health findings', () => {
         const at = hoursAgo(73);
         expect(await findings([account({ updated_at: at })])).toEqual([
             { service: 'dispatcharr', source: 'm3u', type: 'warning', message: `M3U account ${f('Example Provider 1')} has not refreshed since ${at}; it is set to refresh every 24h` }
+        ]);
+    });
+
+    it('calls an active account with no refresh time stale', async () => {
+        const expected = [
+            { service: 'dispatcharr', source: 'm3u', type: 'warning', message: `M3U account ${f('Example Provider 1')} has no recorded refresh; it is set to refresh every 24h` }
+        ];
+        expect(await findings([account({ updated_at: null })])).toEqual(expected);
+        expect(await findings([account({ updated_at: 'not a date' })])).toEqual(expected);
+    });
+
+    it('does not add staleness to an account still pending setup', async () => {
+        expect(await findings([account({ updated_at: null, status: 'pending_setup' })])).toEqual([
+            { service: 'dispatcharr', source: 'm3u', type: 'warning', message: `M3U account ${f('Example Provider 1')} is still pending setup` }
         ]);
     });
 

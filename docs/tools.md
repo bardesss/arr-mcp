@@ -677,7 +677,7 @@ Jellyfin play from it:
 |---|---|
 | An M3U account failed to refresh | error |
 | An M3U account is still pending setup | warning |
-| An M3U account has not refreshed in three of its refresh intervals (skipped on a cron schedule or an interval of 0) | warning |
+| An M3U account has not refreshed in three of its refresh intervals, or has no recorded refresh (skipped on a cron schedule, an interval of 0 or an account still pending setup) | warning |
 | A provider account's expiry date has passed | error |
 | A provider account expires within 14 days | warning |
 | An EPG source failed to refresh | error |
@@ -710,7 +710,8 @@ With Shelfmark configured, its findings cover book downloads:
 `get_queue` lists books waiting, downloading or failed, as `<title> by <author>`,
 with Shelfmark's own reason on a failed one. Finished and cancelled books are left
 out. A read-only key cannot see the queue, so `get_queue` reports Shelfmark as
-degraded with that key rather than claiming the queue is empty.
+degraded with that key rather than claiming the queue is empty. A book search fails
+the same way, as degraded, and Shelfmark is asked again after five minutes.
 
 To get a book, `lookup_media` finds it (`kind: book`) and `grab_release` with
 `service: shelfmark` and that id queues the most-downloaded file, with `safe_write`

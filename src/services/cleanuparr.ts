@@ -1,5 +1,6 @@
 import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import { apiKeyHeader } from '../core/auth.ts';
+import { SHORT_READ_TTL_MS, cached } from '../core/cache.ts';
 import { ServiceError } from '../core/errors.ts';
 import { fenceText, fencer } from '../core/fence.ts';
 import type { CleanuparrRule, RuleAction, RulePrivacy } from '../core/cleanuparrRules.ts';
@@ -421,6 +422,8 @@ export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable, Cl
     readonly type: ServiceId = 'cleanuparr';
     readonly id = 'cleanuparr';
     readonly #http: ServiceHttp;
+    /** One status read serves the connection test and the health checks of a stack_health pass. */
+    readonly #statusRead = cached(SHORT_READ_TTL_MS, () => this.#http.get<RawStatus>(`${CLEANUPARR_API}/status`));
 
     constructor(config: ConfigByService['cleanuparr'], fetchImpl: typeof fetch = fetch) {
         this.#http = new ServiceHttp(this.id, config, apiKeyHeader('X-Api-Key', config.api_key), fetchImpl);
@@ -428,13 +431,14 @@ export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable, Cl
 
     /** Reported as `2.10.9.0`; the fourth part is a build number. */
     async getVersion(): Promise<string> {
-        const status = await this.#http.get<RawStatus>(`${CLEANUPARR_API}/status`);
+        const status = await this.#statusRead();
         const raw = status.application?.version;
         if (!raw) throw new ServiceError('UpstreamError', this.id, 'status returned no version field');
         return raw.split('.').slice(0, 3).join('.');
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {
+        this.#statusRead.clear();
         return diagnoseConnection(this.id, this.type, () => this.getVersion());
     }
 
@@ -593,8 +597,13 @@ export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable, Cl
             }
             const pages = Number.isFinite(body.totalPages) ? (body.totalPages as number) : 1;
             // Past the cap or on an empty page the read stops, and total is what was read.
-            if (page >= pages || page >= MAX_PAGES || (body.items ?? []).length === 0) return { items, total: items.length };
-            if (!local && opts.want !== undefined && items.length >= opts.want) {
+            if (page >= pages || page >= MAX_PAGES || (body.items ?? []).length === 0) {
+                // A local filter that hit the cap before the last page has not seen the whole history.
+                return { items, total: items.length, ...(local && page < pages && page >= MAX_PAGES ? { atMost: true as const } : {}) };
+            }
+            if (opts.want !== undefined && items.length >= opts.want) {
+                // A local filter stopped early: the upstream count is a ceiling, not the matches.
+                if (local) return { items, total: Math.max(items.length, (body.totalCount ?? 0) - dropped), atMost: true };
                 return { items, total: Math.max(items.length, (body.totalCount ?? 0) - dropped) };
             }
         }

@@ -1,5 +1,6 @@
 import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import { apiKeyHeader } from '../core/auth.ts';
+import { SHORT_READ_TTL_MS, cached } from '../core/cache.ts';
 import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
 import { ServiceHttp } from '../core/http.ts';
@@ -172,19 +173,22 @@ export class DispatcharrAdapter implements ServiceAdapter, HealthCheckCapable {
     readonly type: ServiceId = 'dispatcharr';
     readonly id = 'dispatcharr';
     readonly #http: ServiceHttp;
+    /** One version read serves the connection test and the health checks of a stack_health pass. */
+    readonly #versionRead = cached(SHORT_READ_TTL_MS, () => this.#http.get<RawVersion>(VERSION_PATH));
 
     constructor(config: ConfigByService['dispatcharr'], fetchImpl: typeof fetch = fetch) {
         this.#http = new ServiceHttp(this.id, config, apiKeyHeader('X-API-Key', config.api_key), fetchImpl);
     }
 
     async getVersion(): Promise<string> {
-        const body = await this.#http.get<RawVersion>(VERSION_PATH);
+        const body = await this.#versionRead();
         if (!body.version) throw new ServiceError('UpstreamError', this.id, 'version returned no version field');
         return body.version;
     }
 
     /** The version route is AllowAny, so it alone would pass a key that can read nothing. */
     async testConnection(): Promise<ConnectionDiagnosis> {
+        this.#versionRead.clear();
         return diagnoseConnection(this.id, this.type, async () => {
             const version = await this.getVersion();
             try {
@@ -211,8 +215,12 @@ export class DispatcharrAdapter implements ServiceAdapter, HealthCheckCapable {
             if (a.status === 'error') out.push(check('m3u', 'error', `M3U account ${name(a.name)} failed to refresh: ${a.reason ?? 'refresh failed'}`));
             if (a.status === 'pending_setup') out.push(check('m3u', 'warning', `M3U account ${name(a.name)} is still pending setup`));
             const refreshed = a.refreshedAt === undefined ? NaN : Date.parse(a.refreshedAt);
-            if (!a.cron && a.intervalHours > 0 && now - refreshed > STALE_INTERVALS * a.intervalHours * HOUR_MS) {
-                out.push(check('m3u', 'warning', `M3U account ${name(a.name)} has not refreshed since ${a.refreshedAt}; it is set to refresh every ${a.intervalHours}h`));
+            if (!a.cron && a.intervalHours > 0 && a.status !== 'pending_setup') {
+                if (Number.isNaN(refreshed)) {
+                    out.push(check('m3u', 'warning', `M3U account ${name(a.name)} has no recorded refresh; it is set to refresh every ${a.intervalHours}h`));
+                } else if (now - refreshed > STALE_INTERVALS * a.intervalHours * HOUR_MS) {
+                    out.push(check('m3u', 'warning', `M3U account ${name(a.name)} has not refreshed since ${a.refreshedAt}; it is set to refresh every ${a.intervalHours}h`));
+                }
             }
             for (const p of a.profiles.filter(p => p.active && p.expiresAt !== undefined)) {
                 const at = Date.parse(p.expiresAt as string);

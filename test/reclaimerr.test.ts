@@ -69,6 +69,17 @@ describe('ReclaimerrAdapter', () => {
 });
 
 describe('ReclaimerrAdapter health', () => {
+    it('reads the version once for a connection test and the health checks after it', async () => {
+        const seen: string[] = [];
+        const a = new ReclaimerrAdapter(config, stub(routes({ '/api/v1': readOnly }), seen));
+        const reads = () => seen.filter(s => s === 'GET /api/v1/system').length;
+        await a.testConnection();
+        await a.getFailedHealthChecks();
+        expect(reads()).toBe(1);
+        await a.testConnection();
+        expect(reads()).toBe(2);
+    });
+
     it('is quiet on the captured instance with a read-only token', async () => {
         const adapter = new ReclaimerrAdapter(config, stub(routes({ '/api/v1': readOnly })));
         const checks = await adapter.getFailedHealthChecks();
