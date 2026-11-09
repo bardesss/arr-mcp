@@ -1,12 +1,14 @@
+import type { Server } from 'node:http';
 import { serve } from '@hono/node-server';
 import { bootstrap } from './bootstrap.ts';
 import { ConfigInvalidError } from './config/load.ts';
 import { WriteAudit } from './core/audit.ts';
-import { attachLogStore } from './core/logger.ts';
+import { attachLogStore, detachLogStore } from './core/logger.ts';
 import { logger } from './core/logger.ts';
 import { LogStore } from './core/logs.ts';
 import { Sessions } from './core/session.ts';
 import { WebhookEvents } from './core/webhookEvents.ts';
+import { closeServer, createShutdown, type ShutdownStep } from './shutdown.ts';
 import { serveOverStdio } from './stdio.ts';
 
 const CONFIG_DIR = process.env.ARR_MCP_CONFIG_DIR ?? '/config';
@@ -32,23 +34,49 @@ const sessions = Sessions.open(CONFIG_DIR);
 
 const events = WebhookEvents.open(CONFIG_DIR);
 
+// Node is PID 1 in the container (`exec gosu`), and PID 1 has no default signal
+// handling: without these handlers SIGTERM is ignored, and `docker stop` waited
+// its 10 s and then sent SIGKILL.
+const closeStores: ShutdownStep[] = [
+    { name: 'events', run: () => events.close() },
+    { name: 'audit', run: () => audit.close() },
+    {
+        name: 'logs',
+        run: () => {
+            detachLogStore();
+            logs.close();
+        }
+    }
+];
+
 if (STDIO) {
     // No repair page to fall back on: there is no UI to serve it from, so a
     // config that will not parse is fatal here, with the reason on stderr.
+    let handle: Awaited<ReturnType<typeof serveOverStdio>>;
     try {
-        await serveOverStdio({ configDir: CONFIG_DIR, audit, events, sessions });
+        handle = await serveOverStdio({ configDir: CONFIG_DIR, audit, events, sessions });
     } catch (err) {
         if (err instanceof ConfigInvalidError) logger.fatal({ detail: err.detail }, 'config.yaml is invalid — fix it, then start again');
         else logger.fatal({ err }, 'could not start over stdio');
         process.exit(1);
     }
+    const shutdown = createShutdown([{ name: 'stdio', run: () => handle.close() }, ...closeStores]);
     // The client closing stdin ends the session. The IMDb refresh timer and
     // the open databases would otherwise keep the process alive.
-    process.stdin.once('end', () => process.exit(0));
+    process.stdin.once('end', () => void shutdown('stdin closed'));
+    process.on('SIGTERM', () => void shutdown('SIGTERM'));
+    process.on('SIGINT', () => void shutdown('SIGINT'));
 } else {
     const app = await bootstrap({ configDir: CONFIG_DIR, audit, logs, events, sessions, version: VERSION, port: PORT });
 
-    serve({ fetch: app.fetch, port: PORT, hostname: '0.0.0.0' }, info => {
+    const server = serve({ fetch: app.fetch, port: PORT, hostname: '0.0.0.0' }, info => {
         logger.info({ port: info.port }, `arr-mcp listening — open the config UI at http://<host>:${info.port}`);
     });
+    const shutdown = createShutdown([
+        { name: 'http', run: () => closeServer(server as Server) },
+        { name: 'runtime', run: () => app.close() },
+        ...closeStores
+    ]);
+    process.on('SIGTERM', () => void shutdown('SIGTERM'));
+    process.on('SIGINT', () => void shutdown('SIGINT'));
 }
