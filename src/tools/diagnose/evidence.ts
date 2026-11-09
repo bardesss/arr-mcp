@@ -353,21 +353,25 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
     const scanAdapter =
         mediaServerAdapter !== undefined && hasScanState(mediaServerAdapter) ? mediaServerAdapter : undefined;
 
-    // Read per title when the item is resolved (the item-miss read of the whole
-    // history is removed in a later change).
+    // A miss is answered from the library and the download history, so nothing
+    // else is read for it: an unreachable Seerr, queue or indexer must not cost
+    // it its certainty. Requests are read per title.
+    const resolved = item !== undefined;
     // `null` here is a third state the chain needs: not configured, as
     // distinct from asked-and-empty (`[]`) or could-not-ask (`undefined`).
     const requestsP: Promise<MediaRequest[] | null | undefined> =
-        seerr === undefined ? Promise.resolve(null) : probe(seerr.id, degraded, () =>
-              item !== undefined && item.kind !== 'artist' ? readTitleRequests(seerr, item.ids, item.kind) : seerr.getRequests({})
-          );
+        !resolved || seerr === undefined
+            ? Promise.resolve(null)
+            : probe(seerr.id, degraded, () =>
+                  item.kind !== 'artist' ? readTitleRequests(seerr, item.ids, item.kind) : seerr.getRequests({})
+              );
 
     // Multi-service: `gather` already distinguishes "some clients answered,
     // some didn't" from "all of them did" — exactly the queue shape asks
     // for, folded into `queue`/`queueConfigured` below rather than collapsed
     // to a single undefined the way one failing client used to erase the
     // whole stage.
-    const queueP: Promise<Gathered<QueueItem> | undefined> = queueConfigured
+    const queueP: Promise<Gathered<QueueItem> | undefined> = resolved && queueConfigured
         ? gather(queueAdapters.map(a => ({ id: a.id, fetch: () => a.getQueue() })))
         : Promise.resolve(undefined);
 
@@ -379,7 +383,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
     // newest-first: each instance answers in its own order, but the merge
     // settles in whatever order the promises resolve, and `mine[0]` below is
     // read as the most recent rejection overall.
-    const rejectionsP: Promise<IndexerRejection[] | undefined> = !prowlarrConfigured
+    const rejectionsP: Promise<IndexerRejection[] | undefined> = !resolved || !prowlarrConfigured
         ? Promise.resolve(undefined)
         : Promise.all(
               prowlarrs.map(async p => {
@@ -394,7 +398,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
           );
 
     const scanP: Promise<ScanState | undefined> =
-        scanAdapter === undefined
+        !resolved || scanAdapter === undefined
             ? Promise.resolve(undefined)
             : probe(scanAdapter.id, degraded, () => scanAdapter.getScanState());
 

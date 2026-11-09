@@ -551,6 +551,47 @@ describe('diagnose', () => {
         await expect(buildDiagnose(deps(), {})).rejects.toThrow(/query.*service.*id/i);
     });
 
+    describe('a title that does not resolve', () => {
+        const counting = () => {
+            const calls: string[] = [];
+            const adapters = [
+                stub('radarr', {
+                    listLibrary: async () => [FILM],
+                    getQueue: async () => {
+                        calls.push('queue');
+                        return [];
+                    }
+                }),
+                stub('prowlarr', {
+                    getIndexers: async () => [],
+                    getRecentRejections: async () => {
+                        calls.push('rejections');
+                        return [];
+                    }
+                }),
+                stub('seerr', {
+                    getRequests: async () => {
+                        calls.push('requests');
+                        throw new Error('down');
+                    }
+                })
+            ];
+            return { calls, deps: { adapters, library: new LibraryLoader(adapters, undefined) } };
+        };
+        it('reads nothing past the library, so Seerr cannot make it uncertain', async () => {
+            const { calls, deps: d } = counting();
+            const result = await buildDiagnose(d, { query: 'nothing like this' });
+            expect(calls).toEqual([]);
+            expect(result.verdict.certain).toBe(true);
+            expect(result.degraded).not.toContain('seerr');
+        });
+        it('is still read in full once a title resolves', async () => {
+            const { calls, deps: d } = counting();
+            await buildDiagnose(d, { query: 'some film' });
+            expect([...calls].sort()).toEqual(['queue', 'rejections', 'requests']);
+        });
+    });
+
     it('reports a title it cannot resolve rather than throwing', async () => {
         // Unlike get_media_details: "we have never heard of this" is a
         // diagnosis, and the most common one a user starts from.
