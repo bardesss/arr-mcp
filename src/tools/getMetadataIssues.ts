@@ -248,7 +248,7 @@ async function sweepMedia(
     // The loader already holds this server's rows when it read them itself, so
     // a sweep that follows a get_library call does not list the library twice.
     const snapshot = opts.library === undefined ? undefined : await opts.library.load(opts.user).catch(() => undefined);
-    const library = snapshot?.playbackFrom === adapter.id ? snapshot.index.all() : await adapter.listUserLibrary(viewer);
+    const library = snapshot?.playbackFrom === adapter.id && snapshot.playbackRows !== undefined ? snapshot.playbackRows : await adapter.listUserLibrary(viewer);
     const series = library.filter(i => i.kind === 'series' && i.playback?.itemId !== undefined);
 
     const issues: MetadataIssue[] = [];

@@ -679,22 +679,56 @@ describe('get_metadata_issues library reuse and concurrency', () => {
         const listUserLibrary = vi.fn(adapter.listUserLibrary as () => Promise<unknown[]>);
         return { ...adapter, listUserLibrary } as unknown as ServiceAdapter & { listUserLibrary: typeof listUserLibrary };
     };
-    const loaderHolding = (playbackFrom: string) =>
+    const row = (title: string, tvdb: number, itemId: string) => ({
+        kind: 'series' as const,
+        title,
+        ids: { tvdb },
+        playback: { user: 'Sam', itemId }
+    });
+    // The merged index deliberately holds fewer rows than the server does, so a
+    // sweep that read it would miss one.
+    const loaderHolding = (playbackFrom: string, playbackRows = [row('Fine', 1, 'item-Fine')], load?: () => Promise<unknown>) =>
         ({
-            load: async () => ({
-                index: {
-                    all: () => [{ kind: 'series', title: 'Fine', ids: { tvdb: 1 }, playback: { user: 'Sam', itemId: 'item-Fine' }, presence: 'both' }]
-                },
-                degraded: [],
-                counts: {},
-                playbackFrom
-            })
+            load:
+                load ??
+                (async () => ({
+                    index: { all: () => [{ ...row('Merged Away', 1, 'item-other'), presence: 'both' }] },
+                    degraded: [],
+                    counts: {},
+                    playbackFrom,
+                    playbackRows
+                }))
         }) as unknown as LibraryLoader;
 
     it('sweeps the series the library loader already holds', async () => {
         const adapter = counted();
         const result = await buildGetMetadataIssues([adapter], identity, { detail: 'full', limit: 50, offset: 0, library: loaderHolding('jellyfin') });
         expect(adapter.listUserLibrary).not.toHaveBeenCalled();
+        expect(result.itemsScanned).toBe(1);
+    });
+
+    it('sweeps two server series that share an external id, as the server lists them', async () => {
+        const adapter = adapterWith({ A: [healthy(1), unmatched(4)], B: [healthy(1), unmatched(4)] }) as unknown as Record<string, unknown>;
+        const listUserLibrary = vi.fn();
+        const loader = loaderHolding('jellyfin', [row('A', 1, 'item-A'), row('B', 1, 'item-B')]);
+        const result = await buildGetMetadataIssues([{ ...adapter, listUserLibrary } as unknown as ServiceAdapter], identity, {
+            detail: 'full',
+            limit: 50,
+            offset: 0,
+            library: loader
+        });
+        expect(listUserLibrary).not.toHaveBeenCalled();
+        expect(result.itemsScanned).toBe(2);
+        expect(result.items.map(i => i.title).sort()).toEqual(['A', 'B']);
+    });
+
+    it('falls back to one server listing when the loader rejects, and still scans', async () => {
+        const adapter = counted();
+        const loader = loaderHolding('jellyfin', [], async () => {
+            throw new Error('loader down');
+        });
+        const result = await buildGetMetadataIssues([adapter], identity, { detail: 'full', limit: 50, offset: 0, library: loader });
+        expect(adapter.listUserLibrary).toHaveBeenCalledTimes(1);
         expect(result.itemsScanned).toBe(1);
     });
 
@@ -716,7 +750,8 @@ describe('get_metadata_issues library reuse and concurrency', () => {
             readEpisodeMetadata: async (u: unknown, id: string) => {
                 inFlight += 1;
                 peak = Math.max(peak, inFlight);
-                await new Promise(resolve => setTimeout(resolve, 5));
+                // Earlier series are slower, so completion order runs against input order.
+                await new Promise(resolve => setTimeout(resolve, 5 + (10 - Number(id.replace('item-Show ', ''))) * 3));
                 inFlight -= 1;
                 return read(u, id);
             }

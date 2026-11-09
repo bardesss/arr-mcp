@@ -55,6 +55,12 @@ describe('LibraryLoader playbackFrom', () => {
         expect((await loaderOf([film()]).load()).playbackFrom).toBe('jellyfin');
     });
 
+    it("carries the media server's own rows, unmerged", async () => {
+        const rows = [film({ title: 'A' }), film({ title: 'B' })];
+        const snapshot = await new LibraryLoader([stub('radarr', [film()]), { ...jellyfinStub(), listUserLibrary: async () => rows } as unknown as ServiceAdapter], healthyJellyfinIdentity).load();
+        expect(snapshot.playbackRows).toEqual(rows);
+    });
+
     it('is absent when the media server could not be read', async () => {
         const down = {
             ...jellyfinStub(),
@@ -63,7 +69,9 @@ describe('LibraryLoader playbackFrom', () => {
             }
         } as unknown as ServiceAdapter;
         const loader = new LibraryLoader([stub('radarr', [film()]), down], healthyJellyfinIdentity);
-        expect((await loader.load()).playbackFrom).toBeUndefined();
+        const snapshot = await loader.load();
+        expect(snapshot.playbackFrom).toBeUndefined();
+        expect(snapshot.playbackRows).toBeUndefined();
     });
 });
 
