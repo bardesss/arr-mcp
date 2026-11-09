@@ -4,7 +4,7 @@ import type { ServiceId } from '../config/schema.ts';
 import { logger } from '../core/logger.ts';
 import { LoginThrottle } from '../core/loginThrottle.ts';
 import type { Runtime } from '../core/runtime.ts';
-import { constantTimeEquals } from '../core/session.ts';
+import { constantTimeEquals } from '../core/secrets.ts';
 import type { WebhookEvents } from '../core/webhookEvents.ts';
 import { parseArrWebhook, WEBHOOK_SERVICES } from '../services/arrWebhook.ts';
 import { originOf } from './routes.ts';

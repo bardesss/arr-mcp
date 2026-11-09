@@ -17,6 +17,8 @@ import {
 } from '../services/types.ts';
 import { arrSubject, CROSS_CHECK_BUDGET_MS } from './crossChecks.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
+import { TIMED_OUT, withTimeout } from '../core/timeout.ts';
+import { titled } from '../core/labels.ts';
 
 /**
  * "Not that one, the 1080p remux" — the write half of `get_releases`.
@@ -298,27 +300,19 @@ export function registerGrabRelease(
             const name = async () => {
                 const fallback = { label: match.title, ids: {}, acquisition: { service: adapter.id, id } };
                 if (!hasMediaDetails(adapter)) return fallback;
-                let timer: ReturnType<typeof setTimeout> | undefined;
-                const expired = new Promise<undefined>(resolve => {
-                    timer = setTimeout(() => resolve(undefined), CROSS_CHECK_BUDGET_MS);
-                });
                 // Handled before the race: a read that fails after the timer
                 // won must not surface as an unhandled rejection.
                 const read = adapter.getMediaDetails(id, { includeEpisodes: false, episodeLimit: 0 }).catch((err: unknown) => {
                     logger.warn({ service: adapter.id, err }, 'could not read the item to name it for the cross-checks');
                     return undefined;
                 });
-                try {
-                    const details = await Promise.race([read, expired]);
-                    if (details === undefined) return fallback;
-                    return {
-                        ...fallback,
-                        label: `${details.title}${details.year === undefined ? '' : ` (${details.year})`}`,
-                        ids: details.ids
-                    };
-                } finally {
-                    clearTimeout(timer);
-                }
+                const details = await withTimeout(read, CROSS_CHECK_BUDGET_MS);
+                if (details === undefined || details === TIMED_OUT) return fallback;
+                return {
+                    ...fallback,
+                    label: titled(details.title, details.year),
+                    ids: details.ids
+                };
             };
 
             return {

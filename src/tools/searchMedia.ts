@@ -8,6 +8,7 @@ import { enrichWithImdb } from '../metadata/enrich.ts';
 import type { ImdbDataset } from '../metadata/imdbDataset.ts';
 import { hasSearch, type SearchHit, type SearchSource, type ServiceAdapter } from '../services/types.ts';
 import { MediaKindSchema, mayHold } from './mediaKind.ts';
+import { titled } from '../core/labels.ts';
 import { withoutDisplay } from '../core/display.ts';
 import { mediaCardsToolMeta } from '../mcp/apps.ts';
 import { cardsFromHits, type MediaCards } from '../ui/mediaCards.ts';
@@ -32,7 +33,7 @@ export function searchLine(hit: SearchHit): string {
     if (hit.indexer !== undefined) facts.push(hit.indexer);
     if (hit.hasFile === true) facts.push('in library');
 
-    return `${hit.title}${hit.year === undefined ? '' : ` (${hit.year})`} — ${facts.join(', ')}`;
+    return `${titled(hit.title, hit.year)} — ${facts.join(', ')}`;
 }
 
 export type GetSearchResult = {

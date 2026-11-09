@@ -14,6 +14,7 @@ import {
 import { managedIdByTitle } from './byTitle.ts';
 import type { LibraryLoader } from './library.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
+import { titled } from '../core/labels.ts';
 
 const findAdapter = (adapters: readonly ServiceAdapter[], service: ServiceId, instance?: string) => {
     const adapter = resolveInstance(adapters, service, instance);
@@ -340,7 +341,7 @@ export function registerSetMonitoring(
                     includeEpisodes: episodes !== undefined,
                     episodeLimit: 500
                 });
-                label = `${details.title}${details.year === undefined ? '' : ` (${details.year})`}`;
+                label = titled(details.title, details.year);
 
                 // A season this series does not have is not a no-op: `sonarr.ts`
                 // maps every season, matches none, and PUTs the series back

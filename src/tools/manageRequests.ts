@@ -11,6 +11,7 @@ import {
     type ServiceAdapter
 } from '../services/types.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
+import { titled } from '../core/labels.ts';
 
 /**
  * Seerr request management, as **two** tools rather than one with an `action`
@@ -115,7 +116,7 @@ async function describe(adapters: readonly ServiceAdapter[], request: MediaReque
         const kind = request.mediaType === 'unknown' ? 'media' : request.mediaType;
         return `request ${request.id} (${kind}, title unavailable), requested by ${requester(request)}`;
     }
-    return `${media.title}${media.year === undefined ? '' : ` (${media.year})`}, requested by ${requester(request)}`;
+    return `${titled(media.title, media.year)}, requested by ${requester(request)}`;
 }
 
 export function registerRespondToRequest(

@@ -5,6 +5,7 @@ import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, 
 import type { LibraryKind } from '../core/resolver.ts';
 import { hasCalendar, type CalendarEntry, type ServiceAdapter } from '../services/types.ts';
 import { MediaKindSchema, holds } from './mediaKind.ts';
+import { episodeCode } from '../core/labels.ts';
 
 export type GetCalendarResult = {
     items: CalendarEntry[];
@@ -69,7 +70,7 @@ export function calendarLine(entry: CalendarEntry): string {
     const numbering =
         entry.season === undefined || entry.episode === undefined
             ? ''
-            : ` S${String(entry.season).padStart(2, '0')}E${String(entry.episode).padStart(2, '0')}`;
+            : ` ${episodeCode(entry.season, entry.episode)}`;
     const name = entryName(entry, numbering);
 
     const facts = [`${entry.service}:${entry.id}`];

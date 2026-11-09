@@ -1,4 +1,4 @@
-import { fenceText, sanitizeGuid } from '../core/fence.ts';
+import { sanitizeGuid, fencer } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
 import type { ArrKind } from '../core/resolver.ts';
 import { pageSizeFor, readArrPages, readTotal, type ArrRead } from './arrPaging.ts';
@@ -163,7 +163,7 @@ async function readHistoryPages(
             return want !== undefined && kept >= want;
         }
     });
-    const fence = (value: string, field: string) => fenceText(value, { service, field });
+    const fence = fencer(service);
 
     const entries = read.records
         .filter((r): r is RawHistory & { id: number } => typeof r.id === 'number')

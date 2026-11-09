@@ -12,6 +12,7 @@ import {
     type ServiceAdapter
 } from '../services/types.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
+import { titled } from '../core/labels.ts';
 
 /**
  * "Can you request the new season?" — the polite half of adding something.
@@ -145,7 +146,7 @@ export function registerRequestMedia(
             const label =
                 media === undefined
                     ? `${media_type === 'movie' ? 'movie' : 'series'} ${media_id} (title unavailable)`
-                    : `${media.title}${media.year === undefined ? '' : ` (${media.year})`}`;
+                    : titled(media.title, media.year);
 
             if (existing !== undefined) {
                 return {

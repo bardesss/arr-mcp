@@ -5,6 +5,7 @@ import { logger } from '../core/logger.ts';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
 import { NO_MEDIA_SERVER_NOTE, type MediaServerAdapter, type PlaybackEntry } from '../services/types.ts';
 import { bothIds, pickMediaServer, serviceInput, withBoth, type MediaServers } from './mediaServers.ts';
+import { episodeCode } from '../core/labels.ts';
 
 export type GetPlaybackResult = {
     items: PlaybackEntry[];
@@ -127,7 +128,7 @@ export function playbackLine(entry: PlaybackEntry): string {
     const numbering =
         entry.season === undefined || entry.episode === undefined
             ? ''
-            : ` S${String(entry.season).padStart(2, '0')}E${String(entry.episode).padStart(2, '0')}`;
+            : ` ${episodeCode(entry.season, entry.episode)}`;
     const name =
         entry.seriesTitle === undefined ? entry.title : `${entry.seriesTitle}${numbering} ${entry.title}`;
 

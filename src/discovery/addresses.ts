@@ -1,5 +1,6 @@
 import { lookup as dnsLookup } from 'node:dns/promises';
 import { BlockList, isIP } from 'node:net';
+import { TIMED_OUT, withTimeout } from '../core/timeout.ts';
 
 // Private IPv4 (RFC 1918 plus CGNAT, which Tailscale and many ISPs use) and IPv6 unique-local.
 const PRIVATE = new BlockList();
@@ -47,7 +48,6 @@ export async function lookupWithin(
   lookup: (h: string) => Promise<string[]>,
   timeoutMs: number,
 ): Promise<string[] | undefined> {
-  let timer: NodeJS.Timeout | undefined;
   // Started inside a promise so a lookup that throws outright counts as a failure too.
   const answer = Promise.resolve()
     .then(() => lookup(host))
@@ -55,15 +55,8 @@ export async function lookupWithin(
       (addresses) => addresses,
       () => undefined,
     );
-  const late = new Promise<undefined>((resolve) => {
-    timer = setTimeout(() => resolve(undefined), timeoutMs);
-    timer.unref();
-  });
-  try {
-    return await Promise.race([answer, late]);
-  } finally {
-    clearTimeout(timer);
-  }
+  const out = await withTimeout(answer, timeoutMs);
+  return out === TIMED_OUT ? undefined : out;
 }
 
 /**

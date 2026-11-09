@@ -2,6 +2,7 @@ import type { FilmOrSeries } from '../core/resolver.ts';
 import type { ServiceAdapter } from '../services/types.ts';
 import { buildResolvedMediaDetails, explainMiss, NotInLibrary, type ResolvedMediaDetails } from './getMediaDetails.ts';
 import type { LibraryLoader } from './library.ts';
+import { titled } from '../core/labels.ts';
 
 /**
  * A title in place of an id, for the tools that act on one item.
@@ -27,7 +28,7 @@ export async function itemByTitle(adapters: readonly ServiceAdapter[], loader: L
     if (found.ambiguous === true) {
         const all = [found, ...(found.candidates ?? [])].map(
             c =>
-                `${c.title}${c.year === undefined ? '' : ` (${c.year})`}` +
+                titled(c.title, c.year) +
                 (c.acquisition?.id === undefined ? '' : ` — ${c.acquisition.service} id ${c.acquisition.id}`)
         );
         throw new Error(`"${title}" matches more than one title equally well: ${all.join('; ')}. Name the one you mean by its id instead.`);
@@ -43,7 +44,7 @@ export async function managedIdByTitle(
     adapterId: string
 ): Promise<string> {
     const item = await itemByTitle(adapters, loader, title);
-    const label = `${item.title}${item.year === undefined ? '' : ` (${item.year})`}`;
+    const label = titled(item.title, item.year);
     if (item.acquisition?.service !== adapterId || item.acquisition.id === undefined) {
         throw new Error(
             item.acquisition === undefined
@@ -63,7 +64,7 @@ export async function jellyfinIdByTitle(adapters: readonly ServiceAdapter[], loa
     const item = await itemByTitle(adapters, loader, title);
     const id = item.media_servers === undefined ? item.playback?.itemId : item.media_servers['jellyfin']?.itemId;
     if (id === undefined) {
-        throw new Error(`${item.title}${item.year === undefined ? '' : ` (${item.year})`} is not in Jellyfin, so there is no watch state to set.`);
+        throw new Error(`${titled(item.title, item.year)} is not in Jellyfin, so there is no watch state to set.`);
     }
     return id;
 }

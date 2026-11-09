@@ -25,6 +25,7 @@ import {
 } from '../services/types.ts';
 import { INSTANCE_PARAM_DESCRIPTION, instanceArgs, resolveInstance } from './resolveInstance.ts';
 import { outcomeText, registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
+import { titled } from '../core/labels.ts';
 
 /**
  * The other half of the answer `diagnose` gives most often.
@@ -592,7 +593,7 @@ export function registerTriggerScan(
                 const label =
                     details === undefined
                         ? `${service} item ${id}`
-                        : `${details.title}${details.year === undefined ? '' : ` (${details.year})`}`;
+                        : titled(details.title, details.year);
 
                 // Lidarr's rescan after a one-artist refresh still reads every
                 // root folder (`RefreshArtistService.RescanArtists` narrows it

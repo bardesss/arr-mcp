@@ -6,6 +6,7 @@ import { ServiceError } from '../core/errors.ts';
 import { hasEpisodeFiles, hasMediaDetails, type EpisodeSummary, type ServiceAdapter } from '../services/types.ts';
 import { arrSubject } from './crossChecks.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
+import { titled } from '../core/labels.ts';
 
 const GIB = 1024 ** 3;
 
@@ -85,7 +86,7 @@ export function registerDeleteEpisodeFiles(
             // would leave the warning silent in exactly the state this branch
             // can create.
             const details = await adapter.getMediaDetails(id, { includeEpisodes: true, episodeLimit: 500 });
-            const label = `${details.title}${details.year === undefined ? '' : ` (${details.year})`}`;
+            const label = titled(details.title, details.year);
             // A season the series does not have is refused, not reported as
             // "no files on disk": that sentence claims the season was looked
             // at, and on Whisparr — where a season is a release year — `season:

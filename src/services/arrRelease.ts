@@ -1,4 +1,4 @@
-import { fenceText, sanitizeGuid } from '../core/fence.ts';
+import { sanitizeGuid, fencer } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
 import { ServiceError } from '../core/errors.ts';
 import { arrItemId } from './arrCommands.ts';
@@ -112,7 +112,7 @@ async function readReleases(http: ServiceHttp, service: string, query: string): 
         throw new ServiceError('UpstreamError', service, `${http.apiRoot}/release did not return an array`);
     }
 
-    const fence = (value: string, field: string) => fenceText(value, { service, field });
+    const fence = fencer(service);
 
     return raw
         .filter(

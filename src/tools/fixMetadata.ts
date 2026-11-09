@@ -33,6 +33,7 @@ import { buildResolvedMediaDetails } from './getMediaDetails.ts';
 import type { LibraryLoader } from './library.ts';
 import { bothIds, itemIdOn, pickMediaServer, serviceInput, withBoth, type MediaServers } from './mediaServers.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
+import { titled } from '../core/labels.ts';
 
 /**
  * "The episode titles on these files are wrong" — the repair `trigger_scan`
@@ -703,7 +704,7 @@ ${note}`;
             // Exactly the id the preview named and the token bound.
             const { settled, matchedTo } = await adapter.repairMetadata(series.itemId, bound.providerId ?? {});
             const matched =
-                matchedTo === undefined ? '' : ` Matched to ${matchedTo.name}${matchedTo.year === undefined ? '' : ` (${matchedTo.year})`}.`;
+                matchedTo === undefined ? '' : ` Matched to ${titled(matchedTo.name, matchedTo.year)}.`;
 
             /**
              * A queued refresh is read until an improvement holds across two

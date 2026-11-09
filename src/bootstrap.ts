@@ -1,6 +1,6 @@
 import type { Hono } from 'hono';
 import { buildApp } from './app.ts';
-import { ConfigInvalidError } from './config/load.ts';
+import { ConfigInvalidError, configPath } from './config/load.ts';
 import type { WriteAudit } from './core/audit.ts';
 import { logger } from './core/logger.ts';
 import type { LogStore } from './core/logs.ts';
@@ -54,7 +54,7 @@ export async function bootstrap(deps: BootstrapDeps): Promise<Booted> {
             );
         } else if (runtime.current.adapters.length === 0) {
             logger.warn(
-                { config: `${configDir}/config.yaml` },
+                { config: configPath(configDir) },
                 'no services configured — add them in the config UI, or edit config.yaml'
             );
         }
@@ -97,7 +97,7 @@ export async function bootstrap(deps: BootstrapDeps): Promise<Booted> {
         // worse than exiting.
         if (!(err instanceof ConfigInvalidError)) throw err;
         logger.error(
-            { config: `${configDir}/config.yaml` },
+            { config: configPath(configDir) },
             `config.yaml is invalid — serving the repair page only:\n${err.detail}`
         );
         app = buildRepairApp({ configDir, sessions, version, failure: err, onPromote: promote });

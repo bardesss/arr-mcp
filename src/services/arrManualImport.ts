@@ -14,6 +14,7 @@ import type {
     ImportMapping,
     QueueItem
 } from './types.ts';
+import { episodeCode } from '../core/labels.ts';
 
 /**
  * The download that finished and was never imported — `get_queue` shows it
@@ -54,9 +55,6 @@ type RawCandidate = {
 
 type RawEpisodeRow = { id?: number; seasonNumber?: number; episodeNumber?: number; episodeFileId?: number };
 
-const sxe = (season: number, episode: number): string =>
-    `S${String(season).padStart(2, '0')}E${String(episode).padStart(2, '0')}`;
-
 /** The film, series or artist the file matched: Radarr, Sonarr and Lidarr name its field after the kind. */
 const matchedIdOf = (raw: RawCandidate, resource: ArrKind): number | undefined => raw[resource]?.id;
 
@@ -91,7 +89,7 @@ function toCandidate(service: string, resource: ArrKind, raw: RawCandidate): Imp
     const episodes = (raw.episodes ?? []).map(e => e.id).filter((id): id is number => typeof id === 'number');
     const labels = (raw.episodes ?? [])
         .filter(e => typeof e.seasonNumber === 'number' && typeof e.episodeNumber === 'number')
-        .map(e => sxe(e.seasonNumber as number, e.episodeNumber as number));
+        .map(e => episodeCode(e.seasonNumber as number, e.episodeNumber as number));
 
     // A series file the service could not place in an episode is not
     // importable, however healthy it looks: `ManualImport` with no episode ids
@@ -321,7 +319,7 @@ async function applyMapping(
         const episodes = (m.episodes ?? []).map(n => {
             const found = known.find(e => e.seasonNumber === m.season && e.episodeNumber === n);
             if (found?.id === undefined) {
-                throw new ServiceError('NotFound', service, `series ${m.seriesId} has no episode ${sxe(m.season ?? 0, n)}`, {
+                throw new ServiceError('NotFound', service, `series ${m.seriesId} has no episode ${episodeCode(m.season ?? 0, n)}`, {
                     remedy: 'get_media_details with include_episodes lists the season and episode numbers Sonarr knows.'
                 });
             }
@@ -578,7 +576,7 @@ async function resolveEpisodeRemap(
         http.get<RawEpisodeRow[]>(`${http.apiRoot}/episode?seriesId=${seriesId}`)
     ]);
 
-    const label = (e: RawEpisodeRow): string => sxe(e.seasonNumber ?? 0, e.episodeNumber ?? 0);
+    const label = (e: RawEpisodeRow): string => episodeCode(e.seasonNumber ?? 0, e.episodeNumber ?? 0);
     const episodeById = new Map(episodes.filter(e => typeof e.id === 'number').map(e => [e.id as number, e]));
     const fileById = new Map(files.filter(f => typeof f.episodeFileId === 'number').map(f => [f.episodeFileId as number, f]));
 
@@ -596,7 +594,7 @@ async function resolveEpisodeRemap(
 
         const target = episodes.find(e => e.seasonNumber === r.season && e.episodeNumber === r.episode);
         if (target?.id === undefined) {
-            throw new ServiceError('NotFound', service, `series ${seriesId} has no episode ${sxe(r.season, r.episode)}`, {
+            throw new ServiceError('NotFound', service, `series ${seriesId} has no episode ${episodeCode(r.season, r.episode)}`, {
                 remedy: 'get_media_details with include_episodes lists the season and episode numbers Sonarr knows.'
             });
         }

@@ -3,7 +3,7 @@ import { readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { attachLogStore, detachLogStore, logger } from '../src/core/logger.ts';
-import { hashToken } from '../src/core/mcpTokens.ts';
+import { hashToken } from '../src/core/secrets.ts';
 import { hashPassword } from '../src/core/session.ts';
 import { api, closeApi, json, KEY, MCP, mcp, RADARR_KEY, seedApi, stack, TX_PASSWORD } from './helpers/apiStack.ts';
 

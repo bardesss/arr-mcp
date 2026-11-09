@@ -13,6 +13,7 @@ import { classifyQueueStatus, queueRowsFor, SEEDING, wholeRemoval } from './diag
 import { requestsFor } from './diagnose/evidence.ts';
 import { removalSentence, upcomingSentence } from './cleanupStatus.ts';
 import type { LibraryLoader } from './library.ts';
+import { deadline, TIMED_OUT } from '../core/timeout.ts';
 
 /**
  * Which questions a write asks of the rest of the stack before it is confirmed.
@@ -71,7 +72,6 @@ export type CrossChecker = (subject: CrossCheckSubject, profile: CrossCheckProfi
 /** One budget for the whole check, not one per read: a preview should not wait longest when most services are down. */
 export const CROSS_CHECK_BUDGET_MS = 5000;
 
-const TIMED_OUT = Symbol('timed out');
 
 const NO_TMDB = (service: string): string => `${service} (no TMDB id)`;
 
@@ -118,18 +118,13 @@ export function buildCrossChecker(adapters: readonly ServiceAdapter[], library: 
         const warnings: string[] = [];
         const unchecked = new Set<string>();
 
-        // Cleared in `finally`: a live timer would keep the process, or a test
-        // run, waiting for up to the full budget after the answer was ready.
-        let timer: ReturnType<typeof setTimeout> | undefined;
-        const expired = new Promise<typeof TIMED_OUT>(resolve => {
-            timer = setTimeout(() => resolve(TIMED_OUT), CROSS_CHECK_BUDGET_MS);
-        });
+        const budget = deadline(CROSS_CHECK_BUDGET_MS);
 
         // `undefined` is "could not look", which is why every failure lands in
         // `unchecked` and never in `warnings`.
         const read = async <T>(id: string, fn: () => Promise<T>): Promise<T | undefined> => {
             try {
-                const out = await Promise.race([fn(), expired]);
+                const out = await budget.race(fn());
                 if (out !== TIMED_OUT) return out;
                 logger.warn({ service: id }, 'cross-check read ran out of time; the preview will say it was not checked');
             } catch (err) {
@@ -298,7 +293,7 @@ export function buildCrossChecker(adapters: readonly ServiceAdapter[], library: 
             logger.warn({ err }, 'cross-checks failed; the preview will say they were not run');
             return { warnings: [], unchecked: ['cross-service checks'] };
         } finally {
-            clearTimeout(timer);
+            budget.clear();
         }
     };
 }
