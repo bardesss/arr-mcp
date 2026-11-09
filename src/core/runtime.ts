@@ -134,7 +134,8 @@ export class Runtime {
         sessions.bindCredentials(config.auth.password_hash);
         // Before the snapshot, not after: the tool context closes over the
         // dataset, so it has to exist by the time it is built.
-        this.#syncDataset(config);
+        const next = this.#prepareDataset(config);
+        this.#commitDataset(next);
         this.#snapshot = buildSnapshot(config, audit, this.confirm, this.#dataset, this.#oauthKeys);
     }
 
@@ -153,20 +154,30 @@ export class Runtime {
      * placeholder, and a test that never asked for a dataset must not have one
      * written beside it.
      */
-    #syncDataset(config: Config): void {
+    #prepareDataset(config: Config): { dataset: ImdbDataset | undefined; opened: ImdbDataset | undefined } {
         const wanted = config.metadata?.imdb?.enabled === true && this.#configDir !== NO_CONFIG_DIR;
+        if (!wanted) return { dataset: undefined, opened: undefined };
+        if (this.#dataset !== undefined) return { dataset: this.#dataset, opened: undefined };
+        const opened = ImdbDataset.open(this.#configDir);
+        return { dataset: opened, opened };
+    }
 
-        if (wanted && this.#dataset === undefined) {
-            this.#dataset = ImdbDataset.open(this.#configDir);
+    /**
+     * The commit half: nothing here can fail on the config, so it runs only
+     * once the snapshot that needs the dataset has been built.
+     */
+    #commitDataset(next: { dataset: ImdbDataset | undefined; opened: ImdbDataset | undefined }): void {
+        if (next.opened !== undefined) {
+            this.#dataset = next.opened;
             logger.info({ file: IMDB_FILENAME }, 'IMDb dataset opened');
             // After the open, and pointed at the database that was just
             // opened: a refresh filling a dataset nothing reads would be the
             // same bug this call exists to fix, wearing a different hat.
-            this.#stopRefresh = this.#refresh(this.#dataset);
+            this.#stopRefresh = this.#refresh(next.opened);
             return;
         }
 
-        if (!wanted && this.#dataset !== undefined) {
+        if (next.dataset === undefined && this.#dataset !== undefined) {
             // Stopped *before* the close, so no further ingest is scheduled
             // against a database about to go away. An ingest already in flight
             // is terminated: its worker is stopped and its staging directory
@@ -280,10 +291,18 @@ export class Runtime {
     async #reloadNow(): Promise<void> {
         // Never seeds: a file deleted under a running server must not turn it unclaimed.
         const { config, plaintextOnDisk } = await loadConfig(this.#configDir, { create: false });
+        const next = this.#prepareDataset(config);
+        let snapshot: RuntimeSnapshot;
+        try {
+            snapshot = buildSnapshot(config, this.#audit, this.confirm, next.dataset, this.#oauthKeys);
+        } catch (err) {
+            next.opened?.close();
+            throw err;
+        }
         this.#plaintextOnDisk = plaintextOnDisk;
         this.sessions.bindCredentials(config.auth.password_hash);
-        this.#syncDataset(config);
-        this.#snapshot = buildSnapshot(config, this.#audit, this.confirm, this.#dataset, this.#oauthKeys);
+        this.#commitDataset(next);
+        this.#snapshot = snapshot;
         logger.info({ services: this.#snapshot.adapters.map(a => a.id) }, 'configuration reloaded');
     }
 

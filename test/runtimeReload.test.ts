@@ -6,7 +6,7 @@ import { WriteAudit } from '../src/core/audit.ts';
 import { Runtime } from '../src/core/runtime.ts';
 
 // The first load taken while `hold` is set reads the file, reports `read`, then waits for `hold`.
-const gate = vi.hoisted(() => ({ hold: undefined as Promise<void> | undefined, read: undefined as (() => void) | undefined, calls: 0 }));
+const gate = vi.hoisted(() => ({ hold: undefined as Promise<void> | undefined, read: undefined as (() => void) | undefined, calls: 0, failBuild: false }));
 
 vi.mock('../src/config/load.ts', async importOriginal => {
     const real = await importOriginal<typeof import('../src/config/load.ts')>();
@@ -21,6 +21,17 @@ vi.mock('../src/config/load.ts', async importOriginal => {
             read?.();
             if (hold !== undefined) await hold;
             return loaded;
+        }
+    };
+});
+
+vi.mock('../src/services/registry.ts', async importOriginal => {
+    const real = await importOriginal<typeof import('../src/services/registry.ts')>();
+    return {
+        ...real,
+        buildAdapters: (config: Parameters<typeof real.buildAdapters>[0]) => {
+            if (gate.failBuild) throw new Error('build failed');
+            return real.buildAdapters(config);
         }
     };
 });
@@ -43,6 +54,7 @@ const seeded = async () => {
 const settle = () => new Promise(resolve => setImmediate(resolve));
 
 afterEach(async () => {
+    gate.failBuild = false;
     audit.close();
     await Promise.all(dirs.splice(0).map(dir => rm(dir, { recursive: true, force: true })));
 });
@@ -78,5 +90,27 @@ describe('Runtime.reload', () => {
         await writeFile(join(dir, 'config.yaml'), 'auth:\n  username: fixed\nservices: {}\n', 'utf8');
         await runtime.reload();
         expect(runtime.config.auth.username).toBe('fixed');
+    });
+
+    it('keeps sessions and the old snapshot when building the new one throws', async () => {
+        const { dir, runtime } = await seeded();
+        const token = runtime.sessions.issue();
+        await writeFile(join(dir, 'config.yaml'), 'auth:\n  username: first\n  password_hash: scrypt$00$11\nservices: {}\n', 'utf8');
+        gate.failBuild = true;
+        await expect(runtime.reload()).rejects.toThrow('build failed');
+        expect(runtime.sessions.verify(token)).toEqual({ valid: true });
+        expect(runtime.config.auth.password_hash).toBeUndefined();
+    });
+
+    it('opens no dataset and starts no refresh when building the new snapshot throws', async () => {
+        const { dir } = await seeded();
+        const refresh = vi.fn(() => () => {});
+        const { config } = await loadConfig(dir);
+        const runtime = Runtime.fromConfig(config, audit, { configDir: dir, refresh });
+        await writeFile(join(dir, 'config.yaml'), 'auth:\n  username: first\nservices: {}\nmetadata:\n  imdb:\n    enabled: true\n', 'utf8');
+        gate.failBuild = true;
+        await expect(runtime.reload()).rejects.toThrow('build failed');
+        expect(refresh).not.toHaveBeenCalled();
+        expect(runtime.dataset).toBeUndefined();
     });
 });
