@@ -321,7 +321,7 @@ describe('Jellyfin.listUserMusic', () => {
 
 describe('Jellyfin.listUserLibrary', () => {
     const path =
-        '/Items?userId=u1&Recursive=true&IncludeItemTypes=Movie,Series&Fields=ProviderIds,Genres,OriginalTitle,RecursiveItemCount&EnableUserData=true';
+        '/Items?userId=u1&Recursive=true&IncludeItemTypes=Movie,Series&Fields=ProviderIds,Genres,OriginalTitle,RecursiveItemCount&EnableUserData=true&EnableImages=false&Limit=500&StartIndex=0';
     const adapter = () => new JellyfinAdapter(multi, serving({ [path]: ITEMS }));
     const user = { id: 'u1', name: 'Someone' };
 
@@ -359,6 +359,19 @@ describe('Jellyfin.listUserLibrary', () => {
         const items = await adapter().listUserLibrary(user);
         expect(items.every(i => i.acquisition === undefined)).toBe(true);
     });
+
+    it('pages the library 500 at a time', async () => {
+        const movie = (i: number) => ({ Id: `m${i}`, Name: `Film ${i}`, Type: 'Movie', ProviderIds: { Tmdb: String(i + 1) } });
+        const second = path.replace('StartIndex=0', 'StartIndex=500');
+        const paged = new JellyfinAdapter(
+            multi,
+            serving({
+                [path]: { Items: Array.from({ length: 500 }, (_, i) => movie(i)) },
+                [second]: { Items: [movie(500)] }
+            })
+        );
+        expect((await paged.listUserLibrary(user)).length).toBe(501);
+    });
 });
 
 const SERIES_ITEMS = {
@@ -380,8 +393,8 @@ const EPISODE_ITEMS = {
     ]
 };
 
-const SERIES_ROUTE = '/Items?Recursive=true&IncludeItemTypes=Series&Fields=ProviderIds';
-const EPISODE_ROUTE = '/Items?userId=u1&Recursive=true&IncludeItemTypes=Episode&EnableUserData=true';
+const SERIES_ROUTE = '/Items?Recursive=true&IncludeItemTypes=Series&Fields=ProviderIds&EnableImages=false&Limit=500&StartIndex=0';
+const EPISODE_ROUTE = '/Items?userId=u1&Recursive=true&IncludeItemTypes=Episode&EnableUserData=true&EnableImages=false&Limit=500&StartIndex=0';
 
 describe('Jellyfin.listUserSeasons', () => {
     const adapter = () =>
@@ -420,6 +433,27 @@ describe('Jellyfin.listUserSeasons', () => {
         const items = await adapter().listUserSeasons(someone);
         expect(JSON.stringify(items)).not.toContain('Id-less Show');
         expect(items.every(i => Object.keys(i.ids).length > 0)).toBe(true);
+    });
+
+    it('pages the series and episode reads 500 at a time', async () => {
+        const show = (i: number) => ({ Id: `s${i}`, Name: `Show ${i}`, Type: 'Series', ProviderIds: { Tvdb: String(i + 1) } });
+        const episode = (i: number) => ({
+            Id: `ep${i}`,
+            SeriesId: `s${i}`,
+            ParentIndexNumber: 1,
+            IndexNumber: 1,
+            UserData: { Played: true }
+        });
+        const paged = new JellyfinAdapter(
+            multi,
+            serving({
+                [SERIES_ROUTE]: { Items: Array.from({ length: 500 }, (_, i) => show(i)) },
+                [SERIES_ROUTE.replace('StartIndex=0', 'StartIndex=500')]: { Items: [show(500)] },
+                [EPISODE_ROUTE]: { Items: Array.from({ length: 500 }, (_, i) => episode(i)) },
+                [EPISODE_ROUTE.replace('StartIndex=0', 'StartIndex=500')]: { Items: [episode(500)] }
+            })
+        );
+        expect((await paged.listUserSeasons(someone)).length).toBe(501);
     });
 
     it('carries no playback field, so it cannot fabricate presence on its own', async () => {
@@ -656,7 +690,7 @@ describe('Jellyfin.getWatchHistory with the activity log', () => {
 
 describe('Jellyfin.listUserLibrary empty series (#535)', () => {
     const path =
-        '/Items?userId=u1&Recursive=true&IncludeItemTypes=Movie,Series&Fields=ProviderIds,Genres,OriginalTitle,RecursiveItemCount&EnableUserData=true';
+        '/Items?userId=u1&Recursive=true&IncludeItemTypes=Movie,Series&Fields=ProviderIds,Genres,OriginalTitle,RecursiveItemCount&EnableUserData=true&EnableImages=false&Limit=500&StartIndex=0';
     it('marks a series with no episodes empty, and leaves films and full series alone', async () => {
         const items = {
             Items: [

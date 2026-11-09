@@ -93,15 +93,13 @@ type RawSession = {
     PlayState?: { PositionTicks?: number };
 };
 type RawItemsPage = { Items?: RawItem[] };
-/** The paged shape when `Fields=` are requested: those attach to the detail type. */
-type RawDetailPage = { Items?: RawItemDetail[] };
 
 /** Jellyfin measures time in 100-nanosecond ticks. Nothing else in the stack does. */
 const TICKS_PER_SECOND = 10_000_000;
 
-/** Album artists are paged: a large music library has thousands, and one
+/** Library reads are paged: a large library has thousands of items, and one
  *  unpaged read would be the slowest call in a library build. */
-const MUSIC_PAGE_SIZE = 500;
+const PAGE_SIZE = 500;
 const ticksToSeconds = (ticks: number | undefined): number | undefined =>
     typeof ticks === 'number' ? Math.round(ticks / TICKS_PER_SECOND) : undefined;
 
@@ -556,12 +554,12 @@ export class JellyfinAdapter
      * arrive with no external ids.
      */
     async listUserLibrary(user: ServiceUser): Promise<IndexInput[]> {
-        const page = await this.#http.get<{ Items?: RawItemDetail[] }>(
+        const items = await this.#pagedItems<RawItemDetail>(
             `/Items?userId=${encodeURIComponent(user.id)}&Recursive=true&IncludeItemTypes=Movie,Series` +
-                '&Fields=ProviderIds,Genres,OriginalTitle,RecursiveItemCount&EnableUserData=true'
+                '&Fields=ProviderIds,Genres,OriginalTitle,RecursiveItemCount&EnableUserData=true&EnableImages=false'
         );
 
-        return (page.Items ?? []).map(i => {
+        return items.map(i => {
             const tmdb = numericId(i.ProviderIds?.Tmdb);
             const tvdb = numericId(i.ProviderIds?.Tvdb);
 
@@ -608,28 +606,32 @@ export class JellyfinAdapter
      * nobody made.
      */
     async listUserMusic(user: ServiceUser): Promise<IndexInput[]> {
-        const out: IndexInput[] = [];
-        for (let start = 0; ; start += MUSIC_PAGE_SIZE) {
-            const page = await this.#http.get<RawDetailPage>(
-                `/Artists/AlbumArtists?userId=${encodeURIComponent(user.id)}&Recursive=true` +
-                    `&Fields=ProviderIds&Limit=${MUSIC_PAGE_SIZE}&StartIndex=${start}`
-            );
+        const items = await this.#pagedItems<RawItemDetail>(
+            `/Artists/AlbumArtists?userId=${encodeURIComponent(user.id)}&Recursive=true&Fields=ProviderIds`
+        );
+        return items.map(i => {
+            const mbid = i.ProviderIds?.MusicBrainzArtist;
+            return {
+                kind: 'artist' as const,
+                title: fenceText(i.Name ?? '', { service: this.id, field: 'Name' }),
+                ids: mbid === undefined || mbid === '' ? {} : { mbid },
+                playback: {
+                    user: user.name,
+                    ...(i.Id === undefined ? {} : { itemId: i.Id })
+                }
+            };
+        });
+    }
+
+    /** Reads every page of an items-shaped endpoint, `PAGE_SIZE` at a time,
+     *  stopping on the first short page. `path` must already carry a query. */
+    async #pagedItems<T>(path: string): Promise<T[]> {
+        const out: T[] = [];
+        for (let start = 0; ; start += PAGE_SIZE) {
+            const page = await this.#http.get<{ Items?: T[] }>(`${path}&Limit=${PAGE_SIZE}&StartIndex=${start}`);
             const items = page.Items ?? [];
-            out.push(
-                ...items.map(i => {
-                    const mbid = i.ProviderIds?.MusicBrainzArtist;
-                    return {
-                        kind: 'artist' as const,
-                        title: fenceText(i.Name ?? '', { service: this.id, field: 'Name' }),
-                        ids: mbid === undefined || mbid === '' ? {} : { mbid },
-                        playback: {
-                            user: user.name,
-                            ...(i.Id === undefined ? {} : { itemId: i.Id })
-                        }
-                    };
-                })
-            );
-            if (items.length < MUSIC_PAGE_SIZE) return out;
+            out.push(...items);
+            if (items.length < PAGE_SIZE) return out;
         }
     }
 
@@ -850,16 +852,16 @@ export class JellyfinAdapter
     }
 
     async listUserSeasons(user: ServiceUser): Promise<IndexInput[]> {
-        const series = await this.#http.get<{ Items?: RawItemDetail[] }>(
-            '/Items?Recursive=true&IncludeItemTypes=Series&Fields=ProviderIds'
+        const series = await this.#pagedItems<RawItemDetail>(
+            '/Items?Recursive=true&IncludeItemTypes=Series&Fields=ProviderIds&EnableImages=false'
         );
-        const episodes = await this.#http.get<{ Items?: RawEpisodeItem[] }>(
+        const episodes = await this.#pagedItems<RawEpisodeItem>(
             `/Items?userId=${encodeURIComponent(user.id)}&Recursive=true&IncludeItemTypes=Episode` +
-                '&EnableUserData=true'
+                '&EnableUserData=true&EnableImages=false'
         );
 
         const bySeries = new Map<string, Map<number, { watched: number; lastPlayed?: string }>>();
-        for (const episode of episodes.Items ?? []) {
+        for (const episode of episodes) {
             const seriesId = episode.SeriesId;
             const season = episode.ParentIndexNumber;
             if (seriesId === undefined || season === undefined) continue;
@@ -879,7 +881,7 @@ export class JellyfinAdapter
             seasons.set(season, row);
         }
 
-        return (series.Items ?? [])
+        return series
             .filter((s): s is RawItemDetail & { Id: string } => typeof s.Id === 'string' && bySeries.has(s.Id))
             .map(s => {
                 const tmdb = numericId(s.ProviderIds?.Tmdb);
