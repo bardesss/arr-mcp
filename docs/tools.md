@@ -1216,7 +1216,7 @@ Plex's `/library/onDeck` mixes resume and next-up rows with nothing marking
 which is which, so `active` and `next_up` split it by `viewOffset`: non-zero
 reads as resume, zero or absent as next-up.
 
-**Unverified live** (Plex): the resume and next-up split of `/library/onDeck`.
+**Unverified live** (Plex): that a non-zero `viewOffset` means resume, the basis of the resume and next-up split. The `/library/onDeck` read itself is captured.
 
 **Plex answers for one user only.** A local `X-Plex-Token` is scoped to a
 single Plex account, so every Plex row here is that account's — reading anyone
@@ -2460,9 +2460,11 @@ qBittorrent — the new one first, the old one only if it 404s.
 
 "This download failed, try it again", on the usenet client that holds the files,
 SABnzbd or NZBGet, or on Shelfmark. `id` is the one on that client's `get_history`
-or `get_queue` row. The preview picks what to send from the job itself and shows it:
+or `get_queue` row.
 
 **Unverified live** (Shelfmark): retrying a failed book or a Prowlarr row.
+
+The preview picks what to send from the job itself and shows it:
 
 - **Shelfmark:** a failed or cancelled book goes back to the front of its queue,
   under the same id, if Shelfmark marks the row as retryable. `password` is refused.

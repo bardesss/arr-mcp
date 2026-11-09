@@ -80,7 +80,7 @@ describe('tools that have never run against a live service', () => {
 
     it('has no row twice', () => {
         const keys = table.map(r => `${r.tool}/${r.service}`);
-        // One tool x service pair may carry several paths, joined in one row.
+        // Several paths of one tool and service share a single row.
         expect(new Set(keys).size).toBe(keys.length);
     });
 

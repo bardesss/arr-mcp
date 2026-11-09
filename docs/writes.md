@@ -399,7 +399,7 @@ the run.
 
 | Tool | Service | What | Why |
 | --- | --- | --- | --- |
-| `get_playback` | `plex` | Splitting `/library/onDeck` into resume and next-up by `viewOffset` | Plex marks neither kind, and no Plex is on the maintainer's stack to check the split |
+| `get_playback` | `plex` | Reading a non-zero `viewOffset` as resume and the rest as next-up, in `/library/onDeck` | Plex marks neither kind, and nobody has checked the split against a live server with an in-progress item; the read itself is captured |
 | `pause_downloads` | `qbittorrent` | Pause, resume and the speed limit, on both the v4 and v5 verbs | No qBittorrent on the maintainer's stack; written from the WebUI API description |
 | `grab_release` | `qbittorrent` | A magnet link sent to the client | No qBittorrent on the maintainer's stack |
 | `get_queue` | `qbittorrent` | `by_tracker` seed time per tracker | No qBittorrent on the maintainer's stack; waits on a capture from a user who runs one |
