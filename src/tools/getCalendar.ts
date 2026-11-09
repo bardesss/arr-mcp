@@ -134,7 +134,7 @@ export function registerGetCalendar(server: McpServer, adapters: readonly Servic
             }),
             inputSchema: toolInput({
                 kind: MediaKindSchema.describe(
-                    'Only films (Radarr), series (Sonarr, Whisparr) or Lidarr artists\' albums; only those services are asked. Omit for all.'
+                    'Only one service\'s calendar: `movie` (Radarr), `series` (Sonarr, Whisparr), `artist` (Lidarr\'s albums). Pass it when the request names one of those services; only they are asked. Omit for all.'
                 ),
                 detail: DetailSchema,
                 limit: LimitSchema,

@@ -12,7 +12,9 @@ import type { QueueCapable, ServiceAdapter } from '../services/types.ts';
 export const MediaKindSchema = z
     .enum(['movie', 'series', 'artist', 'book'])
     .optional()
-    .describe('Only films, series (Sonarr, Whisparr), Lidarr artists or books. Omit for all. Services that hold none of that kind are not asked.');
+    .describe(
+        'What the title is, which is also the service that holds it: `movie` (Radarr), `series` (Sonarr, Whisparr), `artist` (Lidarr), `book` (Shelfmark, Grimmory). Pass it when the request names one of those services. Services holding another kind are not asked. Omit for all.'
+    );
 
 /**
  * What a service holds, when it says. The *arrs, Shelfmark and Grimmory

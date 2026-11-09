@@ -169,7 +169,10 @@ unpaginable, never having learned that `limit` was the parameter it wanted.
 ## Narrowing a read to one kind
 
 `search_media`, `lookup_media`, `get_queue` and `get_calendar` take an optional
-`kind`: `movie`, `series`, `artist` or `book`, the same values as `get_library`.
+`kind`: `movie` (Radarr), `series` (Sonarr, Whisparr), `artist` (Lidarr) or `book`
+(Shelfmark, Grimmory), the same values as `get_library`. The parameter names the
+services next to each kind, so a request that only says "add it to Radarr" still
+leads the model to `kind: "movie"`.
 Without it they read every service, as they always have. With it, a service that
 holds a different kind is not asked at all, so a question about Radarr no longer
 waits on Lidarr and Shelfmark or gets their answers mixed in.

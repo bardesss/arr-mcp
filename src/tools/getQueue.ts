@@ -126,7 +126,7 @@ export function registerGetQueue(server: McpServer, adapters: readonly ServiceAd
             outputSchema: PagedOutputSchema,
             inputSchema: toolInput({
                 kind: MediaKindSchema.describe(
-                    'Only the queue of the services holding films, series (Sonarr, Whisparr), Lidarr artists or books. Download clients are left out, since their rows are the same downloads. Omit for everything.'
+                    'Only one service\'s queue: `movie` (Radarr), `series` (Sonarr, Whisparr), `artist` (Lidarr), `book` (Shelfmark, Grimmory\'s Bookdrop). Pass it when the request names one of those services. Download clients are left out, since their rows are the same downloads. Omit for everything.'
                 ),
                 detail: DetailSchema,
                 limit: LimitSchema,
