@@ -272,7 +272,6 @@ export function registerGetHistory(server: McpServer, adapters: readonly Service
             description:
                 'What happened to a download after it left the queue (grabbed, imported, failed, deleted), merged across the *arrs, SABnzbd, NZBGet, Bazarr (`subtitle` rows), Cleanuparr (strikes and removals), Reclaimerr (cleanup), Shelfmark and Grimmory, in one vocabulary with the upstream word kept as `rawEvent`. This answers "why did last night\'s download fail": get_queue cannot see finished or failed items, and a failure carries the download client\'s own message. Pass `service` and `id` to scope it to one movie, series or Lidarr artist. `downloadId` links a row to its *arr grab[[nzbget: ; on an NZBGet row it is what trigger_scan `action: "postprocess"` takes]]. [[radarr|sonarr: Deleting a title also deletes its Radarr and Sonarr history, so `source: "webhooks"` reads what they reported to arr-mcp instead, when the library event log is on.]] Field reference: arr://docs/get_history.',
             outputSchema: PagedOutputSchema.extend({
-                totalIsUpperBound: z.boolean().optional().describe('`total` is a ceiling: the read stopped early.'),
                 note: z.string().optional().describe('Why a `source: "webhooks"` answer may be empty: the log is off, or nothing has arrived.')
             }),
             inputSchema: toolInput({

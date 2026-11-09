@@ -1775,7 +1775,7 @@ Rows carry `mediaId` for `get_media_details` (on a Lidarr row, the artist id)
 and `id` for `remove_blocklist_item`, and are newest first, because a blocklist
 is read to explain something that has just gone wrong.
 
-It reads only the newest rows the window needs; `remove_blocklist_item`'s preview stops reading once it finds the id.
+When the service sorts newest first, it reads only the newest rows the window needs; `remove_blocklist_item`'s preview stops reading once it finds the id.
 
 `remove_blocklist_item` withdraws one refusal, so the release can be grabbed
 again. Safe tier: nothing on disk changes, and the inverse already exists —
