@@ -2,7 +2,9 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, listText, toolInput, type DetailLevel } from '../core/shape.ts';
 import type { ImdbDataset } from '../metadata/imdbDataset.ts';
+import type { LibraryKind } from '../core/resolver.ts';
 import type { ServiceAdapter } from '../services/types.ts';
+import { MediaKindSchema } from './mediaKind.ts';
 import { buildSearchMedia, searchLine, type GetSearchResult } from './searchMedia.ts';
 
 /**
@@ -15,7 +17,7 @@ import { buildSearchMedia, searchLine, type GetSearchResult } from './searchMedi
  */
 export async function buildLookupMedia(
     adapters: readonly ServiceAdapter[],
-    opts: { query: string; detail: DetailLevel; limit: number; offset?: number },
+    opts: { query: string; detail: DetailLevel; limit: number; offset?: number; kinds?: readonly LibraryKind[] },
     dataset?: ImdbDataset
 ): Promise<GetSearchResult> {
     return buildSearchMedia(adapters, { ...opts, source: 'discover' }, dataset);
@@ -32,17 +34,22 @@ export function registerLookupMedia(
             title: 'Look up a title externally',
             annotations: READ_ONLY,
             description:
-                'Metadata for something you may not have: title, year, and external ids, from Radarr, Sonarr, Whisparr, Lidarr and Seerr, plus books from Shelfmark (`kind: book`, whose id get_releases takes). A Lidarr hit is an artist, keyed by its MusicBrainz id under `ids.mbid`, which is what add_media takes for Lidarr. Query imdb:tt… to turn an IMDb id into a TMDB id; a bare tt… misses Seerr. Reads only — nothing is added, requested or monitored.',
+                'Metadata for something you may not have: title, year, and external ids, from Radarr, Sonarr, Whisparr, Lidarr and Seerr, plus books from Shelfmark (`kind: book`, whose id get_releases takes). A Lidarr hit is an artist, keyed by its MusicBrainz id under `ids.mbid`, which is what add_media takes for Lidarr. Query imdb:tt… to turn an IMDb id into a TMDB id; a bare tt… misses Seerr. Pass `kind` when you know what it is (`movie` for Radarr), and the other services are not asked. Reads only — nothing is added, requested or monitored.',
             outputSchema: PagedOutputSchema,
             inputSchema: toolInput({
-                query: z.string().min(1).describe('What to look up.'),
+                query: z.string().min(1).describe('What to look up. A trailing year ("Title 2027") ranks that year first.'),
+                kind: MediaKindSchema,
                 detail: DetailSchema,
                 limit: LimitSchema,
                 offset: OffsetSchema
             })
         },
-        async ({ query, detail, limit, offset }) => {
-            const result = await buildLookupMedia(adapters, { query, detail, limit, offset }, dataset);
+        async ({ query, kind, detail, limit, offset }) => {
+            const result = await buildLookupMedia(
+                adapters,
+                { query, detail, limit, offset, ...(kind === undefined ? {} : { kinds: [kind] }) },
+                dataset
+            );
             const summary =
                 result.total === 0
                     ? `Nothing found for "${query}".`

@@ -166,6 +166,31 @@ unpaginable, never having learned that `limit` was the parameter it wanted.
 
 [#103]: https://github.com/bardesss/arr-mcp/issues/103
 
+## Narrowing a read to one kind
+
+`search_media`, `lookup_media`, `get_queue` and `get_calendar` take an optional
+`kind`: `movie`, `series`, `artist` or `book`, the same values as `get_library`.
+Without it they read every service, as they always have. With it, a service that
+holds a different kind is not asked at all, so a question about Radarr no longer
+waits on Lidarr and Shelfmark or gets their answers mixed in.
+
+- **The search tools** still ask the services that hold more than one kind
+  (Seerr, Plex, Jellyfin, Prowlarr), then keep that kind from what they return.
+  A hit whose kind the service could not tell, such as an indexer's release or a
+  media server's generic item, is kept.
+- **`get_queue`** leaves the download clients out. Their rows are the same
+  downloads the *arr already lists, and a client cannot say what a download is.
+- **`get_calendar`** asks only the *arr holding that kind. `series` covers
+  Sonarr and Whisparr, and `artist` gives Lidarr's albums.
+
+**A trailing year is read as a year** in `search_media` and `lookup_media`:
+`Paranormal Activity 2027`, `(2027)` or `[2027]`. The services get the title
+alone, and hits from that year rank first among equally good title matches. A
+title that ends in its own number still wins over the shorter title, so `Wonder
+Woman 1984` comes before `Wonder Woman`. Only years from 1870 to five years ahead
+count, which leaves `Blade Runner 2049` whole, and an indexer search keeps the
+year, because release names carry it.
+
 ## `get_history` and the event log
 
 `delete_media` removes a title's history from Radarr or Sonarr along with the
