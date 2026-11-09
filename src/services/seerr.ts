@@ -79,7 +79,15 @@ type RawIssue = {
     issueType?: number;
     status?: number;
     createdAt?: string;
-    media?: { title?: string };
+    /**
+     * A MediaInfo, not a titled row: the recorded fixture carries `id`,
+     * `mediaType`, `tmdbId` and `tvdbId` (null for movies) and no title at
+     * all (specs/seerr.json: `Issue.media` is a `MediaInfo`). `title` stays
+     * read for tolerance — older payloads and hand-written shapes may carry
+     * one — but the title a caller sees comes from the media detail endpoint
+     * in `getIssues`, not from here.
+     */
+    media?: { id?: number; mediaType?: string; tmdbId?: number; tvdbId?: number | null; title?: string };
     createdBy?: { displayName?: string; username?: string; email?: string };
     comments?: { message?: string }[];
 };
@@ -331,6 +339,14 @@ export class SeerrAdapter
      * request `sort=added` is sent, and on the request list that returns newest
      * first. The issue order itself was not observed: the live store held a
      * single issue.
+     *
+     * Each issue also names the media it is about. The issue payload itself
+     * carries the ids (MediaInfo: `id`, `mediaType`, `tmdbId`, `tvdbId`) but
+     * no title, so the title is resolved from the media detail endpoint —
+     * the same read `getMediaRequests` already makes — once per distinct
+     * title, not once per issue. A title that cannot be read leaves the ids
+     * in place rather than failing the whole list: issues are never a reason
+     * for `get_requests` to fail.
      */
     async getIssues(opts: { limit: number }): Promise<MediaIssue[]> {
         const params = new URLSearchParams({
@@ -342,20 +358,50 @@ export class SeerrAdapter
         const page = await this.#http.get<{ pageInfo?: PageInfo; results?: RawIssue[] }>(
             `/api/v1/issue?${params.toString()}`
         );
-        const rows = page.results ?? [];
-
-        return rows
+        const rows = (page.results ?? [])
             .filter((i): i is RawIssue & { id: number } => typeof i.id === 'number')
-            .slice(0, opts.limit)
-            .map(i => ({
+            .slice(0, opts.limit);
+
+        const lookups = new Map<string, Promise<string | undefined>>();
+        for (const i of rows) {
+            const mediaType = mediaTypeOf(i.media?.mediaType);
+            if (i.media?.title !== undefined || i.media?.tmdbId === undefined || mediaType === 'unknown') continue;
+            const key = `${mediaType}:${i.media.tmdbId}`;
+            if (!lookups.has(key)) {
+                lookups.set(
+                    key,
+                    this.getMediaRequests(mediaType, i.media.tmdbId)
+                        .then(r => r.media?.title)
+                        .catch(() => undefined)
+                );
+            }
+        }
+        const titles = new Map(
+            await Promise.all([...lookups].map(async ([key, p]) => [key, await p] as const))
+        );
+
+        return rows.map(i => {
+            const mediaType = mediaTypeOf(i.media?.mediaType);
+            const title =
+                i.media?.title === undefined
+                    ? mediaType === 'unknown' || i.media?.tmdbId === undefined
+                        ? undefined
+                        : titles.get(`${mediaType}:${i.media.tmdbId}`)
+                    : fenceText(i.media.title, { service: this.id, field: 'title' });
+            return {
                 service: this.id,
                 id: String(i.id),
                 kind: ISSUE_TYPE[i.issueType ?? -1] ?? 'other',
                 status: ISSUE_STATUS[i.status ?? -1] ?? 'unknown',
                 ...(i.createdAt === undefined ? {} : { createdAt: i.createdAt }),
-                ...(i.media?.title === undefined
-                    ? {}
-                    : { title: fenceText(i.media.title, { service: this.id, field: 'title' }) }),
+                ...(mediaType === 'unknown' ? {} : { mediaType }),
+                ...(i.media?.tmdbId === undefined ? {} : { tmdbId: i.media.tmdbId }),
+                // Seerr's MediaInfo carries tvdbId nullable (specs/seerr.json):
+                // populated for tv media, always null for movies. Matching
+                // #toRequest, which omits it in both cases.
+                ...(i.media?.tvdbId === undefined || i.media?.tvdbId === null ? {} : { tvdbId: i.media.tvdbId }),
+                ...(i.media?.id === undefined ? {} : { seerrMediaId: i.media.id }),
+                ...(title === undefined ? {} : { title }),
                 ...((name => (name === undefined ? {} : { reportedBy: fenceText(name, { service: this.id, field: 'user' }) }))(
                     nameOf(i.createdBy ?? {})
                 )),
@@ -364,7 +410,8 @@ export class SeerrAdapter
                     .map(c => c.message)
                     .filter((m): m is string => typeof m === 'string' && m !== '')
                     .map(m => fenceText(m, { service: this.id, field: 'comment' }))
-            }));
+            };
+        });
     }
 
     /**
