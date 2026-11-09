@@ -1,5 +1,5 @@
 import { ConfigEditError } from './mutate.ts';
-import { ConfigSchema, MediaServerIdSchema, type Config, type MediaServerId } from './schema.ts';
+import { ConfigSchema, MediaServerIdSchema, mediaServersIn, type Config, type MediaServerId } from './schema.ts';
 import { generateManagementKey, type ManagementKeyTier } from '../core/managementKey.ts';
 import { hashToken } from '../core/secrets.ts';
 
@@ -61,8 +61,7 @@ export function revokeManagementKey(config: Config, name: string): Config {
     return { ...config, auth: { ...auth, ...(left.length === 0 ? {} : { management_keys: left }) } };
 }
 
-export const configuredMediaServers = (config: Config): MediaServerId[] =>
-    MediaServerIdSchema.options.filter(id => config.services[id] !== undefined);
+export const configuredMediaServers = (config: Config): MediaServerId[] => mediaServersIn(config.services);
 
 /** Only meaningful with both configured; with one, naming that one is a no-op. */
 export function setPrimaryMediaServer(config: Config, primary: string): Config {

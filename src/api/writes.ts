@@ -1,7 +1,7 @@
 import type { Hono } from 'hono';
 import * as z from 'zod/v4';
 import { setImdb, setMcpEndpoint, setPrimaryMediaServer } from '../config/edits.ts';
-import { addCandidate, addToken, API_KEY_OPTIONAL, ConfigEditError, NO_API_KEY, removeInstance, revokeToken, updateInstance } from '../config/mutate.ts';
+import { addCandidate, addToken, ConfigEditError, removeInstance, revokeToken, updateInstance } from '../config/mutate.ts';
 import { logger } from '../core/logger.ts';
 import { managementKeyField } from '../core/managementKey.ts';
 import { buildAdapters } from '../services/registry.ts';
@@ -12,6 +12,7 @@ import { API_BASE, apiError, withEtag } from './http.ts';
 import type { ApiDeps } from './index.ts';
 import { appResource, findInstance, imdbSettings, mcpSettings, mediaServerSettings, tokenResources } from './resources.ts';
 import { applyWrite } from './write.ts';
+import { serviceTraits } from '../config/schema.ts';
 
 const ImdbBody = z.strictObject({
     enabled: z.boolean(),
@@ -176,7 +177,7 @@ export function registerWrites(app: Hono, deps: ApiDeps): void {
         const body = parseWith(c, NewAppBody, raw);
         if (body instanceof Response) return body;
         const name = body.name ?? undefined;
-        if (!NO_API_KEY.has(body.type) && !API_KEY_OPTIONAL.has(body.type) && (body.apiKey === undefined || body.apiKey.trim() === '')) {
+        if (serviceTraits(body.type).required.has('api_key') && (body.apiKey === undefined || body.apiKey.trim() === '')) {
             return apiError(c, 400, `apiKey is required for ${body.type}.`);
         }
 

@@ -89,7 +89,10 @@ function sizeOf(raw: RawRelease): number | undefined {
     const unit = SIZE_UNITS[match?.[2]?.toUpperCase() ?? ''];
     return match === null || unit === undefined ? undefined : Math.round(Number(match[1]) * unit);
 }
-const isForbidden = (err: unknown): boolean => err instanceof ServiceError && err.kind === 'AuthFailed' && err.detail.includes('HTTP 403');
+const isForbidden = (err: unknown): boolean => err instanceof ServiceError && err.status === 403;
+
+/** What a read gives back when the key turns out to be the read-only one. */
+const READ_ONLY_KEY: unique symbol = Symbol('read-only key');
 /**
  * A hash, never `source_id` itself: on a Prowlarr row that is the indexer's own
  * download URL, API key and all, and a guid is shown to the caller. `source` and
@@ -147,15 +150,8 @@ export class ShelfmarkAdapter
      * fails and `get_queue` reports Shelfmark as degraded.
      */
     async getQueue(): Promise<QueueItem[]> {
-        if (this.#readOnly) throw new ServiceError('AuthFailed', this.id, 'the read-only key cannot read the queue', { remedy: REMEDY_FULL_KEY });
-        let body: Record<string, unknown>;
-        try {
-            body = await this.#http.get<Record<string, unknown>>(STATUS_PATH);
-        } catch (err) {
-            if (!isForbidden(err)) throw err;
-            this.#readOnly = true;
-            throw new ServiceError('AuthFailed', this.id, 'the read-only key cannot read the queue', { remedy: REMEDY_FULL_KEY });
-        }
+        const body = await this.#fullKey(() => this.#http.get<Record<string, unknown>>(STATUS_PATH));
+        if (body === READ_ONLY_KEY) throw new ServiceError('AuthFailed', this.id, 'the read-only key cannot read the queue', { remedy: REMEDY_FULL_KEY });
         return QUEUE_STATUSES.flatMap(status => {
             const tasks = body[status];
             if (typeof tasks !== 'object' || tasks === null) return [];
@@ -227,7 +223,10 @@ export class ShelfmarkAdapter
             if (isForbidden(err)) throw new ServiceError('AuthFailed', this.id, `the read-only key cannot ${verb} a download`, { remedy: REMEDY_FULL_KEY });
             if (err.kind === 'NotFound') throw new ServiceError('NotFound', this.id, `Shelfmark no longer has that download in a state it can ${verb}`, { remedy: 'It may just have finished. Call get_queue or get_history for where it stands.' });
             const detail = err.detail.replaceAll(encoded, '[download]');
-            throw new ServiceError(err.kind, this.id, detail, err.remedy === undefined ? undefined : { remedy: err.remedy });
+            throw new ServiceError(err.kind, this.id, detail, {
+                ...(err.remedy === undefined ? {} : { remedy: err.remedy }),
+                ...(err.status === undefined ? {} : { status: err.status })
+            });
         }
     }
 
@@ -284,16 +283,21 @@ export class ShelfmarkAdapter
     }
 
     /** A read only a full key can make, with the first refusal remembered. */
-    async #adminRead<T>(path: string, what: string): Promise<T> {
-        const refused = () => new ServiceError('AuthFailed', this.id, `the read-only key cannot ${what}`, { remedy: REMEDY_FULL_KEY });
-        if (this.#readOnly) throw refused();
+    async #fullKey<T>(read: () => Promise<T>): Promise<T | typeof READ_ONLY_KEY> {
+        if (this.#readOnly) return READ_ONLY_KEY;
         try {
-            return await this.#http.get<T>(path);
+            return await read();
         } catch (err) {
             if (!isForbidden(err)) throw err;
             this.#readOnly = true;
-            throw refused();
+            return READ_ONLY_KEY;
         }
+    }
+
+    async #adminRead<T>(path: string, what: string): Promise<T> {
+        const body = await this.#fullKey(() => this.#http.get<T>(path));
+        if (body === READ_ONLY_KEY) throw new ServiceError('AuthFailed', this.id, `the read-only key cannot ${what}`, { remedy: REMEDY_FULL_KEY });
+        return body;
     }
 
     #fencedTitle(task: RawTask): string {
@@ -309,15 +313,11 @@ export class ShelfmarkAdapter
 
     /** Books not yet owned, so `discover` only. A read-only key cannot search: the first refusal is remembered. */
     async search(query: string, source: SearchSource): Promise<SearchHit[]> {
-        if (source !== 'discover' || this.#readOnly) return [];
-        let body: { books?: RawBook[] };
-        try {
-            body = await this.#http.get<{ books?: RawBook[] }>(`${SEARCH_PATH}?${new URLSearchParams({ query, limit: String(SEARCH_LIMIT) }).toString()}`);
-        } catch (err) {
-            if (!isForbidden(err)) throw err;
-            this.#readOnly = true;
-            return [];
-        }
+        if (source !== 'discover') return [];
+        const body = await this.#fullKey(() =>
+            this.#http.get<{ books?: RawBook[] }>(`${SEARCH_PATH}?${new URLSearchParams({ query, limit: String(SEARCH_LIMIT) }).toString()}`)
+        );
+        if (body === READ_ONLY_KEY) return [];
         return (body.books ?? []).flatMap(book => {
             const provider = str(book.provider);
             const providerId = str(book.provider_id);
@@ -396,16 +396,11 @@ export class ShelfmarkAdapter
         }
         const listed = this.#listed.get(id);
         if (listed !== undefined && Date.now() - listed.at < RELEASES_FRESH_MS) return listed.rows;
-        if (this.#readOnly) throw new ServiceError('AuthFailed', this.id, 'the read-only key cannot search for releases', { remedy: REMEDY_FULL_KEY });
         const query = new URLSearchParams({ provider: id.slice(0, separator), book_id: id.slice(separator + 1), content_type: 'ebook' });
-        let body: { releases?: unknown };
-        try {
-            body = await this.#http.get<{ releases?: unknown }>(`${RELEASES_PATH}?${query.toString()}`, { timeoutMs: RELEASE_SEARCH_TIMEOUT_MS, retry: false });
-        } catch (err) {
-            if (!isForbidden(err)) throw err;
-            this.#readOnly = true;
-            throw new ServiceError('AuthFailed', this.id, 'the read-only key cannot search for releases', { remedy: REMEDY_FULL_KEY });
-        }
+        const body = await this.#fullKey(() =>
+            this.#http.get<{ releases?: unknown }>(`${RELEASES_PATH}?${query.toString()}`, { timeoutMs: RELEASE_SEARCH_TIMEOUT_MS, retry: false })
+        );
+        if (body === READ_ONLY_KEY) throw new ServiceError('AuthFailed', this.id, 'the read-only key cannot search for releases', { remedy: REMEDY_FULL_KEY });
         const rows = (Array.isArray(body.releases) ? (body.releases as unknown[]) : []).filter((r): r is RawRelease => typeof r === 'object' && r !== null && guidOf(r as RawRelease) !== undefined);
         this.#listed.delete(id);
         this.#listed.set(id, { at: Date.now(), rows });
@@ -440,15 +435,8 @@ export class ShelfmarkAdapter
 
     /** Undefined for a read-only key, and for a build with no release version set: Shelfmark reports `N/A`. */
     async #readVersion(): Promise<string | undefined> {
-        if (this.#readOnly) return undefined;
-        let body: RawConfig;
-        try {
-            body = await this.#http.get<RawConfig>(CONFIG_PATH);
-        } catch (err) {
-            if (!isForbidden(err)) throw err;
-            this.#readOnly = true;
-            return undefined;
-        }
+        const body = await this.#fullKey(() => this.#http.get<RawConfig>(CONFIG_PATH));
+        if (body === READ_ONLY_KEY) return undefined;
         const version = body.release_version;
         return typeof version === 'string' && version !== '' && version !== 'N/A' ? version : undefined;
     }
@@ -469,7 +457,7 @@ export class ShelfmarkAdapter
             await this.#public.get<unknown>(HEALTH_PATH);
             return true;
         } catch (err) {
-            if (err instanceof ServiceError && err.kind === 'UpstreamError' && err.detail.includes('HTTP 503')) return false;
+            if (err instanceof ServiceError && err.status === 503) return false;
             throw err;
         }
     }

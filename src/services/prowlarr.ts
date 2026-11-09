@@ -270,7 +270,7 @@ export class ProwlarrAdapter
             const created = await this.#http.post<{ id?: number }>('/api/v1/indexer', body);
             return created.id ?? 0;
         } catch (err) {
-            if (err instanceof ServiceError && err.detail.startsWith('HTTP 400')) {
+            if (err instanceof ServiceError && err.status === 400) {
                 throw new ServiceError('UpstreamError', this.id, `Prowlarr refused to add ${definitionName}`, {
                     remedy: "Prowlarr tests an indexer before saving it, and the test failed: the site is usually down, blocked, or behind a captcha from here. Prowlarr's logs have its reason. Nothing was added.",
                     cause: err

@@ -1,5 +1,41 @@
 # Changelog
 
+## [1.75.2](https://github.com/bardesss/arr-mcp/compare/v1.75.1...v1.75.2) (2026-11-09)
+
+
+### Bug Fixes
+
+* **lidarr:** say when a new metadata profile applies ([#550](https://github.com/bardesss/arr-mcp/issues/550)) ([c275f4e](https://github.com/bardesss/arr-mcp/commit/c275f4e216169e1fc6478bc240c41badf575e567))
+
+## [1.75.1](https://github.com/bardesss/arr-mcp/compare/v1.75.0...v1.75.1) (2026-11-09)
+
+
+### Bug Fixes
+
+* draw generated passwords without modulo bias, and keep a denied cache write from failing the image build ([#551](https://github.com/bardesss/arr-mcp/issues/551)) ([be09aff](https://github.com/bardesss/arr-mcp/commit/be09aff48fffa2316684142e4b5ef7e0cef8d481))
+
+## [1.75.0](https://github.com/bardesss/arr-mcp/compare/v1.74.0...v1.75.0) (2026-11-09)
+
+
+### Features
+
+* **add_media:** adopt an existing folder, and flag empty media-server series ([#544](https://github.com/bardesss/arr-mcp/issues/544)) ([8d38613](https://github.com/bardesss/arr-mcp/commit/8d3861391074344567d7655323ca9f91c9aa9193))
+* **get_queue:** filter the queue on the server ([#539](https://github.com/bardesss/arr-mcp/issues/539)) ([44b69bf](https://github.com/bardesss/arr-mcp/commit/44b69bfda48c4e081a70d17f5f76bc3ce3b53df4)), closes [#530](https://github.com/bardesss/arr-mcp/issues/530)
+* **get_queue:** seed time per tracker ([#540](https://github.com/bardesss/arr-mcp/issues/540)) ([fec1670](https://github.com/bardesss/arr-mcp/commit/fec16708141cfc32a81e628383e1d23a62cfd028)), closes [#531](https://github.com/bardesss/arr-mcp/issues/531)
+* **mcp:** show poster cards in MCP Apps hosts ([#538](https://github.com/bardesss/arr-mcp/issues/538)) ([290320d](https://github.com/bardesss/arr-mcp/commit/290320dfb9aab732c5f744bb1d004bb005adaae2))
+* **tools:** narrow search, lookup, queue and calendar to one kind ([#536](https://github.com/bardesss/arr-mcp/issues/536)) ([7ec2119](https://github.com/bardesss/arr-mcp/commit/7ec2119c24b4af8ab893c957f644f586cffeef71))
+* **trigger_scan:** approve one Grimmory Bookdrop file ([#541](https://github.com/bardesss/arr-mcp/issues/541)) ([3a4edda](https://github.com/bardesss/arr-mcp/commit/3a4eddac809b1432962a9f9c420f1b5f53c03928)), closes [#532](https://github.com/bardesss/arr-mcp/issues/532)
+
+
+### Bug Fixes
+
+* restore the lockfile's libc fields, and keep the status on a rewrapped Shelfmark error ([#549](https://github.com/bardesss/arr-mcp/issues/549)) ([a6575ef](https://github.com/bardesss/arr-mcp/commit/a6575ef46270fb37555d860ba9af0d206653f8c1))
+* **tools:** name the sibling tool to use in eight read descriptions ([#546](https://github.com/bardesss/arr-mcp/issues/546)) ([7686788](https://github.com/bardesss/arr-mcp/commit/76867888ba6d6e212fe7d07c2e90609c15525ecd))
+* **update_media:** make a Lidarr metadata profile change a destructive-tier write ([#533](https://github.com/bardesss/arr-mcp/issues/533)) ([670e221](https://github.com/bardesss/arr-mcp/commit/670e221df50eed1cb401aeabf110321c20e4e47e))
+* **update_media:** move Radarr and Sonarr files to a new root folder ([#548](https://github.com/bardesss/arr-mcp/issues/548)) ([58f661b](https://github.com/bardesss/arr-mcp/commit/58f661b347a002ce7530c0feb8519aba85165f81))
+* **web:** unfence library events stored before the shorter closing marker ([#542](https://github.com/bardesss/arr-mcp/issues/542)) ([3a9b258](https://github.com/bardesss/arr-mcp/commit/3a9b25830e3808c1ed7e1e1daab00fffd56ec950))
+* **writes:** bind what a preview showed and refuse a write before reading for it ([#537](https://github.com/bardesss/arr-mcp/issues/537)) ([2276e45](https://github.com/bardesss/arr-mcp/commit/2276e45cb6d272ce3d5c8a2b3912a62a426681f5))
+
 ## [1.74.0](https://github.com/bardesss/arr-mcp/compare/v1.73.1...v1.74.0) (2026-11-08)
 
 

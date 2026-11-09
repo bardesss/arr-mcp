@@ -378,7 +378,7 @@ export class ServiceHttp {
             return this.#attempt<T>(method, path, body, false, read, timeoutMs);
         }
 
-        const httpError = classifyHttpStatus(response.status, this.#id, safeUrl(target));
+        const httpError = classifyHttpStatus(response.status, this.#id, safeUrl(target), this.#auth.remedy);
         if (httpError) {
             await discard(response);
             throw httpError;

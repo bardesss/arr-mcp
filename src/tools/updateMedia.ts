@@ -1,6 +1,8 @@
+import { instanceArgs, resolveInstance } from './resolveInstance.ts';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { ServiceError } from '../core/errors.ts';
+import type { NextStep } from '../core/nextStep.ts';
 import {
     hasBookMetadata,
     hasMediaAdd,
@@ -36,6 +38,11 @@ import { targetInput, writeTarget } from './writeTarget.ts';
  * the next refresh delete the albums it leaves out, and switching back brings
  * them in again as new albums, without their old flags (see
  * `metadataProfileEffect`). The same tool cannot set that back.
+ *
+ * A Lidarr `move_files: false` change stays safe. It can leave the track files'
+ * recorded paths at the new root folder (see `pointedWithoutMoving`), which the
+ * preview names, and moving the files there with `move_files: true` and back
+ * sets them right again.
  */
 
 /** What each of Lidarr's rules for new albums does with the albums a broader profile brings in. */
@@ -52,19 +59,59 @@ const BROUGHT_IN: Readonly<Record<ArtistMonitorNewItems, string>> = {
  * out unless they have files or were added by hand
  * (`RefreshAlbumService.ShouldDelete`), and a switch back brings them in again
  * as new albums, flagged by the artist's `monitorNewItems` rather than with
- * their old flags (`RefreshArtistService.ProcessChildren`). So this is the one
- * field here the same tool cannot always set back. The albums it brings in are
- * flagged by that rule; `new` compares them with the artist's dated albums that
- * the new profile also lists (`children.Updated`), and monitors every one when
- * there is none (`MonitorNewAlbumService`).
+ * their old flags (`RefreshArtistService.ProcessChildren`). So the same tool
+ * cannot always set this field back. The albums it brings in are flagged by
+ * that rule; `new` compares them with the artist's dated albums that the new
+ * profile also lists (`children.Updated`), and monitors every one when there
+ * is none (`MonitorNewAlbumService`).
+ *
+ * The next refresh may not come until the artist changes upstream. Lidarr's
+ * daily `RefreshArtist` takes only the artists its metadata server lists as
+ * changed since the last run (`GetChangedArtists`). It goes by age instead
+ * (`ShouldRefreshArtist`: an active artist two days after its last refresh,
+ * an ended one 30 days after, or 12 hours after when its newest album came out
+ * in the last 30 days or is still to come) only when that list is empty or
+ * marked limited, or was not asked for because the previous run started over
+ * 14 days ago. Before 3.1.5.5066 it goes by age only when the list is marked
+ * limited, and after such a gap refreshes no artist at all
+ * (`RefreshArtistService`). The preview gives only the outcome (the rules are
+ * in `docs/tools.md`), and an applied switch offers `trigger_scan` on the
+ * artist, which refreshes it now.
  */
-function metadataProfileEffect(from: string, to: QualityProfile, rule: ArtistMonitorNewItems | undefined): string {
-    const head = `Switches the metadata profile from ${from} to ${to.display} (id ${to.id}). Lidarr applies it at the artist's next refresh, which this does not start.`;
+function metadataProfileEffect(
+    from: string,
+    to: QualityProfile,
+    rule: ArtistMonitorNewItems | undefined,
+    offered: boolean
+): string {
+    const head = `Switches the metadata profile from ${from} to ${to.display} (id ${to.id}). Lidarr applies it at the artist's next refresh, which this does not start and which may not come until the artist changes upstream; trigger_scan with its \`id\` refreshes it now${offered ? ', and is offered once this is applied' : ', but is not offered here, since it also rescans the root folders: run it once the files are in the new root folder'}.`;
     if (to.name === NO_ALBUMS_PROFILE) {
         return `${head} None lists no albums for the artist, so that refresh removes every album without files that was not added by hand, and switching back later brings them in again as new albums, flagged by \`monitor_new_items\` rather than as they are now.`;
     }
     const brought = rule === undefined ? "Albums it brings in are flagged by the artist's rule for new albums, `monitor_new_items`." : BROUGHT_IN[rule];
-    return `${head} Albums the new profile leaves out are removed then, unless they have files or were added by hand, and switching back later brings them in again as new albums, without their old flags. ${brought}`;
+    return `${head} Any album the new profile leaves out is removed then, unless it has files or was added by hand, and switching back later brings it in again as a new album, without its old flag. ${brought}`;
+}
+
+/**
+ * `move_files: false`. The files stay where they are. On Lidarr, when the
+ * artist's current folder is still on disk, the editor's `BulkMoveArtist`
+ * still publishes `ArtistMovedEvent`, whose handler rewrites every track
+ * file's recorded path, which Lidarr keeps whole, into the new root folder
+ * (`MediaFileService.Handle(ArtistMovedEvent)`), under the artist folder its
+ * naming scheme gives (`MoveArtistService` builds it with `GetArtistFolder`,
+ * while the artist keeps its own folder name: `ArtistPathBuilder.BuildPath`).
+ * Nothing checks those paths outside a scan, so the tracks still count as
+ * having files (`ArtistStatisticsRepository` counts `TrackFileId`), and a scan
+ * can drop the records it cannot find (`MediaFileTableCleanupService.Clean`).
+ * A switch back does not undo the rewrite: `MoveArtistService.MoveSingleArtist`
+ * returns before the event when the folder it moves from is not on disk. When
+ * the folder is already gone (the files were moved by hand), nothing is
+ * rewritten.
+ */
+function pointedWithoutMoving(service: string, folder: string, lidarr: boolean): string {
+    const head = `Points ${service} at ${folder} without moving anything.`;
+    if (!lidarr) return `${head} The files stay where they are, so ${service} reports them missing until they are moved and rescanned.`;
+    return `${head} If the artist's current folder is still on disk, Lidarr also rewrites every track file's recorded path to the new root folder while the files stay where they are. It keeps counting them as present, and a library scan before they are moved there can drop their records. Switching back restores the artist's folder but not those paths, since Lidarr skips the move when the folder it moves from is not on disk.`;
 }
 
 /**
@@ -435,7 +482,7 @@ export function registerUpdateMedia(
                         ? 'its current profile'
                         : (metadataProfiles.find(p => p.id === current.metadataProfileId)?.display ??
                           `profile id ${current.metadataProfileId}`);
-                effects.push(metadataProfileEffect(from, metadataProfile, current.monitorNewItems));
+                effects.push(metadataProfileEffect(from, metadataProfile, current.monitorNewItems, folder === undefined || move_files));
                 changes.push('metadata profile');
             }
 
@@ -443,7 +490,7 @@ export function registerUpdateMedia(
                 effects.push(
                     move_files
                         ? `Moves the files from ${current.path ?? 'their current folder'} into ${folder.display} (${freeSpace(folder)}). ${service} does the move itself; on a large item it takes a while and the files are unavailable until it finishes.`
-                        : `Points ${service} at ${folder.display} without moving anything. The files stay where they are, so ${service} reports them missing until they are moved and rescanned.`
+                        : pointedWithoutMoving(service, folder.display, lidarr)
                 );
                 changes.push('root folder');
             }
@@ -512,9 +559,30 @@ export function registerUpdateMedia(
                     ...(minimum_availability === undefined ? {} : { minimumAvailability: minimum_availability }),
                     ...(series_type === undefined ? {} : { seriesType: series_type }),
                     ...(tagIds === undefined ? {} : { tagIds }),
-                    ...(metadataProfile === undefined ? {} : { metadataProfileId: metadataProfile.id })
+                    ...(metadataProfile === undefined || metadataProfile.id === current.metadataProfileId
+                        ? {}
+                        : { metadataProfileId: metadataProfile.id })
                 }
             };
+        },
+
+        // A new metadata profile waits for the artist's next refresh, which may
+        // not come until the artist changes upstream (see
+        // `metadataProfileEffect`), so the refresh is offered.
+        // Not after a `move_files: false` change in the same call: the refresh
+        // rescans every root folder, which can drop the track records whose
+        // files have not reached the new root folder yet.
+        followUps(_outcome, { service, instance, id }, plan): NextStep[] {
+            const a = plan.args as { metadataProfileId?: number; rootFolderPath?: string; moveFiles?: boolean };
+            if (a.metadataProfileId === undefined) return [];
+            if (a.rootFolderPath !== undefined && a.moveFiles === false) return [];
+            return [
+                {
+                    tool: 'trigger_scan',
+                    arguments: { ...instanceArgs(resolveInstance(adapters, service, instance).id), id },
+                    why: "Refreshes the artist now, and rescans every root folder unless Lidarr's 'Rescan Artist Folder after Refresh' is set to Never, so Lidarr applies the new metadata profile, with the album changes the preview described."
+                }
+            ];
         },
 
         async apply(plan, { id }, adapter) {

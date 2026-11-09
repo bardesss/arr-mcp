@@ -107,6 +107,12 @@ the one field it cannot always set back: once a refresh has removed the albums
 the new profile leaves out, switching back brings them in again as new albums,
 without their old flags. A call that changes it is destructive tier, so it needs
 `destructive` on that Lidarr, and the preview says what the refresh will do.
+A Lidarr root folder change with `move_files: false` stays safe tier too, though
+while the artist's current folder is still on disk it rewrites every track
+file's recorded path to the new root folder, which switching back does not
+restore, because Lidarr skips the move when the folder it moves from is not on
+disk. The preview says so, and moving the files to that folder with
+`move_files: true` and back sets the paths right again.
 
 On a Grimmory book `update_media` edits the title, authors, series and
 categories, and Grimmory may write the change into the book file and move it to

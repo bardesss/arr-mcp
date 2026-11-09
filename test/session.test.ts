@@ -62,6 +62,10 @@ describe('generated credentials', () => {
         }
     });
 
+    it('draws only from the readable alphabet, at the asked length', () => {
+        expect(generatePassword(40)).toMatch(/^[a-km-zA-HJ-NP-Z2-9]{40}$/);
+    });
+
     it('generates a different password every time', () => {
         expect(new Set(Array.from({ length: 20 }, () => generatePassword())).size).toBe(20);
     });

@@ -429,6 +429,10 @@ media server that can scan is configured: a `trigger_scan` of it, in place of
 the sentence telling you to rescan by hand. Any write can carry `next_steps`; a
 step that fails to build never fails a write that already landed.
 
+An applied `update_media` that switches a Lidarr artist's metadata profile
+returns a `trigger_scan` of the artist, unless the same call changes the root
+folder with `move_files: false`.
+
 ## `stack_health`
 
 With more than one instance of a service, each is reported separately. With
@@ -2869,15 +2873,26 @@ second profile, which decides the album types and release statuses the artist
 gets. It writes through Lidarr's Artist Editor (`PUT /artist/editor`), as
 `set_monitoring` writes an artist's policy, because `PUT /artist/{id}` queues a
 `MoveArtist` on every call. The editor starts no refresh, so a new metadata
-profile applies at the artist's next one. That refresh removes the albums the
-new profile leaves out unless they have files or were added by hand (under
-`None`, every such album), and switching back later brings them in again as new
-albums, without their old flags. The albums it brings in are flagged by the
-artist's `monitor_new_items` rule, and Lidarr then searches the released ones
-while the artist is monitored (in Lidarr newer than 3.2.0.5144, only those
-released in the last 180 days). It searches at the rescan after that refresh, or
-at the next disk scan when Lidarr's "Rescan Artist Folder after Refresh" setting
-skips that rescan. The preview says all of this. An unknown name is refused,
+profile applies at the artist's next one, which may not come until the artist
+changes upstream. Lidarr's daily refresh takes only the artists its metadata
+server lists as changed since the last run. It goes by age instead (an active
+artist two days after its last refresh, an ended one 30 days after, or 12 hours
+after when its newest album came out in the last 30 days or is still to come)
+only when that list is empty or marked limited, or the previous run started over
+14 days ago; before Lidarr 3.1.5.5066, only when the list is marked limited.
+`trigger_scan` with the artist's `id` refreshes it now, and an applied switch
+offers that call in `next_steps`, except when the same call changes the root
+folder with `move_files: false`, since the rescan after that refresh can drop
+the records of track files not yet in the new root folder. That refresh removes
+the albums the new profile leaves out unless they have files or were added by
+hand (under `None`, every such album), and switching back later brings them in
+again as new albums, without their old flags. The albums it brings in are
+flagged by the artist's `monitor_new_items` rule, and Lidarr then searches the
+released ones while the artist is monitored (in Lidarr newer than 3.2.0.5144,
+only those released in the last 180 days). It searches at the rescan after that
+refresh, or at the next disk scan when Lidarr's "Rescan Artist Folder after
+Refresh" setting skips that rescan. The preview says all of this, apart from how
+Lidarr picks the artists its daily refresh takes. An unknown name is refused,
 listing the instance's metadata profiles.
 
 `monitored` is the artist's own flag: the albums keep theirs, which
@@ -2890,10 +2905,16 @@ profiles, folders and tags each instance has; a name that matches more than one
 is refused rather than resolved, exactly as in `add_media`.
 
 **Changing `root_folder` moves the files on disk.** The service does the move
-itself, and the preview names the source and the destination. `move_files:
-false` leaves them where they are and updates only the path, which makes the
-service report them missing until they are moved and rescanned — it is for
-"I already moved them myself", not for avoiding the wait.
+itself, and the preview names the source and the destination.
+`move_files: false` leaves them where they are and updates only the path, which
+makes the service report them missing until they are moved and rescanned — it is
+for "I already moved them myself", not for avoiding the wait. On Lidarr, when
+the artist's current folder is still on disk, it also rewrites every track
+file's recorded path to the new root folder, Lidarr goes on counting the files
+as present, and a library scan before they reach that folder can drop their
+records. Switching back restores only the artist's folder: Lidarr skips the
+move, and with it those paths, when the folder it moves from is not on disk. The
+preview says so.
 
 `tags` replaces the whole set rather than adding to it; `[]` clears it. An
 unknown label is refused, listing the ones that exist — nothing here creates a
@@ -2906,6 +2927,11 @@ refresh has removed albums, switching back brings them in without their old
 flags, which the preview says. A request that would change
 nothing is a no-op, and a request naming no field at all is refused rather than
 previewed.
+
+A Lidarr `move_files: false` change stays safe tier. While the artist's current
+folder is still on disk it can leave the track files' recorded paths at the new
+root folder when switched back, which the preview says, and moving the files to
+that folder with `move_files: true` and back sets the paths right again.
 
 ### Grimmory
 

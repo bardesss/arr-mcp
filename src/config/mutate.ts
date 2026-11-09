@@ -1,10 +1,13 @@
 import { expiresIn, generateMcpToken, type ExpiryChoice, type TokenTier } from '../core/mcpTokens.ts';
 import { hashToken } from '../core/secrets.ts';
-import { instanceId } from './instances.ts';
+import { instanceId, isMultiInstance } from './instances.ts';
 import {
     ConfigSchema,
     MediaServerIdSchema,
+    mediaServersIn,
     MULTI_INSTANCE,
+    secretFieldOf,
+    serviceTraits,
     type AnyServiceConfig,
     type Config,
     type Instanced,
@@ -100,28 +103,22 @@ const validate = (config: Config, services: Record<string, unknown>): Config => 
     return result.data;
 };
 
-const MEDIA_SERVER_IDS = MediaServerIdSchema.options;
-const isMediaServer = (type: ServiceId): boolean => (MEDIA_SERVER_IDS as readonly string[]).includes(type);
+const isMediaServer = (type: ServiceId): boolean => (MediaServerIdSchema.options as readonly string[]).includes(type);
 
 /** Keeps primary_media_server valid across an add or remove: the first server stays primary, and one server needs no setting. */
 const withPrimary = (config: Config, services: Record<string, unknown>): Config => {
-    const configured = MEDIA_SERVER_IDS.filter(id => services[id] !== undefined);
+    const configured = mediaServersIn(services);
     const { primary_media_server: current, ...rest } = config;
     if (configured.length < 2) return rest;
     if (current !== undefined && configured.includes(current)) return config;
-    const existing = MEDIA_SERVER_IDS.find(id => (config.services as Record<string, unknown>)[id] !== undefined);
+    const existing = mediaServersIn(config.services)[0];
     return { ...rest, primary_media_server: existing ?? configured[0] };
 };
-
-export const MULTI_USER: ReadonlySet<ServiceId> = new Set<ServiceId>(['jellyfin', 'plex', 'seerr']);
-export const NO_API_KEY: ReadonlySet<ServiceId> = new Set<ServiceId>(['transmission', 'qbittorrent', 'nzbget', 'grimmory']);
-/** Takes an `api_key`, and works without one: Shelfmark has no authentication until it is set up. */
-export const API_KEY_OPTIONAL: ReadonlySet<ServiceId> = new Set<ServiceId>(['shelfmark']);
 
 /**
  * Applies form fields to an entry, leaving a blank credential as it was.
  *
- * Gated by service type rather than by which fields the form happened to send.
+ * Gated by the fields the service's schema has rather than by which fields the form happened to send.
  * Every card posts the same field names — an unchecked checkbox is simply
  * absent, so the form cannot distinguish "off" from "this service has no such
  * field", and the service schemas are **strict**: one stray
@@ -129,10 +126,11 @@ export const API_KEY_OPTIONAL: ReadonlySet<ServiceId> = new Set<ServiceId>(['she
  */
 function applyFields(type: ServiceId, base: Entry, fields: InstanceFields): Entry {
     const next = { ...base } as Record<string, unknown>;
+    const has = (field: string) => serviceTraits(type).fields.has(field);
 
     // A blank credential keeps the stored one, which must not follow the
     // instance to a different host.
-    const secret = NO_API_KEY.has(type) ? 'password' : 'api_key';
+    const secret = secretFieldOf(type);
     const stored = (base as Record<string, unknown>)[secret];
     const given = fields[secret];
     // An unparseable url is left for the schema to name.
@@ -152,7 +150,7 @@ function applyFields(type: ServiceId, base: Entry, fields: InstanceFields): Entr
 
     // Blank means unchanged, which is what keeps a saved page or a screenshot
     // from being able to carry a secret back in.
-    if (NO_API_KEY.has(type)) {
+    if (secret === 'password') {
         if (fields.password !== undefined && fields.password !== '') next.password = fields.password;
         // Not a credential, so blank means "cleared" rather than "unchanged".
         if (fields.username !== undefined) {
@@ -163,7 +161,7 @@ function applyFields(type: ServiceId, base: Entry, fields: InstanceFields): Entr
         next.api_key = fields.api_key;
     }
 
-    if (MULTI_USER.has(type)) {
+    if (has('default_user')) {
         if (fields.default_user !== undefined) {
             if (fields.default_user === '') delete next.default_user;
             else next.default_user = fields.default_user;
@@ -171,7 +169,7 @@ function applyFields(type: ServiceId, base: Entry, fields: InstanceFields): Entr
         if (fields.allow_other_users !== undefined) next.allow_other_users = fields.allow_other_users;
     }
 
-    if (type === 'plex' && fields.allow_metadata_repair !== undefined) next.allow_metadata_repair = fields.allow_metadata_repair;
+    if (has('allow_metadata_repair') && fields.allow_metadata_repair !== undefined) next.allow_metadata_repair = fields.allow_metadata_repair;
 
     if (fields.safe_write !== undefined || fields.destructive !== undefined) {
         next.permissions = {
@@ -189,7 +187,7 @@ export function addInstance(
 ): Config {
     const services = cloneServices(config);
     const entries = entriesOf(services, opts.type);
-    const multi = MULTI_INSTANCE.includes(opts.type);
+    const multi = isMultiInstance(opts.type);
 
     if (entries.length > 0 && !multi) {
         throw new ConfigEditError(
