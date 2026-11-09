@@ -6,7 +6,7 @@ import { LOOKUP_TIMEOUT_MS, lookupWithin } from './addresses.ts';
 import type { Found } from './probe.ts';
 
 export type ResultRow = Found & {
-    /** The same service reached a second way, when both ways agree on its version. */
+    /** The same service reached a second way, when both ways agree on its version or address. */
     alsoAt?: string;
     status: 'new' | 'added' | 'configured' | 'maybe-second';
     existingUrl?: string;
@@ -53,29 +53,41 @@ export async function matchResults(
         listInstances(config).map(async i => ({ type: i.type, url: i.config.url, normalized: await resolve(i.config.url) }))
     );
 
+    // Every found url is resolved once, up front.
+    const at = await Promise.all(found.map(f => resolve(f.url)));
+
     // One row for a service seen both by the host and by its container name,
-    // provided both report the same version. The host url stays the main one.
-    const merged: { found: Found; alsoAt?: string }[] = [];
-    for (const f of found) {
-        const twin = merged.find(m => m.found.type === f.type && m.found.version === f.version && isHostAndContainer(m.found, f));
+    // when there is evidence it is one service: both report the same version,
+    // or both urls resolve to the same address. Two finds with no version and
+    // different addresses stay two rows. The host url stays the main one.
+    const merged: { found: Found; normalized: string; alsoAt?: string; alsoNormalized?: string }[] = [];
+    found.forEach((f, i) => {
+        const normalized = at[i]!;
+        const twin = merged.find(
+            m =>
+                m.found.type === f.type &&
+                isHostAndContainer(m.found, f) &&
+                ((m.found.version !== undefined && m.found.version === f.version) || m.normalized === normalized)
+        );
         if (!twin) {
-            merged.push({ found: f });
+            merged.push({ found: f, normalized });
         } else if (twin.found.source === 'host') {
             twin.alsoAt = f.url;
+            twin.alsoNormalized = normalized;
         } else {
             twin.alsoAt = twin.found.url;
+            twin.alsoNormalized = twin.normalized;
             twin.found = f;
+            twin.normalized = normalized;
         }
-    }
+    });
 
     const rows: ResultRow[] = [];
-    for (const { found: f, alsoAt } of merged) {
-        const normalized = await resolve(f.url);
+    for (const { found: f, normalized, alsoAt, alsoNormalized } of merged) {
         const same = configured.filter(c => c.type === f.type);
         const row: ResultRow = { ...f, status: 'new' };
         if (alsoAt !== undefined) row.alsoAt = alsoAt;
-        const second = alsoAt === undefined ? undefined : await resolve(alsoAt);
-        if (same.some(c => c.normalized === normalized || (second !== undefined && c.normalized === second))) {
+        if (same.some(c => c.normalized === normalized || (alsoNormalized !== undefined && c.normalized === alsoNormalized))) {
             row.status = 'added';
         } else if (same.length > 0) {
             row.status = isMultiInstance(f.type) ? 'maybe-second' : 'configured';

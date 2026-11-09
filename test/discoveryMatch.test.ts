@@ -58,6 +58,25 @@ describe('matchResults', () => {
         expect(await matchResults(found, parse({}), resolve)).toHaveLength(2);
     });
 
+    it('keeps two rows when neither side reports a version', async () => {
+        const found: Found[] = [
+            { type: 'radarr', url: 'http://nas.lan:7878', source: 'host' },
+            { type: 'radarr', url: 'http://radarr:7878', source: 'container' }
+        ];
+        expect(await matchResults(found, parse({}), resolve)).toHaveLength(2);
+    });
+
+    it('merges without versions when both urls resolve to one address', async () => {
+        const oneAddress = async (url: string) => (url.endsWith(':7878') ? 'http://172.18.0.5:7878' : url);
+        const found: Found[] = [
+            { type: 'radarr', url: 'http://nas.lan:7878', source: 'host' },
+            { type: 'radarr', url: 'http://radarr:7878', source: 'container' }
+        ];
+        const rows = await matchResults(found, parse({}), oneAddress);
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({ url: 'http://nas.lan:7878', alsoAt: 'http://radarr:7878' });
+    });
+
     it('marks a merged row added when only its container url is the configured one', async () => {
         const config = parse({ radarr: block('http://radarr:7878') });
         const found: Found[] = [

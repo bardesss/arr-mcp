@@ -40,7 +40,7 @@ describe('quick', () => {
             lookup,
             probe: async (host, entries, source, opts) => {
                 calls.push({ host, entries, source, opts });
-                return entries.map(e => ({ type: e.type, url: `http://${host}:${e.port}`, source }));
+                return entries.map(e => ({ type: e.type, url: `http://${host}:${e.port}`, source, version: '5.0' }));
             }
         });
         const state = await d.quick('nas.lan:3000', config);
@@ -56,7 +56,7 @@ describe('quick', () => {
         expect(containers[0]?.entries.map(e => e.type)).toEqual(['radarr']);
         expect(containers[0]?.opts.address).toBe('172.18.0.5');
         expect(state.skipped).toEqual([]);
-        // radarr was seen both ways with the same (absent) version, so it is one row
+        // radarr was seen both ways with the same version, so it is one row
         expect(state.rows.map(r => r.url).sort()).toEqual(['http://nas.lan:7878', 'http://nas.lan:8989']);
         expect(state.rows.find(r => r.type === 'radarr')?.alsoAt).toBe('http://radarr:7878');
         expect(d.current()?.id).toBe(state.id);
