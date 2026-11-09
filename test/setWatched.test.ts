@@ -279,6 +279,22 @@ describe('set_watched beside Plex', () => {
         expect((err as ServiceError).remedy).not.toMatch(/Replace/);
     });
 
+    it('refuses a live call on a Plex-only stack with the not-configured message', async () => {
+        let call: Call = () => Promise.reject(new Error('not registered'));
+        const server = {
+            registerTool(_n: string, cfg: { inputSchema: z.ZodObject }, handler: Call) {
+                call = args => handler(cfg.inputSchema.parse(args) as Record<string, unknown>);
+            }
+        };
+        registerSetWatched(server as never, context(), [plex], undefined);
+
+        const err = await call({ item_id: MOVIE, watched: true }).catch((e: unknown) => e);
+        expect(err).toBeInstanceOf(ServiceError);
+        expect((err as ServiceError).kind).toBe('PermissionDenied');
+        expect((err as ServiceError).detail).toMatch(/jellyfin is not configured/);
+        expect((err as ServiceError).remedy).toMatch(/services\.jellyfin/);
+    });
+
     it('previews on the Jellyfin adapter when Plex is listed first', async () => {
         const config = jellyfinConfig();
         const jellyfin = new JellyfinAdapter(config, (async (input: string | URL | Request) => {

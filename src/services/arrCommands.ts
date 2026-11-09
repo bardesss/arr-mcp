@@ -136,8 +136,8 @@ const WHERE: Record<ArrIdKind, string> = {
     series: LIBRARY_ID,
     artist: LIBRARY_ID,
     site: LIBRARY_ID,
-    episode: 'Take one from get_wanted.',
-    scene: 'Take one from get_wanted.',
+    episode: 'Take one from get_media_details on the series at `detail: "full"`, or from get_wanted.',
+    scene: 'Take one from get_media_details on the site at `detail: "full"`, or from get_wanted.',
     album: 'Take one from get_media_details on the artist, at `detail: "full"`.',
     queue: 'Take one from get_queue.'
 };

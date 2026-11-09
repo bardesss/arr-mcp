@@ -145,6 +145,7 @@ describe('trigger_subtitle_search', () => {
         const { structuredContent } = await h.call({ ...movie, language: 'fr', dry_run: true });
         expect(structuredContent.noop).toBe(true);
         expect(structuredContent.confirm_token).toBeUndefined();
+        expect(String(structuredContent.summary ?? '')).toContain('It lists as missing');
         expect((h.audit.recent() as { args: string }[])[0]?.args).toBe('{}');
     });
 

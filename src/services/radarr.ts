@@ -347,7 +347,7 @@ export class RadarrAdapter
      * tracks. Nothing is deleted or added, and the worst outcome is an unwanted
      * grab, which the queue tools can undo.
      *
-     * The id is coerced to a number rather than interpolated: `movieIds` is a
+     * The id is checked by `arrItemId` and sent as a number: `movieIds` is a
      * JSON array of integers, and a string there is silently accepted by Radarr
      * and matches nothing, which would report a successful search that never
      * ran.
