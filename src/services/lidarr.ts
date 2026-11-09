@@ -7,7 +7,7 @@ import { fenceText } from '../core/fence.ts';
 import { ServiceHttp } from '../core/http.ts';
 import type { IndexInput } from '../core/resolver.ts';
 import { readMetadataProfiles, readProfileNames, readQualityProfiles, readRootFolders, readTags } from './arrAdd.ts';
-import { readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
+import { findArrBlocklistEntry, readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
 import { arrItemId, postArrCommand, readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
 import { readArrHistory } from './arrHistory.ts';
 import { listArrImportCandidates, runArrManualImport } from './arrManualImport.ts';
@@ -631,8 +631,12 @@ export class LidarrAdapter
     }
 
     /** `mediaId` on each row is the artist id, which `get_media_details` takes. */
-    async readBlocklist(): Promise<BlocklistEntry[]> {
-        return readArrBlocklist(this.#http, this.id, 'artist');
+    async readBlocklist(want?: number): Promise<Window<BlocklistEntry>> {
+        return readArrBlocklist(this.#http, this.id, 'artist', want);
+    }
+
+    async findBlocklistItem(id: string): Promise<BlocklistEntry | undefined> {
+        return findArrBlocklistEntry(this.#http, this.id, 'artist', id);
     }
 
     async removeBlocklistItem(id: string): Promise<void> {

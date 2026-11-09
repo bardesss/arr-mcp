@@ -4,7 +4,18 @@ import type { AddressInfo } from 'node:net';
 import type { BaseServiceConfig } from '../src/config/schema.ts';
 import { apiKeyHeader, embyToken, queryParamKey, transmissionRpc } from '../src/core/auth.ts';
 import { ServiceHttp } from '../src/core/http.ts';
-import { readQualityProfiles } from '../src/services/arrAdd.ts';
+import type { KeyedServiceConfig } from '../src/config/schema.ts';
+import {
+    lookupArrForAdd,
+    RADARR_ADD,
+    readMetadataProfiles,
+    readQualityProfiles,
+    readRootFolders,
+    readTags
+} from '../src/services/arrAdd.ts';
+import { arrDiskSpace, arrFailedHealthChecks, arrScanState } from '../src/services/arrSystem.ts';
+import { ProwlarrAdapter } from '../src/services/prowlarr.ts';
+import { SonarrAdapter } from '../src/services/sonarr.ts';
 
 const config: BaseServiceConfig = {
     url: 'http://192.168.1.20:7878',
@@ -947,5 +958,41 @@ describe('ServiceHttp redirects', () => {
             await new Promise(resolve => origin.close(resolve));
             await new Promise(resolve => other.close(resolve));
         }
+    });
+});
+
+describe('ServiceHttp.getArray', () => {
+    it('returns a list unchanged', async () => {
+        expect(await http(async () => json([{ id: 1 }])).getArray('/api/v3/tag')).toEqual([{ id: 1 }]);
+    });
+    it('refuses an object where a list was expected', async () => {
+        await expect(http(async () => json({ records: [] })).getArray('/api/v3/tag')).rejects.toMatchObject({
+            kind: 'UpstreamError',
+            service: 'radarr',
+            detail: 'expected a JSON array from /api/v3/tag, got object'
+        });
+    });
+    it('refuses null', async () => {
+        await expect(http(async () => json(null)).getArray('/api/v3/health')).rejects.toMatchObject({
+            detail: 'expected a JSON array from /api/v3/health, got null'
+        });
+    });
+
+    const keyedConfig: KeyedServiceConfig = { ...config, api_key: 'k' };
+    const objectBody = (async () => json({})) as unknown as typeof fetch;
+    const sharedReads: [string, () => Promise<unknown>][] = [
+        ['readQualityProfiles', () => readQualityProfiles(http(objectBody), 'radarr')],
+        ['readMetadataProfiles', () => readMetadataProfiles(http(objectBody), 'lidarr')],
+        ['readRootFolders', () => readRootFolders(http(objectBody), 'radarr')],
+        ['readTags', () => readTags(http(objectBody), 'radarr')],
+        ['lookupArrForAdd', () => lookupArrForAdd(http(objectBody), 'radarr', RADARR_ADD, '603')],
+        ['arrDiskSpace', () => arrDiskSpace(http(objectBody), 'radarr')],
+        ['arrFailedHealthChecks', () => arrFailedHealthChecks(http(objectBody), 'radarr')],
+        ['arrScanState', () => arrScanState(http(objectBody), 'radarr', 'RefreshMovie')],
+        ['Prowlarr search', () => new ProwlarrAdapter(keyedConfig, objectBody).search('dune', 'indexers')],
+        ['Sonarr listEpisodeFiles', () => new SonarrAdapter(keyedConfig, objectBody).listEpisodeFiles('1')]
+    ];
+    it.each(sharedReads)('is what %s goes through', async (_name, read) => {
+        await expect(read()).rejects.toMatchObject({ kind: 'UpstreamError' });
     });
 });

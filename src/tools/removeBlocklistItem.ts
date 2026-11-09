@@ -46,7 +46,7 @@ export function registerRemoveBlocklistItem(
             // blocklist id that does not exist answers success, so without
             // this a stale id would be reported as removed when nothing
             // happened — the same trap remove_queue_item documents.
-            const entry = (await adapter.readBlocklist()).find(b => b.id === id);
+            const entry = await adapter.findBlocklistItem(id);
             if (entry === undefined) {
                 throw new ServiceError('NotFound', service, `nothing in ${service}'s blocklist has id "${id}"`, {
                     remedy: 'It may already have been removed. Call get_blocklist for a current list — the ids are not stable once an entry is gone.'

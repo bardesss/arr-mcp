@@ -1,7 +1,7 @@
 import { sanitizeGuid, fencer } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
 import type { ArrKind } from '../core/resolver.ts';
-import { pageSizeFor, readArrPages, readTotal, type ArrRead } from './arrPaging.ts';
+import { ARR_PAGE_SIZE, pageIsNewestFirst, pageSizeFor, readArrPages, readTotal, type ArrRead } from './arrPaging.ts';
 import { mediaIdOf, mediaIdsParam } from './arrRecord.ts';
 import type { HistoryEntry, HistoryEventType, HistoryQuery, Window } from './types.ts';
 
@@ -113,7 +113,11 @@ export async function readArrHistory(
     }
 
     const items = opts.eventType === undefined ? pages.entries : pages.entries.filter(e => e.event === opts.eventType);
-    return { items, total: pages.windowed ? readTotal(pages.read, items.length) : items.length };
+    // Exact when the walk reached the end, an upper bound when a locally
+    // filtered walk stopped early.
+    const total = pages.windowed ? readTotal(pages.read, items.length) : items.length;
+    const stoppedEarly = pages.read.totalRecords !== undefined && pages.read.records.length < pages.read.totalRecords;
+    return { items, total, ...(pages.windowed && pages.filteredHere && stoppedEarly ? { atMost: true as const } : {}) };
 }
 
 async function readHistoryPages(
@@ -122,7 +126,7 @@ async function readHistoryPages(
     kind: ArrKind,
     opts: HistoryQuery,
     code: number | readonly number[] | undefined
-): Promise<{ entries: HistoryEntry[]; read: ArrRead<unknown>; windowed: boolean }> {
+): Promise<{ entries: HistoryEntry[]; read: ArrRead<unknown>; windowed: boolean; filteredHere: boolean }> {
     // Confirmed live: /api/v3/history/movie?movieId=<id> answers a bare
     // HistoryResource[], not the {records, totalRecords} envelope pageArr
     // expects, so a scoped read through it always looked empty. The paged
@@ -142,25 +146,31 @@ async function readHistoryPages(
     ].join('&');
 
     // A `since` read has to reach its boundary to count what is in range, so
-    // only a read without one can stop at `want`. Nor can one whose filter
-    // only happens here.
+    // only a read without one can stop at `want`.
     const since = opts.since;
-    const want = since === undefined && (opts.eventType === undefined || code !== undefined) ? opts.want : undefined;
+    const want = since === undefined ? opts.want : undefined;
+    // The filter only happens here when no code was sent upstream. A sparse
+    // type over an unfiltered list needs whole pages, and the walk stops on
+    // the rows that match, not the rows read.
+    const filterHere = opts.eventType !== undefined && code === undefined;
+    let matched = 0;
 
     const read = await readArrPages<RawHistory>(http, `${http.apiRoot}/history`, query, {
-        ...(want === undefined ? {} : { pageSize: pageSizeFor(want) }),
+        ...(want === undefined ? {} : { pageSize: filterHere ? ARR_PAGE_SIZE : pageSizeFor(want) }),
         stopWhen: (page, kept) => {
-            // Trust an early exit only when this page is actually newest-first,
-            // as asked: a service that silently ignored the sort params (this
-            // project has seen that happen) must not have paging cut short on
-            // an assumption it broke.
-            const dates = page.map(r => r.date);
-            if (!dates.every((d, i) => d !== undefined && (i === 0 || (dates[i - 1] ?? '') >= d))) return false;
-            const oldest = dates[dates.length - 1] ?? '';
+            if (filterHere) {
+                matched += page.filter(
+                    r => typeof r.id === 'number' && (EVENT[r.eventType ?? ''] ?? 'unknown') === opts.eventType
+                ).length;
+            }
+            // Trust an early exit only when this page is actually newest-first.
+            if (!pageIsNewestFirst(page)) return false;
+            const oldest = page[page.length - 1]?.date ?? '';
             // Once a page's oldest record predates `since`, every later page
             // does too. A live Sonarr capture held 12,614 records.
             if (since !== undefined) return oldest < since;
-            return want !== undefined && kept >= want;
+            if (want === undefined) return false;
+            return filterHere ? matched >= want : kept >= want;
         }
     });
     const fence = fencer(service);
@@ -198,5 +208,5 @@ async function readHistoryPages(
         // it, and this is what drops them.
         .filter(e => opts.since === undefined || e.at >= opts.since);
 
-    return { entries, read, windowed: want !== undefined };
+    return { entries, read, windowed: want !== undefined, filteredHere: filterHere };
 }

@@ -135,6 +135,30 @@ describe('get_blocklist', () => {
         expect(pages).toBeGreaterThan(1);
     });
 
+    it('stops reading once it has seen the id', async () => {
+        const rows = Array.from({ length: 250 }, (_, i) => radarrRow({ id: i + 1 }));
+        let pages = 0;
+        const urls: URL[] = [];
+        const impl = (async (input: string | URL | Request) => {
+            const url = new URL(input instanceof Request ? input.url : String(input));
+            urls.push(url);
+            const page = Number(url.searchParams.get('page') ?? '1');
+            const size = Number(url.searchParams.get('pageSize') ?? '200');
+            pages += 1;
+            return jsonResponse({ totalRecords: rows.length, records: rows.slice((page - 1) * size, page * size) });
+        }) as unknown as typeof fetch;
+        const radarr = new RadarrAdapter(keyed(7878), impl);
+
+        expect((await radarr.findBlocklistItem('3'))?.id).toBe('3');
+        expect(pages).toBe(1);
+        expect(urls[0]?.searchParams.get('sortKey')).toBe('date');
+        expect(urls[0]?.searchParams.get('sortDirection')).toBe('descending');
+
+        pages = 0;
+        expect(await radarr.findBlocklistItem('999')).toBeUndefined();
+        expect(pages).toBe(2);
+    });
+
     it('drops the reason at minimal detail and keeps it at full', async () => {
         const radarr = new RadarrAdapter(keyed(7878), serving([radarrRow()]).impl);
 

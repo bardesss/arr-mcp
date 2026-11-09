@@ -4,7 +4,7 @@ import { apiKeyHeader } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
 import { ServiceHttp } from '../core/http.ts';
-import { readArrCommands } from './arrCommands.ts';
+import { postArrCommand, readArrCommands } from './arrCommands.ts';
 import { readSeedCriteria } from './arrSeedCriteria.ts';
 import { arrRecentLogs } from './arrSystem.ts';
 import type { components } from './generated/prowlarr.ts';
@@ -37,6 +37,7 @@ import {
     type SeedCriteriaCapable,
     type ServiceAdapter
 } from './types.ts';
+import { compareVersions, parseVersion } from './versions.ts';
 
 type RawStatus = components['schemas']['SystemResource'];
 type RawHealthCheck = components['schemas']['HealthResource'];
@@ -142,15 +143,7 @@ export class ProwlarrAdapter
      * v1, like everything else here.
      */
     async startLibraryScan(): Promise<CommandHandle> {
-        const queued = await this.#http.post<{ id?: number; name?: string; status?: string }>('/api/v1/command', {
-            name: 'ApplicationIndexerSync'
-        });
-        return {
-            service: this.id,
-            commandId: queued.id ?? 0,
-            name: queued.name ?? 'ApplicationIndexerSync',
-            ...(typeof queued.status === 'string' ? { status: queued.status } : {})
-        };
+        return postArrCommand(this.#http, this.id, { name: 'ApplicationIndexerSync' });
     }
 
     async syncIndexers(): Promise<CommandHandle> {
@@ -173,6 +166,7 @@ export class ProwlarrAdapter
         ]);
         const indexer = indexers.find(i => i.id === id);
         if (indexer === undefined) return undefined;
+        const parsed = parseVersion(version);
         const tags = indexer.tags ?? [];
 
         return {
@@ -188,7 +182,7 @@ export class ProwlarrAdapter
                 ...categoriesOf(indexer)
             },
             apps: appsFor(apps),
-            bulkEdit: atLeast(version, 1, 8)
+            bulkEdit: parsed !== undefined && compareVersions(parsed, [1, 8]) >= 0
         };
     }
 
@@ -438,7 +432,7 @@ export class ProwlarrAdapter
     async search(query: string, source: SearchSource): Promise<SearchHit[]> {
         if (source !== 'indexers') return [];
 
-        const releases = await this.#http.get<RawRelease[]>(`/api/v1/search?query=${encodeURIComponent(query)}`);
+        const releases = await this.#http.getArray<RawRelease>(`/api/v1/search?query=${encodeURIComponent(query)}`);
 
         return releases.map((r, index) => ({
             service: this.id,
@@ -513,11 +507,6 @@ const appsFor = (apps: RawApplication[]): IndexerSyncApp[] =>
             ...(synced.length === 0 ? {} : { categories })
         };
     });
-
-const atLeast = (version: string, major: number, minor: number): boolean => {
-    const [a = 0, b = 0] = version.split('.').map(Number);
-    return a > major || (a === major && b >= minor);
-};
 
 const syncLevelOf = (raw: string | undefined): IndexerSyncLevel =>
     raw === 'addOnly' || raw === 'fullSync' ? raw : 'disabled';

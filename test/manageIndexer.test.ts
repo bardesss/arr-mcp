@@ -246,6 +246,22 @@ describe('manage_indexer disable and enable', () => {
         expect(preview.structuredContent.confirm_token).toBeDefined();
     });
 
+    it('reads a v-prefixed 1.8 version as having the bulk endpoint', async () => {
+        const h = harness({ version: 'v1.8.0' });
+        const applied = await h.confirmed({ id: 21, action: 'disable' });
+
+        expect(h.writes[0]).toEqual({ method: 'PUT', path: '/api/v1/indexer/bulk', body: { ids: [21], enable: false } });
+        expect(applied.structuredContent.applied).toBe(true);
+    });
+
+    it.each(['2.0', '1.10', '1.10.2.4000'])('reads %s as newer than 1.8', async version => {
+        const h = harness({ version });
+        const applied = await h.confirmed({ id: 21, action: 'disable' });
+
+        expect(h.writes[0]?.path).toBe('/api/v1/indexer/bulk');
+        expect(applied.structuredContent.applied).toBe(true);
+    });
+
     it('refuses an id Prowlarr does not have', async () => {
         const h = harness();
         await expect(h.call({ id: 404, action: 'disable' })).rejects.toThrow(/no indexer with id 404/);

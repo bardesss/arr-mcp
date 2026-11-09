@@ -3,7 +3,7 @@ import * as z from 'zod/v4';
 import { INSTANCE_PARAM_DESCRIPTION } from './resolveInstance.ts';
 import { type ServiceId, serviceOf } from '../config/schema.ts';
 import { gather } from '../core/gather.ts';
-import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel, unreachableTail } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, windowEnd, type DetailLevel, unreachableTail } from '../core/shape.ts';
 import { hasBlocklist, type BlocklistEntry, type ServiceAdapter } from '../services/types.ts';
 import { readTargets, serviceTarget } from './serviceTarget.ts';
 
@@ -55,14 +55,18 @@ export async function buildGetBlocklist(
     adapters: readonly ServiceAdapter[],
     opts: { service?: ServiceId; instance?: string; detail: DetailLevel; limit: number; offset?: number }
 ): Promise<GetBlocklistResult> {
+    // Each service hands over its newest `want` rows and says how many it has,
+    // so a small window is not the whole list read and thrown away.
+    const want = windowEnd(opts.limit, opts.offset);
     const { items, degraded, counts } = await gather(
-        readTargets(adapters, TARGET, opts.service, opts.instance).map(a => ({ id: a.id, fetch: () => a.readBlocklist() }))
+        readTargets(adapters, TARGET, opts.service, opts.instance).map(a => ({ id: a.id, fetch: () => a.readBlocklist(want) }))
     );
+    const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
 
     // Newest first: a blocklist is read to explain something that just went
     // wrong, and the row that explains it is almost always the last one added.
     const sorted = [...items].sort((a, b) => b.at.localeCompare(a.at));
-    const shaped = applyLimit(sorted, opts.limit, opts.offset);
+    const shaped = applyLimit(sorted, opts.limit, opts.offset, total);
     return { ...shaped, items: shaped.items.map(i => project(i, opts.detail)), degraded, counts };
 }
 

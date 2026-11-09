@@ -26,6 +26,8 @@ export type GetHistoryResult = {
     truncated: boolean;
     degraded: string[];
     counts: Record<string, number>;
+    /** `total` is a ceiling, not a count. */
+    totalIsUpperBound?: true;
 };
 
 const EventTypeSchema = z
@@ -135,6 +137,7 @@ export async function buildGetHistory(
     // Each service hands over its newest `want` rows and says how many it has.
     // The merged window is then the same one the whole histories would give.
     const want = windowEnd(opts.limit, opts.offset);
+    let atMost = false;
     const { items, degraded, counts } = await gather(
         scoped.map(a => ({
             id: a.id,
@@ -148,7 +151,10 @@ export async function buildGetHistory(
                 // Filtered inside the source, not after gather, so `counts`
                 // reports what each service actually contributed to this
                 // answer rather than its unfiltered total.
-                if (!Array.isArray(read)) return read;
+                if (!Array.isArray(read)) {
+                    if (read.atMost) atMost = true;
+                    return read;
+                }
                 return opts.eventType === undefined ? read : read.filter(r => r.event === opts.eventType);
             }
         }))
@@ -160,7 +166,13 @@ export async function buildGetHistory(
 
     const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
     const shaped = applyLimit(items, opts.limit, opts.offset, total);
-    return { ...shaped, items: shaped.items.map(i => project(i, opts.detail)), degraded, counts };
+    return {
+        ...shaped,
+        items: shaped.items.map(i => project(i, opts.detail)),
+        degraded,
+        counts,
+        ...(atMost ? { totalIsUpperBound: true as const } : {})
+    };
 }
 
 type EventLogOptions = {
@@ -299,7 +311,7 @@ export function registerGetHistory(server: McpServer, adapters: readonly Service
 
             const result = await buildGetHistory(adapters, opts);
             const summary =
-                `${result.returned} of ${result.total} history entr${result.returned === 1 ? 'y' : 'ies'}` +
+                `${result.returned} of ${result.totalIsUpperBound ? 'at most ' : ''}${result.total} history entr${result.returned === 1 ? 'y' : 'ies'}` +
                 unreachableTail(result.degraded);
 
             return { content: [{ type: 'text', text: listText(summary, result.items, historyLine) }], structuredContent: result };

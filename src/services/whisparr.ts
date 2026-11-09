@@ -6,7 +6,7 @@ import { fenceText } from '../core/fence.ts';
 import { ServiceHttp } from '../core/http.ts';
 import type { IndexInput, SeasonSummary } from '../core/resolver.ts';
 import { applyLimit } from '../core/shape.ts';
-import { readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
+import { findArrBlocklistEntry, readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
 import { readSeedCriteria } from './arrSeedCriteria.ts';
 import { deleteArrMedia, readArrQueue, readSonarrCalendar, removeArrQueueItem, sonarrCalendarPath } from './arrQueue.ts';
 import { audioLanguagesByFileId } from './arrMediaInfo.ts';
@@ -21,7 +21,7 @@ import {
     WHISPARR_ADD
 } from './arrAdd.ts';
 import { readArrProfileDiagnostics } from './arrProfiles.ts';
-import { arrItemId, refreshArrItem, renameArrItem } from './arrCommands.ts';
+import { arrItemId, postArrCommand, refreshArrItem, renameArrItem } from './arrCommands.ts';
 import { findArrReleases, grabArrRelease } from './arrRelease.ts';
 import { arrDiskSpace, arrFailedHealthChecks, arrScanState, arrStartLibraryScan, arrVersion } from './arrSystem.ts';
 import {
@@ -30,6 +30,7 @@ import {
     type AddMediaOptions,
     type BlocklistCapable,
     type BlocklistEntry,
+    type Window,
     type IndexerSeedCriteria,
     type SeedCriteriaCapable,
     type CalendarCapable,
@@ -97,8 +98,6 @@ type RawSeries = {
         statistics?: { episodeFileCount?: number; episodeCount?: number; totalEpisodeCount?: number };
     }[];
 };
-
-type RawCommand = { id?: number; name?: string; status?: string };
 
 /**
  * Two fields Sonarr has and Whisparr does not, both confirmed absent from every
@@ -276,8 +275,12 @@ export class WhisparrAdapter
         return addArrMedia(this.#http, this.id, WHISPARR_ADD, opts);
     }
 
-    async readBlocklist(): Promise<BlocklistEntry[]> {
-        return readArrBlocklist(this.#http, this.id, 'series');
+    async readBlocklist(want?: number): Promise<Window<BlocklistEntry>> {
+        return readArrBlocklist(this.#http, this.id, 'series', want);
+    }
+
+    async findBlocklistItem(id: string): Promise<BlocklistEntry | undefined> {
+        return findArrBlocklistEntry(this.#http, this.id, 'series', id);
     }
 
     async getSeedCriteria(): Promise<IndexerSeedCriteria[]> {
@@ -357,14 +360,7 @@ export class WhisparrAdapter
                   ? { name: 'SeasonSearch', seriesId, seasonNumber: target.season }
                   : { name: 'SeriesSearch', seriesId };
 
-        const command = await this.#http.post<RawCommand>('/api/v3/command', payload);
-
-        return {
-            service: this.id,
-            commandId: command.id ?? 0,
-            name: command.name ?? payload.name,
-            ...(typeof command.status === 'string' ? { status: command.status } : {})
-        };
+        return postArrCommand(this.#http, this.id, payload);
     }
 
     async refreshItem(id: string): Promise<CommandHandle> {

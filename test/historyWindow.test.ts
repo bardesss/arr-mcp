@@ -4,6 +4,7 @@ import { applyLimit } from '../src/core/shape.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
 import type { HistoryEntry } from '../src/services/types.ts';
+import { buildGetBlocklist } from '../src/tools/getBlocklist.ts';
 import { buildGetHistory } from '../src/tools/getHistory.ts';
 import { buildGetWanted } from '../src/tools/getWanted.ts';
 import { jsonResponse } from './helpers/serve.ts';
@@ -51,6 +52,10 @@ const history = (pages: number[] = []) => [
     new RadarrAdapter(keyed(7878), paged(RADARR_HISTORY, pages)),
     new SonarrAdapter(keyed(8989), paged(SONARR_HISTORY, pages))
 ];
+const blocklist = (pages: number[] = []) => [
+    new RadarrAdapter(keyed(7878), paged(RADARR_HISTORY, pages)),
+    new SonarrAdapter(keyed(8989), paged(SONARR_HISTORY, pages))
+];
 const wanted = (pages: number[] = []) => [
     new RadarrAdapter(keyed(7878), paged(RADARR_WANTED, pages)),
     new SonarrAdapter(keyed(8989), paged(SONARR_WANTED, pages))
@@ -89,6 +94,61 @@ describe('get_history reads only the window it returns (#293)', () => {
         expect(result.items.map(key)).toEqual(expected.items.map(key));
         expect(result.total).toBe(expected.total);
         expect(result.truncated).toBe(expected.truncated);
+    });
+});
+
+describe('get_history on a Radarr that ignores eventType', () => {
+    it('says the total is at most the count the service reported', async () => {
+        const mixed = Array.from({ length: 600 }, (_, i) => ({
+            id: i + 1,
+            eventType: i % 4 === 0 ? 'downloadFailed' : 'grabbed',
+            date: new Date(base - i * 60_000).toISOString(),
+            sourceTitle: `Release.${i}`
+        }));
+        const adapters = [new SonarrAdapter(keyed(8989), paged(mixed, []))];
+        const result = await buildGetHistory(adapters, { detail: 'full', limit: 5, eventType: 'failed' });
+        expect(result.totalIsUpperBound).toBe(true);
+        expect(result.total).toBeLessThanOrEqual(600);
+        expect(result.total).toBeGreaterThanOrEqual(result.returned);
+    });
+
+    it('leaves the flag off when the service did the filtering or the read reached the end', async () => {
+        const plain = await buildGetHistory(history(), { detail: 'full', limit: 5 });
+        expect('totalIsUpperBound' in plain).toBe(false);
+    });
+});
+
+describe('get_blocklist reads only the window it returns', () => {
+    it('fetches one page per service for limit 10, and still reports the full total', async () => {
+        const pages: number[] = [];
+        const result = await buildGetBlocklist(blocklist(pages), { detail: 'full', limit: 10 });
+        expect(pages).toEqual([1, 1]);
+        expect(result.total).toBe(430 + 610);
+        expect(result.counts).toEqual({ radarr: 430, sonarr: 610 });
+    });
+
+    it.each(WINDOWS)('matches slicing both whole blocklists at limit $limit, offset $offset', async ({ limit, offset }) => {
+        const everything = (await Promise.all(blocklist().map(async a => (await a.readBlocklist()).items)))
+            .flat()
+            .sort((a, b) => b.at.localeCompare(a.at));
+        const expected = applyLimit(everything, limit, offset);
+
+        const result = await buildGetBlocklist(blocklist(), { detail: 'full', limit, offset });
+        expect(result.items.map(key)).toEqual(expected.items.map(key));
+        expect(result.total).toBe(expected.total);
+        expect(result.truncated).toBe(expected.truncated);
+    });
+
+    it('reads every page of a blocklist whose service ignores the sort', async () => {
+        const pages: number[] = [];
+        const ascending = [...RADARR_HISTORY].reverse();
+        const adapters = [new RadarrAdapter(keyed(7878), paged(ascending, pages))];
+        const result = await buildGetBlocklist(adapters, { detail: 'full', limit: 10 });
+        // pageSizeFor(10) pages of 10: the early stop is refused, so all 43 are read.
+        expect(pages).toHaveLength(43);
+        expect(result.total).toBe(430);
+        const newest = RADARR_HISTORY.slice(0, 10).map(r => String(r.id));
+        expect(result.items.map(i => i.id).sort()).toEqual(newest.sort());
     });
 });
 

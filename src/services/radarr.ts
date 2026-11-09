@@ -20,11 +20,11 @@ import {
 import { readArrProfileDiagnostics } from './arrProfiles.ts';
 import { readArrHistory } from './arrHistory.ts';
 import { traceArrDownload } from './arrDownloadTrace.ts';
-import { arrItemId, readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
+import { arrItemId, postArrCommand, readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
 import { listArrImportCandidates, runArrManualImport } from './arrManualImport.ts';
 import { readArrForUpdate, updateArrMedia } from './arrUpdate.ts';
 import { calendarPath, deleteArrMedia, readArrQueue, readRadarrCalendar, removeArrQueueItem } from './arrQueue.ts';
-import { readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
+import { findArrBlocklistEntry, readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
 import { readSeedCriteria } from './arrSeedCriteria.ts';
 import { findArrReleases, grabArrRelease } from './arrRelease.ts';
 import { readArrWanted } from './arrWanted.ts';
@@ -116,14 +116,6 @@ type RawMovie = {
     added?: string | null;
     movieFile?: { size?: number; quality?: { quality?: { name?: string } }; mediaInfo?: RawMediaInfo };
 };
-
-import type { components } from './generated/radarr.ts';
-
-/**
- * Generated from the vendored spec, so an upstream field rename becomes a
- * typecheck failure here rather than a runtime surprise for a user.
- */
-type RawCommand = components['schemas']['CommandResource'];
 
 /**
  * The task that actually rescans the film library, confirmed against a live
@@ -235,8 +227,12 @@ export class RadarrAdapter
         return grabArrRelease(this.#http, opts);
     }
 
-    async readBlocklist(): Promise<BlocklistEntry[]> {
-        return readArrBlocklist(this.#http, this.id, 'movie');
+    async readBlocklist(want?: number): Promise<Window<BlocklistEntry>> {
+        return readArrBlocklist(this.#http, this.id, 'movie', want);
+    }
+
+    async findBlocklistItem(id: string): Promise<BlocklistEntry | undefined> {
+        return findArrBlocklistEntry(this.#http, this.id, 'movie', id);
     }
 
     async getSeedCriteria(): Promise<IndexerSeedCriteria[]> {
@@ -361,17 +357,7 @@ export class RadarrAdapter
     async triggerSearch(id: string): Promise<CommandHandle> {
         const movieId = arrItemId(this.id, 'movie', id);
 
-        const command = await this.#http.post<RawCommand>('/api/v3/command', {
-            name: 'MoviesSearch',
-            movieIds: [movieId]
-        });
-
-        return {
-            service: this.id,
-            commandId: command.id ?? 0,
-            name: command.name ?? 'MoviesSearch',
-            ...(typeof command.status === 'string' ? { status: command.status } : {})
-        };
+        return postArrCommand(this.#http, this.id, { name: 'MoviesSearch', movieIds: [movieId] });
     }
 
     /** The `/api/v3/movie` read behind both `search(_, 'library')` and

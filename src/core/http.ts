@@ -126,6 +126,23 @@ export class ServiceHttp {
         return this.#request<T>('GET', path, undefined, opts?.retry ?? true, 'json', opts?.timeoutMs);
     }
 
+    /**
+     * A read whose response must be a JSON list. A proxy error page, a wrapped
+     * `{ records: [] }` body or a bare `null` would otherwise reach the caller
+     * typed as an array and fail later, far from the cause.
+     */
+    async getArray<T>(path: string, opts?: { timeoutMs?: number; retry?: boolean }): Promise<T[]> {
+        const body = await this.get<unknown>(path, opts);
+        if (!Array.isArray(body)) {
+            throw new ServiceError(
+                'UpstreamError',
+                this.#id,
+                `expected a JSON array from ${path}, got ${body === null ? 'null' : typeof body}`
+            );
+        }
+        return body as T[];
+    }
+
     /** A read whose response is a bare string rather than JSON. */
     async getText(path: string): Promise<string> {
         return this.#request<string>('GET', path, undefined, true, 'text');

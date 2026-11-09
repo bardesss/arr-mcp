@@ -471,12 +471,84 @@ describe('readArrHistory', () => {
             expect(seen[0]?.searchParams.get('eventType')).toBe('6');
         });
 
-        it('falls back to reading everything when the service ignores eventType, as Radarr 4 does', async () => {
+        it('keeps the window when the service ignores eventType, as Radarr 4 does', async () => {
             const seen: URL[] = [];
             const read = await readArrHistory(http(serving(seen, false)), 'sonarr', 'series', { want: 5, eventType: 'failed' });
+            expect(seen).toHaveLength(2); // the ignored filtered page, then one fallback page
+            expect(seen[1]?.searchParams.has('eventType')).toBe(false);
+            expect(seen[1]?.searchParams.get('pageSize')).toBe('200');
+            expect(read.items).toHaveLength(50); // every `failed` row on that page
             expect(read.items.every(r => r.event === 'failed')).toBe(true);
-            expect(read.total).toBe(total / 4);
-            expect(seen.at(-1)?.searchParams.has('eventType')).toBe(false);
+            expect(read.total).toBe(850); // 50 kept + 800 unread: an upper bound
+            expect(read.atMost).toBe(true);
+        });
+
+        it('does not call the total an upper bound when the service filters', async () => {
+            const read = await readArrHistory(http(serving([])), 'sonarr', 'series', { want: 5, eventType: 'deleted' });
+            expect(read.atMost).toBeUndefined();
+            const plain = await readArrHistory(http(serving([])), 'sonarr', 'series', { want: 5 });
+            expect(plain.atMost).toBeUndefined();
+        });
+
+        it('does not call the total an upper bound when the local filter read to the end', async () => {
+            const read = await readArrHistory(http(serving([], false)), 'sonarr', 'series', { eventType: 'failed' });
+            expect(read.items).toHaveLength(250);
+            expect(read.total).toBe(250);
+            expect(read.atMost).toBeUndefined();
+        });
+
+        it('walks several pages of a locally filtered read until enough rows match', async () => {
+            const seen: URL[] = [];
+            const read = await readArrHistory(http(serving(seen, false)), 'sonarr', 'series', { want: 120, eventType: 'failed' });
+            // The ignored filtered page, then three 200-row pages holding 50 matches each.
+            expect(seen).toHaveLength(4);
+            expect(read.items).toHaveLength(150);
+            expect(read.total).toBe(550); // 150 kept + 400 unread
+            expect(read.atMost).toBe(true);
+        });
+
+        it('keeps reading a locally filtered walk past a page that is not newest first', async () => {
+            const row = (id: number, day: number) => ({ id, eventType: 'mystery', date: dateOf(day), sourceTitle: 'x' });
+            const dateOf = (day: number) => new Date(Date.UTC(2026, 7, day)).toISOString();
+            const pages = [
+                [row(1, 1), row(2, 9), row(3, 5)], // oldest first: not newest first
+                [row(4, 4), row(5, 3), row(6, 2)]
+            ];
+            const seen: URL[] = [];
+            const fetchImpl: typeof fetch = (async (input: string | URL | Request) => {
+                const url = new URL(input instanceof Request ? input.url : String(input));
+                seen.push(url);
+                const page = Number(url.searchParams.get('page'));
+                return json({ page, pageSize: 200, totalRecords: 6, records: pages[page - 1] ?? [] });
+            }) as unknown as typeof fetch;
+            const read = await readArrHistory(http(fetchImpl), 'sonarr', 'series', { want: 1, eventType: 'unknown' });
+            expect(seen).toHaveLength(2); // one matching row would satisfy `want`, but the page cannot be trusted
+            expect(read.items).toHaveLength(6);
+            expect(read.atMost).toBeUndefined();
+        });
+
+        it('counts only rows with an id towards the rows a local filter has found', async () => {
+            const row = (id: number | undefined, i: number) => ({
+                ...(id === undefined ? {} : { id }),
+                eventType: 'mystery',
+                date: new Date(Date.UTC(2026, 7, 20 - i)).toISOString(),
+                sourceTitle: 'x'
+            });
+            const pages = [
+                [row(undefined, 0), row(undefined, 1), row(1, 2)],
+                [row(2, 3), row(3, 4)]
+            ];
+            const seen: URL[] = [];
+            const fetchImpl: typeof fetch = (async (input: string | URL | Request) => {
+                const url = new URL(input instanceof Request ? input.url : String(input));
+                seen.push(url);
+                const page = Number(url.searchParams.get('page'));
+                return json({ page, pageSize: 200, totalRecords: 5, records: pages[page - 1] ?? [] });
+            }) as unknown as typeof fetch;
+            const read = await readArrHistory(http(fetchImpl), 'sonarr', 'series', { want: 2, eventType: 'unknown' });
+            // Page one has three matching rows but only one with an id, so it is not enough.
+            expect(seen).toHaveLength(2);
+            expect(read.items.map(r => r.id)).toEqual(['1', '2', '3']);
         });
 
         it('filters a type with no upstream number here, reading everything', async () => {
