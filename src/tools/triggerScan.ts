@@ -24,7 +24,7 @@ import {
     type ServiceAdapter
 } from '../services/types.ts';
 import { INSTANCE_PARAM_DESCRIPTION, instanceArgs, resolveInstance } from './resolveInstance.ts';
-import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
+import { outcomeText, registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 
 /**
  * The other half of the answer `diagnose` gives most often.
@@ -601,6 +601,8 @@ export function registerTriggerScan(
                 why: `Rescans ${server.id} so it picks up the corrected episodes and names.`
             }));
         },
+
+        applied: outcomeText,
 
         async apply(plan, { service, instance, action, id, download_id, reassignments, mapping }) {
             const resolved = resolveInstance(adapters, service, instance);

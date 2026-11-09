@@ -4,7 +4,7 @@ import { type ServiceId, serviceOf } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { hasSubtitleSearch, hasSubtitles, type ServiceAdapter, type SubtitleGap } from '../services/types.ts';
 import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
-import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
+import { outcomeText, registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 
 /**
  * The other half of `get_subtitles`, which until now could only say what was
@@ -137,10 +137,9 @@ export function registerTriggerSubtitleSearch(
                 const have = gap.missing.map(m => `${m.name} (${m.code2})`).join(', ');
                 return {
                     target,
-                    summary: `${adapter.id} is not missing ${language} for ${label(gap)}.`,
+                    summary: `${adapter.id} is not missing ${language} for ${label(gap)}.${have === '' ? '' : ` It lists as missing: ${have}.`}`,
                     effects: [],
-                    noop: true,
-                    ...(have === '' ? {} : { args: { missing: have } })
+                    noop: true
                 };
             }
 
@@ -173,6 +172,8 @@ export function registerTriggerSubtitleSearch(
                 }
             };
         },
+
+        applied: outcomeText,
 
         async apply(plan, { service, instance, kind, id, language, forced, hearing_impaired }) {
             const adapter = findAdapter(adapters, service, instance);

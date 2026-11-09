@@ -212,11 +212,11 @@ describe('partial removal', () => {
         const first = await h.call(args);
         const second = await h.call({ ...args, confirm: first.structuredContent.confirm_token });
 
-        // The apply return travels in structuredContent.result; content[0] is
-        // the plan summary the harness reports for every write.
         const result = String((second.structuredContent as { result?: unknown }).result ?? '');
         expect(result).toContain('1 of 2');
         expect(result).toContain('gone already');
+        expect(second.content[0]?.text).toContain('1 of 2');
+        expect(second.content[0]?.text).not.toMatch(/^Applied\./);
     });
 
     it('still fails outright when nothing could be removed', async () => {

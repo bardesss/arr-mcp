@@ -54,6 +54,9 @@ export type WritePlan = {
     subject?: CrossCheckSubject | (() => Promise<CrossCheckSubject>);
 };
 
+/** For a tool whose `apply` returns the sentence to show: use it as the applied text. */
+export const outcomeText = (outcome: unknown): string | undefined => (typeof outcome === 'string' ? outcome : undefined);
+
 export type WriteToolSpec<Schema extends z.ZodObject> = {
     name: string;
     /** What a client shows a person in place of `delete_episode_files`. */

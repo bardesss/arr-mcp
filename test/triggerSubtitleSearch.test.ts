@@ -81,18 +81,19 @@ function harness(opts: { permissions?: Partial<Record<ServiceId, AnyServiceConfi
         }
     };
 
+    const audit = WriteAudit.ephemeral();
     registerTriggerSubtitleSearch(
         server as never,
         {
             permissions: permissionSourceFrom(instancesOf(opts.permissions ?? { bazarr: permissive(true) })),
             confirm: new ConfirmTokens(),
-            audit: WriteAudit.ephemeral(),
+            audit,
             library: { invalidate: vi.fn() } as unknown as LibraryLoader
         },
         adapters
     );
 
-    return { call: (args: Record<string, unknown>) => call(args), bazarrFetch };
+    return { call: (args: Record<string, unknown>) => call(args), bazarrFetch, audit };
 }
 
 const movie = { service: 'bazarr', kind: 'movie', id: '1445', language: 'nl' };
@@ -140,9 +141,11 @@ describe('trigger_subtitle_search', () => {
     });
 
     it('is a no-op when that language is not actually missing', async () => {
-        const { structuredContent } = await harness().call({ ...movie, language: 'fr', dry_run: true });
+        const h = harness();
+        const { structuredContent } = await h.call({ ...movie, language: 'fr', dry_run: true });
         expect(structuredContent.noop).toBe(true);
         expect(structuredContent.confirm_token).toBeUndefined();
+        expect((h.audit.recent() as { args: string }[])[0]?.args).toBe('{}');
     });
 
     // The harness adds the prefix; a summary carrying its own doubles it.
@@ -190,6 +193,7 @@ describe('trigger_subtitle_search', () => {
         const first = await h.call(movie);
         const second = await h.call({ ...movie, confirm: first.structuredContent.confirm_token });
         expect(second.content[0]?.text.toLowerCase()).not.toContain('downloaded');
+        expect(second.content[0]?.text).toContain('is searching for nl subtitles');
     });
 });
 

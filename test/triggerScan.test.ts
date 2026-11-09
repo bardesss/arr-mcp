@@ -776,6 +776,7 @@ describe('trigger_scan remapping episodes', () => {
         const done = await h.call({ ...SWAP, confirm: first.structuredContent.confirm_token });
 
         expect(String(done.structuredContent.result)).toContain('renamed 1');
+        expect(done.content[0]?.text).toContain('renamed 1');
         // It has finished by the time it answers, so it must not send anyone
         // to stack_health to find out whether it worked.
         expect(String(done.structuredContent.result)).not.toMatch(/stack_health/);
