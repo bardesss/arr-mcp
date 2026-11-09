@@ -90,3 +90,29 @@ describe('the Docker base image against better-sqlite3 prebuilds', () => {
         });
     }
 });
+
+describe('the Docker build', () => {
+    it('installs no compiler, because nothing in the dependency tree compiles', () => {
+        const bs3 = JSON.parse(readFileSync(join(ROOT, 'node_modules/better-sqlite3/package.json'), 'utf8')) as { gypfile?: boolean; scripts?: Record<string, string> };
+        // gypfile:false is what stops npm running node-gyp on binding.gyp
+        expect(bs3.gypfile).toBe(false);
+        expect(bs3.scripts?.install).toBeUndefined();
+        const lock = JSON.parse(readFileSync(join(ROOT, 'package-lock.json'), 'utf8')) as { packages: Record<string, { hasInstallScript?: boolean; dev?: boolean; optional?: boolean; os?: string[] }> };
+        const scripted = Object.entries(lock.packages)
+            .filter(([, p]) => p.hasInstallScript && !(p.dev && p.optional && p.os?.every(o => o === 'darwin')))
+            .map(([k]) => k);
+        expect(scripted).toEqual([]);
+        // npm ci from the lockfile still node-gyp-rebuilds binding.gyp packages; only --ignore-scripts keeps the compiler out
+        expect(DOCKERFILE).toMatch(/^RUN npm ci --ignore-scripts$/m);
+        expect(DOCKERFILE).not.toMatch(/\bg\+\+|\bmake\b|python3|build-essential/);
+    });
+
+    it('keeps the build context to what the Dockerfile copies', () => {
+        const ignored = readFileSync(join(ROOT, '.dockerignore'), 'utf8').split('\n').map(l => l.trim()).filter(Boolean);
+        for (const p of ['specs', 'screenshots', 'scripts', 'proxmox', 'unraid', 'assets', 'docs', '*.md']) expect(ignored).toContain(p);
+        // every context path a COPY without --from names must survive the ignore list
+        const copied = [...DOCKERFILE.matchAll(/^COPY (?!--from)(.+) \S+$/gm)].flatMap(m => m[1]!.split(/\s+/));
+        expect(copied).toEqual(['package.json', 'package-lock.json', 'tsconfig.json', 'tsconfig.build.json', 'src', 'docker-entrypoint.sh']);
+        for (const c of copied) expect(ignored.some(i => i === c || (i === '*.md' && c.endsWith('.md')))).toBe(false);
+    });
+});

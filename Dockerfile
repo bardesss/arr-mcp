@@ -5,12 +5,11 @@
 # under a release build with no diff to review. Dependabot keeps it current.
 FROM node:24-trixie-slim@sha256:54f84b4cf8432b21aaffd5d3ce8d41e12cea0d10d33c09d2f3c9879d49d6b446 AS build
 WORKDIR /app
-# better-sqlite3 compiles a native addon; unused in Phase 1 but proven here so
-# Phase 4 does not discover a broken build stage.
-RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
-    && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json ./
-RUN npm ci
+# --ignore-scripts: npm ci from the lockfile still runs node-gyp rebuild on
+# better-sqlite3 (it has a binding.gyp), which needs a compiler. Nothing here
+# needs an install script; the addon loads from its bundled prebuild.
+RUN npm ci --ignore-scripts
 COPY tsconfig.json tsconfig.build.json ./
 COPY src ./src
 RUN npm run build && npm prune --omit=dev

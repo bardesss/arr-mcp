@@ -11,3 +11,15 @@ coverage
 .env
 vitest.config.ts
 eslint.config.mjs
+specs
+screenshots
+scripts
+proxmox
+unraid
+assets
+*.md
+server.json
+glama.json
+docker-compose.example.yml
+release-please-config.json
+.release-please-manifest.json

@@ -63,7 +63,7 @@ function update_script() {
     msg_info "Building arr-mcp"
     cd /opt/arr-mcp
     export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-    $STD npm ci
+    $STD npm ci --ignore-scripts
     $STD npm run build
     $STD npm prune --omit=dev
     echo "ARR_MCP_VERSION=$(node -p "require('/opt/arr-mcp/package.json').version")" >/opt/arr-mcp.env

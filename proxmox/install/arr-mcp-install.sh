@@ -13,14 +13,6 @@ setting_up_container
 network_check
 update_os
 
-msg_info "Installing Dependencies"
-# better-sqlite3 is a native addon. It ships prebuilt binaries and normally uses
-# one, but the fallback is to compile, and without a toolchain that fallback is
-# a failed install rather than a slow one. The Dockerfile's build stage installs
-# python3, make and g++ for the same reason; build-essential covers the last two.
-$STD apt install -y build-essential python3
-msg_ok "Installed Dependencies"
-
 fetch_and_deploy_gh_release "arr-mcp" "bardesss/arr-mcp" "tarball"
 
 # 24 because that is what the published image runs, not the >=24 floor in
@@ -33,7 +25,7 @@ cd /opt/arr-mcp
 # downloads a browser this container will never open, so skip it — the build
 # below never touches Playwright.
 export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-$STD npm ci
+$STD npm ci --ignore-scripts
 $STD npm run build
 $STD npm prune --omit=dev
 msg_ok "Built arr-mcp"

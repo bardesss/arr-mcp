@@ -235,4 +235,8 @@ describe('the Proxmox LXC installer', () => {
         expect(logo).toBeDefined();
         expect(existsSync(join(root, logo!)), `${logo} is referenced but missing`).toBe(true);
     });
+
+    it('installs no compiler toolchain, as the image does not', () => {
+        expect(install).not.toMatch(/build-essential|python3|\bg\+\+/);
+    });
 });
