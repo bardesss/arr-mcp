@@ -1407,6 +1407,8 @@ not yet recognise becomes `unknown` rather than being dropped.
 the services below add (`subtitle`, `strike`, `protected` and the rest) — and
 `since` drops anything older.
 
+On a Radarr that ignores the `eventType` parameter (Radarr 4), the filter is applied here and `total` is an upper bound once the read stops early.
+
 A failure's `reason` comes straight from the download client and is fenced
 like any other untrusted string — it is not translated, and on a non-English
 setup it will not read as English.
@@ -1772,6 +1774,8 @@ the download client's own words.
 Rows carry `mediaId` for `get_media_details` (on a Lidarr row, the artist id)
 and `id` for `remove_blocklist_item`, and are newest first, because a blocklist
 is read to explain something that has just gone wrong.
+
+It reads only the newest rows the window needs; `remove_blocklist_item`'s preview stops reading once it finds the id.
 
 `remove_blocklist_item` withdraws one refusal, so the release can be grabbed
 again. Safe tier: nothing on disk changes, and the inverse already exists —
