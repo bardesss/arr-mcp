@@ -245,7 +245,7 @@ export function readEventLog(
         // filtered answer needs the whole log counted to tell "nothing matched"
         // from "nothing arrived".
         const filtered = Object.keys(query).length > 0;
-        anything = read.total > 0 ? read.total : !filtered ? 0 : Object.values(log.store.counts({})).reduce((a, b) => a + b, 0);
+        anything = read.total > 0 || !filtered ? read.total : Object.values(log.store.counts({})).reduce((a, b) => a + b, 0);
     } catch (err) {
         logger.warn({ err }, 'could not read the library event log');
         return { ...empty, degraded: [EVENT_LOG_SOURCE] };
