@@ -675,8 +675,14 @@ export const ConfigSchema = z.object({
      * always: the surface stays the same whatever is configured, which is what
      * keeps saved prompts working. `hide_unusable` is the opt-in for a small
      * stack that would rather not pay context for tools it cannot use (#518).
+     * `media_cards: false` turns the MCP Apps poster cards off: no `_meta.ui`
+     * on the tools, no `ui://` resource, and none of the queue reads behind
+     * them — for an HTTP client that cannot render them and does not say so.
      */
-    tools: z.object({ hide_unusable: z.boolean().default(false) }).strict().optional()
+    tools: z
+        .object({ hide_unusable: z.boolean().default(false), media_cards: z.boolean().default(true) })
+        .strict()
+        .optional()
 }).superRefine((config, ctx) => {
     // `jellyfin` and `plex` are distinct, individually valid keys, so the two
     // together are admitted, and this rule says which one the tools default to.

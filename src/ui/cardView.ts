@@ -247,10 +247,11 @@ html, body { margin: 0; background: transparent; color: var(--fg); font: 14px/1.
       var progress = el("div", "progress");
       var bar = el("div", "bar");
       var fill = el("div", "fill");
-      fill.style.width = Math.min(100, Math.round((card.episodes.onDisk / card.episodes.aired) * 100)) + "%";
+      var onDisk = Math.min(card.episodes.onDisk, card.episodes.aired);
+      fill.style.width = Math.round((onDisk / card.episodes.aired) * 100) + "%";
       bar.appendChild(fill);
       progress.appendChild(bar);
-      progress.appendChild(el("span", null, card.episodes.onDisk + " / " + card.episodes.aired + " episodes"));
+      progress.appendChild(el("span", null, onDisk + " / " + card.episodes.aired + " episodes"));
       info.appendChild(progress);
     }
 
@@ -292,7 +293,8 @@ html, body { margin: 0; background: transparent; color: var(--fg); font: 14px/1.
   function render(result) {
     var root = document.getElementById("root");
     root.textContent = "";
-    var cards = result.structuredContent && result.structuredContent.cards;
+    // In the result's _meta, never structuredContent: some clients hand that to the model.
+    var cards = result._meta && result._meta["arr-mcp/cards"];
     var items = cards && Array.isArray(cards.items) ? cards.items : [];
     if (result.isError || items.length === 0) {
       root.appendChild(el("div", "empty", result.isError ? "No card to show." : "No film or series in this answer."));

@@ -10,6 +10,7 @@ import {
     tmdbImageUrl,
     withoutDisplay
 } from '../src/core/display.ts';
+import { episodesOf } from '../src/services/arrDisplay.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import { SeerrAdapter } from '../src/services/seerr.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
@@ -220,7 +221,17 @@ describe('cards from search hits', () => {
 type Handler = (
     args: Record<string, unknown>,
     extra: Record<string, unknown>
-) => Promise<{ content: { type: string; text: string }[]; structuredContent?: Record<string, unknown> & { cards?: MediaCards } }>;
+) => Promise<{
+    content: { type: string; text: string }[];
+    structuredContent?: Record<string, unknown>;
+    _meta?: Record<string, unknown>;
+}>;
+
+/** Where the cards ride: the result's `_meta`, never `structuredContent`. */
+const cardsOf = (result: Awaited<ReturnType<Handler>>): MediaCards | undefined => {
+    expect(result.structuredContent).not.toHaveProperty('cards');
+    return result._meta?.['arr-mcp/cards'] as MediaCards | undefined;
+};
 
 const toolsOf = (register: (s: McpServer) => void): Record<string, { handler: Handler }> => {
     const server = new McpServer({ name: 'test', version: '0' });
@@ -246,9 +257,10 @@ describe('the card tools', () => {
             {}
         );
         const structured = result.structuredContent!;
-        expect(structured.cards?.view).toBe('grid');
-        expect(structured.cards?.items[0]).toMatchObject({ type: 'movie', status: 'downloaded', ref: { service: 'radarr' } });
-        expect(structured.cards?.items[0]?.poster).toMatch(/^https:\/\/image\.tmdb\.org\/t\/p\/w342\//);
+        const cards = cardsOf(result);
+        expect(cards?.view).toBe('grid');
+        expect(cards?.items[0]).toMatchObject({ type: 'movie', status: 'downloaded', ref: { service: 'radarr' } });
+        expect(cards?.items[0]?.poster).toMatch(/^https:\/\/image\.tmdb\.org\/t\/p\/w342\//);
         expect((structured['items'] as Record<string, unknown>[]).some(i => 'display' in i)).toBe(false);
         expect(result.content[0]?.text).not.toContain('image.tmdb.org');
         expect(result.content[0]?.text).toMatch(/^\d+ of \d+ library result\(s\) for "Ghostbusters"\./);
@@ -259,7 +271,7 @@ describe('the card tools', () => {
             { query: 'matrix', detail: 'standard', limit: 50, offset: 0 },
             {}
         );
-        const items = result.structuredContent?.cards?.items ?? [];
+        const items = cardsOf(result)?.items ?? [];
         expect(items.length).toBeGreaterThan(1);
         expect(items.every(c => c.status === 'absent')).toBe(true);
         expect(items.find(c => c.ids.tmdb === 603)).toMatchObject({ title: '<<untrusted:radarr.title>>The Matrix<</>>', year: 1999 });
@@ -273,10 +285,11 @@ describe('the card tools', () => {
             {}
         );
         const structured = result.structuredContent!;
-        expect(structured.cards?.items).toHaveLength(MAX_CARDS);
-        expect(structured.cards?.total).toBe(50);
+        const cards = cardsOf(result);
+        expect(cards?.items).toHaveLength(MAX_CARDS);
+        expect(cards?.total).toBe(50);
         // `minimal` drops `acquisition`; the card still knows the status from the index.
-        expect(structured.cards?.items.some(c => c.status === 'downloaded')).toBe(true);
+        expect(cards?.items.some(c => c.status === 'downloaded')).toBe(true);
         expect(Object.keys((structured['items'] as Record<string, unknown>[])[0]!).sort()).toEqual(['ids', 'kind', 'presence', 'title', 'year']);
     });
 
@@ -287,7 +300,7 @@ describe('the card tools', () => {
             { query: 'Ghostbusters: Frozen Empire', detail: 'standard', limit: 50 },
             {}
         );
-        const card = result.structuredContent?.cards;
+        const card = cardsOf(result);
         expect(card?.view).toBe('detail');
         expect(card?.items[0]).toMatchObject({
             type: 'movie',
@@ -307,7 +320,80 @@ describe('the card tools', () => {
             {}
         );
         expect(result.structuredContent).not.toHaveProperty('display');
-        expect(result.structuredContent?.cards?.items[0]).toMatchObject({ status: 'monitored', ref: { service: 'radarr', id: '340' } });
+        expect(cardsOf(result)?.items[0]).toMatchObject({ status: 'monitored', ref: { service: 'radarr', id: '340' } });
         expect(result.content[0]?.text).toBe('movie from radarr.');
+    });
+});
+
+/** A request on the 2026-07-28 era carries the client's capabilities in its `_meta` envelope. */
+const declaring = (extensions: Record<string, unknown>) => ({
+    mcpReq: { envelope: { 'io.modelcontextprotocol/clientCapabilities': { extensions } } }
+});
+
+describe('cards only for a client that can render them', () => {
+    const counting = () => {
+        const adapter = radarrLibrary();
+        let reads = 0;
+        const real = adapter.getQueue.bind(adapter);
+        adapter.getQueue = async () => {
+            reads++;
+            return real().catch(() => []);
+        };
+        return { adapter, reads: () => reads };
+    };
+    const search = { query: 'Ghostbusters', source: 'library', detail: 'standard', limit: 50, offset: 0 };
+
+    it('builds none, and reads no queue, for a client that declares no MCP Apps support', async () => {
+        const { adapter, reads } = counting();
+        const result = await toolsOf(s => registerSearchMedia(s, [adapter])).search_media!.handler(search, declaring({}));
+        expect(result._meta).toBeUndefined();
+        expect(reads()).toBe(0);
+        expect((result.structuredContent?.['items'] as unknown[]).length).toBeGreaterThan(0);
+    });
+
+    it('builds them for a client that declares the UI extension', async () => {
+        const { adapter, reads } = counting();
+        const result = await toolsOf(s => registerSearchMedia(s, [adapter])).search_media!.handler(
+            search,
+            declaring({ 'io.modelcontextprotocol/ui': { mimeTypes: ['text/html;profile=mcp-app'] } })
+        );
+        expect(cardsOf(result)?.items.length).toBeGreaterThan(0);
+        expect(reads()).toBe(1);
+    });
+
+    it('builds them when the client declared nothing the server can read (stateless HTTP)', async () => {
+        const result = await toolsOf(s => registerSearchMedia(s, [radarrLibrary()])).search_media!.handler(search, {});
+        expect(cardsOf(result)?.items.length).toBeGreaterThan(0);
+    });
+
+    it('builds none, and advertises no view, with tools.media_cards off', async () => {
+        const { adapter, reads } = counting();
+        const server = new McpServer({ name: 'test', version: '0' });
+        registerSearchMedia(server, [adapter], undefined, false);
+        const tool = (server as unknown as { _registeredTools: Record<string, { handler: Handler; _meta?: unknown }> })._registeredTools.search_media!;
+        expect(tool._meta).toBeUndefined();
+        const result = await tool.handler(search, {});
+        expect(result._meta).toBeUndefined();
+        expect(reads()).toBe(0);
+    });
+});
+
+describe('episode progress', () => {
+    it('counts each season up to what it wants, so an unmonitored season on disk cannot read "12 / 10"', () => {
+        expect(
+            episodesOf({
+                statistics: { episodeFileCount: 12, episodeCount: 10 },
+                seasons: [
+                    { statistics: { episodeFileCount: 4, episodeCount: 0 } },
+                    { statistics: { episodeFileCount: 7, episodeCount: 8 } },
+                    { statistics: { episodeFileCount: 1, episodeCount: 2 } }
+                ]
+            })
+        ).toEqual({ onDisk: 8, aired: 10 });
+    });
+
+    it('caps the series totals when there are no seasons', () => {
+        expect(episodesOf({ statistics: { episodeFileCount: 12, episodeCount: 10 } })).toEqual({ onDisk: 10, aired: 10 });
+        expect(episodesOf({})).toBeUndefined();
     });
 });

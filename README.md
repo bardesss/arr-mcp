@@ -190,9 +190,11 @@ and `artworks.thetvdb.com`, the only hosts its CSP allows; your services' own
 addresses and API keys never reach it. A title with no artwork, or whose image
 will not load, gets a plain tile with its name.
 
-**Nothing changes for any other client.** The text answer is identical, and the
-cards ride in a separate `cards` field of `structuredContent` that a client
-without MCP Apps simply ignores. The cards are read-only for now.
+**Nothing changes for any other client.** The text answer and
+`structuredContent` are identical. The cards ride in the result's `_meta`, which
+is not model context, and are only built for a client that says it renders MCP
+Apps, or one that says nothing (stateless HTTP). `tools.media_cards: false` turns
+them off. The cards are read-only for now.
 
 ## Documentation
 

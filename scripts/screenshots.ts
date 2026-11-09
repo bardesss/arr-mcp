@@ -148,7 +148,7 @@ window.addEventListener('message', event => {
     if (m.method === 'ui/initialize') {
         reply({ jsonrpc: '2.0', id: m.id, result: { protocolVersion: '2026-01-26', hostInfo: { name: 'screenshot', version: '0' }, hostCapabilities: {}, hostContext: { theme: '${scheme}' } } });
     } else if (m.method === 'ui/notifications/initialized') {
-        reply({ jsonrpc: '2.0', method: 'ui/notifications/tool-result', params: { content: [], structuredContent: { cards } } });
+        reply({ jsonrpc: '2.0', method: 'ui/notifications/tool-result', params: { content: [], _meta: { 'arr-mcp/cards': cards } } });
     } else if (m.method === 'ui/notifications/size-changed') {
         frame.style.height = m.params.height + 'px';
         document.body.dataset.ready = '1';

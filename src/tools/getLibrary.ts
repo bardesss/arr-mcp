@@ -18,7 +18,7 @@ import { UserSchema } from './getPlayback.ts';
 import type { LibraryLoader } from './library.ts';
 import { withBoth } from './mediaServers.ts';
 import { titled } from '../core/labels.ts';
-import { mediaCardsToolMeta } from '../mcp/apps.ts';
+import { mediaCardsToolMeta, wantsCards, withCards } from '../mcp/apps.ts';
 import type { ServiceAdapter } from '../services/types.ts';
 import { cardsFromLibrary } from '../ui/mediaCards.ts';
 
@@ -517,14 +517,16 @@ export function registerGetLibrary(
     loader: LibraryLoader,
     mediaServerIds?: [string, string],
     /** Only for the cards' download state, read from the *arrs' queues. */
-    adapters: readonly ServiceAdapter[] = []
+    adapters: readonly ServiceAdapter[] = [],
+    /** `tools.media_cards`. */
+    mediaCards = true
 ): void {
     server.registerTool(
         'get_library',
         {
             title: 'Library',
             annotations: READ_ONLY,
-            _meta: mediaCardsToolMeta(),
+            ...(mediaCards ? { _meta: mediaCardsToolMeta() } : {}),
             description:
                 'Your library joined across Radarr, Sonarr, Whisparr, Lidarr, Grimmory and your media server on shared external ids: films, series, artists and books. Use it for filtered lists and counts; for one title use get_media_details. `presence` is what no single service can tell: `arr_only` with a file is a likely broken import, `jellyfin_only` (spelled that way for any media server) is media nothing manages, and `unknown` means the other half was not read. When `degraded` or `note` explain a gap, report that reason rather than calling it unwatched or unrated. `has_file: false` with `monitored: true` is what you are still waiting for. [[lidarr: An artist\'s `monitored` is the artist-level flag, not the album flag; its albums and their ids come from get_media_details on the Lidarr artist.]] A series has an IMDb rating only with the IMDb dataset on, so ask `rating_source: "imdb"` explicitly. Series `seasons` and folder paths need `detail: "full"`. Field reference: arr://docs/get_library.' +
                 withBoth(
@@ -606,7 +608,7 @@ export function registerGetLibrary(
                 offset: OffsetSchema
             }, { undocumented: ['watched_by'] })
         },
-        async input => {
+        async (input, ctx) => {
             const { user, watched_by, ...rest } = input as LibraryQuery & { user?: string };
             const watchedBy = preferred({ name: 'user', value: user, alias: 'watched_by', aliasValue: watched_by });
 
@@ -635,13 +637,11 @@ export function registerGetLibrary(
             // Same snapshot `buildGetLibrary` just read (cached per user): the
             // items are projected copies, and the index holds their artwork
             // and their full acquisition half.
-            const { index } = await loader.load(watchedBy);
-            const cards = await cardsFromLibrary(result.items, index, adapters);
+            const cards = wantsCards(mediaCards, server, ctx)
+                ? await cardsFromLibrary(result.items, (await loader.load(watchedBy)).index, adapters)
+                : undefined;
 
-            return {
-                content: [{ type: 'text', text: listText(summary, result.items, libraryLine) }],
-                structuredContent: cards.items.length === 0 ? result : { ...result, cards }
-            };
+            return withCards({ content: [{ type: 'text' as const, text: listText(summary, result.items, libraryLine) }], structuredContent: result }, cards);
         }
     );
 }

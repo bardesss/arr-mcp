@@ -17,7 +17,7 @@ import { buildLookupMedia } from './lookupMedia.ts';
 import { searchLine } from './searchMedia.ts';
 import { withBoth } from './mediaServers.ts';
 import { withoutDisplay } from '../core/display.ts';
-import { mediaCardsToolMeta } from '../mcp/apps.ts';
+import { mediaCardsToolMeta, wantsCards, withCards } from '../mcp/apps.ts';
 import { cardFromDetails } from '../ui/mediaCards.ts';
 
 /**
@@ -320,14 +320,16 @@ export function registerGetMediaDetails(
     adapters: readonly ServiceAdapter[],
     loader: LibraryLoader,
     dataset?: ImdbDataset,
-    mediaServerIds?: [string, string]
+    mediaServerIds?: [string, string],
+    /** `tools.media_cards`. */
+    mediaCards = true
 ): void {
     server.registerTool(
         'get_media_details',
         {
             title: 'Media details',
             annotations: READ_ONLY,
-            _meta: mediaCardsToolMeta(),
+            ...(mediaCards ? { _meta: mediaCardsToolMeta() } : {}),
             description:
                 'Everything known about one item. A title as `query` returns the merged record (acquisition, watch state, ratings, presence across services); `service` plus `id` returns that service\'s raw view, for checking a join that looks wrong. A series carries `seasons` with per-season watched, on-disk, aired and total counts, and `monitored`, Sonarr\'s own flag: check it before delete_episode_files, because deleting a monitored season\'s files makes Sonarr download them again. At `detail: "full"` a series lists its episodes and a Lidarr artist its albums with their ids. `audioLanguages` (per episode for a series, on the record for a film) are the tracks read off the file: that, not a `MULTi` release name, answers "is the dub here". [[reclaimerr: With Reclaimerr, `cleanup` says what will delete or move it, and when.]] Field reference: arr://docs/get_media_details.' +
                 withBoth(mediaServerIds, 'With two media servers, `media_servers` says which has it and under which `itemId`.'),
@@ -363,7 +365,7 @@ export function registerGetMediaDetails(
                 limit: LimitSchema
             })
         },
-        async ({ query, service, instance, id, detail, limit }) => {
+        async ({ query, service, instance, id, detail, limit }, ctx) => {
             const result = await resolveMediaDetails(adapters, loader, {
                 ...(query === undefined ? {} : { query }),
                 ...(service === undefined ? {} : { service }),
@@ -408,14 +410,12 @@ export function registerGetMediaDetails(
             // The card reads artwork from the library snapshot the title form
             // resolved through (cached, so no second fan-out), or from the
             // service's own view; neither reaches the answer itself.
-            const index = 'presence' in result ? (await loader.load()).index : undefined;
-            const cards = await cardFromDetails(result, index, adapters);
+            const cards = wantsCards(mediaCards, server, ctx)
+                ? await cardFromDetails(result, 'presence' in result ? (await loader.load()).index : undefined, adapters)
+                : undefined;
             const answer = 'display' in result ? withoutDisplay(result) : result;
 
-            return {
-                content: [{ type: 'text', text: summary + cleanupNote }],
-                structuredContent: cards === undefined ? answer : { ...answer, cards }
-            };
+            return withCards({ content: [{ type: 'text' as const, text: summary + cleanupNote }], structuredContent: answer }, cards);
         }
     );
 }

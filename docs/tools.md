@@ -220,19 +220,25 @@ Woman 1984` comes before `Wonder Woman`. Only years from 1870 to five years ahea
 count, which leaves `Blade Runner 2049` whole, and an indexer search keeps the
 year, because release names carry it.
 
-## Poster cards: `cards`
+## Poster cards
 
-`get_media_details`, `search_media`, `lookup_media` and `get_library` add a
-`cards` field to `structuredContent` when the answer holds films or series:
-`{ view, items, total }`, where `view` is `detail` for `get_media_details` and
-`grid` otherwise, `items` holds at most twenty, and `total` is how many films and
-series the answer held. It is for an MCP Apps host, which renders it with the
-`ui://arr-mcp/media-cards.html` view the four tools name in `_meta.ui`; see the
-README. Nothing in it is new information about the stack beyond artwork, the
-synopsis and a `status` (`downloaded`, `monitored`, `downloading`,
-`unmonitored`, `absent`) derived from `monitored`, files on disk and the *arr
-queue. Text in it stays fenced, image URLs are only ever TMDB's or TheTVDB's,
-and the items and the text answer are exactly what they are without it.
+`get_media_details`, `search_media`, `lookup_media` and `get_library` name the
+`ui://arr-mcp/media-cards.html` view in `_meta.ui`, and put its data in the
+result's own `_meta`, under `arr-mcp/cards`: `{ view, items, total }`, where
+`view` is `detail` for `get_media_details` and `grid` otherwise, `items` holds at
+most twenty films and series, and `total` is how many the answer held. Result
+`_meta` is not model context, so a client that cannot render the view, or that
+forwards `structuredContent` to the model, pays nothing for it. The items, the
+text answer and `structuredContent` are exactly what they are without it.
+
+A card's `status` (`downloaded`, `monitored`, `downloading`, `unmonitored`,
+`absent`) comes from `monitored`, the files on disk and the *arr queue. Text in
+it stays fenced, and its image URLs are only ever TMDB's or TheTVDB's.
+
+Cards are built only for a client that declares MCP Apps support
+(`io.modelcontextprotocol/ui`), or that declares nothing the server can read,
+which is stateless HTTP; `tools.media_cards: false` turns them off entirely
+([configuration](configuration.md#poster-cards)).
 
 ## `get_history` and the event log
 

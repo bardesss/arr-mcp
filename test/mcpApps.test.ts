@@ -16,16 +16,18 @@ import { rpcPayload } from '../scripts/lib/rpc.ts';
  */
 
 const TOKEN = 'a'.repeat(64);
-const config = ConfigSchema.parse({ auth: { bearer_token: TOKEN, password_hash: await hashPassword('x') }, services: {} });
-const app = () =>
+const PASSWORD_HASH = await hashPassword('x');
+const configWith = (extra: Record<string, unknown> = {}) =>
+    ConfigSchema.parse({ auth: { bearer_token: TOKEN, password_hash: PASSWORD_HASH }, services: {}, ...extra });
+const app = (config = configWith()) =>
     buildApp({
         runtime: Runtime.fromConfig(config, WriteAudit.ephemeral(), { adapters: [] }),
         audit: WriteAudit.ephemeral(),
         logs: LogStore.ephemeral()
     });
 
-const call = async (method: string, params: Record<string, unknown> = {}): Promise<Record<string, unknown>> => {
-    const res = await app().request('http://localhost:6060/mcp', {
+const call = async (method: string, params: Record<string, unknown> = {}, config = configWith()): Promise<Record<string, unknown>> => {
+    const res = await app(config).request('http://localhost:6060/mcp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', Authorization: `Bearer ${TOKEN}` },
         body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params })
@@ -60,6 +62,17 @@ describe('MCP Apps media cards', () => {
         expect(view?.mimeType).toBe('text/html;profile=mcp-app');
         expect(view?.text.startsWith('<!doctype html>')).toBe(true);
         expect(view?._meta?.ui?.csp).toEqual({ resourceDomains: ['https://image.tmdb.org', 'https://artworks.thetvdb.com'] });
+    });
+});
+
+describe('tools.media_cards: false', () => {
+    const off = configWith({ tools: { media_cards: false } });
+
+    it('advertises no view on any tool and serves no ui:// resource', async () => {
+        const { tools } = (await call('tools/list', {}, off)) as { tools: Tool[] };
+        expect(tools.filter(t => t._meta?.['ui'] !== undefined)).toEqual([]);
+        const { resources } = (await call('resources/list', {}, off)) as { resources: { uri: string }[] };
+        expect(resources.map(r => r.uri)).not.toContain(MEDIA_CARDS_URI);
     });
 });
 

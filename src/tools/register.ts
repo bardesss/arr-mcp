@@ -87,6 +87,8 @@ export type ToolContext = {
     /** Every configured instance, as the config declares it — the source the
      *  write gate reads, so `stack_health` cannot report a different answer. */
     instances: readonly ServiceInstance[];
+    /** `tools.media_cards`: build MCP Apps poster cards at all (`mcp/apps.ts`). */
+    mediaCards: boolean;
     /**
      * The write half. Built once alongside the resolvers rather than per
      * request: `ConfirmTokens` holds the signing key and the spent-token set,
@@ -138,6 +140,7 @@ export function buildToolContext(
         adapters,
         dataset,
         instances: listInstances(config),
+        mediaCards: config.tools?.media_cards !== false,
         mediaServerIdentity,
         mediaServers,
         seerrIdentity:
@@ -190,12 +193,12 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerGetCalendar(server, adapters);
     registerGetPlayback(server, context.mediaServers);
     registerGetRequests(server, seerr, seerrIdentity);
-    registerGetMediaDetails(server, adapters, library, dataset, bothIds(context.mediaServers));
+    registerGetMediaDetails(server, adapters, library, dataset, bothIds(context.mediaServers), context.mediaCards);
     registerGetMetadataIssues(server, context.mediaServers, write.permissions, library, adapters.find(hasBookMetadataIssues));
-    registerGetLibrary(server, library, bothIds(context.mediaServers), adapters);
+    registerGetLibrary(server, library, bothIds(context.mediaServers), adapters, context.mediaCards);
     registerGetProfileIssues(server, adapters, instances);
-    registerSearchMedia(server, adapters, dataset);
-    registerLookupMedia(server, adapters, dataset);
+    registerSearchMedia(server, adapters, dataset, context.mediaCards);
+    registerLookupMedia(server, adapters, dataset, context.mediaCards);
     registerDiscoverMedia(server, seerr, dataset);
 
     // Registered unconditionally like every read tool, and for the same 
