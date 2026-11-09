@@ -13,14 +13,6 @@ setting_up_container
 network_check
 update_os
 
-msg_info "Installing Dependencies"
-# better-sqlite3 is a native addon. It ships prebuilt binaries and normally uses
-# one, but the fallback is to compile, and without a toolchain that fallback is
-# a failed install rather than a slow one. The Dockerfile's build stage installs
-# python3, make and g++ for the same reason; build-essential covers the last two.
-$STD apt install -y build-essential python3
-msg_ok "Installed Dependencies"
-
 fetch_and_deploy_gh_release "arr-mcp" "bardesss/arr-mcp" "tarball"
 
 # 24 because that is what the published image runs, not the >=24 floor in
@@ -33,7 +25,7 @@ cd /opt/arr-mcp
 # downloads a browser this container will never open, so skip it — the build
 # below never touches Playwright.
 export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-$STD npm ci
+$STD npm ci --ignore-scripts
 $STD npm run build
 $STD npm prune --omit=dev
 msg_ok "Built arr-mcp"
@@ -44,6 +36,13 @@ msg_info "Creating Service"
 # loader that would have created it runs. A missing /config is SQLITE_CANTOPEN
 # at startup, not a first-run mkdir.
 mkdir -p /config
+# The service runs as its own user rather than root: it holds API keys for a
+# dozen services and serves a web UI, so a bug in it should not be a root shell
+# in the container. /opt/arr-mcp stays root-owned and readable; only /config is
+# written to. systemd reads /opt/arr-mcp.env as root and port 6060 needs no
+# privilege.
+useradd --system --no-create-home --home-dir /config --shell /usr/sbin/nologin arr-mcp
+chown -R arr-mcp:arr-mcp /config
 # Read out of the deployed tree so it cannot drift from the release that is
 # actually installed, and written outside /opt/arr-mcp because an update is a
 # clean re-deploy of that directory.
@@ -56,7 +55,8 @@ After=network-online.target
 
 [Service]
 Type=simple
-User=root
+User=arr-mcp
+Group=arr-mcp
 WorkingDirectory=/opt/arr-mcp
 Environment=NODE_ENV=production
 # The same two the image sets, so a container and an LXC put config.yaml in the

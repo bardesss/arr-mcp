@@ -43,10 +43,11 @@ jobs:
       # because the failure it prevents is a push that half-succeeds and leaves
       # a mystery tag in a public registry.
       - name: Validate the slug
+        env:
+          SLUG: ${{ inputs.slug }}
         run: |
-          slug='${{ inputs.slug }}'
-          if ! printf '%s' "$slug" | grep -qE '^[a-z0-9][a-z0-9-]*$'; then
-            echo "::error::slug must be lowercase letters, digits and dashes, starting with one. Got: $slug"
+          if ! printf '%s' "$SLUG" | grep -qE '^[a-z0-9][a-z0-9-]*$'; then
+            echo "::error::slug must be lowercase letters, digits and dashes, starting with one. Got: $SLUG"
             exit 1
           fi
 
@@ -68,9 +69,11 @@ jobs:
       # that survives the next push.
       - name: Describe the build
         id: describe
+        env:
+          SLUG: ${{ inputs.slug }}
         run: |
           sha=$(git rev-parse --short HEAD)
-          echo "version=preview-${{ inputs.slug }}-${sha}" >> "$GITHUB_OUTPUT"
+          echo "version=preview-${SLUG}-${sha}" >> "$GITHUB_OUTPUT"
           echo "sha=${sha}" >> "$GITHUB_OUTPUT"
 
       # Same platforms as a release. Self-hosters run this on Synology and Pi as
@@ -85,20 +88,30 @@ jobs:
           tags: ghcr.io/bardesss/arr-mcp:preview-${{ inputs.slug }}
           build-args: |
             ARR_MCP_VERSION=${{ steps.describe.outputs.version }}
+          # Reads release's cache first: it is the one written from main.
+          cache-from: |
+            type=gha,scope=release
+            type=gha,scope=preview
+          cache-to: type=gha,mode=max,scope=preview,ignore-error=true
 
       # So the pull command can be copied straight into the issue thread that
       # asked for the build.
       - name: Summary
+        env:
+          SLUG: ${{ inputs.slug }}
+          REF: ${{ inputs.ref }}
+          SHA: ${{ steps.describe.outputs.sha }}
+          VERSION: ${{ steps.describe.outputs.version }}
         run: |
           {
             echo "### Preview image published"
             echo
             echo '```'
-            echo "docker pull ghcr.io/bardesss/arr-mcp:preview-${{ inputs.slug }}"
+            echo "docker pull ghcr.io/bardesss/arr-mcp:preview-${SLUG}"
             echo '```'
             echo
-            echo "Built from \`${{ inputs.ref }}\` at \`${{ steps.describe.outputs.sha }}\`."
-            echo "It reports its version as \`${{ steps.describe.outputs.version }}\` on /healthz."
+            echo "Built from \`${REF}\` at \`${SHA}\`."
+            echo "It reports its version as \`${VERSION}\` on /healthz."
             echo
             echo "Not a release. \`latest\`, \`main\` and the semver tags are untouched."
           } >> "$GITHUB_STEP_SUMMARY"

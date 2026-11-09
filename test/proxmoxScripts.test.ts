@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -184,7 +185,7 @@ describe('the Proxmox LXC installer', () => {
         expect(pkg.devDependencies.playwright).toBeDefined();
         for (const script of [install, ct]) {
             expect(script).toContain('export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1');
-            expect(script).toContain('$STD npm ci');
+            expect(script).toContain('$STD npm ci --ignore-scripts');
         }
     });
 
@@ -234,5 +235,76 @@ describe('the Proxmox LXC installer', () => {
 
         expect(logo).toBeDefined();
         expect(existsSync(join(root, logo!)), `${logo} is referenced but missing`).toBe(true);
+    });
+
+    it('installs no compiler toolchain, as the image does not', () => {
+        expect(install).not.toMatch(/build-essential|python3|\bg\+\+/);
+    });
+
+    it('runs the service as a dedicated system user that owns the config directory', () => {
+        expect(install).toMatch(/^User=arr-mcp$/m);
+        expect(install).toMatch(/^Group=arr-mcp$/m);
+        expect(install).not.toMatch(/^User=root$/m);
+        expect(install).toContain('useradd --system --no-create-home --home-dir /config --shell /usr/sbin/nologin arr-mcp');
+        expect(install).toContain('chown -R arr-mcp:arr-mcp /config');
+        // chown after mkdir, unit after both
+        expect(install.indexOf('mkdir -p /config')).toBeLessThan(install.indexOf('chown -R arr-mcp:arr-mcp /config'));
+        expect(install.indexOf('chown -R arr-mcp:arr-mcp /config')).toBeLessThan(install.indexOf('User=arr-mcp'));
+    });
+
+    it('moves an existing root install to that user on update', () => {
+        expect(ct).toContain('id -u arr-mcp');
+        expect(ct).toContain('chown -R arr-mcp:arr-mcp /config');
+        expect(ct).toContain("sed -i 's/^User=root$/User=arr-mcp\\nGroup=arr-mcp/' /etc/systemd/system/arr-mcp.service");
+        expect(ct).toContain('systemctl daemon-reload');
+    });
+
+    describe('the Community Scripts engine pin', () => {
+        const OFFICIAL = 'https://raw.githubusercontent.com/community-scripts/core';
+        // The snippet itself, run with bash, rather than a regex over its text.
+        const lines = ct.split('\n');
+        const from = lines.findIndex(l => l.startsWith('_cs_core_pin='));
+        const to = lines.findIndex(l => l === 'export COMMUNITY_SCRIPTS_CORE_URL');
+        const snippet = lines.slice(from, to + 1).join('\n');
+        const pin = /^_cs_core_pin="([^"]+)"$/m.exec(snippet)?.[1];
+        const sha = /\/core\/([0-9a-f]{40})$/.exec(pin ?? '')?.[1];
+        // Prints the value a child process sees, as build.func and update would.
+        const resolve = (incoming?: string): string => {
+            const env: NodeJS.ProcessEnv = { ...process.env };
+            delete env.COMMUNITY_SCRIPTS_CORE_URL;
+            if (incoming !== undefined) env.COMMUNITY_SCRIPTS_CORE_URL = incoming;
+            const r = spawnSync('bash', ['-c', `${snippet}\nbash -c 'printf %s "$COMMUNITY_SCRIPTS_CORE_URL"'`], { env, encoding: 'utf8' });
+            expect(r.status).toBe(0);
+            return r.stdout;
+        };
+
+        it('names a commit that SECURITY.md also names', () => {
+            expect(from).toBeGreaterThan(-1);
+            expect(to).toBeGreaterThan(from);
+            expect(pin).toBe(`${OFFICIAL}/${sha}`);
+            expect(sha).toBeDefined();
+            expect(read('SECURITY.md')).toContain(sha!);
+        });
+
+        it('exports the pin and fetches build.func from it', () => {
+            expect(resolve()).toBe(pin);
+            expect(ct).toContain('"${COMMUNITY_SCRIPTS_CORE_URL}/core/build.func"');
+        });
+
+        it('repins an empty value and any ref of the official repository, as baked into /usr/bin/update', () => {
+            expect(resolve('')).toBe(pin);
+            expect(resolve(`${OFFICIAL}/main`)).toBe(pin);
+            expect(resolve(`${OFFICIAL}/${'a'.repeat(40)}`)).toBe(pin);
+        });
+
+        it('keeps an override that points at another repository', () => {
+            for (const fork of [
+                'https://raw.githubusercontent.com/someone/core/main',
+                `${OFFICIAL}-fork/main`,
+                'https://example.com/community-scripts/core/main',
+            ]) {
+                expect(resolve(fork)).toBe(fork);
+            }
+        });
     });
 });

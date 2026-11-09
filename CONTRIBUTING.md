@@ -102,6 +102,12 @@ deliberately will not do on its own:
   so they are ignored in both the `npm` and `docker` ecosystems. Nothing will
   remind you; bumping Node is a deliberate, hand-written change.
 
+`package.json` carries one npm override. `minimatch` is forced to `^11` (#434)
+to clear GHSA-g3hv-75wg-m249 while eslint, `@eslint/config-array` and
+typescript-eslint still asked for `^10`. Remove the override once
+`npm view eslint dependencies.minimatch` and the same for the other two all
+accept 11, and drop it as a `chore(deps)` commit.
+
 ## Commit messages
 
 [Conventional Commits](https://www.conventionalcommits.org/) — release-please
@@ -685,6 +691,23 @@ Two things worth knowing before you touch this:
   fails to typecheck against them, fix the mapper. Do not widen it with a cast:
   that failure is the codegen doing the job it was added for.
 
+## Testing the Proxmox scripts
+
+No maintainer runs Proxmox, so a change under `proxmox/` merges on the text
+guards in `test/proxmoxScripts.test.ts` and then needs a volunteer with a PVE
+host to run it for real. Point `COMMUNITY_SCRIPTS_URL` at the raw `proxmox/`
+base of the branch under test and run `proxmox/ct/arr-mcp.sh` from the host.
+Two runs cover it:
+
+- **A fresh install.** `systemctl show -p User arr-mcp` prints `User=arr-mcp`,
+  `stat -c %U /config/config.yaml` prints `arr-mcp` once the instance is
+  claimed, and saving a service in the UI succeeds.
+- **An `update` over an existing root install.** The same three checks pass,
+  the existing config survives, and `grep CORE_URL /usr/bin/update` after the
+  update shows the pinned commit.
+
+Report results on #265, or open a new issue.
+
 ## Screenshots
 
 `screenshots/` is regenerated, never taken by hand:
@@ -779,4 +802,4 @@ Review `git diff test/fixtures/` before committing regardless.
 ## Reporting a bug
 
 Please include service versions, your arr-mcp version, and redacted logs.
-Redact API keys and the bearer token.
+Redact API keys and MCP tokens.

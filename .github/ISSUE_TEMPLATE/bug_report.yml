@@ -9,8 +9,8 @@ body:
         Thanks for reporting. Two fields below matter more than the rest:
         **which versions you are running**, and **logs**.
 
-        arr-mcp talks to eight services whose APIs change independently, so a
-        report without versions usually cannot be reproduced.
+        Each service's API changes independently, so a report without versions
+        usually cannot be reproduced.
 
   - type: input
     id: arr-mcp-version
@@ -28,6 +28,8 @@ body:
       options:
         - Docker image (ghcr.io/bardesss/arr-mcp)
         - Docker Compose
+        - Unraid (Community Applications template)
+        - Proxmox LXC (proxmox/ scripts)
         - From source (node)
         - Other
     validations:
@@ -57,6 +59,7 @@ body:
         - label: Reclaimerr
         - label: Dispatcharr
         - label: Shelfmark
+        - label: Grimmory
 
   - type: input
     id: service-versions
@@ -96,19 +99,19 @@ body:
     attributes:
       label: Logs
       description: |
-        Relevant output from `docker logs arr-mcp`, or the terminal if running from source.
+        Relevant output from `docker logs arr-mcp`, the config UI's Logs page,
+        or `journalctl -u arr-mcp` on a Proxmox LXC.
 
         **Redact before pasting.** arr-mcp logs are JSON and normally contain no
-        secrets, but two things do appear in them:
+        secrets. MCP tokens are shown once on the config page and stored hashed.
+        Still check for:
 
-        - On **first run only**, the generated bearer token is printed so you
-          can find it (`use this bearer token for /mcp`). Anyone with that token
-          can reach your `/mcp` endpoint. Remove that line.
-        - Service URLs may include internal hostnames you would rather not
-          publish.
+        - Internal hostnames in service URLs that you would rather not publish.
+        - With `allow_token_in_url` on, any `?token=` that a reverse-proxy log
+          captured.
 
-        Never paste the contents of `config/config.yaml` — it holds the bearer
-        token and every service API key.
+        Never paste `config.yaml`: it holds every service API key and the token
+        hashes.
       render: shell
 
   - type: checkboxes
@@ -116,5 +119,5 @@ body:
     attributes:
       label: Before submitting
       options:
-        - label: I removed the bearer token and any API keys from the logs above.
+        - label: I removed API keys, MCP tokens and passwords from everything above.
           required: true
