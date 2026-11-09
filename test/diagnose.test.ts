@@ -1357,12 +1357,45 @@ describe('collectEvidence — Bazarr', () => {
     const owned = { ...FILM, acquisition: { service: 'radarr', id: '5', monitored: true, hasFile: true } };
     const gap = { service: 'bazarr', kind: 'movie', id: 5, title: 'Some Film', missing: [{ name: 'Dutch', code2: 'nl', forced: false, hearingImpaired: false }] };
     const radarr = (film: IndexInput) => stub('radarr', { listLibrary: async () => [film], getQueue: async () => [] });
-    const bazarr = (read: () => Promise<unknown[]>) => stub('bazarr', { getMissingSubtitles: read, getProviders: async () => [] });
+    const bazarr = (read: (item?: unknown) => Promise<unknown[]>) =>
+        stub('bazarr', { getMissingSubtitles: async () => { throw new Error('the whole wanted list must not be read'); }, getMissingSubtitlesFor: read, getProviders: async () => [] });
     const run = (adapters: ServiceAdapter[]) => collectEvidence({ adapters, library: new LibraryLoader(adapters, undefined) }, { query: 'some film' });
 
     it('reads what Bazarr is missing for an item with a file', async () => {
         const evidence = await run([radarr(owned), bazarr(async () => [gap])]);
         expect(evidence.subtitles).toEqual({ gaps: [gap], service: 'bazarr' });
+    });
+
+    it('asks Bazarr for this one item, not the whole wanted list', async () => {
+        const asked: unknown[] = [];
+        let all = 0;
+        const adapter = stub('bazarr', {
+            getMissingSubtitles: async () => {
+                all += 1;
+                return [];
+            },
+            getMissingSubtitlesFor: async (item: unknown) => {
+                asked.push(item);
+                return [gap];
+            },
+            getProviders: async () => []
+        });
+        await run([radarr(owned), adapter]);
+        expect(asked).toEqual([{ kind: 'movie', id: 5 }]);
+        expect(all).toBe(0);
+    });
+
+    it('reads no Bazarr gaps when the item has no usable id', async () => {
+        let calls = 0;
+        const evidence = await run([
+            radarr({ ...owned, acquisition: { ...owned.acquisition, id: 'x' } }),
+            bazarr(async () => {
+                calls += 1;
+                return [gap];
+            })
+        ]);
+        expect(calls).toBe(0);
+        expect(evidence.subtitles).toEqual({ gaps: [], service: 'bazarr' });
     });
 
     it('is undefined, and degraded, when Bazarr cannot be read', async () => {

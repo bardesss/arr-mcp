@@ -1,0 +1,37 @@
+{
+  "data": [
+    {
+      "alternativeTitles": [
+        "Unnatuerliche Auswahl"
+      ],
+      "audio_language": [
+        {
+          "name": "English",
+          "code2": "en",
+          "code3": "eng"
+        }
+      ],
+      "created_at_timestamp": null,
+      "episodeFileCount": 4,
+      "ended": true,
+      "episodeMissingCount": 4,
+      "fanart": "/images/series/MediaCover/305/fanart.jpg",
+      "imdbId": "tt11063952",
+      "lastAired": "2019-10-18",
+      "monitored": true,
+      "overview": "From eradicating disease to selecting a child’s traits, gene editing gives humans the chance to hack biology. Meet the real people behind the science.",
+      "path": "/storage/tv/Unnatural Selection",
+      "poster": "/images/series/MediaCover/305/poster-250.jpg",
+      "profileId": 1,
+      "seriesType": "standard",
+      "sonarrSeriesId": 305,
+      "tags": [
+        "huntarr-upgrade"
+      ],
+      "title": "Unnatural Selection",
+      "tvdbId": 370467,
+      "year": "2019"
+    }
+  ],
+  "total": 1
+}

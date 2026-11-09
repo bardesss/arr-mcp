@@ -402,17 +402,23 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
             ? Promise.resolve(undefined)
             : probe(scanAdapter.id, degraded, () => scanAdapter.getScanState());
 
-    // Every wanted subtitle in the library, unpaged, so only for an item with a
-    // file, and never an artist: Bazarr has no music. Probed like the rest: a
+    // One item's wanted subtitles, so only for an item with a file, and never
+    // an artist: Bazarr has no music. Probed like the rest: a
     // Bazarr that is down is `undefined` and `degraded`, and the stage reports
     // unknown without costing the verdict.
     const subtitlesAdapter = deps.adapters.find(hasSubtitles);
+    const subtitlesId = Number(item?.acquisition?.id);
     const subtitlesP: Promise<Evidence['subtitles']> =
         subtitlesAdapter === undefined || isArtist || item?.acquisition?.hasFile !== true
             ? Promise.resolve(null) // without a file the stage skips before it reads this
-            : probe(subtitlesAdapter.id, degraded, () => subtitlesAdapter.getMissingSubtitles()).then(gaps =>
-                  gaps === undefined ? undefined : { gaps, service: subtitlesAdapter.id }
-              );
+            : Number.isInteger(subtitlesId)
+              ? probe(subtitlesAdapter.id, degraded, () =>
+                    subtitlesAdapter.getMissingSubtitlesFor(
+                        item?.kind === 'series' ? { kind: 'series', seriesId: subtitlesId } : { kind: 'movie', id: subtitlesId }
+                    )
+                ).then(gaps => (gaps === undefined ? undefined : { gaps, service: subtitlesAdapter.id }))
+              : // Nothing to ask about: the chain reports the missing id as unknown.
+                Promise.resolve({ gaps: [], service: subtitlesAdapter.id });
 
     // An artist with no track on disk is searched for next, and a Lidarr search
     // grabs only releases of a monitored album (`ReleaseSearchService.ArtistSearch`

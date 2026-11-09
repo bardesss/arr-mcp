@@ -1,0 +1,160 @@
+{
+  "data": [
+    {
+      "audio_language": [
+        {
+          "name": "English",
+          "code2": "en",
+          "code3": "eng"
+        }
+      ],
+      "episode": 4,
+      "missing_subtitles": [
+        {
+          "name": "Dutch",
+          "code2": "nl",
+          "code3": "nld",
+          "forced": false,
+          "hi": false
+        }
+      ],
+      "monitored": true,
+      "path": "/storage/tv/Unnatural Selection/Season 1/Unnatural Selection - S01E04 - Our Next Generation [WEBDL-2160p][EAC3 5.1][DV HDR10][HEVC]-SiC.mkv",
+      "season": 1,
+      "sonarrEpisodeId": 10856,
+      "sonarrSeriesId": 305,
+      "subtitles": [
+        {
+          "name": "English",
+          "code2": "en",
+          "code3": "eng",
+          "path": "/storage/tv/Unnatural Selection/Season 1/Unnatural Selection - S01E04 - Our Next Generation [WEBDL-2160p][EAC3 5.1][DV HDR10][HEVC]-SiC.en.srt",
+          "forced": false,
+          "hi": false,
+          "file_size": 84334,
+          "embedded_track_id": null,
+          "id": 104
+        }
+      ],
+      "title": "Our Next Generation",
+      "sceneName": "Unnatural.Selection.S01E04.Our.Next.Generation.2160p.NF.WEB-DL.DDP.5.1.DoVi.HDR.HEVC-SiC"
+    },
+    {
+      "audio_language": [
+        {
+          "name": "English",
+          "code2": "en",
+          "code3": "eng"
+        }
+      ],
+      "episode": 3,
+      "missing_subtitles": [
+        {
+          "name": "Dutch",
+          "code2": "nl",
+          "code3": "nld",
+          "forced": false,
+          "hi": false
+        }
+      ],
+      "monitored": true,
+      "path": "/storage/tv/Unnatural Selection/Season 1/Unnatural.Selection.S01E03.2160p.NF.WEB-DL.DDP5.1.HDR.DV.HEVC-SiC-xpost.mkv",
+      "season": 1,
+      "sonarrEpisodeId": 10855,
+      "sonarrSeriesId": 305,
+      "subtitles": [
+        {
+          "name": "English",
+          "code2": "en",
+          "code3": "eng",
+          "path": "/storage/tv/Unnatural Selection/Season 1/Unnatural.Selection.S01E03.2160p.NF.WEB-DL.DDP5.1.HDR.DV.HEVC-SiC-xpost.en.srt",
+          "forced": false,
+          "hi": false,
+          "file_size": 77749,
+          "embedded_track_id": null,
+          "id": 103
+        }
+      ],
+      "title": "Changing an Entire Species",
+      "sceneName": "Unnatural.Selection.S01E03.2160p.NF.WEB-DL.DDP5.1.HDR.DV.HEVC-SiC-xpost"
+    },
+    {
+      "audio_language": [
+        {
+          "name": "English",
+          "code2": "en",
+          "code3": "eng"
+        }
+      ],
+      "episode": 2,
+      "missing_subtitles": [
+        {
+          "name": "Dutch",
+          "code2": "nl",
+          "code3": "nld",
+          "forced": false,
+          "hi": false
+        }
+      ],
+      "monitored": true,
+      "path": "/storage/tv/Unnatural Selection/Season 1/Unnatural.Selection.S01E02.2160p.NF.WEB-DL.DDP5.1.HDR.DV.HEVC-SiC.mkv",
+      "season": 1,
+      "sonarrEpisodeId": 10854,
+      "sonarrSeriesId": 305,
+      "subtitles": [
+        {
+          "name": "English",
+          "code2": "en",
+          "code3": "eng",
+          "path": "/storage/tv/Unnatural Selection/Season 1/Unnatural.Selection.S01E02.2160p.NF.WEB-DL.DDP5.1.HDR.DV.HEVC-SiC.en.srt",
+          "forced": false,
+          "hi": false,
+          "file_size": 79296,
+          "embedded_track_id": null,
+          "id": 102
+        }
+      ],
+      "title": "The First to Try",
+      "sceneName": "Unnatural.Selection.S01E02.2160p.NF.WEB-DL.DDP5.1.HDR.DV.HEVC-SiC"
+    },
+    {
+      "audio_language": [
+        {
+          "name": "English",
+          "code2": "en",
+          "code3": "eng"
+        }
+      ],
+      "episode": 1,
+      "missing_subtitles": [
+        {
+          "name": "Dutch",
+          "code2": "nl",
+          "code3": "nld",
+          "forced": false,
+          "hi": false
+        }
+      ],
+      "monitored": true,
+      "path": "/storage/tv/Unnatural Selection/Season 1/Unnatural.Selection.S01E01.2160p.NF.WEB-DL.DDP5.1.HDR.DV.HEVC-SiC-xpost.mkv",
+      "season": 1,
+      "sonarrEpisodeId": 10853,
+      "sonarrSeriesId": 305,
+      "subtitles": [
+        {
+          "name": "English",
+          "code2": "en",
+          "code3": "eng",
+          "path": "/storage/tv/Unnatural Selection/Season 1/Unnatural.Selection.S01E01.2160p.NF.WEB-DL.DDP5.1.HDR.DV.HEVC-SiC-xpost.en.srt",
+          "forced": false,
+          "hi": false,
+          "file_size": 87649,
+          "embedded_track_id": null,
+          "id": 101
+        }
+      ],
+      "title": "Cut, Paste, Life",
+      "sceneName": "Unnatural.Selection.S01E01.2160p.NF.WEB-DL.DDP5.1.HDR.DV.HEVC-SiC-xpost"
+    }
+  ]
+}
