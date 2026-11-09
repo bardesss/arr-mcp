@@ -179,6 +179,32 @@ describe('SeerrAdapter request writes', () => {
         expect((await new SeerrAdapter(seerrConfig, bare).getMediaRequests('movie', 1)).requests).toEqual([]);
     });
 
+    it("reads a series' own requests from its detail", async () => {
+        const recorded = JSON.parse(
+            readFileSync(new URL('./fixtures/seerr/tv-detail.json', import.meta.url), 'utf8')
+        ) as { id: number };
+        const paths: string[] = [];
+        const impl = (async (input: string | URL | Request) => {
+            paths.push(new URL(input instanceof Request ? input.url : String(input)).pathname);
+            return jsonResponse(recorded);
+        }) as unknown as typeof fetch;
+        const found = await new SeerrAdapter(seerrConfig, impl).getMediaRequests('tv', recorded.id);
+
+        expect(paths).toEqual([`/api/v1/tv/${recorded.id}`]);
+        expect(found.requests.length).toBeGreaterThan(0);
+        for (const r of found.requests) {
+            expect(r.tmdbId).toBe(recorded.id);
+            expect(r.mediaType).toBe('tv');
+        }
+    });
+
+    it('reads a zero-padded id as the number it names', async () => {
+        const { impl, sent } = recordingFetch({});
+        const adapter = new SeerrAdapter(seerrConfig, impl);
+        expect((await adapter.getRequest('031'))?.id).toBe(31);
+        expect(sent.map(s => s.path)).toEqual(['/api/v1/request/31']);
+    });
+
     it('maps the recorded single-request response', async () => {
         const recorded = JSON.parse(
             readFileSync(new URL('./fixtures/seerr/request-by-id.json', import.meta.url), 'utf8')
@@ -316,6 +342,14 @@ describe('respond_to_request', () => {
         const gets = h.fetchImpl.sent.filter(s => s.method === 'GET').map(s => s.path);
         expect(gets).toContain('/api/v1/request/31');
         expect(gets).not.toContain('/api/v1/request');
+    });
+
+    it('names a zero-padded id by the request it resolves to', async () => {
+        const h = harness(registerRespondToRequest, { permissions: { seerr: tiered(true, false) } });
+        const { structuredContent } = await h.call({ id: '031', verdict: 'approve', dry_run: true });
+        expect(h.fetchImpl.sent.filter(s => s.method === 'GET').map(s => s.path)).toContain('/api/v1/request/31');
+        expect(JSON.stringify(structuredContent)).toContain('seerr:31');
+        expect(JSON.stringify(structuredContent)).not.toContain('seerr:031');
     });
 
     it("refuses to act on another user's request while allow_other_users is off", async () => {

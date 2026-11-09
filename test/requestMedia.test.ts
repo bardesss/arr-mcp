@@ -60,7 +60,7 @@ function harness(
     const seen: string[] = [];
 
     // What the title's own detail answers: the nested rows Seerr records under
-    // `mediaInfo.requests`, which carry no `media.title`.
+    // `mediaInfo.requests`, rows that carry their own `media` as recorded.
     const detail = (tmdbId: number, type: string, base: Record<string, unknown>) => ({
         ...base,
         mediaInfo: {
@@ -70,7 +70,6 @@ function harness(
                     const m = r.media as { tmdbId?: number; mediaType?: string } | undefined;
                     return m?.tmdbId === tmdbId && m?.mediaType === type;
                 })
-                .map(({ media: _m, ...r }) => r)
         }
     });
 
@@ -205,6 +204,17 @@ describe('request_media', () => {
         expect(structuredContent.confirm_token).toBeUndefined();
         expect(h.posted).toHaveLength(0);
         expect(structuredContent.summary).toContain('requested by <<untrusted:seerr.user>>Sam<</>>');
+    });
+
+    it('names the pending request when a title has several, otherwise the newest', async () => {
+        const row = (id: number, status: number, name: string) =>
+            requestRow({ id, status, requestedBy: { id: 1, displayName: name } });
+
+        const pending = harness({ existing: [row(30, 2, 'Approved'), row(20, 1, 'Waiting'), row(10, 2, 'Old')] });
+        expect((await pending.call(MOVIE)).structuredContent.summary).toContain('Waiting');
+
+        const newest = harness({ existing: [row(10, 2, 'Old'), row(30, 3, 'Newest'), row(20, 2, 'Middle')] });
+        expect((await newest.call(MOVIE)).structuredContent.summary).toContain('Newest');
     });
 
     it('checks for a duplicate from the title lookup, not the whole request history', async () => {

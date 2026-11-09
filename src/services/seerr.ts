@@ -267,9 +267,10 @@ export class SeerrAdapter
      * Seerr id never costs a call.
      */
     async getRequest(id: string): Promise<MediaRequest | undefined> {
-        if (!/^\d+$/.test(id)) return undefined;
+        if (!/^[0-9]+$/.test(id) || !Number.isSafeInteger(Number(id))) return undefined;
         try {
-            const body = await this.#http.get<RawRequest>(`/api/v1/request/${id}`);
+            // The canonical number, so "031" reads request 31.
+            const body = await this.#http.get<RawRequest>(`/api/v1/request/${Number(id)}`);
             return typeof body.id === 'number' ? this.#toRequest(body as RawRequest & { id: number }) : undefined;
         } catch (err) {
             if (err instanceof ServiceError && err.kind === 'NotFound') return undefined;
@@ -327,8 +328,9 @@ export class SeerrAdapter
      *
      * One page of `limit` rows, not the whole list: a caller asking for a few
      * issues should not cost a request per hundred issues ever raised. The
-     * order follows `sort=added`, newest first, as GET /api/v1/request does
-     * with the same sort.
+     * request `sort=added` is sent, and on the request list that returns newest
+     * first. The issue order itself was not observed: the live store held a
+     * single issue.
      */
     async getIssues(opts: { limit: number }): Promise<MediaIssue[]> {
         const params = new URLSearchParams({

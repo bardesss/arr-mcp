@@ -128,7 +128,11 @@ export function registerRequestMedia(
                 lookup = { requests: [found] };
             }
 
-            const existing = lookup.requests[0];
+            // The request that describes the title: one waiting on somebody
+            // first, otherwise the newest.
+            const existing =
+                lookup.requests.find(r => r.status === 'pending') ??
+                [...lookup.requests].sort((a, b) => b.id - a.id)[0];
             const media = lookup.media;
             // Creating for a title that has none means a wrong id, and a token
             // for it applies as a 500.

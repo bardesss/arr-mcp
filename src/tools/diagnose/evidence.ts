@@ -254,7 +254,10 @@ export function requestsFor(requests: readonly MediaRequest[], ids: ExternalIds,
 /**
  * One title's requests. Seerr answers that per TMDB id, so the whole request
  * history is read only when the title has no TMDB id (a series known only by
- * TVDB, which Seerr cannot look up) or the adapter cannot look a title up.
+ * TVDB, which Seerr cannot look up) or the adapter cannot look a title up. It
+ * is also read when the title lookup fails: Seerr answers 500 for a TMDB id it
+ * cannot resolve and during a TMDB outage, and the request list needs only
+ * Seerr's own database, so it still answers.
  */
 export async function readTitleRequests(
     seerr: ServiceAdapter & RequestCapable,
@@ -265,8 +268,8 @@ export async function readTitleRequests(
     try {
         return (await seerr.getMediaRequests(kind === 'movie' ? 'movie' : 'tv', ids.tmdb)).requests;
     } catch (err) {
-        if (err instanceof ServiceError && err.kind === 'NotFound') return [];
-        throw err;
+        if (!(err instanceof ServiceError) || (err.kind !== 'NotFound' && err.kind !== 'UpstreamError')) throw err;
+        return seerr.getRequests({});
     }
 }
 
@@ -350,6 +353,8 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
     const scanAdapter =
         mediaServerAdapter !== undefined && hasScanState(mediaServerAdapter) ? mediaServerAdapter : undefined;
 
+    // Read per title when the item is resolved (the item-miss read of the whole
+    // history is removed in a later change).
     // `null` here is a third state the chain needs: not configured, as
     // distinct from asked-and-empty (`[]`) or could-not-ask (`undefined`).
     const requestsP: Promise<MediaRequest[] | null | undefined> =

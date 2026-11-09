@@ -148,7 +148,7 @@ export function registerRespondToRequest(
             // them to confirm without reading.
             if (request.status === target) {
                 return {
-                    target: `seerr:${id}`,
+                    target: `seerr:${request.id}`,
                     summary: `${label} is already ${target}.`,
                     effects: [],
                     noop: true
@@ -167,7 +167,7 @@ export function registerRespondToRequest(
                       ];
 
             return {
-                target: `seerr:${id}`,
+                target: `seerr:${request.id}`,
                 summary: `${verdict === 'approve' ? 'Approve' : 'Decline'} ${label} (currently ${request.status}).`,
                 effects,
                 args: { id, verdict }
@@ -206,7 +206,7 @@ export function registerDeleteRequest(
             const label = await describe(adapters, request);
 
             return {
-                target: `seerr:${id}`,
+                target: `seerr:${request.id}`,
                 summary: `Delete the Seerr request for ${label} (currently ${request.status}).`,
                 effects: [
                     'Removes the request record from Seerr. This cannot be undone — the request would have to be made again.',
