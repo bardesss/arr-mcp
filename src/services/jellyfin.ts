@@ -137,6 +137,8 @@ type RawItemDetail = {
     MediaSources?: { Size?: number }[];
     Genres?: string[];
     UserData?: { Played?: boolean; PlayCount?: number; LastPlayedDate?: string };
+    /** Only with `Fields=RecursiveItemCount` and a user: on a series, its episodes (seasons are not counted). */
+    RecursiveItemCount?: number;
     /** Both only with `Fields=Settings`. */
     LockData?: boolean;
     LockedFields?: string[];
@@ -556,7 +558,7 @@ export class JellyfinAdapter
     async listUserLibrary(user: ServiceUser): Promise<IndexInput[]> {
         const page = await this.#http.get<{ Items?: RawItemDetail[] }>(
             `/Items?userId=${encodeURIComponent(user.id)}&Recursive=true&IncludeItemTypes=Movie,Series` +
-                '&Fields=ProviderIds,Genres,OriginalTitle&EnableUserData=true'
+                '&Fields=ProviderIds,Genres,OriginalTitle,RecursiveItemCount&EnableUserData=true'
         );
 
         return (page.Items ?? []).map(i => {
@@ -581,7 +583,8 @@ export class JellyfinAdapter
                     ...(i.Id === undefined ? {} : { itemId: i.Id }),
                     watched: i.UserData?.Played ?? false,
                     ...(i.UserData?.PlayCount === undefined ? {} : { playCount: i.UserData.PlayCount }),
-                    ...(i.UserData?.LastPlayedDate === undefined ? {} : { lastPlayed: i.UserData.LastPlayedDate })
+                    ...(i.UserData?.LastPlayedDate === undefined ? {} : { lastPlayed: i.UserData.LastPlayedDate }),
+                    ...(i.Type === 'Series' && i.RecursiveItemCount === 0 ? { empty: true as const } : {})
                 }
             };
         });

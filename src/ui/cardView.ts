@@ -169,7 +169,7 @@ html, body { margin: 0; background: transparent; color: var(--fg); font: 14px/1.
   // --- rendering -------------------------------------------------------------
   function unfence(value) {
     if (typeof value !== "string") return "";
-    return value.replace(/<<untrusted:[^>]*>>([\s\S]*?)<<\/>>/g, function (_m, inner) {
+    return value.replace(/<<untrusted:[^>]*>>([\s\S]*?)<<\/(?:untrusted)?>>/g, function (_m, inner) {
       return inner.replace(/\\u003c/g, "<").replace(/\\u003e/g, ">");
     });
   }

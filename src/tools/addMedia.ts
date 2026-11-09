@@ -13,6 +13,8 @@ import {
     type ServiceAdapter
 } from '../services/types.ts';
 import { chooseOne, freeSpace, FOLDER_MATCH, PROFILE_MATCH, TAG_MATCH } from './chooseOne.ts';
+import { RANK_NONE, rankTitle, splitYear, unfenced } from '../core/titleMatch.ts';
+import type { AddCandidate, RootFolder } from '../services/types.ts';
 import { arrSubject } from './crossChecks.ts';
 import { NO_ALBUMS_PROFILE, SEARCH_AFTER_REFRESH } from './lidarrProfiles.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
@@ -209,6 +211,53 @@ function refuseMalformedId(service: ServiceId, type: ServiceId, externalId: stri
     });
 }
 
+const trimSlash = (p: string): string => p.replace(/[\\/]+$/, '');
+
+/**
+ * The root folder `path` sits in (#535). Radarr and Sonarr keep the root
+ * beside the item's own folder, so a folder outside every root is refused
+ * rather than added under a root it is not in.
+ */
+export function rootOf(folders: readonly RootFolder[], path: string, service: string): RootFolder {
+    const wanted = trimSlash(path);
+    // `/movies/../etc` would pass a prefix test, so dot segments are refused
+    // outright, and the folder must be the root's own child, as Radarr and
+    // Sonarr lay a title out.
+    const dotted = wanted.split(/[\\/]/).some(segment => segment === '.' || segment === '..');
+    const hit = dotted
+        ? undefined
+        : folders.find(f => {
+              const root = trimSlash(f.path);
+              const rest = wanted.slice(root.length);
+              return wanted.startsWith(root) && /^[\\/][^\\/]+$/.test(rest);
+          });
+    if (hit !== undefined) return hit;
+    throw new ServiceError('NotFound', service, `${JSON.stringify(path)} is not a folder directly inside a ${service} root folder`, {
+        remedy: `Pass the title's own folder, directly inside one of ${folders.map(f => f.display).join(', ') || 'its root folders'}, as ${service} sees the disk.`
+    });
+}
+
+const FOLDER_ID: Record<string, RegExp> = { radarr: /tmdb(?:id)?-(\d+)/i, sonarr: /tvdb(?:id)?-(\d+)/i, whisparr: /tvdb(?:id)?-(\d+)/i };
+
+/**
+ * Why a folder may hold another title than the one being added: an id or a
+ * year in its name that disagrees, or a name that shares nothing with the
+ * title. Undefined when nothing disagrees. The wrong-match case of #535: an
+ * old folder without an id that the media server matched to another film.
+ */
+export function folderDoubt(path: string, candidate: AddCandidate, type: string, externalId: string): string | undefined {
+    const name = trimSlash(path).split(/[\\/]/).pop() ?? '';
+    const id = FOLDER_ID[type]?.exec(name)?.[1];
+    if (id !== undefined && id !== externalId) return `the folder name carries id ${id}, not ${externalId}`;
+    const bare = name.replace(/[[{][^\]}]*[\]}]/g, ' ').trim();
+    const { title, year } = splitYear(bare);
+    if (year !== undefined && candidate.year !== undefined && year !== candidate.year) return `the folder name says ${year}, the lookup ${candidate.year}`;
+    if (title !== '' && rankTitle(unfenced(candidate.title), title) === RANK_NONE && rankTitle(title, unfenced(candidate.title)) === RANK_NONE) {
+        return 'the folder name does not match the title';
+    }
+    return undefined;
+}
+
 export function registerAddMedia(server: McpServer, context: WriteContext, adapters: readonly ServiceAdapter[]): void {
     registerWriteTool(server, context, {
         name: 'add_media',
@@ -269,8 +318,13 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
                 ),
             search_now: z
                 .boolean()
-                .default(true)
-                .describe('Start searching immediately. Defaults to true — set false to add without downloading yet.')
+                .optional()
+                .describe('Start searching immediately. Defaults to true, or false with `path`.'),
+            path: z
+                .string()
+                .min(1)
+                .optional()
+                .describe('Not Lidarr: an existing folder under a root folder to adopt as it is, files and all.')
         }),
         // The resolved instance id, not the bare type: permissions are granted per
         // instance, so checking `radarr` against a config that only grants
@@ -293,10 +347,17 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
             series_type,
             tags,
             monitor_new_items,
-            metadata_profile
+            metadata_profile,
+            path
         }): Promise<WritePlan> {
             const adapter = findAdapter(adapters, service, instance);
             const lidarr = adapter.type === 'lidarr';
+            if (lidarr && path !== undefined) {
+                throw new ServiceError('NotFound', service, 'path is not a Lidarr option', {
+                    remedy: "Lidarr finds an artist's existing folder through its own Library Import. Drop `path`."
+                });
+            }
+            const searchNow = search_now ?? path === undefined;
             refuseMalformedId(service, adapter.type, external_id);
 
             if (!lidarr && (metadata_profile !== undefined || monitor_new_items !== undefined)) {
@@ -390,14 +451,12 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
                 service
             );
 
-            const folder = chooseOne(
-                folders,
-                root_folder,
-                FOLDER_MATCH,
-                f => `${f.display} (${freeSpace(f)})`,
-                'root folder',
-                service
-            );
+            const folder =
+                path !== undefined && root_folder === undefined
+                    ? rootOf(folders, path, service)
+                    : chooseOne(folders, root_folder, FOLDER_MATCH, f => `${f.display} (${freeSpace(f)})`, 'root folder', service);
+            // A named root must hold the folder: Radarr and Sonarr keep both, and they would disagree.
+            if (path !== undefined && root_folder !== undefined) rootOf([folder], path, service);
 
             // Lidarr's second profile; see `chooseMetadataProfile`.
             const folderDefault = metadataProfiles?.find(p => p.id === folder.defaultMetadataProfileId);
@@ -420,6 +479,11 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
                 )}.`,
                 monitoredEffect(monitored, lidarr, noAlbums)
             ];
+            if (path !== undefined) {
+                effects.push(`Adopts the existing folder ${JSON.stringify(path)} rather than creating one; ${service} scans it on add, so files already there count as on disk.`);
+                const doubt = folderDoubt(path, candidate, adapter.type, external_id);
+                if (doubt !== undefined) effects.push(`Check first: ${doubt}. A folder holding another title would be adopted as this one.`);
+            }
 
             if (monitor !== undefined && lidarr) {
                 // `future` with `none` gets one line from `lidarrInitialAlbums` instead.
@@ -451,7 +515,7 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
                 effects.push(`Tags it ${resolvedTags.map(t => t.display).join(', ')}.`);
             }
 
-            effects.push(searchEffect(search_now, lidarr, monitored, monitor, monitor_new_items, noAlbums));
+            effects.push(searchEffect(searchNow, lidarr, monitored, monitor, monitor_new_items, noAlbums));
 
             // Whisparr's wire name for "lastSeason" is "latestSeason" — the rename
             // happens here, at the boundary, so the tool keeps one vocabulary and
@@ -473,7 +537,8 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
                     qualityProfileId: profile.id,
                     rootFolderPath: folder.path,
                     monitored,
-                    searchNow: search_now,
+                    searchNow,
+                    ...(path === undefined ? {} : { path }),
                     ...(wireMonitor === undefined ? {} : { monitor: wireMonitor }),
                     ...(minimum_availability === undefined ? {} : { minimumAvailability: minimum_availability }),
                     ...(series_type === undefined ? {} : { seriesType: series_type }),
@@ -501,6 +566,7 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
                 tagIds?: number[];
                 metadataProfileId?: number;
                 monitorNewItems?: ArtistMonitorNewItems;
+                path?: string;
             };
 
             // Taken from the plan rather than re-resolved from the arguments:
@@ -518,7 +584,8 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
                 ...(a.seriesType === undefined ? {} : { seriesType: a.seriesType }),
                 ...(a.tagIds === undefined ? {} : { tagIds: a.tagIds }),
                 ...(a.metadataProfileId === undefined ? {} : { metadataProfileId: a.metadataProfileId }),
-                ...(a.monitorNewItems === undefined ? {} : { monitorNewItems: a.monitorNewItems })
+                ...(a.monitorNewItems === undefined ? {} : { monitorNewItems: a.monitorNewItems }),
+                ...(a.path === undefined ? {} : { path: a.path })
             });
         }
     });

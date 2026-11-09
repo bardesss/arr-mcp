@@ -166,6 +166,32 @@ unpaginable, never having learned that `limit` was the parameter it wanted.
 
 [#103]: https://github.com/bardesss/arr-mcp/issues/103
 
+## Filtering the queue
+
+`get_queue` takes filters, combined with AND, so a question about a few
+torrents does not need the whole queue back: `category` (any of the client
+categories given), `status` (a prefix, so `seeding` also matches `seeding (no
+peers)`), and four that read Cleanuparr: `over_limit`, `struck`,
+`due_within_days` and `unmatched`. Those four read Cleanuparr at any `detail`,
+and each takes `false` for the opposite set. `total` counts the matching rows;
+`cleanuparrDue` and `counts` still describe the whole queue. A download that has
+not finished carries no `seeding`, so no Cleanuparr filter matches it.
+
+### Seed time per tracker
+
+`by_tracker: true` adds `byTracker` to `get_queue`: one entry per tracker
+hostname over the matching rows that are seeding now, with `seeding` (how many),
+`sizeBytes`, `seedingSeconds` (`total`, `median`, `min`) and `noPeers` when some
+seed without peers. Only the hostname is returned, never the announce URL,
+which carries the passkey. A torrent with no working tracker counts under
+`unknown`. The filters apply first, so `category: ["cross-seed-link"]` with
+`by_tracker` shows what cross-seed adds per tracker, and `detail: "minimal"`
+with `limit: 1` keeps the rows out of the way.
+
+`min_seed_days` adds `atRisk` per tracker: torrents a Cleanuparr rule stops or
+deletes (its `dueAt`) before they have seeded that many days, the hit-and-run
+case. arr-mcp cannot know a tracker's minimum, so it is the caller's number.
+
 ## Narrowing a read to one kind
 
 `search_media`, `lookup_media`, `get_queue` and `get_calendar` take an optional
@@ -1084,6 +1110,30 @@ only when the managing *arr imported nothing after it. A season or episode
 removal is mentioned beside the verdict instead, since the rest may still be on
 disk, and so is a version removal on a film that still has a file.
 
+### Adopting what nothing manages
+
+`presence: "jellyfin_only"` lists media the media server shows and no *arr
+manages. Two kinds of row there need care before anything is added:
+
+- **An empty folder.** A series the media server holds with no episodes
+  carries `playback.empty` and reads `empty folder` in the text. Adding it with
+  a search would download the whole series. Only `jellyfin_only` rows carry it;
+  where an *arr manages the series, `has_file` already says the same. Jellyfin
+  counts episodes per user (`RecursiveItemCount`), Plex with `leafCount`.
+- **A wrong match.** An old folder with no id in its name can be matched by the
+  media server to another title. `add_media` with `path` checks the folder name
+  against the lookup (see below).
+
+`add_media` takes `path`, an existing folder directly inside one of the service's root
+folders, as the service sees the disk, to adopt the folder as it is (Radarr,
+Sonarr and Whisparr; not Lidarr, which has its own Library Import). The root is
+the one holding the folder, or the one `root_folder` names, which must hold it;
+a folder outside every root, nested deeper, or with a `.` or `..` segment is refused. The service scans the folder on add,
+so its files count as on disk. `search_now` defaults to `false` with `path`.
+The preview warns when the folder name disagrees with the lookup: a
+`tmdb-`/`tvdb-` id in the name that is not the one given, a year in parentheses
+that differs, or a name that shares nothing with the title.
+
 ## `get_playback`
 
 `scope` picks which of three Jellyfin reads answers the call, and defaults to
@@ -1218,7 +1268,8 @@ help. Past ten lines the rest are counted, not listed.
 With Grimmory configured, the files waiting in its Bookdrop are queue rows. Each
 has `status: "pending review"`, the file name as its title, and `addedAt` when it
 arrived. They are not downloads: arr-mcp has no progress or ETA for them, and
-they leave the queue when someone finalises them in Grimmory. Reading the
+they leave the queue when someone finalises them in Grimmory, or when
+`trigger_scan` with `action: "bookdrop"` and the row's `id` imports one. Reading the
 Bookdrop needs `canAccessBookdrop` on a non-admin account. It is read 100 files
 to a page, and a Bookdrop of more than 1,000 files fails with an error instead
 of paging on.
@@ -2554,15 +2605,25 @@ Grimmory takes two actions.
   case. A library that does not exist is refused, listing the ones
   that do.
 - `action: "bookdrop"` has Grimmory look in its Bookdrop folder again for new
-  files. It imports nothing: the files wait there until someone finalises them
-  in Grimmory, and `get_queue` lists them. Pass no `library` with it.
+  files. It imports nothing: the files wait there until someone finalises them,
+  and `get_queue` lists them. Pass no `library` with it.
+- `action: "bookdrop"` with `id`, a Bookdrop row's id from `get_queue`, imports
+  that one file as a new book. It uses the metadata Grimmory read from the file
+  itself, never the provider match Grimmory fetched, which can be another
+  edition (another publisher, a series the file does not have); `fix_metadata`
+  changes it afterwards. The library is the only one there is, or the one
+  `library` names, and it must have a single folder: a library with several is
+  refused, so approve that file in Grimmory. A file Grimmory has not read yet is
+  refused until a rescan has read it. The preview names the file, the library
+  and the metadata it will use; the result names the new book id when a title
+  search can tell it apart.
 
 A library with `watch` on is skipped, since Grimmory's file watcher already picks
 up changes there. The preview names each library it will rescan and each one it
 skips, and a call that would rescan nothing is a no-op. Libraries are rescanned
 one after another, in the background. `id` is refused, because a book cannot be
-scanned on its own, and `library` and `bookdrop` are refused on any other
-service.
+scanned on its own (with `bookdrop` it names the file), and `library` and
+`bookdrop` are refused on any other service.
 
 Safe tier. A non-admin account needs `canManageLibrary` for a library and
 `canAccessBookdrop` for the Bookdrop.

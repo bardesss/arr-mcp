@@ -291,7 +291,15 @@ function applySort(items: readonly MergedItem[], sort: SortField, source: Rating
     return sorted.sort((a, b) => (ratingOf(b, source) ?? 0) - (ratingOf(a, source) ?? 0));
 }
 
-const project = (item: MergedItem, detail: DetailLevel): MergedItem => {
+/** `playback.empty` only where it decides something: on media nothing manages, whether there is anything to adopt. */
+export const withoutEmpty = (item: MergedItem): MergedItem => {
+    if (item.playback?.empty === undefined || item.presence === 'jellyfin_only') return item;
+    const { empty: _e, ...playback } = item.playback;
+    return { ...item, playback };
+};
+
+const project = (whole: MergedItem, detail: DetailLevel): MergedItem => {
+    const item = withoutEmpty(whole);
     if (detail === 'full') return item;
     if (detail === 'minimal') {
         return {
@@ -363,6 +371,7 @@ export function libraryLine(item: MergedItem): string {
     }
     if (item.acquisition?.hasFile === false) facts.push('no file');
     if (item.playback?.watched === true) facts.push('watched');
+    if (item.playback?.empty === true && item.presence === 'jellyfin_only') facts.push('empty folder');
     // A book's format and size are what tell two copies of it apart. Never its
     // `monitored`, which is always false: Grimmory has no monitoring.
     if (item.kind === 'book') {
