@@ -58,8 +58,8 @@ Only rated titles of a kind something can actually reach are stored — the othe
 `title.ratings.tsv` carries ~1.7M rows, all of it read into memory during
 ingest and none of it kept as a table: only a title's average and vote count
 survive, denormalised onto the title row itself, so a title with no rating is
-never stored in the first place. The ~1.7M ratings held transiently in memory
-is also where the peak ingest memory above comes from — it happens in the
+never stored in the first place. The ~1.7M ratings held transiently in memory,
+each as a single packed number rather than an object, are also where the peak ingest memory above comes from — it happens in the
 ingest worker thread and is released as soon as the ingest finishes.
 
 The dataset stores each title's rating alongside the title itself and indexes
