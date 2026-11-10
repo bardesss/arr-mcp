@@ -249,9 +249,14 @@ describe('Seerr issue media identity (#577)', () => {
                 { id: 20, issueType: 1, status: 1, createdBy: { displayName: 'Someone' }, comments: [] },
                 // Media named but no tmdbId: nothing to resolve a title from,
                 // but the media that is named still reaches the caller.
-                { id: 21, issueType: 1, status: 1, media: { id: 700, mediaType: 'movie' }, comments: [] }
+                { id: 21, issueType: 1, status: 1, media: { id: 700, mediaType: 'movie' }, comments: [] },
+                // An unknown mediaType still names the ids, but no title can
+                // be resolved for it — and a null tmdbId names nothing at
+                // all. Neither may cost a detail call.
+                { id: 22, issueType: 1, status: 1, media: { id: 701, mediaType: 'music', tmdbId: 999 }, comments: [] },
+                { id: 23, issueType: 1, status: 1, media: { tmdbId: null }, comments: [] }
             ],
-            pageInfo: { pages: 1, page: 1, results: 2 }
+            pageInfo: { pages: 1, page: 1, results: 4 }
         };
         const impl = (async (input: string | URL | Request) => {
             const url = new URL(input instanceof Request ? input.url : String(input));
@@ -260,7 +265,7 @@ describe('Seerr issue media identity (#577)', () => {
             return jsonResponse({ message: 'not found' }, 404);
         }) as unknown as typeof fetch;
         const rows = await new SeerrAdapter(config, impl).getIssues({ limit: 50 });
-        expect(rows).toHaveLength(2);
+        expect(rows).toHaveLength(4);
         expect(rows[0]).toMatchObject({ id: '20', kind: 'video', status: 'open' });
         expect(rows[0]).not.toHaveProperty('title');
         expect(rows[0]).not.toHaveProperty('tmdbId');
@@ -268,6 +273,66 @@ describe('Seerr issue media identity (#577)', () => {
         expect(rows[1]).toMatchObject({ id: '21', mediaType: 'movie', seerrMediaId: 700 });
         expect(rows[1]).not.toHaveProperty('title');
         expect(rows[1]).not.toHaveProperty('tmdbId');
+        // Unknown mediaType: the ids are still emitted, but there is no
+        // title to resolve and no mediaType worth reporting.
+        expect(rows[2]).toMatchObject({ id: '22', tmdbId: 999, seerrMediaId: 701 });
+        expect(rows[2]).not.toHaveProperty('title');
+        expect(rows[2]).not.toHaveProperty('mediaType');
+        // A null tmdbId names nothing: no ids, no title, no lookup.
+        expect(rows[3]).toMatchObject({ id: '23' });
+        expect(rows[3]).not.toHaveProperty('title');
+        expect(rows[3]).not.toHaveProperty('tmdbId');
+        expect(rows[3]).not.toHaveProperty('tvdbId');
+        expect(rows[3]).not.toHaveProperty('seerrMediaId');
+        expect(rows[3]).not.toHaveProperty('mediaType');
         expect(seen.filter(p => p.startsWith('/api/v1/movie') || p.startsWith('/api/v1/tv'))).toHaveLength(0);
+    });
+
+    it('drops non-number media ids instead of emitting them', async () => {
+        const seen: string[] = [];
+        const page = {
+            results: [
+                // A numeric tmdbId still resolves (the 404 is caught per
+                // title), but the string id / tvdbId must never be emitted.
+                { id: 24, issueType: 1, status: 1, media: { id: 'x', mediaType: 'movie', tmdbId: 999, tvdbId: 'y' }, comments: [] }
+            ],
+            pageInfo: { pages: 1, page: 1, results: 1 }
+        };
+        const impl = (async (input: string | URL | Request) => {
+            const url = new URL(input instanceof Request ? input.url : String(input));
+            seen.push(url.pathname);
+            if (url.pathname === '/api/v1/issue') return jsonResponse(page);
+            return jsonResponse({ message: 'not found' }, 404);
+        }) as unknown as typeof fetch;
+        const rows = await new SeerrAdapter(config, impl).getIssues({ limit: 50 });
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({ id: '24', mediaType: 'movie', tmdbId: 999 });
+        expect(rows[0]).not.toHaveProperty('seerrMediaId');
+        expect(rows[0]).not.toHaveProperty('tvdbId');
+        expect(rows[0]).not.toHaveProperty('title');
+        expect(seen.filter(p => p === '/api/v1/movie/999')).toHaveLength(1);
+    });
+
+    it('treats an empty payload title like no title and resolves it', async () => {
+        const seen: string[] = [];
+        const page = {
+            results: [
+                { id: 25, issueType: 3, status: 1, media: { id: 678, mediaType: 'movie', tmdbId: 12345, tvdbId: null, title: '' }, createdBy: { displayName: 'User1' }, comments: [] }
+            ],
+            pageInfo: { pages: 1, page: 1, results: 1 }
+        };
+        const impl = (async (input: string | URL | Request) => {
+            const url = new URL(input instanceof Request ? input.url : String(input));
+            seen.push(url.pathname);
+            if (url.pathname === '/api/v1/issue') return jsonResponse(page);
+            if (url.pathname === '/api/v1/movie/12345')
+                return jsonResponse({ title: 'Example Movie', mediaInfo: { tvdbId: null, requests: [] } });
+            return jsonResponse({ message: 'not found' }, 404);
+        }) as unknown as typeof fetch;
+        const rows = await new SeerrAdapter(config, impl).getIssues({ limit: 50 });
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({ id: '25', mediaType: 'movie', tmdbId: 12345, seerrMediaId: 678 });
+        expect(rows[0]?.title).toContain('Example Movie');
+        expect(seen.filter(p => p === '/api/v1/movie/12345')).toHaveLength(1);
     });
 });

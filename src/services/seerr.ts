@@ -365,7 +365,15 @@ export class SeerrAdapter
         const lookups = new Map<string, Promise<string | undefined>>();
         for (const i of rows) {
             const mediaType = mediaTypeOf(i.media?.mediaType);
-            if (i.media?.title !== undefined || i.media?.tmdbId === undefined || mediaType === 'unknown') continue;
+            // An empty payload title is no title at all (getMediaRequests
+            // treats '' the same way), and a non-number id can never name a
+            // title: a null tmdbId must not cost a call to /movie/null.
+            if (
+                (i.media?.title !== undefined && i.media?.title !== '') ||
+                typeof i.media?.tmdbId !== 'number' ||
+                mediaType === 'unknown'
+            )
+                continue;
             const key = `${mediaType}:${i.media.tmdbId}`;
             if (!lookups.has(key)) {
                 lookups.set(
@@ -383,8 +391,8 @@ export class SeerrAdapter
         return rows.map(i => {
             const mediaType = mediaTypeOf(i.media?.mediaType);
             const title =
-                i.media?.title === undefined
-                    ? mediaType === 'unknown' || i.media?.tmdbId === undefined
+                i.media?.title === undefined || i.media?.title === ''
+                    ? mediaType === 'unknown' || typeof i.media?.tmdbId !== 'number'
                         ? undefined
                         : titles.get(`${mediaType}:${i.media.tmdbId}`)
                     : fenceText(i.media.title, { service: this.id, field: 'title' });
@@ -395,12 +403,15 @@ export class SeerrAdapter
                 status: ISSUE_STATUS[i.status ?? -1] ?? 'unknown',
                 ...(i.createdAt === undefined ? {} : { createdAt: i.createdAt }),
                 ...(mediaType === 'unknown' ? {} : { mediaType }),
-                ...(i.media?.tmdbId === undefined ? {} : { tmdbId: i.media.tmdbId }),
+                // Non-number ids are dropped, not emitted: the spec types
+                // them as numbers, but a payload that disagrees must not
+                // put `tmdbId: null` into a `tmdbId?: number` field.
+                ...(typeof i.media?.tmdbId !== 'number' ? {} : { tmdbId: i.media.tmdbId }),
                 // Seerr's MediaInfo carries tvdbId nullable (specs/seerr.json):
                 // populated for tv media, always null for movies. Matching
                 // #toRequest, which omits it in both cases.
-                ...(i.media?.tvdbId === undefined || i.media?.tvdbId === null ? {} : { tvdbId: i.media.tvdbId }),
-                ...(i.media?.id === undefined ? {} : { seerrMediaId: i.media.id }),
+                ...(typeof i.media?.tvdbId !== 'number' ? {} : { tvdbId: i.media.tvdbId }),
+                ...(typeof i.media?.id !== 'number' ? {} : { seerrMediaId: i.media.id }),
                 ...(title === undefined ? {} : { title }),
                 ...((name => (name === undefined ? {} : { reportedBy: fenceText(name, { service: this.id, field: 'user' }) }))(
                     nameOf(i.createdBy ?? {})
