@@ -4,7 +4,7 @@ import type { ServiceInstance } from '../config/instances.ts';
 import type { ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { logger } from '../core/logger.ts';
-import { DetailSchema, LimitSchema, READ_ONLY, TruncationSchema, applyLimit, memoBy, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, READ_ONLY, TruncationSchema, applyLimit, listText, memoBy, toolInput, type DetailLevel } from '../core/shape.ts';
 import {
     hasCleanup,
     hasCleanuparrRemovals,
@@ -459,6 +459,30 @@ export async function buildStackHealth(
 }
 
 /** One sentence on what is about to go, because that is the question a cleanup service raises. */
+const GIB = 1024 ** 3;
+const gib = (bytes: number): string => `${(bytes / GIB).toFixed(1)} GB`;
+
+/**
+ * The rows behind the summary, in the text as well as in `structuredContent`:
+ * not every client shows the structured half to the model (#234), and "is
+ * anything broken" is not answered by a count. One line per service, then each
+ * failing health check, then each disk.
+ */
+export function healthLines(result: Pick<StackHealthResult, 'services' | 'failures' | 'disks'>): string[] {
+    const services = result.services.map(s => {
+        if (s.ok) return `${s.service} — ok${s.version === undefined ? '' : `, ${s.version}`}, ${s.latency_ms} ms`;
+        const detail = s.error?.detail ?? 'no detail';
+        const remedy = s.error?.remedy === undefined ? '' : `${/[.!?]$/u.test(detail) ? '' : '.'} ${s.error.remedy}`;
+        return `${s.service} — ${s.error?.kind ?? 'failed'}: ${detail}${remedy}`;
+    });
+    const failures = result.failures.items.map(f => `${f.service} health check — ${f.type}: ${f.message}`);
+    const disks = result.disks.items.map(d => {
+        const name = d.label !== '' ? d.label : d.path;
+        return `${d.service} disk${name === undefined || name === '' ? '' : ` ${name}`} — ${gib(d.freeSpace)} free${d.totalSpace === undefined ? '' : ` of ${gib(d.totalSpace)}`}`;
+    });
+    return [...services, ...failures, ...disks];
+}
+
 export function cleanupLine(cleanup: CleanupOverview | undefined): string {
     const candidates = cleanup?.candidates;
     if (cleanup === undefined || candidates === undefined) return '';
@@ -550,7 +574,7 @@ export function registerStackHealth(
                 cleanupLine(result.cleanup);
 
             return {
-                content: [{ type: 'text', text: summary }],
+                content: [{ type: 'text', text: listText(summary, healthLines(result), line => line) }],
                 structuredContent: result
             };
         }

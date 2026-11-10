@@ -50,7 +50,7 @@ describe('stack_health primary media server', () => {
         expect('primaryMediaServer' in result).toBe(false);
     });
 
-    const summaryOf = async (primary?: string, adapters = [fakeArr({ diagnosis: healthy })]) => {
+    const textOf = async (primary?: string, adapters = [fakeArr({ diagnosis: healthy })]) => {
         const server = new McpServer({ name: 'test', version: '0.0.0' });
         registerStackHealth(server, adapters, undefined, primary);
         const tool = (server as unknown as {
@@ -58,6 +58,34 @@ describe('stack_health primary media server', () => {
         })._registeredTools.stack_health!;
         return (await tool.handler(std, {})).content[0]!.text;
     };
+    const summaryOf = async (primary?: string, adapters = [fakeArr({ diagnosis: healthy })]) =>
+        (await textOf(primary, adapters)).split('\n')[0];
+
+    it('lists each service, failing check and disk in the text, not only in structuredContent (#234)', async () => {
+        const text = await textOf(undefined, [
+            fakeArr({
+                diagnosis: healthy,
+                getFailedHealthChecks: async () => [{ service: 'radarr', source: 'IndexerCheck', type: 'warning', message: 'No indexers available' }],
+                getDiskSpace: async () => [{ service: 'radarr', label: '/data', freeSpace: 2 * 1024 ** 3, totalSpace: 10 * 1024 ** 3 }]
+            })
+        ]);
+        expect(text.split('\n').slice(1)).toEqual([
+            'radarr — ok, 5.14.0.9383, 6 ms',
+            'radarr health check — warning: No indexers available',
+            'radarr disk /data — 2.0 GB free of 10.0 GB'
+        ]);
+        expect((await textOf(undefined, [fakeArr({ diagnosis: broken })])).split('\n')[1]).toBe(
+            'radarr — Unreachable: connection refused at 192.168.1.20:7878'
+        );
+        const remedied = { ...broken, error: { ...broken.error!, remedy: 'Check the port.' } };
+        expect((await textOf(undefined, [fakeArr({ diagnosis: remedied })])).split('\n')[1]).toBe(
+            'radarr — Unreachable: connection refused at 192.168.1.20:7878. Check the port.'
+        );
+        const unlabelled = await textOf(undefined, [
+            fakeArr({ diagnosis: healthy, getDiskSpace: async () => [{ service: 'radarr', label: '', freeSpace: 1024 ** 3 }] })
+        ]);
+        expect(unlabelled.split('\n')[2]).toBe('radarr disk — 1.0 GB free');
+    });
 
     it('names the primary in the summary', async () => {
         expect(await summaryOf('plex')).toBe('All 1 configured service(s) healthy. plex is the primary media server.');
