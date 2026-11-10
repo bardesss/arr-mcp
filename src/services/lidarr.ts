@@ -839,7 +839,7 @@ export class LidarrAdapter
     async #lookupArtist(externalId: string): Promise<RawArtist> {
         if (!MUSICBRAINZ_ID.test(externalId)) {
             throw new ServiceError('NotFound', this.id, `"${externalId}" is not a MusicBrainz artist id`, {
-                remedy: 'Lidarr adds by MusicBrainz artist id, a GUID. lookup_media returns one under `ids.mbid`.'
+                remedy: 'Lidarr adds by MusicBrainz artist id, a GUID. search_media `source: "discover"` returns one under `ids.mbid`.'
             });
         }
 
@@ -857,7 +857,7 @@ export class LidarrAdapter
             (!inLibrary && (artist.foreignArtistId ?? '').toLowerCase() !== mbid)
         ) {
             throw new ServiceError('NotFound', this.id, `MusicBrainz artist ${mbid} matched nothing`, {
-                remedy: 'Check the id with lookup_media. An artist merged on MusicBrainz answers under its new id, so look it up again by name.'
+                remedy: 'Check the id with search_media `source: "discover"`. An artist merged on MusicBrainz answers under its new id, so look it up again by name.'
             });
         }
         return artist;

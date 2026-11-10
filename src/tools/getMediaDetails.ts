@@ -153,7 +153,7 @@ export async function explainMiss(adapters: readonly ServiceAdapter[], miss: Not
         unreachable = lookup.degraded;
     } catch (err) {
         logger.warn({ err }, 'lookup after a library miss failed; answering with the miss alone');
-        return new Error(`${miss.message} lookup_media says what it is and how to add it.`, { cause: miss });
+        return new Error(`${miss.message} search_media \`source: "discover"\` says what it is and how to add it.`, { cause: miss });
     }
     const films = found.filter(h => h.kind === 'movie' || h.kind === 'series');
     if (films.length === 0) {
@@ -161,7 +161,7 @@ export async function explainMiss(adapters: readonly ServiceAdapter[], miss: Not
         return new Error(
             unreachable.length === 0
                 ? `${miss.message} No metadata lookup knows that title either, so check the spelling.`
-                : `${miss.message} The metadata lookup could not reach ${unreachable.join(', ')}; lookup_media can try again.`,
+                : `${miss.message} The metadata lookup could not reach ${unreachable.join(', ')}; search_media \`source: "discover"\` can try again.`,
             { cause: miss }
         );
     }

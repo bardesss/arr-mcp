@@ -53,7 +53,7 @@ export function registerLookupMedia(
             annotations: READ_ONLY,
             ...(mediaCards ? { _meta: mediaCardsToolMeta() } : {}),
             description:
-                'Metadata for something you may not have: title, year, and external ids, from Radarr, Sonarr, Whisparr, Lidarr and Seerr, plus books from Shelfmark (`kind: book`, whose id get_releases takes). A Lidarr hit is an artist, keyed by its MusicBrainz id under `ids.mbid`, which is what add_media takes for Lidarr. Query imdb:tt… to turn an IMDb id into a TMDB id; a bare tt… misses Seerr. Nothing is added; that is add_media or request_media. To browse without a title, use discover_media.',
+                'Deprecated: use search_media with `source: "discover"`, which returns the same rows.',
             outputSchema: PagedOutputSchema,
             inputSchema: LookupMediaInput
         },

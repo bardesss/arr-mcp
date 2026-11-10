@@ -352,7 +352,7 @@ export class ShelfmarkAdapter
     }
 
     /**
-     * Files on offer for a book, `id` being a `lookup_media` book id. Every source
+     * Files on offer for a book, `id` being a `search_media` (`source: "discover"`) book id. Every source
      * Shelfmark has is searched, which took 24s to 54s against a live v1.6.1, so a recent
      * answer is reused: the preview of a grab asks again straight after a listing.
      * Fields are copied one by one, because a row's `download_url` can hold an
@@ -406,7 +406,7 @@ export class ShelfmarkAdapter
     async #rawReleases(id: string): Promise<RawRelease[]> {
         const separator = id.indexOf(':');
         if (separator <= 0 || separator === id.length - 1) {
-            throw new ServiceError('NotFound', this.id, `"${id}" is not a book id`, { remedy: 'Take the id from a lookup_media row whose kind is book, such as googlebooks:5neBQgAACAAJ.' });
+            throw new ServiceError('NotFound', this.id, `"${id}" is not a book id`, { remedy: 'Take the id from a search_media `source: "discover"` row whose kind is book, such as googlebooks:5neBQgAACAAJ.' });
         }
         const listed = this.#listed.get(id);
         if (listed !== undefined && Date.now() - listed.at < RELEASES_FRESH_MS) return listed.rows;

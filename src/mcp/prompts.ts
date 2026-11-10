@@ -70,7 +70,7 @@ export function registerAllPrompts(server: McpServer, surface: SurfaceOptions): 
 1. Call \`diagnose\` with \`query: "${title}"\`. It walks the whole chain and names the first step that explains the absence, rather than listing everything it checked.
 2. If the verdict has \`certain: false\`, say plainly which step could not be checked and why — a confident answer across a hole is worse than an uncertain one.
 3. If the verdict has \`next_steps\`, it names the call that acts on the remedy. **Offer** it and say what it would do. Do not call it. A write previews first and returns a token for a reason: the user decides whether to act.
-4. If \`diagnose\` reports the item is missing entirely, use \`lookup_media\` to check it exists at all before suggesting anything be added.
+4. If \`diagnose\` reports the item is missing entirely, use \`search_media\` with \`source: "discover"\` to check it exists at all before suggesting anything be added.
 
 Answer with the cause and the next action, not a transcript of the checks.`
             )

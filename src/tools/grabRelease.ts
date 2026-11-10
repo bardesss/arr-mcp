@@ -237,7 +237,7 @@ export function registerGrabRelease(
                 )[0];
                 if (top?.guid === undefined || top.indexerId === undefined) {
                     throw new ServiceError('NotFound', service, 'no release is on offer for that book', {
-                        remedy: 'Check the id came from a lookup_media row, or try another edition of the book.'
+                        remedy: 'Check the id came from a search_media `source: "discover"` row, or try another edition of the book.'
                     });
                 }
                 return {

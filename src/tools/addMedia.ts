@@ -193,14 +193,14 @@ function refuseMalformedId(service: ServiceId, type: ServiceId, externalId: stri
     if (type === 'lidarr') {
         if (MUSICBRAINZ_ID.test(externalId)) return;
         throw new ServiceError('NotFound', service, `"${externalId}" is not a MusicBrainz artist id`, {
-            remedy: 'Lidarr adds an artist by its MusicBrainz id, a GUID. lookup_media returns one under `ids.mbid`.'
+            remedy: 'Lidarr adds an artist by its MusicBrainz id, a GUID. search_media `source: "discover"` returns one under `ids.mbid`.'
         });
     }
     if (/^\d+$/.test(externalId) && Number(externalId) > 0) return;
     // The same words `lookupArrForAdd` uses for the same refusal.
     const provider = type === 'radarr' ? 'tmdb' : 'tvdb';
     throw new ServiceError('NotFound', service, `"${externalId}" is not a ${provider} id`, {
-        remedy: `${service} adds by ${provider} id, which is a positive integer. lookup_media returns one under \`ids.${provider}\`.`
+        remedy: `${service} adds by ${provider} id, which is a positive integer. search_media \`source: "discover"\` returns one under \`ids.${provider}\`.`
     });
 }
 
@@ -257,7 +257,7 @@ const AddMediaInput = z.object({
         .string()
         .min(1)
         .describe(
-            'TMDB id for radarr, TVDB id for sonarr or whisparr, as an integer string; the MusicBrainz artist id, a GUID, for lidarr. From lookup_media.'
+            'TMDB id for radarr, TVDB id for sonarr or whisparr, as an integer string; the MusicBrainz artist id, a GUID, for lidarr. From search_media `source: "discover"`.'
         ),
     quality_profile: z
         .string()
@@ -318,7 +318,7 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
         name: 'add_media',
         title: 'Add a film, series, site or artist',
         description:
-            'Adds a film to Radarr, a series to Sonarr, a site to Whisparr or an artist to Lidarr, and by default starts a search. For a Seerr request that goes through approval, use request_media. Ids: TMDB for Radarr, TVDB for Sonarr and Whisparr (Whisparr\'s own scene id in that field), MusicBrainz for Lidarr; get them from lookup_media `ids`. With more than one quality profile or root folder, name one: call without them and the preview refuses with the list, so there is no need to check stack_health first. Sonarr and Whisparr take `monitor` (which seasons), Sonarr `series_type`, Radarr `minimum_availability`. [[lidarr: Lidarr takes `monitor` (which albums), `monitor_new_items` and `metadata_profile`; `monitor: "none"` needs `monitored: false` with it, and its search on add covers only monitored, released albums.]] An option sent to the wrong service is refused, not dropped. Previews first; confirm to add. Field reference: arr://docs/add_media.',
+            'Adds a film to Radarr, a series to Sonarr, a site to Whisparr or an artist to Lidarr, and by default starts a search. For a Seerr request that goes through approval, use request_media. Ids: TMDB for Radarr, TVDB for Sonarr and Whisparr (Whisparr\'s own scene id in that field), MusicBrainz for Lidarr; get them from search_media `source: "discover"`, under `ids`. With more than one quality profile or root folder, name one: call without them and the preview refuses with the list, so there is no need to check stack_health first. Sonarr and Whisparr take `monitor` (which seasons), Sonarr `series_type`, Radarr `minimum_availability`. [[lidarr: Lidarr takes `monitor` (which albums), `monitor_new_items` and `metadata_profile`; `monitor: "none"` needs `monitored: false` with it, and its search on add covers only monitored, released albums.]] An option sent to the wrong service is refused, not dropped. Previews first; confirm to add. Field reference: arr://docs/add_media.',
         inputSchema: AddMediaInput,
         // The resolved instance id, not the bare type: permissions are granted per
         // instance, so checking `radarr` against a config that only grants

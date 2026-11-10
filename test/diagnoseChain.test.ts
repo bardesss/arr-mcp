@@ -2001,7 +2001,7 @@ describe('buildChain — a Lidarr artist', () => {
     it('offers the lookup for an artist nothing manages, as for a film, and says to add it to Lidarr', () => {
         const d = buildChain('daft punk', healthy({ item: artist({ acquisition: undefined, presence: 'jellyfin_only' }) }));
         expect(d.verdict.stage).toBe('managed');
-        expect(d.verdict.next_steps?.map(s => [s.tool, s.arguments])).toEqual([['lookup_media', { query: 'daft punk' }]]);
+        expect(d.verdict.next_steps?.map(s => [s.tool, s.arguments])).toEqual([['search_media', { query: 'daft punk', source: 'discover' }]]);
         expect(d.verdict.remedy).toMatch(/Lidarr/);
 
         // Asked for by id, there is no query worth looking up, as for a film.

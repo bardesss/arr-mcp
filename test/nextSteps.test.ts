@@ -13,7 +13,7 @@ import { removalSentence } from '../src/tools/cleanupStatus.ts';
 import { registerDiagnose } from '../src/tools/diagnose/index.ts';
 import { registerGetMediaDetails } from '../src/tools/getMediaDetails.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
-import { registerLookupMedia } from '../src/tools/lookupMedia.ts';
+import { registerSearchMedia } from '../src/tools/searchMedia.ts';
 import { registerRemoveQueueItem } from '../src/tools/removeQueueItem.ts';
 import { registerRespondToRequest } from '../src/tools/manageRequests.ts';
 import { instanceArgs } from '../src/tools/resolveInstance.ts';
@@ -168,12 +168,12 @@ const CASES: Case[] = [
     {
         name: 'managed, nothing manages it',
         diagnosis: () => buildChain(QUERY, healthy({ item: item({ acquisition: undefined }) })),
-        expected: { tool: 'lookup_media', arguments: { query: QUERY } }
+        expected: { tool: 'search_media', arguments: { query: QUERY, source: 'discover' } }
     },
     {
         name: 'managed, an artist nothing manages',
         diagnosis: () => buildChain(QUERY, healthy({ item: artist({ acquisition: undefined, presence: 'jellyfin_only' }) })),
-        expected: { tool: 'lookup_media', arguments: { query: QUERY } }
+        expected: { tool: 'search_media', arguments: { query: QUERY, source: 'discover' } }
     },
     {
         // `managed` is unknown, and a lookup would ask the Lidarr that is down.
@@ -184,7 +184,7 @@ const CASES: Case[] = [
     {
         name: 'resolve, nothing matches',
         diagnosis: () => buildChain(QUERY, healthy({ item: undefined })),
-        expected: { tool: 'lookup_media', arguments: { query: QUERY } }
+        expected: { tool: 'search_media', arguments: { query: QUERY, source: 'discover' } }
     },
     {
         name: 'request, pending',
@@ -693,7 +693,7 @@ function realTools(adapters: ServiceAdapter[] = world(), identity: Partial<Ident
     registerUpdateMedia(server, write, adapters);
     registerRemoveQueueItem(server, write, adapters);
     registerRespondToRequest(server, write, adapters, identity as IdentityResolver);
-    registerLookupMedia(server, adapters);
+    registerSearchMedia(server, adapters);
     registerGetMediaDetails(server, adapters, new LibraryLoader(adapters, undefined));
     return tools;
 }
@@ -710,7 +710,7 @@ describe('the real tool accepts every suggested call', () => {
             expect(tool).toBeDefined();
 
             // A read has no preview; a write is driven through its own `plan`.
-            const isRead = step?.tool === 'lookup_media' || step?.tool === 'get_media_details';
+            const isRead = step?.tool === 'search_media' || step?.tool === 'get_media_details';
             const result = await tool?.call({ ...step?.arguments, ...(isRead ? {} : { dry_run: true }) });
 
             if (!isRead) {
