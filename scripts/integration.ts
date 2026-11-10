@@ -198,6 +198,9 @@ const listed = await (async (): Promise<Set<string>> => {
         body: JSON.stringify({ jsonrpc: '2.0', id: 0, method: 'tools/list' })
     });
     const payload = rpcPayload<{ tools: { name: string }[] }>(await res.text());
+    if (payload.error !== undefined || payload.result === undefined) {
+        throw new Error(`tools/list failed, so no tool can be told from a missing one: ${JSON.stringify(payload.error ?? payload)}`);
+    }
     return new Set((payload.result?.tools ?? []).map(t => t.name));
 })();
 

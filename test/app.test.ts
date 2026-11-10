@@ -472,6 +472,8 @@ describe('the advertised tool surface', () => {
         const fields = Object.keys(tools.find(t => t.name === 'update_media')?.inputSchema?.properties ?? {});
         expect(fields).toContain('quality_profile');
         expect(fields.filter(f => ['title', 'authors', 'lock_fields'].includes(f))).toEqual([]);
+        const description = tools.find(t => t.name === 'update_media')?.description ?? '';
+        expect(description).not.toMatch(/Grimmory|lock_fields|series number/);
     });
 
     it('gives every write tool a TOOL_SERVICES entry', () => {
