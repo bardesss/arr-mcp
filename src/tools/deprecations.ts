@@ -8,4 +8,8 @@
  */
 export type Deprecation = { tool: string; param?: string; value?: string; use: string };
 
-export const DEPRECATIONS: readonly Deprecation[] = [{ tool: 'lookup_media', use: 'search_media' }];
+export const DEPRECATIONS: readonly Deprecation[] = [
+    { tool: 'lookup_media', use: 'search_media' },
+    // Removal drops the `options` field that `detail: "full"` returns; `full` itself stays.
+    { tool: 'stack_health', param: 'detail', value: 'full', use: 'get_instance_options' }
+];

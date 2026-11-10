@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import type { ServiceInstance } from '../config/instances.ts';
-import type { ServiceId } from '../config/schema.ts';
+import { ServiceIdSchema, serviceOf, type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { logger } from '../core/logger.ts';
 import { DetailSchema, LimitSchema, READ_ONLY, TruncationSchema, applyLimit, listText, memoBy, toolInput, type DetailLevel } from '../core/shape.ts';
@@ -12,7 +12,6 @@ import {
     hasDiskSpace,
     hasHealthChecks,
     hasLogs,
-    hasMediaAdd,
     hasScanState,
     type CleanupOverview,
     type CleanuparrRemovals,
@@ -24,6 +23,8 @@ import {
     type ScanState,
     type ServiceAdapter
 } from '../services/types.ts';
+import { buildInstanceOptions, selectAdapters, type InstanceOptions } from './instanceOptions.ts';
+import { INSTANCE_PARAM_DESCRIPTION } from './resolveInstance.ts';
 import { buildSeedingRules, type SeedingRules } from './seedingRules.ts';
 import { groupDisks, humanBytes } from '../core/disks.ts';
 
@@ -97,26 +98,6 @@ type StackHealthResult = {
      */
     logs?: Shaped<LogEntry> & { lines: LogLines[] };
     degraded: string[];
-};
-
-/**
- * The values `add_media` and `update_media` refuse to guess at. Paths and tag
- * labels are the **fenced** display forms: these are for reading, and the raw
- * path is only ever posted back inside the write tools, which resolve it
- * themselves.
- */
-type InstanceOptions = {
-    instance: string;
-    qualityProfiles: { id: number; name: string }[];
-    /**
-     * `unmappedFolders` names folders under this root that the instance
-     * associates with no item. Reported here because the root folder read
-     * already returns it and dropping it hid the only API-visible trace of a
-     * mapping the service has lost. It is a fact, not a fault: a hand-dropped
-     * folder and a delete that kept its files look identical from here.
-     */
-    rootFolders: { path: string; freeSpaceBytes?: number; unmappedFolders?: string[] }[];
-    tags: string[];
 };
 
 type InstancePermissions = { instance: string; safe_write: boolean; destructive: boolean };
@@ -210,12 +191,17 @@ function project(result: StackHealthResult, detail: DetailLevel): StackHealthRes
  * exception.
  */
 export async function buildStackHealth(
-    adapters: readonly ServiceAdapter[],
-    opts: { detail: DetailLevel; limit: number },
+    allAdapters: readonly ServiceAdapter[],
+    opts: { detail: DetailLevel; limit: number; service?: ServiceId | undefined; instance?: string | undefined },
     /** Optional and last, so every existing call site keeps compiling. */
-    instances?: readonly ServiceInstance[],
+    allInstances?: readonly ServiceInstance[],
     primaryMediaServer?: string
 ): Promise<StackHealthResult> {
+    // One rule for adapters and for the permission and endpoint rows, so a
+    // filtered answer never lists an instance it did not check.
+    const adapters = selectAdapters(allAdapters, opts);
+    const filtered = opts.service !== undefined || (opts.instance !== undefined && opts.instance !== '');
+    const instances = filtered ? allInstances?.filter(i => adapters.some(a => a.id === i.id)) : allInstances;
     const services: ConnectionDiagnosis[] = [];
     const degraded: string[] = [];
     const disks: DiskSpace[] = [];
@@ -311,49 +297,15 @@ export async function buildStackHealth(
         })
     );
 
-    // Settled per instance, never awaited bare: an instance whose profile list
-    // is down still has health worth reporting, and this list is the least
-    // important thing in the response.
-    const options =
-        opts.detail !== 'full'
-            ? undefined
-            : (
-                  await Promise.all(
-                      adapters.filter(hasMediaAdd).map(async adapter => {
-                          try {
-                              const [profiles, folders, tags] = await Promise.all([
-                                  adapter.listQualityProfiles(),
-                                  adapter.listRootFolders(),
-                                  adapter.listTags()
-                              ]);
-                              return [
-                                  {
-                                      instance: adapter.id,
-                                      qualityProfiles: profiles.map(p => ({ id: p.id, name: p.display })),
-                                      rootFolders: folders.map(f => ({
-                                          path: f.display,
-                                          ...(f.freeSpaceBytes === undefined ? {} : { freeSpaceBytes: f.freeSpaceBytes }),
-                                          ...(f.unmappedFolders === undefined ? {} : { unmappedFolders: f.unmappedFolders })
-                                      })),
-                                      tags: tags.map(t => t.display)
-                                  }
-                              ];
-                          } catch (err) {
-                              logger.warn({ service: adapter.id, err }, 'add options unavailable; omitting');
-                              markDegraded(adapter.id);
-                              return [];
-                          }
-                      })
-                  )
-              )
-                  .flat()
-                  .sort((a, b) => a.instance.localeCompare(b.instance));
+    // Settled per instance inside the builder: an instance whose profile list
+    // is down still has health worth reporting.
+    const options = opts.detail !== 'full' ? undefined : await buildInstanceOptions(adapters, {}, markDegraded);
 
     const cleanupAdapter = opts.detail === 'full' ? adapters.find(hasCleanup) : undefined;
     const removalSource = opts.detail === 'full' ? adapters.find(hasCleanuparrRemovals) : undefined;
     // Independent reads: none waits on another.
     const [seedingRules, cleanup, cleanuparrRemovals] = await Promise.all([
-        opts.detail === 'full' ? buildSeedingRules(adapters, markDegraded) : undefined,
+        opts.detail === 'full' && !filtered ? buildSeedingRules(adapters, markDegraded) : undefined,
         cleanupAdapter === undefined || degraded.includes(cleanupAdapter.id)
             ? undefined
             : cleanupAdapter.readCleanupOverview(opts.limit).catch((err: unknown) => {
@@ -529,7 +481,7 @@ const stackHealthOutput = memoBy((withPrimary: boolean) => z.looseObject({
     options: z
         .array(z.unknown())
         .optional()
-        .describe('Quality profiles, root folders and tags each Radarr, Sonarr, Whisparr and Lidarr instance has. Only at `detail: "full"`.'),
+        .describe('Deprecated: use get_instance_options. Quality profiles, root folders and tags, only at `detail: "full"`.'),
     seedingRules: z
         .object({
             clients: z.array(z.unknown()),
@@ -559,7 +511,12 @@ const stackHealthOutput = memoBy((withPrimary: boolean) => z.looseObject({
     degraded: z.array(z.string())
 }));
 
-const StackHealthInput = toolInput({ detail: DetailSchema, limit: LimitSchema });
+const StackHealthInput = toolInput({
+    detail: DetailSchema.describe('How much detail; defaults to standard. `full` also returns `options` (Deprecated: use get_instance_options).'),
+    limit: LimitSchema,
+    service: serviceOf(ServiceIdSchema.options).optional(),
+    instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION)
+});
 
 export function registerStackHealth(
     server: McpServer,
@@ -573,12 +530,12 @@ export function registerStackHealth(
             title: 'Stack health',
             annotations: READ_ONLY,
             description:
-                'Health of every configured service: version, disk space, failing health checks, last library scan, and what each instance may do (`permissions`, whose ids are the valid `instance` values). Answers partially, with a `degraded` list, when a service is down. `commands` follows up trigger_search and trigger_scan: queued, running, and finished in the last 15 minutes, so a command not listed has finished. `detail: "full"` adds `options` (the quality profiles, root folders and tags add_media and update_media need: read them here, never guess), `seedingRules` (client, indexer [[cleanuparr: and Cleanuparr ]]seed limits[[cleanuparr:  and removal rules]]), [[reclaimerr: Reclaimerr `cleanup` (what will be deleted or moved, and when), ]]and each service\'s recent warnings and errors in `logs`; check `lastSeen`, since an old line may no longer apply. API keys are never returned. Field reference: arr://docs/stack_health.',
+                'Health of every configured service: version, disk space, failing health checks, last library scan, and what each instance may do (`permissions`, whose ids are the valid `instance` values). Answers partially, with a `degraded` list, when a service is down. `commands` follows up trigger_search and trigger_scan: queued, running, and finished in the last 15 minutes, so a command not listed has finished. Profiles, root folders and tags: get_instance_options (`options` at `detail: "full"` is deprecated). `service` or `instance` checks one, without `seedingRules`. `detail: "full"` adds `seedingRules` (client, indexer [[cleanuparr: and Cleanuparr ]]seed limits[[cleanuparr:  and removal rules]]), [[reclaimerr: Reclaimerr `cleanup` (what will be deleted or moved, and when), ]]and each service\'s recent warnings and errors in `logs`; check `lastSeen`, since an old line may no longer apply. API keys are never returned. Field reference: arr://docs/stack_health.',
             inputSchema: StackHealthInput,
             outputSchema: stackHealthOutput(primaryMediaServer !== undefined)
         },
-        async ({ detail, limit }) => {
-            const result = await buildStackHealth(adapters, { detail, limit }, instances, primaryMediaServer);
+        async ({ detail, limit, service, instance }) => {
+            const result = await buildStackHealth(adapters, { detail, limit, service, instance }, instances, primaryMediaServer);
             const neverScanned = result.scans.filter(s => s.lastCompleted === undefined).length;
             const summary =
                 (result.degraded.length === 0

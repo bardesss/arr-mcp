@@ -28,6 +28,7 @@ import { registerGetBlocklist } from './getBlocklist.ts';
 import { registerGetCalendar } from './getCalendar.ts';
 import { registerGetHistory, type EventLog } from './getHistory.ts';
 import { registerGetIndexers } from './getIndexers.ts';
+import { registerGetInstanceOptions } from './instanceOptions.ts';
 import { registerGetLibrary } from './getLibrary.ts';
 import { registerGetMediaDetails } from './getMediaDetails.ts';
 import { registerGetMetadataIssues } from './getMetadataIssues.ts';
@@ -182,6 +183,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
         ...(context.eventLog === undefined ? {} : { events: context.eventLog.store })
     });
     registerStackHealth(server, adapters, instances, primary);
+    registerGetInstanceOptions(server, adapters);
     registerGetIndexers(server, adapters.filter(hasIndexers));
     registerGetSubtitles(server, adapters.filter(hasSubtitles));
     registerGetQueue(server, adapters);
@@ -268,6 +270,7 @@ export const WRITE_TOOLS: ReadonlySet<string> = new Set([
 export const TOOL_NAMES = [
     'diagnose',
     'stack_health',
+    'get_instance_options',
     'get_indexers',
     'get_subtitles',
     'get_queue',
