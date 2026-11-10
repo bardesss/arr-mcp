@@ -5,7 +5,6 @@ import type { CalendarEntry, QueueItem, SearchHit, ServiceAdapter } from '../src
 import { buildGetCalendar } from '../src/tools/getCalendar.ts';
 import { explainMiss, NotInLibrary } from '../src/tools/getMediaDetails.ts';
 import { buildGetQueue } from '../src/tools/getQueue.ts';
-import { buildLookupMedia } from '../src/tools/lookupMedia.ts';
 import { buildSearchMedia } from '../src/tools/searchMedia.ts';
 
 /**
@@ -82,7 +81,7 @@ describe('kind on lookup_media and search_media', () => {
 
     it('asks only the services that may hold the kind, and keeps only that kind', async () => {
         const s = stack();
-        const result = await buildLookupMedia(s.all, { query: 'Paranormal Activity', detail: 'full', limit: 50, kinds: ['movie'] });
+        const result = await buildSearchMedia(s.all, { source: 'discover', query: 'Paranormal Activity', detail: 'full', limit: 50, kinds: ['movie'] });
 
         expect(s.radarr.asked).toHaveLength(1);
         expect(s.seerr.asked).toHaveLength(1);
@@ -93,7 +92,7 @@ describe('kind on lookup_media and search_media', () => {
 
     it('asks everyone without a kind, as before', async () => {
         const s = stack();
-        const result = await buildLookupMedia(s.all, { query: 'Paranormal Activity', detail: 'full', limit: 50 });
+        const result = await buildSearchMedia(s.all, { source: 'discover', query: 'Paranormal Activity', detail: 'full', limit: 50 });
         expect(new Set(result.items.map(h => h.kind))).toEqual(new Set(['movie', 'series', 'artist', 'book']));
     });
 

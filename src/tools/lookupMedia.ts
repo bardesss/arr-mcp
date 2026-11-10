@@ -1,12 +1,11 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, listText, toolInput, type DetailLevel, unreachableTail } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, listText, toolInput, unreachableTail } from '../core/shape.ts';
 import type { ImdbDataset } from '../metadata/imdbDataset.ts';
-import type { LibraryKind } from '../core/resolver.ts';
 import type { ServiceAdapter } from '../services/types.ts';
 import { MediaKindSchema } from './mediaKind.ts';
 import { mediaCardsToolMeta, wantsCards, withCards } from '../mcp/apps.ts';
-import { buildSearchMedia, buildSearchMediaWithCards, searchLine, type GetSearchResult } from './searchMedia.ts';
+import { buildSearchMediaWithCards, searchLine, type GetSearchResult } from './searchMedia.ts';
 
 export function lookupSummary(result: Pick<GetSearchResult, 'total' | 'returned' | 'degraded'>, query: string): string {
     return (
@@ -15,18 +14,7 @@ export function lookupSummary(result: Pick<GetSearchResult, 'total' | 'returned'
     );
 }
 
-/**
- * `search_media` with `source` fixed to `discover`. The tool is a deprecated
- * alias kept for one minor (see `DEPRECATIONS`) and goes in the next major.
- */
-export async function buildLookupMedia(
-    adapters: readonly ServiceAdapter[],
-    opts: { query: string; detail: DetailLevel; limit: number; offset?: number; kinds?: readonly LibraryKind[] },
-    dataset?: ImdbDataset
-): Promise<GetSearchResult> {
-    return buildSearchMedia(adapters, { ...opts, source: 'discover' }, dataset);
-}
-
+/** `search_media` with `source` fixed to `discover`: a deprecated alias kept for one minor (see `DEPRECATIONS`), removed in the next major. */
 const LookupMediaInput = toolInput({
     query: z.string().min(1).describe('What to look up. A trailing year ("Title 2027") ranks that year first.'),
     kind: MediaKindSchema,
