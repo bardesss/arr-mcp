@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.82.1](https://github.com/bardesss/arr-mcp/compare/v1.82.0...v1.82.1) (2026-11-10)
+
+
+### Bug Fixes
+
+* **lidarr:** no year for an album with no release date ([#608](https://github.com/bardesss/arr-mcp/issues/608)) ([7ca20df](https://github.com/bardesss/arr-mcp/commit/7ca20dfc969ff087f5a30b0649e3d6b13367e4c7))
+* **queue:** say when remove_queue_item cannot blocklist ([#594](https://github.com/bardesss/arr-mcp/issues/594)) ([c6e0df9](https://github.com/bardesss/arr-mcp/commit/c6e0df95d9dc27817ec43a1980bad7638ae7fa57))
+
 ## [1.82.0](https://github.com/bardesss/arr-mcp/compare/v1.81.0...v1.82.0) (2026-11-10)
 
 
