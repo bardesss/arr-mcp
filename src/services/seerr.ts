@@ -4,6 +4,7 @@ import { TtlCache } from '../core/cache.ts';
 import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
 import { fenceText } from '../core/fence.ts';
+import { mapLimit } from '../core/gather.ts';
 import { BACKDROP_SIZE, POSTER_SIZE, compactDisplay, tmdbImageUrl, type Display } from '../core/display.ts';
 import { logger } from '../core/logger.ts';
 import { LOG_LINES, foldLogLines } from './logLines.ts';
@@ -79,7 +80,15 @@ type RawIssue = {
     issueType?: number;
     status?: number;
     createdAt?: string;
-    media?: { title?: string };
+    /**
+     * A MediaInfo, not a titled row: the recorded fixture carries `id`,
+     * `mediaType`, `tmdbId` and `tvdbId` (null for movies) and no title at
+     * all (specs/seerr.json: `Issue.media` is a `MediaInfo`). `title` stays
+     * read for tolerance — older payloads and hand-written shapes may carry
+     * one — but the title a caller sees comes from the media detail endpoint
+     * in `getIssues`, not from here.
+     */
+    media?: { id?: number; mediaType?: string; tmdbId?: number; tvdbId?: number | null; title?: string };
     createdBy?: { displayName?: string; username?: string; email?: string };
     comments?: { message?: string }[];
 };
@@ -88,6 +97,9 @@ type RawIssue = {
  *  what is wrong with the film. */
 const ISSUE_TYPE: Record<number, string> = { 1: 'video', 2: 'audio', 3: 'subtitle', 4: 'other' };
 const ISSUE_STATUS: Record<number, string> = { 1: 'open', 2: 'resolved' };
+
+/** Detail reads in flight while resolving issue titles — the same cap as the metadata sweep's SERIES_CONCURRENCY. */
+const ISSUE_TITLE_CONCURRENCY = 4;
 
 /** An argument twenty comments long is not what the caller asked for. */
 const ISSUE_COMMENT_CAP = 3;
@@ -331,6 +343,15 @@ export class SeerrAdapter
      * request `sort=added` is sent, and on the request list that returns newest
      * first. The issue order itself was not observed: the live store held a
      * single issue.
+     *
+     * Each issue also names the media it is about. The issue payload itself
+     * carries the ids (MediaInfo: `id`, `mediaType`, `tmdbId`, `tvdbId`) but
+     * no title, so the title is resolved from the media detail endpoint —
+     * the same read `getMediaRequests` already makes — once per distinct
+     * title, not once per issue, and at most four detail reads in flight.
+     * A title that cannot be read leaves the ids in place rather than
+     * failing the whole list: issues are never a reason for `get_requests`
+     * to fail.
      */
     async getIssues(opts: { limit: number }): Promise<MediaIssue[]> {
         const params = new URLSearchParams({
@@ -342,20 +363,65 @@ export class SeerrAdapter
         const page = await this.#http.get<{ pageInfo?: PageInfo; results?: RawIssue[] }>(
             `/api/v1/issue?${params.toString()}`
         );
-        const rows = page.results ?? [];
-
-        return rows
+        const rows = (page.results ?? [])
             .filter((i): i is RawIssue & { id: number } => typeof i.id === 'number')
-            .slice(0, opts.limit)
-            .map(i => ({
+            .slice(0, opts.limit);
+
+        // One entry per distinct title, resolved through mapLimit: without
+        // the cap, `limit: 500` with 500 different titles fires 500 detail
+        // reads at Seerr at once. The dedupe and the per-title catch stay
+        // as they are — a title that cannot be read resolves undefined.
+        const distinct: { mediaType: 'movie' | 'tv'; tmdbId: number }[] = [];
+        const seenKeys = new Set<string>();
+        for (const i of rows) {
+            const mediaType = mediaTypeOf(i.media?.mediaType);
+            // An empty payload title is no title at all (getMediaRequests
+            // treats '' the same way), and a non-number id can never name a
+            // title: a null tmdbId must not cost a call to /movie/null.
+            if (
+                (i.media?.title !== undefined && i.media?.title !== '') ||
+                typeof i.media?.tmdbId !== 'number' ||
+                mediaType === 'unknown'
+            )
+                continue;
+            const key = `${mediaType}:${i.media.tmdbId}`;
+            if (seenKeys.has(key)) continue;
+            seenKeys.add(key);
+            distinct.push({ mediaType, tmdbId: i.media.tmdbId });
+        }
+        const titles = new Map(
+            await mapLimit(distinct, ISSUE_TITLE_CONCURRENCY, async d => {
+                const title = await this.getMediaRequests(d.mediaType, d.tmdbId)
+                    .then(r => r.media?.title)
+                    .catch(() => undefined);
+                return [`${d.mediaType}:${d.tmdbId}`, title] as const;
+            })
+        );
+
+        return rows.map(i => {
+            const mediaType = mediaTypeOf(i.media?.mediaType);
+            const title =
+                i.media?.title === undefined || i.media?.title === ''
+                    ? mediaType === 'unknown' || typeof i.media?.tmdbId !== 'number'
+                        ? undefined
+                        : titles.get(`${mediaType}:${i.media.tmdbId}`)
+                    : fenceText(i.media.title, { service: this.id, field: 'title' });
+            return {
                 service: this.id,
                 id: String(i.id),
                 kind: ISSUE_TYPE[i.issueType ?? -1] ?? 'other',
                 status: ISSUE_STATUS[i.status ?? -1] ?? 'unknown',
                 ...(i.createdAt === undefined ? {} : { createdAt: i.createdAt }),
-                ...(i.media?.title === undefined
-                    ? {}
-                    : { title: fenceText(i.media.title, { service: this.id, field: 'title' }) }),
+                ...(mediaType === 'unknown' ? {} : { mediaType }),
+                // Non-number ids are dropped, not emitted: the spec types
+                // them as numbers, but a payload that disagrees must not
+                // put `tmdbId: null` into a `tmdbId?: number` field.
+                ...(typeof i.media?.tmdbId !== 'number' ? {} : { tmdbId: i.media.tmdbId }),
+                // Seerr's MediaInfo carries tvdbId nullable (specs/seerr.json):
+                // populated for tv media, always null for movies. Matching
+                // #toRequest, which omits it in both cases.
+                ...(typeof i.media?.tvdbId !== 'number' ? {} : { tvdbId: i.media.tvdbId }),
+                ...(title === undefined ? {} : { title }),
                 ...((name => (name === undefined ? {} : { reportedBy: fenceText(name, { service: this.id, field: 'user' }) }))(
                     nameOf(i.createdBy ?? {})
                 )),
@@ -364,7 +430,8 @@ export class SeerrAdapter
                     .map(c => c.message)
                     .filter((m): m is string => typeof m === 'string' && m !== '')
                     .map(m => fenceText(m, { service: this.id, field: 'comment' }))
-            }));
+            };
+        });
     }
 
     /**
