@@ -115,7 +115,7 @@ const folderText = (f: InstanceOptions['rootFolders'][number]): string => {
     return notes.length === 0 ? f.path : `${f.path} (${notes.join(', ')})`;
 };
 
-export const optionsLine = (o: InstanceOptions): string =>
+const optionsLine = (o: InstanceOptions): string =>
     `${o.instance} — profiles: ${o.qualityProfiles.map(p => `${p.name} (${p.id})`).join(', ') || 'none'}; root folders: ${o.rootFolders.map(folderText).join(', ') || 'none'}; tags: ${o.tags.join(', ') || 'none'}`;
 
 export function registerGetInstanceOptions(server: McpServer, adapters: readonly ServiceAdapter[]): void {
