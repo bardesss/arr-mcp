@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.77.1](https://github.com/bardesss/arr-mcp/compare/v1.77.0...v1.77.1) (2026-11-10)
+
+
+### Bug Fixes
+
+* **lidarr:** refuse a lidarr id that names no configured Lidarr ([#576](https://github.com/bardesss/arr-mcp/issues/576)) ([3877b30](https://github.com/bardesss/arr-mcp/commit/3877b308f2ba3f1b636bcec0faeea19e9a593168))
+
 ## [1.77.0](https://github.com/bardesss/arr-mcp/compare/v1.76.1...v1.77.0) (2026-11-09)
 
 
