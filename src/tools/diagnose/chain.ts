@@ -2,7 +2,6 @@ import type { ServiceId } from '../../config/schema.ts';
 import { servicesOnly } from '../../core/gather.ts';
 import type { NextStep } from '../../core/nextStep.ts';
 import { unfenced } from '../../core/titleMatch.ts';
-import { currentStrikes } from '../cleanuparrQueue.ts';
 import { ARR_KIND, type MergedItem } from '../../core/resolver.ts';
 import { fenceText } from '../../core/fence.ts';
 import type {
@@ -14,6 +13,7 @@ import type {
     QueueItem,
     RequestStatus,
     ScanState,
+    DownloadStrikes,
     SubtitleGap
 } from '../../services/types.ts';
 import { removalSentence, upcomingSentence } from '../cleanupStatus.ts';
@@ -75,6 +75,8 @@ export type Evidence = {
     scanCapable: boolean;
     /** Cleanuparr events for this item's downloads, newest first. null: not configured. */
     cleanuparr: HistoryEntry[] | null | undefined;
+    /** Cleanuparr's standing strikes on this item's downloads. null: not configured; undefined: could not look. */
+    strikes?: DownloadStrikes[] | null | undefined;
     /**
      * Every gap Bazarr lists, not yet narrowed to this item: nothing maps a
      * Bazarr to its *arr, so the match (id and title) is the chain's. Read only
@@ -475,13 +477,13 @@ const STRIKE_KIND: Record<string, string> = {
     ErroredStrike: ' for a client error'
 };
 
-/** Only a strike on this row's own download counts. */
-function strikeNoteFor(row: QueueItem, events: Evidence['cleanuparr']): string {
+/** Only a strike on this row's own download counts. Cleanuparr's strike kinds are its event names less `Strike`. */
+function strikeNoteFor(row: QueueItem, standing: Evidence['strikes']): string {
     const rowId = (row.downloadId ?? row.torrent?.hash)?.toLowerCase();
-    const strikes = rowId === undefined ? undefined : currentStrikes(events ?? []).get(rowId);
-    if (strikes === undefined) return '';
-    const each = strikes.map(s => `${s.count} strikes${STRIKE_KIND[s.rawEvent] ?? ''}${s.dryRun === true ? ' (dry run)' : ''}`);
-    return ` ${each.join(', ')} from Cleanuparr so far.`;
+    const hit = rowId === undefined ? undefined : standing?.find(d => d.downloadId === rowId);
+    if (hit === undefined || hit.strikes.length === 0) return '';
+    const each = hit.strikes.map(s => `${s.count} strike${s.count === 1 ? '' : 's'}${STRIKE_KIND[`${s.kind}Strike`] ?? ''}${s.dryRun === true ? ' (dry run)' : ''}`);
+    return ` ${each.join(', ')} from Cleanuparr so far.${hit.markedForRemoval ? ' It has reached Cleanuparr\'s strike limit and is removed on its next run.' : ''}`;
 }
 
 /** Radarr, Sonarr and Lidarr import a download by id. Whisparr has no manual import, so a call to it would be refused and is never offered. */
@@ -583,7 +585,7 @@ function queueStep(ev: Evidence, item: MergedItem): QueueResult {
             ? mine.find(q => classifyQueueStatus(q) === 'importPending' && !SEEDING.has(q.status.toLowerCase()) && downloadKey(q) === downloadKey(picked.row))
             : undefined;
     const row = stuck ?? picked.row;
-    const strikeNote = strikeNoteFor(row, ev.cleanuparr);
+    const strikeNote = strikeNoteFor(row, ev.strikes);
 
     if (cls === 'fault') {
         const next: NextStep | undefined = importIsBehind(row, mine)

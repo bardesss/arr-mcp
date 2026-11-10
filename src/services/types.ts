@@ -372,6 +372,8 @@ export type QueueItem = {
     savePath?: string;
     /** Cleanuparr's strikes on this download, one per kind since that kind's last reset, at `detail: "full"`. Real ones first, then the highest count. */
     strikes?: { count: number; reason: string; lastAt: string; dryRun?: true }[];
+    /** Cleanuparr reached its strike limit on this download, and removes it on its next run. */
+    markedForRemoval?: true;
     /** Internal: what Cleanuparr's rules match on. Never returned by a tool. */
     torrent?: TorrentFacts;
 };
@@ -485,8 +487,22 @@ export type CleanuparrSeeding = {
     ignored: string[];
 };
 
+/** One kind of strike against a download: `reason` reads `dead torrent`, `kind` is Cleanuparr's `DeadTorrent`. */
+export type Strike = { count: number; reason: string; kind: string; lastAt: string; dryRun?: true };
+
+/** One download's standing strikes, as Cleanuparr itself counts them. */
+export type DownloadStrikes = {
+    /** The torrent hash or usenet id, lower-cased: what a queue row is joined on. */
+    downloadId: string;
+    /** Real strikes first, then the highest count. */
+    strikes: Strike[];
+    /** The strike limit is reached, and Cleanuparr removes it on its next run. */
+    markedForRemoval: boolean;
+};
+
 export interface CleanuparrCapable {
     getSeedingRules(): Promise<CleanuparrSeeding>;
+    readStrikes(): Promise<DownloadStrikes[]>;
 }
 
 export const hasCleanuparr = (a: ServiceAdapter): a is ServiceAdapter & CleanuparrCapable =>

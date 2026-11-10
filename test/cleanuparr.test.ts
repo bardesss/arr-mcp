@@ -51,6 +51,7 @@ const healthRoutes = (over: Record<string, unknown> = {}) => ({
     '/api/status/download-client': fixture('status-download-client'),
     '/api/jobs': fixture('jobs'),
     '/api/configuration/general': fixture('configuration-general'),
+    '/api/manualevents': fixture('2.11.0/manualevents'),
     ...over
 });
 
@@ -393,3 +394,83 @@ describe('against Cleanuparr 2.10.12 with one qBittorrent', () => {
         ]);
     });
 });
+
+describe('CleanuparrAdapter strikes, captured from 2.11.0', () => {
+    it('reads each download\'s standing strikes by kind, and whether it is marked for removal', async () => {
+        const standing = await new CleanuparrAdapter(config, stub({ '/api/strikes': fixture('2.11.0/strikes') })).readStrikes();
+        expect(standing).toEqual([
+            {
+                downloadId: '0000000100000001000000010000000100000001',
+                markedForRemoval: true,
+                strikes: [{ count: 3, reason: 'dead torrent', kind: 'DeadTorrent', lastAt: '2026-11-09T12:00:24.4571159+00:00' }]
+            }
+        ]);
+    });
+
+    // Constructed: the captured instance had one kind of strike and no dry run.
+    it('counts each kind apart, dry-run strikes apart from real ones, real ones first', async () => {
+        const at = (h: number) => `2026-11-09T${String(h).padStart(2, '0')}:00:00+00:00`;
+        const body = {
+            items: [
+                {
+                    downloadId: 'ABC',
+                    isMarkedForRemoval: false,
+                    strikes: [
+                        { type: 'Stalled', createdAt: at(1), isDryRun: true },
+                        { type: 'Stalled', createdAt: at(2), isDryRun: true },
+                        { type: 'Stalled', createdAt: at(3), isDryRun: true },
+                        { type: 'SlowSpeed', createdAt: at(4), isDryRun: false },
+                        { type: 'Stalled', createdAt: at(5), isDryRun: false }
+                    ]
+                }
+            ],
+            totalPages: 1
+        };
+        const [one] = await new CleanuparrAdapter(config, stub({ '/api/strikes': body })).readStrikes();
+        expect(one?.downloadId).toBe('abc');
+        expect(one?.strikes.map(s => [s.kind, s.count, s.lastAt, s.dryRun])).toEqual([
+            ['SlowSpeed', 1, at(4), undefined],
+            ['Stalled', 1, at(5), undefined],
+            ['Stalled', 3, at(3), true]
+        ]);
+    });
+
+    it('reads every page', async () => {
+        const seen: string[] = [];
+        const paged = (async (input: string | URL | Request) => {
+            const url = new URL(String(input));
+            seen.push(url.search);
+            const page = Number(url.searchParams.get('page'));
+            const items = [{ downloadId: `d${page}`, isMarkedForRemoval: false, strikes: [{ type: 'Stalled', createdAt: 't' }] }];
+            return new Response(JSON.stringify({ items, totalPages: 2 }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }) as unknown as typeof fetch;
+        const standing = await new CleanuparrAdapter(config, paged).readStrikes();
+        expect(standing.map(d => d.downloadId)).toEqual(['d1', 'd2']);
+        expect(seen).toEqual(['?page=1&pageSize=500', '?page=2&pageSize=500']);
+    });
+});
+
+describe('CleanuparrAdapter manual events', () => {
+    it('says nothing when none waits, as on the captured 2.11.0', async () => {
+        const checks = await new CleanuparrAdapter(config, stub(healthRoutes())).getFailedHealthChecks();
+        expect(checks.some(c => c.source === 'manual events')).toBe(false);
+    });
+
+    // Constructed from ManualEventResponse at v2.11.0: the captured instance had none waiting.
+    it('reports each one waiting for a person, and how many more there are', async () => {
+        const waiting = {
+            items: [
+                { message: 'Download keeps coming back after removal', severity: 'Important', type: 'RecurringDownload', itemTitle: 'Example.Title.1', isResolved: false },
+                { message: 'Search was not triggered', severity: 'Error', type: 'SearchNotTriggered', itemTitle: null, isResolved: false }
+            ],
+            totalCount: 5
+        };
+        const checks = await new CleanuparrAdapter(config, stub(healthRoutes({ '/api/manualevents': waiting }))).getFailedHealthChecks();
+        const manual = checks.filter(c => c.source === 'manual events');
+        expect(manual.map(c => c.type)).toEqual(['warning', 'error', 'warning']);
+        expect(manual[0]?.message).toContain('Needs a person: Download keeps coming back after removal (Example.Title.1)');
+        expect(manual[1]?.message).toContain('Needs a person: Search was not triggered');
+        expect(manual[2]?.message).toBe('3 more manual event(s) wait in Cleanuparr');
+    });
+});
+

@@ -1325,7 +1325,9 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         { name: 'queue-rules-stall', path: '/api/queue-rules/stall' },
         { name: 'queue-rules-slow', path: '/api/queue-rules/slow' },
         { name: 'configuration-malware_blocker', path: '/api/configuration/malware_blocker', anonymise: anonymiseBlocklistPaths },
-        { name: 'configuration-seeker', path: '/api/configuration/seeker' }
+        { name: 'configuration-seeker', path: '/api/configuration/seeker' },
+        { name: 'strikes', path: '/api/strikes?page=1&pageSize=500', anonymise: anonymiseCleanuparrStrikes },
+        { name: 'manualevents', path: '/api/manualevents?isResolved=false&pageSize=20', anonymise: anonymiseCleanuparrEvents }
     ],
     reclaimerr: [
         // Moved to specs/reclaimerr.json, the vendored spec the contract test reads.
@@ -1485,6 +1487,31 @@ function anonymiseBlocklistPaths(body: unknown): unknown {
 }
 
 /** Replaces event titles and hashes with stable dummies; one download's events share a hash. */
+/** Titles, hashes and ids stand in for real ones; counts, kinds, flags and times stay. */
+function anonymiseCleanuparrStrikes(body: unknown): unknown {
+    if (!isRow(body) || !Array.isArray(body.items)) return body;
+    return {
+        ...body,
+        items: (body.items as unknown[]).map((item, n): unknown => {
+            if (!isRow(item)) return item;
+            const hash = (n + 1).toString(16).padStart(8, '0').repeat(5);
+            return {
+                ...item,
+                ...(typeof item.title === 'string' ? { title: `Example.Title.${n + 1}` } : {}),
+                ...(typeof item.downloadId === 'string' ? { downloadId: hash } : {}),
+                ...(typeof item.downloadItemId === 'string' ? { downloadItemId: `00000000-0000-0000-0000-${String(n + 1).padStart(12, '0')}` } : {}),
+                ...(Array.isArray(item.strikes)
+                    ? {
+                          strikes: (item.strikes as unknown[]).map((s, i) =>
+                              isRow(s) ? { ...s, id: `00000000-0000-0000-0001-${String(i + 1).padStart(12, '0')}`, jobRunId: null } : s
+                          )
+                      }
+                    : {})
+            };
+        })
+    };
+}
+
 function anonymiseCleanuparrEvents(body: unknown): unknown {
     if (!isRow(body) || !Array.isArray(body.items)) return body;
     const hashes = new Map<string, string>();

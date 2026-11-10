@@ -1390,6 +1390,9 @@ describe('buildChain — fencing', () => {
 
 describe('buildChain — Cleanuparr', () => {
     const base = { service: 'cleanuparr', title: 'x' } as const;
+    const standing = (kind: string, over: object = {}, markedForRemoval = false) => [
+        { downloadId: 'aaaa1111', markedForRemoval, strikes: [{ count: 2, reason: kind, kind, lastAt: '2026-10-09T11:00:00+00:00', ...over }] }
+    ];
     const downloading = {
         service: 'sabnzbd',
         id: '1',
@@ -1450,7 +1453,7 @@ describe('buildChain — Cleanuparr', () => {
             'some film',
             healthy({
                 queue: { items: [downloading], partial: [] },
-                cleanuparr: [{ ...base, id: 'e4', at: '2026-10-08T11:00:00+00:00', event: 'strike', strikeCount: 2, downloadId: 'cccc3333' }]
+                strikes: [{ downloadId: 'cccc3333', markedForRemoval: false, strikes: [{ count: 2, reason: 'stalled', kind: 'Stalled', lastAt: '2026-10-08T11:00:00+00:00' }] }]
             })
         );
         expect(stepFor(d, 'queue')?.detail).not.toContain('Cleanuparr');
@@ -1461,20 +1464,20 @@ describe('buildChain — Cleanuparr', () => {
             'some film',
             healthy({
                 queue: { items: [downloading], partial: [] },
-                cleanuparr: [
-                    { ...base, id: 'e3', at: '2026-10-09T11:00:00+00:00', event: 'strike', rawEvent: 'StalledStrike', strikeCount: 2, downloadId: 'aaaa1111' }
-                ]
+                strikes: standing('Stalled')
             })
         );
         expect(stepFor(d, 'queue')?.detail).toContain('2 strikes for stalling');
     });
 
-    const strike = (rawEvent: string, over: object = {}) =>
-        ({ ...base, id: 'e3', at: '2026-10-09T11:00:00+00:00', event: 'strike', rawEvent, strikeCount: 2, downloadId: 'aaaa1111', ...over }) as const;
+    it('says when Cleanuparr has marked the download for removal', () => {
+        const d = buildChain('some film', healthy({ queue: { items: [downloading], partial: [] }, strikes: standing('DeadTorrent', {}, true) }));
+        expect(stepFor(d, 'queue')?.detail).toContain('removed on its next run');
+    });
 
     it('names the strike on a stalled row', () => {
         const stalled = { ...downloading, status: 'stalled' };
-        const step = stepFor(buildChain('some film', healthy({ queue: { items: [stalled], partial: [] }, cleanuparr: [strike('StalledStrike')] })), 'queue');
+        const step = stepFor(buildChain('some film', healthy({ queue: { items: [stalled], partial: [] }, strikes: standing('Stalled') })), 'queue');
         expect(step?.status).toBe('blocked');
         expect(step?.detail).toContain('Download stalled');
         expect(step?.detail).toContain('2 strikes for stalling');
@@ -1482,16 +1485,16 @@ describe('buildChain — Cleanuparr', () => {
 
     it('names the strike on a row waiting to import', () => {
         const done = { ...downloading, status: 'completed' };
-        const step = stepFor(buildChain('some film', healthy({ queue: { items: [done], partial: [] }, cleanuparr: [strike('FailedImportStrike')] })), 'queue');
+        const step = stepFor(buildChain('some film', healthy({ queue: { items: [done], partial: [] }, strikes: standing('FailedImport') })), 'queue');
         expect(step?.detail).toContain('not yet imported');
         expect(step?.detail).toContain('2 strikes for failed imports');
     });
 
     it('marks a dry-run strike and leaves an unknown kind unnamed', () => {
-        const dry = stepFor(buildChain('some film', healthy({ queue: { items: [downloading], partial: [] }, cleanuparr: [strike('SlowSpeedStrike', { dryRun: true })] })), 'queue');
+        const dry = stepFor(buildChain('some film', healthy({ queue: { items: [downloading], partial: [] }, strikes: standing('SlowSpeed', { dryRun: true }) })), 'queue');
         expect(dry?.detail).toContain('2 strikes for being slow');
         expect(dry?.detail).toContain('(dry run)');
-        const odd = stepFor(buildChain('some film', healthy({ queue: { items: [downloading], partial: [] }, cleanuparr: [strike('NewStrike')] })), 'queue');
+        const odd = stepFor(buildChain('some film', healthy({ queue: { items: [downloading], partial: [] }, strikes: standing('New') })), 'queue');
         expect(odd?.detail).toMatch(/2 strikes from Cleanuparr so far\.$/);
     });
 
@@ -1515,7 +1518,7 @@ describe('buildChain — Cleanuparr', () => {
 
     it('warns, without blocking, on a torrent still seeding a file already imported', () => {
         const seeding = { ...downloading, service: 'qbittorrent', status: 'seeding' };
-        const struck = buildChain('some film', healthy({ queue: { items: [seeding], partial: [] }, cleanuparr: [strike('DeadTorrentStrike')] }));
+        const struck = buildChain('some film', healthy({ queue: { items: [seeding], partial: [] }, strikes: standing('DeadTorrent') }));
         expect(stepFor(struck, 'queue')).toMatchObject({ status: 'warning', detail: expect.stringContaining('2 strikes as a dead torrent') });
         expect(struck.verdict.stage).toBe('playable');
         const clean = stepFor(buildChain('some film', healthy({ queue: { items: [seeding], partial: [] }, cleanuparr: [] })), 'queue');
@@ -1524,7 +1527,7 @@ describe('buildChain — Cleanuparr', () => {
 
     it("treats qBittorrent's seeding with no peers as seeding", () => {
         const dead = { ...downloading, service: 'qbittorrent', status: 'seeding (no peers)' };
-        const d = buildChain('some film', healthy({ queue: { items: [dead], partial: [] }, cleanuparr: [strike('DeadTorrentStrike')] }));
+        const d = buildChain('some film', healthy({ queue: { items: [dead], partial: [] }, strikes: standing('DeadTorrent') }));
         expect(stepFor(d, 'queue')?.status).toBe('warning');
         expect(d.verdict.stage).toBe('playable');
     });
@@ -1536,9 +1539,10 @@ describe('buildChain — Cleanuparr', () => {
         expect(step?.status).toBe('blocked');
     });
 
-    it('drops strikes a later reset cleared', () => {
-        const reset = { ...base, id: 'e9', at: '2026-10-09T12:00:00+00:00', event: 'recovered', rawEvent: 'StrikeReset', downloadId: 'aaaa1111' } as const;
-        const step = stepFor(buildChain('some film', healthy({ queue: { items: [downloading], partial: [] }, cleanuparr: [reset, strike('StalledStrike')] })), 'queue');
+    it('says nothing of strikes Cleanuparr no longer holds, whatever its events said', () => {
+        const old = { ...base, id: 'e9', at: '2026-10-09T10:00:00+00:00', event: 'strike', rawEvent: 'StalledStrike', strikeCount: 2, downloadId: 'aaaa1111' } as const;
+        const cleared = [{ downloadId: 'aaaa1111', markedForRemoval: false, strikes: [] }];
+        const step = stepFor(buildChain('some film', healthy({ queue: { items: [downloading], partial: [] }, cleanuparr: [old], strikes: cleared })), 'queue');
         expect(step?.detail).not.toContain('strikes');
     });
 });
