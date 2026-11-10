@@ -11,7 +11,7 @@ import { hasReleaseSearch, type ReleaseCandidate, type ServiceAdapter } from '..
 import { managedIdByTitle } from './byTitle.ts';
 import type { LibraryLoader } from './library.ts';
 
-export type GetReleasesResult = {
+type GetReleasesResult = {
     items: ReleaseCandidate[];
     total: number;
     returned: number;

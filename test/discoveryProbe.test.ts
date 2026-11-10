@@ -2,7 +2,7 @@ import { createServer, type IncomingHttpHeaders, type Server } from 'node:http';
 import type { AddressInfo, Socket } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { CatalogEntry, ProbeResponse } from '../src/discovery/catalog.ts';
-import { probeEntry, probeHost } from '../src/discovery/probe.ts';
+import { probeHost } from '../src/discovery/probe.ts';
 
 type Handler = Parameters<typeof createServer>[1];
 
@@ -38,20 +38,22 @@ const entry = (port: number, over: Partial<CatalogEntry> = {}): CatalogEntry => 
 
 const opts = { timeoutMs: 2000 };
 
-describe('probeEntry', () => {
+describe('probeHost', () => {
     it('finds a service whose fingerprint matches', async () => {
         const port = await serve((_req, res) => res.end('hello'));
-        expect(await probeEntry('127.0.0.1', entry(port), 'host', opts)).toEqual({
-            type: 'radarr',
-            url: `http://127.0.0.1:${port}`,
-            version: '1.2.3',
-            source: 'host'
-        });
+        expect(await probeHost('127.0.0.1', [entry(port)], 'host', opts)).toEqual([
+            {
+                type: 'radarr',
+                url: `http://127.0.0.1:${port}`,
+                version: '1.2.3',
+                source: 'host'
+            }
+        ]);
     });
 
     it('a non-matching response finds nothing', async () => {
         const port = await serve((_req, res) => res.end('nope'));
-        expect(await probeEntry('127.0.0.1', entry(port), 'host', opts)).toBeUndefined();
+        expect(await probeHost('127.0.0.1', [entry(port)], 'host', opts)).toEqual([]);
     });
 
     it('sends no credentials', async () => {
@@ -62,7 +64,7 @@ describe('probeEntry', () => {
             method = req.method;
             res.end('hello');
         });
-        await probeEntry('127.0.0.1', entry(port), 'host', opts);
+        await probeHost('127.0.0.1', [entry(port)], 'host', opts);
         expect(method).toBe('GET');
         expect(seen).toBeDefined();
         expect(seen).not.toHaveProperty('authorization');
@@ -77,14 +79,16 @@ describe('probeEntry', () => {
             hits++;
             res.writeHead(302, { location: 'http://example.com/' }).end();
         });
-        await probeEntry(
+        await probeHost(
             '127.0.0.1',
-            entry(port, {
-                identify: r => {
-                    got = r;
-                    return undefined;
-                }
-            }),
+            [
+                entry(port, {
+                    identify: r => {
+                        got = r;
+                        return undefined;
+                    }
+                })
+            ],
             'host',
             opts
         );
@@ -96,7 +100,7 @@ describe('probeEntry', () => {
     it('a held connection times out', async () => {
         const port = await serve(() => {});
         const t0 = Date.now();
-        expect(await probeEntry('127.0.0.1', entry(port), 'host', { timeoutMs: 200 })).toBeUndefined();
+        expect(await probeHost('127.0.0.1', [entry(port)], 'host', { timeoutMs: 200 })).toEqual([]);
         expect(Date.now() - t0).toBeLessThan(1000);
     });
 
@@ -115,14 +119,16 @@ describe('probeEntry', () => {
             res.on('error', () => {});
             pump();
         });
-        await probeEntry(
+        await probeHost(
             '127.0.0.1',
-            entry(port, {
-                identify: r => {
-                    length = r.body.length;
-                    return undefined;
-                }
-            }),
+            [
+                entry(port, {
+                    identify: r => {
+                        length = r.body.length;
+                        return undefined;
+                    }
+                })
+            ],
             'host',
             opts
         );
@@ -134,24 +140,22 @@ describe('probeEntry', () => {
         const port = await serve((_req, res) => res.end('hello'));
         await new Promise<void>(resolve => server!.close(() => resolve()));
         server = undefined;
-        await expect(probeEntry('127.0.0.1', entry(port), 'host', opts)).resolves.toBeUndefined();
+        await expect(probeHost('127.0.0.1', [entry(port)], 'host', opts)).resolves.toEqual([]);
     });
 
     it('connects to the address but names the host in the url', async () => {
         const port = await serve((_req, res) => res.end('hello'));
-        const found = await probeEntry('example.invalid', entry(port), 'container', { ...opts, address: '127.0.0.1' });
+        const [found] = await probeHost('example.invalid', [entry(port)], 'container', { ...opts, address: '127.0.0.1' });
         expect(found?.url).toBe(`http://example.invalid:${port}`);
         expect(found?.source).toBe('container');
     });
 
     it('brackets IPv6 in the url', async () => {
         const port = await serve((_req, res) => res.end('hello'));
-        const found = await probeEntry('fd00::1', entry(port), 'sweep', { ...opts, address: '127.0.0.1' });
+        const [found] = await probeHost('fd00::1', [entry(port)], 'sweep', { ...opts, address: '127.0.0.1' });
         expect(found?.url).toBe(`http://[fd00::1]:${port}`);
     });
-});
 
-describe('probeHost', () => {
     it('fetches each (port, path) once and shares the response', async () => {
         const paths: string[] = [];
         const port = await serve((req, res) => {

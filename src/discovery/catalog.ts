@@ -26,7 +26,7 @@ export type CatalogEntry = {
 };
 
 /** Services left out of discovery, and why. A wrong guess the user saves is worse than a miss. */
-export type Undiscoverable = { type: ServiceId; reason: string };
+type Undiscoverable = { type: ServiceId; reason: string };
 
 /** The longest version a row shows. A probed host chooses this string, so it is cut short. */
 const MAX_VERSION = 64;

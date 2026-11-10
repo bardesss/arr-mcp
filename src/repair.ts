@@ -30,7 +30,7 @@ const NAME = 'arr-mcp';
 
 export type PromoteResult = { ok: true } | { ok: false; detail: string };
 
-export type RepairDeps = {
+type RepairDeps = {
     configDir: string;
     sessions: Sessions;
     version: string;

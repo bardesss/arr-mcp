@@ -28,7 +28,7 @@ export function resolveRuleSets(
 }
 
 /** Maps each torrent client id to the Cleanuparr rule set for it, when exactly one matches. */
-export const mapRuleSets = (sets: readonly CleanuparrRuleSet[], adapters: readonly ServiceAdapter[]): Map<string, CleanuparrRuleSet> =>
+const mapRuleSets = (sets: readonly CleanuparrRuleSet[], adapters: readonly ServiceAdapter[]): Map<string, CleanuparrRuleSet> =>
     resolveRuleSets(sets, adapters).mapped;
 
 /** ISO to the second: milliseconds say nothing about a cron job, and 500 rows pay for them. */
@@ -44,7 +44,7 @@ const isoSeconds = (ms: number): string => new Date(ms).toISOString().replace(/\
  * run is acted on at the first run after it, which only the cron could name,
  * so `dueAt` is then the moment the limit is reached.
  */
-export function projectDue(
+function projectDue(
     rule: CleanuparrRule,
     verdict: RuleVerdict,
     s: { ratio?: number; seedingSeconds?: number },
@@ -65,7 +65,7 @@ export function projectDue(
     return isoSeconds(!Number.isNaN(next) && next >= reach ? next : reach);
 }
 
-export const DUE_WINDOW_DAYS = 7;
+const DUE_WINDOW_DAYS = 7;
 
 type DueTotal = { count: number; sizeBytes: number };
 export type CleanuparrDue = { days: number; delete?: DueTotal; stop?: DueTotal; dryRun?: true };

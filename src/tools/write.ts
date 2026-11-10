@@ -91,7 +91,7 @@ type Routing<Schema extends z.ZodObject, Adapter> =
           service?: never;
       };
 
-export type WriteToolSpec<
+type WriteToolSpec<
     Schema extends z.ZodObject,
     Adapter = undefined,
     Bound extends Record<string, unknown> = Record<string, unknown>

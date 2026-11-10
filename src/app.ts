@@ -49,7 +49,7 @@ const VERSION = process.env.ARR_MCP_VERSION ?? '0.0.0-dev';
 export const MAX_BODY_BYTES = 4 * 1024 * 1024;
 
 /** The largest captured payload is under 5 KiB. */
-export const MAX_WEBHOOK_BODY_BYTES = 256 * 1024;
+const MAX_WEBHOOK_BODY_BYTES = 256 * 1024;
 
 /**
  * An hour, for every list the SDK builds itself.

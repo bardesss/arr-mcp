@@ -1,6 +1,6 @@
 /** What a request to `/mcp` presented, and how — `queryOffered` says whether a
  *  query token showed up even when unhonoured, so a refusal can name the flag. */
-export type Presented = { via: 'header' | 'query'; token: string } | { via: 'none'; queryOffered: boolean };
+type Presented = { via: 'header' | 'query'; token: string } | { via: 'none'; queryOffered: boolean };
 
 /** A Bearer header always wins, right or wrong — never falls back to the query. */
 export function presentedToken(url: string, header: string | undefined, allowQuery: boolean): Presented {

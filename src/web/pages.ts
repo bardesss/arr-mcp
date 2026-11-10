@@ -15,7 +15,7 @@ import { LOGO, serviceIcon } from './icons.ts';
  * the log auto-refresh.
  */
 
-export type Nav = 'dashboard' | 'config' | 'logs' | 'audit';
+type Nav = 'dashboard' | 'config' | 'logs' | 'audit';
 
 /** Where this came from, and where a missing tool or a bug goes. On every
  *  page, including the sign-in one — the person who cannot get in is exactly

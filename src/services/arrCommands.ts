@@ -130,7 +130,7 @@ export async function readArrCommands(
 
 /** Refused before the POST: Radarr and Sonarr accept an id they cannot
  *  resolve and report a queued command that runs against nothing. */
-export type ArrIdKind = ArrKind | 'episode' | 'album' | 'site' | 'scene' | 'queue';
+type ArrIdKind = ArrKind | 'episode' | 'album' | 'site' | 'scene' | 'queue';
 
 const LIBRARY_ID = 'Take one from `acquisition.id` on get_library or get_media_details.';
 const WHERE: Record<ArrIdKind, string> = {

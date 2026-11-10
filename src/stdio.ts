@@ -29,7 +29,7 @@ export const stdioCeiling = (): Ceiling => ({
     caller: STDIO_CALLER
 });
 
-export type StdioDeps = {
+type StdioDeps = {
     configDir: string;
     audit: WriteAudit;
     events: WebhookEvents;
@@ -51,7 +51,7 @@ export type StdioDeps = {
  */
 export async function serveOverStdio(deps: StdioDeps): Promise<{ close(): Promise<void> }> {
     const { configDir, audit, events, sessions, transport } = deps;
-    const { runtime } = await Runtime.start(configDir, audit, { refresh: dataset => startRefresh(dataset), sessions });
+    const runtime = await Runtime.start(configDir, audit, { refresh: dataset => startRefresh(dataset), sessions });
 
     logger.info({ adapters: runtime.current.adapters.map(a => a.id) }, 'arr-mcp serving MCP over stdio, read-only');
     if (runtime.current.adapters.length === 0) {

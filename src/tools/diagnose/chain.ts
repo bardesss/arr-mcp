@@ -19,9 +19,9 @@ import type {
 import { removalSentence, upcomingSentence } from '../cleanupStatus.ts';
 import { instanceArgs } from '../resolveInstance.ts';
 
-export type Stage = 'resolve' | 'request' | 'managed' | 'file' | 'queue' | 'indexers' | 'library' | 'scan' | 'subtitles';
+type Stage = 'resolve' | 'request' | 'managed' | 'file' | 'queue' | 'indexers' | 'library' | 'scan' | 'subtitles';
 /** `warning` is worth a look but blocks nothing. */
-export type StepStatus = 'ok' | 'warning' | 'blocked' | 'unknown' | 'skipped';
+type StepStatus = 'ok' | 'warning' | 'blocked' | 'unknown' | 'skipped';
 
 export type Step = { stage: Stage; service?: string; status: StepStatus; detail: string };
 

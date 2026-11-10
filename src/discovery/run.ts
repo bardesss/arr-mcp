@@ -27,7 +27,7 @@ export type RunState = {
     startedAt: string;
 };
 
-export type DiscoveryOpts = {
+type DiscoveryOpts = {
     catalog?: readonly CatalogEntry[];
     probe?: (host: string, entries: readonly CatalogEntry[], source: Found['source'], opts: ProbeOpts) => Promise<Found[]>;
     lookup?: (host: string) => Promise<string[]>;

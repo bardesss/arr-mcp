@@ -7,7 +7,7 @@ import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, 
 import { hasBlocklist, type BlocklistEntry, type ServiceAdapter } from '../services/types.ts';
 import { readTargets, serviceTarget } from './serviceTarget.ts';
 
-export type GetBlocklistResult = {
+type GetBlocklistResult = {
     items: BlocklistEntry[];
     total: number;
     returned: number;

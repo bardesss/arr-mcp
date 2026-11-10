@@ -54,7 +54,7 @@ export const STAGING_PREFIX = 'arr-mcp-imdb-';
  * the user has — but bounded, because every other network call in this project
  * is. Without it a hung socket wedged the refresh until the process restarted.
  */
-export const DOWNLOAD_TIMEOUT_MS = 30 * 60 * 1000;
+const DOWNLOAD_TIMEOUT_MS = 30 * 60 * 1000;
 
 /**
  * How long a staging directory must have gone untouched before it counts as
@@ -197,7 +197,7 @@ export function* linesOf(path: string): Generator<string> {
  * never read by a single query — 52 MB a day and millions of rows for a table
  * nothing consulted.
  */
-export type IngestOptions = {
+type IngestOptions = {
     baseUrl?: string;
     /** Stops the ingest: the downloads abort and nothing is written. */
     signal?: AbortSignal;

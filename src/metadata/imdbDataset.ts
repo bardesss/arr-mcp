@@ -101,7 +101,7 @@ export type RawTitle = {
 
 export type RawRating = { tconst: string; average: number; votes: number };
 
-export type DatasetTitle = {
+type DatasetTitle = {
     tconst: string;
     title: string;
     year?: number;
@@ -149,7 +149,7 @@ CREATE INDEX IF NOT EXISTS title_bucket_rating ON title(bucket, rating DESC, yea
 `;
 
 /** The filters `discover` and `countDiscover` both answer to. */
-export type DiscoverQuery = {
+type DiscoverQuery = {
     kind: 'movie' | 'series';
     genre?: string | undefined;
     year?: number | undefined;

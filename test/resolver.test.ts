@@ -49,7 +49,7 @@ describe('LibraryIndex merging', () => {
     it('merges an *arr and a Jellyfin record sharing a tmdb id', () => {
         const index = LibraryIndex.build([arr(), jelly()]);
 
-        expect(index.size()).toBe(1);
+        expect(index.all().length).toBe(1);
         const item = index.find({ tmdb: 550 });
         expect(item?.acquisition?.service).toBe('radarr');
         expect(item?.playback?.watched).toBe(true);
@@ -62,7 +62,7 @@ describe('LibraryIndex merging', () => {
             jelly({ kind: 'series', ids: { tvdb: 292157 } })
         ]);
 
-        expect(index.size()).toBe(1);
+        expect(index.all().length).toBe(1);
         expect(index.find({ tvdb: 292157 })?.presence).toBe('both');
     });
 
@@ -73,7 +73,7 @@ describe('LibraryIndex merging', () => {
             jelly({ ids: { imdb: 'tt0137523' } })
         ]);
 
-        expect(index.size()).toBe(1);
+        expect(index.all().length).toBe(1);
         expect(index.find({ tmdb: 550 })?.presence).toBe('both');
         expect(index.find({ imdb: 'tt0137523' })?.presence).toBe('both');
     });
@@ -82,7 +82,7 @@ describe('LibraryIndex merging', () => {
         // No evidence they are the same item. Merging on title similarity is
         // how a remake gets fused with its original.
         const index = LibraryIndex.build([arr({ ids: { tmdb: 550 } }), jelly({ ids: { tmdb: 999 } })]);
-        expect(index.size()).toBe(2);
+        expect(index.all().length).toBe(2);
     });
 
     it('does not merge a film with a series that shares an id number', () => {
@@ -91,7 +91,7 @@ describe('LibraryIndex merging', () => {
             arr({ kind: 'movie', ids: { tmdb: 550 } }),
             arr({ kind: 'series', ids: { tvdb: 550 } })
         ]);
-        expect(index.size()).toBe(2);
+        expect(index.all().length).toBe(2);
     });
 
     it('finds a merged item by any of its ids', () => {
@@ -117,7 +117,6 @@ describe('LibraryIndex merging', () => {
             jelly({ ids: { tmdb: 1, imdb: 'tt9' } })
         ]);
 
-        expect(index.size()).toBe(1);
         expect(index.all()).toHaveLength(1);
 
         const byTmdb = index.find({ tmdb: 1 });
@@ -164,7 +163,6 @@ describe('LibraryIndex byKey coherence after a bridging fuse', () => {
 
     it('fuses into exactly one item', () => {
         const index = bridged();
-        expect(index.size()).toBe(1);
         expect(index.all()).toHaveLength(1);
     });
 
@@ -521,7 +519,7 @@ describe('LibraryIndex.all', () => {
     it('handles an empty input', () => {
         const index = LibraryIndex.build([]);
         expect(index.all()).toEqual([]);
-        expect(index.size()).toBe(0);
+        expect(index.all().length).toBe(0);
     });
 
     it('hands out a snapshot a caller can copy without disturbing the index', () => {
@@ -538,7 +536,6 @@ describe('LibraryIndex.all', () => {
         copy.pop();
 
         expect(index.all()).toHaveLength(1);
-        expect(index.size()).toBe(1);
     });
 });
 
@@ -633,7 +630,7 @@ describe('LibraryIndex and music', () => {
         const upper = '056E4F3E-D505-4DAD-8EC1-D04F521CBB56';
         const index = LibraryIndex.build([artist(), artist({ ids: { mbid: upper } })]);
 
-        expect(index.size()).toBe(1);
+        expect(index.all().length).toBe(1);
         expect(index.find({ mbid: upper })?.kind).toBe('artist');
     });
 
@@ -644,7 +641,7 @@ describe('LibraryIndex and music', () => {
         // `keysOf` dropped the kind prefix — no key is shared to begin with.
         const index = LibraryIndex.build([arr({ ids: { tmdb: 4 } }), artist()]);
 
-        expect(index.size()).toBe(2);
+        expect(index.all().length).toBe(2);
         expect(index.find({ tmdb: 4 })?.kind).toBe('movie');
         expect(index.find({ mbid: '056e4f3e-d505-4dad-8ec1-d04f521cbb56' })?.kind).toBe('artist');
     });

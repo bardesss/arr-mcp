@@ -28,7 +28,7 @@ export const AUDIT_FILENAME = 'audit.db';
  * means arr-mcp died mid-write — which is precisely the case an audit log
  * exists to make visible, and the one an after-the-fact-only log cannot show.
  */
-export type WriteOutcome =
+type WriteOutcome =
     | 'attempted'
     | 'applied'
     | 'dry_run'
@@ -168,7 +168,7 @@ function safeArgs(args: Record<string, unknown>): string {
  * exists to prevent, and a read-only or full config volume is a real
  * misconfiguration a user can fix once the error names the path.
  */
-export class AuditUnavailableError extends Error {
+class AuditUnavailableError extends Error {
     constructor(path: string, cause: unknown) {
         super(
             `the write audit log at ${path} could not be opened, so writes are refused — ` +

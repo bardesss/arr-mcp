@@ -9,7 +9,7 @@ import { hasWanted, type ServiceAdapter, type WantedItem, type WantedScope } fro
 import { episodeCode } from '../core/labels.ts';
 import { readTargets, serviceTarget } from './serviceTarget.ts';
 
-export type GetWantedResult = {
+type GetWantedResult = {
     items: WantedItem[];
     total: number;
     returned: number;

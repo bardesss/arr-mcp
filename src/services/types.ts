@@ -249,19 +249,19 @@ export interface IndexerWriteCapable {
 export const hasIndexerWrites = (a: ServiceAdapter): a is ServiceAdapter & IndexerWriteCapable =>
     typeof (a as Partial<IndexerWriteCapable>).setIndexerEnabled === 'function';
 
-export type ArrFormatItem = { name: string; score: number };
-export type ArrQualityProfile = { name: string; minFormatScore: number; formatItems: ArrFormatItem[] };
-export type ArrFormatSpecification = {
+type ArrFormatItem = { name: string; score: number };
+type ArrQualityProfile = { name: string; minFormatScore: number; formatItems: ArrFormatItem[] };
+type ArrFormatSpecification = {
     implementation: string;
     negate: boolean;
     required: boolean;
     fields: Array<{ name: string; value: unknown }>;
 };
-export type ArrCustomFormat = { name: string; specifications: ArrFormatSpecification[] };
+type ArrCustomFormat = { name: string; specifications: ArrFormatSpecification[] };
 /** One instance's own language table. Ids are not shared across instances —
  *  a live Radarr and Sonarr disagree on them — so this must be read fresh
  *  from each adapter, never cached across services. */
-export type ArrLanguage = { id: number; name: string };
+type ArrLanguage = { id: number; name: string };
 
 /** Everything `get_profile_issues` reads from one Radarr, Sonarr or Whisparr:
  *  its quality profiles, its custom formats, and its own language table. */
@@ -399,7 +399,7 @@ export type SeedingState = {
     cleanuparr?: CleanuparrVerdict;
 };
 
-export type CleanuparrVerdict =
+type CleanuparrVerdict =
     | {
           rule: string;
           action: RuleAction;
@@ -452,12 +452,12 @@ export type CleanuparrRuleSet = {
 };
 
 /** Moves a finished torrent with no hardlinks out of `categories` into `target`, a category or, with `useTag`, a tag. */
-export type UnlinkedModule =
+type UnlinkedModule =
     | { enabled: false }
     | { enabled: true; categories: string[]; target: string; useTag?: true; ignoredRootDirs?: string[] };
 
 /** Moves a finished torrent reporting no seeders on `maxStrikes` runs in a row out of `categories` into `target`. */
-export type DeadTorrentModule =
+type DeadTorrentModule =
     | { enabled: false }
     | { enabled: true; categories: string[]; target: string; useTag?: true; maxStrikes: number };
 
@@ -466,7 +466,7 @@ export type DeadTorrentModule =
  * not excluded and is older than `minFileAgeHours` into `orphanedDirectory`.
  * Absent `purgeAfterHours` means that directory is never purged.
  */
-export type OrphanedFilesModule =
+type OrphanedFilesModule =
     | { enabled: false }
     | {
           enabled: true;
@@ -1167,9 +1167,6 @@ export interface IssueCapable {
     getIssues(opts: { limit: number }): Promise<MediaIssue[]>;
 }
 
-export const hasIssues = (a: ServiceAdapter): a is ServiceAdapter & IssueCapable =>
-    typeof (a as Partial<IssueCapable>).getIssues === 'function';
-
 export type EpisodeSummary = {
     id: number;
     season: number;
@@ -1194,7 +1191,7 @@ export type EpisodeSummary = {
  * this is one service's own answer about one flag. Sharing a name would invite
  * merging them, and the service layer must not depend on the resolver.
  */
-export type SeasonMonitoring = { season: number; monitored: boolean };
+type SeasonMonitoring = { season: number; monitored: boolean };
 
 export type MediaDetails = {
     service: string;
@@ -2204,7 +2201,7 @@ export const hasBookMetadata = (a: ServiceAdapter): a is ServiceAdapter & BookMe
  * library build. Films and series must not disappear because a music library
  * was slow or broken, and `musicGathered` cannot name a half it cannot isolate.
  */
-export interface UserMusicCapable {
+interface UserMusicCapable {
     listUserMusic(user: ServiceUser): Promise<IndexInput[]>;
 }
 

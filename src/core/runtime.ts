@@ -22,7 +22,7 @@ import { Sessions } from './session.ts';
  * "reload mid-tool-call" safe without any locking.
  */
 
-export type RuntimeSnapshot = {
+type RuntimeSnapshot = {
     config: Config;
     adapters: readonly ServiceAdapter[];
     tools: ToolContext;
@@ -50,7 +50,7 @@ const NO_CONFIG_DIR = '';
  * unless the caller asked it to. `src/index.ts` passes the real one; every
  * test that never mentions the dataset gets `NO_REFRESH` and no download.
  */
-export type Refresher = (dataset: ImdbDataset) => () => void | Promise<void>;
+type Refresher = (dataset: ImdbDataset) => () => void | Promise<void>;
 
 /** The default. Nothing to keep fresh, and nothing to stop. */
 const NO_REFRESH: Refresher = () => () => {};
@@ -203,20 +203,17 @@ export class Runtime {
         configDir: string,
         audit: WriteAudit,
         opts: { refresh?: Refresher; sessions?: Sessions } = {}
-    ): Promise<{ runtime: Runtime; created: boolean }> {
-        const { config, created, plaintextOnDisk } = await loadConfig(configDir);
-        return {
-            runtime: new Runtime(
-                configDir,
-                audit,
-                config,
-                opts.refresh ?? NO_REFRESH,
-                opts.sessions ?? new Sessions(),
-                undefined,
-                plaintextOnDisk
-            ),
-            created
-        };
+    ): Promise<Runtime> {
+        const { config, plaintextOnDisk } = await loadConfig(configDir);
+        return new Runtime(
+            configDir,
+            audit,
+            config,
+            opts.refresh ?? NO_REFRESH,
+            opts.sessions ?? new Sessions(),
+            undefined,
+            plaintextOnDisk
+        );
     }
 
     /**

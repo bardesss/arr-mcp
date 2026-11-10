@@ -45,7 +45,7 @@ export type Display = {
  */
 export const IMAGE_HOSTS = ['image.tmdb.org', 'artworks.thetvdb.com'] as const;
 
-export const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p';
+const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p';
 export const POSTER_SIZE = 'w342';
 export const BACKDROP_SIZE = 'w780';
 

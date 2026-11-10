@@ -69,7 +69,7 @@ const MIN_PASSWORD = 12;
 /** What the config page needs of a discovery run; tests hand in a stub. */
 export type DiscoveryService = Pick<Discovery, 'quick' | 'startSweep' | 'view'>;
 
-export type WebDeps = {
+type WebDeps = {
     runtime: Runtime;
     audit: WriteAudit;
     logs: LogStore;
@@ -996,7 +996,7 @@ const discoveryOpts = (run: RunState | undefined): { discovery?: RunState } => (
  * page renders as if the link had not been followed. No credential is ever
  * prefilled.
  */
-export function addPrefillFrom(
+function addPrefillFrom(
     type: string | undefined,
     url: string | undefined,
     config: Config,
@@ -1116,7 +1116,7 @@ const storedUrl = (config: Config, id: string): string | undefined =>
  * The page shows a URL without its `user:pass@`, so getting that URL back
  * means unchanged, not "drop the credentials". The API does the same.
  */
-export function instanceFieldsFrom(form: Record<string, unknown>, stored?: string): InstanceFields {
+function instanceFieldsFrom(form: Record<string, unknown>, stored?: string): InstanceFields {
     const timeout = Number(str(form.timeout_ms));
     const url = str(form.url).trim();
 
@@ -1142,7 +1142,7 @@ export function instanceFieldsFrom(form: Record<string, unknown>, stored?: strin
  * A Test that builds its candidate any other way is a Test that can pass
  * against something Add would then refuse.
  */
-export function addCandidateFrom(
+function addCandidateFrom(
     config: Config,
     form: Record<string, unknown>
 ): { candidate: Config; target: string } {
@@ -1176,7 +1176,7 @@ export function addCandidateFrom(
  */
 
 /** The Config UI's own credentials. Owns `username` and `password_hash`. */
-export async function buildAccountConfig(current: Config, form: Record<string, unknown>): Promise<Config> {
+async function buildAccountConfig(current: Config, form: Record<string, unknown>): Promise<Config> {
     const username = str(form['auth.username']).trim();
     const password = str(form['auth.password']);
 
@@ -1207,7 +1207,7 @@ export async function buildAccountConfig(current: Config, form: Record<string, u
  * this is the only form that carries it — so absent genuinely means off here,
  * where on any other card it would mean "not mine to touch".
  */
-export function buildImdbConfig(current: Config, form: Record<string, unknown>): Config {
+function buildImdbConfig(current: Config, form: Record<string, unknown>): Config {
     return setImdb(current, on(form['metadata.imdb']));
 }
 
@@ -1218,7 +1218,7 @@ export function buildImdbConfig(current: Config, form: Record<string, unknown>):
  * new one into every service. Off on an instance that never used it writes
  * nothing, the same rule the IMDb card follows.
  */
-export function buildWebhooksConfig(current: Config, form: Record<string, unknown>): Config {
+function buildWebhooksConfig(current: Config, form: Record<string, unknown>): Config {
     const { webhooks: existing, ...rest } = current;
     const enabled = on(form['webhooks.enabled']);
     if (!enabled && existing === undefined) return rest;
@@ -1257,7 +1257,7 @@ export function buildMediaServerConfig(current: Config, form: Record<string, unk
     return setPrimaryMediaServer(current, str(form.primary_media_server));
 }
 
-export function oauthDraftFrom(form: Record<string, unknown>): OAuthDraft {
+function oauthDraftFrom(form: Record<string, unknown>): OAuthDraft {
     const f = (name: string) => str(form[`auth.oauth.${name}`]).trim();
     return {
         issuer: f('issuer'),
@@ -1285,7 +1285,7 @@ const OAUTH_LABELS: Record<string, string> = {
  * Validated against the block's own schema so a refusal names the field in a
  * sentence, rather than arriving as `saveConfig`'s whole-config dump.
  */
-export function parseOAuthDraft(form: Record<string, unknown>): OAuthConfig {
+function parseOAuthDraft(form: Record<string, unknown>): OAuthConfig {
     const d = oauthDraftFrom(form);
     const parsed = OAuthSchema.safeParse({
         issuer: d.issuer,
@@ -1304,7 +1304,7 @@ export function parseOAuthDraft(form: Record<string, unknown>): OAuthConfig {
 }
 
 /** The OAuth card. Owns `auth.oauth` and nothing else. */
-export function buildOAuthConfig(current: Config, form: Record<string, unknown>): Config {
+function buildOAuthConfig(current: Config, form: Record<string, unknown>): Config {
     if (current.auth.allow_token_in_url) {
         throw new Error(
             "Turn off 'Accept the token in the URL' on the MCP endpoint card first. A JWT in the URL reaches every proxy log."

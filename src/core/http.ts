@@ -3,8 +3,8 @@ import { takeUserinfo, type AuthStrategy } from './auth.ts';
 import { ServiceError, classifyFetchError, classifyHttpStatus, redirectedElsewhere } from './errors.ts';
 import { logger } from './logger.ts';
 
-export const CIRCUIT_THRESHOLD = 5;
-export const CIRCUIT_COOLDOWN_MS = 60_000;
+const CIRCUIT_THRESHOLD = 5;
+const CIRCUIT_COOLDOWN_MS = 60_000;
 
 /** JSON everywhere but qBittorrent, whose WebUI takes form fields. */
 type RequestBody = { readonly json: unknown } | { readonly form: Record<string, string> };

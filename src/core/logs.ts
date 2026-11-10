@@ -26,7 +26,7 @@ const PRUNE_EVERY = 100;
 
 /** pino's numeric levels, which are what actually appear in the JSON. */
 export const LEVELS = { trace: 10, debug: 20, info: 30, warn: 40, error: 50, fatal: 60 } as const;
-export type LevelName = keyof typeof LEVELS;
+type LevelName = keyof typeof LEVELS;
 
 const LEVEL_NAME = new Map<number, LevelName>(
     Object.entries(LEVELS).map(([name, value]) => [value, name as LevelName])
@@ -49,7 +49,7 @@ export type LogRow = {
     fields: string;
 };
 
-export type LogQuery = {
+type LogQuery = {
     limit?: number;
     /** Inclusive floor, so `warn` returns warnings, errors and fatals. */
     minLevel?: number;
@@ -90,7 +90,6 @@ export class LogStore {
     readonly #db: Db;
     readonly #insert: Statement;
     readonly #services: Statement;
-    readonly #count: Statement;
     readonly #pruneStmt: Statement;
     #sincePrune = 0;
 
@@ -99,7 +98,6 @@ export class LogStore {
         db.exec(SCHEMA);
         this.#insert = db.prepare(`INSERT INTO log (at, level, service, msg, fields) VALUES (?, ?, ?, ?, ?)`);
         this.#services = db.prepare(`SELECT DISTINCT service FROM log WHERE service IS NOT NULL ORDER BY service`);
-        this.#count = db.prepare(`SELECT COUNT(*) AS n FROM log`);
         this.#pruneStmt = db.prepare(
             // `<`, not `<=`: the subquery returns the id of the row that
             // should be the *oldest survivor*, so including it kept
@@ -196,10 +194,6 @@ export class LogStore {
                 service: string;
             }[]
         ).map(r => r.service);
-    }
-
-    count(): number {
-        return (this.#count.get() as { n: number }).n;
     }
 
     /** Keeps the newest LOG_RING_SIZE rows. Exposed for tests; called

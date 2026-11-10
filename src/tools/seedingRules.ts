@@ -27,7 +27,7 @@ export type SeedingRules = {
     notes: string[];
 };
 
-export type CleanuparrCoverage = {
+type CleanuparrCoverage = {
     service: string;
     torrents: number;
     /** Torrents no rule matches, so the Download Cleaner never removes them. Ignored ones are not counted. */

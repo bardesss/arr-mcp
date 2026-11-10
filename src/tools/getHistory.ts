@@ -18,7 +18,7 @@ export type EventLog = { store: WebhookEvents; enabled: boolean };
 /** Named in `degraded` when the store cannot be read. No `:`, so it costs a verdict its certainty. */
 export const EVENT_LOG_SOURCE = 'event-log';
 
-export type GetHistoryResult = {
+type GetHistoryResult = {
     items: HistoryEntry[];
     total: number;
     returned: number;

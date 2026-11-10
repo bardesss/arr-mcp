@@ -65,7 +65,7 @@ describe('LibraryLoader', () => {
         );
 
         const snapshot = await loader.load();
-        expect(snapshot.index.size()).toBe(1);
+        expect(snapshot.index.all().length).toBe(1);
         expect(snapshot.index.find({ tmdb: 550 })?.presence).toBe('both');
     });
 
@@ -146,7 +146,7 @@ describe('LibraryLoader', () => {
         });
         const snapshot = await new LibraryLoader([radarr(), broken], undefined).load();
 
-        expect(snapshot.index.size()).toBe(1);
+        expect(snapshot.index.all().length).toBe(1);
         expect(snapshot.degraded).toEqual(['sonarr']);
         expect(snapshot.counts.sonarr).toBeUndefined();
     });
@@ -165,7 +165,7 @@ describe('LibraryLoader', () => {
 
         expect((await loader.load()).degraded).toEqual(['radarr']);
         c.advance(25_000);
-        expect((await loader.load()).index.size()).toBe(1);
+        expect((await loader.load()).index.all().length).toBe(1);
     });
 
     it('caches a degraded snapshot briefly rather than not at all', async () => {
@@ -238,7 +238,7 @@ describe('LibraryLoader', () => {
 
         // The Radarr half is the point: a config choice the schema explicitly
         // allows must not lose it.
-        expect(snapshot.index.size()).toBeGreaterThan(0);
+        expect(snapshot.index.all().length).toBeGreaterThan(0);
         expect(snapshot.degraded).toContain('jellyfin');
         expect(snapshot.note).toContain('default_user');
     });
@@ -277,7 +277,7 @@ describe('LibraryLoader', () => {
         const down = identity(new ServiceError('Unreachable', 'jellyfin', 'connection refused'));
         const snapshot = await new LibraryLoader([radarr(), jellyfin({})], down).load('Someone');
 
-        expect(snapshot.index.size()).toBe(1);
+        expect(snapshot.index.all().length).toBe(1);
         expect(snapshot.degraded).toEqual(['jellyfin']);
     });
 
@@ -291,7 +291,7 @@ describe('LibraryLoader', () => {
 
     it('returns an empty index when nothing is configured', async () => {
         const snapshot = await new LibraryLoader([], undefined).load();
-        expect(snapshot.index.size()).toBe(0);
+        expect(snapshot.index.all().length).toBe(0);
         expect(snapshot.degraded).toEqual([]);
     });
 

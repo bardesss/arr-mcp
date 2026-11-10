@@ -32,7 +32,7 @@ import {
 } from './types.ts';
 import { compareVersions, parseVersion } from './versions.ts';
 
-export const CLEANUPARR_API = '/api';
+const CLEANUPARR_API = '/api';
 
 export const TESTED_MINOR = '2.11';
 
@@ -76,7 +76,7 @@ function strikesOf(raw: readonly RawStrike[]): Strike[] {
 type RawHealthEntry = { status?: string; description?: string };
 type RawHealth = { entries?: Record<string, RawHealthEntry> };
 type RawArrStatus = Record<string, Array<{ name?: string; isConnected?: boolean; message?: string }>>;
-export type RawClientStatus = { id: string; name: string; type: string; host: string; enabled: boolean; isConnected: boolean };
+type RawClientStatus = { id: string; name: string; type: string; host: string; enabled: boolean; isConnected: boolean };
 type RawJob = { jobType?: string; status?: string; nextRunTime?: string | null };
 
 /** A job that is running or done is still on its schedule; `Not Scheduled`, `Paused` and `Error` are not. */
@@ -93,7 +93,7 @@ function strikeTypeOf(e: { eventType?: string; message?: string | null }): strin
     const type = e.eventType?.endsWith('Strike') === true ? e.eventType.slice(0, -'Strike'.length) : undefined;
     return type !== undefined && STRIKE_TYPES.has(type) ? type : undefined;
 }
-export type RawGeneral = { dryRun?: boolean; ignoredDownloads?: string[] };
+type RawGeneral = { dryRun?: boolean; ignoredDownloads?: string[] };
 
 type RawRule = {
     id?: string;

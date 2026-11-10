@@ -7,7 +7,7 @@ import { NO_MEDIA_SERVER_NOTE, type MediaServerAdapter, type PlaybackEntry } fro
 import { bothIds, byMediaServers, pickMediaServer, serviceInput, withBoth, type MediaServers } from './mediaServers.ts';
 import { episodeCode } from '../core/labels.ts';
 
-export type GetPlaybackResult = {
+type GetPlaybackResult = {
     items: PlaybackEntry[];
     total: number;
     returned: number;
@@ -26,9 +26,9 @@ export const UserSchema = z
         'Whose playback to read; defaults to the configured default_user, any other needs allow_other_users.'
     );
 
-export type PlaybackScope = 'active' | 'next_up' | 'history';
+type PlaybackScope = 'active' | 'next_up' | 'history';
 
-export const ScopeSchema = z
+const ScopeSchema = z
     .enum(['active', 'next_up', 'history'])
     .default('active')
     .describe(

@@ -62,7 +62,7 @@ const THEMES: readonly { key: Theme; label: string }[] = [
 
 /** Alphabetical, unlike `ServiceIdSchema.options` — which is declaration order
  *  and reads as arbitrary to anyone looking for their service in the list. */
-export const SERVICE_IDS_ALPHABETICAL: readonly ServiceId[] = [...SERVICE_IDS].sort();
+const SERVICE_IDS_ALPHABETICAL: readonly ServiceId[] = [...SERVICE_IDS].sort();
 
 /**
  * The types the add dialog offers. A service that cannot have a second
@@ -632,7 +632,7 @@ export type OAuthDraft = {
     destructive: string;
 };
 
-export type OAuthCardState = {
+type OAuthCardState = {
     draft?: OAuthDraft;
     message?: { kind: 'ok' | 'err'; text: string };
     tested?: JwksProbe;
@@ -935,7 +935,7 @@ export const CONFIG_TABS = [
     { key: 'settings', label: 'Settings' }
 ] as const;
 
-export type ConfigTab = (typeof CONFIG_TABS)[number]['key'];
+type ConfigTab = (typeof CONFIG_TABS)[number]['key'];
 
 /** Anything unknown lands on the first tab, as an unknown log stream does. */
 export const configTabNamed = (name: string | undefined): ConfigTab =>

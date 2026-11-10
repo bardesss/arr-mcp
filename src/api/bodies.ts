@@ -30,7 +30,7 @@ export const AppBody = z.strictObject({
     name: z.unknown().optional(),
     ...fields
 });
-export type AppBodyValue = z.infer<typeof AppBody>;
+type AppBodyValue = z.infer<typeof AppBody>;
 
 export const NewAppBody = z.strictObject({
     ...readOnly,

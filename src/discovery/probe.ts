@@ -56,11 +56,6 @@ function match(host: string, entry: CatalogEntry, source: Found['source'], r: Pr
     return found;
 }
 
-export async function probeEntry(host: string, entry: CatalogEntry, source: Found['source'], opts: ProbeOpts): Promise<Found | undefined> {
-    const r = await fetchOnce(authority(opts.address ?? host, entry.port), entry.path, opts);
-    return r === undefined ? undefined : match(host, entry, source, r);
-}
-
 /** Fetches each distinct (port, path) once and offers that one response to every entry sharing it. */
 export async function probeHost(host: string, entries: readonly CatalogEntry[], source: Found['source'], opts: ProbeOpts): Promise<Found[]> {
     const groups = new Map<string, CatalogEntry[]>();

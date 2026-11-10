@@ -31,7 +31,7 @@ export type BootstrapDeps = {
 };
 
 /** What `serve` needs, and the only thing the entry point takes from here. */
-export type Booted = {
+type Booted = {
     fetch: (req: Request, env?: unknown) => Response | Promise<Response>;
     /** Closes the runtime of the app being served, if any. */
     close: () => Promise<void>;
@@ -52,7 +52,7 @@ export async function bootstrap(deps: BootstrapDeps): Promise<Booted> {
     let served: Runtime | undefined;
 
     const startNormally = async (): Promise<Hono> => {
-        const { runtime } = await Runtime.start(configDir, audit, {
+        const runtime = await Runtime.start(configDir, audit, {
             refresh: dataset => startRefresh(dataset),
             sessions
         });

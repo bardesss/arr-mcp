@@ -174,7 +174,6 @@ describe('IdentityResolver', () => {
         // .message (what a tool that only surfaces the caught error's message
         // sees) must carry the same sentence, not just the .remedy field.
         expect(err.message).toMatch(/every user's history/);
-        expect(err.toModelText()).toMatch(/every user's history/);
     });
 });
 

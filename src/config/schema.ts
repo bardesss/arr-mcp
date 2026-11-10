@@ -75,7 +75,7 @@ export type KeyedServiceConfig = z.infer<typeof KeyedServiceSchema>;
  * there is no key to give.
  */
 const OptionalKeyServiceSchema = z.strictObject({ ...BaseServiceShape, api_key: ApiKeyShape.api_key.optional() });
-export type OptionalKeyServiceConfig = z.infer<typeof OptionalKeyServiceSchema>;
+type OptionalKeyServiceConfig = z.infer<typeof OptionalKeyServiceSchema>;
 
 /** Grimmory has no API key: it signs in with a username and password and gets a JWT back. */
 const GrimmoryServiceSchema = z.strictObject({
@@ -83,7 +83,7 @@ const GrimmoryServiceSchema = z.strictObject({
     username: z.string().min(1),
     password: z.string().min(1)
 });
-export type GrimmoryServiceConfig = z.infer<typeof GrimmoryServiceSchema>;
+type GrimmoryServiceConfig = z.infer<typeof GrimmoryServiceSchema>;
 
 
 /**
@@ -261,7 +261,7 @@ export type ConfigByService = {
  * cannot disagree: which fields it has, which it cannot do without, whether
  * it can be a list, and whether arr-mcp ever writes to it.
  */
-export type ServiceTraits = {
+type ServiceTraits = {
     readonly multiInstance: boolean;
     readonly readOnly: boolean;
     readonly fields: ReadonlySet<string>;
@@ -420,7 +420,7 @@ const ServicesSchema = z
  * Quietly ignoring one that was set is worse than refusing it, since the user
  * believes it took effect.
  */
-export const MetadataSchema = z
+const MetadataSchema = z
     .object({
         imdb: z.object({ enabled: z.boolean().default(false) }).strict().optional()
     })
@@ -520,7 +520,7 @@ export const OAuthSchema = z.strictObject({
 
 export type OAuthConfig = z.infer<typeof OAuthSchema>;
 
-export const MIN_PLAINTEXT_TOKEN = 32;
+const MIN_PLAINTEXT_TOKEN = 32;
 
 const McpTokenSchema = z.strictObject({
     name: InstanceNameSchema,

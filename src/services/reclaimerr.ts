@@ -27,12 +27,12 @@ import {
 } from './types.ts';
 import { compareVersions, parseVersion } from './versions.ts';
 
-export const RECLAIMERR_API = '/api/v1';
+const RECLAIMERR_API = '/api/v1';
 
 export const TESTED_MINOR = '0.6';
 
 /** What arr-mcp reads. Every one is a read scope: the adapter never writes. */
-export const NEEDED_SCOPES = ['system:read', 'candidates:read', 'rules:read', 'events:read', 'protections:read'] as const;
+const NEEDED_SCOPES = ['system:read', 'candidates:read', 'rules:read', 'events:read', 'protections:read'] as const;
 type Scope = (typeof NEEDED_SCOPES)[number];
 const WRITE_SCOPES = ['candidates:manage', 'protections:manage', 'tasks:run'];
 const IMPLIED = [

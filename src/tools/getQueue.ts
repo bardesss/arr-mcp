@@ -7,7 +7,7 @@ import type { LibraryKind } from '../core/resolver.ts';
 import { hasQueue, type QueueItem, type ServiceAdapter } from '../services/types.ts';
 import { MediaKindSchema, holds } from './mediaKind.ts';
 
-export type GetQueueResult = {
+type GetQueueResult = {
     items: QueueItem[];
     total: number;
     returned: number;
@@ -34,7 +34,7 @@ export type GetQueueResult = {
  * `atRisk` counts torrents a Cleanuparr rule stops or deletes before they
  * reach `min_seed_days`, the hit-and-run case; only with `min_seed_days`.
  */
-export type TrackerSeeding = {
+type TrackerSeeding = {
     tracker: string;
     seeding: number;
     sizeBytes: number;
@@ -44,7 +44,7 @@ export type TrackerSeeding = {
 };
 
 /** A torrent no working tracker announced for: qBittorrent leaves `tracker` empty then. */
-export const UNKNOWN_TRACKER = 'unknown';
+const UNKNOWN_TRACKER = 'unknown';
 
 export function seedingByTracker(items: readonly QueueItem[], now: number, minSeedDays?: number): TrackerSeeding[] {
     const groups = new Map<string, QueueItem[]>();
@@ -168,7 +168,7 @@ const DAY_MS = 86_400_000;
 const needsCleanuparr = (f: QueueFilter): boolean =>
     f.over_limit !== undefined || f.struck !== undefined || f.due_within_days !== undefined || f.unmatched !== undefined;
 
-export function matchesFilter(item: QueueItem, f: QueueFilter, now: number): boolean {
+function matchesFilter(item: QueueItem, f: QueueFilter, now: number): boolean {
     if (f.category !== undefined && (item.torrent === undefined || !f.category.includes(item.torrent.category))) return false;
     if (f.status !== undefined && !item.status.toLowerCase().startsWith(f.status.toLowerCase())) return false;
     if (f.over_limit !== undefined && (item.seeding?.overLimit === true) !== f.over_limit) return false;

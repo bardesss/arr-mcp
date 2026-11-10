@@ -35,7 +35,7 @@ export class ConfigInvalidError extends Error {
     }
 }
 
-export type ConfigTextResult = { ok: true; config: Config } | { ok: false; detail: string; auth: SalvagedAuth | undefined };
+type ConfigTextResult = { ok: true; config: Config } | { ok: false; detail: string; auth: SalvagedAuth | undefined };
 
 /**
  * Where a YAML syntax error is, without quoting what is there.

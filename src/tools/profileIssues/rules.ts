@@ -10,7 +10,7 @@ export type FindingKind =
 
 export type Finding = { kind: FindingKind; confidence: Confidence; detail: string; remedy: string };
 
-export type FormatItem = { name: string; score: number };
+type FormatItem = { name: string; score: number };
 export type ProfileInput = { name: string; minFormatScore: number; formatItems: FormatItem[] };
 
 /**
@@ -43,7 +43,7 @@ export function floorFindings(profile: ProfileInput): Finding[] {
     return [];
 }
 
-export type Specification = { implementation: string; negate: boolean; required: boolean; fields: Array<{ name: string; value: unknown }> };
+type Specification = { implementation: string; negate: boolean; required: boolean; fields: Array<{ name: string; value: unknown }> };
 export type CustomFormatInput = { name: string; specifications: Specification[] };
 
 /**
@@ -94,7 +94,7 @@ export type LanguageNames = ReadonlyMap<number, string>;
 
 /** Keyed on names, resolved per instance: the id spaces of Radarr and Sonarr
  *  are not guaranteed to align. Confirmed against a live /api/v3/language. */
-export const DIALECT_SIBLINGS: ReadonlyArray<readonly [string, string]> = [
+const DIALECT_SIBLINGS: ReadonlyArray<readonly [string, string]> = [
     ['Dutch', 'Flemish'],
     ['Portuguese', 'Portuguese (Brazil)'],
     ['Spanish', 'Spanish (Latino)']

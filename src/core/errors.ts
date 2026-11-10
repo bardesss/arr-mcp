@@ -32,7 +32,7 @@ function formatServiceError(kind: ServiceErrorKind, service: string, detail: str
 /**
  * A model told *why* something failed reports it; a model handed an opaque
  * error invents an explanation. The remedy therefore lives
- * in `.message` itself, not only in `toModelText()`: every path that throws
+ * in `.message` itself: every path that throws
  * this error is caught somewhere as a plain `Error`, and the only field a
  * generic catcher reads is `.message` — including the MCP SDK's own tool
  * dispatch loop, which builds its error result from `error.message` alone.
@@ -67,23 +67,6 @@ export class ServiceError extends Error {
         this.remedy = opts?.remedy;
         this.reason = opts?.reason;
         this.status = opts?.status;
-    }
-
-    /**
-     * Deliberately just an alias for `.message` — it is `.message` that now
-     * carries the remedy (see the class doc comment), so there is nothing
-     * left for this method to add. Nothing calls it in a throwing path — only
-     * the tests do — and it is kept as the named, documented surface so a call
-     * site reads as
-     * "the text a model may see" rather than "whatever `Error.prototype`
-     * happens to expose". A dead-but-plausible-looking method is exactly
-     * what let the remedy go unreachable before (nothing called it, and
-     * nothing noticed) — if this is ever removed, remove it because it is
-     * unused, not because it looks redundant with `.message`; it is
-     * *supposed* to be redundant with `.message`.
-     */
-    toModelText(): string {
-        return this.message;
     }
 }
 
