@@ -568,9 +568,12 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
                 cleanuparr = [];
                 strikes = [];
             } else {
-                strikes = (await probe(cleanuparrAdapter.id, degraded, () => cleanuparrAdapter.readStrikes()))?.filter(d => ids.has(d.downloadId));
                 const since = new Date(Date.now() - CLEANUPARR_WINDOW_MS).toISOString();
-                const events = await probe(cleanuparrAdapter.id, degraded, () => cleanuparrAdapter.readHistory({ since, want: CLEANUPARR_EVENT_LIMIT }));
+                const [standing, events] = await Promise.all([
+                    probe(cleanuparrAdapter.id, degraded, () => cleanuparrAdapter.readStrikes()),
+                    probe(cleanuparrAdapter.id, degraded, () => cleanuparrAdapter.readHistory({ since, want: CLEANUPARR_EVENT_LIMIT }))
+                ]);
+                strikes = standing?.filter(d => ids.has(d.downloadId));
                 const list = events === undefined ? undefined : Array.isArray(events) ? events : events.items;
                 cleanuparr = list?.filter(e => e.downloadId !== undefined && ids.has(e.downloadId));
             }

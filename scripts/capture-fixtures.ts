@@ -1486,7 +1486,6 @@ function anonymiseBlocklistPaths(body: unknown): unknown {
     );
 }
 
-/** Replaces event titles and hashes with stable dummies; one download's events share a hash. */
 /** Titles, hashes and ids stand in for real ones; counts, kinds, flags and times stay. */
 function anonymiseCleanuparrStrikes(body: unknown): unknown {
     if (!isRow(body) || !Array.isArray(body.items)) return body;
@@ -1512,6 +1511,7 @@ function anonymiseCleanuparrStrikes(body: unknown): unknown {
     };
 }
 
+/** Replaces event titles and hashes with stable dummies; one download's events share a hash. */
 function anonymiseCleanuparrEvents(body: unknown): unknown {
     if (!isRow(body) || !Array.isArray(body.items)) return body;
     const hashes = new Map<string, string>();

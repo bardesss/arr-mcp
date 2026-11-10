@@ -115,7 +115,7 @@ const project = (q: QueueItem, detail: DetailLevel): QueueItem => {
         };
     }
     if (detail === 'minimal') return { service: q.service, id: q.id, title: q.title, status: q.status };
-    const { errorMessage: _e, private: _p, seeding: _s, strikes: _k, ...rest } = visible;
+    const { errorMessage: _e, private: _p, seeding: _s, strikes: _k, markedForRemoval: _m, ...rest } = visible;
     return rest;
 };
 

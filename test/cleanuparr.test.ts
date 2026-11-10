@@ -451,6 +451,37 @@ describe('CleanuparrAdapter strikes, captured from 2.11.0', () => {
         ]);
     });
 
+    it('leaves out a download Cleanuparr already removed, whose strikes belong to that one', async () => {
+        const body = {
+            items: [
+                { downloadId: 'gone', isRemoved: true, isMarkedForRemoval: true, strikes: [{ type: 'DeadTorrent', createdAt: 't' }] },
+                { downloadId: 'back', isRemoved: false, isReturning: true, isMarkedForRemoval: false, strikes: [{ type: 'Stalled', createdAt: 't' }] }
+            ],
+            totalPages: 1
+        };
+        const standing = await new CleanuparrAdapter(config, stub({ '/api/strikes': body })).readStrikes();
+        expect(standing.map(d => d.downloadId)).toEqual(['back']);
+    });
+
+    it('stops on an empty page, and gives up past twenty pages whatever totalPages says', async () => {
+        const paging = (items: (page: number) => unknown[]) => {
+            const seen: number[] = [];
+            const impl = (async (input: string | URL | Request) => {
+                const page = Number(new URL(String(input)).searchParams.get('page'));
+                seen.push(page);
+                return new Response(JSON.stringify({ items: items(page), totalPages: 99 }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+            }) as unknown as typeof fetch;
+            return { impl, seen };
+        };
+        const empty = paging(page => (page < 3 ? [{ downloadId: `d${page}`, strikes: [] }] : []));
+        await new CleanuparrAdapter(config, empty.impl).readStrikes();
+        expect(empty.seen).toEqual([1, 2, 3]);
+        const endless = paging(page => [{ downloadId: `d${page}`, strikes: [] }]);
+        const standing = await new CleanuparrAdapter(config, endless.impl).readStrikes();
+        expect(endless.seen).toHaveLength(20);
+        expect(standing).toHaveLength(20);
+    });
+
     it('reads every page', async () => {
         const seen: string[] = [];
         const paged = (async (input: string | URL | Request) => {
@@ -473,20 +504,33 @@ describe('CleanuparrAdapter manual events', () => {
     });
 
     // Constructed from ManualEventResponse at v2.11.0: the captured instance had none waiting.
-    it('reports each one waiting for a person, and how many more there are', async () => {
-        const waiting = {
-            items: [
-                { message: 'Download keeps coming back after removal', severity: 'Important', type: 'RecurringDownload', itemTitle: 'Example.Title.1', isResolved: false },
-                { message: 'Search was not triggered', severity: 'Error', type: 'SearchNotTriggered', itemTitle: null, isResolved: false }
-            ],
-            totalCount: 5
-        };
-        const checks = await new CleanuparrAdapter(config, stub(healthRoutes({ '/api/manualevents': waiting }))).getFailedHealthChecks();
+    const withManual = (all: unknown, errors: unknown): typeof fetch => {
+        const routes = stub(healthRoutes());
+        return (async (input: string | URL | Request, init?: RequestInit) => {
+            const url = new URL(String(input));
+            if (url.pathname !== '/api/manualevents') return routes(input, init);
+            const body = url.searchParams.get('severity') === 'Error' ? errors : all;
+            return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }) as unknown as typeof fetch;
+    };
+    const newest = { message: 'Download keeps coming back after removal', severity: 'Important', type: 'RecurringDownload', itemTitle: 'Example.Title.1', isResolved: false };
+
+    it('reports them in one line, how many and the newest, as a warning', async () => {
+        const checks = await new CleanuparrAdapter(config, withManual({ items: [newest], totalCount: 5 }, { items: [], totalCount: 0 })).getFailedHealthChecks();
         const manual = checks.filter(c => c.source === 'manual events');
-        expect(manual.map(c => c.type)).toEqual(['warning', 'error', 'warning']);
-        expect(manual[0]?.message).toContain('Needs a person: Download keeps coming back after removal (Example.Title.1)');
-        expect(manual[1]?.message).toContain('Needs a person: Search was not triggered');
-        expect(manual[2]?.message).toBe('3 more manual event(s) wait in Cleanuparr');
+        expect(manual).toHaveLength(1);
+        expect(manual[0]?.type).toBe('warning');
+        expect(manual[0]?.message).toContain('5 manual event(s) wait for a person in Cleanuparr. Newest: Download keeps coming back after removal (Example.Title.1)');
+    });
+
+    it('makes the line an error when any of them is one', async () => {
+        const checks = await new CleanuparrAdapter(
+            config,
+            withManual({ items: [newest], totalCount: 5 }, { items: [{ ...newest, severity: 'Error' }], totalCount: 2 })
+        ).getFailedHealthChecks();
+        const [manual] = checks.filter(c => c.source === 'manual events');
+        expect(manual?.type).toBe('error');
+        expect(manual?.message).toContain('5 manual event(s) wait for a person in Cleanuparr, 2 of them errors.');
     });
 });
 

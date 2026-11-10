@@ -247,6 +247,23 @@ describe('strikes on queue rows', () => {
         expect(items[1]).not.toHaveProperty('markedForRemoval');
     });
 
+    it('keeps the removal mark when Cleanuparr lists no typed strike for it', async () => {
+        const items = [row({})];
+        await annotateCleanuparr(items, [withStrikes(seeding(), [{ downloadId: 'aaa', markedForRemoval: true, strikes: [] }]), transmission], () => {});
+        expect(items[0]?.markedForRemoval).toBe(true);
+        expect(items[0]).not.toHaveProperty('strikes');
+    });
+
+    it('shows strikes and the removal mark at full only, where Cleanuparr is read', async () => {
+        const client = { ...transmission, getQueue: async () => [row({})] } as unknown as ServiceAdapter;
+        const standing: DownloadStrikes[] = [{ downloadId: 'aaa', markedForRemoval: true, strikes: [{ count: 3, reason: 'dead torrent', kind: 'DeadTorrent', lastAt: 't' }] }];
+        const full = await buildGetQueue([withStrikes(seeding(), standing), client], { detail: 'full', limit: 10 });
+        expect(full.items[0]).toMatchObject({ markedForRemoval: true, strikes: [{ count: 3 }] });
+        const standard = await buildGetQueue([withStrikes(seeding(), standing), client], { detail: 'standard', limit: 10, filter: { struck: true } });
+        expect(standard.items[0]).not.toHaveProperty('markedForRemoval');
+        expect(standard.items[0]).not.toHaveProperty('strikes');
+    });
+
     it('leaves a download Cleanuparr holds no strikes against without any', async () => {
         const items = [row({})];
         await annotateCleanuparr(items, [withStrikes(seeding(), [{ downloadId: 'zzz', markedForRemoval: false, strikes: [] }]), transmission], () => {});

@@ -371,7 +371,7 @@ export type QueueItem = {
     tags?: string[];
     savePath?: string;
     /** Cleanuparr's strikes on this download, one per kind since that kind's last reset, at `detail: "full"`. Real ones first, then the highest count. */
-    strikes?: { count: number; reason: string; lastAt: string; dryRun?: true }[];
+    strikes?: Omit<Strike, 'kind'>[];
     /** Cleanuparr reached its strike limit on this download, and removes it on its next run. */
     markedForRemoval?: true;
     /** Internal: what Cleanuparr's rules match on. Never returned by a tool. */

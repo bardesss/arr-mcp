@@ -103,9 +103,9 @@ export async function annotateCleanuparr(
         for (const item of items) {
             const id = item.torrent?.hash ?? item.downloadId?.toLowerCase();
             const hit = id === undefined ? undefined : byDownload.get(id);
-            if (hit === undefined || hit.strikes.length === 0) continue;
-            item.strikes = hit.strikes.map(s => ({ count: s.count, reason: s.reason, lastAt: s.lastAt, ...(s.dryRun === true ? { dryRun: true as const } : {}) }));
+            if (hit === undefined) continue;
             if (hit.markedForRemoval) item.markedForRemoval = true;
+            if (hit.strikes.length > 0) item.strikes = hit.strikes.map(({ kind: _kind, ...s }) => s);
         }
     } else {
         logger.warn({ service: source.id, err: standing.reason }, 'cleanuparr strikes unavailable; queue rows carry none');
