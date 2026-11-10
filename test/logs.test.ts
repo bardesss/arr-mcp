@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LEVELS, LOG_RING_SIZE, LogStore, logFields } from '../src/core/logs.ts';
@@ -115,16 +118,26 @@ describe('ring behaviour', () => {
     // The whole point of a ring buffer: a chatty service must not fill a home
     // server's disk.
     it('discards the oldest rows once it is full', () => {
-        const logs = open();
+        // On disk, so the rows can be counted past `recent()`'s own clamp.
+        const dir = mkdtempSync(join(tmpdir(), 'arr-mcp-logs-'));
+        const logs = (store = LogStore.open(dir));
         for (let i = 0; i < LOG_RING_SIZE + 250; i += 1) logs.write(line({ msg: `line ${i}` }));
         logs.prune();
 
         // Exactly the size, not "at most": `<=` is what let the ring keep
         // LOG_RING_SIZE - 1 rows unnoticed.
-        expect(logs.recent({ limit: LOG_RING_SIZE + 1 }).length).toBe(LOG_RING_SIZE);
+        const reader = new Database(join(dir, 'logs.db'), { readonly: true });
+        try {
+            expect((reader.prepare('SELECT COUNT(*) AS n FROM log').get() as { n: number }).n).toBe(LOG_RING_SIZE);
+        } finally {
+            reader.close();
+        }
         // The newest survived, the oldest did not.
-        expect(logs.recent(  { limit: 1 })[0]?.msg).toBe(`line ${LOG_RING_SIZE + 249}`);
+        expect(logs.recent({ limit: 1 })[0]?.msg).toBe(`line ${LOG_RING_SIZE + 249}`);
         expect(logs.recent({ limit: LOG_RING_SIZE }).some(r => r.msg === 'line 0')).toBe(false);
+        logs.close();
+        store = undefined;
+        rmSync(dir, { recursive: true, force: true });
     });
 });
 

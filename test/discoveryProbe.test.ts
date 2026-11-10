@@ -41,12 +41,14 @@ const opts = { timeoutMs: 2000 };
 describe('probeHost', () => {
     it('finds a service whose fingerprint matches', async () => {
         const port = await serve((_req, res) => res.end('hello'));
-        expect(await probeHost('127.0.0.1', [entry(port)], 'host', opts)).toEqual([{
-            type: 'radarr',
-            url: `http://127.0.0.1:${port}`,
-            version: '1.2.3',
-            source: 'host'
-        }]);
+        expect(await probeHost('127.0.0.1', [entry(port)], 'host', opts)).toEqual([
+            {
+                type: 'radarr',
+                url: `http://127.0.0.1:${port}`,
+                version: '1.2.3',
+                source: 'host'
+            }
+        ]);
     });
 
     it('a non-matching response finds nothing', async () => {
@@ -79,12 +81,14 @@ describe('probeHost', () => {
         });
         await probeHost(
             '127.0.0.1',
-            [entry(port, {
-                identify: r => {
-                    got = r;
-                    return undefined;
-                }
-            })],
+            [
+                entry(port, {
+                    identify: r => {
+                        got = r;
+                        return undefined;
+                    }
+                })
+            ],
             'host',
             opts
         );
@@ -117,12 +121,14 @@ describe('probeHost', () => {
         });
         await probeHost(
             '127.0.0.1',
-            [entry(port, {
-                identify: r => {
-                    length = r.body.length;
-                    return undefined;
-                }
-            })],
+            [
+                entry(port, {
+                    identify: r => {
+                        length = r.body.length;
+                        return undefined;
+                    }
+                })
+            ],
             'host',
             opts
         );
@@ -149,9 +155,7 @@ describe('probeHost', () => {
         const [found] = await probeHost('fd00::1', [entry(port)], 'sweep', { ...opts, address: '127.0.0.1' });
         expect(found?.url).toBe(`http://[fd00::1]:${port}`);
     });
-});
 
-describe('probeHost', () => {
     it('fetches each (port, path) once and shares the response', async () => {
         const paths: string[] = [];
         const port = await serve((req, res) => {

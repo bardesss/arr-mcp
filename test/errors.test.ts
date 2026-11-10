@@ -28,16 +28,10 @@ describe('ServiceError.message', () => {
         expect(err.cause).toBe(original);
         expect(err.message).not.toContain('socket hang up');
     });
-});
 
-/**
- * The MCP SDK's own catch around a tool handler reads `error.message`, not
- * `message` — nothing in this codebase calls `message` in a
- * throwing path. A remedy that lives only there never reaches a caller. The
- * remedy therefore has to live in `.message` itself, which every catcher of a
- * thrown Error already reads.
- */
-describe('ServiceError.message', () => {
+    // The MCP SDK's own catch around a tool handler reads `error.message` and
+    // nothing else, so a remedy that lived anywhere else would never reach a
+    // caller.
     it('includes the remedy, since .message is what a thrown error is caught as', () => {
         const err = new ServiceError('AuthFailed', 'radarr', 'HTTP 401 at /api/v3/system/status', {
             remedy: 'The API key is wrong. Radarr → Settings → General.'

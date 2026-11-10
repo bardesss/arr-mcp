@@ -43,7 +43,6 @@ import {
     type ServiceAdapter
 } from './types.ts';
 
-
 const HEALTH_PATH = '/api/v1/healthcheck';
 const LIBRARIES_PATH = '/api/v1/libraries';
 

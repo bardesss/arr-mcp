@@ -637,8 +637,9 @@ describe('a thrown ServiceError reaches the client with its remedy', () => {
      * throws a ServiceError, the MCP SDK's own dispatch loop catches it and
      * builds the tool result from `error.message` alone
      * (`@modelcontextprotocol/server`'s `createToolError`) — it reads nothing else.
-     * A remedy that does not reach `.message` is dropped here, not in application code, which is why the fix has to live in the error
-     * class rather than in a tool-layer catch.
+     * A remedy that does not reach `.message` is dropped here, not in
+     * application code, which is why the fix has to live in the error class
+     * rather than in a tool-layer catch.
      */
     it('surfaces the remedy for an auth failure through get_media_details', async () => {
         const unauthorized: typeof fetch = async () =>
