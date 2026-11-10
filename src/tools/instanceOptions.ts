@@ -28,7 +28,7 @@ export type InstanceOptions = {
     tags: string[];
 };
 
-export type AdapterFilter = { service?: ServiceId | undefined; instance?: string | undefined };
+type AdapterFilter = { service?: ServiceId | undefined; instance?: string | undefined };
 
 /**
  * The adapters one `service`/`instance` pair names. An `instance` is an id as

@@ -1,7 +1,8 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import type { ServiceInstance } from '../config/instances.ts';
-import type { ServiceId } from '../config/schema.ts';
+import { ServiceIdSchema, serviceOf, type ServiceId } from '../config/schema.ts';
+import { INSTANCE_PARAM_DESCRIPTION } from './resolveInstance.ts';
 import { ServiceError } from '../core/errors.ts';
 import { logger } from '../core/logger.ts';
 import { DetailSchema, LimitSchema, READ_ONLY, TruncationSchema, applyLimit, listText, memoBy, toolInput, type DetailLevel } from '../core/shape.ts';
@@ -23,7 +24,7 @@ import {
     type ScanState,
     type ServiceAdapter
 } from '../services/types.ts';
-import { buildInstanceOptions, type InstanceOptions } from './instanceOptions.ts';
+import { buildInstanceOptions, selectAdapters, type InstanceOptions } from './instanceOptions.ts';
 import { buildSeedingRules, type SeedingRules } from './seedingRules.ts';
 import { groupDisks, humanBytes } from '../core/disks.ts';
 
@@ -190,12 +191,19 @@ function project(result: StackHealthResult, detail: DetailLevel): StackHealthRes
  * exception.
  */
 export async function buildStackHealth(
-    adapters: readonly ServiceAdapter[],
-    opts: { detail: DetailLevel; limit: number },
+    allAdapters: readonly ServiceAdapter[],
+    opts: { detail: DetailLevel; limit: number; service?: ServiceId | undefined; instance?: string | undefined },
     /** Optional and last, so every existing call site keeps compiling. */
-    instances?: readonly ServiceInstance[],
+    allInstances?: readonly ServiceInstance[],
     primaryMediaServer?: string
 ): Promise<StackHealthResult> {
+    // One rule for adapters and for the permission and endpoint rows, so a
+    // filtered answer never lists an instance it did not check.
+    const adapters = selectAdapters(allAdapters, opts);
+    const wanted = opts.instance === undefined || opts.instance === '' ? undefined : opts.instance.toLowerCase();
+    const instances = allInstances?.filter(
+        i => (opts.service === undefined || i.type === opts.service) && (wanted === undefined || i.id.toLowerCase() === wanted)
+    );
     const services: ConnectionDiagnosis[] = [];
     const degraded: string[] = [];
     const disks: DiskSpace[] = [];
@@ -475,7 +483,7 @@ const stackHealthOutput = memoBy((withPrimary: boolean) => z.looseObject({
     options: z
         .array(z.unknown())
         .optional()
-        .describe('Quality profiles, root folders and tags each Radarr, Sonarr, Whisparr and Lidarr instance has. Only at `detail: "full"`.'),
+        .describe('Deprecated: use get_instance_options. Quality profiles, root folders and tags, only at `detail: "full"`.'),
     seedingRules: z
         .object({
             clients: z.array(z.unknown()),
@@ -505,7 +513,12 @@ const stackHealthOutput = memoBy((withPrimary: boolean) => z.looseObject({
     degraded: z.array(z.string())
 }));
 
-const StackHealthInput = toolInput({ detail: DetailSchema, limit: LimitSchema });
+const StackHealthInput = toolInput({
+    detail: DetailSchema.describe('How much detail; defaults to standard. Deprecated: `options` at "full", use get_instance_options.'),
+    limit: LimitSchema,
+    service: serviceOf(ServiceIdSchema.options).optional(),
+    instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION)
+});
 
 export function registerStackHealth(
     server: McpServer,
@@ -519,12 +532,12 @@ export function registerStackHealth(
             title: 'Stack health',
             annotations: READ_ONLY,
             description:
-                'Health of every configured service: version, disk space, failing health checks, last library scan, and what each instance may do (`permissions`, whose ids are the valid `instance` values). Answers partially, with a `degraded` list, when a service is down. `commands` follows up trigger_search and trigger_scan: queued, running, and finished in the last 15 minutes, so a command not listed has finished. Profiles, root folders and tags: get_instance_options (`options` at `detail: "full"` is deprecated). `detail: "full"` adds `seedingRules` (client, indexer [[cleanuparr: and Cleanuparr ]]seed limits[[cleanuparr:  and removal rules]]), [[reclaimerr: Reclaimerr `cleanup` (what will be deleted or moved, and when), ]]and each service\'s recent warnings and errors in `logs`; check `lastSeen`, since an old line may no longer apply. API keys are never returned. Field reference: arr://docs/stack_health.',
+                'Health of every configured service: version, disk space, failing health checks, last library scan, and what each instance may do (`permissions`, whose ids are the valid `instance` values). Answers partially, with a `degraded` list, when a service is down. `commands` follows up trigger_search and trigger_scan: queued, running, and finished in the last 15 minutes, so a command not listed has finished. Profiles, root folders and tags: get_instance_options (`options` at `detail: "full"` is deprecated). `service` or `instance` checks one. `detail: "full"` adds `seedingRules` (client, indexer [[cleanuparr: and Cleanuparr ]]seed limits[[cleanuparr:  and removal rules]]), [[reclaimerr: Reclaimerr `cleanup` (what will be deleted or moved, and when), ]]and each service\'s recent warnings and errors in `logs`; check `lastSeen`, since an old line may no longer apply. API keys are never returned. Field reference: arr://docs/stack_health.',
             inputSchema: StackHealthInput,
             outputSchema: stackHealthOutput(primaryMediaServer !== undefined)
         },
-        async ({ detail, limit }) => {
-            const result = await buildStackHealth(adapters, { detail, limit }, instances, primaryMediaServer);
+        async ({ detail, limit, service, instance }) => {
+            const result = await buildStackHealth(adapters, { detail, limit, service, instance }, instances, primaryMediaServer);
             const neverScanned = result.scans.filter(s => s.lastCompleted === undefined).length;
             const summary =
                 (result.degraded.length === 0

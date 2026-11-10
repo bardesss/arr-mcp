@@ -65,6 +65,7 @@ type Case = { tool: ToolName; args: Record<string, unknown> };
  */
 const CASES: Case[] = [
     { tool: 'stack_health', args: { detail: 'full' } },
+    { tool: 'get_instance_options', args: {} },
     { tool: 'get_indexers', args: { detail: 'full' } },
     { tool: 'get_subtitles', args: { detail: 'full', limit: 100 } },
     { tool: 'get_queue', args: { detail: 'full' } },

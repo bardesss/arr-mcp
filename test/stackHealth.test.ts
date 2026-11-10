@@ -496,6 +496,32 @@ describe('stack_health', () => {
  * config, deliberately, so an adapter cannot widen its own grants. This
  * reports the gate's answer; it does not become a second one.
  */
+describe('stack_health service and instance filter', () => {
+    const sonarr = { ...fakeArr({ diagnosis: { ...healthy, service: 'sonarr' } }), id: 'sonarr', type: 'sonarr' } as ArrLike;
+    const instance = (id: string, type: 'radarr' | 'sonarr') =>
+        ({ id, type, config: { url: `http://${id}:1`, permissions: { safe_write: false, destructive: false } } }) as unknown as ServiceInstance;
+
+    it('reports only the service asked for', async () => {
+        const result = await buildStackHealth(
+            [fakeArr({ diagnosis: healthy }), sonarr],
+            { ...std, service: 'sonarr' },
+            [instance('radarr', 'radarr'), instance('sonarr', 'sonarr')]
+        );
+        expect(result.services.map(s => s.service)).toEqual(['sonarr']);
+        expect(result.permissions?.map(p => p.instance)).toEqual(['sonarr']);
+        expect(result.endpoints?.map(e => e.instance)).toEqual(['sonarr']);
+    });
+
+    it('reports only the instance asked for', async () => {
+        const result = await buildStackHealth([fakeArr({ diagnosis: healthy }), sonarr], { ...std, instance: 'radarr' });
+        expect(result.services.map(s => s.service)).toEqual(['radarr']);
+    });
+
+    it('refuses an instance that does not exist', async () => {
+        await expect(buildStackHealth([fakeArr({ diagnosis: healthy })], { ...std, instance: 'nope' })).rejects.toThrow(/no instance "nope"/);
+    });
+});
+
 describe('stack_health permissions', () => {
     const instance = (id: string, safe_write: boolean, destructive: boolean) =>
         ({

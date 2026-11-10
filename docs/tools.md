@@ -1,12 +1,13 @@
 # Tools
 
-Forty of them. The first nineteen read; the last twenty-one write, and are
+Forty-one of them. The first twenty read; the last twenty-one write, and are
 off until you turn them on — see [writes](writes.md).
 
 | Tool | Answers |
 | --- | --- |
 | `diagnose` | Why is this not playable? |
 | `stack_health` | Is anything broken, out of disk, or not scanning? |
+| `get_instance_options` | Which quality profiles, root folders and tags can I pick for Radarr, Sonarr, Whisparr and Lidarr? |
 | `search_media` | What do I have, what exists, what can I get? `source: "discover"` tells me about a title without adding it; artists too, with Lidarr, and books, with Shelfmark. Books in Grimmory too, from the library |
 | `get_media_details` | Everything about one item; on Lidarr, one artist and the albums under it; on Grimmory, one book and its files |
 | `get_metadata_issues` | Which films and series have metadata that does not describe their files; which Grimmory books have a low match score or no identifier |
@@ -147,7 +148,7 @@ tool carries a title and an annotation: `readOnlyHint` on the nineteen that only
 read, and on the twenty-one writes `destructiveHint`, taken from the same permission
 tier the write gate itself runs on — so a tool cannot be gated as destructive
 and advertised as safe. A client deciding what to auto-approve, or what to warn
-about, reads those rather than guessing from forty similarly-shaped
+about, reads those rather than guessing from forty-one similarly-shaped
 descriptions. `idempotentHint` is deliberately absent: the confirmation token is
 single-use, so repeating a write does not repeat it, and neither answer would be
 true.
@@ -473,17 +474,24 @@ report this server reads. They appear in `services` with their version and
 connection state, and a fault in one of them shows up as a failed connection
 in `degraded` rather than in `failures`.
 
-### What each instance will accept, at `detail: "full"`
+### Profiles, root folders and tags: `get_instance_options`
 
-`options` lists, per Radarr, Sonarr, Whisparr or Lidarr instance, the
+`get_instance_options` takes optional `service` and `instance` (an id as `stack_health`'s `permissions`
+lists it); an `instance` that does not exist is refused with the ones that do.
+
+It lists, per Radarr, Sonarr, Whisparr or Lidarr instance, the
 `qualityProfiles`, `rootFolders` and `tags` it actually has. Lidarr's metadata
 profiles are not listed here: `add_media` and `update_media` name them when one
 must be chosen. These are the values `add_media` and `update_media` refuse to
 guess at: with more than one profile they insist you name which, and this is
-where the names come from. Only at `full`, because it is three extra calls per
-instance and it answers "what may I choose", not "is anything broken". An
+where the names come from. It is three calls per instance and answers "what may
+I choose", not "is anything broken", which is why it is a tool of its own. An
 instance whose profile list cannot be read is named in `degraded` and left out
-of `options` — the rest of the answer stands.
+of `items`.
+
+`stack_health` at `detail: "full"` still returns the same list as `options`, but
+that is deprecated: use `get_instance_options`. `stack_health` takes `service`
+and `instance` as well, to check one.
 
 Each root folder also carries `unmappedFolders` when the instance reports any:
 the folder names under that root it associates with no item. It rides along on
@@ -3011,7 +3019,7 @@ listing the instance's metadata profiles.
 `monitor_new_items`, is `set_monitoring`'s too.
 
 Takes `service` and `id`, never a title — `acquisition.id` on a `get_library`
-or `get_media_details` record. `stack_health` at `detail: "full"` lists the
+or `get_media_details` record. `get_instance_options` lists the
 profiles, folders and tags each instance has; a name that matches more than one
 is refused rather than resolved, exactly as in `add_media`.
 
@@ -3079,7 +3087,7 @@ A non-admin account needs `canEditMetadata`.
 
 ## Prompts and resources
 
-Forty tools do not tell you which one to reach for, and the questions
+Forty-one tools do not tell you which one to reach for, and the questions
 people actually ask are rarely one call.
 
 **Five prompts**, which most clients surface as slash commands:
