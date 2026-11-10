@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CleanuparrRule } from '../src/core/cleanuparrRules.ts';
-import { annotateCleanuparr, currentStrikes, dueWithin } from '../src/tools/cleanuparrQueue.ts';
+import { annotateCleanuparr, dueWithin } from '../src/tools/cleanuparrQueue.ts';
 import { buildGetQueue, dueText, queueLine, seedingByTracker, trackerLine, type QueueFilter } from '../src/tools/getQueue.ts';
-import type { CleanuparrSeeding, HistoryEntry, QueueItem, ServiceAdapter } from '../src/services/types.ts';
+import type { CleanuparrSeeding, DownloadStrikes, QueueItem, ServiceAdapter } from '../src/services/types.ts';
 
 const rule = (over: Partial<CleanuparrRule>): CleanuparrRule => ({
     id: 'r', name: 'Public: stop now', priority: 1, categories: ['complete'], trackerPatterns: [], tagsAny: [], tagsAll: [],
@@ -19,7 +19,8 @@ const cleanuparr = (s: CleanuparrSeeding | Error): ServiceAdapter =>
         id: 'cleanuparr', type: 'cleanuparr',
         testConnection: async () => ({ ok: true, service: 'cleanuparr', latency_ms: 1 }),
         getVersion: async () => '2.10.9',
-        getSeedingRules: async () => { if (s instanceof Error) throw s; return s; }
+        getSeedingRules: async () => { if (s instanceof Error) throw s; return s; },
+        readStrikes: async () => []
     }) as unknown as ServiceAdapter;
 
 const transmission = { id: 'transmission', type: 'transmission', endpoint: 'transmission.example:9091' } as unknown as ServiceAdapter;
@@ -168,14 +169,12 @@ describe('get_queue and Cleanuparr', () => {
     });
 });
 
-const ev = (over: Partial<HistoryEntry>): HistoryEntry => ({ service: 'cleanuparr', id: 'e', at: 't', event: 'strike', title: 'x', downloadId: 'aaa', ...over });
-
-const withEvents = (s: CleanuparrSeeding, events: HistoryEntry[] | Error): ServiceAdapter =>
+const withStrikes = (s: CleanuparrSeeding, standing: DownloadStrikes[] | Error): ServiceAdapter =>
     ({
         ...(cleanuparr(s) as object),
-        readHistory: async () => {
-            if (events instanceof Error) throw events;
-            return { items: events, total: events.length };
+        readStrikes: async () => {
+            if (standing instanceof Error) throw standing;
+            return standing;
         }
     }) as unknown as ServiceAdapter;
 
@@ -233,64 +232,48 @@ describe('unmatched torrents', () => {
 });
 
 describe('strikes on queue rows', () => {
-    it('keeps the newest strike and drops one a later reset cleared', () => {
-        const strikes = currentStrikes([
-            ev({ downloadId: 'aaa', rawEvent: 'DeadTorrentStrike', strikeCount: 2 }),
-            ev({ downloadId: 'aaa', rawEvent: 'DeadTorrentStrike', strikeCount: 1 }),
-            ev({ downloadId: 'bbb', event: 'recovered', rawEvent: 'StrikeReset' }),
-            ev({ downloadId: 'bbb', rawEvent: 'StalledStrike', strikeCount: 1 })
-        ]);
-        expect(strikes.get('aaa')).toMatchObject([{ count: 2, reason: 'dead torrent' }]);
-        expect(strikes.has('bbb')).toBe(false);
-    });
-
-    it('counts each kind of strike apart, and a reset clears only its own kind', () => {
-        const strikes = currentStrikes([
-            ev({ rawEvent: 'DeadTorrentStrike', strikeType: 'DeadTorrent', strikeCount: 1, at: '4' }),
-            ev({ event: 'recovered', rawEvent: 'StrikeReset', strikeType: 'SlowSpeed', at: '3' }),
-            ev({ rawEvent: 'SlowSpeedStrike', strikeType: 'SlowSpeed', strikeCount: 2, at: '2' }),
-            ev({ rawEvent: 'StalledStrike', strikeType: 'Stalled', strikeCount: 3, at: '1' })
-        ]);
-        expect(strikes.get('aaa')).toEqual([
-            { count: 3, reason: 'stalled', rawEvent: 'StalledStrike', at: '1' },
-            { count: 1, reason: 'dead torrent', rawEvent: 'DeadTorrentStrike', at: '4' }
-        ]);
-    });
-
-    it('keeps dry-run strikes apart from real ones and lists the real ones first', () => {
-        const strikes = currentStrikes([
-            ev({ rawEvent: 'StalledStrike', strikeType: 'Stalled', strikeCount: 4, dryRun: true }),
-            ev({ rawEvent: 'StalledStrike', strikeType: 'Stalled', strikeCount: 2 })
-        ]);
-        expect(strikes.get('aaa')?.map(s => [s.count, s.dryRun])).toEqual([[2, undefined], [4, true]]);
-    });
-
-    it('skips strikes from a client since deleted from Cleanuparr', () => {
-        const strikes = currentStrikes([
-            ev({ downloadId: 'aaa', rawEvent: 'DeadTorrentStrike', strikeCount: 3, at: '2026-10-20T00:00:00Z', clientRemoved: true }),
-            ev({ downloadId: 'bbb', rawEvent: 'DeadTorrentStrike', strikeCount: 3, at: '2026-10-20T00:00:00Z', clientRemoved: true }),
-            ev({ downloadId: 'bbb', rawEvent: 'DeadTorrentStrike', strikeCount: 1, at: '2026-10-18T00:00:00Z', downloadClient: 'qBittorrent' })
-        ]);
-        expect(strikes.has('aaa')).toBe(false);
-        expect(strikes.get('bbb')).toMatchObject([{ count: 1, at: '2026-10-18T00:00:00Z' }]);
-    });
-
-    it('puts strikes on torrent rows by hash and on *arr rows by download id', async () => {
+    it('puts Cleanuparr\'s own strikes on torrent rows by hash and on *arr rows by download id', async () => {
         const arr = { service: 'sonarr', id: '9', title: 'x', status: 'downloading', downloadId: 'CCC' } as QueueItem;
         const items = [row({}), arr];
-        const events = [
-            ev({ downloadId: 'aaa', rawEvent: 'DeadTorrentStrike', strikeCount: 1 }),
-            ev({ downloadId: 'ccc', rawEvent: 'StalledStrike', strikeCount: 2, dryRun: true })
+        const standing: DownloadStrikes[] = [
+            { downloadId: 'aaa', markedForRemoval: true, strikes: [{ count: 3, reason: 'dead torrent', kind: 'DeadTorrent', lastAt: 't' }] },
+            { downloadId: 'ccc', markedForRemoval: false, strikes: [{ count: 2, reason: 'stalled', kind: 'Stalled', lastAt: 't', dryRun: true }] }
         ];
-        await annotateCleanuparr(items, [withEvents(seeding(), events), transmission], () => {});
-        expect(items[0]?.strikes).toEqual([{ count: 1, reason: 'dead torrent', lastAt: 't' }]);
+        await annotateCleanuparr(items, [withStrikes(seeding(), standing), transmission], () => {});
+        expect(items[0]?.strikes).toEqual([{ count: 3, reason: 'dead torrent', lastAt: 't' }]);
+        expect(items[0]?.markedForRemoval).toBe(true);
+        expect(queueLine(items[0]!)).toContain("3 Cleanuparr strikes (dead torrent), marked for removal on Cleanuparr's next run");
         expect(items[1]?.strikes).toEqual([{ count: 2, reason: 'stalled', lastAt: 't', dryRun: true }]);
+        expect(items[1]).not.toHaveProperty('markedForRemoval');
     });
 
-    it('still judges rules when the events cannot be read, and marks Cleanuparr degraded', async () => {
+    it('keeps the removal mark when Cleanuparr lists no typed strike for it', async () => {
+        const items = [row({})];
+        await annotateCleanuparr(items, [withStrikes(seeding(), [{ downloadId: 'aaa', markedForRemoval: true, strikes: [] }]), transmission], () => {});
+        expect(items[0]?.markedForRemoval).toBe(true);
+        expect(items[0]).not.toHaveProperty('strikes');
+    });
+
+    it('shows strikes and the removal mark at full only, where Cleanuparr is read', async () => {
+        const client = { ...transmission, getQueue: async () => [row({})] } as unknown as ServiceAdapter;
+        const standing: DownloadStrikes[] = [{ downloadId: 'aaa', markedForRemoval: true, strikes: [{ count: 3, reason: 'dead torrent', kind: 'DeadTorrent', lastAt: 't' }] }];
+        const full = await buildGetQueue([withStrikes(seeding(), standing), client], { detail: 'full', limit: 10 });
+        expect(full.items[0]).toMatchObject({ markedForRemoval: true, strikes: [{ count: 3 }] });
+        const standard = await buildGetQueue([withStrikes(seeding(), standing), client], { detail: 'standard', limit: 10, filter: { struck: true } });
+        expect(standard.items[0]).not.toHaveProperty('markedForRemoval');
+        expect(standard.items[0]).not.toHaveProperty('strikes');
+    });
+
+    it('leaves a download Cleanuparr holds no strikes against without any', async () => {
+        const items = [row({})];
+        await annotateCleanuparr(items, [withStrikes(seeding(), [{ downloadId: 'zzz', markedForRemoval: false, strikes: [] }]), transmission], () => {});
+        expect(items[0]).not.toHaveProperty('strikes');
+    });
+
+    it('still judges rules when the strikes cannot be read, and marks Cleanuparr degraded', async () => {
         const degraded: string[] = [];
         const items = [row({})];
-        await annotateCleanuparr(items, [withEvents(seeding(), new Error('down')), transmission], id => degraded.push(id));
+        await annotateCleanuparr(items, [withStrikes(seeding(), new Error('down')), transmission], id => degraded.push(id));
         expect(items[0]?.seeding?.limitSource).toBe('cleanuparr');
         expect(degraded).toEqual(['cleanuparr']);
     });
@@ -394,9 +377,9 @@ describe('get_queue filters (#530)', () => {
         (({ seeding: _s, ...r }) => r)(row({ id: '3', status: 'downloading', torrent: facts({ hash: 'ccc', category: 'radarr', seeding: false }) }))
     ];
     const client = { ...transmission, getQueue: async () => rows() } as unknown as ServiceAdapter;
-    const events = [ev({ downloadId: 'bbb', rawEvent: 'StalledStrike', strikeCount: 1 })];
+    const events: DownloadStrikes[] = [{ downloadId: 'bbb', markedForRemoval: false, strikes: [{ count: 1, reason: 'stalled', kind: 'Stalled', lastAt: 't' }] }];
     const ids = async (filter: QueueFilter, detail: 'standard' | 'full' = 'standard') =>
-        (await buildGetQueue([withEvents(seeding(), events), client], { detail, limit: 10, filter })).items.map(i => i.id).sort();
+        (await buildGetQueue([withStrikes(seeding(), events), client], { detail, limit: 10, filter })).items.map(i => i.id).sort();
 
     it('keeps only the categories asked for', async () => {
         expect(await ids({ category: ['radarr', 'cross-seed-link'] })).toEqual(['2', '3']);
@@ -416,7 +399,7 @@ describe('get_queue filters (#530)', () => {
     });
 
     it('counts matching rows in total but keeps cleanuparrDue whole-queue', async () => {
-        const result = await buildGetQueue([withEvents(seeding(), events), client], { detail: 'full', limit: 10, filter: { category: ['radarr'] } });
+        const result = await buildGetQueue([withStrikes(seeding(), events), client], { detail: 'full', limit: 10, filter: { category: ['radarr'] } });
         expect(result.total).toBe(1);
         expect(result.cleanuparrDue?.stop?.count).toBe(1);
     });

@@ -301,8 +301,9 @@ file on disk means the removal was since replaced. A dry run is shown as "would
 have removed or stopped it" and does not block the verdict. While a download
 client cannot be reached, the queue stage is unknown instead, since a new grab
 could be on that client. A download still in the queue that Cleanuparr has
-struck carries its strike count and kind in the queue stage, unless a later
-reset cleared them. A torrent still seeding a file that is already in the
+struck carries its strike count and kind in the queue stage, as Cleanuparr's
+own strike list holds them now, and says when it has reached the strike limit
+and goes on Cleanuparr's next run. A torrent still seeding a file that is already in the
 library is `ok`, or `warning` when it has strikes, including qBittorrent's
 `seeding (no peers)`; `warning` never blocks the verdict.
 
@@ -516,9 +517,10 @@ one. Absent when nothing configured seeds.
 
 With Cleanuparr configured, its health findings join the failing checks: an
 unhealthy entry, a disconnected *arr or download client, a Queue Cleaner that
-is not scheduled, dry run being on, and a Cleanuparr minor newer than 2.11
-(flagged as untested). A source it could not read is a warning of its own, and
-the rest still report.
+is not scheduled, dry run being on, the manual events waiting for a person (one
+line: how many, and the newest one; an `error` when any of them is one), and a
+Cleanuparr minor newer than 2.11 (flagged as untested). A source it could not
+read is a warning of its own, and the rest still report.
 
 At `full`, `seedingRules.cleanuparr` lists the rule sets of each Cleanuparr
 download client. A set carries `service` when it maps to an arr-mcp torrent
@@ -1349,10 +1351,10 @@ entry per kind of strike, since Cleanuparr counts and resets each kind on its ow
 and dry-run strikes apart from real ones. Each has the `count` since that kind's
 last reset, the `reason` (`stalled`, `slow speed`, `dead torrent` and so on),
 `lastAt`, when the latest one landed, and `dryRun` when Cleanuparr only logged
-it. Real strikes come first, then the highest count. They come from the last 30
-days of its events.
-Strikes on a client since deleted from Cleanuparr are left out: a torrent moved
-to another client starts its count afresh there.
+it. Real strikes come first, then the highest count. They are Cleanuparr's own
+strike list (`/api/strikes`), so a strike it has since reset or acted on is gone.
+`markedForRemoval: true` means the download reached its strike limit, and
+Cleanuparr removes it on its next run.
 
 When the rule applies and is certain, `overLimit` is judged against it, not the
 client's limit, and `limitSource: "cleanuparr"` says so. When it is uncertain,

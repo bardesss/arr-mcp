@@ -1,0 +1,49 @@
+{
+  "items": [
+    {
+      "downloadItemId": "00000000-0000-0000-0000-000000000001",
+      "downloadId": "0000000100000001000000010000000100000001",
+      "title": "Example.Title.1",
+      "totalStrikes": 3,
+      "strikesByType": {
+        "DeadTorrent": 3
+      },
+      "latestStrikeAt": "2026-11-09T12:00:24.4571159+00:00",
+      "firstStrikeAt": "2026-11-09T11:50:24.3851327+00:00",
+      "isMarkedForRemoval": true,
+      "isRemoved": false,
+      "isReturning": false,
+      "hasDryRunStrikes": false,
+      "strikes": [
+        {
+          "id": "00000000-0000-0000-0001-000000000001",
+          "type": "DeadTorrent",
+          "createdAt": "2026-11-09T12:00:24.4571159+00:00",
+          "lastDownloadedBytes": null,
+          "jobRunId": null,
+          "isDryRun": false
+        },
+        {
+          "id": "00000000-0000-0000-0001-000000000002",
+          "type": "DeadTorrent",
+          "createdAt": "2026-11-09T11:55:24.5368839+00:00",
+          "lastDownloadedBytes": null,
+          "jobRunId": null,
+          "isDryRun": false
+        },
+        {
+          "id": "00000000-0000-0000-0001-000000000003",
+          "type": "DeadTorrent",
+          "createdAt": "2026-11-09T11:50:24.3851327+00:00",
+          "lastDownloadedBytes": null,
+          "jobRunId": null,
+          "isDryRun": false
+        }
+      ]
+    }
+  ],
+  "page": 1,
+  "pageSize": 500,
+  "totalCount": 1,
+  "totalPages": 1
+}

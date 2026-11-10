@@ -538,6 +538,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
         // null: not configured. undefined: could not look. Matched by download id,
         // which the *arr grab and Cleanuparr's record of it both carry.
         let cleanuparr: Evidence['cleanuparr'] = null;
+        let strikes: Evidence['strikes'] = null;
         const cleanuparrAdapter = deps.adapters.find(hasCleanuparr);
         const cleanupAdapter = deps.adapters.find(hasCleanup);
         // The managing *arr's own history for this item, read once for whichever of the two below needs it.
@@ -565,9 +566,14 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
             // Nothing to match, so an outage there must not cost an unrelated verdict its certainty.
             if (ids.size === 0) {
                 cleanuparr = [];
+                strikes = [];
             } else {
                 const since = new Date(Date.now() - CLEANUPARR_WINDOW_MS).toISOString();
-                const events = await probe(cleanuparrAdapter.id, degraded, () => cleanuparrAdapter.readHistory({ since, want: CLEANUPARR_EVENT_LIMIT }));
+                const [standing, events] = await Promise.all([
+                    probe(cleanuparrAdapter.id, degraded, () => cleanuparrAdapter.readStrikes()),
+                    probe(cleanuparrAdapter.id, degraded, () => cleanuparrAdapter.readHistory({ since, want: CLEANUPARR_EVENT_LIMIT }))
+                ]);
+                strikes = standing?.filter(d => ids.has(d.downloadId));
                 const list = events === undefined ? undefined : Array.isArray(events) ? events : events.items;
                 cleanuparr = list?.filter(e => e.downloadId !== undefined && ids.has(e.downloadId));
             }
@@ -607,6 +613,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
             ...(mediaServer === undefined ? {} : { mediaServer }),
             scanCapable: scanAdapter !== undefined,
             cleanuparr,
+            strikes,
             subtitles,
             ...(history === undefined ? {} : { history }),
             cleanup,

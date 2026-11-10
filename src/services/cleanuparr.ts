@@ -5,6 +5,7 @@ import { ServiceError } from '../core/errors.ts';
 import { fenceText, fencer } from '../core/fence.ts';
 import type { CleanuparrRule, RuleAction, RulePrivacy } from '../core/cleanuparrRules.ts';
 import { hostPort } from '../core/hostPort.ts';
+import { logger } from '../core/logger.ts';
 import { ServiceHttp } from '../core/http.ts';
 import {
     diagnoseConnection,
@@ -16,6 +17,7 @@ import {
     type CleanuparrRuleSet,
     type CleanuparrSeeding,
     type CleanuparrStrikeLimit,
+    type DownloadStrikes,
     type ConnectionDiagnosis,
     type HealthCheck,
     type HealthCheckCapable,
@@ -25,6 +27,7 @@ import {
     type HistoryQuery,
     type PrivateTorrentHandling,
     type ServiceAdapter,
+    type Strike,
     type Window
 } from './types.ts';
 import { compareVersions, parseVersion } from './versions.ts';
@@ -34,6 +37,42 @@ export const CLEANUPARR_API = '/api';
 export const TESTED_MINOR = '2.11';
 
 type RawStatus = { application?: { version?: string } };
+type RawStrike = { type?: string; createdAt?: string; isDryRun?: boolean };
+type RawDownloadStrikes = { downloadId?: string; isMarkedForRemoval?: boolean; isRemoved?: boolean; strikes?: RawStrike[] };
+type RawManualEvent = { message?: string; severity?: string; itemTitle?: string | null };
+
+/** Cleanuparr's strike kinds, as a person says them. */
+const STRIKE_REASON: Record<string, string> = {
+    Stalled: 'stalled',
+    FailedImport: 'failed import',
+    SlowSpeed: 'slow speed',
+    SlowTime: 'slow time',
+    DownloadingMetadata: 'stuck metadata',
+    DeadTorrent: 'dead torrent',
+    Errored: 'errored'
+};
+/** The most a strikes page holds (`Pagination.NormalizePageSize`). */
+const STRIKES_PAGE = 500;
+/** Pages read before giving up on a `totalPages` that never ends: 10,000 downloads. */
+const STRIKES_MAX_PAGES = 20;
+
+/** Cleanuparr counts each kind apart, and dry-run strikes apart from real ones. Real ones first, then the highest count. */
+function strikesOf(raw: readonly RawStrike[]): Strike[] {
+    const byKind = new Map<string, Strike>();
+    for (const r of raw) {
+        if (r.type === undefined) continue;
+        const key = `${r.type}|${r.isDryRun === true ? 'dry' : 'real'}`;
+        const at = r.createdAt ?? '';
+        const known = byKind.get(key);
+        if (known === undefined) {
+            byKind.set(key, { count: 1, reason: STRIKE_REASON[r.type] ?? r.type, kind: r.type, lastAt: at, ...(r.isDryRun === true ? { dryRun: true as const } : {}) });
+        } else {
+            known.count += 1;
+            if (at > known.lastAt) known.lastAt = at;
+        }
+    }
+    return [...byKind.values()].sort((a, b) => Number(a.dryRun === true) - Number(b.dryRun === true) || b.count - a.count);
+}
 type RawHealthEntry = { status?: string; description?: string };
 type RawHealth = { entries?: Record<string, RawHealthEntry> };
 type RawArrStatus = Record<string, Array<{ name?: string; isConnected?: boolean; message?: string }>>;
@@ -452,7 +491,8 @@ export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable, Cl
                 this.#http.get<RawArrStatus>(`${CLEANUPARR_API}/status/arrs`),
                 this.#clients(),
                 this.#jobs(),
-                this.#general()
+                this.#general(),
+                this.#manualEvents()
             ])
         ]);
         const check = (source: string, type: string, message: string): HealthCheck => ({ service: this.id, source, type, message });
@@ -463,12 +503,13 @@ export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable, Cl
             out.push(check(source, 'warning', `Could not read ${source} from Cleanuparr, so its findings are missing`));
             return undefined;
         };
-        const [health, arrs, clients, jobs, general] = [
+        const [health, arrs, clients, jobs, general, manual] = [
             read('health', settled[0]),
             read('arrs', settled[1]),
             read('clients', settled[2]),
             read('jobs', settled[3]),
-            read('general', settled[4])
+            read('general', settled[4]),
+            read('manual events', settled[5])
         ];
 
         for (const [name, entry] of Object.entries(health?.entries ?? {})) {
@@ -489,6 +530,16 @@ export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable, Cl
             out.push(check('jobs', 'warning', 'Queue Cleaner is not scheduled, so its rules are not enforced'));
         }
         if (general?.dryRun === true) out.push(check('general', 'warning', 'Dry run is on: Cleanuparr logs what it would do and does nothing'));
+        // What Cleanuparr could not settle on its own and left for a person, until it is resolved in its UI.
+        // One line, because stack_health repeats it on every call: how many, and the newest.
+        if (manual !== undefined && manual.count > 0) {
+            const newest = manual.newest;
+            const about = newest?.itemTitle === undefined || newest.itemTitle === null || newest.itemTitle === '' ? '' : ` (${newest.itemTitle})`;
+            const errors = manual.errors > 0 ? `, ${manual.errors} of them errors` : '';
+            out.push(
+                check('manual events', manual.errors > 0 ? 'error' : 'warning', fence(`${manual.count} manual event(s) wait for a person in Cleanuparr${errors}. Newest: ${newest?.message ?? 'no message'}${about}`))
+            );
+        }
 
         const actual = parseVersion(version);
         const tested = parseVersion(TESTED_MINOR);
@@ -496,6 +547,36 @@ export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable, Cl
             out.push(check('version', 'warning', `Cleanuparr ${version} is newer than ${TESTED_MINOR}.x, which this adapter was written against; untested, results may be wrong`));
         }
         return out;
+    }
+
+    /** Every download Cleanuparr holds strikes against, every page of them. */
+    async readStrikes(): Promise<DownloadStrikes[]> {
+        const out: DownloadStrikes[] = [];
+        for (let page = 1; ; page += 1) {
+            const body = await this.#http.get<RawPage<RawDownloadStrikes>>(`${CLEANUPARR_API}/strikes?page=${page}&pageSize=${STRIKES_PAGE}`);
+            const items = body.items ?? [];
+            for (const d of items) {
+                // A download Cleanuparr already removed. The same hash grabbed again starts afresh until
+                // Cleanuparr strikes it, which clears `isRemoved` and carries the count on.
+                if (d.downloadId === undefined || d.isRemoved === true) continue;
+                out.push({ downloadId: d.downloadId.toLowerCase(), strikes: strikesOf(d.strikes ?? []), markedForRemoval: d.isMarkedForRemoval === true });
+            }
+            if (items.length === 0 || page >= (body.totalPages ?? 1)) return out;
+            if (page >= STRIKES_MAX_PAGES) {
+                logger.warn({ service: this.id, pages: page }, 'cleanuparr strikes still paging; reading no further');
+                return out;
+            }
+        }
+    }
+
+    /** How many manual events wait, how many are errors, and the newest. Newest first upstream. */
+    async #manualEvents(): Promise<{ count: number; errors: number; newest: RawManualEvent | undefined }> {
+        const waiting = `${CLEANUPARR_API}/manualevents?isResolved=false&pageSize=1`;
+        const [all, errors] = await Promise.all([
+            this.#http.get<RawPage<RawManualEvent>>(waiting),
+            this.#http.get<RawPage<RawManualEvent>>(`${waiting}&severity=Error`)
+        ]);
+        return { count: all.totalCount ?? all.items?.length ?? 0, errors: errors.totalCount ?? errors.items?.length ?? 0, newest: all.items?.[0] };
     }
 
     async getSeedingRules(): Promise<CleanuparrSeeding> {

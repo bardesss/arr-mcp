@@ -115,7 +115,7 @@ const project = (q: QueueItem, detail: DetailLevel): QueueItem => {
         };
     }
     if (detail === 'minimal') return { service: q.service, id: q.id, title: q.title, status: q.status };
-    const { errorMessage: _e, private: _p, seeding: _s, strikes: _k, ...rest } = visible;
+    const { errorMessage: _e, private: _p, seeding: _s, strikes: _k, markedForRemoval: _m, ...rest } = visible;
     return rest;
 };
 
@@ -135,6 +135,7 @@ export function queueLine(item: QueueItem): string {
     for (const s of item.strikes ?? []) {
         facts.push(`${s.count} Cleanuparr strike${s.count === 1 ? '' : 's'} (${s.reason}${s.dryRun === true ? ', dry run' : ''})`);
     }
+    if (item.markedForRemoval === true) facts.push('marked for removal on Cleanuparr\'s next run');
     const c = item.seeding?.cleanuparr !== undefined && 'rule' in item.seeding.cleanuparr ? item.seeding.cleanuparr : undefined;
     if (item.seeding?.overLimit === true && item.status.startsWith('seeding')) {
         const marks = [...(c?.dryRun === true ? ['dry run'] : []), ...(c?.notEnforced === true ? ['not scheduled'] : [])];

@@ -2,71 +2,11 @@ import { logger } from '../core/logger.ts';
 import { matchRule, ruleVerdict, skipReason, unmatchedReason, type CleanuparrRule, type RuleVerdict } from '../core/cleanuparrRules.ts';
 import {
     hasCleanuparr,
-    hasHistory,
     hasTorrentEndpoint,
     type CleanuparrRuleSet,
-    type HistoryEntry,
     type QueueItem,
     type ServiceAdapter
 } from '../services/types.ts';
-
-/** How far back strikes are read: Cleanuparr resets or acts on a download long before this. */
-export const STRIKE_WINDOW_MS = 30 * 86_400_000;
-
-const STRIKE_REASON: Record<string, string> = {
-    StalledStrike: 'stalled',
-    FailedImportStrike: 'failed import',
-    SlowSpeedStrike: 'slow speed',
-    SlowTimeStrike: 'slow time',
-    DownloadingMetadataStrike: 'stuck metadata',
-    DeadTorrentStrike: 'dead torrent',
-    ErroredStrike: 'errored'
-};
-
-export type Strikes = { count: number; reason: string; rawEvent: string; at: string; dryRun?: true };
-
-/**
- * Each download's standing strikes, from events newest first. Cleanuparr
- * counts each kind of strike apart, and dry-run strikes apart from real ones,
- * so each pair keeps its latest count unless a reset of that kind came after
- * it. A reset that does not name its kind clears everything before it. A
- * strike on a client since deleted from Cleanuparr is skipped: the torrent may
- * have moved to another client, where Cleanuparr counts afresh.
- *
- * Per download, real strikes come first, then the highest count.
- */
-export function currentStrikes(events: readonly HistoryEntry[]): Map<string, Strikes[]> {
-    const decided = new Map<string, Map<string, Strikes | null>>();
-    const closed = new Set<string>();
-    for (const e of events) {
-        const id = e.downloadId;
-        if (id === undefined || closed.has(id) || e.clientRemoved === true) continue;
-        if (e.event !== 'recovered' && (e.event !== 'strike' || e.strikeCount === undefined)) continue;
-        if (e.event === 'recovered' && e.strikeType === undefined) {
-            closed.add(id);
-            continue;
-        }
-        const raw = e.rawEvent ?? '';
-        const key = `${e.strikeType ?? raw}|${e.dryRun === true ? 'dry' : 'real'}`;
-        const kinds = decided.get(id) ?? new Map<string, Strikes | null>();
-        decided.set(id, kinds);
-        if (kinds.has(key)) continue;
-        kinds.set(
-            key,
-            e.event === 'recovered' || e.strikeCount === undefined
-                ? null
-                : { count: e.strikeCount, reason: STRIKE_REASON[raw] ?? raw, rawEvent: raw, at: e.at, ...(e.dryRun === true ? { dryRun: true as const } : {}) }
-        );
-    }
-    const out = new Map<string, Strikes[]>();
-    for (const [id, kinds] of decided) {
-        const standing = [...kinds.values()]
-            .filter((s): s is Strikes => s !== null)
-            .sort((a, b) => Number(a.dryRun === true) - Number(b.dryRun === true) || b.count - a.count);
-        if (standing.length > 0) out.set(id, standing);
-    }
-    return out;
-}
 
 /** Which client each rule set points at. A client two sets point at is a conflict, never guessed. */
 export function resolveRuleSets(
@@ -157,20 +97,18 @@ export async function annotateCleanuparr(
     const source = adapters.find(hasCleanuparr);
     if (source === undefined) return;
 
-    const since = new Date(Date.now() - STRIKE_WINDOW_MS).toISOString();
-    const [rules, events] = await Promise.allSettled([
-        source.getSeedingRules(),
-        hasHistory(source) ? source.readHistory({ since, want: 500 }) : Promise.resolve({ items: [], total: 0 })
-    ]);
-    if (events.status === 'fulfilled') {
-        const strikes = currentStrikes(Array.isArray(events.value) ? events.value : events.value.items);
+    const [rules, standing] = await Promise.allSettled([source.getSeedingRules(), source.readStrikes()]);
+    if (standing.status === 'fulfilled') {
+        const byDownload = new Map(standing.value.map(d => [d.downloadId, d]));
         for (const item of items) {
             const id = item.torrent?.hash ?? item.downloadId?.toLowerCase();
-            const hit = id === undefined ? undefined : strikes.get(id);
-            if (hit !== undefined) item.strikes = hit.map(s => ({ count: s.count, reason: s.reason, lastAt: s.at, ...(s.dryRun === true ? { dryRun: true as const } : {}) }));
+            const hit = id === undefined ? undefined : byDownload.get(id);
+            if (hit === undefined) continue;
+            if (hit.markedForRemoval) item.markedForRemoval = true;
+            if (hit.strikes.length > 0) item.strikes = hit.strikes.map(({ kind: _kind, ...s }) => s);
         }
     } else {
-        logger.warn({ service: source.id, err: events.reason }, 'cleanuparr strikes unavailable; queue rows carry none');
+        logger.warn({ service: source.id, err: standing.reason }, 'cleanuparr strikes unavailable; queue rows carry none');
         markDegraded(source.id);
     }
     if (rules.status === 'rejected') {
