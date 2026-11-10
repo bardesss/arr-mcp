@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.82.0](https://github.com/bardesss/arr-mcp/compare/v1.81.0...v1.82.0) (2026-11-10)
+
+
+### Features
+
+* **blocklist_media:** add and remove Radarr, Sonarr and Lidarr import exclusions ([#605](https://github.com/bardesss/arr-mcp/issues/605)) ([40c50b9](https://github.com/bardesss/arr-mcp/commit/40c50b98b9eab5b9397088ab9889468863ecaa2f))
+
 ## [1.81.0](https://github.com/bardesss/arr-mcp/compare/v1.80.0...v1.81.0) (2026-11-10)
 
 
