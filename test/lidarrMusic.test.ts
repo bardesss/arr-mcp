@@ -106,7 +106,7 @@ describe('music through get_library', () => {
     it('keeps two rows when the MusicBrainz ids differ', async () => {
         const index = LibraryIndex.build([lidarrArtist(), serverArtist(OTHER_MBID)], { musicGathered: true });
 
-        expect(index.size()).toBe(2);
+        expect(index.all().length).toBe(2);
         expect(index.find({ mbid: MBID })?.presence).toBe('arr_only');
         expect(index.find({ mbid: OTHER_MBID })?.presence).toBe('jellyfin_only');
     });

@@ -203,20 +203,17 @@ export class Runtime {
         configDir: string,
         audit: WriteAudit,
         opts: { refresh?: Refresher; sessions?: Sessions } = {}
-    ): Promise<{ runtime: Runtime; created: boolean }> {
-        const { config, created, plaintextOnDisk } = await loadConfig(configDir);
-        return {
-            runtime: new Runtime(
-                configDir,
-                audit,
-                config,
-                opts.refresh ?? NO_REFRESH,
-                opts.sessions ?? new Sessions(),
-                undefined,
-                plaintextOnDisk
-            ),
-            created
-        };
+    ): Promise<Runtime> {
+        const { config, plaintextOnDisk } = await loadConfig(configDir);
+        return new Runtime(
+            configDir,
+            audit,
+            config,
+            opts.refresh ?? NO_REFRESH,
+            opts.sessions ?? new Sessions(),
+            undefined,
+            plaintextOnDisk
+        );
     }
 
     /**

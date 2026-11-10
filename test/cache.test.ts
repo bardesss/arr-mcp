@@ -173,14 +173,15 @@ describe('TtlCache', () => {
         expect(load).toHaveBeenCalledTimes(2);
     });
 
-    it('reports its size, so a leak would be visible', async () => {
+    it('forgets everything on clear', async () => {
         const cache = new TtlCache();
-        await cache.get('a', 1000, async () => 1);
-        await cache.get('b', 1000, async () => 2);
+        const load = vi.fn(async () => 1);
+        await cache.get('a', 1000, load);
 
-        expect(cache.size()).toBe(2);
         cache.clear();
-        expect(cache.size()).toBe(0);
+        await cache.get('a', 1000, load);
+
+        expect(load).toHaveBeenCalledTimes(2);
     });
 
     it('exposes the ttls the design spec names', () => {

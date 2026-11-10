@@ -52,7 +52,7 @@ export async function bootstrap(deps: BootstrapDeps): Promise<Booted> {
     let served: Runtime | undefined;
 
     const startNormally = async (): Promise<Hono> => {
-        const { runtime } = await Runtime.start(configDir, audit, {
+        const runtime = await Runtime.start(configDir, audit, {
             refresh: dataset => startRefresh(dataset),
             sessions
         });

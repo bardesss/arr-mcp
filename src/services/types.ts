@@ -1167,9 +1167,6 @@ export interface IssueCapable {
     getIssues(opts: { limit: number }): Promise<MediaIssue[]>;
 }
 
-export const hasIssues = (a: ServiceAdapter): a is ServiceAdapter & IssueCapable =>
-    typeof (a as Partial<IssueCapable>).getIssues === 'function';
-
 export type EpisodeSummary = {
     id: number;
     season: number;

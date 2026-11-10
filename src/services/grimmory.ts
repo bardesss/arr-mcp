@@ -43,8 +43,6 @@ import {
     type ServiceAdapter
 } from './types.ts';
 
-/** The Grimmory this adapter was written against and captured on. */
-export const TESTED_VERSION = '3.5.0';
 
 const HEALTH_PATH = '/api/v1/healthcheck';
 const LIBRARIES_PATH = '/api/v1/libraries';

@@ -90,7 +90,6 @@ export class LogStore {
     readonly #db: Db;
     readonly #insert: Statement;
     readonly #services: Statement;
-    readonly #count: Statement;
     readonly #pruneStmt: Statement;
     #sincePrune = 0;
 
@@ -99,7 +98,6 @@ export class LogStore {
         db.exec(SCHEMA);
         this.#insert = db.prepare(`INSERT INTO log (at, level, service, msg, fields) VALUES (?, ?, ?, ?, ?)`);
         this.#services = db.prepare(`SELECT DISTINCT service FROM log WHERE service IS NOT NULL ORDER BY service`);
-        this.#count = db.prepare(`SELECT COUNT(*) AS n FROM log`);
         this.#pruneStmt = db.prepare(
             // `<`, not `<=`: the subquery returns the id of the row that
             // should be the *oldest survivor*, so including it kept
@@ -196,10 +194,6 @@ export class LogStore {
                 service: string;
             }[]
         ).map(r => r.service);
-    }
-
-    count(): number {
-        return (this.#count.get() as { n: number }).n;
     }
 
     /** Keeps the newest LOG_RING_SIZE rows. Exposed for tests; called

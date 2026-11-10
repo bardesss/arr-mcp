@@ -1,38 +1,38 @@
 import { describe, expect, it } from 'vitest';
 import { ServiceError, classifyFetchError, classifyHttpStatus } from '../src/core/errors.ts';
 
-describe('ServiceError.toModelText', () => {
+describe('ServiceError.message', () => {
     it('produces actionable text naming the service, cause, and target', () => {
         const err = new ServiceError('Unreachable', 'bazarr', 'connection refused at 192.168.1.20:6767');
-        expect(err.toModelText()).toBe('bazarr unreachable: connection refused at 192.168.1.20:6767');
+        expect(err.message).toBe('bazarr unreachable: connection refused at 192.168.1.20:6767');
     });
 
     it('appends the remedy when one is known', () => {
         const err = new ServiceError('AuthFailed', 'radarr', 'HTTP 401 at /api/v3/system/status', {
             remedy: 'The API key is wrong. Radarr → Settings → General.'
         });
-        expect(err.toModelText()).toBe(
+        expect(err.message).toBe(
             'radarr auth failed: HTTP 401 at /api/v3/system/status — The API key is wrong. Radarr → Settings → General.'
         );
     });
 
     it('never leaks a stack trace into model-facing text', () => {
         const err = new ServiceError('UpstreamError', 'radarr', 'boom');
-        expect(err.toModelText()).not.toContain('at ');
-        expect(err.toModelText()).not.toContain(import.meta.url);
+        expect(err.message).not.toContain('at ');
+        expect(err.message).not.toContain(import.meta.url);
     });
 
     it('preserves the original error as cause for logs without exposing it to the model', () => {
         const original = new Error('socket hang up');
         const err = new ServiceError('Timeout', 'sonarr', 'no response', { cause: original });
         expect(err.cause).toBe(original);
-        expect(err.toModelText()).not.toContain('socket hang up');
+        expect(err.message).not.toContain('socket hang up');
     });
 });
 
 /**
  * The MCP SDK's own catch around a tool handler reads `error.message`, not
- * `toModelText()` — nothing in this codebase calls `toModelText()` in a
+ * `message` — nothing in this codebase calls `message` in a
  * throwing path. A remedy that lives only there never reaches a caller. The
  * remedy therefore has to live in `.message` itself, which every catcher of a
  * thrown Error already reads.
@@ -45,13 +45,6 @@ describe('ServiceError.message', () => {
         expect(err.message).toBe(
             'radarr auth failed: HTTP 401 at /api/v3/system/status — The API key is wrong. Radarr → Settings → General.'
         );
-    });
-
-    it('matches toModelText() exactly — one sanctioned string, not two that can drift', () => {
-        const err = new ServiceError('AuthFailed', 'radarr', 'HTTP 401 at /api/v3/system/status', {
-            remedy: 'The API key is wrong. Radarr → Settings → General.'
-        });
-        expect(err.message).toBe(err.toModelText());
     });
 
     it('omits the trailing dash when there is no remedy', () => {
@@ -219,14 +212,14 @@ describe('classifyFetchError', () => {
     it('falls back to Unreachable for an unrecognised failure without throwing', () => {
         const out = classifyFetchError({ weird: true }, 'radarr', 'http://h:7878');
         expect(out.kind).toBe('Unreachable');
-        expect(out.toModelText()).toContain('radarr');
+        expect(out.message).toContain('radarr');
     });
 
     it('keeps credentials and query strings out of the detail', () => {
         const e = new TypeError(
             'Request cannot be constructed from a URL that includes credentials: http://user:s3cret@host:1/api?mode=version&apikey=abc'
         );
-        const text = classifyFetchError(e, 'sabnzbd', 'http://host:1').toModelText();
+        const text = classifyFetchError(e, 'sabnzbd', 'http://host:1').message;
         expect(text).not.toContain('s3cret');
         expect(text).not.toContain('abc');
         expect(text).toContain('includes credentials: http://host:1/api');

@@ -1,8 +1,7 @@
 import { instancesOf } from './helpers/instances.ts';
 import { describe, expect, it } from 'vitest';
 import type { AnyServiceConfig, ServiceId } from '../src/config/schema.ts';
-import { ServiceError } from '../src/core/errors.ts';
-import { assertPermitted, checkPermission, permissionSourceFrom } from '../src/core/permissions.ts';
+import { checkPermission, permissionSourceFrom } from '../src/core/permissions.ts';
 import { cappedTo, oauthRefusal, tokenRefusal } from '../src/mcp/scopes.ts';
 
 const service = (safe_write: boolean, destructive: boolean): AnyServiceConfig =>
@@ -66,24 +65,18 @@ describe('permission tiers', () => {
     });
 });
 
-describe('assertPermitted', () => {
-    it('passes silently when granted', () => {
-        expect(() => assertPermitted(sourceFor({ radarr: service(true, false) }), 'radarr', 'safe')).not.toThrow();
+describe('checkPermission', () => {
+    it('allows when granted', () => {
+        expect(checkPermission(sourceFor({ radarr: service(true, false) }), 'radarr', 'safe').allowed).toBe(true);
     });
 
-    // §15: the remedy has to live in `.message`, because a generic catcher —
-    // including the MCP SDK's own dispatch loop — reads nothing else.
-    it('throws a ServiceError whose message already carries the remedy', () => {
-        try {
-            assertPermitted(sourceFor({ radarr: service(false, false) }), 'radarr', 'destructive');
-            throw new Error('expected a throw');
-        } catch (err) {
-            expect(err).toBeInstanceOf(ServiceError);
-            const se = err as ServiceError;
-            expect(se.kind).toBe('PermissionDenied');
-            expect(se.service).toBe('radarr');
-            expect(se.message).toContain('permissions.destructive: true');
-        }
+    // §15: the remedy is a sentence naming the exact YAML key to change.
+    it('refuses with a reason and a remedy naming the key', () => {
+        const verdict = checkPermission(sourceFor({ radarr: service(false, false) }), 'radarr', 'destructive');
+        expect(verdict.allowed).toBe(false);
+        if (verdict.allowed) throw new Error('expected a refusal');
+        expect(verdict.reason).toBe('destructive writes are disabled for radarr');
+        expect(verdict.remedy).toContain('permissions.destructive: true');
     });
 });
 

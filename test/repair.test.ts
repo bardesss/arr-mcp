@@ -37,7 +37,7 @@ describe('Runtime session injection', () => {
         const sessions = new Sessions();
         const token = sessions.issue();
 
-        const { runtime } = await Runtime.start(dir, audit, { sessions });
+        const runtime = await Runtime.start(dir, audit, { sessions });
 
         expect(runtime.sessions).toBe(sessions);
         expect(runtime.sessions.verify(token).valid).toBe(true);

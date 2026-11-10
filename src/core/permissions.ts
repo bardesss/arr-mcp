@@ -1,6 +1,5 @@
 import type { ServiceInstance } from '../config/instances.ts';
 import type { AnyServiceConfig } from '../config/schema.ts';
-import { ServiceError } from './errors.ts';
 
 /**
  * The two tiers, as an **ordered** pair rather than two
@@ -122,16 +121,4 @@ export function checkPermission(source: PermissionSource, service: string, tier:
         reason: `${tier} writes are disabled for ${service}`,
         remedy: `Set ${permissionPath(service, tier)} in config.yaml and restart arr-mcp. This is off by default; nothing but a deliberate edit turns it on.`
     };
-}
-
-/**
- * The live-write form of the same check. Throws the standard degraded-service error, so a
- * refusal reaches the model as a sentence naming the exact YAML key to change
- * rather than as a bare "forbidden" it would then have to guess about.
- */
-export function assertPermitted(source: PermissionSource, service: string, tier: WriteTier): void {
-    const verdict = checkPermission(source, service, tier);
-    if (verdict.allowed) return;
-
-    throw new ServiceError('PermissionDenied', service, verdict.reason, { remedy: verdict.remedy });
 }

@@ -106,10 +106,6 @@ export class TtlCache {
     clear(): void {
         this.#entries.clear();
     }
-
-    size(): number {
-        return this.#entries.size;
-    }
 }
 
 /** How long a read shared inside one stack_health pass stays fresh. */

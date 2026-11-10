@@ -663,8 +663,4 @@ export class LibraryIndex {
     all(): readonly MergedItem[] {
         return this.#items;
     }
-
-    size(): number {
-        return this.#items.length;
-    }
 }

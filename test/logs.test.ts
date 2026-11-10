@@ -58,7 +58,7 @@ describe('the log ring buffer', () => {
         const logs = open();
         expect(() => logs.write('not json')).not.toThrow();
         expect(() => logs.write('')).not.toThrow();
-        expect(logs.count()).toBe(0);
+        expect(logs.recent({ limit: LOG_RING_SIZE + 1 }).length).toBe(0);
     });
 
     it('survives a line with no message or level', () => {
@@ -121,7 +121,7 @@ describe('ring behaviour', () => {
 
         // Exactly the size, not "at most": `<=` is what let the ring keep
         // LOG_RING_SIZE - 1 rows unnoticed.
-        expect(logs.count()).toBe(LOG_RING_SIZE);
+        expect(logs.recent({ limit: LOG_RING_SIZE + 1 }).length).toBe(LOG_RING_SIZE);
         // The newest survived, the oldest did not.
         expect(logs.recent(  { limit: 1 })[0]?.msg).toBe(`line ${LOG_RING_SIZE + 249}`);
         expect(logs.recent({ limit: LOG_RING_SIZE }).some(r => r.msg === 'line 0')).toBe(false);
@@ -180,18 +180,17 @@ describe('the fields a row carries', () => {
 });
 
 describe('statement preparation', () => {
-    it('prepares nothing per write, prune, count or services call', () => {
+    it('prepares nothing per write, prune or services call', () => {
         const logs = open();
         const prepare = vi.spyOn(Database.prototype, 'prepare');
         try {
             for (let i = 0; i < 3; i++) logs.write(JSON.stringify({ level: 30, time: Date.now(), msg: 'x' }));
             logs.prune();
-            logs.count();
             logs.services();
             expect(prepare).not.toHaveBeenCalled();
-            expect(logs.count()).toBe(3);
         } finally {
             prepare.mockRestore();
         }
+        expect(logs.recent({ limit: LOG_RING_SIZE + 1 }).length).toBe(3);
     });
 });
