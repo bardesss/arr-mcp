@@ -75,9 +75,15 @@ describe('CleanuparrAdapter health', () => {
     });
 
     it('warns on a minor version newer than the tested one', async () => {
+        const adapter = new CleanuparrAdapter(config, stub(healthRoutes({ '/api/status': { application: { version: '2.12.0.0' } } })));
+        const checks = await adapter.getFailedHealthChecks();
+        expect(checks.some(c => c.type === 'warning' && c.message.includes('2.12.0') && c.message.includes('2.11'))).toBe(true);
+    });
+
+    it('stays quiet about 2.11, checked live on 2.11.0', async () => {
         const adapter = new CleanuparrAdapter(config, stub(healthRoutes({ '/api/status': { application: { version: '2.11.0.0' } } })));
         const checks = await adapter.getFailedHealthChecks();
-        expect(checks.some(c => c.type === 'warning' && c.message.includes('2.11.0') && c.message.includes('2.10'))).toBe(true);
+        expect(checks.some(c => c.message.includes('untested'))).toBe(false);
     });
 
     it('stays quiet about the version on the tested minor', async () => {
@@ -257,6 +263,16 @@ describe('CleanuparrAdapter history', () => {
         expect(items[1]?.reason).toContain('Stalled');
         expect(items[3]?.reason).toContain('No files found are eligible for import');
         expect(items[0]?.title).toContain('Example.Show.S01E01.1080p');
+    });
+
+    // Constructed: the captured events have no SeekerCycleCompleted, and test both kinds side by side here.
+    it('leaves out Seeker searches and cycles, which are about no download, and keeps the rest', async () => {
+        const event = (id: string, eventType: string) => ({ id, eventType, timestamp: `2026-11-09T0${id}:00:00+00:00`, message: 'm', severity: 'Information', itemTitle: 'Example.Title.1', itemHash: 'aaaa1111' });
+        const page = { items: [event('3', 'SearchTriggered'), event('2', 'StalledStrike'), event('1', 'SeekerCycleCompleted')], totalCount: 3, totalPages: 1 };
+        const adapter = new CleanuparrAdapter(config, stub({ '/api/events': page }));
+        const { items, total } = (await adapter.readHistory({})) as { items: HistoryEntry[]; total: number };
+        expect(items.map(i => i.rawEvent)).toEqual(['StalledStrike']);
+        expect(total).toBe(1);
     });
 
     it('sends since as fromDate and a mappable event type upstream', async () => {

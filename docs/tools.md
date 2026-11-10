@@ -517,9 +517,9 @@ one. Absent when nothing configured seeds.
 
 With Cleanuparr configured, its health findings join the failing checks: an
 unhealthy entry, a disconnected *arr or download client, a Queue Cleaner that
-is not scheduled, dry run being on, each manual event waiting for a person
-(an `error` when Cleanuparr rates it one, past 20 a count of the rest), and a
-Cleanuparr minor newer than 2.10 (flagged as untested). A source it could not
+is not scheduled, dry run being on, the manual events waiting for a person (one
+line: how many, and the newest one; an `error` when any of them is one), and a
+Cleanuparr minor newer than 2.11 (flagged as untested). A source it could not
 read is a warning of its own, and the rest still report.
 
 At `full`, `seedingRules.cleanuparr` lists the rule sets of each Cleanuparr

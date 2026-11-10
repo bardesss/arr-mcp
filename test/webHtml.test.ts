@@ -2,8 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { BEARER_CALLER, type AuditRow } from '../src/core/audit.ts';
 import type { DiskSpace } from '../src/services/types.ts';
 import { JS } from '../src/web/assets.ts';
-import { esc, html, humanBytes, raw, shortTime } from '../src/web/html.ts';
-import { auditPage, groupDisks, loginPage } from '../src/web/pages.ts';
+import { groupDisks, humanBytes } from '../src/core/disks.ts';
+import { esc, html, raw, shortTime } from '../src/web/html.ts';
+import { auditPage, loginPage } from '../src/web/pages.ts';
 
 describe('escaping', () => {
     it('neutralises the characters that end a tag or an attribute', () => {
@@ -61,8 +62,8 @@ describe('the html template', () => {
 describe('formatting helpers', () => {
     it('scales bytes to something a person reads', () => {
         expect(humanBytes(0)).toBe('0 B');
-        expect(humanBytes(1024)).toBe('1.0 KB');
-        expect(humanBytes(25_900_000_000)).toBe('24.1 GB');
+        expect(humanBytes(1024)).toBe('1.0 KiB');
+        expect(humanBytes(25_900_000_000)).toBe('24.1 GiB');
     });
 
     it('reports unknown sizes as unknown rather than as zero', () => {

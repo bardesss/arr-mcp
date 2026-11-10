@@ -33,7 +33,7 @@ import { compareVersions, parseVersion } from './versions.ts';
 
 export const CLEANUPARR_API = '/api';
 
-export const TESTED_MINOR = '2.10';
+export const TESTED_MINOR = '2.11';
 
 type RawStatus = { application?: { version?: string } };
 type RawStrike = { type?: string; createdAt?: string; isDryRun?: boolean };
@@ -230,8 +230,8 @@ const UPSTREAM: Partial<Record<HistoryEventType, string>> = {
 };
 /** Everything else Cleanuparr never emits, so a filter for it reads nothing. */
 const EMITTED = new Set<HistoryEventType>(['deleted', 'strike', 'stopped', 'imported', 'recovered', 'recategorised', 'unknown']);
-/** Seeker's own searches are about no download, and would crowd out the rest. */
-const DROPPED = new Set(['SearchTriggered']);
+/** Seeker's own searches and cycles are about no download, and would crowd out the rest. */
+const DROPPED = new Set(['SearchTriggered', 'SeekerCycleCompleted']);
 const PAGE_SIZE = 100;
 const MAX_PAGES = 50;
 
@@ -453,7 +453,8 @@ function removalNotes(queue: CleanuparrQueueCleaner | undefined, malware: Cleanu
 }
 
 /**
- * Hand-written against the source at tag v2.10.9 and checked live on 2.10.12:
+ * Hand-written against the source at tag v2.10.9 and checked live on 2.10.12
+ * and 2.11.0:
  * Cleanuparr publishes no API reference, and minor releases may break this contract.
  */
 export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable, CleanuparrCapable, CleanuparrRemovalCapable, HistoryCapable {
