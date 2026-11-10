@@ -36,5 +36,7 @@ export const DEPRECATIONS: readonly Deprecation[] = [
     { tool: 'trigger_scan', param: 'reassignments', use: 'import_download' },
     { tool: 'trigger_scan', param: 'mapping', use: 'import_download' },
     // Removal drops `delete` from manage_indexer, which is then safe tier and no longer destructiveHint.
-    { tool: 'manage_indexer', param: 'action', value: 'delete', use: 'delete_indexer' }
+    { tool: 'manage_indexer', param: 'action', value: 'delete', use: 'delete_indexer' },
+    // Removal drops `tmdb_id` and `idOf` from blocklist_media, and makes `id` required again.
+    { tool: 'blocklist_media', param: 'tmdb_id', use: 'id' }
 ];

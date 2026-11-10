@@ -40,7 +40,7 @@ off until you turn them on — see [writes](writes.md).
 | `delete_episode_files` | Free disk from one season or a handful of episodes, without touching the series |
 | `respond_to_request` | Approve or decline what someone asked for |
 | `delete_request` | Drop a request record entirely |
-| `blocklist_media` | Stop anyone requesting this through Seerr, or let them again |
+| `blocklist_media` | Stop anyone requesting this through Seerr, or an *arr's import lists adding it again; or lift either |
 | `request_media` | Ask Seerr for this, through its approval queue and quotas |
 | `add_media` | Add this film or series and start looking for it; on Lidarr, an artist |
 | `update_media` | Change the profile, folder, monitoring or tags of something already there, and a Lidarr artist's metadata profile |
@@ -3038,7 +3038,16 @@ and the blocklist does not, the answer says so and names the
 
 ## `blocklist_media`
 
-Seerr's blocklist, by TMDB id and `kind` (`movie` or `series`). A
+`service` picks the list: `seerr` (the default) for Seerr's blocklist, or
+`radarr`, `sonarr` or `lidarr` for that *arr's import exclusions, with
+`instance` for a named one. `id` is the id that list keys on: TMDB for Seerr
+and Radarr, TVDB for Sonarr, the MusicBrainz artist id for Lidarr.
+`tmdb_id`, which 1.81.0 took for Seerr, still works there and is deprecated:
+use `id`.
+
+### Seerr
+
+Seerr's blocklist, by TMDB `id` and `kind` (`movie` or `series`). A
 blocklisted title cannot be requested by anyone; its existing requests, and
 anything Radarr or Sonarr has, are left alone. `delete_media` with
 `seerr_blocklist` adds while deleting; this tool covers a title that was never
@@ -3059,6 +3068,31 @@ own user. The old `/blacklist` path is a deprecated alias; arr-mcp uses
 `/blocklist`.
 
 **Unverified live** (Seerr): adding to and removing from the blocklist.
+
+### Import exclusions
+
+An exclusion is weaker than Seerr's blocklist: it only stops that *arr's own
+import lists from adding the title. A Seerr request or a manual add still goes
+through, and the preview says so. Lidarr also deletes an artist's exclusion
+when one of its albums is added. Both `add` and `remove` are `safe`, gated by
+that *arr's own `safe_write`, since an exclusion takes nothing else with it.
+
+The preview names the title through the same lookup `add_media` uses, so an id
+the *arr's metadata provider does not know fails there. The *arrs cannot look
+one exclusion up, so each preview reads the whole list (1,348 rows on a live
+Radarr, one call). The title and, on Radarr, the year are stored with the
+exclusion, as the *arr's own UI stores them.
+
+`kind` is not needed for an *arr, and one that does not match it (a `series`
+on Radarr) is refused. Whisparr is refused for now: its exclusion field is named
+`tvdbId` while its add flow speaks ThePornDB ids, and which one the field holds
+needs a live capture.
+
+**Unverified live** (Radarr): adding and removing an exclusion. The list read is live-checked against 6.4.
+
+**Unverified live** (Sonarr): adding and removing an exclusion. The list read is live-checked against 4.0.
+
+**Unverified live** (Lidarr): exclusions, which are written from Lidarr's spec.
 
 ## `update_media`
 

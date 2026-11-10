@@ -917,7 +917,7 @@ if (withTmdb?.ids?.tmdb !== undefined) {
     );
     await run(
         'blocklist_media',
-        { action: 'add', tmdb_id: withTmdb.ids.tmdb, kind: withTmdb.kind === 'series' ? 'series' : 'movie', dry_run: true },
+        { action: 'add', id: withTmdb.ids.tmdb, kind: withTmdb.kind === 'series' ? 'series' : 'movie', dry_run: true },
         'DRY RUN ONLY — never applied from this script'
     );
 } else {

@@ -2,6 +2,8 @@ import { aliasesOf } from '../core/titleMatch.ts';
 import type { ConfigByService } from '../config/schema.ts';
 import { LIBRARY_TTL_MS } from '../core/cache.ts';
 import { ArrAdapterBase } from './arrBase.ts';
+import { RADARR_EXCLUSIONS, addExclusion, findExclusion, removeExclusion } from './arrExclusions.ts';
+import type { ImportExclusion } from './types.ts';
 import { fenceText } from '../core/fence.ts';
 import type { RawImage } from '../core/display.ts';
 import { arrDisplay } from './arrDisplay.ts';
@@ -263,6 +265,18 @@ export class RadarrAdapter
     }
 
     /** Radarr resolves by TMDB id; a TVDB id will simply match nothing. */
+    async findImportExclusion(externalId: string): Promise<ImportExclusion | undefined> {
+        return findExclusion(this.http, RADARR_EXCLUSIONS, externalId);
+    }
+
+    async addImportExclusion(externalId: string, label: { title: string; year?: number }): Promise<void> {
+        await addExclusion(this.http, RADARR_EXCLUSIONS, externalId, label);
+    }
+
+    async removeImportExclusion(exclusionId: number): Promise<void> {
+        await removeExclusion(this.http, RADARR_EXCLUSIONS, exclusionId);
+    }
+
     async lookupForAdd(externalId: string): Promise<AddCandidate> {
         return lookupArrForAdd(this.http, this.id, RADARR_ADD, externalId);
     }

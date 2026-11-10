@@ -26,7 +26,7 @@ const capabilities = (adapter: unknown): string[] =>
 
 const radarr = [
     'hasBlocklist', 'hasCalendar', 'hasCommandStatus', 'hasDiskSpace', 'hasDownloadTrace', 'hasHealthChecks',
-    'hasHistory', 'hasLibrary', 'hasLibraryMaintenance', 'hasLibraryScan', 'hasLogs', 'hasManualImport',
+    'hasHistory', 'hasImportExclusions', 'hasLibrary', 'hasLibraryMaintenance', 'hasLibraryScan', 'hasLogs', 'hasManualImport',
     'hasMediaAdd', 'hasMediaDelete', 'hasMediaDetails', 'hasMediaUpdate', 'hasProfileDiagnostics', 'hasQueue',
     'hasQueueRemove', 'hasReleaseGrab', 'hasReleaseSearch', 'hasScanState', 'hasSearch', 'hasSearchTrigger',
     'hasSeedCriteria', 'hasWanted'
@@ -45,7 +45,7 @@ describe('*arr adapter capabilities', () => {
         ]],
         ['lidarr', () => new LidarrAdapter(cfg), [
             'hasArtistMonitor', 'hasBlocklist', 'hasCalendar', 'hasCommandStatus', 'hasDiskSpace',
-            'hasHealthChecks', 'hasHistory', 'hasLibrary', 'hasLibraryMaintenance', 'hasLibraryScan',
+            'hasHealthChecks', 'hasHistory', 'hasImportExclusions', 'hasLibrary', 'hasLibraryMaintenance', 'hasLibraryScan',
             'hasManualImport', 'hasMediaAdd', 'hasMediaDelete', 'hasMediaDetails', 'hasMediaUpdate', 'hasMetadataProfiles',
             'hasMonitorState', 'hasMonitoring', 'hasQueue', 'hasQueueRemove', 'hasReleaseGrab',
             'hasReleaseSearch', 'hasScanState', 'hasSearch', 'hasSearchTrigger', 'hasTagRepair', 'hasWanted'

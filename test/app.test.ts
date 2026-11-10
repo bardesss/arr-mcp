@@ -457,7 +457,6 @@ describe('the advertised tool surface', () => {
     it('lists a write tool only where one of its services is configured', async () => {
         const listed = (await listToolsOf(withServices({ radarr: { url: 'http://192.0.2.10:7878', api_key: 'k' } }))).map(t => t.name);
         const left = [
-            'blocklist_media',
             'delete_episode_files',
             'delete_indexer',
             'delete_request',
@@ -475,7 +474,7 @@ describe('the advertised tool surface', () => {
         ];
         expect(TOOL_NAMES.filter(n => !listed.includes(n)).sort()).toEqual(left);
         expect(listed).toContain('get_subtitles');
-        expect(listed).toHaveLength(TOOL_NAMES.length - 15);
+        expect(listed).toHaveLength(TOOL_NAMES.length - 14);
     });
 
     it('advertises no book field on update_media without grimmory', async () => {
@@ -505,7 +504,7 @@ describe('the advertised tool surface', () => {
      * is a decision, not a fix for a failing test.
      */
     const DESCRIPTION_CAP = 1000;
-    const DESCRIPTIONS_TOTAL_CAP = 29_230;
+    const DESCRIPTIONS_TOTAL_CAP = 29_320;
 
     it(`keeps every tool description under ${DESCRIPTION_CAP} characters`, async () => {
         const long = (await listTools())
