@@ -443,7 +443,7 @@ against the wrong film — use `get_media_details` or `get_library` to get an id
 first.
 
 `add_media` takes an external id instead: TMDB for Radarr, TVDB for Sonarr and
-Whisparr, all returned by search_media `source: "discover"` under `ids`.
+Whisparr, all returned by `search_media` with `source: "discover"` under `ids`.
 
 ### `add_media` needs a quality profile and a root folder
 
@@ -460,7 +460,7 @@ root folder's own default is used when it names one, and otherwise the same
 one-or-refuse rule applies, to every profile but `None`. Every Lidarr has that
 reserved profile, and it gives an artist no albums, so it is used only when it
 is named or is the root folder's default, and the preview then says so. Lidarr
-adds by the artist's MusicBrainz id, from search_media `source: "discover"`, and `external_id` is
+adds by the artist's MusicBrainz id, from `search_media` with `source: "discover"`, and `external_id` is
 checked for that shape, as it is checked to be a plain integer on Radarr, Sonarr
 and Whisparr. `monitor` takes Lidarr's `first` and `latest` there, and
 `monitor_new_items` the rule for albums found later. `monitor: "none"` makes

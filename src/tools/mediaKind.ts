@@ -5,7 +5,7 @@ import type { QueueCapable, ServiceAdapter } from '../services/types.ts';
 /**
  * The `kind` a read can be narrowed to, worded once for every tool that takes
  * it: get_library already did, and a model that asked about Radarr had no way
- * to say so to lookup_media, so it got Lidarr's artists and Shelfmark's books
+ * to say so to the discover search, so it got Lidarr's artists and Shelfmark's books
  * ranked above the film (one "Paranormal Activity" lookup, three follow-up
  * calls to find the film itself).
  */

@@ -410,7 +410,7 @@ hold ids, `download_id`, and, for a lookup, the words you gave as `query`.
 | `managed`, in Radarr | `update_media` with `monitored: true` (`set_monitoring` refuses Radarr) |
 | `managed`, in Sonarr or Whisparr | `set_monitoring` with `monitored: true` |
 | `managed`, in Lidarr | `set_monitoring` with `level: "artist"`, `artists: [id]` and `monitored: true`, never `id`: the artist flag only, each album keeps its own |
-| `managed` or `resolve`, nothing manages it | search_media `source: "discover"` with your `query`, only when you diagnosed by title, and for `managed` not while an *arr of its kind (any *arr, for a media server's id with no kind) could not be read; an artist comes back among Lidarr's hits, each with the MusicBrainz id `add_media` takes as `ids.mbid` |
+| `managed` or `resolve`, nothing manages it | `search_media` with `source: "discover"` with your `query`, only when you diagnosed by title, and for `managed` not while an *arr of its kind (any *arr, for a media server's id with no kind) could not be read; an artist comes back among Lidarr's hits, each with the MusicBrainz id `add_media` takes as `ids.mbid` |
 | `request`, pending | `respond_to_request` with `verdict: "approve"`, only if you may act on that request (it is yours, or `allow_other_users` is on) |
 | `queue`, import pending | `trigger_scan` with `action: "import"` and the `download_id` of the *arr's row, on Radarr, Sonarr or Lidarr |
 | `queue`, fault | `remove_queue_item` with the row's service and id; it deletes partial data and does not blocklist |
@@ -716,7 +716,7 @@ out. A read-only key cannot see the queue, so `get_queue` reports Shelfmark as
 degraded with that key rather than claiming the queue is empty. A book search fails
 the same way, as degraded, and Shelfmark is asked again after five minutes.
 
-To get a book, search_media `source: "discover"` finds it (`kind: book`) and `grab_release` with
+To get a book, `search_media` with `source: "discover"` finds it (`kind: book`) and `grab_release` with
 `service: shelfmark` and that id queues the most-downloaded file, with `safe_write`
 on. The preview names the file first. To choose another, `get_releases` lists what
 is on offer, most-downloaded first, with rows from sources that count nothing last,
@@ -1613,7 +1613,7 @@ and Sonarr's own web UI does and returns every candidate, so a model can
 compare them and pick one for `grab_release`.
 
 `service` and either `id` or `title` are required: this searches one movie or
-series, or on Shelfmark one book, with `id` from a search_media `source: "discover"` row. It never
+series, or on Shelfmark one book, with `id` from a `search_media` with `source: "discover"` row. It never
 merges across services the way `get_history` and `get_wanted` do.
 
 A `title` is resolved the way `get_media_details` resolves one, to the id the

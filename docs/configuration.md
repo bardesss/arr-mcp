@@ -302,7 +302,7 @@ discovers later, and `none` is the only value that stops the wanted list growing
 by itself. Both levels are written with Lidarr's bulk endpoints, which queued no
 `MoveArtist` job in the runs that were captured.
 
-search_media `source: "discover"` returns Lidarr's artist lookup, and `add_media` adds an artist by
+`search_media` with `source: "discover"` returns Lidarr's artist lookup, and `add_media` adds an artist by
 its MusicBrainz id, with a quality profile, a metadata profile (the root
 folder's default when none is named), and Lidarr's own `monitor` values and
 `monitor_new_items`. `update_media` changes an artist's quality profile,

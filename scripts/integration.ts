@@ -656,7 +656,7 @@ if (addCandidate === undefined) {
  *
  * There is no fixed candidate list here: Whisparr has no metadata-provider
  * search by id the way TMDB gives Radarr one, so candidates are found the way
- * a caller actually would — through the same discover search lookup_media
+ * a caller actually would — through the same discover search search_media
  * uses — rather than invented.
  */
 const whisparrDiscover = await run(

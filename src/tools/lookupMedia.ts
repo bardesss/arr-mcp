@@ -16,12 +16,8 @@ export function lookupSummary(result: Pick<GetSearchResult, 'total' | 'returned'
 }
 
 /**
- * `search_media` with `source` fixed to `discover`.
- *
- * A separate tool rather than a parameter because the two answer different
- * questions, and lists them separately. The tool surface is
- * the public API, and a model choosing between "search my library" and "tell
- * me about this" should not have to reason about an enum to do it.
+ * `search_media` with `source` fixed to `discover`. The tool is a deprecated
+ * alias kept for one minor (see `DEPRECATIONS`) and goes in the next major.
  */
 export async function buildLookupMedia(
     adapters: readonly ServiceAdapter[],

@@ -13,8 +13,7 @@ import type { ImdbDataset } from '../metadata/imdbDataset.ts';
 import { hasMediaDetails, type CleanupStatus, type EpisodeSummary, type MediaDetails, type SearchHit, type ServiceAdapter } from '../services/types.ts';
 import { removalSentence, upcomingSentence, withCleanup } from './cleanupStatus.ts';
 import type { LibraryLoader } from './library.ts';
-import { buildLookupMedia } from './lookupMedia.ts';
-import { searchLine } from './searchMedia.ts';
+import { buildSearchMedia, searchLine } from './searchMedia.ts';
 import { withBoth } from './mediaServers.ts';
 import { withoutDisplay } from '../core/display.ts';
 import { mediaCardsToolMeta, wantsCards, withCards } from '../mcp/apps.ts';
@@ -54,7 +53,7 @@ export async function buildGetMediaDetails(
  *
  * Only here, on both forms, and only for one item. It costs an HTTP call per
  * title, so it has no business on a path that returns a page of them —
- * `lookup_media` uses the `voteAverage` Seerr already puts in its search
+ * `search_media` with `source: "discover"` uses the `voteAverage` Seerr already puts in its search
  * payload instead.
  *
  * Worth the call here because this is the "tell me everything about this one
@@ -130,10 +129,10 @@ export class NotInLibrary extends Error {
 const MAX_LOOKUP_HITS = 5;
 
 /**
- * The miss, finished: what `lookup_media` would have said, in the same answer.
+ * The miss, finished: what a discover search would have said, in the same answer.
  *
  * Without it a model that asked for a title the library lacks went on to
- * `search_media`, `get_library` and `lookup_media` in turn, three to five calls
+ * `search_media`, `get_library` and a discover search in turn, three to five calls
  * to learn what this one lookup says (#518's eval). The lookup is a read, and
  * a failing one only drops the extra: the miss itself is still the answer.
  */
@@ -144,9 +143,9 @@ export async function explainMiss(adapters: readonly ServiceAdapter[], miss: Not
         // `standard`, not `minimal`: the year is what tells a remake from the original.
         // Films and series only, asked for before the limit: five artists and
         // books ranked first would leave the filter below nothing to keep.
-        const lookup = await buildLookupMedia(
+        const lookup = await buildSearchMedia(
             adapters,
-            { query: miss.query, detail: 'standard', limit: MAX_LOOKUP_HITS, kinds: ['movie', 'series'] },
+            { query: miss.query, source: 'discover', detail: 'standard', limit: MAX_LOOKUP_HITS, kinds: ['movie', 'series'] },
             dataset
         );
         found = lookup.items;

@@ -217,7 +217,7 @@ them off. The cards are read-only for now.
 - Lidarr 2.1.3+ for reading, monitoring, adding, changing and deleting artists, its queue, its wanted list and calendar, release search, `diagnose`, `trigger_scan` and `stack_health`:
   `get_library` lists its artists with their album count, monitoring and file
   state, `get_media_details` lists an artist's albums, and `set_monitoring`
-  writes one album's flag or an artist's policy. search_media `source: "discover"` finds artists to
+  writes one album's flag or an artist's policy. `search_media` with `source: "discover"` finds artists to
   add, `add_media` adds one by its MusicBrainz id, `update_media` changes its
   profiles, root folder, monitoring and tags, and `delete_media` deletes it.
   Artists join to Jellyfin and Plex on the MusicBrainz artist id. `get_queue`,
