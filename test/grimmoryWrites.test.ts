@@ -1,14 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AnyServiceConfig } from '../src/config/schema.ts';
 import { resetGrimmoryLockouts } from '../src/core/auth.ts';
+import { CONFIRM_REASON, ConfirmTokens } from '../src/core/confirm.ts';
 import { GrimmoryAdapter, MAX_BOOKDROP_PAGES } from '../src/services/grimmory.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
+import { registerImportDownload } from '../src/tools/importDownload.ts';
 import { registerTriggerScan } from '../src/tools/triggerScan.ts';
 import { registerDeleteMedia } from '../src/tools/deleteMedia.ts';
 import { registerRemoveQueueItem } from '../src/tools/removeQueueItem.ts';
 import { registerSetWatched } from '../src/tools/setWatched.ts';
 import { registerFixMetadata } from '../src/tools/fixMetadata.ts';
 import { registerUpdateMedia } from '../src/tools/updateMedia.ts';
+import { registerUpdateBook } from '../src/tools/updateBook.ts';
 import type { LibraryLoader } from '../src/tools/library.ts';
 import { fixture, grimmoryConfig, grimmoryServer, json, sse, writeTool, type Reply } from './helpers/grimmory.ts';
 
@@ -19,10 +22,15 @@ const LIBRARIES = [
     { id: 2, name: 'Comics', watch: true, paths: [] }
 ];
 
-function scanTool(routes: Record<string, Reply | Reply[]> = {}, perms?: { safe_write?: boolean; destructive?: boolean }) {
+function scanTool(
+    routes: Record<string, Reply | Reply[]> = {},
+    perms?: { safe_write?: boolean; destructive?: boolean },
+    register: typeof registerTriggerScan = registerTriggerScan,
+    confirm?: ConfirmTokens
+) {
     const server = grimmoryServer({ 'GET /api/v1/libraries': json(LIBRARIES), ...routes });
     const adapter = new GrimmoryAdapter(grimmoryConfig(perms), server.fetch);
-    const call = writeTool((s, context) => registerTriggerScan(s, context, [adapter]), perms);
+    const call = writeTool((s, context) => register(s, context, [adapter]), perms, confirm);
     const puts = () => server.sent.filter(s => s.method === 'PUT').map(s => s.path);
     return { call, server, puts };
 }
@@ -911,13 +919,233 @@ describe('update_media on a book', () => {
     });
 });
 
-describe('approving a Bookdrop file (#532)', () => {
+describe('update_book', () => {
+    const BOOK = fixture('book-read') as { metadata: Record<string, unknown> };
+    const bookWith = (metadata: Record<string, unknown>) => json({ ...BOOK, metadata: { ...BOOK.metadata, ...metadata } });
+
+    function editTool(routes: Record<string, Reply | Reply[]> = {}, perms: { safe_write?: boolean; destructive?: boolean } = { safe_write: true }) {
+        const server = grimmoryServer({
+            'GET /api/v1/books/58': json(BOOK),
+            'PUT /api/v1/books/58/metadata': json({}),
+            'PUT /api/v1/books/metadata/toggle-field-locks': json({}),
+            ...routes
+        });
+        const adapter = new GrimmoryAdapter(grimmoryConfig(perms), server.fetch);
+        const call = writeTool((s, context) => registerUpdateBook(s, context, [adapter]), perms);
+        const puts = () => server.sent.filter(s => s.method === 'PUT');
+        return { call, server, puts };
+    }
+    const confirm = async (call: ReturnType<typeof editTool>['call'], args: Record<string, unknown>) => {
+        const preview = await call({ id: '58', ...args });
+        return { preview, done: await call({ id: '58', ...args, confirm: preview.structuredContent.confirm_token }) };
+    };
+
+    it('sends only the fields named', async () => {
+        const { call, puts } = editTool();
+        const { done } = await confirm(call, { title: 'New' });
+        expect(done.structuredContent.applied).toBe(true);
+        expect(puts()).toHaveLength(1);
+        expect(puts()[0]).toMatchObject({
+            path: '/api/v1/books/58/metadata',
+            query: 'replaceMode=REPLACE_WHEN_PROVIDED&mergeCategories=false',
+            body: { metadata: { bookId: 58, title: 'New' }, clearFlags: {} }
+        });
+        expect(Object.keys((puts()[0]!.body as { metadata: object }).metadata).sort()).toEqual(['bookId', 'title']);
+    });
+
+    it('writes to the book a prefixed id names', async () => {
+        const { call, puts } = editTool();
+        const args = { id: 'grimmory:58', title: 'New' };
+        const preview = await call(args);
+        const done = await call({ ...args, confirm: preview.structuredContent.confirm_token });
+        expect(done.structuredContent.applied).toBe(true);
+        expect(puts()[0]).toMatchObject({ path: '/api/v1/books/58/metadata', body: { metadata: { bookId: 58, title: 'New' } } });
+    });
+
+    it('previews each change from and to, fenced, and says the file may be rewritten', async () => {
+        const { call, puts } = editTool();
+        const { structuredContent } = await call({ id: '58', title: 'New', authors: ['A B'], series: 'Saga', series_number: 2 });
+        expect(structuredContent.target).toBe('grimmory:58');
+        expect(structuredContent.confirm_token).toBeDefined();
+        expect(structuredContent.effects).toContain(
+            'title: <<untrusted:grimmory.title>>Example Book 45<</>> → <<untrusted:grimmory.title>>New<</>>'
+        );
+        const effects = structuredContent.effects.join('\n');
+        expect(effects).toContain('authors: <<untrusted:grimmory.authors>>Example Author 1<</>> → <<untrusted:grimmory.authors>>A B');
+        expect(effects).toContain('seriesName: (empty) → <<untrusted:grimmory.seriesName>>Saga');
+        expect(effects).toContain('seriesNumber: (empty) → 2');
+        expect(effects).toMatch(/write the new metadata into the book file/);
+        expect(effects).toMatch(/naming pattern/);
+        expect(puts()).toEqual([]);
+    });
+
+    it('tags set the categories, and [] clears them', async () => {
+        const set = editTool();
+        await confirm(set.call, { tags: ['Fantasy', 'Epic'] });
+        expect(set.puts()[0]?.body).toMatchObject({ metadata: { bookId: 58, categories: ['Fantasy', 'Epic'] }, clearFlags: {} });
+
+        const clear = editTool();
+        const { preview } = await confirm(clear.call, { tags: [] });
+        expect(preview.structuredContent.effects.join('\n')).toContain('categories:');
+        const body = clear.puts()[0]?.body as { metadata: Record<string, unknown>; clearFlags: unknown };
+        expect(body.clearFlags).toEqual({ categories: true });
+        expect(Object.keys(body.metadata)).toEqual(['bookId']);
+    });
+
+    it('series "" clears the series name', async () => {
+        const { call, puts } = editTool({ 'GET /api/v1/books/58': bookWith({ seriesName: 'Old Saga' }) });
+        await confirm(call, { series: '' });
+        const body = puts()[0]?.body as { metadata: Record<string, unknown>; clearFlags: unknown };
+        expect(body.clearFlags).toEqual({ seriesName: true });
+        expect(Object.keys(body.metadata)).toEqual(['bookId']);
+    });
+
+    it('clearing what is already empty is no change at all', async () => {
+        const { call, puts } = editTool();
+        const { structuredContent } = await call({ id: '58', series: '' });
+        expect(structuredContent.noop).toBe(true);
+        expect(puts()).toEqual([]);
+    });
+
+    it('refuses a locked field unless the same call unlocks it', async () => {
+        const locked = { 'GET /api/v1/books/58': bookWith({ titleLocked: true }) };
+        const refused = editTool(locked);
+        await expect(refused.call({ id: '58', title: 'New' })).rejects.toThrow(/unlock_fields/);
+        expect(refused.puts()).toEqual([]);
+
+        const { call, puts } = editTool(locked);
+        await confirm(call, { title: 'New', unlock_fields: ['title'] });
+        expect(puts().map(p => p.path)).toEqual(['/api/v1/books/metadata/toggle-field-locks', '/api/v1/books/58/metadata']);
+        expect(puts()[0]?.body).toEqual({ bookIds: [58], fieldActions: { titleLocked: 'UNLOCK' } });
+        expect(puts()[1]?.body).toMatchObject({ metadata: { bookId: 58, title: 'New' } });
+    });
+
+    it('locks after writing', async () => {
+        const { call, puts } = editTool();
+        await confirm(call, { title: 'New', lock_fields: ['title'] });
+        expect(puts().map(p => p.path)).toEqual(['/api/v1/books/58/metadata', '/api/v1/books/metadata/toggle-field-locks']);
+        expect(puts()[1]?.body).toEqual({ bookIds: [58], fieldActions: { titleLocked: 'LOCK' } });
+    });
+
+    it('a lock change alone is a write, and no change at all is a no-op', async () => {
+        const lockOnly = editTool();
+        await confirm(lockOnly.call, { lock_fields: ['tags'] });
+        expect(lockOnly.puts().map(p => p.path)).toEqual(['/api/v1/books/metadata/toggle-field-locks']);
+        expect(lockOnly.puts()[0]?.body).toEqual({ bookIds: [58], fieldActions: { categoriesLocked: 'LOCK' } });
+
+        const same = editTool({ 'GET /api/v1/books/58': bookWith({ titleLocked: true }) });
+        const { structuredContent } = await same.call({ id: '58', title: 'Example Book 45', lock_fields: ['title'] });
+        expect(structuredContent.noop).toBe(true);
+        expect(structuredContent.confirm_token).toBeUndefined();
+        expect(same.puts()).toEqual([]);
+    });
+
+    it('refuses a title, author or series that is only spaces', async () => {
+        const { call } = editTool();
+        await expect(call({ id: '58', title: '   ' })).rejects.toThrow(/blank/);
+        await expect(call({ id: '58', authors: ['Example Author 1', ' '] })).rejects.toThrow(/blank/);
+        await expect(call({ id: '58', series: '  ' })).rejects.toThrow(/blank/);
+    });
+
+    it('refuses to lock and unlock the same field', async () => {
+        const { call } = editTool();
+        await expect(call({ id: '58', lock_fields: ['title'], unlock_fields: ['title'] })).rejects.toThrow(/both/);
+    });
+
+    it('the token binds the book and the exact changes', async () => {
+        const { call, puts } = editTool();
+        const preview = await call({ id: '58', title: 'New' });
+        const other = await call({ id: '58', title: 'Other', confirm: preview.structuredContent.confirm_token });
+        expect(other.structuredContent.applied).toBe(false);
+        expect(other.structuredContent.confirm_error).toBeDefined();
+        expect(puts()).toEqual([]);
+    });
+
+    it('refuses a book id that is not digits before any request, and takes the grimmory: prefix', async () => {
+        const { call, server } = editTool();
+        for (const id of ['abc', 'grimmory:abc', '58/metadata']) {
+            await expect(call({ id, title: 'New' })).rejects.toThrow();
+        }
+        expect(server.sent.some(s => s.path.startsWith('/api/v1/books'))).toBe(false);
+        const { structuredContent } = await call({ id: 'grimmory:58', title: 'New' });
+        expect(structuredContent.target).toBe('grimmory:58');
+        expect(structuredContent.confirm_token).toBeDefined();
+    });
+
+    it('the nothing-to-change error names the book fields too', async () => {
+        const { call } = editTool();
+        await expect(call({ id: '58' })).rejects.toThrow(/title.*authors.*series/);
+    });
+
+    it('names canEditMetadata on a 403 and the book on a 404', async () => {
+        const write = editTool({ 'PUT /api/v1/books/58/metadata': json({}, 403) });
+        const preview = await write.call({ id: '58', title: 'New' });
+        await expect(write.call({ id: '58', title: 'New', confirm: preview.structuredContent.confirm_token })).rejects.toMatchObject({
+            kind: 'AuthFailed',
+            remedy: expect.stringContaining('canEditMetadata') as unknown
+        });
+
+        const missing = editTool({ 'GET /api/v1/books/58': json({}, 404) });
+        await expect(missing.call({ id: '58', title: 'New' })).rejects.toMatchObject({
+            kind: 'NotFound',
+            detail: expect.stringContaining('book 58') as unknown
+        });
+    });
+
+    it('is refused without safe_write on grimmory', async () => {
+        const { call, puts } = editTool({}, {});
+        await expect(call({ id: '58', title: 'New' })).rejects.toMatchObject({ kind: 'PermissionDenied', service: 'grimmory' });
+        expect(puts()).toEqual([]);
+    });
+
+    it('refuses a token from an update_media preview of the same book, and the reverse, as another operation', async () => {
+        const shared = new ConfirmTokens();
+        const perms = { safe_write: true };
+        const server = grimmoryServer({ 'GET /api/v1/books/58': json(BOOK), 'PUT /api/v1/books/58/metadata': json({}) });
+        const adapter = new GrimmoryAdapter(grimmoryConfig(perms), server.fetch);
+        const book = writeTool((s, context) => registerUpdateBook(s, context, [adapter]), perms, shared);
+        const media = writeTool((s, context) => registerUpdateMedia(s, context, [adapter]), perms, shared);
+
+        const mediaPreview = await media({ service: 'grimmory', id: '58', title: 'New' });
+        const viaBook = await book({ id: '58', title: 'New', confirm: mediaPreview.structuredContent.confirm_token });
+        expect(viaBook.structuredContent.applied).toBe(false);
+        expect(viaBook.structuredContent.confirm_error).toBe(CONFIRM_REASON.mismatch);
+
+        const bookPreview = await book({ id: '58', title: 'New' });
+        const viaMedia = await media({ service: 'grimmory', id: '58', title: 'New', confirm: bookPreview.structuredContent.confirm_token });
+        expect(viaMedia.structuredContent.applied).toBe(false);
+        expect(viaMedia.structuredContent.confirm_error).toBe(CONFIRM_REASON.mismatch);
+        expect(server.sent.filter(r => r.method === 'PUT')).toEqual([]);
+    });
+
+    it('still edits a book through update_media, with the same preview', async () => {
+        const viaBook = editTool();
+        const book = await viaBook.call({ id: '58', title: 'X' });
+        const server = grimmoryServer({ 'GET /api/v1/books/58': json(BOOK) });
+        const adapter = new GrimmoryAdapter(grimmoryConfig({ safe_write: true }), server.fetch);
+        const media = await writeTool((s, context) => registerUpdateMedia(s, context, [adapter]), { safe_write: true })({
+            service: 'grimmory',
+            id: '58',
+            title: 'X'
+        });
+        expect(media.structuredContent.effects).toEqual(book.structuredContent.effects);
+        expect(media.structuredContent.target).toBe(book.structuredContent.target);
+        expect(media.structuredContent.summary).toBe(book.structuredContent.summary);
+    });
+});
+
+describe.each([
+    ['import_download', registerImportDownload, {}],
+    ['trigger_scan', registerTriggerScan, { action: 'bookdrop' }]
+] as const)('%s approving a Bookdrop file (#532)', (tool, register, via) => {
+    // Defined once, under the import_download row, so the trigger_scan row shows no skips.
+    const onlyImportDownload: typeof it = tool === 'import_download' ? it : ((() => undefined) as unknown as typeof it);
     const ORIGINAL = { title: 'The Book', authors: ['A. Writer'], publisher: 'Del Rey' };
     const FETCHED = { title: 'The Book', authors: ['A. Writer'], publisher: 'Gollancz', seriesName: 'Not Its Series' };
     const file = (over: Record<string, unknown> = {}) => ({ ...(PENDING.content[0] as object), originalMetadata: ORIGINAL, fetchedMetadata: FETCHED, ...over });
     const ONE_LIBRARY = [{ id: 1, name: 'Fiction', watch: false, paths: [{ id: 7, path: '/books' }] }];
     const search = (ids: number[]) => json({ content: ids.map(id => ({ id, title: 'The Book', authors: ['A. Writer'] })) });
-    const approveTool = (routes: Record<string, Reply | Reply[]> = {}) =>
+    const approveTool = (routes: Record<string, Reply | Reply[]> = {}, using: typeof register = register, confirm?: ConfirmTokens) =>
         scanTool(
             {
                 'GET /api/v1/libraries': json(ONE_LIBRARY),
@@ -926,18 +1154,20 @@ describe('approving a Bookdrop file (#532)', () => {
                 'POST /api/v1/bookdrop/imports/finalize': json({ totalFiles: 1, successfullyImported: 1, failed: 0, results: [{ fileName: 'x', success: true }] }),
                 ...routes
             },
-            { safe_write: true }
+            { safe_write: true },
+            using,
+            confirm
         );
 
     it('previews, then imports with the file\'s own metadata and names the new book', async () => {
         const { call, server } = approveTool();
-        const preview = await call({ service: 'grimmory', action: 'bookdrop', id: '3' });
+        const preview = await call({ service: 'grimmory', ...via, id: '3' });
         expect(preview.structuredContent.target).toBe('grimmory:bookdrop/3');
         expect(JSON.stringify(preview.structuredContent)).toContain('Del Rey');
         expect(JSON.stringify(preview.structuredContent)).not.toContain('Gollancz');
         expect(server.sent.some(s => s.path === '/api/v1/bookdrop/imports/finalize')).toBe(false);
 
-        const done = await call({ service: 'grimmory', action: 'bookdrop', id: '3', confirm: preview.structuredContent.confirm_token });
+        const done = await call({ service: 'grimmory', ...via, id: '3', confirm: preview.structuredContent.confirm_token });
         const sent = server.sent.find(s => s.path === '/api/v1/bookdrop/imports/finalize');
         expect(sent?.body).toEqual({ selectAll: false, files: [{ fileId: 3, libraryId: 1, pathId: 7, metadata: ORIGINAL }] });
         expect(JSON.stringify(done)).toContain('as book 61');
@@ -946,24 +1176,46 @@ describe('approving a Bookdrop file (#532)', () => {
     it('needs a library when there are several', async () => {
         const two = [...ONE_LIBRARY, { id: 2, name: 'Comics', watch: false, paths: [{ id: 8, path: '/comics' }] }];
         const { call } = approveTool({ 'GET /api/v1/libraries': json(two) });
-        await expect(call({ service: 'grimmory', action: 'bookdrop', id: '3' })).rejects.toThrow(/2 libraries/);
-        const preview = await call({ service: 'grimmory', action: 'bookdrop', id: '3', library: 'Comics' });
+        await expect(call({ service: 'grimmory', ...via, id: '3' })).rejects.toThrow(/2 libraries/);
+        const preview = await call({ service: 'grimmory', ...via, id: '3', library: 'Comics' });
         expect(preview.structuredContent.target).toBe('grimmory:bookdrop/3');
     });
 
     it('refuses a library with several folders, a file not waiting, and one not read yet', async () => {
         const several = [{ id: 1, name: 'Fiction', watch: false, paths: [{ id: 7 }, { id: 9 }] }];
-        await expect(approveTool({ 'GET /api/v1/libraries': json(several) }).call({ service: 'grimmory', action: 'bookdrop', id: '3' })).rejects.toThrow(/2 folders/);
-        await expect(approveTool().call({ service: 'grimmory', action: 'bookdrop', id: '99' })).rejects.toThrow(/no Bookdrop file 99/);
+        await expect(approveTool({ 'GET /api/v1/libraries': json(several) }).call({ service: 'grimmory', ...via, id: '3' })).rejects.toThrow(/2 folders/);
+        await expect(approveTool().call({ service: 'grimmory', ...via, id: '99' })).rejects.toThrow(/no Bookdrop file 99/);
         const unread = approveTool({ 'GET /api/v1/bookdrop/files': pendingPage([file({ originalMetadata: null })]) });
-        await expect(unread.call({ service: 'grimmory', action: 'bookdrop', id: '3' })).rejects.toThrow(/not read the metadata/);
+        await expect(unread.call({ service: 'grimmory', ...via, id: '3' })).rejects.toThrow(/not read the metadata/);
     });
 
     it('fails by name when Grimmory imports nothing', async () => {
         const { call } = approveTool({
             'POST /api/v1/bookdrop/imports/finalize': json({ totalFiles: 1, successfullyImported: 0, failed: 1, results: [{ fileName: 'x', success: false, message: 'exists' }] })
         });
-        const token = (await call({ service: 'grimmory', action: 'bookdrop', id: '3' })).structuredContent.confirm_token;
-        await expect(call({ service: 'grimmory', action: 'bookdrop', id: '3', confirm: token })).rejects.toThrow(/did not import Bookdrop file 3/);
+        const token = (await call({ service: 'grimmory', ...via, id: '3' })).structuredContent.confirm_token;
+        await expect(call({ service: 'grimmory', ...via, id: '3', confirm: token })).rejects.toThrow(/did not import Bookdrop file 3/);
+    });
+
+    onlyImportDownload('refuses a token from the other tool, in both directions', async () => {
+        for (const [from, fromVia, to, toVia] of [
+            [registerTriggerScan, { action: 'bookdrop' }, registerImportDownload, {}],
+            [registerImportDownload, {}, registerTriggerScan, { action: 'bookdrop' }]
+        ] as const) {
+            const shared = new ConfirmTokens();
+            const token = (await approveTool({}, from, shared).call({ service: 'grimmory', ...fromVia, id: '3' })).structuredContent.confirm_token;
+            const other = approveTool({}, to, shared);
+            const refused = await other.call({ service: 'grimmory', ...toVia, id: '3', confirm: token });
+            expect(refused.structuredContent.applied).toBe(false);
+            expect(refused.structuredContent.confirm_error).toBe(CONFIRM_REASON.mismatch);
+            expect(other.server.sent.some(x => x.path === '/api/v1/bookdrop/imports/finalize')).toBe(false);
+        }
+    });
+
+    onlyImportDownload('needs a Bookdrop file id, and leaves the rescan to trigger_scan', async () => {
+        const { call, server } = approveTool();
+        await expect(call({ service: 'grimmory' })).rejects.toThrow(/Bookdrop file/);
+        await expect(call({ service: 'grimmory', action: 'postprocess', id: '3' })).rejects.toThrow(/grimmory/);
+        expect(server.sent.some(s => s.method === 'POST')).toBe(false);
     });
 });

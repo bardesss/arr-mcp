@@ -37,10 +37,12 @@ write, and says which permission to enable.
 | --- | --- | --- |
 | `trigger_search` | safe | `safe_write` |
 | `trigger_scan` | safe | `safe_write` |
+| `import_download` | safe | `safe_write` |
 | `trigger_subtitle_search` | safe | `safe_write` |
 | `respond_to_request` | safe | `safe_write` |
 | `add_media` | safe | `safe_write` |
 | `update_media` | safe; destructive with a Lidarr `metadata_profile` | `safe_write`; `destructive` with a metadata profile |
+| `update_book` | safe | `safe_write` |
 | `set_monitoring` | safe | `safe_write` |
 | `grab_release` | safe | `safe_write` |
 | `request_media` | safe | `safe_write` |
@@ -49,7 +51,8 @@ write, and says which permission to enable.
 | `set_watched` | safe | `safe_write` |
 | `sync_database` | safe | `safe_write` |
 | `remove_blocklist_item` | safe | `safe_write` |
-| `manage_indexer` | safe to add, edit, disable or enable; destructive to delete | `safe_write`, or `destructive` for `delete` |
+| `manage_indexer` | safe (destructive only through its deprecated `delete`) | `safe_write`, or `destructive` for `delete` |
+| `delete_indexer` | destructive | `destructive` |
 | `remove_queue_item` | destructive | `destructive` |
 | `clean_queue` | destructive | `destructive` |
 | `delete_media` | destructive | `destructive` |
@@ -117,24 +120,26 @@ restore, because Lidarr skips the move when the folder it moves from is not on
 disk. The preview says so, and moving the files to that folder with
 `move_files: true` and back sets the paths right again.
 
-On a Grimmory book `update_media` edits the title, authors, series and
+`update_book` edits a Grimmory book's title, authors, series and
 categories, and Grimmory may write the change into the book file and move it to
 match its naming pattern. It stays safe for the same reason as a root folder
 move. The preview shows the old values, and setting them back with the same
 tool makes Grimmory write them into the file and rename it again.
+`update_media` still takes the same fields on a book, deprecated.
 
 `trigger_scan`'s `rename` action is safe on the same reading: it renames files
 within the library to the service's own scheme, and renaming again puts them
-back. Its `import` action only ever imports what the service is already willing
-to take — a file the service rejects is excluded and named, never forced. Its
-`remap` action changes which episode Sonarr says a file is, and renames that
-file to match; a second remap puts both back. Nothing moves between folders and
-nothing is deleted. Renaming a rotated season additionally changes Sonarr's
+back. `import_download` is safe too. Its `import` action only ever imports what
+the service is already willing to take — a file the service rejects is excluded
+and named, never forced. Its `remap` action changes which episode Sonarr says a
+file is, and renames that file to match; a second remap puts both back. Nothing
+moves between folders and nothing is deleted. `trigger_scan` still takes these
+actions, deprecated, with the same preview and the same tier. Renaming a rotated season additionally changes Sonarr's
 episode naming format for the length of two commands and puts it back — the
 preview says so, and [tools.md](tools.md#putting-a-mislabeled-file-on-the-right-episode)
 describes what bounds it.
 
-Its `postprocess` action is safe for the same reason as `rename` and `import`:
+`import_download`'s `postprocess` action is safe for the same reason as `rename` and `import`:
 it reruns NZBGet's post-processing on one finished download, and the scripts
 that run are the operator's own, the same ones NZBGet runs on every download.
 They can unpack, rename or delete files in that download's folder, so the
@@ -150,11 +155,12 @@ it.
 the most-downloaded release. It is safe for the same reason, and the preview names
 the file before anything is queued.
 
-`manage_indexer` is the one tool whose tier depends on its arguments. Disabling
-an indexer is undone by enabling it, so it needs only `safe_write`; deleting it
-throws away the indexer's settings and credentials, so it needs `destructive`.
-They share a tool to stay inside the tool budget, not because they share a
-risk, and a confirmation token issued for one will not apply the other.
+Disabling an indexer is undone by enabling it, so `manage_indexer` needs only
+`safe_write`; deleting it throws away the indexer's settings and credentials, so
+`delete_indexer` needs `destructive`. `manage_indexer` still accepts `delete`,
+deprecated, and then asks for `destructive` too; that is why it keeps its
+`destructiveHint` for now. A confirmation token issued for one will not apply
+the other.
 
 Adding and editing an indexer are safe for the same reason disabling is: each
 is undone by the tool itself, a delete or an edit back. Neither ever carries a
@@ -353,9 +359,12 @@ On Lidarr, `set_monitoring` takes `level`, because an album id and an artist id
 are different namespaces and Lidarr cannot tell them apart.
 
 `level: "album"` writes one album's own flag, and takes `id` from the `albums` of
-a `get_media_details` read on the artist. `level: "artist"` takes `artists` (one
-id, a list, or omit for every artist) or an artist row's `acquisition.id`, and
-writes the artist-level policy: `monitored`, `monitor_new_items`, or both.
+a `get_media_details` read on the artist. The artist's policy is `update_media`:
+`id` is an artist row's `acquisition.id`, or omitted for every artist, and
+`monitored`, `monitor_new_items` or both are written. That needed no new tool,
+since `update_media` already sets one artist. `set_monitoring` with
+`level: "artist"`, `artists` and `monitor_new_items` is deprecated and still
+works, through the same preview and write.
 
 Three things the preview says, because each one was found rather than assumed:
 
@@ -366,7 +375,7 @@ Three things the preview says, because each one was found rather than assumed:
   in every case its two albums kept exactly the flags they had. The same four
   writes on 3.1.6.5079, with `monitorNewItems: "all"` in place of `"none"`,
   left an artist's four albums as they were. An album's own flag is what
-  decides whether that album is wanted, and `level: "album"` is how it is set.
+  decides whether that album is wanted, and `set_monitoring` with `level: "album"` is how it is set.
   While its artist is unmonitored, though, Lidarr's wanted lists, calendar,
   RSS sync and missing and cutoff searches skip every album of that artist,
   so `get_wanted` and `get_calendar` leave them out until the artist is
@@ -374,7 +383,9 @@ Three things the preview says, because each one was found rather than assumed:
 - **`monitor_new_items` decides the future.** It is `all`, `new` or `none`, and
   `none` is the only value under which the wanted list cannot grow by itself.
   An artist added later carries Lidarr's own default, which this tool does not
-  read or set.
+  read or set. With `monitored` or `monitor_new_items` on an `id`, or with no
+  `id`, `update_media` takes no other setting in the same call, since the
+  policy is written for the whole set the preview named.
 - **The write names the artists the preview showed.** The confirmation token is
   signed over the resolved id list, so an artist added between the preview and
   the confirmation changes the signature and the old token is refused. The
@@ -420,7 +431,7 @@ the run.
 | `retry_download` | `whisparr` | The check for a replacement grab, which traces the download through Sonarr's helper | No Whisparr on the maintainer's stack; inherited from Sonarr's spec, not captured |
 | `delete_media` | `grimmory` | Deleting a book | The test response is a hand-made mock; no live book has been deleted |
 | `set_watched` | `grimmory` | Marking a book read or unread | The test response is a hand-made mock; no live book has been changed |
-| `trigger_scan` | `grimmory` | Approving one Bookdrop file (`action: "bookdrop"` with `id`) | Built from Grimmory's OpenAPI spec and mocks; the first real approval is its test |
+| `import_download` | `grimmory` | Approving one Bookdrop file (`id`) | Built from Grimmory's OpenAPI spec and mocks; the first real approval is its test |
 | `get_history` | `grimmory` | The `BOOK_UPLOADED` audit row | No upload has been captured, so the shape follows Grimmory's API description |
 | `get_history` | `shelfmark` | The `failed` and `stopped` rows | The live Shelfmark has had no failed or cancelled download; tested on captured bodies with those answers constructed |
 
@@ -443,7 +454,7 @@ against the wrong film — use `get_media_details` or `get_library` to get an id
 first.
 
 `add_media` takes an external id instead: TMDB for Radarr, TVDB for Sonarr and
-Whisparr, all returned by `lookup_media` under `ids`.
+Whisparr, all returned by `search_media` with `source: "discover"` under `ids`.
 
 ### `add_media` needs a quality profile and a root folder
 
@@ -460,7 +471,7 @@ root folder's own default is used when it names one, and otherwise the same
 one-or-refuse rule applies, to every profile but `None`. Every Lidarr has that
 reserved profile, and it gives an artist no albums, so it is used only when it
 is named or is the root folder's default, and the preview then says so. Lidarr
-adds by the artist's MusicBrainz id, from `lookup_media`, and `external_id` is
+adds by the artist's MusicBrainz id, from `search_media` with `source: "discover"`, and `external_id` is
 checked for that shape, as it is checked to be a plain integer on Radarr, Sonarr
 and Whisparr. `monitor` takes Lidarr's `first` and `latest` there, and
 `monitor_new_items` the rule for albums found later. `monitor: "none"` makes

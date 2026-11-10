@@ -194,12 +194,12 @@ async function lookupRaw(
     const numeric = Number(externalId);
     if (!Number.isInteger(numeric) || numeric <= 0) {
         throw new ServiceError('NotFound', service, `"${externalId}" is not a ${shape.idLabel} id`, {
-            remedy: `${service} adds by ${shape.idLabel} id, which is a positive integer. lookup_media returns one under \`ids.${shape.idLabel}\`.`
+            remedy: `${service} adds by ${shape.idLabel} id, which is a positive integer. search_media \`source: "discover"\` returns one under \`ids.${shape.idLabel}\`.`
         });
     }
 
     const notFound = new ServiceError('NotFound', service, `${shape.idLabel} id ${numeric} matched nothing`, {
-        remedy: `Check the id with lookup_media. ${service} resolves this against its own metadata provider, so an id that is right for the other service will not match here — Radarr takes TMDB, Sonarr takes TVDB.`
+        remedy: `Check the id with search_media \`source: "discover"\`. ${service} resolves this against its own metadata provider, so an id that is right for the other service will not match here — Radarr takes TMDB, Sonarr takes TVDB.`
     });
 
     const path = shape.lookupPath(numeric);

@@ -4,7 +4,7 @@ import type { BookCandidate, BookField, BookFields, BookSearch } from '../servic
 
 /**
  * Pure helpers for a book's metadata, shared by `fix_metadata` and
- * `update_media`: which candidate a lookup should take, what would change, and
+ * `update_book`: which candidate a lookup should take, what would change, and
  * how a change reads in a preview.
  */
 

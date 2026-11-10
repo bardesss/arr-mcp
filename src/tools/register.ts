@@ -28,6 +28,7 @@ import { registerGetBlocklist } from './getBlocklist.ts';
 import { registerGetCalendar } from './getCalendar.ts';
 import { registerGetHistory, type EventLog } from './getHistory.ts';
 import { registerGetIndexers } from './getIndexers.ts';
+import { registerGetInstanceOptions } from './instanceOptions.ts';
 import { registerGetLibrary } from './getLibrary.ts';
 import { registerGetMediaDetails } from './getMediaDetails.ts';
 import { registerGetMetadataIssues } from './getMetadataIssues.ts';
@@ -42,7 +43,9 @@ import { registerGrabRelease } from './grabRelease.ts';
 import { LibraryLoader } from './library.ts';
 import { registerLookupMedia } from './lookupMedia.ts';
 import { registerDeleteRequest, registerRespondToRequest } from './manageRequests.ts';
-import { registerManageIndexer } from './manageIndexer.ts';
+import { registerDeleteIndexer, registerManageIndexer } from './manageIndexer.ts';
+import { registerUpdateBook } from './updateBook.ts';
+import { registerImportDownload } from './importDownload.ts';
 import { registerPauseDownloads } from './pauseDownloads.ts';
 import { registerRetryDownload } from './retryDownload.ts';
 import { registerRemoveBlocklistItem } from './removeBlocklistItem.ts';
@@ -182,6 +185,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
         ...(context.eventLog === undefined ? {} : { events: context.eventLog.store })
     });
     registerStackHealth(server, adapters, instances, primary);
+    registerGetInstanceOptions(server, adapters);
     registerGetIndexers(server, adapters.filter(hasIndexers));
     registerGetSubtitles(server, adapters.filter(hasSubtitles));
     registerGetQueue(server, adapters);
@@ -231,6 +235,9 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerFixMetadata(server, write, context.mediaServers, library, undefined, adapters.find(hasBookMetadata), adapters);
     registerRemoveBlocklistItem(server, write, adapters);
     registerManageIndexer(server, write, adapters);
+    registerUpdateBook(server, write, adapters);
+    registerImportDownload(server, write, adapters);
+    registerDeleteIndexer(server, write, adapters);
 }
 
 /** The tools that write (`readOnlyHint: false`). `shapeToolSurface` hides these when none of their services is configured. */
@@ -238,10 +245,12 @@ export const WRITE_TOOLS: ReadonlySet<string> = new Set([
     'add_media',
     'clean_queue',
     'delete_episode_files',
+    'delete_indexer',
     'delete_media',
     'delete_request',
     'fix_metadata',
     'grab_release',
+    'import_download',
     'manage_indexer',
     'pause_downloads',
     'remove_blocklist_item',
@@ -255,6 +264,7 @@ export const WRITE_TOOLS: ReadonlySet<string> = new Set([
     'trigger_scan',
     'trigger_search',
     'trigger_subtitle_search',
+    'update_book',
     'update_media'
 ]);
 
@@ -268,6 +278,7 @@ export const WRITE_TOOLS: ReadonlySet<string> = new Set([
 export const TOOL_NAMES = [
     'diagnose',
     'stack_health',
+    'get_instance_options',
     'get_indexers',
     'get_subtitles',
     'get_queue',
@@ -305,5 +316,8 @@ export const TOOL_NAMES = [
     'set_watched',
     'fix_metadata',
     'remove_blocklist_item',
-    'manage_indexer'
+    'manage_indexer',
+    'update_book',
+    'import_download',
+    'delete_indexer'
 ] as const;

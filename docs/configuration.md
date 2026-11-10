@@ -282,13 +282,14 @@ for an artist by title refuses it, naming `get_media_details` with
 `service: "lidarr"` and `detail: "full"` as the route that holds the albums.
 `fix_metadata` retags an artist's files by Lidarr id, as below.
 
-**It is not read-only.** `set_monitoring` writes two different things, and
-`level` says which one:
+**It is not read-only.** Two tools write two different things:
 
-| `level` | Addresses | Writes |
+| Tool | Addresses | Writes |
 | --- | --- | --- |
-| `album` | one album, by `id` from `get_media_details` | that album's own monitor flag |
-| `artist` | `artists` (one id, a list, or omit for every artist) | `monitored`, `monitor_new_items`, or both, across those artists |
+| `set_monitoring` with `level: "album"` | one album, by `id` from `get_media_details` | that album's own monitor flag |
+| `update_media` | an artist `id`, or no `id` for every artist | `monitored`, `monitor_new_items`, or both, across those artists |
+
+`set_monitoring` with `level: "artist"` is the deprecated way to do the second.
 
 The artist flag is not the album flag. A live library held an artist reading
 `monitored: false` while an album under it stayed `monitored: true`, so the two
@@ -296,13 +297,13 @@ are separate flags. The write side agrees on both supported versions. Four
 editor writes on 2.1.3.3927, of `monitored` and `monitorNewItems` separately
 and together, left the artist's two albums with exactly the flags they had, and
 the same four on 3.1.6.5079 left that artist's four albums as they were.
-`level: "artist"` writes the artist's own flag, and `level: "album"` writes the
-album's. `monitor_new_items` is the standing rule Lidarr applies to albums it
+`update_media` writes the artist's own flag, and `set_monitoring` with
+`level: "album"` writes the album's. `monitor_new_items` is the standing rule Lidarr applies to albums it
 discovers later, and `none` is the only value that stops the wanted list growing
-by itself. Both levels are written with Lidarr's bulk endpoints, which queued no
+by itself. Both are written with Lidarr's bulk endpoints, which queued no
 `MoveArtist` job in the runs that were captured.
 
-`lookup_media` returns Lidarr's artist lookup, and `add_media` adds an artist by
+`search_media` with `source: "discover"` returns Lidarr's artist lookup, and `add_media` adds an artist by
 its MusicBrainz id, with a quality profile, a metadata profile (the root
 folder's default when none is named), and Lidarr's own `monitor` values and
 `monitor_new_items`. `update_media` changes an artist's quality profile,
@@ -316,8 +317,8 @@ each retagged file as `retagged`. The lookup, add, editor and retag fixtures
 were captured on a 3.1.6.5079 test instance.
 
 `trigger_scan` rescans the library or refreshes one artist (the rescan after it
-still reads every root folder), renames an artist's files, and imports a
-finished download by its id; see `docs/tools.md`. Its queue, history
+still reads every root folder), renames an artist's files, and
+`import_download` imports a finished download by its id; see `docs/tools.md`. Its queue, history
 and blocklist read the way Radarr's and Sonarr's do, in `get_queue`,
 `get_history` and `get_blocklist`, and `remove_blocklist_item` takes a Lidarr
 entry, as `remove_queue_item` and `clean_queue` take a Lidarr download.
@@ -504,7 +505,7 @@ turn on. A write is off until you grant its tier in `permissions`:
 
 | Permission in arr-mcp | Grimmory writes it turns on | Grimmory permission for a non-admin account |
 | --- | --- | --- |
-| `safe_write` | `trigger_scan` (library, Bookdrop), `set_watched`, `update_media` | `canManageLibrary`, `canAccessBookdrop`, `canEditMetadata` |
+| `safe_write` | `trigger_scan` (library, Bookdrop), `import_download` (a Bookdrop file), `set_watched`, `update_book` | `canManageLibrary`, `canAccessBookdrop`, `canEditMetadata` |
 | `destructive` | `delete_media`, `remove_queue_item` (Bookdrop discard), `fix_metadata` | `canDeleteBook`, `canAccessBookdrop`, `canEditMetadata` |
 
 Read status is set for the account arr-mcp signs in as, and needs no permission
@@ -1052,7 +1053,7 @@ configuration page, which reloads the config).
 ### Poster cards
 
 In a client that renders [MCP Apps](https://github.com/modelcontextprotocol/ext-apps),
-`get_media_details`, `search_media`, `lookup_media` and `get_library` show films
+`get_media_details`, `search_media` and `get_library` show films
 and series as poster cards. Building them reads the Radarr and Sonarr queues for
 the "downloading" badge, so it only happens for a client that declares MCP Apps
 support. Over stateless HTTP a client cannot declare anything the server keeps,

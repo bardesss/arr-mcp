@@ -153,8 +153,8 @@ old name as an alias for one full minor, with the deprecation stated in the
 tool's own description text. A new write tool needs a `TOOL_SERVICES` entry and a `WRITE_TOOLS` entry, or it is listed on every stack.
 
 Tool count has a ceiling because model accuracy degrades measurably past roughly
-40 tools. There are 40 now, so the ceiling is reached and `test/app.test.ts`
-fails on a forty-first. New capability extends an existing tool wherever it can.
+40 tools. There are 44 now, so the ceiling is passed and `test/app.test.ts`
+fails on a forty-fifth. New capability extends an existing tool wherever it can.
 Where it can't, a new tool is possible, but raising the ceiling needs a good
 reason: the pull request says why no existing tool can carry the capability and
 why it is worth the cost to every other tool, and it raises the limit in that
@@ -233,7 +233,7 @@ things it is trying to establish, and the checks that stand in for them:
   questions live between services. A service that cannot make `diagnose` smarter
   is a second product, not a seventeenth adapter.
 - **It adds no new tool**, or the pull request argues explicitly for the one it
-  adds. The forty-tool ceiling above is already reached, so that argument has
+  adds. The tool ceiling above is already reached, so that argument has
   to justify raising it, and a new service does not get to raise it quietly.
 - **It introduces no new risk class.** Code execution, credential brokering, or
   outbound requests to hosts the operator never configured are changes to the
@@ -257,7 +257,7 @@ small, shaped change, and a service in no slot at all is a different product.
 
 - **Lidarr — the rest of it.** The adapter has shipped, with twenty-seven capabilities. `LibraryCapable` and `SearchCapable`, so
   `get_library` lists artists, `search_media` finds them, and its discover
-  source (`lookup_media`) finds artists to add. `MediaAddCapable` and
+  source (`search_media` with `source: "discover"`) finds artists to add. `MediaAddCapable` and
   `MetadataProfileCapable`, so `add_media` adds one by its MusicBrainz id, with
   the metadata profile beside the quality profile. `MediaUpdateCapable`, so
   `update_media` changes an artist's profiles, root folder, monitoring and tags
@@ -294,7 +294,7 @@ small, shaped change, and a service in no slot at all is a different product.
   the fixtures are committed, but two still have no rows: tag and indexer are
   empty on a fresh instance. Tags are read anyway, with the shared `readTags`
   and the spec's `id` and `label`: `add_media` matches a tag it is given, and
-  `stack_health` lists them at `detail: "full"`. The indexer row shape still
+  `get_instance_options` lists them. The indexer row shape still
   needs a capture against a library with real activity before a read adapter can
   claim it. The two monitoring write responses were captured separately, on a
   throwaway 2.1.3.3927 instance.
@@ -382,7 +382,7 @@ small, shaped change, and a service in no slot at all is a different product.
   needs it to find or grab a book; with no authentication set up there is no key to
   store, and the read-only key still gives `stack_health`. The waiver rests on one
   thing: Shelfmark is a downloader run beside the rest of the stack, and finding,
-  grabbing, cancelling and retrying a book fit the existing `lookup_media`,
+  grabbing, cancelling and retrying a book fit the existing `search_media`,
   `get_releases`, `grab_release`, `remove_queue_item`, `retry_download` and
   `get_history` with no new tool. Ebooks only so far.
 

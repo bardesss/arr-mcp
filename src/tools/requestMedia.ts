@@ -53,7 +53,7 @@ const seerrAdapter = (adapters: readonly ServiceAdapter[]): ServiceAdapter & Req
  *  mean "wrong id" here. An unreachable Seerr or a bad key passes through. */
 const wrongId = (err: ServiceError, mediaType: 'movie' | 'tv', tmdbId: number): ServiceError =>
     new ServiceError('NotFound', 'seerr', `no TMDB ${mediaType} with id ${tmdbId} (${err.detail})`, {
-        remedy: 'media_id must be a TMDB id. Resolve it with lookup_media first. An IMDb tt… id is not a TMDB id, but lookup_media finds its TMDB id when queried as imdb:tt….',
+        remedy: 'media_id must be a TMDB id. Resolve it with search_media `source: "discover"` first. An IMDb tt… id is not a TMDB id, but that finds its TMDB id when queried as imdb:tt….',
         cause: err
     });
 
@@ -84,7 +84,7 @@ export function registerRequestMedia(
         name: 'request_media',
         title: 'Request a film or series',
         description:
-            'Asks Seerr for a film or series, the way a household member would through its web UI — it enters the approval queue and counts against that user\'s quota. This is the tool for "request X". It is not add_media: add_media writes straight into Radarr or Sonarr, skipping approval and quota entirely, and needs that service\'s own write permission. `media_id` is a TMDB id — take one from search_media, lookup_media or discover_media (an IMDb tt… id is not one: look it up as imdb:tt… to get its TMDB id); Seerr resolves the TVDB id itself. For a series, `seasons` defaults to every season. `user` names whose quota and approval trail it lands in, and requesting as anyone but the configured default user needs services.seerr.allow_other_users. Previews first; confirm to create the request.',
+            'Asks Seerr for a film or series, the way a household member would through its web UI — it enters the approval queue and counts against that user\'s quota. This is the tool for "request X". It is not add_media: add_media writes straight into Radarr or Sonarr, skipping approval and quota entirely, and needs that service\'s own write permission. `media_id` is a TMDB id — take one from search_media or discover_media (an IMDb tt… id is not one: look it up as imdb:tt… to get its TMDB id); Seerr resolves the TVDB id itself. For a series, `seasons` defaults to every season. `user` names whose quota and approval trail it lands in, and requesting as anyone but the configured default user needs services.seerr.allow_other_users. Previews first; confirm to create the request.',
         inputSchema: RequestMediaInput,
         service: 'seerr',
         operation: 'request_media',

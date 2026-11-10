@@ -13,11 +13,12 @@ import { removalSentence } from '../src/tools/cleanupStatus.ts';
 import { registerDiagnose } from '../src/tools/diagnose/index.ts';
 import { registerGetMediaDetails } from '../src/tools/getMediaDetails.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
-import { registerLookupMedia } from '../src/tools/lookupMedia.ts';
+import { registerSearchMedia } from '../src/tools/searchMedia.ts';
 import { registerRemoveQueueItem } from '../src/tools/removeQueueItem.ts';
 import { registerRespondToRequest } from '../src/tools/manageRequests.ts';
 import { instanceArgs } from '../src/tools/resolveInstance.ts';
 import { registerSetMonitoring } from '../src/tools/setMonitoring.ts';
+import { registerImportDownload } from '../src/tools/importDownload.ts';
 import { registerTriggerScan } from '../src/tools/triggerScan.ts';
 import { registerTriggerSearch } from '../src/tools/triggerSearch.ts';
 import { registerTriggerSubtitleSearch } from '../src/tools/triggerSubtitleSearch.ts';
@@ -168,12 +169,12 @@ const CASES: Case[] = [
     {
         name: 'managed, nothing manages it',
         diagnosis: () => buildChain(QUERY, healthy({ item: item({ acquisition: undefined }) })),
-        expected: { tool: 'lookup_media', arguments: { query: QUERY } }
+        expected: { tool: 'search_media', arguments: { query: QUERY, source: 'discover' } }
     },
     {
         name: 'managed, an artist nothing manages',
         diagnosis: () => buildChain(QUERY, healthy({ item: artist({ acquisition: undefined, presence: 'jellyfin_only' }) })),
-        expected: { tool: 'lookup_media', arguments: { query: QUERY } }
+        expected: { tool: 'search_media', arguments: { query: QUERY, source: 'discover' } }
     },
     {
         // `managed` is unknown, and a lookup would ask the Lidarr that is down.
@@ -184,7 +185,7 @@ const CASES: Case[] = [
     {
         name: 'resolve, nothing matches',
         diagnosis: () => buildChain(QUERY, healthy({ item: undefined })),
-        expected: { tool: 'lookup_media', arguments: { query: QUERY } }
+        expected: { tool: 'search_media', arguments: { query: QUERY, source: 'discover' } }
     },
     {
         name: 'request, pending',
@@ -194,7 +195,7 @@ const CASES: Case[] = [
     {
         name: 'queue, import pending',
         diagnosis: () => buildChain(QUERY, healthy(withRows(row()))),
-        expected: { tool: 'trigger_scan', arguments: { service: 'radarr', action: 'import', download_id: 'ABC123' } }
+        expected: { tool: 'import_download', arguments: { service: 'radarr', action: 'import', download_id: 'ABC123' } }
     },
     {
         name: 'queue, fault',
@@ -227,17 +228,17 @@ const CASES: Case[] = [
     {
         name: 'queue, import pending, a torrent client row sorted first',
         diagnosis: () => buildChain(QUERY, healthy(withRows(qbit('seeding'), row({ downloadId: HASH.toUpperCase() })))),
-        expected: { tool: 'trigger_scan', arguments: { service: 'radarr', action: 'import', download_id: HASH.toUpperCase() } }
+        expected: { tool: 'import_download', arguments: { service: 'radarr', action: 'import', download_id: HASH.toUpperCase() } }
     },
     {
         name: 'queue, a finished torrent stopped at its seed limit, import pending',
         diagnosis: () => buildChain(QUERY, healthy(withRows(qbit('stopped'), row({ downloadId: HASH.toUpperCase() })))),
-        expected: { tool: 'trigger_scan', arguments: { service: 'radarr', action: 'import', download_id: HASH.toUpperCase() } }
+        expected: { tool: 'import_download', arguments: { service: 'radarr', action: 'import', download_id: HASH.toUpperCase() } }
     },
     {
         name: 'queue, import pending on a download client row',
         diagnosis: () => buildChain(QUERY, healthy(withRows(clientRow()))),
-        expected: { tool: 'trigger_scan', arguments: { service: 'radarr', action: 'import', download_id: 'ABC123' } }
+        expected: { tool: 'import_download', arguments: { service: 'radarr', action: 'import', download_id: 'ABC123' } }
     },
     {
         name: 'file, on a named instance',
@@ -285,8 +286,7 @@ const CASES: Case[] = [
     {
         name: 'managed, an artist',
         diagnosis: () => buildChain(QUERY, healthy({ item: artist({ acquisition: { service: 'lidarr', id: '7', monitored: false, hasFile: false } }) })),
-        // plan refuses an `id` at the artist level, which takes a list
-        expected: { tool: 'set_monitoring', arguments: { service: 'lidarr', level: 'artist', artists: ['7'], monitored: true } }
+        expected: { tool: 'update_media', arguments: { service: 'lidarr', id: '7', monitored: true } }
     },
     {
         name: 'file, an artist',
@@ -327,7 +327,7 @@ const CASES: Case[] = [
     {
         name: 'queue, import pending on an artist',
         diagnosis: () => buildChain(QUERY, healthy({ item: artist(), ...withRows(row({ service: 'lidarr', mediaId: '7', downloadId: 'LDR1' })) })),
-        expected: { tool: 'trigger_scan', arguments: { service: 'lidarr', action: 'import', download_id: 'LDR1' } }
+        expected: { tool: 'import_download', arguments: { service: 'lidarr', action: 'import', download_id: 'LDR1' } }
     },
     {
         name: 'queue, fault on an artist',
@@ -403,7 +403,7 @@ describe('next steps in a diagnosis', () => {
     it('never offers to delete a finished download whose import is pending', () => {
         for (const status of ['stopped', 'paused', 'error']) {
             const d = buildChain(QUERY, healthy(withRows(qbit(status), row({ downloadId: HASH.toUpperCase() }))));
-            expect(d.verdict.next_steps?.map(x => x.tool), status).toEqual(['trigger_scan']);
+            expect(d.verdict.next_steps?.map(x => x.tool), status).toEqual(['import_download']);
         }
     });
 
@@ -627,6 +627,10 @@ const lidarrStub = () =>
         listArtistMonitorPolicies: async () => [{ artistId: '7', artistName: 'Daft Punk', monitored: false, monitorNewItems: 'all' }],
         setArtistMonitorPolicy: async () => undefined,
         setMonitoring: async () => undefined,
+        // update_media's artist policy needs the adapter to count as able to update and add.
+        readForUpdate: async () => ({ title: 'Daft Punk', monitored: false, tagIds: [] }),
+        updateMedia: async () => ({}),
+        addMedia: async () => ({}),
         getQueue: async () => [
             { service: 'lidarr', id: 'q1', title: 'Some.Release', status: 'failed', mediaId: '7', downloadId: 'LDR1' }
         ],
@@ -689,11 +693,12 @@ function realTools(adapters: ServiceAdapter[] = world(), identity: Partial<Ident
     registerTriggerSearch(server, write, adapters);
     registerTriggerSubtitleSearch(server, write, adapters);
     registerTriggerScan(server, write, adapters);
+    registerImportDownload(server, write, adapters);
     registerSetMonitoring(server, write, adapters);
     registerUpdateMedia(server, write, adapters);
     registerRemoveQueueItem(server, write, adapters);
     registerRespondToRequest(server, write, adapters, identity as IdentityResolver);
-    registerLookupMedia(server, adapters);
+    registerSearchMedia(server, adapters);
     registerGetMediaDetails(server, adapters, new LibraryLoader(adapters, undefined));
     return tools;
 }
@@ -710,7 +715,7 @@ describe('the real tool accepts every suggested call', () => {
             expect(tool).toBeDefined();
 
             // A read has no preview; a write is driven through its own `plan`.
-            const isRead = step?.tool === 'lookup_media' || step?.tool === 'get_media_details';
+            const isRead = step?.tool === 'search_media' || step?.tool === 'get_media_details';
             const result = await tool?.call({ ...step?.arguments, ...(isRead ? {} : { dry_run: true }) });
 
             if (!isRead) {

@@ -607,7 +607,7 @@ export class SeerrAdapter
      * nothing else here does for a title you do not own.
      *
      * **One HTTP call per title**, which is why it is only ever used for a
-     * single item. Calling it across a `lookup_media` page would be fifty
+     * single item. Calling it across a `search_media` page would be fifty
      * requests for one tool call; those hits carry TMDB's `voteAverage` from
      * the search payload instead, which is free.
      *

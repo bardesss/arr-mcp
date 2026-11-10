@@ -513,7 +513,7 @@ function importStep(mine: readonly QueueItem[], item: MergedItem): NextStep | un
     const importer = source === undefined ? undefined : importerFor(source, item);
     if (source?.downloadId === undefined || importer === undefined) return undefined;
     return {
-        tool: 'trigger_scan',
+        tool: 'import_download',
         arguments: { ...instanceArgs(importer), action: 'import', download_id: source.downloadId },
         why: `Asks ${importer} to import the finished download.`
     };
@@ -833,7 +833,7 @@ const REMEDIES: Partial<Record<Stage, string>> = {
     // belong in a static per-stage map.
 };
 
-/** An artist nothing manages is added to Lidarr: add_media takes its MusicBrainz id, which lookup_media returns. */
+/** An artist nothing manages is added to Lidarr: add_media takes its MusicBrainz id, which search_media `source: "discover"` returns. */
 const ARTIST_MANAGED_REMEDY = 'Add it to Lidarr, or turn monitoring on for it.';
 
 /** `library`/`scan` remedies name the configured media server, so unlike the
@@ -979,18 +979,17 @@ const withSteps = (next: NextStep[]): { next_steps?: NextStep[] } => (next.lengt
  * only text to hand over is a service's title, which stays out of arguments.
  */
 const lookupStep = (query: string, byWords: boolean): NextStep[] =>
-    byWords ? [{ tool: 'lookup_media', arguments: { query }, why: 'Checks whether it exists anywhere before adding it.' }] : [];
+    byWords ? [{ tool: 'search_media', arguments: { query, source: 'discover' }, why: 'Checks whether it exists anywhere before adding it.' }] : [];
 
 /** The monitoring call for an item a service has but is not monitoring. Radarr has no `setMonitoring`, so it goes through `update_media`. */
 function monitorStep(acquisition: NonNullable<MergedItem['acquisition']>, item: MergedItem): NextStep[] {
     if (acquisition.id === undefined) return [];
     const target = instanceArgs(acquisition.service);
-    // Lidarr's artist level takes a list, and its plan refuses an `id` there.
     if (item.kind === 'artist') {
         return [
             {
-                tool: 'set_monitoring',
-                arguments: { ...target, level: 'artist', artists: [acquisition.id], monitored: true },
+                tool: 'update_media',
+                arguments: { ...target, id: acquisition.id, monitored: true },
                 why: `Turns on the artist-level monitor flag in ${acquisition.service}. Each album keeps its own monitor flag, which this does not change.`
             }
         ];
@@ -1036,7 +1035,7 @@ export function buildChain(query: string, ev: Evidence, byWords: boolean): Diagn
                 remedy:
                     releases.length === 0
                         ? (REMEDIES.resolve as string)
-                        : `Nothing manages it now, so nothing will grab it again. If you still want it, find it with lookup_media and add it with add_media; get_history${
+                        : `Nothing manages it now, so nothing will grab it again. If you still want it, find it with search_media \`source: "discover"\` and add it with add_media; get_history${
                               // Only a stored event has these, and the default source would not show it.
                               (ev.history ?? []).some(r => r.externalIds !== undefined) ? ' with source: "webhooks"' : ''
                           } shows the full trail.`,
@@ -1331,7 +1330,7 @@ function nextStepsFor(
             // when the kind was only guessed), and a lookup would ask it too.
             if (item !== undefined && acquisition === undefined && arrsUnreadFor(ev, item.kind).length > 0) return [];
             // An artist nothing manages gets the same lookup as a film or a
-            // series: lookup_media answers with Lidarr's artists, each with the
+            // series: search_media `source: "discover"` answers with Lidarr's artists, each with the
             // MusicBrainz id add_media takes.
             if (item === undefined || acquisition === undefined) return lookupStep(query, byWords);
             // Monitoring would search for, and so re-download, what a rule deleted on purpose: the file step withholds its search for this reason.
