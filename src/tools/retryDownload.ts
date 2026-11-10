@@ -74,7 +74,7 @@ const UNTRACED = [
 ] as const;
 
 /** The preview's lines about replacements. Lidarr is named
- *  only when one is configured; naming them otherwise is noise. */
+ *  only when one is configured; naming it otherwise is noise. */
 function movedOnLines(view: ArrView, adapters: readonly ServiceAdapter[]): string[] {
     const replaced = view.traces.flatMap(trace => {
         const next = trace.replacement;

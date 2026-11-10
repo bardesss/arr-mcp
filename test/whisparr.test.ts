@@ -173,10 +173,24 @@ describe('WhisparrAdapter reads inherited from Sonarr', () => {
                 [`/api/v3/history?downloadId=abc&${page}`]: {
                     records: [{ eventType: 'downloadFailed', date: '2026-10-01T10:00:00Z', seriesId: 3, sourceTitle: 'Old', downloadId: 'abc' }]
                 },
-                [`/api/v3/history?seriesIds=3&eventType=1&${page}`]: { records: [] }
+                // Whisparr's /history binds no seriesIds; the site's grabs come from here.
+                '/api/v3/history/series?seriesId=3': []
             })
         ).traceDownload('abc');
         expect(trace).toMatchObject({ service: 'whisparr', failedAt: '2026-10-01T10:00:00Z' });
+    });
+
+    it("reads one site's history through /history/series, newest first", async () => {
+        const read = await new WhisparrAdapter(
+            config,
+            servingByQuery({
+                '/api/v3/history/series?seriesId=3': [
+                    { id: 1, eventType: 'grabbed', date: '2026-10-01T10:00:00Z', seriesId: 3, sourceTitle: 'Old', downloadId: 'ABC' },
+                    { id: 2, eventType: 'downloadFolderImported', date: '2026-10-02T10:00:00Z', seriesId: 3, sourceTitle: 'Old', downloadId: 'ABC' }
+                ]
+            })
+        ).readHistory({ id: '3', eventType: 'imported', want: 10 });
+        expect(read).toMatchObject({ total: 1, items: [{ service: 'whisparr', id: '2', event: 'imported', mediaId: '3', downloadId: 'abc' }] });
     });
 
     it('lists running commands', async () => {

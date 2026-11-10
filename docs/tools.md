@@ -306,6 +306,8 @@ and goes on Cleanuparr's next run. A torrent still seeding a file that is alread
 library is `ok`, or `warning` when it has strikes, including qBittorrent's
 `seeding (no peers)`; `warning` never blocks the verdict.
 
+**Unverified live** (Whisparr): the item's history behind the Cleanuparr and Reclaimerr checks; inherited from Sonarr's spec, not captured.
+
 When a query matches nothing in the library, `diagnose` searches download
 history by release name before answering "Nothing in your stack matches". This
 covers a film removed from Radarr whose torrent Cleanuparr then cleaned: no

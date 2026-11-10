@@ -221,11 +221,11 @@ export class WhisparrAdapter
     }
 
     async readHistory(opts: HistoryQuery): Promise<Window<HistoryEntry>> {
-        return readArrHistory(this.http, this.id, 'series', opts);
+        return readArrHistory(this.http, this.id, 'series', opts, 'seriesEndpoint');
     }
 
     async traceDownload(downloadId: string): Promise<DownloadTrace | undefined> {
-        return traceArrDownload(this.http, this.id, 'series', downloadId);
+        return traceArrDownload(this.http, this.id, 'series', downloadId, 'seriesEndpoint');
     }
 
     async listCommands(): Promise<CommandStatus[]> {
