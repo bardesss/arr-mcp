@@ -277,6 +277,15 @@ describe('lookup_media', () => {
         expect(result.items[0]?.monitored).toBe(false);
     });
 
+    it('returns the same rows as search_media with source discover', async () => {
+        const args = { query: 'some film', detail: 'full' as const, limit: 50, offset: 0 };
+        type Out = { structuredContent: { total: number } };
+        const alias = (await callTool((s, a) => registerLookupMedia(s, a), [lookupRadarr], args)) as unknown as Out;
+        const search = (await callTool((s, a) => registerSearchMedia(s, a), [lookupRadarr], { ...args, source: 'discover' })) as unknown as Out;
+        expect(alias.structuredContent).toEqual(search.structuredContent);
+        expect(alias.structuredContent.total).toBeGreaterThan(0);
+    });
+
     it('merges results from every service that can look up', async () => {
         const seerr = new SeerrAdapter(
             seerrConfig,
