@@ -351,7 +351,7 @@ const TriggerScanInput = z.object({
         .min(1)
         .optional()
         .describe(
-            'Grimmory only: one library, by name or by id as stack_health and get_library show it. Omit to rescan every library.'
+            '[[grimmory: Grimmory only: one library, by name or by id as stack_health and get_library show it. Omit to rescan every library.]]'
         ),
     download_id: z
         .string()

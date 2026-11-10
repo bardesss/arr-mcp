@@ -153,8 +153,6 @@ const NAME_OF: Partial<Record<BookField, Lockable>> = Object.fromEntries(
 );
 const nameOf = (field: BookField): string => NAME_OF[field] ?? field;
 
-const BOOK_ONLY = 'Grimmory books only. ';
-
 
 type BookArgs = {
     title?: string | undefined;
@@ -296,7 +294,7 @@ const UpdateMediaInput = z.object({
         .string()
         .optional()
         .describe(
-            'Lidarr only: metadata profile name or id to switch to, which decides the album types and release statuses the artist gets. It applies at the artist’s next refresh, which this does not start. A name that matches none is refused, listing the ones the instance has.'
+            '[[lidarr: Lidarr only: metadata profile name or id to switch to, which decides the album types and release statuses the artist gets. It applies at the artist’s next refresh, which this does not start. A name that matches none is refused, listing the ones the instance has.]]'
         ),
     tags: z
         .array(z.string())
@@ -304,20 +302,20 @@ const UpdateMediaInput = z.object({
         .describe(
             'Tag labels or ids that already exist. Replaces the whole set — pass [] to clear it. On a Grimmory book these are its categories: free text that need not exist yet, replacing the set.'
         ),
-    title: z.string().min(1).optional().describe(`${BOOK_ONLY}The new title.`),
-    authors: z.array(z.string().min(1)).min(1).optional().describe(`${BOOK_ONLY}The authors; replaces the list.`),
-    series: z.string().optional().describe(`${BOOK_ONLY}The series name. "" clears it.`),
-    series_number: z.number().positive().optional().describe(`${BOOK_ONLY}The book's number in its series.`),
+    title: z.string().min(1).optional().describe('[[grimmory: Grimmory books only. The new title.]]'),
+    authors: z.array(z.string().min(1)).min(1).optional().describe('[[grimmory: Grimmory books only. The authors; replaces the list.]]'),
+    series: z.string().optional().describe('[[grimmory: Grimmory books only. The series name. "" clears it.]]'),
+    series_number: z.number().positive().optional().describe("[[grimmory: Grimmory books only. The book's number in its series.]]"),
     lock_fields: z
         .array(z.enum(LOCKABLE))
         .min(1)
         .optional()
-        .describe(`${BOOK_ONLY}Fields to lock after writing, so a metadata refresh leaves them alone.`),
+        .describe('[[grimmory: Grimmory books only. Fields to lock after writing, so a metadata refresh leaves them alone.]]'),
     unlock_fields: z
         .array(z.enum(LOCKABLE))
         .min(1)
         .optional()
-        .describe(`${BOOK_ONLY}Fields to unlock before writing. A locked field is refused unless this call unlocks it.`),
+        .describe('[[grimmory: Grimmory books only. Fields to unlock before writing. A locked field is refused unless this call unlocks it.]]'),
     move_files: z
         .boolean()
         .default(true)

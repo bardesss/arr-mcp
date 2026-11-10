@@ -278,13 +278,13 @@ const AddMediaInput = z.object({
         .enum(['all', 'none', 'new'])
         .optional()
         .describe(
-            'Lidarr only: the rule for albums Lidarr discovers later — `all`, `new` (only ones released on or after the newest album it already has) or `none`, as on set_monitoring. With no `monitor`, it also sets the albums the artist is added with. Omitted, the artist gets `all`: the root folder\'s own default applies only to an artist Lidarr adds on import.'
+            '[[lidarr: Lidarr only: the rule for albums Lidarr discovers later — `all`, `new` (only ones released on or after the newest album it already has) or `none`, as on set_monitoring. With no `monitor`, it also sets the albums the artist is added with. Omitted, the artist gets `all`: the root folder\'s own default applies only to an artist Lidarr adds on import.]]'
         ),
     metadata_profile: z
         .string()
         .optional()
         .describe(
-            'Lidarr only: metadata profile name or id, which decides the album types and release statuses the artist gets. Optional when the root folder names a default, or when Lidarr has only one besides its reserved `None`, which gives an artist no albums and is used only when named or set as the root folder\'s default.'
+            '[[lidarr: Lidarr only: metadata profile name or id, which decides the album types and release statuses the artist gets. Optional when the root folder names a default, or when Lidarr has only one besides its reserved `None`, which gives an artist no albums and is used only when named or set as the root folder\'s default.]]'
         ),
     minimum_availability: z
         .enum(['announced', 'inCinemas', 'released'])

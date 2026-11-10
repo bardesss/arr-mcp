@@ -365,6 +365,7 @@ describe('the advertised tool surface', () => {
         name: string;
         title?: string;
         description?: string;
+        inputSchema?: { properties?: Record<string, unknown> };
         annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean };
     };
 
@@ -464,6 +465,13 @@ describe('the advertised tool surface', () => {
         expect(TOOL_NAMES.filter(n => !listed.includes(n)).sort()).toEqual(left);
         expect(listed).toContain('get_subtitles');
         expect(listed).toHaveLength(TOOL_NAMES.length - 12);
+    });
+
+    it('advertises no book field on update_media without grimmory', async () => {
+        const tools = await listToolsOf(withServices({ radarr: { url: 'http://192.0.2.10:7878', api_key: 'k' } }));
+        const fields = Object.keys(tools.find(t => t.name === 'update_media')?.inputSchema?.properties ?? {});
+        expect(fields).toContain('quality_profile');
+        expect(fields.filter(f => ['title', 'authors', 'lock_fields'].includes(f))).toEqual([]);
     });
 
     it('gives every write tool a TOOL_SERVICES entry', () => {

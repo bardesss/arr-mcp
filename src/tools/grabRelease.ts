@@ -122,7 +122,7 @@ const GrabReleaseInput = z.object({
         .string()
         .min(1)
         .optional()
-        .describe('Lidarr only. The `album` get_releases was called with, so the preview searches that one album rather than the whole artist.'),
+        .describe('[[lidarr: Lidarr only. The `album` get_releases was called with, so the preview searches that one album rather than the whole artist.]]'),
     guid: z.string().min(1).optional().describe('The release guid, copied verbatim from get_releases.'),
     indexer_id: z
         .number()

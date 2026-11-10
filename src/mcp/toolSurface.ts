@@ -107,6 +107,13 @@ const LIST = ['anyOf', 'oneOf', 'allOf', 'prefixItems'];
 /** Keywords whose value maps names to schemas. */
 const MAP = ['properties', 'patternProperties', '$defs', 'definitions'];
 
+/** True when a schema's description is nothing but `[[…]]` scopes, and none of them applies. */
+function whollyScoped(schema: unknown, opts: SurfaceOptions): boolean {
+    if (!isNode(schema) || typeof schema['description'] !== 'string') return false;
+    const text = schema['description'];
+    return text.replace(SCOPED, '').trim() === '' && scopeText(text, opts) === '';
+}
+
 export function leanJsonSchema(schema: unknown, io: 'input' | 'output', opts: SurfaceOptions, root = true): unknown {
     if (!isNode(schema)) return schema;
     const out: Node = { ...schema };
@@ -139,7 +146,19 @@ export function leanJsonSchema(schema: unknown, io: 'input' | 'output', opts: Su
     }
     for (const key of MAP) {
         const map = out[key];
-        if (isNode(map)) out[key] = Object.fromEntries(Object.entries(map).map(([k, s]) => [k, leanJsonSchema(s, io, opts, false)]));
+        if (!isNode(map)) continue;
+        // A property whose whole description is scoped to a service this stack
+        // does not run is left out. Validation is unchanged: the zod object is
+        // untouched, so a call that names it is still checked and refused.
+        const gone = key === 'properties' ? Object.keys(map).filter(k => whollyScoped(map[k], opts)) : [];
+        if (gone.length > 0 && Array.isArray(out['required'])) {
+            out['required'] = (out['required'] as unknown[]).filter(r => !gone.includes(r as string));
+        }
+        out[key] = Object.fromEntries(
+            Object.entries(map)
+                .filter(([k]) => !gone.includes(k))
+                .map(([k, s]) => [k, leanJsonSchema(s, io, opts, false)])
+        );
     }
     return out;
 }
