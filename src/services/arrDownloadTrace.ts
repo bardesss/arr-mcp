@@ -24,7 +24,8 @@ const time = (date: string | undefined): number => (date === undefined ? Number.
 /**
  * What a Radarr or Sonarr did with one download id: whether it marked the
  * download failed, and whether it then grabbed (and imported) a replacement
- * for the same media. Each read is one page of the newest 50 records: a
+ * for the same media. Each read is one page of the newest 50 records, except
+ * Whisparr's replacement read, which takes the whole item history: a
  * replacement worth warning about is recent, and the preview should not wait
  * on paging through years of history for one film or series.
  *
