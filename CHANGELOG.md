@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.78.0](https://github.com/bardesss/arr-mcp/compare/v1.77.4...v1.78.0) (2026-11-10)
+
+
+### Features
+
+* **cleanuparr:** read standing strikes from Cleanuparr, and report manual events ([#584](https://github.com/bardesss/arr-mcp/issues/584)) ([8002fcb](https://github.com/bardesss/arr-mcp/commit/8002fcb7230398a2bc470d55f20dcda8a59bbf4c))
+
 ## [1.77.4](https://github.com/bardesss/arr-mcp/compare/v1.77.3...v1.77.4) (2026-11-10)
 
 
