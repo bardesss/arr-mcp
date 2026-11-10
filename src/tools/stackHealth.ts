@@ -25,6 +25,7 @@ import {
     type ServiceAdapter
 } from '../services/types.ts';
 import { buildSeedingRules, type SeedingRules } from './seedingRules.ts';
+import { groupDisks, humanBytes } from '../core/disks.ts';
 
 /** How much of one instance's log `logs` was folded from. */
 type LogLines = { service: string; read: number; total: number };
@@ -458,31 +459,45 @@ export async function buildStackHealth(
     );
 }
 
-/** One sentence on what is about to go, because that is the question a cleanup service raises. */
-const GIB = 1024 ** 3;
-const gib = (bytes: number): string => `${(bytes / GIB).toFixed(1)} GB`;
-
 /**
  * The rows behind the summary, in the text as well as in `structuredContent`:
  * not every client shows the structured half to the model (#234), and "is
  * anything broken" is not answered by a count. One line per service, then each
- * failing health check, then each disk.
+ * failing health check, then each disk, mounts of one filesystem folded into
+ * one line.
  */
 export function healthLines(result: Pick<StackHealthResult, 'services' | 'failures' | 'disks'>): string[] {
     const services = result.services.map(s => {
-        if (s.ok) return `${s.service} — ok${s.version === undefined ? '' : `, ${s.version}`}, ${s.latency_ms} ms`;
+        // A zero latency is a diagnosis built without a request, not a fast one.
+        if (s.ok) return `${s.service} — ok${s.version === undefined ? '' : `, ${s.version}`}${s.latency_ms > 0 ? `, ${s.latency_ms} ms` : ''}`;
         const detail = s.error?.detail ?? 'no detail';
         const remedy = s.error?.remedy === undefined ? '' : `${/[.!?]$/u.test(detail) ? '' : '.'} ${s.error.remedy}`;
         return `${s.service} — ${s.error?.kind ?? 'failed'}: ${detail}${remedy}`;
     });
-    const failures = result.failures.items.map(f => `${f.service} health check — ${f.type}: ${f.message}`);
-    const disks = result.disks.items.map(d => {
-        const name = d.label !== '' ? d.label : d.path;
-        return `${d.service} disk${name === undefined || name === '' ? '' : ` ${name}`} — ${gib(d.freeSpace)} free${d.totalSpace === undefined ? '' : ` of ${gib(d.totalSpace)}`}`;
-    });
+    const failures = result.failures.items.map(f => `${f.service} health check ${f.source} — ${f.type}: ${f.message}`);
+    const disks = groupDisks(result.disks.items).map(
+        d => `disk — ${humanBytes(d.freeSpace)} free${d.totalSpace === undefined ? '' : ` of ${humanBytes(d.totalSpace)}`}: ${d.mounts.join(', ')}`
+    );
     return [...services, ...failures, ...disks];
 }
 
+/**
+ * What the lines leave out. Failures and disks share one `limit`, and
+ * `minimal` empties both, so a text that only listed what it kept would read
+ * as complete when it is not.
+ */
+export function shownLine(result: Pick<StackHealthResult, 'failures' | 'disks'>): string {
+    const { failures, disks } = result;
+    const parts = [
+        ...(failures.total === 0
+            ? []
+            : [failures.returned === failures.total ? `${failures.total} failing health check(s)` : `${failures.returned} of ${failures.total} failing health check(s) shown`]),
+        ...(disks.returned === disks.total ? [] : [`${disks.returned} of ${disks.total} disk(s) shown`])
+    ];
+    return parts.length === 0 ? '' : ` ${parts.join(', ')}.`;
+}
+
+/** One sentence on what is about to go, because that is the question a cleanup service raises. */
 export function cleanupLine(cleanup: CleanupOverview | undefined): string {
     const candidates = cleanup?.candidates;
     if (cleanup === undefined || candidates === undefined) return '';
@@ -571,7 +586,8 @@ export function registerStackHealth(
                       (neverScanned > 0 ? ` ${neverScanned} report no completed library scan.` : '')
                     : `${result.degraded.length} of ${result.services.length} service(s) degraded: ${result.degraded.join(', ')}.`) +
                 (primaryMediaServer === undefined ? '' : ` ${primaryMediaServer} is the primary media server.`) +
-                cleanupLine(result.cleanup);
+                cleanupLine(result.cleanup) +
+                shownLine(result);
 
             return {
                 content: [{ type: 'text', text: listText(summary, healthLines(result), line => line) }],

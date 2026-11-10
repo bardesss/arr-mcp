@@ -50,41 +50,87 @@ describe('stack_health primary media server', () => {
         expect('primaryMediaServer' in result).toBe(false);
     });
 
-    const textOf = async (primary?: string, adapters = [fakeArr({ diagnosis: healthy })]) => {
+    const textOf = async (primary?: string, adapters = [fakeArr({ diagnosis: healthy })], args: Record<string, unknown> = std) => {
         const server = new McpServer({ name: 'test', version: '0.0.0' });
         registerStackHealth(server, adapters, undefined, primary);
         const tool = (server as unknown as {
             _registeredTools: Record<string, { handler: (a: Record<string, unknown>, e: object) => Promise<{ content: { text: string }[] }> }>;
         })._registeredTools.stack_health!;
-        return (await tool.handler(std, {})).content[0]!.text;
+        return (await tool.handler(args, {})).content[0]!.text;
     };
     const summaryOf = async (primary?: string, adapters = [fakeArr({ diagnosis: healthy })]) =>
         (await textOf(primary, adapters)).split('\n')[0];
 
-    it('lists each service, failing check and disk in the text, not only in structuredContent (#234)', async () => {
-        const text = await textOf(undefined, [
-            fakeArr({
-                diagnosis: healthy,
-                getFailedHealthChecks: async () => [{ service: 'radarr', source: 'IndexerCheck', type: 'warning', message: 'No indexers available' }],
-                getDiskSpace: async () => [{ service: 'radarr', label: '/data', freeSpace: 2 * 1024 ** 3, totalSpace: 10 * 1024 ** 3 }]
-            })
-        ]);
-        expect(text.split('\n').slice(1)).toEqual([
-            'radarr — ok, 5.14.0.9383, 6 ms',
-            'radarr health check — warning: No indexers available',
-            'radarr disk /data — 2.0 GB free of 10.0 GB'
-        ]);
-        expect((await textOf(undefined, [fakeArr({ diagnosis: broken })])).split('\n')[1]).toBe(
-            'radarr — Unreachable: connection refused at 192.168.1.20:7878'
-        );
-        const remedied = { ...broken, error: { ...broken.error!, remedy: 'Check the port.' } };
-        expect((await textOf(undefined, [fakeArr({ diagnosis: remedied })])).split('\n')[1]).toBe(
-            'radarr — Unreachable: connection refused at 192.168.1.20:7878. Check the port.'
-        );
-        const unlabelled = await textOf(undefined, [
-            fakeArr({ diagnosis: healthy, getDiskSpace: async () => [{ service: 'radarr', label: '', freeSpace: 1024 ** 3 }] })
-        ]);
-        expect(unlabelled.split('\n')[2]).toBe('radarr disk — 1.0 GB free');
+    const GIB = 1024 ** 3;
+    const check = (n: number) => ({ service: 'radarr', source: 'IndexerCheck', type: 'warning', message: `problem ${n}` });
+    const disk = (path: string, free: number) => ({ service: 'radarr', label: '', path, freeSpace: free * GIB, totalSpace: 10 * GIB });
+
+    describe('the text (#234)', () => {
+        it('lists each service, failing check and disk, not only in structuredContent', async () => {
+            const text = await textOf(undefined, [
+                fakeArr({
+                    diagnosis: healthy,
+                    getFailedHealthChecks: async () => [{ service: 'radarr', source: 'IndexerCheck', type: 'warning', message: 'No indexers available' }],
+                    getDiskSpace: async () => [{ service: 'radarr', label: '/data', freeSpace: 2 * GIB, totalSpace: 10 * GIB }]
+                })
+            ]);
+            expect(text.split('\n')).toEqual([
+                'All 1 configured service(s) healthy. 1 failing health check(s).',
+                'radarr — ok, 5.14.0.9383, 6 ms',
+                'radarr health check IndexerCheck — warning: No indexers available',
+                'disk — 2.0 GiB free of 10.0 GiB: radarr /data'
+            ]);
+        });
+
+        it('gives a failure its remedy, and a diagnosis made without a request no latency', async () => {
+            expect((await textOf(undefined, [fakeArr({ diagnosis: broken })])).split('\n')[1]).toBe(
+                'radarr — Unreachable: connection refused at 192.168.1.20:7878'
+            );
+            const remedied = { ...broken, error: { ...broken.error!, remedy: 'Check the port.' } };
+            expect((await textOf(undefined, [fakeArr({ diagnosis: remedied })])).split('\n')[1]).toBe(
+                'radarr — Unreachable: connection refused at 192.168.1.20:7878. Check the port.'
+            );
+            expect((await textOf(undefined, [fakeArr({ diagnosis: { ...healthy, latency_ms: 0 } })])).split('\n')[1]).toBe('radarr — ok, 5.14.0.9383');
+        });
+
+        it('folds the mounts of one filesystem into one line, naming each by its path at full', async () => {
+            const mounts = [disk('/', 2), disk('/config', 2), disk('/downloads', 2), disk('/media', 7)];
+            const full = await textOf(undefined, [fakeArr({ diagnosis: healthy, getDiskSpace: async () => mounts })], { detail: 'full', limit: 50 });
+            expect(full.split('\n').filter(l => l.startsWith('disk'))).toEqual([
+                'disk — 2.0 GiB free of 10.0 GiB: radarr /, radarr /config, radarr /downloads',
+                'disk — 7.0 GiB free of 10.0 GiB: radarr /media'
+            ]);
+            const standard = await textOf(undefined, [fakeArr({ diagnosis: healthy, getDiskSpace: async () => mounts })]);
+            expect(standard.split('\n').filter(l => l.startsWith('disk'))).toEqual([
+                'disk — 2.0 GiB free of 10.0 GiB: radarr',
+                'disk — 7.0 GiB free of 10.0 GiB: radarr'
+            ]);
+        });
+
+        it('says how many checks and disks a short limit left out', async () => {
+            const adapters = [
+                fakeArr({ diagnosis: healthy, getFailedHealthChecks: async () => [check(1), check(2), check(3)], getDiskSpace: async () => [disk('/a', 1), disk('/b', 2), disk('/c', 3), disk('/d', 4)] })
+            ];
+            const text = await textOf(undefined, adapters, { detail: 'standard', limit: 5 });
+            expect(text.split('\n')[0]).toBe('All 1 configured service(s) healthy. 3 failing health check(s), 2 of 4 disk(s) shown.');
+            expect(text.split('\n').filter(l => l.startsWith('disk'))).toHaveLength(2);
+        });
+
+        it('says so when the checks spend the whole limit and no disk is left', async () => {
+            const adapters = [fakeArr({ diagnosis: healthy, getFailedHealthChecks: async () => [check(1), check(2)], getDiskSpace: async () => [disk('/a', 1)] })];
+            const text = await textOf(undefined, adapters, { detail: 'standard', limit: 2 });
+            expect(text.split('\n')[0]).toBe('All 1 configured service(s) healthy. 2 failing health check(s), 0 of 1 disk(s) shown.');
+            expect(text).not.toMatch(/^disk/m);
+        });
+
+        it('at minimal, says the checks and disks are there rather than reading as none', async () => {
+            const adapters = [fakeArr({ diagnosis: healthy, getFailedHealthChecks: async () => [check(1), check(2), check(3)], getDiskSpace: async () => [disk('/a', 1)] })];
+            const text = await textOf(undefined, adapters, { detail: 'minimal', limit: 50 });
+            expect(text.split('\n')).toEqual([
+                'All 1 configured service(s) healthy. 0 of 3 failing health check(s) shown, 0 of 1 disk(s) shown.',
+                'radarr — ok, 6 ms'
+            ]);
+        });
     });
 
     it('names the primary in the summary', async () => {
