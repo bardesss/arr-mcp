@@ -1,10 +1,10 @@
-import type { ConfigByService, ServiceId } from '../config/schema.ts';
-import { apiKeyHeader } from '../core/auth.ts';
-import { LIBRARY_TTL_MS, TtlCache } from '../core/cache.ts';
+import type { ConfigByService } from '../config/schema.ts';
+import { LIBRARY_TTL_MS } from '../core/cache.ts';
 import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
-import { ServiceHttp } from '../core/http.ts';
-import type { IndexInput, SeasonSummary } from '../core/resolver.ts';
+import { ArrAdapterBase } from './arrBase.ts';
+import { seasonsOf, seriesHit } from './arrSeries.ts';
+import type { IndexInput } from '../core/resolver.ts';
 import { applyLimit } from '../core/shape.ts';
 import { findArrBlocklistEntry, readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
 import { readSeedCriteria } from './arrSeedCriteria.ts';
@@ -21,11 +21,10 @@ import {
     WHISPARR_ADD
 } from './arrAdd.ts';
 import { readArrProfileDiagnostics } from './arrProfiles.ts';
-import { arrItemId, postArrCommand, refreshArrItem, renameArrItem } from './arrCommands.ts';
+import { postArrCommand, refreshArrItem, renameArrItem } from './arrCommands.ts';
 import { findArrReleases, grabArrRelease } from './arrRelease.ts';
-import { arrDiskSpace, arrFailedHealthChecks, arrScanState, arrStartLibraryScan, arrVersion } from './arrSystem.ts';
+import { arrStartLibraryScan, arrVersion } from './arrSystem.ts';
 import {
-    diagnoseConnection,
     type AddCandidate,
     type AddMediaOptions,
     type BlocklistCapable,
@@ -36,13 +35,10 @@ import {
     type CalendarCapable,
     type CalendarEntry,
     type CommandHandle,
-    type ConnectionDiagnosis,
     type DeleteMediaOptions,
-    type DiskSpace,
     type DiskSpaceCapable,
     type EpisodeFile,
     type EpisodeFileCapable,
-    type HealthCheck,
     type HealthCheckCapable,
     type LibraryCapable,
     type LibraryMaintenanceCapable,
@@ -65,7 +61,6 @@ import {
     type ReleaseSearchCapable,
     type RemoveQueueOptions,
     type RootFolder,
-    type ScanState,
     type ScanStateCapable,
     type SearchCapable,
     type SearchHit,
@@ -129,10 +124,8 @@ const LIBRARY_SCAN_TASK = 'RefreshSeries';
  * `'series'` noun and `sizeOnDisk` nests under `statistics` exactly as Sonarr's
  * does.
  *
- * This adapter binds to those helpers the way `sonarr.ts` does rather than
- * sharing a base class with it. The sharing already exists one level down — the
- * `arr*` helpers are the shared code, and `radarr.ts` and `sonarr.ts` already
- * duplicate this binding layer rather than abstract it.
+ * The shared binding (http, cache, version, disk, health, scan state) lives in
+ * `ArrAdapterBase`.
  *
  * **A season here is a release year.** Sites have no seasons, so V2 groups
  * scenes by year and puts that in `seasonNumber`: a live instance reports 2006
@@ -153,6 +146,7 @@ const LIBRARY_SCAN_TASK = 'RefreshSeries';
  * Whisparrs is V2 beside Eros during a migration, and that is already two keys.
  */
 export class WhisparrAdapter
+    extends ArrAdapterBase
     implements
         ServiceAdapter,
         DiskSpaceCapable,
@@ -177,17 +171,10 @@ export class WhisparrAdapter
         ProfileDiagnosticsCapable,
         SeedCriteriaCapable
 {
-    readonly type: ServiceId = 'whisparr';
-    readonly instance: string | undefined = undefined;
-    readonly id: string = 'whisparr';
-    readonly #http: ServiceHttp;
-
-    /** Shared by `search(_, 'library')` and `listLibrary`, both of which read
-     *  the whole `/api/v3/series` list — Whisparr has no server-side filter. */
-    readonly #libraryCache = new TtlCache();
+    protected readonly scanTask = LIBRARY_SCAN_TASK;
 
     constructor(config: ConfigByService['whisparr'], fetchImpl: typeof fetch = fetch) {
-        this.#http = new ServiceHttp(this.id, config, apiKeyHeader('X-Api-Key', config.api_key), fetchImpl);
+        super('whisparr', config, fetchImpl);
     }
 
     /**
@@ -200,8 +187,8 @@ export class WhisparrAdapter
      * only place this can be caught, and it has to say which application it
      * found.
      */
-    async getVersion(): Promise<string> {
-        const raw = await arrVersion(this.#http, this.id);
+    override async getVersion(): Promise<string> {
+        const raw = await arrVersion(this.http, this.id);
         const parsed = parseVersion(raw);
         const major = parsed?.[0];
         if (parsed !== undefined && major !== 2) {
@@ -214,81 +201,65 @@ export class WhisparrAdapter
         return raw;
     }
 
-    async testConnection(): Promise<ConnectionDiagnosis> {
-        return diagnoseConnection(this.id, this.type, () => this.getVersion());
-    }
-
-    async getDiskSpace(): Promise<DiskSpace[]> {
-        return arrDiskSpace(this.#http, this.id);
-    }
-
-    async getFailedHealthChecks(): Promise<HealthCheck[]> {
-        return arrFailedHealthChecks(this.#http, this.id);
-    }
-
     async startLibraryScan(): Promise<CommandHandle> {
-        return arrStartLibraryScan(this.#http, this.id, LIBRARY_SCAN_TASK);
-    }
-
-    async getScanState(): Promise<ScanState> {
-        return arrScanState(this.#http, this.id, LIBRARY_SCAN_TASK);
+        return arrStartLibraryScan(this.http, this.id, LIBRARY_SCAN_TASK);
     }
 
     readonly queueKind = 'series';
 
     async getQueue(): Promise<QueueItem[]> {
-        return readArrQueue(this.#http, this.id, this.queueKind);
+        return readArrQueue(this.http, this.id, this.queueKind);
     }
 
     async removeQueueItem(id: string, opts: RemoveQueueOptions): Promise<void> {
-        return removeArrQueueItem(this.#http, this.id, id, opts);
+        return removeArrQueueItem(this.http, this.id, id, opts);
     }
 
     /** Deletes the whole site. Sonarr's `series` resource — Whisparr keeps the noun. */
     async deleteMedia(id: string, opts: DeleteMediaOptions): Promise<void> {
-        return deleteArrMedia(this.#http, this.id, 'series', id, opts);
+        return deleteArrMedia(this.http, this.id, 'series', id, opts);
     }
 
     async listQualityProfiles(): Promise<QualityProfile[]> {
-        return readQualityProfiles(this.#http, this.id);
+        return readQualityProfiles(this.http, this.id);
     }
 
     async listRootFolders(): Promise<RootFolder[]> {
-        return readRootFolders(this.#http, this.id);
+        return readRootFolders(this.http, this.id);
     }
 
     async listTags(): Promise<Tag[]> {
-        return readTags(this.#http, this.id);
+        return readTags(this.http, this.id);
     }
 
     async readProfileDiagnostics(): Promise<ProfileDiagnosticsData> {
-        return readArrProfileDiagnostics(this.#http);
+        return readArrProfileDiagnostics(this.http);
     }
 
     /** Sonarr resolves by TVDB id — Whisparr reuses the same field for its own
      *  scene-database id, per WHISPARR_ADD. */
     async lookupForAdd(externalId: string): Promise<AddCandidate> {
-        return lookupArrForAdd(this.#http, this.id, WHISPARR_ADD, externalId);
+        return lookupArrForAdd(this.http, this.id, WHISPARR_ADD, externalId);
     }
 
     async addMedia(opts: AddMediaOptions): Promise<{ id: number; title: string }> {
-        return addArrMedia(this.#http, this.id, WHISPARR_ADD, opts);
+        return addArrMedia(this.http, this.id, WHISPARR_ADD, opts);
     }
 
     async readBlocklist(want?: number): Promise<Window<BlocklistEntry>> {
-        return readArrBlocklist(this.#http, this.id, 'series', want);
+        return readArrBlocklist(this.http, this.id, 'series', want);
     }
 
     async findBlocklistItem(id: string): Promise<BlocklistEntry | undefined> {
-        return findArrBlocklistEntry(this.#http, this.id, 'series', id);
+        return findArrBlocklistEntry(this.http, this.id, 'series', id);
     }
 
     async getSeedCriteria(): Promise<IndexerSeedCriteria[]> {
-        return readSeedCriteria(this.#http, this.id, 'arr');
+        return readSeedCriteria(this.http, this.id, 'arr');
     }
 
     async removeBlocklistItem(id: string): Promise<void> {
-        return removeArrBlocklistItem(this.#http, id);
+        return removeArrBlocklistItem(this.http, id);
     }
 
     readonly supportsBlocklist = true;
@@ -297,13 +268,13 @@ export class WhisparrAdapter
      *  missing the field it is told to date by, so the default would return an
      *  empty calendar here rather than an error. */
     async getCalendar(range: { start: Date; end: Date }): Promise<CalendarEntry[]> {
-        const episodes = await this.#http.get<Parameters<typeof readSonarrCalendar>[0]>(sonarrCalendarPath(this.#http.apiRoot, range));
+        const episodes = await this.http.get<Parameters<typeof readSonarrCalendar>[0]>(sonarrCalendarPath(this.http.apiRoot, range));
         return readSonarrCalendar(episodes, this.id, 'releaseDate');
     }
 
     async listEpisodeFiles(seriesId: string): Promise<EpisodeFile[]> {
-        const id = arrItemId(this.id, 'site', seriesId);
-        const files = await this.#http.get<RawEpisodeFile[]>(`/api/v3/episodefile?seriesId=${id}`);
+        const id = this.numericId('site', seriesId);
+        const files = await this.http.get<RawEpisodeFile[]>(`/api/v3/episodefile?seriesId=${id}`);
 
         return files
             .filter((f): f is RawEpisodeFile & { id: number } => typeof f.id === 'number')
@@ -316,7 +287,7 @@ export class WhisparrAdapter
 
     async deleteEpisodeFiles(fileIds: number[]): Promise<void> {
         if (fileIds.length === 0) return;
-        await this.#http.deleteWithBody('/api/v3/episodefile/bulk', { episodeFileIds: fileIds });
+        await this.http.deleteWithBody('/api/v3/episodefile/bulk', { episodeFileIds: fileIds });
     }
 
     /**
@@ -326,23 +297,23 @@ export class WhisparrAdapter
      */
     async setMonitoring(id: string, opts: MonitoringTarget): Promise<void> {
         if (opts.episodeIds !== undefined) {
-            const episodeIds = opts.episodeIds.map(e => arrItemId(this.id, 'scene', e));
-            await this.#http.put('/api/v3/episode/monitor', { episodeIds, monitored: opts.monitored }, true);
+            const episodeIds = opts.episodeIds.map(e => this.numericId('scene', e));
+            await this.http.put('/api/v3/episode/monitor', { episodeIds, monitored: opts.monitored }, true);
             return;
         }
 
-        const seriesId = arrItemId(this.id, 'site', id);
-        const series = await this.#http.get<RawSeries & { id: number }>(`/api/v3/series/${seriesId}`);
+        const seriesId = this.numericId('site', id);
+        const series = await this.http.get<RawSeries & { id: number }>(`/api/v3/series/${seriesId}`);
 
         if (opts.season === undefined) {
-            await this.#http.put(`/api/v3/series/${seriesId}`, { ...series, monitored: opts.monitored }, true);
+            await this.http.put(`/api/v3/series/${seriesId}`, { ...series, monitored: opts.monitored }, true);
             return;
         }
 
         const seasons = (series.seasons ?? []).map(s =>
             s.seasonNumber === opts.season ? { ...s, monitored: opts.monitored } : s
         );
-        await this.#http.put(`/api/v3/series/${seriesId}`, { ...series, seasons }, true);
+        await this.http.put(`/api/v3/series/${seriesId}`, { ...series, seasons }, true);
     }
 
     /**
@@ -352,35 +323,35 @@ export class WhisparrAdapter
      * ones `sonarr.ts` uses, with `seasonNumber` carrying a release year.
      */
     async triggerSearch(id: string, target?: SearchTarget): Promise<CommandHandle> {
-        const seriesId = arrItemId(this.id, 'site', id);
+        const seriesId = this.numericId('site', id);
         const payload =
             target?.episodes !== undefined
-                ? { name: 'EpisodeSearch', episodeIds: target.episodes.map(e => arrItemId(this.id, 'scene', e)) }
+                ? { name: 'EpisodeSearch', episodeIds: target.episodes.map(e => this.numericId('scene', e)) }
                 : target?.season !== undefined
                   ? { name: 'SeasonSearch', seriesId, seasonNumber: target.season }
                   : { name: 'SeriesSearch', seriesId };
 
-        return postArrCommand(this.#http, this.id, payload);
+        return postArrCommand(this.http, this.id, payload);
     }
 
     async refreshItem(id: string): Promise<CommandHandle> {
-        return refreshArrItem(this.#http, this.id, 'series', id);
+        return refreshArrItem(this.http, this.id, 'series', id);
     }
 
     async renameItem(id: string): Promise<CommandHandle> {
-        return renameArrItem(this.#http, this.id, 'series', id);
+        return renameArrItem(this.http, this.id, 'series', id);
     }
 
     async findReleases(opts: ReleaseScope): Promise<ReleaseCandidate[]> {
-        return findArrReleases(this.#http, this.id, 'site', opts);
+        return findArrReleases(this.http, this.id, 'site', opts);
     }
 
     async grabRelease(opts: { guid: string; indexerId: number }): Promise<void> {
-        return grabArrRelease(this.#http, opts);
+        return grabArrRelease(this.http, opts);
     }
 
     async getMediaDetails(id: string, opts: { includeEpisodes: boolean; episodeLimit: number }): Promise<MediaDetails> {
-        const s = await this.#http.get<RawSeries>(`/api/v3/series/${arrItemId(this.id, 'series', id)}`);
+        const s = await this.http.get<RawSeries>(`/api/v3/series/${this.numericId('series', id)}`);
         const ratings = flattenSeriesRating(s.ratings);
 
         const base: MediaDetails = {
@@ -414,8 +385,8 @@ export class WhisparrAdapter
         if (!opts.includeEpisodes) return base;
 
         const [episodes, audio] = await Promise.all([
-            this.#http.get<RawEpisode[]>(`/api/v3/episode?seriesId=${encodeURIComponent(id)}`),
-            audioLanguagesByFileId(this.#http, this.id, id)
+            this.http.get<RawEpisode[]>(`/api/v3/episode?seriesId=${encodeURIComponent(id)}`),
+            audioLanguagesByFileId(this.http, this.id, id)
         ]);
         const shaped = applyLimit(
             episodes.filter((e): e is RawEpisode & { id: number } => typeof e.id === 'number'),
@@ -453,63 +424,31 @@ export class WhisparrAdapter
 
         if (source === 'library') {
             const series = await this.#allSeries();
-            return series.filter(s => (s.title ?? '').toLowerCase().includes(term)).map(s => this.#toHit(s, 'library'));
+            return series.filter(s => (s.title ?? '').toLowerCase().includes(term)).map(s => seriesHit(this.id, s, 'library'));
         }
 
         if (source === 'discover') {
-            const found = await this.#http.get<RawSeries[]>(
+            const found = await this.http.get<RawSeries[]>(
                 `/api/v3/series/lookup?term=${encodeURIComponent(query)}`
             );
-            return found.map(s => this.#toHit(s, 'discover'));
+            return found.map(s => seriesHit(this.id, s, 'discover'));
         }
 
         return [];
     }
 
-    #toHit(s: RawSeries, source: SearchSource): SearchHit {
-        return {
-            service: this.id,
-            source,
-            kind: 'series',
-            id: String((s.id !== undefined && s.id > 0 ? s.id : undefined) ?? s.tvdbId ?? ''),
-            title: fenceText(s.title ?? '', { service: this.id, field: 'title' }),
-            ...(s.year === undefined ? {} : { year: s.year }),
-            ids: {
-                ...(s.tvdbId === undefined ? {} : { tvdb: s.tvdbId }),
-                ...(s.imdbId === undefined ? {} : { imdb: s.imdbId })
-            },
-            ...(s.monitored === undefined ? {} : { monitored: s.monitored })
-        };
-    }
-
-    #seasonsOf(raw: RawSeries): SeasonSummary[] | undefined {
-        if (raw.seasons === undefined) return undefined;
-        const rows = raw.seasons
-            .filter((s): s is typeof s & { seasonNumber: number } => typeof s.seasonNumber === 'number')
-            .map(s => ({
-                season: s.seasonNumber,
-                ...(s.monitored === undefined ? {} : { monitored: s.monitored }),
-                ...(s.statistics?.episodeFileCount === undefined ? {} : { onDisk: s.statistics.episodeFileCount }),
-                ...(s.statistics?.episodeCount === undefined ? {} : { aired: s.statistics.episodeCount }),
-                ...(s.statistics?.totalEpisodeCount === undefined ? {} : { total: s.statistics.totalEpisodeCount })
-            }))
-            .sort((a, b) => a.season - b.season);
-        return rows.length === 0 ? undefined : rows;
-    }
-
+    /** The `/api/v3/series` read behind both `search(_, 'library')` and
+     *  `listLibrary` — Whisparr has no server-side filter, so both need the
+     *  whole list, and this is where they share one fetch for it. */
     #allSeries(): Promise<RawSeries[]> {
-        return this.#libraryCache.get('series', LIBRARY_TTL_MS, () => this.#http.get<RawSeries[]>('/api/v3/series'));
-    }
-
-    invalidateLibrary(): void {
-        this.#libraryCache.clear();
+        return this.libraryCache.get('series', LIBRARY_TTL_MS, () => this.http.get<RawSeries[]>('/api/v3/series'));
     }
 
     async listLibrary(): Promise<IndexInput[]> {
-        const [series, profileNames] = await Promise.all([this.#allSeries(), readProfileNames(this.#http, this.id, this.#libraryCache)]);
+        const [series, profileNames] = await Promise.all([this.#allSeries(), readProfileNames(this.http, this.id, this.libraryCache)]);
 
         return series.map(s => {
-            const seasons = this.#seasonsOf(s);
+            const seasons = seasonsOf(s);
             return {
                 kind: 'series' as const,
                 title: fenceText(s.title ?? '', { service: this.id, field: 'title' }),
