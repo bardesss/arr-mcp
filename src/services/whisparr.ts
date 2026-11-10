@@ -437,8 +437,9 @@ export class WhisparrAdapter
         return [];
     }
 
-
-
+    /** The `/api/v3/series` read behind both `search(_, 'library')` and
+     *  `listLibrary` — Whisparr has no server-side filter, so both need the
+     *  whole list, and this is where they share one fetch for it. */
     #allSeries(): Promise<RawSeries[]> {
         return this.libraryCache.get('series', LIBRARY_TTL_MS, () => this.http.get<RawSeries[]>('/api/v3/series'));
     }

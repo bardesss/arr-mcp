@@ -419,5 +419,4 @@ export class RadarrAdapter
             ...((display => (display === undefined ? {} : { display }))(arrDisplay(m, this.id, 'movie')))
         }));
     }
-
 }

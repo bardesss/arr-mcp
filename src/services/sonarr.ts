@@ -503,8 +503,6 @@ export class SonarrAdapter
         return [];
     }
 
-
-
     /** The whole series library in one call, via `#allSeries` — the same read
      *  `search(_, 'library')` shares. */
     async listLibrary(): Promise<IndexInput[]> {
@@ -553,5 +551,4 @@ export class SonarrAdapter
             };
         });
     }
-
 }
