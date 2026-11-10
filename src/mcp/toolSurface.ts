@@ -52,6 +52,7 @@ export const TOOL_SERVICES: Readonly<Record<string, readonly ServiceId[]>> = {
     get_requests: ['seerr'],
     respond_to_request: ['seerr'],
     delete_request: ['seerr'],
+    blocklist_media: ['seerr'],
     request_media: ['seerr'],
     pause_downloads: ['sabnzbd', 'nzbget', 'transmission', 'qbittorrent'],
     retry_download: ['sabnzbd', 'nzbget', 'shelfmark'],

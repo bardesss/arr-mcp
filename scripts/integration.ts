@@ -134,6 +134,8 @@ const DYNAMIC_TOOLS: ToolName[] = [
     // Needs, respectively: a real TMDB id, a configured download client, a
     // real Jellyfin item id, and a real blocklist row. All dry runs.
     'request_media',
+    // The same TMDB id, as a dry-run add.
+    'blocklist_media',
     'pause_downloads',
     'set_watched',
     'remove_blocklist_item',
@@ -913,8 +915,13 @@ if (withTmdb?.ids?.tmdb !== undefined) {
         { media_type: withTmdb.kind === 'series' ? 'tv' : 'movie', media_id: withTmdb.ids.tmdb, dry_run: true },
         'DRY RUN ONLY — never applied from this script'
     );
+    await run(
+        'blocklist_media',
+        { action: 'add', tmdb_id: withTmdb.ids.tmdb, kind: withTmdb.kind === 'series' ? 'series' : 'movie', dry_run: true },
+        'DRY RUN ONLY — never applied from this script'
+    );
 } else {
-    console.log('SKIP request_media — no library item carried a TMDB id.');
+    console.log('SKIP request_media and blocklist_media — no library item carried a TMDB id.');
 }
 
 /**

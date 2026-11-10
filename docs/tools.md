@@ -1,6 +1,6 @@
 # Tools
 
-Forty-four of them. The first twenty read; the last twenty-four write, and are
+Forty-five of them. The first twenty read; the last twenty-five write, and are
 off until you turn them on — see [writes](writes.md).
 
 | Tool | Answers |
@@ -40,6 +40,7 @@ off until you turn them on — see [writes](writes.md).
 | `delete_episode_files` | Free disk from one season or a handful of episodes, without touching the series |
 | `respond_to_request` | Approve or decline what someone asked for |
 | `delete_request` | Drop a request record entirely |
+| `blocklist_media` | Stop anyone requesting this through Seerr, or let them again |
 | `request_media` | Ask Seerr for this, through its approval queue and quotas |
 | `add_media` | Add this film or series and start looking for it; on Lidarr, an artist |
 | `update_media` | Change the profile, folder, monitoring or tags of something already there, and a Lidarr artist's metadata profile |
@@ -151,7 +152,7 @@ tool carries a title and an annotation: `readOnlyHint` on the twenty that only
 read, and on the twenty-four writes `destructiveHint`, taken from the same permission
 tier the write gate itself runs on — so a tool cannot be gated as destructive
 and advertised as safe. A client deciding what to auto-approve, or what to warn
-about, reads those rather than guessing from forty-four similarly-shaped
+about, reads those rather than guessing from forty-five similarly-shaped
 descriptions. `idempotentHint` is deliberately absent: the confirmation token is
 single-use, so repeating a write does not repeat it, and neither answer would be
 true.
@@ -3017,6 +3018,48 @@ answer says the book is gone and the files are still in the library folder.
 
 A non-admin account needs `canDeleteBook`.
 
+### Seerr
+
+`seerr_blocklist: true` on a Radarr film or a Sonarr series also adds it to
+Seerr's blocklist, so the next request or watchlist sync does not send it
+straight back. Radarr's import exclusion does not do this: it only stops
+Radarr's own import lists, and Seerr adds through the API. Seerr keys the
+blocklist on the TMDB id, so a title without one is refused, and so is any
+other service.
+
+The preview checks that Seerr is configured and allows `safe_write`, since the
+blocklist is a Seerr write that Radarr's or Sonarr's permissions do not cover,
+and says when the title is already blocklisted. The blocklist is added after
+the delete, so Seerr never sees a title Radarr still has. If the delete lands
+and the blocklist does not, the answer says so and names the
+[`blocklist_media`](#blocklist_media) call that retries it.
+
+**Unverified live** (Seerr): blocklisting with `seerr_blocklist`.
+
+## `blocklist_media`
+
+Seerr's blocklist, by TMDB id and `kind` (`movie` or `series`). A
+blocklisted title cannot be requested by anyone; its existing requests, and
+anything Radarr or Sonarr has, are left alone. `delete_media` with
+`seerr_blocklist` adds while deleting; this tool covers a title that was never
+in Radarr or Sonarr, a retry, and lifting one.
+
+`action: "add"` is `safe`. `action: "remove"` is `destructive`, because of
+how Seerr does it: it deletes the blocklist row **and its media record for the
+title**, which takes every request and issue for it along. The preview says so.
+Either direction is a no-op when the title is already where it was asked to be.
+The preview reads the title from Seerr first, so a TMDB id Seerr does not know
+fails rather than blocklisting something nobody looked at.
+
+`get_media_details` carries `seerrBlocklisted: true` on a title Seerr has
+blocklisted, and nothing when it has not or could not say.
+
+Seerr credits a blocklist entry to a user: arr-mcp credits it to the API key's
+own user. The old `/blacklist` path is a deprecated alias; arr-mcp uses
+`/blocklist`.
+
+**Unverified live** (Seerr): adding to and removing from the blocklist.
+
 ## `update_media`
 
 `add_media`'s counterpart: it changes what something already in Radarr, Sonarr
@@ -3143,7 +3186,7 @@ book, and the book fields for a film, series or artist.
 
 ## Prompts and resources
 
-Forty-four tools do not tell you which one to reach for, and the questions
+Forty-five tools do not tell you which one to reach for, and the questions
 people actually ask are rarely one call.
 
 **Five prompts**, which most clients surface as slash commands:

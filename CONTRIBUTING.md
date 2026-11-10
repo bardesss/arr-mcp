@@ -153,8 +153,8 @@ old name as an alias for one full minor, with the deprecation stated in the
 tool's own description text. A new write tool needs a `TOOL_SERVICES` entry and a `WRITE_TOOLS` entry, or it is listed on every stack.
 
 Tool count has a ceiling because model accuracy degrades measurably past roughly
-40 tools. There are 44 now, so the ceiling is passed and `test/app.test.ts`
-fails on a forty-fifth. New capability extends an existing tool wherever it can.
+40 tools. There are 45 now, so the ceiling is passed and `test/app.test.ts`
+fails on a forty-sixth. New capability extends an existing tool wherever it can.
 Where it can't, a new tool is possible, but raising the ceiling needs a good
 reason: the pull request says why no existing tool can carry the capability and
 why it is worth the cost to every other tool, and it raises the limit in that
