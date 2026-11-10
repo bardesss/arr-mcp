@@ -174,6 +174,14 @@ describe('scoped to the tools the client sees', () => {
         expect(await textOf('whats_wrong', {}, noScan)).not.toContain('trigger_scan');
     });
 
+    it('leaves no double space or trailing space whether or not the trigger_scan sentence is there', async () => {
+        const noScan: SurfaceOptions = { configured: new Set(['sabnzbd']), hideUnusable: false };
+        for (const text of [await textOf('whats_wrong', {}, RADARR_ONLY), await textOf('whats_wrong', {}, noScan)]) {
+            expect(text).not.toMatch(/\S {2,}\S/);
+            expect(text).toBe(text.trimEnd());
+        }
+    });
+
     it('keeps every step without hide_unusable', async () => {
         const text = await textOf('whats_wrong', {}, { ...RADARR_ONLY, hideUnusable: false });
         expect(text).toContain('4. `get_subtitles`');

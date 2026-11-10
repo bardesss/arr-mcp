@@ -19,16 +19,26 @@ describe('exports', () => {
   it('exports nothing that only its own module uses', () => {
     const files = ['src', 'test', 'scripts'].flatMap(sources);
     const declared =
-      /^export (?:const|function|async function|class|type|interface|let|abstract class) ([A-Za-z_$][\w$]*)/gm;
+      /^export (?:declare )?(?:const enum|const|function\*?|async function\*?|class|type|interface|let|var|enum|abstract class|namespace) ([A-Za-z_$][\w$]*)/gm;
+    // `export { a, b as c }` (not re-exports `… from '…'`): the exported name is the last word of each entry.
+    const listed = /^export (?:type )?\{([^}]*)\}(?!\s*from)/gm;
     const idents = new Map<string, Set<string>>();
     const declarations: Array<{ file: string; name: string }> = [];
+    const unused: string[] = [];
     for (const f of files) {
       const text = readFileSync(join(ROOT, f), 'utf8');
       idents.set(f, new Set(text.match(/[A-Za-z_$][\w$]*/g) ?? []));
       if (!f.startsWith(`src${sep}`)) continue;
       for (const m of text.matchAll(declared)) declarations.push({ file: f, name: m[1]! });
+      for (const m of text.matchAll(listed)) {
+        for (const entry of m[1]!.split(',')) {
+          const name = entry.trim().split(/\s+/).at(-1);
+          if (name) declarations.push({ file: f, name });
+        }
+      }
+      // A default export can be imported under any name, so the name check cannot see its users.
+      if (/^export default\b/m.test(text)) unused.push(`${f.split(sep).join('/')} default (use a named export)`);
     }
-    const unused: string[] = [];
     for (const { file, name } of declarations) {
       const pair = `${file.split(sep).join('/')} ${name}`;
       if (ALLOWED.has(pair)) continue;
