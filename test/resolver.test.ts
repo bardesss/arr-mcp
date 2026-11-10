@@ -117,7 +117,6 @@ describe('LibraryIndex merging', () => {
             jelly({ ids: { tmdb: 1, imdb: 'tt9' } })
         ]);
 
-        expect(index.all().length).toBe(1);
         expect(index.all()).toHaveLength(1);
 
         const byTmdb = index.find({ tmdb: 1 });
@@ -164,7 +163,6 @@ describe('LibraryIndex byKey coherence after a bridging fuse', () => {
 
     it('fuses into exactly one item', () => {
         const index = bridged();
-        expect(index.all().length).toBe(1);
         expect(index.all()).toHaveLength(1);
     });
 
@@ -538,7 +536,6 @@ describe('LibraryIndex.all', () => {
         copy.pop();
 
         expect(index.all()).toHaveLength(1);
-        expect(index.all().length).toBe(1);
     });
 });
 

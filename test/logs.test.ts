@@ -3,14 +3,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { LEVELS, LOG_RING_SIZE, LogStore, logFields } from '../src/core/logs.ts';
+import { LEVELS, LOG_FILENAME, LOG_RING_SIZE, LogStore, logFields } from '../src/core/logs.ts';
 
 let store: LogStore | undefined;
+const tempDirs: string[] = [];
 const open = (): LogStore => (store = LogStore.ephemeral());
 
 afterEach(() => {
     store?.close();
     store = undefined;
+    for (const dir of tempDirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
 const line = (over: Record<string, unknown> = {}): string =>
@@ -61,7 +63,7 @@ describe('the log ring buffer', () => {
         const logs = open();
         expect(() => logs.write('not json')).not.toThrow();
         expect(() => logs.write('')).not.toThrow();
-        expect(logs.recent({ limit: LOG_RING_SIZE + 1 }).length).toBe(0);
+        expect(logs.recent().length).toBe(0);
     });
 
     it('survives a line with no message or level', () => {
@@ -120,13 +122,14 @@ describe('ring behaviour', () => {
     it('discards the oldest rows once it is full', () => {
         // On disk, so the rows can be counted past `recent()`'s own clamp.
         const dir = mkdtempSync(join(tmpdir(), 'arr-mcp-logs-'));
+        tempDirs.push(dir);
         const logs = (store = LogStore.open(dir));
         for (let i = 0; i < LOG_RING_SIZE + 250; i += 1) logs.write(line({ msg: `line ${i}` }));
         logs.prune();
 
         // Exactly the size, not "at most": `<=` is what let the ring keep
         // LOG_RING_SIZE - 1 rows unnoticed.
-        const reader = new Database(join(dir, 'logs.db'), { readonly: true });
+        const reader = new Database(join(dir, LOG_FILENAME), { readonly: true });
         try {
             expect((reader.prepare('SELECT COUNT(*) AS n FROM log').get() as { n: number }).n).toBe(LOG_RING_SIZE);
         } finally {
@@ -135,9 +138,6 @@ describe('ring behaviour', () => {
         // The newest survived, the oldest did not.
         expect(logs.recent({ limit: 1 })[0]?.msg).toBe(`line ${LOG_RING_SIZE + 249}`);
         expect(logs.recent({ limit: LOG_RING_SIZE }).some(r => r.msg === 'line 0')).toBe(false);
-        logs.close();
-        store = undefined;
-        rmSync(dir, { recursive: true, force: true });
     });
 });
 
@@ -204,6 +204,6 @@ describe('statement preparation', () => {
         } finally {
             prepare.mockRestore();
         }
-        expect(logs.recent({ limit: LOG_RING_SIZE + 1 }).length).toBe(3);
+        expect(logs.recent().length).toBe(3);
     });
 });

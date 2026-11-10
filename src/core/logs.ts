@@ -16,7 +16,7 @@ import { join } from 'node:path';
  * unchanged, and losing this store loses nothing that was not already printed.
  */
 
-const LOG_FILENAME = 'logs.db';
+export const LOG_FILENAME = 'logs.db';
 
 /** Roughly a day of a busy stack, and a few MB on disk. */
 export const LOG_RING_SIZE = 5000;
