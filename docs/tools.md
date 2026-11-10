@@ -26,7 +26,8 @@ off until you turn them on — see [writes](writes.md).
 | `lookup_media` | Deprecated: `search_media` with `source: "discover"` returns the same rows |
 | `discover_media` | What exists in this genre, year, or rating band |
 | `trigger_search` | Go look for this again — the whole thing, one season, or specific episodes; on Lidarr, an artist or some of its albums |
-| `trigger_scan` | Refresh and rescan a library or one item, rename one item, import a download that never landed, put a mislabeled Sonarr file on the right episode, rerun NZBGet's post-processing, or rescan a Grimmory library or its Bookdrop |
+| `trigger_scan` | Refresh and rescan a library or one item, rename one item, or rescan a Grimmory library or its Bookdrop |
+| `import_download` | Import a download the *arr never took, put a mislabeled Sonarr file on the right episode, rerun NZBGet's post-processing, or approve a Grimmory Bookdrop file |
 | `trigger_subtitle_search` | Go and find the subtitles this is missing, now |
 | `grab_release` | Not that one — grab this release from `get_releases` instead; on Shelfmark, the most-downloaded file unless you name one |
 | `set_monitoring` | Turn monitoring on or off: a whole series (by id or title), one season, specific episodes; on Lidarr, `level: "album"` for one album (the artist level, `level: "artist"`, is deprecated: use `update_media`) |
@@ -56,7 +57,7 @@ not obvious, and the places where a value is deliberately absent rather than
 difference: a site has no seasons, so **a season is a release year**, `2019`
 rather than `1`. A year the site does not have is refused, and the refusal
 lists the years it does. It does not answer `get_wanted`, `update_media` or
-`fix_metadata`, nor `trigger_scan`'s `import` and `remap` actions. `add_media` works as it does on Sonarr,
+`fix_metadata`, nor `import_download`'s `import` and `remap` actions. `add_media` works as it does on Sonarr,
 by TVDB id — Whisparr reuses that field for its own scene-database id, not
 TheTVDB — except `series_type`, which is Sonarr only, and `monitor: "pilot"`,
 which a site has no equivalent of. Only Whisparr V2 is supported;
@@ -149,7 +150,7 @@ tool carries a title and an annotation: `readOnlyHint` on the twenty that only
 read, and on the twenty-two writes `destructiveHint`, taken from the same permission
 tier the write gate itself runs on — so a tool cannot be gated as destructive
 and advertised as safe. A client deciding what to auto-approve, or what to warn
-about, reads those rather than guessing from forty-two similarly-shaped
+about, reads those rather than guessing from forty-three similarly-shaped
 descriptions. `idempotentHint` is deliberately absent: the confirmation token is
 single-use, so repeating a write does not repeat it, and neither answer would be
 true.
@@ -414,7 +415,7 @@ hold ids, `download_id`, and, for a lookup, the words you gave as `query`.
 | `managed`, in Lidarr | `update_media` with the artist `id` and `monitored: true`: the artist flag only, each album keeps its own |
 | `managed` or `resolve`, nothing manages it | `search_media` with `source: "discover"` with your `query`, only when you diagnosed by title, and for `managed` not while an *arr of its kind (any *arr, for a media server's id with no kind) could not be read; an artist comes back among Lidarr's hits, each with the MusicBrainz id `add_media` takes as `ids.mbid` |
 | `request`, pending | `respond_to_request` with `verdict: "approve"`, only if you may act on that request (it is yours, or `allow_other_users` is on) |
-| `queue`, import pending | `trigger_scan` with `action: "import"` and the `download_id` of the *arr's row, on Radarr, Sonarr or Lidarr |
+| `queue`, import pending | `import_download` with the `download_id` of the *arr's row, on Radarr, Sonarr or Lidarr |
 | `queue`, fault | `remove_queue_item` with the row's service and id; it deletes partial data and does not blocklist |
 | `queue`, a stopped or paused download, or a fault whose import is pending on another row of the same grab | the import above, never the removal |
 | `library` | `trigger_scan` with `action: "scan"` on the media server |
@@ -429,7 +430,7 @@ off, or a read-tier token): the write then refuses and says how to fix it. The `
 and verdict still say what is wrong. A search offered while Reclaimerr could not
 be read says so in its `why`.
 
-An applied `trigger_scan` with `action: "remap"` returns the same field when a
+An applied `import_download` with `action: "remap"` returns the same field when a
 media server that can scan is configured: a `trigger_scan` of it, in place of
 the sentence telling you to rescan by hand. Any write can carry `next_steps`; a
 step that fails to build never fails a write that already landed.
@@ -1271,7 +1272,7 @@ join rather than a finding about the library.
 ## `get_queue`
 
 Each Radarr, Sonarr or Lidarr row carries `downloadId`, the download client's
-own id for that grab. It is what `trigger_scan`'s `import` action takes, and
+own id for that grab. It is what `import_download` takes, and
 it is the link between "this is stuck at `importBlocked`" and doing something
 about it.
 
@@ -1299,7 +1300,7 @@ added by hand falls back to NZBGet's own `NZBID`.
 A blocked row also carries `statusMessages`, the service's own reasons, one per
 line and fenced. A file the service rejected leads with its filename. They
 tell a retry apart from a dead end: "Series title mismatch" or an unknown
-episode fails the same way every time, so `trigger_scan`'s `import` will not
+episode fails the same way every time, so `import_download` will not
 help. Past ten lines the rest are counted, not listed.
 
 ### Grimmory's Bookdrop
@@ -1308,7 +1309,7 @@ With Grimmory configured, the files waiting in its Bookdrop are queue rows. Each
 has `status: "pending review"`, the file name as its title, and `addedAt` when it
 arrived. They are not downloads: arr-mcp has no progress or ETA for them, and
 they leave the queue when someone finalises them in Grimmory, or when
-`trigger_scan` with `action: "bookdrop"` and the row's `id` imports one. Reading the
+`import_download` with the row's `id` imports one. Reading the
 Bookdrop needs `canAccessBookdrop` on a non-admin account. It is read 100 files
 to a page, and a Bookdrop of more than 1,000 files fails with an error instead
 of paging on.
@@ -1543,7 +1544,7 @@ because too many articles were missing), `DELETED/BAD` and `DELETED/SCAN` are
 only a status code per post-processing stage, so `reason` is the status plus
 the stages that did not succeed, for example
 `FAILURE/PAR (ParStatus FAILURE)`. A row also carries `downloadId` (except at
-`detail: "minimal"`), the id `trigger_scan`'s `postprocess` takes to run its
+`detail: "minimal"`), the id `import_download`'s `postprocess` takes to run its
 post-processing again. It is the `drone` id an *arr stamped on the NZB, or
 NZBGet's own id for one added by hand, and is left out when it is not shaped
 like an id.
@@ -2534,7 +2535,7 @@ replacement.
 as soon as it fails, so there is nothing left to retry. Their grabs are only
 retryable with it off.
 
-If no *arr imports the result, `trigger_scan` with `action: "import"` does; the
+If no *arr imports the result, `import_download` does; the
 result names the `download_id` to give it (the new nzo_id after a SABnzbd retry,
 the `drone` id for an NZBGet download an *arr grabbed). The hint is left out
 when the retry failed again or the job is already gone from the client. Safe
@@ -2587,7 +2588,7 @@ existed.
 
 The text reports what actually happened, not what was planned: if only some of
 the items go it says so ("1 of 2 removed"), not only in `result`.
-`trigger_scan` and `trigger_subtitle_search` do the same when part of a remap or
+`import_download` and `trigger_subtitle_search` do the same when part of a remap or
 a subtitle search did not run.
 
 ## `trigger_subtitle_search`
@@ -2625,22 +2626,19 @@ rejects the call without it.
 
 ## `trigger_scan`
 
-Six actions, one idea: make a service reconcile itself with what is on disk
-and, on the *arrs, with its metadata provider.
-
-**Unverified live** (Grimmory): approving one Bookdrop file with `action: "bookdrop"` and `id`.
+Make a service reconcile itself with what is on disk and, on the *arrs, with
+its metadata provider. Importing a download, `remap` and `postprocess` moved to
+[`import_download`](#import_download); they and a `bookdrop` call with an `id`
+still work here, deprecated.
 
 | Call | What it does |
 | --- | --- |
 | `service` alone | Scans that service's whole library, refreshing metadata first on the *arrs. On Prowlarr, which has no library, it syncs the indexer list to Radarr and Sonarr instead. |
 | `service` + `id` | Refreshes and rescans just that Radarr/Sonarr/Whisparr item — far cheaper on a large library. On Lidarr it refreshes one artist, but the rescan after it still reads every root folder. |
 | `action: "rename"` + `id` | Renames that item's files to the service's own naming scheme. |
-| `action: "import"` + `download_id` | Imports a finished download the service never picked up. |
-| `action: "remap"` + `id` + `reassignments` | Tells Sonarr which episode an already-imported file really is, and renames those files to match. |
-| `action: "postprocess"` + `download_id` | Reruns NZBGet's post-processing on a finished download that is still in its history. |
 | `action: "bookdrop"` | Has Grimmory look in its Bookdrop folder again. With `action: "scan"`, `library` rescans one Grimmory library. See [On Grimmory](#on-grimmory). |
 
-Everything here queues a command and returns, except `remap` and `postprocess` — see below.
+Everything here queues a command and returns.
 An `id` on a Radarr, Sonarr, Whisparr or Lidarr call must be a positive whole
 number. Zero, negative and fractional ids are refused before any call, with an
 error that says where to find a valid one. That holds for every tool that takes
@@ -2659,7 +2657,7 @@ command as the series page's Refresh & Scan button.
 That makes it the fix for an import refused over metadata the service has not
 caught up with, such as Sonarr's "Episode has a TBA title and recently aired".
 The flow is `trigger_scan` with the series `id`, then `stack_health` until
-`commands` shows the refresh finished, then `import` again. A refresh only helps
+`commands` shows the refresh finished, then `import_download` again. A refresh only helps
 once the provider has the title.
 
 On Jellyfin and Plex a scan looks for files that changed. It does not re-match
@@ -2674,6 +2672,65 @@ rescan still reads every root folder unless the artist is new
 (`RefreshArtistService.RescanArtists`), so it reads the whole library from disk,
 as a full scan does. `rename` is `RenameArtist`, every file of that artist. Both
 appear in `stack_health`'s `commands`.
+
+### On Plex
+
+Plex has no scan-the-whole-server call, so a scan refreshes every library in
+turn. If one of them refuses — a library removed between the listing and the
+refresh — the rest still start and the answer names the ones that did not, so
+you know a scan is running and which shelf it missed. All of them refusing is
+an error, because then nothing is.
+
+Plex returns no command id, so there is nothing in `commands` to poll. It
+reports the scan through each library's own `refreshing` flag instead, which is
+what `stack_health` and `diagnose` already read.
+
+### On Grimmory
+
+Grimmory takes two actions here.
+
+- `action: "scan"` rescans every library, or one with `library`, by name or by
+  id as `stack_health` and `get_library` show it. A name is matched ignoring
+  case. If a name and an id pick different libraries the call is refused and the
+  refusal lists them. So is a name that matches two libraries differing only in
+  case. A library that does not exist is refused, listing the ones
+  that do.
+- `action: "bookdrop"` has Grimmory look in its Bookdrop folder again for new
+  files. It imports nothing: the files wait there until someone finalises them,
+  and `get_queue` lists them. Pass no `library` with it.
+
+A library with `watch` on is skipped, since Grimmory's file watcher already picks
+up changes there. The preview names each library it will rescan and each one it
+skips, and a call that would rescan nothing is a no-op. Libraries are rescanned
+one after another, in the background. `id` is refused, because a book cannot be
+scanned on its own, and `library` and `bookdrop` are refused on any other service.
+Approving a Bookdrop file is [`import_download`](#importing-a-bookdrop-file-on-grimmory).
+
+Safe tier. A non-admin account needs `canManageLibrary` for a library and
+`canAccessBookdrop` for the Bookdrop.
+
+## `import_download`
+
+Getting a finished download into the library, or an imported file onto the right
+episode. Three actions, once `trigger_scan`'s: `import` (the default),
+`remap` and `postprocess`. `trigger_scan` still takes them as deprecated values
+of its `action`, and shows the same preview and answer. A confirm token from one
+tool is refused by the other.
+
+**Unverified live** (Grimmory): approving one Bookdrop file with `id`.
+
+| Call | What it does |
+| --- | --- |
+| `download_id` | Imports a finished download the service never picked up, on Radarr, Sonarr or Lidarr. |
+| `action: "postprocess"` + `download_id` | Reruns NZBGet's post-processing on a finished download that is still in its history. |
+| `action: "remap"` + `id` + `reassignments` | Tells Sonarr which episode an already-imported file really is, and renames those files to match. |
+| `service: "grimmory"` + `id` | Imports one Bookdrop file as a new book. See [On Grimmory](#importing-a-bookdrop-file-on-grimmory). |
+
+An import queues a command and returns; `stack_health`'s `commands` list says
+whether it has finished. `remap` and `postprocess` wait for their own result
+instead, see below. Safe tier.
+
+### Importing on Lidarr
 
 `import` reads Lidarr's queue first and refuses a download that has not
 finished. Lidarr's candidate read for one fails, as Radarr's and Sonarr's does,
@@ -2690,51 +2747,22 @@ A wrong album match is fixed in Lidarr itself.
 
 There is no Lidarr `remap`.
 
-### On Plex
+### Importing a Bookdrop file on Grimmory
 
-Plex has no scan-the-whole-server call, so a scan refreshes every library in
-turn. If one of them refuses — a library removed between the listing and the
-refresh — the rest still start and the answer names the ones that did not, so
-you know a scan is running and which shelf it missed. All of them refusing is
-an error, because then nothing is.
+Grimmory's Bookdrop holds files nobody has finalised; `get_queue` lists them.
+Rescanning the Bookdrop for new ones is `trigger_scan` with `action: "bookdrop"`.
 
-Plex returns no command id, so there is nothing in `commands` to poll. It
-reports the scan through each library's own `refreshing` flag instead, which is
-what `stack_health` and `diagnose` already read.
+`id` is a Bookdrop row's id from `get_queue`, and the file is imported as a new
+book. It uses the metadata Grimmory read from the file itself, never the provider
+match Grimmory fetched, which can be another edition (another publisher, a series
+the file does not have); `fix_metadata` changes it afterwards. The library is the
+only one there is, or the one `library` names, and it must have a single folder: a
+library with several is refused, so approve that file in Grimmory. A file Grimmory
+has not read yet is refused until a rescan has read it. The preview names the
+file, the library and the metadata it will use; the result names the new book id
+when a title search can tell it apart.
 
-### On Grimmory
-
-Grimmory takes two actions.
-
-- `action: "scan"` rescans every library, or one with `library`, by name or by
-  id as `stack_health` and `get_library` show it. A name is matched ignoring
-  case. If a name and an id pick different libraries the call is refused and the
-  refusal lists them. So is a name that matches two libraries differing only in
-  case. A library that does not exist is refused, listing the ones
-  that do.
-- `action: "bookdrop"` has Grimmory look in its Bookdrop folder again for new
-  files. It imports nothing: the files wait there until someone finalises them,
-  and `get_queue` lists them. Pass no `library` with it.
-- `action: "bookdrop"` with `id`, a Bookdrop row's id from `get_queue`, imports
-  that one file as a new book. It uses the metadata Grimmory read from the file
-  itself, never the provider match Grimmory fetched, which can be another
-  edition (another publisher, a series the file does not have); `fix_metadata`
-  changes it afterwards. The library is the only one there is, or the one
-  `library` names, and it must have a single folder: a library with several is
-  refused, so approve that file in Grimmory. A file Grimmory has not read yet is
-  refused until a rescan has read it. The preview names the file, the library
-  and the metadata it will use; the result names the new book id when a title
-  search can tell it apart.
-
-A library with `watch` on is skipped, since Grimmory's file watcher already picks
-up changes there. The preview names each library it will rescan and each one it
-skips, and a call that would rescan nothing is a no-op. Libraries are rescanned
-one after another, in the background. `id` is refused, because a book cannot be
-scanned on its own (with `bookdrop` it names the file), and `library` and
-`bookdrop` are refused on any other service.
-
-Safe tier. A non-admin account needs `canManageLibrary` for a library and
-`canAccessBookdrop` for the Bookdrop.
+A non-admin account needs `canAccessBookdrop`.
 
 ### Importing a download that never landed
 
@@ -2743,8 +2771,7 @@ fix it: the file is still sitting in the download client's folder, and the *arr
 never took it. `get_queue` shows exactly this as a row stuck at
 `importState: "importBlocked"`.
 
-The flow is `get_queue` → take that row's `downloadId` → `trigger_scan` with
-`action: "import"`.
+The flow is `get_queue` → take that row's `downloadId` → `import_download`.
 
 The preview lists, file by file, what will be imported and what the service
 refuses and why. Rejected files are **excluded** from the import rather than
@@ -2808,7 +2835,7 @@ eligible for import" on each one, and fixing the script does nothing for the
 downloads it already handled. `action: "postprocess"` is NZBGet's "post-process
 again" for one of them.
 
-The flow is `get_queue` → the stuck row's `downloadId` → `trigger_scan` with
+The flow is `get_queue` → the stuck row's `downloadId` → `import_download` with
 `service: "nzbget"` and `action: "postprocess"`. NZBGet's own rows in
 `get_history` carry the same `downloadId`. The id is the `drone` parameter an
 *arr stamps on the NZB it sends; for an NZB added by hand it is NZBGet's own
@@ -2824,7 +2851,7 @@ NZBGet's queue is refused, so a rerun never starts on top of another.
 
 Once confirmed, NZBGet repeats repair and unpack as it is configured, then those
 scripts. Radarr, Sonarr or Lidarr still imports the result: on its next queue
-check, or straight away with `action: "import"`.
+check, or straight away with `import_download`.
 
 It only works while the download's folder still exists. When the folder has
 been moved or deleted, NZBGet still answers the request with success and logs

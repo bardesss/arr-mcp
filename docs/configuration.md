@@ -505,7 +505,7 @@ turn on. A write is off until you grant its tier in `permissions`:
 
 | Permission in arr-mcp | Grimmory writes it turns on | Grimmory permission for a non-admin account |
 | --- | --- | --- |
-| `safe_write` | `trigger_scan` (library, Bookdrop), `set_watched`, `update_book` | `canManageLibrary`, `canAccessBookdrop`, `canEditMetadata` |
+| `safe_write` | `trigger_scan` (library, Bookdrop), `import_download` (a Bookdrop file), `set_watched`, `update_book` | `canManageLibrary`, `canAccessBookdrop`, `canEditMetadata` |
 | `destructive` | `delete_media`, `remove_queue_item` (Bookdrop discard), `fix_metadata` | `canDeleteBook`, `canAccessBookdrop`, `canEditMetadata` |
 
 Read status is set for the account arr-mcp signs in as, and needs no permission

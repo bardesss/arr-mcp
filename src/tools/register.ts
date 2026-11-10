@@ -45,6 +45,7 @@ import { registerLookupMedia } from './lookupMedia.ts';
 import { registerDeleteRequest, registerRespondToRequest } from './manageRequests.ts';
 import { registerManageIndexer } from './manageIndexer.ts';
 import { registerUpdateBook } from './updateBook.ts';
+import { registerImportDownload } from './importDownload.ts';
 import { registerPauseDownloads } from './pauseDownloads.ts';
 import { registerRetryDownload } from './retryDownload.ts';
 import { registerRemoveBlocklistItem } from './removeBlocklistItem.ts';
@@ -235,6 +236,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerRemoveBlocklistItem(server, write, adapters);
     registerManageIndexer(server, write, adapters);
     registerUpdateBook(server, write, adapters);
+    registerImportDownload(server, write, adapters);
 }
 
 /** The tools that write (`readOnlyHint: false`). `shapeToolSurface` hides these when none of their services is configured. */
@@ -246,6 +248,7 @@ export const WRITE_TOOLS: ReadonlySet<string> = new Set([
     'delete_request',
     'fix_metadata',
     'grab_release',
+    'import_download',
     'manage_indexer',
     'pause_downloads',
     'remove_blocklist_item',
@@ -312,5 +315,6 @@ export const TOOL_NAMES = [
     'fix_metadata',
     'remove_blocklist_item',
     'manage_indexer',
-    'update_book'
+    'update_book',
+    'import_download'
 ] as const;

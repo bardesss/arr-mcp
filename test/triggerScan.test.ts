@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as z from 'zod/v4';
 import type { AnyServiceConfig, KeyedServiceConfig, MultiUserServiceConfig, ServiceId } from '../src/config/schema.ts';
 import { WriteAudit } from '../src/core/audit.ts';
@@ -12,6 +12,7 @@ import { RadarrAdapter } from '../src/services/radarr.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
 import type { LibraryLoader } from '../src/tools/library.ts';
+import { registerImportDownload } from '../src/tools/importDownload.ts';
 import { registerTriggerScan } from '../src/tools/triggerScan.ts';
 import type { WriteToolResult } from '../src/tools/write.ts';
 import { instancesOf } from './helpers/instances.ts';
@@ -109,6 +110,21 @@ type Call = (args: Record<string, unknown>) => Promise<{
     structuredContent: WriteToolResult;
 }>;
 
+/** The tool the harness registers. The import cases run through both: import_download, and trigger_scan's deprecated import actions. */
+let registerUnderTest: typeof registerTriggerScan = registerTriggerScan;
+const IMPORT_TOOLS = [
+    ['import_download', registerImportDownload],
+    ['trigger_scan', registerTriggerScan]
+] as const;
+const useTool = (register: typeof registerTriggerScan) => {
+    beforeEach(() => {
+        registerUnderTest = register;
+    });
+    afterEach(() => {
+        registerUnderTest = registerTriggerScan;
+    });
+};
+
 function harness(opts: { permissions?: Partial<Record<ServiceId, AnyServiceConfig>>; adapters?: ServiceAdapter[] } = {}) {
     const jellyfin = recordingFetch({
         '/ScheduledTasks': TASKS,
@@ -128,7 +144,7 @@ function harness(opts: { permissions?: Partial<Record<ServiceId, AnyServiceConfi
         }
     };
 
-    registerTriggerScan(
+    registerUnderTest(
         server as never,
         {
             permissions: permissionSourceFrom(
@@ -429,7 +445,40 @@ describe('trigger_scan on a single item', () => {
  * The other half of "it downloaded but Jellyfin cannot see it": the *arr
  * never took the file, so a library scan finds nothing to find.
  */
-describe('trigger_scan importing a finished download', () => {
+describe.each(IMPORT_TOOLS)('%s importing a finished download', (tool, register) => {
+    useTool(register);
+
+    /** Run the same call through each tool and compare what the caller is shown and what is sent. */
+    it.runIf(tool === 'import_download')('still imports through trigger_scan, with the same preview', async () => {
+        const via = async (reg: typeof registerTriggerScan) => {
+            registerUnderTest = reg;
+            const h = importHarness();
+            const args = { service: 'radarr', action: 'import', download_id: 'nzo_abc' };
+            const preview = await h.call(args);
+            await h.call({ ...args, confirm: preview.structuredContent.confirm_token });
+            const { target, summary, effects } = preview.structuredContent;
+            return { shown: { target, summary, effects }, sent: h.radarr.sent };
+        };
+        const direct = await via(registerImportDownload);
+        const old = await via(registerTriggerScan);
+        expect(old.shown).toEqual(direct.shown);
+        expect(old.sent).toEqual(direct.sent);
+        expect(direct.sent.filter(x => x.method === 'POST' && x.url === '/api/v3/command')).toHaveLength(1);
+    });
+
+    it.runIf(tool === 'import_download')('refuses a confirm token from the trigger_scan preview', async () => {
+        const args = { service: 'radarr', action: 'import', download_id: 'nzo_abc' };
+        registerUnderTest = registerTriggerScan;
+        const old = importHarness();
+        const oldToken = (await old.call(args)).structuredContent.confirm_token;
+        registerUnderTest = registerImportDownload;
+        const fresh = importHarness();
+        const refused = await fresh.call({ ...args, confirm: oldToken });
+        expect(refused.structuredContent.applied).toBe(false);
+        expect(refused.structuredContent.confirm_error).toBeDefined();
+        expect(fresh.radarr.sent.some(x => x.method === 'POST')).toBe(false);
+    });
+
     const CANDIDATES = [
         {
             path: '/downloads/Heat.1995.mkv',
@@ -692,7 +741,24 @@ describe('trigger_scan on Prowlarr', () => {
 
 /** The correction a person makes by watching; see the notes on
  *  `planArrEpisodeRemap` for why nothing automatic can make it. */
-describe('trigger_scan remapping episodes', () => {
+describe.each(IMPORT_TOOLS)('%s remapping episodes', (tool, register) => {
+    useTool(register);
+
+    it.runIf(tool === 'import_download')('still remaps through trigger_scan, with the same preview', async () => {
+        const via = async (reg: typeof registerTriggerScan) => {
+            registerUnderTest = reg;
+            const h = remapHarness();
+            const preview = await h.call(SWAP);
+            await h.call({ ...SWAP, confirm: preview.structuredContent.confirm_token });
+            const { target, summary, effects } = preview.structuredContent;
+            return { shown: { target, summary, effects }, sent: h.sonarr.sent };
+        };
+        const direct = await via(registerImportDownload);
+        const old = await via(registerTriggerScan);
+        expect(old.shown).toEqual(direct.shown);
+        expect(old.sent).toEqual(direct.sent);
+    });
+
     /**
      * Models a Sonarr that applies what it is told: the remap now checks that
      * the reassignment landed, so a stub replaying the old association would
@@ -903,9 +969,11 @@ describe('trigger_scan remapping episodes', () => {
         ]);
         expect(done.content[0]?.text).toContain('Next: trigger_scan {"service":"jellyfin","action":"scan"}');
         // And the tool takes it: the step is a call this harness's own trigger_scan plans without refusal.
-        const step = (done.structuredContent.next_steps as { arguments: Record<string, unknown> }[])[0];
-        const again = await h.call({ ...step?.arguments, dry_run: true });
-        expect(again.structuredContent).toMatchObject({ applied: false, dry_run: true, noop: false });
+        if (tool === 'trigger_scan') {
+            const step = (done.structuredContent.next_steps as { arguments: Record<string, unknown> }[])[0];
+            const again = await h.call({ ...step?.arguments, dry_run: true });
+            expect(again.structuredContent).toMatchObject({ applied: false, dry_run: true, noop: false });
+        }
         // The step replaces the sentence that told a person to do it by hand.
         expect(String(done.structuredContent.result)).not.toMatch(/rescan your media server/);
     });
@@ -944,7 +1012,27 @@ describe('trigger_scan remapping episodes', () => {
  * unimportable. Driven through the tool with the real adapter, so the preview,
  * the confirm and NZBGet's log-only refusal are checked end to end.
  */
-describe('trigger_scan postprocess on nzbget', () => {
+describe.each(IMPORT_TOOLS)('%s postprocess on nzbget', (tool, register) => {
+    useTool(register);
+
+    it.runIf(tool === 'import_download')('still post-processes through trigger_scan, with the same preview', async () => {
+        const via = async (reg: typeof registerTriggerScan) => {
+            registerUnderTest = reg;
+            const { adapter, methods } = nzbget(false);
+            const run = call(adapter);
+            const args = { service: 'nzbget', action: 'postprocess', download_id: 'drone-abc' };
+            const preview = await run(args);
+            await run({ ...args, confirm: preview.structuredContent.confirm_token });
+            const { target, summary, effects } = preview.structuredContent;
+            return { shown: { target, summary, effects }, methods };
+        };
+        const direct = await via(registerImportDownload);
+        const old = await via(registerTriggerScan);
+        expect(old.shown).toEqual(direct.shown);
+        expect(old.methods).toEqual(direct.methods);
+        expect(direct.methods.filter(m => m === 'editqueue')).toHaveLength(1);
+    });
+
     const credential = {
         url: 'http://192.0.2.10:6789',
         username: 'u',
