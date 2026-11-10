@@ -586,7 +586,7 @@ async function resolveEpisodeRemap(
         const file = files.find(f => f.path === r.path || f.relativePath === r.path);
         if (file === undefined || typeof file.path !== 'string') {
             throw new ServiceError('NotFound', service, `series ${seriesId} has no imported file at "${r.path}"`, {
-                remedy: 'Give the path relative to the series folder, as Sonarr names it — "Season 01/Show - S01E01 - Pilot.mkv" — or absolute. Only files Sonarr has already imported can be reassigned; a file it never took needs action: "import" or a scan first.'
+                remedy: 'Give the path relative to the series folder, as Sonarr names it — "Season 01/Show - S01E01 - Pilot.mkv" — or absolute. Only files Sonarr has already imported can be reassigned; a file it never took needs import_download or a scan first.'
             });
         }
         if (seenPaths.has(file.path)) throw new Error(`"${r.path}" appears more than once in reassignments.`);

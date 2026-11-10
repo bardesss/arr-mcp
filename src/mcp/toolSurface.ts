@@ -46,6 +46,7 @@ export const TOOL_SERVICES: Readonly<Record<string, readonly ServiceId[]>> = {
     get_indexers: ['prowlarr'],
     manage_indexer: ['prowlarr'],
     update_book: ['grimmory'],
+    import_download: ['radarr', 'sonarr', 'lidarr', 'nzbget', 'grimmory'],
     sync_database: ['profilarr'],
     get_requests: ['seerr'],
     respond_to_request: ['seerr'],

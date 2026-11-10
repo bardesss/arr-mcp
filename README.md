@@ -49,7 +49,7 @@ part it could not check rather than guessing across the hole.
 | 🛡️ **Indexer text is data, never instruction** | Release names from public indexers are attacker-controllable and flow straight into model context. arr-mcp fences every one of them. |
 | ✋ **Writes are opt-in, previewed, recorded** | Off until you turn them on, per service. Every write shows you exactly what it would do and waits for confirmation — and lands in an audit trail either way. |
 | 🖥️ **A config page that diagnoses** | Add services from a browser, see what is broken *and what to do about it*, read the logs and the write audit. No YAML required. |
-| 📚 **Forty-two tools, one vocabulary** | Every list pages the same way and answers readably whether or not your client reads `structuredContent`, every error names the config key that would fix it, every write takes ids rather than titles. |
+| 📚 **Forty-three tools, one vocabulary** | Every list pages the same way and answers readably whether or not your client reads `structuredContent`, every error names the config key that would fix it, every write takes ids rather than titles. |
 
 Nothing else in this space does the last five at all.
 
@@ -150,7 +150,7 @@ ARM NAS runs the same build as everything else.
 
 ## What you can ask it
 
-Forty-two tools, but you never name them — you ask, and the model picks:
+Forty-three tools, but you never name them — you ask, and the model picks:
 
 > *"What's downloading right now, and is anything stuck?"*
 > *"What aired this week that I haven't watched?"*
@@ -200,7 +200,7 @@ them off. The cards are read-only for now.
 
 | | |
 | --- | --- |
-| **[Tools](docs/tools.md)** | All forty-two, what each answers, and the fields whose meaning is not obvious |
+| **[Tools](docs/tools.md)** | All forty-three, what each answers, and the fields whose meaning is not obvious |
 | **[Writes](docs/writes.md)** | Turning them on, the two tiers, and the preview-and-confirm handshake |
 | **[Configuration](docs/configuration.md)** | `config.yaml`, the nine services that take a list, Jellyfin's `default_user`, running Plex and Jellyfin side by side |
 | **[Config UI](docs/config-ui.md)** | The four pages, and what each does that is not obvious |
@@ -222,8 +222,8 @@ them off. The cards are read-only for now.
   profiles, root folder, monitoring and tags, and `delete_media` deletes it.
   Artists join to Jellyfin and Plex on the MusicBrainz artist id. `get_queue`,
   `get_history` and `get_blocklist` include Lidarr, `remove_queue_item` and
-  `clean_queue` take a Lidarr download, and `trigger_scan` rescans, renames and
-  imports for it. `stack_health` reports its disks, failing health checks and
+  `clean_queue` take a Lidarr download, and `trigger_scan` rescans and renames,
+  and `import_download` imports for it. `stack_health` reports its disks, failing health checks and
   last library scan, and `get_wanted` and `get_calendar` list its albums.
   `trigger_search`, `get_releases` and `grab_release` search its indexers for an
   artist or its albums, and `fix_metadata` rewrites an artist's file tags from

@@ -2089,7 +2089,7 @@ describe('buildChain — a Lidarr artist', () => {
         const d = buildChain('daft punk', healthy({ item: noTracks(), queue: { items: [lidarrRow()], partial: [] } }));
         expect(d.verdict.stage).toBe('queue');
         expect(d.verdict.next_steps).toEqual([
-            expect.objectContaining({ tool: 'trigger_scan', arguments: { service: 'lidarr', action: 'import', download_id: 'lidarr-download-1' } })
+            expect.objectContaining({ tool: 'import_download', arguments: { service: 'lidarr', action: 'import', download_id: 'lidarr-download-1' } })
         ]);
         expect(d.verdict.remedy).toMatch(/Lidarr/);
         expect(d.verdict.remedy).not.toMatch(/Radarr/);

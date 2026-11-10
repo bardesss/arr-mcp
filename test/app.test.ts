@@ -389,6 +389,7 @@ describe('the advertised tool surface', () => {
         'delete_request',
         'fix_metadata',
         'grab_release',
+        'import_download',
         'manage_indexer',
         'pause_downloads',
         'remove_blocklist_item',
@@ -496,7 +497,7 @@ describe('the advertised tool surface', () => {
      * is a decision, not a fix for a failing test.
      */
     const DESCRIPTION_CAP = 1000;
-    const DESCRIPTIONS_TOTAL_CAP = 28_590;
+    const DESCRIPTIONS_TOTAL_CAP = 28_790;
 
     it(`keeps every tool description under ${DESCRIPTION_CAP} characters`, async () => {
         const long = (await listTools())
@@ -1378,7 +1379,7 @@ describe('prompts and resources, beside the tools rather than instead of them', 
         );
         const { result } = (await rpcPayload(res)) as { result: { tools: unknown[] } };
         expect(result.tools).toHaveLength(TOOL_NAMES.length);
-        expect(TOOL_NAMES.length).toBeLessThanOrEqual(42);
+        expect(TOOL_NAMES.length).toBeLessThanOrEqual(43);
     });
 });
 

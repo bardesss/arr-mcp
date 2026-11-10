@@ -351,7 +351,7 @@ function anonymiseNzbgetRow(row: unknown, index: number): unknown {
 
 /**
  * NZBGet's refusal of "post-process again" keeps its wording, because
- * trigger_scan's postprocess matches on it; only the release name and the
+ * import_download's postprocess matches on it; only the release name and the
  * folder are replaced. Every other line is replaced whole.
  */
 const NZBGET_REFUSAL = /^Could not post-process again (.+?): destination directory (.+) doesn't exist$/;

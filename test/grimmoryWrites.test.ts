@@ -4,6 +4,7 @@ import { resetGrimmoryLockouts } from '../src/core/auth.ts';
 import { CONFIRM_REASON, ConfirmTokens } from '../src/core/confirm.ts';
 import { GrimmoryAdapter, MAX_BOOKDROP_PAGES } from '../src/services/grimmory.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
+import { registerImportDownload } from '../src/tools/importDownload.ts';
 import { registerTriggerScan } from '../src/tools/triggerScan.ts';
 import { registerDeleteMedia } from '../src/tools/deleteMedia.ts';
 import { registerRemoveQueueItem } from '../src/tools/removeQueueItem.ts';
@@ -21,10 +22,15 @@ const LIBRARIES = [
     { id: 2, name: 'Comics', watch: true, paths: [] }
 ];
 
-function scanTool(routes: Record<string, Reply | Reply[]> = {}, perms?: { safe_write?: boolean; destructive?: boolean }) {
+function scanTool(
+    routes: Record<string, Reply | Reply[]> = {},
+    perms?: { safe_write?: boolean; destructive?: boolean },
+    register: typeof registerTriggerScan = registerTriggerScan,
+    confirm?: ConfirmTokens
+) {
     const server = grimmoryServer({ 'GET /api/v1/libraries': json(LIBRARIES), ...routes });
     const adapter = new GrimmoryAdapter(grimmoryConfig(perms), server.fetch);
-    const call = writeTool((s, context) => registerTriggerScan(s, context, [adapter]), perms);
+    const call = writeTool((s, context) => register(s, context, [adapter]), perms, confirm);
     const puts = () => server.sent.filter(s => s.method === 'PUT').map(s => s.path);
     return { call, server, puts };
 }
@@ -1128,13 +1134,18 @@ describe('update_book', () => {
     });
 });
 
-describe('approving a Bookdrop file (#532)', () => {
+describe.each([
+    ['import_download', registerImportDownload, {}],
+    ['trigger_scan', registerTriggerScan, { action: 'bookdrop' }]
+] as const)('%s approving a Bookdrop file (#532)', (tool, register, via) => {
+    // Defined once, under the import_download row, so the trigger_scan row shows no skips.
+    const onlyImportDownload: typeof it = tool === 'import_download' ? it : ((() => undefined) as unknown as typeof it);
     const ORIGINAL = { title: 'The Book', authors: ['A. Writer'], publisher: 'Del Rey' };
     const FETCHED = { title: 'The Book', authors: ['A. Writer'], publisher: 'Gollancz', seriesName: 'Not Its Series' };
     const file = (over: Record<string, unknown> = {}) => ({ ...(PENDING.content[0] as object), originalMetadata: ORIGINAL, fetchedMetadata: FETCHED, ...over });
     const ONE_LIBRARY = [{ id: 1, name: 'Fiction', watch: false, paths: [{ id: 7, path: '/books' }] }];
     const search = (ids: number[]) => json({ content: ids.map(id => ({ id, title: 'The Book', authors: ['A. Writer'] })) });
-    const approveTool = (routes: Record<string, Reply | Reply[]> = {}) =>
+    const approveTool = (routes: Record<string, Reply | Reply[]> = {}, using: typeof register = register, confirm?: ConfirmTokens) =>
         scanTool(
             {
                 'GET /api/v1/libraries': json(ONE_LIBRARY),
@@ -1143,18 +1154,20 @@ describe('approving a Bookdrop file (#532)', () => {
                 'POST /api/v1/bookdrop/imports/finalize': json({ totalFiles: 1, successfullyImported: 1, failed: 0, results: [{ fileName: 'x', success: true }] }),
                 ...routes
             },
-            { safe_write: true }
+            { safe_write: true },
+            using,
+            confirm
         );
 
     it('previews, then imports with the file\'s own metadata and names the new book', async () => {
         const { call, server } = approveTool();
-        const preview = await call({ service: 'grimmory', action: 'bookdrop', id: '3' });
+        const preview = await call({ service: 'grimmory', ...via, id: '3' });
         expect(preview.structuredContent.target).toBe('grimmory:bookdrop/3');
         expect(JSON.stringify(preview.structuredContent)).toContain('Del Rey');
         expect(JSON.stringify(preview.structuredContent)).not.toContain('Gollancz');
         expect(server.sent.some(s => s.path === '/api/v1/bookdrop/imports/finalize')).toBe(false);
 
-        const done = await call({ service: 'grimmory', action: 'bookdrop', id: '3', confirm: preview.structuredContent.confirm_token });
+        const done = await call({ service: 'grimmory', ...via, id: '3', confirm: preview.structuredContent.confirm_token });
         const sent = server.sent.find(s => s.path === '/api/v1/bookdrop/imports/finalize');
         expect(sent?.body).toEqual({ selectAll: false, files: [{ fileId: 3, libraryId: 1, pathId: 7, metadata: ORIGINAL }] });
         expect(JSON.stringify(done)).toContain('as book 61');
@@ -1163,24 +1176,46 @@ describe('approving a Bookdrop file (#532)', () => {
     it('needs a library when there are several', async () => {
         const two = [...ONE_LIBRARY, { id: 2, name: 'Comics', watch: false, paths: [{ id: 8, path: '/comics' }] }];
         const { call } = approveTool({ 'GET /api/v1/libraries': json(two) });
-        await expect(call({ service: 'grimmory', action: 'bookdrop', id: '3' })).rejects.toThrow(/2 libraries/);
-        const preview = await call({ service: 'grimmory', action: 'bookdrop', id: '3', library: 'Comics' });
+        await expect(call({ service: 'grimmory', ...via, id: '3' })).rejects.toThrow(/2 libraries/);
+        const preview = await call({ service: 'grimmory', ...via, id: '3', library: 'Comics' });
         expect(preview.structuredContent.target).toBe('grimmory:bookdrop/3');
     });
 
     it('refuses a library with several folders, a file not waiting, and one not read yet', async () => {
         const several = [{ id: 1, name: 'Fiction', watch: false, paths: [{ id: 7 }, { id: 9 }] }];
-        await expect(approveTool({ 'GET /api/v1/libraries': json(several) }).call({ service: 'grimmory', action: 'bookdrop', id: '3' })).rejects.toThrow(/2 folders/);
-        await expect(approveTool().call({ service: 'grimmory', action: 'bookdrop', id: '99' })).rejects.toThrow(/no Bookdrop file 99/);
+        await expect(approveTool({ 'GET /api/v1/libraries': json(several) }).call({ service: 'grimmory', ...via, id: '3' })).rejects.toThrow(/2 folders/);
+        await expect(approveTool().call({ service: 'grimmory', ...via, id: '99' })).rejects.toThrow(/no Bookdrop file 99/);
         const unread = approveTool({ 'GET /api/v1/bookdrop/files': pendingPage([file({ originalMetadata: null })]) });
-        await expect(unread.call({ service: 'grimmory', action: 'bookdrop', id: '3' })).rejects.toThrow(/not read the metadata/);
+        await expect(unread.call({ service: 'grimmory', ...via, id: '3' })).rejects.toThrow(/not read the metadata/);
     });
 
     it('fails by name when Grimmory imports nothing', async () => {
         const { call } = approveTool({
             'POST /api/v1/bookdrop/imports/finalize': json({ totalFiles: 1, successfullyImported: 0, failed: 1, results: [{ fileName: 'x', success: false, message: 'exists' }] })
         });
-        const token = (await call({ service: 'grimmory', action: 'bookdrop', id: '3' })).structuredContent.confirm_token;
-        await expect(call({ service: 'grimmory', action: 'bookdrop', id: '3', confirm: token })).rejects.toThrow(/did not import Bookdrop file 3/);
+        const token = (await call({ service: 'grimmory', ...via, id: '3' })).structuredContent.confirm_token;
+        await expect(call({ service: 'grimmory', ...via, id: '3', confirm: token })).rejects.toThrow(/did not import Bookdrop file 3/);
+    });
+
+    onlyImportDownload('refuses a token from the other tool, in both directions', async () => {
+        for (const [from, fromVia, to, toVia] of [
+            [registerTriggerScan, { action: 'bookdrop' }, registerImportDownload, {}],
+            [registerImportDownload, {}, registerTriggerScan, { action: 'bookdrop' }]
+        ] as const) {
+            const shared = new ConfirmTokens();
+            const token = (await approveTool({}, from, shared).call({ service: 'grimmory', ...fromVia, id: '3' })).structuredContent.confirm_token;
+            const other = approveTool({}, to, shared);
+            const refused = await other.call({ service: 'grimmory', ...toVia, id: '3', confirm: token });
+            expect(refused.structuredContent.applied).toBe(false);
+            expect(refused.structuredContent.confirm_error).toBe(CONFIRM_REASON.mismatch);
+            expect(other.server.sent.some(x => x.path === '/api/v1/bookdrop/imports/finalize')).toBe(false);
+        }
+    });
+
+    onlyImportDownload('needs a Bookdrop file id, and leaves the rescan to trigger_scan', async () => {
+        const { call, server } = approveTool();
+        await expect(call({ service: 'grimmory' })).rejects.toThrow(/Bookdrop file/);
+        await expect(call({ service: 'grimmory', action: 'postprocess', id: '3' })).rejects.toThrow(/grimmory/);
+        expect(server.sent.some(s => s.method === 'POST')).toBe(false);
     });
 });

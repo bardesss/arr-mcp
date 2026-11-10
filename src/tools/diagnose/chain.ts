@@ -513,7 +513,7 @@ function importStep(mine: readonly QueueItem[], item: MergedItem): NextStep | un
     const importer = source === undefined ? undefined : importerFor(source, item);
     if (source?.downloadId === undefined || importer === undefined) return undefined;
     return {
-        tool: 'trigger_scan',
+        tool: 'import_download',
         arguments: { ...instanceArgs(importer), action: 'import', download_id: source.downloadId },
         why: `Asks ${importer} to import the finished download.`
     };

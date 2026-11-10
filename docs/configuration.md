@@ -317,8 +317,8 @@ each retagged file as `retagged`. The lookup, add, editor and retag fixtures
 were captured on a 3.1.6.5079 test instance.
 
 `trigger_scan` rescans the library or refreshes one artist (the rescan after it
-still reads every root folder), renames an artist's files, and imports a
-finished download by its id; see `docs/tools.md`. Its queue, history
+still reads every root folder), renames an artist's files, and
+`import_download` imports a finished download by its id; see `docs/tools.md`. Its queue, history
 and blocklist read the way Radarr's and Sonarr's do, in `get_queue`,
 `get_history` and `get_blocklist`, and `remove_blocklist_item` takes a Lidarr
 entry, as `remove_queue_item` and `clean_queue` take a Lidarr download.
@@ -505,7 +505,7 @@ turn on. A write is off until you grant its tier in `permissions`:
 
 | Permission in arr-mcp | Grimmory writes it turns on | Grimmory permission for a non-admin account |
 | --- | --- | --- |
-| `safe_write` | `trigger_scan` (library, Bookdrop), `set_watched`, `update_book` | `canManageLibrary`, `canAccessBookdrop`, `canEditMetadata` |
+| `safe_write` | `trigger_scan` (library, Bookdrop), `import_download` (a Bookdrop file), `set_watched`, `update_book` | `canManageLibrary`, `canAccessBookdrop`, `canEditMetadata` |
 | `destructive` | `delete_media`, `remove_queue_item` (Bookdrop discard), `fix_metadata` | `canDeleteBook`, `canAccessBookdrop`, `canEditMetadata` |
 
 Read status is set for the account arr-mcp signs in as, and needs no permission

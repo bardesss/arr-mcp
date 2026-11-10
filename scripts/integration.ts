@@ -163,6 +163,8 @@ const DYNAMIC_TOOLS: ToolName[] = [
     'delete_episode_files',
     // Dry runs off a scannable service and a real get_subtitles gap.
     'trigger_scan',
+    // Dry run off the first queue row that carries a downloadId; skipped when none does.
+    'import_download',
     'trigger_subtitle_search',
     'clean_queue',
     // Needs profilarr configured at all, which is optional — skipped rather
@@ -773,7 +775,7 @@ const finished = (r: QueueRow): boolean => String(r.status).toLowerCase() === 'c
 const queueRow = withId.find(finished) ?? withId[0];
 
 if (queueRow === undefined) {
-    console.log('SKIP trigger_scan import — nothing in the queue carries a downloadId to preview against.');
+    console.log('SKIP import_download — nothing in the queue carries a downloadId to preview against.');
 } else {
     const importArgs = {
         service: (queueRow.service as string).split('/')[0],
@@ -783,10 +785,10 @@ if (queueRow === undefined) {
     };
 
     if (finished(queueRow)) {
-        await run('trigger_scan', importArgs, 'DRY RUN ONLY — the manual import path');
+        await run('import_download', importArgs, 'DRY RUN ONLY — the manual import path');
     } else {
         await expectError(
-            'trigger_scan',
+            'import_download',
             importArgs,
             /has not finished downloading/,
             'DRY RUN ONLY — nothing in the queue has finished, so the manual import path must say that rather than pass on the 500'

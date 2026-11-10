@@ -1104,7 +1104,7 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
             anonymise: anonymiseNzbgetHealth
         },
         {
-            // trigger_scan's postprocess reads the log: NZBGet reports a
+            // import_download's postprocess reads the log: NZBGet reports a
             // refused "post-process again" there and nowhere else.
             name: 'log',
             path: '/jsonrpc',

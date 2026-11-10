@@ -37,6 +37,7 @@ write, and says which permission to enable.
 | --- | --- | --- |
 | `trigger_search` | safe | `safe_write` |
 | `trigger_scan` | safe | `safe_write` |
+| `import_download` | safe | `safe_write` |
 | `trigger_subtitle_search` | safe | `safe_write` |
 | `respond_to_request` | safe | `safe_write` |
 | `add_media` | safe | `safe_write` |
@@ -127,16 +128,17 @@ tool makes Grimmory write them into the file and rename it again.
 
 `trigger_scan`'s `rename` action is safe on the same reading: it renames files
 within the library to the service's own scheme, and renaming again puts them
-back. Its `import` action only ever imports what the service is already willing
-to take — a file the service rejects is excluded and named, never forced. Its
-`remap` action changes which episode Sonarr says a file is, and renames that
-file to match; a second remap puts both back. Nothing moves between folders and
-nothing is deleted. Renaming a rotated season additionally changes Sonarr's
+back. `import_download` is safe too. Its `import` action only ever imports what
+the service is already willing to take — a file the service rejects is excluded
+and named, never forced. Its `remap` action changes which episode Sonarr says a
+file is, and renames that file to match; a second remap puts both back. Nothing
+moves between folders and nothing is deleted. `trigger_scan` still takes these
+actions, deprecated, with the same preview and the same tier. Renaming a rotated season additionally changes Sonarr's
 episode naming format for the length of two commands and puts it back — the
 preview says so, and [tools.md](tools.md#putting-a-mislabeled-file-on-the-right-episode)
 describes what bounds it.
 
-Its `postprocess` action is safe for the same reason as `rename` and `import`:
+`import_download`'s `postprocess` action is safe for the same reason as `rename` and `import`:
 it reruns NZBGet's post-processing on one finished download, and the scripts
 that run are the operator's own, the same ones NZBGet runs on every download.
 They can unpack, rename or delete files in that download's folder, so the
@@ -427,7 +429,7 @@ the run.
 | `retry_download` | `whisparr` | The check for a replacement grab, which traces the download through Sonarr's helper | No Whisparr on the maintainer's stack; inherited from Sonarr's spec, not captured |
 | `delete_media` | `grimmory` | Deleting a book | The test response is a hand-made mock; no live book has been deleted |
 | `set_watched` | `grimmory` | Marking a book read or unread | The test response is a hand-made mock; no live book has been changed |
-| `trigger_scan` | `grimmory` | Approving one Bookdrop file (`action: "bookdrop"` with `id`) | Built from Grimmory's OpenAPI spec and mocks; the first real approval is its test |
+| `import_download` | `grimmory` | Approving one Bookdrop file (`id`) | Built from Grimmory's OpenAPI spec and mocks; the first real approval is its test |
 | `get_history` | `grimmory` | The `BOOK_UPLOADED` audit row | No upload has been captured, so the shape follows Grimmory's API description |
 | `get_history` | `shelfmark` | The `failed` and `stopped` rows | The live Shelfmark has had no failed or cancelled download; tested on captured bodies with those answers constructed |
 
