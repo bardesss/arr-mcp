@@ -194,7 +194,7 @@ const needsBulk = (adapter: Adapter, view: IndexerSyncView, action: Action) => {
         'VersionUnsupported',
         adapter.id,
         `${adapter.id} is older than 1.8 and cannot ${action} an indexer through its API`,
-        { remedy: `Upgrade Prowlarr, or ${action} ${view.indexer.name} in Prowlarr's UI. delete still works on this version.` }
+        { remedy: `Upgrade Prowlarr, or ${action} ${view.indexer.name} in Prowlarr's UI. delete_indexer still works on this version.` }
     );
 };
 
@@ -361,7 +361,8 @@ async function planDelete(adapter: Adapter, id: number | undefined): Promise<Wri
             ...apps.map(app => toggleEffect('delete', app, indexer.name, reachOf(app, indexer.tags, indexer.categories))),
             'Then queues Application Indexer Sync, which also clears a copy an unreachable app missed.'
         ],
-        args: { action: 'delete' }
+        // The name too, so a token cannot carry over to another indexer that reuses the id.
+        args: { action: 'delete', name: indexer.name }
     };
 }
 
@@ -375,7 +376,7 @@ const ManageIndexerInput = z.object({
     action: z
         .enum(['add', 'edit', 'disable', 'enable', 'delete'])
         .describe(
-            'add a new public indexer; edit its settings; disable stops grabs and is reversible; enable undoes a disable. delete: Deprecated: use delete_indexer, which takes the same `id`.'
+            'add a new public indexer; edit its settings; disable stops grabs and is reversible; enable undoes a disable, all safe tier. delete: Deprecated: use delete_indexer.'
         ),
     id: z.coerce
         .number()
@@ -488,7 +489,7 @@ export function registerDeleteIndexer(
         name: 'delete_indexer',
         title: 'Delete an indexer',
         description:
-            'Deletes one Prowlarr indexer and its settings, and removes its copy from each synced app; re-adding means configuring it again. To only stop grabs, manage_indexer `disable` is reversible. Apps with sync off keep a failing copy, and the preview says so. Fails on an unknown `id`. Previews first; confirm to apply it.',
+            'Deletes one Prowlarr indexer and its settings, and its copy in each app Prowlarr syncs to; apps with sync off keep a failing copy, and the preview names them. Not undoable; to stop grabs reversibly, use manage_indexer `disable`. Fails on an unknown `id`. Previews first; confirm to apply it.',
         inputSchema: DeleteIndexerInput,
         service: ({ instance }) => findAdapter(adapters, instance).id,
         operation: 'delete_indexer',

@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type * as z from 'zod/v4';
 import type { AnyServiceConfig, KeyedServiceConfig } from '../src/config/schema.ts';
 import { WriteAudit } from '../src/core/audit.ts';
-import { ConfirmTokens } from '../src/core/confirm.ts';
+import { CONFIRM_REASON, ConfirmTokens } from '../src/core/confirm.ts';
 import { permissionSourceFrom } from '../src/core/permissions.ts';
 import { ProwlarrAdapter } from '../src/services/prowlarr.ts';
 import { registerDeleteIndexer, registerManageIndexer } from '../src/tools/manageIndexer.ts';
@@ -364,12 +364,32 @@ describe('delete_indexer', () => {
         expect(h.writes.map(w => `${w.method} ${w.path}`)).toEqual(['DELETE /api/v1/indexer/21', 'POST /api/v1/command']);
     });
 
+    it('will not apply a delete_indexer token to the deprecated manage_indexer delete', async () => {
+        const h = harness({ tool: 'delete_indexer' });
+        const preview = await h.call({ id: 21 });
+        const retried = await h.callTool('manage_indexer', {
+            id: 21,
+            action: 'delete',
+            confirm: preview.structuredContent.confirm_token
+        });
+
+        expect(retried.structuredContent.applied).toBe(false);
+        expect(retried.structuredContent.confirm_error).toBe(CONFIRM_REASON.mismatch);
+        expect(h.writes).toEqual([]);
+    });
+
+    it('previews a delete on a Prowlarr older than 1.8', async () => {
+        const h = harness({ version: '1.7.4.3769', tool: 'delete_indexer' });
+        expect((await h.call({ id: 21 })).structuredContent.confirm_token).toBeDefined();
+    });
+
     it('will not apply a disable token to a delete', async () => {
         const h = harness({ tool: 'delete_indexer' });
         const disable = await h.callTool('manage_indexer', { id: 21, action: 'disable' });
         const retried = await h.call({ id: 21, confirm: disable.structuredContent.confirm_token });
 
         expect(retried.structuredContent.applied).toBe(false);
+        expect(retried.structuredContent.confirm_error).toBe(CONFIRM_REASON.mismatch);
         expect(h.writes).toEqual([]);
     });
 });
