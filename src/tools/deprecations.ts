@@ -34,5 +34,7 @@ export const DEPRECATIONS: readonly Deprecation[] = [
     { tool: 'trigger_scan', param: 'action', value: 'bookdrop', use: 'import_download' },
     { tool: 'trigger_scan', param: 'download_id', use: 'import_download' },
     { tool: 'trigger_scan', param: 'reassignments', use: 'import_download' },
-    { tool: 'trigger_scan', param: 'mapping', use: 'import_download' }
+    { tool: 'trigger_scan', param: 'mapping', use: 'import_download' },
+    // Removal drops `delete` from manage_indexer, which is then safe tier and no longer destructiveHint.
+    { tool: 'manage_indexer', param: 'action', value: 'delete', use: 'delete_indexer' }
 ];

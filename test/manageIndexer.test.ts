@@ -6,7 +6,7 @@ import { WriteAudit } from '../src/core/audit.ts';
 import { ConfirmTokens } from '../src/core/confirm.ts';
 import { permissionSourceFrom } from '../src/core/permissions.ts';
 import { ProwlarrAdapter } from '../src/services/prowlarr.ts';
-import { registerManageIndexer } from '../src/tools/manageIndexer.ts';
+import { registerDeleteIndexer, registerManageIndexer } from '../src/tools/manageIndexer.ts';
 import type { LibraryLoader } from '../src/tools/library.ts';
 import type { WriteToolResult } from '../src/tools/write.ts';
 import { jsonResponse } from './helpers/serve.ts';
@@ -121,7 +121,15 @@ type Call = (args: Record<string, unknown>) => Promise<{
     structuredContent: WriteToolResult;
 }>;
 
-function harness(opts: { destructive?: boolean; version?: string; addFails?: boolean; profiles?: unknown[] } = {}) {
+function harness(
+    opts: {
+        destructive?: boolean;
+        version?: string;
+        addFails?: boolean;
+        profiles?: unknown[];
+        tool?: 'manage_indexer' | 'delete_indexer';
+    } = {}
+) {
     const writes: { method: string; path: string; body?: unknown }[] = [];
     const impl = (async (input: string | URL | Request, init?: RequestInit) => {
         const url = new URL(input instanceof Request ? input.url : String(input));
@@ -166,17 +174,19 @@ function harness(opts: { destructive?: boolean; version?: string; addFails?: boo
         library: { invalidate: vi.fn() } as unknown as LibraryLoader
     };
     registerManageIndexer(server as never, context, adapters);
+    registerDeleteIndexer(server as never, context, adapters);
 
-    const call = (args: Record<string, unknown>) => {
-        const fn = calls.manage_indexer;
-        if (fn === undefined) throw new Error('manage_indexer not registered');
+    const callTool = (name: string, args: Record<string, unknown>) => {
+        const fn = calls[name];
+        if (fn === undefined) throw new Error(`${name} not registered`);
         return fn(args);
     };
+    const call = (args: Record<string, unknown>) => callTool(opts.tool ?? 'manage_indexer', args);
     const confirmed = async (args: Record<string, unknown>) => {
         const preview = await call(args);
         return call({ ...args, confirm: preview.structuredContent.confirm_token });
     };
-    return { call, confirmed, writes };
+    return { call, callTool, confirmed, writes };
 }
 
 describe('manage_indexer disable and enable', () => {
@@ -303,6 +313,61 @@ describe('manage_indexer delete', () => {
         const h = harness();
         const disable = await h.call({ id: 21, action: 'disable' });
         const retried = await h.call({ id: 21, action: 'delete', confirm: disable.structuredContent.confirm_token });
+
+        expect(retried.structuredContent.applied).toBe(false);
+        expect(h.writes).toEqual([]);
+    });
+});
+
+describe('delete_indexer', () => {
+    it('says which apps lose their copy and which keep it', async () => {
+        const h = harness({ tool: 'delete_indexer' });
+        const { structuredContent } = await h.call({ id: 21 });
+
+        expect(structuredContent.tier).toBe('destructive');
+        expect(h.writes).toEqual([]);
+
+        const effects = structuredContent.effects.join('\n');
+        expect(effects).toContain('Radarr: Prowlarr removes its copy straight away.');
+        expect(effects).toContain('Sonarr: Prowlarr removes its copy straight away.');
+        expect(effects).toContain('Lidarr: sync is off, so any copy it has stays listed');
+    });
+
+    it('deletes, then syncs', async () => {
+        const h = harness({ tool: 'delete_indexer' });
+        const applied = await h.confirmed({ id: 21 });
+
+        expect(applied.structuredContent.applied).toBe(true);
+        expect(h.writes.map(w => `${w.method} ${w.path}`)).toEqual(['DELETE /api/v1/indexer/21', 'POST /api/v1/command']);
+    });
+
+    it('is refused when the destructive tier is off', async () => {
+        const h = harness({ destructive: false, tool: 'delete_indexer' });
+        const preview = await h.call({ id: 21, dry_run: true });
+        expect(preview.structuredContent.permission.allowed).toBe(false);
+
+        await expect(h.call({ id: 21 })).rejects.toThrow(/destructive/);
+        expect(h.writes).toEqual([]);
+    });
+
+    it('still deletes through manage_indexer, with the same preview', async () => {
+        const viaNew = await harness({ tool: 'delete_indexer' }).call({ id: 21 });
+        const h = harness();
+        const viaOld = await h.call({ id: 21, action: 'delete' });
+
+        expect(viaOld.structuredContent.summary).toBe(viaNew.structuredContent.summary);
+        expect(viaOld.structuredContent.effects).toEqual(viaNew.structuredContent.effects);
+        expect(viaOld.structuredContent.tier).toBe('destructive');
+
+        const applied = await h.confirmed({ id: 21, action: 'delete' });
+        expect(applied.structuredContent.applied).toBe(true);
+        expect(h.writes.map(w => `${w.method} ${w.path}`)).toEqual(['DELETE /api/v1/indexer/21', 'POST /api/v1/command']);
+    });
+
+    it('will not apply a disable token to a delete', async () => {
+        const h = harness({ tool: 'delete_indexer' });
+        const disable = await h.callTool('manage_indexer', { id: 21, action: 'disable' });
+        const retried = await h.call({ id: 21, confirm: disable.structuredContent.confirm_token });
 
         expect(retried.structuredContent.applied).toBe(false);
         expect(h.writes).toEqual([]);
