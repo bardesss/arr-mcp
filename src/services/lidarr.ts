@@ -9,6 +9,7 @@ import type { IndexInput } from '../core/resolver.ts';
 import { readMetadataProfiles, readProfileNames, readQualityProfiles, readRootFolders, readTags } from './arrAdd.ts';
 import { findArrBlocklistEntry, readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
 import { awaitArrCommand, postArrCommand, readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
+import { arrGrabRecorded } from './arrDownloadTrace.ts';
 import { readArrHistory } from './arrHistory.ts';
 import { listArrImportCandidates, runArrManualImport } from './arrManualImport.ts';
 import { deleteArrMedia, lidarrCalendarPath, readArrQueue, readLidarrCalendar, removeArrQueueItem } from './arrQueue.ts';
@@ -590,12 +591,17 @@ export class LidarrAdapter
 
     /**
      * Lidarr's `DELETE /api/v1/queue/{id}`, with the two flags sent
-     * explicitly. Blocklisting marks the download failed. With Lidarr's
-     * "redownload failed" setting on (its default) that also starts a search
-     * for the album again: `skipRedownload` is left at its default, false.
+     * explicitly. Blocklisting a download that reached the client marks it
+     * failed. With Lidarr's Redownload Failed setting on (its default) that
+     * also starts a search for the album again: `skipRedownload` is left at its
+     * default, false. `remove_queue_item` says when it blocklists nothing.
      */
     async removeQueueItem(id: string, opts: RemoveQueueOptions): Promise<void> {
         return removeArrQueueItem(this.http, this.id, id, opts);
+    }
+
+    async grabRecorded(downloadId: string): Promise<boolean> {
+        return arrGrabRecorded(this.http, this.id, downloadId);
     }
 
     /**

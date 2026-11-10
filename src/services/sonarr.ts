@@ -21,7 +21,7 @@ import {
 } from './arrAdd.ts';
 import { readArrProfileDiagnostics } from './arrProfiles.ts';
 import { readArrHistory } from './arrHistory.ts';
-import { traceArrDownload } from './arrDownloadTrace.ts';
+import { arrGrabRecorded, traceArrDownload } from './arrDownloadTrace.ts';
 import { postArrCommand, readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
 import {
     listArrImportCandidates,
@@ -253,6 +253,10 @@ export class SonarrAdapter
 
     async removeQueueItem(id: string, opts: RemoveQueueOptions): Promise<void> {
         return removeArrQueueItem(this.http, this.id, id, opts);
+    }
+
+    async grabRecorded(downloadId: string): Promise<boolean> {
+        return arrGrabRecorded(this.http, this.id, downloadId);
     }
 
     /** Deletes the whole series. Sonarr has no per-episode delete on this path,

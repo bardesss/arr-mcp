@@ -19,7 +19,7 @@ import {
 } from './arrAdd.ts';
 import { readArrProfileDiagnostics } from './arrProfiles.ts';
 import { readArrHistory } from './arrHistory.ts';
-import { traceArrDownload } from './arrDownloadTrace.ts';
+import { arrGrabRecorded, traceArrDownload } from './arrDownloadTrace.ts';
 import { postArrCommand, readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
 import { listArrImportCandidates, runArrManualImport } from './arrManualImport.ts';
 import { readArrForUpdate, updateArrMedia } from './arrUpdate.ts';
@@ -214,6 +214,10 @@ export class RadarrAdapter
 
     async removeQueueItem(id: string, opts: RemoveQueueOptions): Promise<void> {
         return removeArrQueueItem(this.http, this.id, id, opts);
+    }
+
+    async grabRecorded(downloadId: string): Promise<boolean> {
+        return arrGrabRecorded(this.http, this.id, downloadId);
     }
 
     async deleteMedia(id: string, opts: DeleteMediaOptions): Promise<void> {

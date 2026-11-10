@@ -23,7 +23,7 @@ import {
 import { readArrProfileDiagnostics } from './arrProfiles.ts';
 import { postArrCommand, readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
 import { readArrHistory } from './arrHistory.ts';
-import { traceArrDownload } from './arrDownloadTrace.ts';
+import { arrGrabRecorded, traceArrDownload } from './arrDownloadTrace.ts';
 import { findArrReleases, grabArrRelease } from './arrRelease.ts';
 import { arrRecentLogs, arrStartLibraryScan, arrVersion } from './arrSystem.ts';
 import {
@@ -244,6 +244,10 @@ export class WhisparrAdapter
 
     async removeQueueItem(id: string, opts: RemoveQueueOptions): Promise<void> {
         return removeArrQueueItem(this.http, this.id, id, opts);
+    }
+
+    async grabRecorded(downloadId: string): Promise<boolean> {
+        return arrGrabRecorded(this.http, this.id, downloadId);
     }
 
     /** Deletes the whole site. Sonarr's `series` resource — Whisparr keeps the noun. */

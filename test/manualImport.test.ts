@@ -254,6 +254,16 @@ describe('a download that has not finished', () => {
         expect(s.sent.some(x => x.method === 'POST')).toBe(false);
     });
 
+    // Until the service's next queue refresh (about a minute) a failed row with a
+    // grab record is still listed, and blocklisting it is right; without a record
+    // remove_queue_item's preview says it blocklists nothing. So the hint stays,
+    // without promising a replacement.
+    it('offers a blocklist for a bad release without promising another one', async () => {
+        const s = stack(500, [{ ...RUNNING_ROW, status: 'failed' }]);
+        const err = (await new RadarrAdapter(keyed(7878), s.impl).runManualImport('nzo_abc').catch((e: unknown) => e)) as { remedy?: string };
+        expect(err.remedy).toContain('remove_queue_item removes it, with `blocklist: true` if the release itself is bad; or fix it in the download client and try again.');
+    });
+
     /** `warning` is usually a stalled torrent, which often finishes later: stuck, not stopped. */
     it('names a warning as a warning, points at the row\'s own reasons, and does not say it will not finish', async () => {
         const s = stack(500, [{ ...RUNNING_ROW, status: 'warning', trackedDownloadState: 'downloading' }]);

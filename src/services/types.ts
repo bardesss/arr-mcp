@@ -353,6 +353,8 @@ export type QueueItem = {
     mediaId?: string;
     /** No movie or series behind it. Not the same as safe to remove. */
     orphaned?: boolean;
+    /** Internal, Lidarr only: the row names an artist but no album, so Lidarr cannot ignore the download. Never returned by a tool. */
+    noAlbum?: true;
     /** `trackedDownloadState`; `importBlocked` is the stuck one. */
     importState?: string;
     /** The download client's own id for this grab — what `import_download`'s
@@ -1812,6 +1814,9 @@ export interface QueueRemoveCapable {
     removeQueueItem(id: string, opts: RemoveQueueOptions): Promise<void>;
     /** True when this service can actually honour `blocklist`. */
     readonly supportsBlocklist: boolean;
+    /** Radarr, Sonarr, Whisparr and Lidarr, the four that set `supportsBlocklist`: whether the service has the
+     *  `grabbed` record for this download id that blocklisting a download goes through. */
+    grabRecorded?(downloadId: string): Promise<boolean>;
     /** Shelfmark's: it can only stop what is queued or running, so a failed row has nothing to
      *  remove and `removeFromClient: false` cannot be honoured. `remove_queue_item` refuses both. */
     readonly cancelOnly?: boolean;

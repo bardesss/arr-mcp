@@ -26,6 +26,8 @@ type RawQueueRecord = {
     seriesId?: number;
     /** Lidarr only. `int?` in its `QueueResource`, like the two above. */
     artistId?: number | null;
+    /** Lidarr only, and null when the release matched no album (`QueueService` then maps one row with none). */
+    albumId?: number | null;
     trackedDownloadState?: string;
     downloadId?: string;
     statusMessages?: { title?: string | null; messages?: string[] | null }[] | null;
@@ -102,6 +104,8 @@ export async function readArrQueue(
                 // serialises the null instead of omitting the key would hide the
                 // very rows `includeUnknownMovieItems=true` was added to surface.
                 ...(mediaId === undefined ? { orphaned: true } : { mediaId: String(mediaId) }),
+                // Lidarr ignores a download only with its albums (`IgnoredDownloadService`).
+                ...(kind === 'artist' && mediaId !== undefined && (r.albumId === null || r.albumId === undefined) ? { noAlbum: true as const } : {}),
                 // Omitted when it only repeats `status`, which is the common case.
                 ...(r.trackedDownloadState === undefined || r.trackedDownloadState === r.status
                     ? {}

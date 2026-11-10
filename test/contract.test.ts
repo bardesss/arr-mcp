@@ -424,6 +424,7 @@ const CONTRACTS: Record<string, ServiceContract> = {
             {
                 // `readArrQueue` with `kind: 'artist'`. `artistId` is what
                 // `orphaned` is read from: a row whose artist was deleted has none.
+                // `albumId` is what `noAlbum` is read from.
                 path: '/api/v1/queue',
                 method: 'get',
                 fixture: 'test/fixtures/lidarr/queue.json',
@@ -436,14 +437,16 @@ const CONTRACTS: Record<string, ServiceContract> = {
                     'records.sizeleft',
                     'records.errorMessage',
                     'records.artistId',
+                    'records.albumId',
                     'records.trackedDownloadState',
                     'records.downloadId',
                     'records.statusMessages'
                 ]
             },
             {
-                // `readArrHistory` with `kind: 'artist'`. `eventType` is a
-                // string here even though the request filters on integers.
+                // `readArrHistory` with `kind: 'artist'`, and `arrGrabRecorded`.
+                // `eventType` is a string here even though the request filters
+                // on integers.
                 path: '/api/v1/history',
                 method: 'get',
                 fixture: 'test/fixtures/lidarr/history.json',
@@ -452,6 +455,7 @@ const CONTRACTS: Record<string, ServiceContract> = {
                     'records.eventType',
                     'records.date',
                     'records.sourceTitle',
+                    'records.downloadId',
                     'records.artistId',
                     'records.quality.quality.name',
                     'records.data'

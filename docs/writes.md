@@ -85,7 +85,13 @@ does nothing. On Shelfmark it only cancels a queued or running book, and refuses
 `remove_from_client: false`, because Shelfmark has no way to leave the download
 alone. On Grimmory it discards a file waiting in the Bookdrop, which deletes the
 file from disk with no undo. It refuses `remove_from_client: false`, since
-Grimmory cannot discard a file and keep it, and `blocklist` is ignored there.
+Grimmory cannot discard a file and keep it, and `blocklist` is ignored there. On
+Radarr, Sonarr, Whisparr and Lidarr it refuses `remove_from_client: false` for a
+row `get_queue` marks `orphaned`, and for a Lidarr row with no album, unless the
+release is blocklisted: with nothing to record an ignore against, the service
+would list the download again at the next refresh. Its preview also says when
+`blocklist: true` would blocklist nothing
+([`remove_queue_item`](tools.md#remove_queue_item)).
 
 `delete_media` on a Grimmory book always deletes the files. Grimmory has no
 keep-files option, so the call needs `delete_files: true` and is refused
@@ -429,6 +435,9 @@ the run.
 | `trigger_search` | `sonarr` | `SeasonSearch` and `EpisodeSearch` payloads | Posting one runs a real search on the stack, and Sonarr reports success for a command that matches nothing |
 | `add_media` | `radarr` | Adopting an existing folder with `path` | Never posted to a live Radarr |
 | `add_media` | `sonarr` | Adopting an existing folder with `path` | Never posted to a live Sonarr |
+| `remove_queue_item` | `radarr` | The grab-record read behind `blocklist: true` | Never run against a live Radarr; read from its source |
+| `remove_queue_item` | `sonarr` | The grab-record read behind `blocklist: true` | Never run against a live Sonarr; read from its source |
+| `remove_queue_item` | `whisparr` | The grab-record read behind `blocklist: true` | Never run against a live Whisparr; read from its source |
 | `remove_queue_item` | `shelfmark` | Cancelling a Prowlarr row | Mock-only; the live Shelfmark has not been asked to cancel one |
 | `remove_queue_item` | `grimmory` | Discarding a Bookdrop file | Mock-only; no discard response was ever captured |
 | `remove_queue_item` | `qbittorrent` | Removing a torrent, with or without its files | No qBittorrent on the maintainer's stack |
