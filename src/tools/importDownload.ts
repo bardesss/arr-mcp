@@ -462,22 +462,20 @@ export const mappingField = z
     .optional();
 
 const ImportDownloadInput = z.object({
-    service: serviceOf(['radarr', 'sonarr', 'lidarr', 'nzbget', 'grimmory']).describe(
-        'nzbget only with action: "postprocess"; sonarr only with "remap".'
-    ),
+    service: serviceOf(['radarr', 'sonarr', 'lidarr', 'nzbget', 'grimmory']),
     instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
     action: z
         .enum(['import', 'postprocess', 'remap'])
         .default('import')
         .describe(
-            'import takes a finished download the service never picked up, by `download_id`; add `mapping` when it cannot tell what a file is. postprocess reruns NZBGet\'s post-processing on a finished download, by `download_id`. remap reassigns already-imported Sonarr files to the episodes a person has confirmed they are, and requires `id` and `reassignments`.'
+            "import (default): a finished download, by `download_id`. postprocess (NZBGet): reruns its post-processing, by `download_id`. remap (Sonarr): moves imported files to the episodes they really are, with `id` and `reassignments`."
         ),
     download_id: z
         .string()
         .min(1)
         .optional()
         .describe(
-            'The download client\'s own id, as `downloadId` on a get_queue row (or, for nzbget, on a get_history row). Required for import and postprocess.'
+            "`downloadId` on the get_queue row (nzbget: or its get_history row)."
         ),
     id: z
         .string()
@@ -492,10 +490,10 @@ const ImportDownloadInput = z.object({
         .optional()
         .describe('[[grimmory: Grimmory only: the library to import the Bookdrop file into, by name or id. Omit when there is one.]]'),
     reassignments: reassignmentsField.describe(
-        'Required for remap. Include every file the change touches: a file moved onto an episode that already has one must say where that one goes too, or the call is refused.'
+        'Include every file the change touches: a file moved onto an episode that already has one must say where that one goes too, or the call is refused.'
     ),
     mapping: mappingField.describe(
-        'For import. What each named file really is, for a download the service matched wrongly or not at all. The service judges each mapped file again with that answer and imports it only if it then accepts it; files left out keep the service\'s own match.'
+        "What each file really is. The service judges each mapped file again and imports it only if it then accepts it; unmapped files keep its own match."
     )
 });
 
@@ -504,7 +502,7 @@ export function registerImportDownload(server: McpServer, context: WriteContext,
         name: 'import_download',
         title: 'Import a finished download',
         description:
-            'Gets a finished download into the library when the *arr never took it: one stuck at `importBlocked` in get_queue, by its `download_id`; `mapping` fixes a wrong match (not on Lidarr). Previews the files it will import and skip, and never forces one the service refuses. [[nzbget: `postprocess` first reruns NZBGet\'s post-processing, for a download a broken script left unimportable.]] [[sonarr: `remap` says which episode an imported file really is. A "TBA" episode title blocks an import until trigger_scan has refreshed the series.]] [[grimmory: On Grimmory, `id` is a Bookdrop file from get_queue.]] Rescan or rename: trigger_scan. Queues and returns: follow it in stack_health `commands`. Previews first; confirm to run. Field reference: arr://docs/import_download.',
+            'Gets a finished download into the library when the *arr never took it: one stuck at `importBlocked` in get_queue, by its `download_id`; `mapping` fixes a wrong match (not on Lidarr). Previews the files it will import and skip, and never forces one the service refuses. [[nzbget: `postprocess` first reruns NZBGet\'s post-processing, for a download a broken script left unimportable.]] [[sonarr: `remap` says which episode an imported file really is.]] [[grimmory: On Grimmory, `id` is a Bookdrop file from get_queue.]] Rescan or rename: trigger_scan. An import queues and returns (stack_health `commands`). Previews first; confirm to run. Field reference: arr://docs/import_download.',
         inputSchema: ImportDownloadInput,
         // Resolved from the arguments, so the permission checked, the audit row
         // written and the token issued all name the same instance.

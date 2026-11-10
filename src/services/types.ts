@@ -355,7 +355,7 @@ export type QueueItem = {
     orphaned?: boolean;
     /** `trackedDownloadState`; `importBlocked` is the stuck one. */
     importState?: string;
-    /** The download client's own id for this grab — what `trigger_scan`'s
+    /** The download client's own id for this grab — what `import_download`'s
      *  `import` action is addressed with. */
     downloadId?: string;
     /** Why Radarr or Sonarr will not import it, one line per reason. */
@@ -772,7 +772,7 @@ export type HistoryEntry = {
     indexerId?: number;
     /** The download client's id for the grab. On Radarr, Sonarr and Cleanuparr rows it is lowercased, which is
      *  what links a Cleanuparr event to an *arr grab. On a download client's own row it is the id `get_queue`
-     *  and the *arrs use, which is what `trigger_scan`'s `postprocess` takes. Not fenced, for the same reason as `guid`. */
+     *  and the *arrs use, which is what `import_download`'s `postprocess` takes. Not fenced, for the same reason as `guid`. */
     downloadId?: string;
     /** Cleanuparr only. */
     strikeCount?: number;
@@ -1494,7 +1494,7 @@ export const hasManualImport = (a: ServiceAdapter): a is ServiceAdapter & Manual
     typeof (a as Partial<ManualImportCapable>).runManualImport === 'function';
 
 /** A finished download still in a download client's history, as
- *  `trigger_scan`'s `postprocess` previews it. Every string is fenced. */
+ *  `import_download`'s `postprocess` previews it. Every string is fenced. */
 export type PostProcessTarget = {
     /** The client's own history id, which the rerun is addressed to. */
     historyId: string;

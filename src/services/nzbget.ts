@@ -657,7 +657,7 @@ export class NzbgetAdapter
      *  by its `drone` parameter (what an *arr's queue shows) or, for an NZB
      *  added by hand, by its NZBID (what get_queue falls back to). */
     #isDownload(row: { NZBID?: number; Parameters?: RawParameter[] }, downloadId: string): boolean {
-        // Case-insensitive, as trigger_scan's import matches the same id.
+        // Case-insensitive, as import_download's import matches the same id.
         const drone = droneParameter(row.Parameters);
         if (drone !== undefined) return drone.toLowerCase() === downloadId.toLowerCase();
         return /^\d+$/.test(downloadId) && typeof row.NZBID === 'number' && String(row.NZBID) === downloadId;

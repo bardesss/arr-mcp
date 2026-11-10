@@ -88,7 +88,7 @@ async function planBookScan(
 
     if (id !== undefined) {
         throw new ServiceError('NotFound', service, `${service} cannot scan one item by id`, {
-            remedy: 'On grimmory `id` is a book. To rescan one library pass `library`, with its name or id. To approve a Bookdrop file, pass its id with action "bookdrop".'
+            remedy: 'On grimmory `id` is a book. To rescan one library pass `library`, with its name or id. To approve a Bookdrop file, use import_download with service "grimmory" and its `id`.'
         });
     }
     if (action !== 'scan' && action !== 'bookdrop') {
@@ -158,10 +158,16 @@ async function applyBookScan(adapter: ServiceAdapter & BookLibraryScanCapable, p
 }
 
 /** The deprecated import fields, held to import_download's own schema. */
-const importFields = (reassignments: unknown, mapping: unknown) => ({
-    reassignments: reassignmentsField.parse(reassignments),
-    mapping: mappingField.parse(mapping)
-});
+const importFields = (reassignments: unknown, mapping: unknown) => {
+    const r = reassignmentsField.safeParse(reassignments);
+    const m = mappingField.safeParse(mapping);
+    if (!r.success || !m.success) {
+        const bad = r.success ? 'mapping' : 'reassignments';
+        const why = (r.success ? m.error : r.error)?.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ');
+        throw new Error(`\`${bad}\` is not valid (${why}). import_download takes the same field and describes its shape.`);
+    }
+    return { reassignments: r.data, mapping: m.data };
+};
 
 const TriggerScanInput = z.object({
     service: serviceOf(['radarr', 'sonarr', 'whisparr', 'lidarr', 'jellyfin', 'plex', 'grimmory', 'prowlarr', 'nzbget']).describe(
@@ -203,7 +209,7 @@ export function registerTriggerScan(
         name: 'trigger_scan',
         title: 'Refresh and scan a library',
         description:
-            "Asks a service to reconcile itself with what is on disk: the \"it downloaded but will not play\" fix, and the usual fix for a stale scan diagnose reports. No `id` rescans the whole library of Radarr, Sonarr, Whisparr, Lidarr, Jellyfin, Plex or Grimmory; on Prowlarr it pushes the indexer list to the apps. An `id` refreshes and rescans one item. On Jellyfin and Plex a scan only finds changed files; wrong metadata is fix_metadata. `action`: `rename` (files to the service's naming, needs `id`), `bookdrop` (rescan Grimmory's Bookdrop). Importing a download: import_download. Most actions queue and return; follow them in stack_health `commands`. Previews first; confirm to run. Field reference: arr://docs/trigger_scan.",
+            "Asks a service to reconcile itself with what is on disk: the \"it downloaded but will not play\" fix, and the usual fix for a stale scan diagnose reports. No `id` rescans the whole library of Radarr, Sonarr, Whisparr, Lidarr, Jellyfin, Plex or Grimmory; on Prowlarr it pushes the indexer list to the apps. An `id` refreshes and rescans one item. On Jellyfin and Plex a scan only finds changed files; wrong metadata is fix_metadata. `action`: `rename` (files to the service's naming, needs `id`), [[grimmory: `bookdrop` (rescan Grimmory's Bookdrop).]] Importing a download: import_download. Most actions queue and return; follow them in stack_health `commands`. Previews first; confirm to run. Field reference: arr://docs/trigger_scan.",
         inputSchema: TriggerScanInput,
         // Resolved from the arguments, so the permission checked, the audit row
         // written and the token issued all name the same instance. Only the

@@ -25,11 +25,12 @@ const LIBRARIES = [
 function scanTool(
     routes: Record<string, Reply | Reply[]> = {},
     perms?: { safe_write?: boolean; destructive?: boolean },
-    register: typeof registerTriggerScan = registerTriggerScan
+    register: typeof registerTriggerScan = registerTriggerScan,
+    confirm?: ConfirmTokens
 ) {
     const server = grimmoryServer({ 'GET /api/v1/libraries': json(LIBRARIES), ...routes });
     const adapter = new GrimmoryAdapter(grimmoryConfig(perms), server.fetch);
-    const call = writeTool((s, context) => register(s, context, [adapter]), perms);
+    const call = writeTool((s, context) => register(s, context, [adapter]), perms, confirm);
     const puts = () => server.sent.filter(s => s.method === 'PUT').map(s => s.path);
     return { call, server, puts };
 }
@@ -1137,12 +1138,14 @@ describe.each([
     ['import_download', registerImportDownload, {}],
     ['trigger_scan', registerTriggerScan, { action: 'bookdrop' }]
 ] as const)('%s approving a Bookdrop file (#532)', (tool, register, via) => {
+    // Defined once, under the import_download row, so the trigger_scan row shows no skips.
+    const onlyImportDownload: typeof it = tool === 'import_download' ? it : ((() => undefined) as unknown as typeof it);
     const ORIGINAL = { title: 'The Book', authors: ['A. Writer'], publisher: 'Del Rey' };
     const FETCHED = { title: 'The Book', authors: ['A. Writer'], publisher: 'Gollancz', seriesName: 'Not Its Series' };
     const file = (over: Record<string, unknown> = {}) => ({ ...(PENDING.content[0] as object), originalMetadata: ORIGINAL, fetchedMetadata: FETCHED, ...over });
     const ONE_LIBRARY = [{ id: 1, name: 'Fiction', watch: false, paths: [{ id: 7, path: '/books' }] }];
     const search = (ids: number[]) => json({ content: ids.map(id => ({ id, title: 'The Book', authors: ['A. Writer'] })) });
-    const approveTool = (routes: Record<string, Reply | Reply[]> = {}) =>
+    const approveTool = (routes: Record<string, Reply | Reply[]> = {}, using: typeof register = register, confirm?: ConfirmTokens) =>
         scanTool(
             {
                 'GET /api/v1/libraries': json(ONE_LIBRARY),
@@ -1152,7 +1155,8 @@ describe.each([
                 ...routes
             },
             { safe_write: true },
-            register
+            using,
+            confirm
         );
 
     it('previews, then imports with the file\'s own metadata and names the new book', async () => {
@@ -1193,7 +1197,22 @@ describe.each([
         await expect(call({ service: 'grimmory', ...via, id: '3', confirm: token })).rejects.toThrow(/did not import Bookdrop file 3/);
     });
 
-    it.runIf(tool === 'import_download')('needs a Bookdrop file id, and leaves the rescan to trigger_scan', async () => {
+    onlyImportDownload('refuses a token from the other tool, in both directions', async () => {
+        for (const [from, fromVia, to, toVia] of [
+            [registerTriggerScan, { action: 'bookdrop' }, registerImportDownload, {}],
+            [registerImportDownload, {}, registerTriggerScan, { action: 'bookdrop' }]
+        ] as const) {
+            const shared = new ConfirmTokens();
+            const token = (await approveTool({}, from, shared).call({ service: 'grimmory', ...fromVia, id: '3' })).structuredContent.confirm_token;
+            const other = approveTool({}, to, shared);
+            const refused = await other.call({ service: 'grimmory', ...toVia, id: '3', confirm: token });
+            expect(refused.structuredContent.applied).toBe(false);
+            expect(refused.structuredContent.confirm_error).toBe(CONFIRM_REASON.mismatch);
+            expect(other.server.sent.some(x => x.path === '/api/v1/bookdrop/imports/finalize')).toBe(false);
+        }
+    });
+
+    onlyImportDownload('needs a Bookdrop file id, and leaves the rescan to trigger_scan', async () => {
         const { call, server } = approveTool();
         await expect(call({ service: 'grimmory' })).rejects.toThrow(/Bookdrop file/);
         await expect(call({ service: 'grimmory', action: 'postprocess', id: '3' })).rejects.toThrow(/grimmory/);

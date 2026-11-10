@@ -497,7 +497,7 @@ describe('the advertised tool surface', () => {
      * is a decision, not a fix for a failing test.
      */
     const DESCRIPTION_CAP = 1000;
-    const DESCRIPTIONS_TOTAL_CAP = 28_869;
+    const DESCRIPTIONS_TOTAL_CAP = 28_790;
 
     it(`keeps every tool description under ${DESCRIPTION_CAP} characters`, async () => {
         const long = (await listTools())

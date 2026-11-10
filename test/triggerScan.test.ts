@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as z from 'zod/v4';
 import type { AnyServiceConfig, KeyedServiceConfig, MultiUserServiceConfig, ServiceId } from '../src/config/schema.ts';
 import { WriteAudit } from '../src/core/audit.ts';
-import { ConfirmTokens } from '../src/core/confirm.ts';
+import { CONFIRM_REASON, ConfirmTokens } from '../src/core/confirm.ts';
 import { permissionSourceFrom } from '../src/core/permissions.ts';
 import { JellyfinAdapter } from '../src/services/jellyfin.ts';
 import { NzbgetAdapter } from '../src/services/nzbget.ts';
@@ -125,7 +125,9 @@ const useTool = (register: typeof registerTriggerScan) => {
     });
 };
 
-function harness(opts: { permissions?: Partial<Record<ServiceId, AnyServiceConfig>>; adapters?: ServiceAdapter[] } = {}) {
+function harness(
+    opts: { permissions?: Partial<Record<ServiceId, AnyServiceConfig>>; adapters?: ServiceAdapter[]; confirm?: ConfirmTokens } = {}
+) {
     const jellyfin = recordingFetch({
         '/ScheduledTasks': TASKS,
         '/ScheduledTasks/Running/guid-scan': {}
@@ -150,7 +152,7 @@ function harness(opts: { permissions?: Partial<Record<ServiceId, AnyServiceConfi
             permissions: permissionSourceFrom(
                 instancesOf(opts.permissions ?? { jellyfin: permissive(true), prowlarr: permissive(true) })
             ),
-            confirm: new ConfirmTokens(),
+            confirm: opts.confirm ?? new ConfirmTokens(),
             audit: WriteAudit.ephemeral(),
             library: { invalidate: vi.fn() } as unknown as LibraryLoader
         },
@@ -447,9 +449,11 @@ describe('trigger_scan on a single item', () => {
  */
 describe.each(IMPORT_TOOLS)('%s importing a finished download', (tool, register) => {
     useTool(register);
+    // Cross-tool cases: defined once, under the import_download row, so the trigger_scan row shows no skips.
+    const onlyImportDownload: typeof it = tool === 'import_download' ? it : ((() => undefined) as unknown as typeof it);
 
     /** Run the same call through each tool and compare what the caller is shown and what is sent. */
-    it.runIf(tool === 'import_download')('still imports through trigger_scan, with the same preview', async () => {
+    onlyImportDownload('still imports through trigger_scan, with the same preview', async () => {
         const via = async (reg: typeof registerTriggerScan) => {
             registerUnderTest = reg;
             const h = importHarness();
@@ -466,17 +470,24 @@ describe.each(IMPORT_TOOLS)('%s importing a finished download', (tool, register)
         expect(direct.sent.filter(x => x.method === 'POST' && x.url === '/api/v3/command')).toHaveLength(1);
     });
 
-    it.runIf(tool === 'import_download')('refuses a confirm token from the trigger_scan preview', async () => {
+    onlyImportDownload('refuses a token from the other tool, in both directions', async () => {
         const args = { service: 'radarr', action: 'import', download_id: 'nzo_abc' };
-        registerUnderTest = registerTriggerScan;
-        const old = importHarness();
-        const oldToken = (await old.call(args)).structuredContent.confirm_token;
-        registerUnderTest = registerImportDownload;
-        const fresh = importHarness();
-        const refused = await fresh.call({ ...args, confirm: oldToken });
-        expect(refused.structuredContent.applied).toBe(false);
-        expect(refused.structuredContent.confirm_error).toBeDefined();
-        expect(fresh.radarr.sent.some(x => x.method === 'POST')).toBe(false);
+        for (const [from, to] of [
+            [registerTriggerScan, registerImportDownload],
+            [registerImportDownload, registerTriggerScan]
+        ] as const) {
+            // One ConfirmTokens for both, so a refusal can only be the signed tool and operation.
+            const shared = new ConfirmTokens();
+            registerUnderTest = from;
+            const issued = importHarness(CANDIDATES, shared);
+            const token = (await issued.call(args)).structuredContent.confirm_token;
+            registerUnderTest = to;
+            const other = importHarness(CANDIDATES, shared);
+            const refused = await other.call({ ...args, confirm: token });
+            expect(refused.structuredContent.applied).toBe(false);
+            expect(refused.structuredContent.confirm_error).toBe(CONFIRM_REASON.mismatch);
+            expect(other.radarr.sent.some(x => x.method === 'POST')).toBe(false);
+        }
     });
 
     const CANDIDATES = [
@@ -491,7 +502,7 @@ describe.each(IMPORT_TOOLS)('%s importing a finished download', (tool, register)
         { path: '/downloads/sample.mkv', relativePath: 'sample.mkv', rejections: [{ reason: 'Sample' }] }
     ];
 
-    const importHarness = (candidates: unknown = CANDIDATES) => {
+    const importHarness = (candidates: unknown = CANDIDATES, confirm?: ConfirmTokens) => {
         const radarr = recordingFetch({
             '/api/v3/manualimport': candidates,
             '/api/v3/command': { id: 5, name: 'ManualImport', status: 'queued' }
@@ -499,7 +510,8 @@ describe.each(IMPORT_TOOLS)('%s importing a finished download', (tool, register)
         return {
             ...harness({
                 adapters: [new RadarrAdapter(keyed(7878), radarr.impl)],
-                permissions: { radarr: permissive(true) }
+                permissions: { radarr: permissive(true) },
+                ...(confirm === undefined ? {} : { confirm })
             }),
             radarr
         };
@@ -743,8 +755,10 @@ describe('trigger_scan on Prowlarr', () => {
  *  `planArrEpisodeRemap` for why nothing automatic can make it. */
 describe.each(IMPORT_TOOLS)('%s remapping episodes', (tool, register) => {
     useTool(register);
+    // Cross-tool cases: defined once, under the import_download row, so the trigger_scan row shows no skips.
+    const onlyImportDownload: typeof it = tool === 'import_download' ? it : ((() => undefined) as unknown as typeof it);
 
-    it.runIf(tool === 'import_download')('still remaps through trigger_scan, with the same preview', async () => {
+    onlyImportDownload('still remaps through trigger_scan, with the same preview', async () => {
         const via = async (reg: typeof registerTriggerScan) => {
             registerUnderTest = reg;
             const h = remapHarness();
@@ -1014,8 +1028,10 @@ describe.each(IMPORT_TOOLS)('%s remapping episodes', (tool, register) => {
  */
 describe.each(IMPORT_TOOLS)('%s postprocess on nzbget', (tool, register) => {
     useTool(register);
+    // Cross-tool cases: defined once, under the import_download row, so the trigger_scan row shows no skips.
+    const onlyImportDownload: typeof it = tool === 'import_download' ? it : ((() => undefined) as unknown as typeof it);
 
-    it.runIf(tool === 'import_download')('still post-processes through trigger_scan, with the same preview', async () => {
+    onlyImportDownload('still post-processes through trigger_scan, with the same preview', async () => {
         const via = async (reg: typeof registerTriggerScan) => {
             registerUnderTest = reg;
             const { adapter, methods } = nzbget(false);
