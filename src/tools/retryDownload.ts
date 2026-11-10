@@ -70,11 +70,10 @@ async function askArrs(adapters: readonly ServiceAdapter[], downloadId: string):
 
 /** The *arrs with no download trace, by adapter type and display name. */
 const UNTRACED = [
-    ['whisparr', 'Whisparr'],
     ['lidarr', 'Lidarr']
 ] as const;
 
-/** The preview's lines about replacements. Whisparr and Lidarr are named
+/** The preview's lines about replacements. Lidarr is named
  *  only when one is configured; naming them otherwise is noise. */
 function movedOnLines(view: ArrView, adapters: readonly ServiceAdapter[]): string[] {
     const replaced = view.traces.flatMap(trace => {

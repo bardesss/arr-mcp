@@ -37,10 +37,11 @@ describe('*arr adapter capabilities', () => {
         ['radarr', () => new RadarrAdapter(cfg), radarr],
         ['sonarr', () => new SonarrAdapter(cfg), [...radarr, 'hasEpisodeFiles', 'hasEpisodeRemap', 'hasMonitoring'].sort()],
         ['whisparr', () => new WhisparrAdapter(cfg), [
-            'hasBlocklist', 'hasCalendar', 'hasDiskSpace', 'hasEpisodeFiles', 'hasHealthChecks', 'hasLibrary',
-            'hasLibraryMaintenance', 'hasLibraryScan', 'hasMediaAdd', 'hasMediaDelete', 'hasMediaDetails',
-            'hasMonitoring', 'hasProfileDiagnostics', 'hasQueue', 'hasQueueRemove', 'hasReleaseGrab',
-            'hasReleaseSearch', 'hasScanState', 'hasSearch', 'hasSearchTrigger', 'hasSeedCriteria'
+            'hasBlocklist', 'hasCalendar', 'hasCommandStatus', 'hasDiskSpace', 'hasDownloadTrace', 'hasEpisodeFiles',
+            'hasHealthChecks', 'hasHistory', 'hasLibrary', 'hasLibraryMaintenance', 'hasLibraryScan', 'hasLogs',
+            'hasMediaAdd', 'hasMediaDelete', 'hasMediaDetails', 'hasMonitoring', 'hasProfileDiagnostics', 'hasQueue',
+            'hasQueueRemove', 'hasReleaseGrab', 'hasReleaseSearch', 'hasScanState', 'hasSearch', 'hasSearchTrigger',
+            'hasSeedCriteria'
         ]],
         ['lidarr', () => new LidarrAdapter(cfg), [
             'hasArtistMonitor', 'hasBlocklist', 'hasCalendar', 'hasCommandStatus', 'hasDiskSpace',

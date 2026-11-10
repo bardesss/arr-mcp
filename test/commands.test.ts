@@ -165,10 +165,10 @@ describe('what Prowlarr is running', () => {
     });
 });
 
-/** Its command list has no captured fixture, so it stays unclaimed; the tool text has to say so. */
+/** Claimed on Sonarr's spec alone; test/whisparrInherited.test.ts keeps that honest. */
 describe('what Whisparr is running', () => {
-    it('is not claimed', () => {
-        expect(hasCommandStatus(new WhisparrAdapter(keyed(6969)))).toBe(false);
+    it("is claimed, inherited from Sonarr's spec", () => {
+        expect(hasCommandStatus(new WhisparrAdapter(keyed(6969)))).toBe(true);
     });
 });
 
