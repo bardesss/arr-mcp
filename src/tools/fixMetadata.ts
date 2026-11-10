@@ -96,16 +96,48 @@ const withPlexGate = (source: PermissionSource, adapters: readonly ServiceAdapte
 
 type Lidarr = ServiceAdapter & TagRepairCapable & MediaDetailCapable;
 
+const isLidarr = (a: ServiceAdapter): a is Lidarr => hasTagRepair(a) && hasMediaDetails(a);
+
 /**
  * `lidarr:42` names a Lidarr artist, whose music is repaired by rewriting the
- * tags in its files; any other id is a media-server item. Read from the
- * arguments alone, so the permission check sees which service is written to
- * before anything is resolved.
+ * tags in its files. The prefix is matched in any case, as `resolveInstance`
+ * matches instance names. An id written that way that no configured Lidarr
+ * matches, or that has nothing after the colon, is refused by the `service`
+ * routing (`unknownLidarr`); any other id is a media-server item. Read from the arguments alone, so the permission
+ * check sees which service is written to before anything is resolved.
  */
 const lidarrTarget = (music: readonly ServiceAdapter[], id: string | undefined): { adapter: Lidarr; artistId: string } | undefined => {
     if (id === undefined) return undefined;
-    const adapter = music.find((a): a is Lidarr => hasTagRepair(a) && hasMediaDetails(a) && id.startsWith(`${a.id}:`));
-    return adapter === undefined ? undefined : { adapter, artistId: id.slice(adapter.id.length + 1) };
+    const adapter = music.find((a): a is Lidarr => isLidarr(a) && id.slice(0, a.id.length + 1).toLowerCase() === `${a.id}:`.toLowerCase());
+    const artistId = adapter === undefined ? '' : id.slice(adapter.id.length + 1);
+    return adapter === undefined || artistId === '' ? undefined : { adapter, artistId };
+};
+
+/** The artist ids each configured Lidarr takes, as a caller writes them; undefined when none is configured. */
+const artistIdForms = (music: readonly ServiceAdapter[]): string | undefined => {
+    const forms = music.filter(isLidarr).map(a => `\`${a.id}:<artistId>\``);
+    return forms.length === 0 ? undefined : forms.join(' or ');
+};
+
+/**
+ * An id written as a Lidarr artist's that no configured Lidarr matches, such
+ * as `lidarr:42` where the only Lidarr is `lidarr/flac`, or that names no
+ * artist (`lidarr`, `lidarr/flac:`). No media-server id is written that way,
+ * and read as one it would be checked against the media server's permissions
+ * and then looked up there.
+ */
+const unknownLidarr = (music: readonly ServiceAdapter[], id: string): ServiceError => {
+    const forms = artistIdForms(music);
+    if (forms === undefined) {
+        return new ServiceError('NotFound', 'lidarr', 'no Lidarr is configured', {
+            remedy: 'Add a services.lidarr block to config.yaml and restart.'
+        });
+    }
+    const colon = id.indexOf(':');
+    const named = colon === -1 ? id : id.slice(0, colon);
+    return new ServiceError('NotFound', 'lidarr', music.some(a => isLidarr(a) && a.id.toLowerCase() === named.toLowerCase()) ? `"${id}" names no artist` : `no Lidarr is configured as "${named}"`, {
+        remedy: `Give the artist as ${forms}, from its \`acquisition.service\` and \`acquisition.id\`.`
+    });
 };
 
 /**
@@ -115,7 +147,7 @@ const lidarrTarget = (music: readonly ServiceAdapter[], id: string | undefined):
  */
 const artistByName = (item: MergedItem, music: readonly ServiceAdapter[]): Error => {
     const { service, id } = item.acquisition ?? {};
-    const lidarr = music.find(a => a.id === service && hasTagRepair(a));
+    const lidarr = music.find(a => a.id === service && isLidarr(a));
     const lidarrId = lidarr !== undefined && id !== undefined ? `${lidarr.id}:${id}` : undefined;
     return new Error(
         lidarrId === undefined
@@ -632,11 +664,17 @@ export function registerFixMetadata(
                 'With two media servers configured, `service` picks one; it defaults to the primary, and an `id` prefixed `plex:` or `jellyfin:` picks that server.'
             ),
         inputSchema: fixMetadataInput(bothIds(servers)),
-        // `service` is enum-checked against the configured ids, so this cannot throw.
-        // A `lidarr:` id first: that write goes to Lidarr.
-        service: ({ service, id }) =>
-            lidarrTarget(music, id)?.adapter.id ??
-            (id?.startsWith('grimmory:') === true ? (books?.id ?? 'grimmory') : (pickMediaServer(servers, service ?? prefixed(servers, id))?.adapter.id ?? 'jellyfin')),
+        // A `lidarr:` id first: that write goes to Lidarr. One that no configured
+        // Lidarr matches is refused here, before the permission check reads a
+        // media server for it, as the tools that take `instance` refuse one that
+        // is not configured. `service` is enum-checked against the configured
+        // ids, so `pickMediaServer` cannot throw.
+        service: ({ service, id }) => {
+            const retag = lidarrTarget(music, id);
+            if (retag !== undefined) return retag.adapter.id;
+            if (id !== undefined && /^lidarr(?:[:/]|$)/i.test(id)) throw unknownLidarr(music, id);
+            return id?.startsWith('grimmory:') === true ? (books?.id ?? 'grimmory') : (pickMediaServer(servers, service ?? prefixed(servers, id))?.adapter.id ?? 'jellyfin');
+        },
         operation: 'fix_metadata',
         tier: 'destructive',
 
@@ -649,7 +687,10 @@ export function registerFixMetadata(
                 if (isbn !== undefined) throw new Error('`isbn` is for a book: give the book as `id: "grimmory:<book id>"`.');
                 return planRetag(retag.adapter, retag.artistId, files);
             }
-            if (files !== undefined) throw new Error('`files` is for music only, with `id` as `lidarr:<artistId>`.');
+            if (files !== undefined) {
+                const forms = artistIdForms(music);
+                throw new Error(forms === undefined ? '`files` is for music only, and no Lidarr is configured.' : `\`files\` is for music only, with \`id\` as ${forms}.`);
+            }
             // Before any media-server request: a book never reaches that path.
             if (id === 'grimmory' || id?.startsWith('grimmory:') === true) return planBookFix(books, id, { service, user, isbn });
             if (isbn !== undefined) throw new Error('`isbn` is for a book: give the book as `id: "grimmory:<book id>"`.');

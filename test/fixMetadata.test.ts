@@ -177,6 +177,19 @@ describe('fix_metadata', () => {
         expect(h.requested).toEqual([]);
     });
 
+    // With Jellyfin configured and permitted, such an id used to be looked up there.
+    it('a lidarr id is refused before any request when no Lidarr is configured', async () => {
+        const h = harness();
+        for (const id of ['lidarr:101', 'lidarr']) {
+            await expect(h.call({ id })).rejects.toMatchObject({
+                kind: 'NotFound',
+                service: 'lidarr',
+                message: 'lidarr not found: no Lidarr is configured — Add a services.lidarr block to config.yaml and restart.'
+            });
+        }
+        expect(h.requested).toEqual([]);
+    });
+
     it('fix_metadata refuses a Grimmory book matched by title, before any request', async () => {
         const book = {
             kind: 'book',
