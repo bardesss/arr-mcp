@@ -822,6 +822,11 @@ to read, so none of the three appears here.
 
 ## `get_library`
 
+Each parameter is described in one sentence in the tool list. The detail
+(what `has_file`, `min_rating`, `rating_source`, `presence`, `sort` and
+`missing_from` exclude or rescale, and how they combine) is in the
+`arr://docs/get_library` resource.
+
 ### The ids a write needs
 
 Every merged record carries, under `acquisition`:

@@ -23,7 +23,7 @@ export const UserSchema = z
     .min(1)
     .optional()
     .describe(
-        'Whose playback to read. Defaults to the configured default_user; any other value requires allow_other_users.'
+        'Whose playback to read; defaults to the configured default_user, any other needs allow_other_users.'
     );
 
 export type PlaybackScope = 'active' | 'next_up' | 'history';

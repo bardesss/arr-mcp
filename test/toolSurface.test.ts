@@ -1,5 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/server';
 import { describe, expect, it } from 'vitest';
+import { TOOL_DOCS } from '../src/mcp/toolDocs.ts';
 import { WriteAudit } from '../src/core/audit.ts';
 import { ConfirmTokens } from '../src/core/confirm.ts';
 import { permissionSourceFrom } from '../src/core/permissions.ts';
@@ -119,6 +120,18 @@ describe('get_library on one media server', () => {
         const tool = (server as unknown as { _registeredTools: Record<string, { inputSchema: { shape: Record<string, unknown> } }> })._registeredTools.get_library!;
         return Object.keys(tool.inputSchema.shape);
     };
+
+    it('describes each get_library field in one sentence; the detail is in arr://docs/get_library', () => {
+        const server = new McpServer({ name: 'test', version: '0' });
+        registerGetLibrary(server, new LibraryLoader([radarr()], undefined), ['jellyfin', 'plex']);
+        const tool = (server as unknown as { _registeredTools: Record<string, { inputSchema: { shape: Record<string, { description?: string }> } }> })
+            ._registeredTools.get_library!;
+        for (const [k, f] of Object.entries(tool.inputSchema.shape)) {
+            expect((f.description ?? '').split(/(?<=[.;])\s+(?=[A-Z`])/).length, k).toBe(1);
+        }
+        expect(TOOL_DOCS.get_library).toContain('rescaled to 0-10');
+        expect(TOOL_DOCS.get_library).toContain('before `limit`');
+    });
 
     it('does not offer missing_from', () => {
         expect(shapeOf()).not.toContain('missing_from');
