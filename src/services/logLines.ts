@@ -42,7 +42,7 @@ const removeCredentials = (message: string): string =>
         .replace(LOG_CREDENTIAL, '$1(removed)');
 
 /** One line of a service's log, with its own field names already mapped. */
-export type LogLine = {
+type LogLine = {
     time: string;
     level: string;
     logger: string;

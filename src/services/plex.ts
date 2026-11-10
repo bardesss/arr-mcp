@@ -7,6 +7,8 @@ import { fenceText } from '../core/fence.ts';
 import { ServiceError, type ServiceErrorKind } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
 import { logger } from '../core/logger.ts';
+// A rematch can outlast the default timeout; the value and reasoning are documented on Jellyfin's.
+import { METADATA_REPAIR_TIMEOUT_MS } from './jellyfin.ts';
 import {
     diagnoseConnection,
     type CommandHandle,
@@ -192,9 +194,6 @@ type RawSearchResult = { guid?: string; name?: string; year?: number; score?: nu
 
 /** Only Plex's own agents accept `tvdb-N`/`tmdb-N` as an exact id search. */
 const MODERN_AGENTS = new Set(['tv.plex.agents.series', 'tv.plex.agents.movie']);
-
-/** Same value and reasoning as Jellyfin's: a rematch can outlast the default timeout. */
-const METADATA_REPAIR_TIMEOUT_MS = 120_000;
 
 /** Kinds that say something about the connection, so they survive `#step`'s rewrap. */
 const KEPT_STEP_KINDS = new Set<ServiceErrorKind>(['Timeout', 'Unreachable', 'AuthFailed']);

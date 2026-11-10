@@ -9,7 +9,7 @@ import type { BookCandidate, BookField, BookFields, BookSearch } from '../servic
  */
 
 /** Every `BookFields` key, in the order a preview lists them. */
-export const BOOK_FIELDS: readonly BookField[] = [
+const BOOK_FIELDS: readonly BookField[] = [
     'title',
     'subtitle',
     'authors',

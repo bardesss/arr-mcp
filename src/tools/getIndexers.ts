@@ -7,7 +7,7 @@ import type { IndexerCapable, IndexerRejection, IndexerSummary, ServiceAdapter }
 /** How many recent rejections are read, whatever `limit` pages the indexers; `diagnose` reads the same window. */
 export const RECENT_REJECTION_WINDOW = 50;
 
-export type GetIndexersResult = {
+type GetIndexersResult = {
     items: IndexerSummary[];
     total: number;
     returned: number;

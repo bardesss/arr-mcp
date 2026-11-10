@@ -2,7 +2,7 @@ import { artworkFromImages, compactDisplay, type Display, type RawImage } from '
 import { fenceText } from '../core/fence.ts';
 
 /** The fields of a Radarr movie or Sonarr series a poster card reads. */
-export type RawDisplayFields = {
+type RawDisplayFields = {
     id?: number;
     overview?: string | null;
     /** Minutes. Radarr's `0` is "unknown". */

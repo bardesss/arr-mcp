@@ -15,7 +15,7 @@ import type { RawRating, RawTitle } from './imdbDataset.ts';
  */
 
 /** IMDb writes an absent value as this, in every column of every file. */
-export const NULL_MARKER = '\\N';
+const NULL_MARKER = '\\N';
 
 const value = (raw: string | undefined): string | undefined =>
     raw === undefined || raw === '' || raw === NULL_MARKER ? undefined : raw;

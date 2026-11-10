@@ -46,7 +46,7 @@ export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 /** Once a cookie is this old it is renewed on the next page load. Not on every
  *  one: a Set-Cookie per page is noise for a window measured in weeks. */
-export const SESSION_RENEW_AFTER_MS = 60 * 60 * 1000;
+const SESSION_RENEW_AFTER_MS = 60 * 60 * 1000;
 
 /** Beside config.yaml, which already holds every API key and the password hash. */
 export const SESSIONS_FILENAME = 'sessions.json';
@@ -90,7 +90,7 @@ export function generatePassword(length = 18): string {
     return out;
 }
 
-export type SessionVerdict =
+type SessionVerdict =
     | { valid: true }
     | { valid: false; reason: 'malformed' | 'expired' | 'bad-signature' | 'revoked' };
 

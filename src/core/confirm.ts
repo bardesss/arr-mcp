@@ -49,9 +49,9 @@ export type WriteIntent = {
     args?: Record<string, unknown>;
 };
 
-export type ConfirmFailure = 'expired' | 'mismatch' | 'foreign' | 'used' | 'malformed';
+type ConfirmFailure = 'expired' | 'mismatch' | 'foreign' | 'used' | 'malformed';
 
-export type ConfirmResult = { ok: true } | { ok: false; failure: ConfirmFailure; remedy: string };
+type ConfirmResult = { ok: true } | { ok: false; failure: ConfirmFailure; remedy: string };
 
 /** The diagnosis alone, for a caller that hands back a fresh token and so
  *  must not repeat the "call again without `confirm`" half of the remedy. */

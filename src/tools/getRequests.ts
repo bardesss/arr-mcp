@@ -8,7 +8,7 @@ import type { SeerrAdapter } from '../services/seerr.ts';
 import type { MediaIssue, MediaRequest, RequestStatus } from '../services/types.ts';
 import { UserSchema } from './getPlayback.ts';
 
-export type GetRequestsResult = {
+type GetRequestsResult = {
     items: MediaRequest[];
     total: number;
     returned: number;

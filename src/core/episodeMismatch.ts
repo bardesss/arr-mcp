@@ -56,7 +56,7 @@ export type EpisodeRecord = {
 export const pinnedToProvider = (item: { providerIds?: Record<string, string> }): boolean =>
     item.providerIds !== undefined && Object.keys(item.providerIds).length > 0;
 
-export type MismatchReason = 'numbering' | 'title' | 'year';
+type MismatchReason = 'numbering' | 'title' | 'year';
 
 /**
  * A film, which has no episode numbering to compare and so needs its own
@@ -459,7 +459,7 @@ function titlesDisagree(serverTitle: string, fileTitle: string): boolean {
  */
 export type Remedy = 'refresh_metadata' | 'rename_files' | 'inspect' | 'unlock_fields';
 
-export type SeriesVerdict = {
+type SeriesVerdict = {
     /** How many episodes had a file to compare at all. */
     compared: number;
     mismatches: number;

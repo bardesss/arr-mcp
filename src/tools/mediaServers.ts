@@ -11,7 +11,7 @@ import {
     type ServiceAdapter
 } from '../services/types.ts';
 
-export type MediaServerChoice = { adapter: MediaServerAdapter; identity: IdentityResolver | undefined };
+type MediaServerChoice = { adapter: MediaServerAdapter; identity: IdentityResolver | undefined };
 /** `primary` is what every tool defaults to. */
 export type MediaServers = { primary?: MediaServerChoice; secondary?: MediaServerChoice };
 

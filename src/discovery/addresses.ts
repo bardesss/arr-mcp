@@ -22,7 +22,7 @@ export function isPrivateAddress(ip: string): boolean {
   return false;
 }
 
-export type HostOutcome =
+type HostOutcome =
   | { ok: true; host: string; address: string }
   | { ok: false; host: string; reason: string };
 

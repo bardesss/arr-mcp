@@ -23,8 +23,8 @@ import type { ServiceAdapter } from '../services/types.ts';
 import { cardsFromLibrary } from '../ui/mediaCards.ts';
 
 /** Every rating source a title can carry. */
-export const RATING_SOURCES = ['imdb', 'tmdb', 'trakt', 'metacritic', 'rottenTomatoes', 'tvdb'] as const;
-export type RatingSource = (typeof RATING_SOURCES)[number];
+const RATING_SOURCES = ['imdb', 'tmdb', 'trakt', 'metacritic', 'rottenTomatoes', 'tvdb'] as const;
+type RatingSource = (typeof RATING_SOURCES)[number];
 
 /** Films only. `tvdb` is Sonarr's flat value and belongs to series alone. */
 const FILM_SOURCES: readonly RatingSource[] = ['imdb', 'tmdb', 'trakt', 'metacritic', 'rottenTomatoes'];
@@ -78,10 +78,10 @@ const toTenPointScale = (source: RatingSource, value: number): number => (value 
  * no *arr manages, which has no added date to sort on. A Lidarr artist carries
  * one, so music sorts here.
  */
-export const SORT_FIELDS = ['rating', 'year', 'title', 'added'] as const;
-export type SortField = (typeof SORT_FIELDS)[number];
+const SORT_FIELDS = ['rating', 'year', 'title', 'added'] as const;
+type SortField = (typeof SORT_FIELDS)[number];
 
-export type LibraryQuery = {
+type LibraryQuery = {
     detail: DetailLevel;
     limit: number;
     offset?: number;
@@ -102,7 +102,7 @@ export type LibraryQuery = {
     missing_from?: string;
 };
 
-export type GetLibraryResult = {
+type GetLibraryResult = {
     items: MergedItem[];
     total: number;
     returned: number;

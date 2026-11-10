@@ -27,7 +27,7 @@ import {
 
 type ArrServiceType = 'radarr' | 'sonarr' | 'whisparr';
 
-export type ProfileIssue = {
+type ProfileIssue = {
     service: ArrServiceType;
     instance?: string;
     /** Absent for `profilarr_drift`, which is instance-scoped rather than
@@ -39,7 +39,7 @@ export type ProfileIssue = {
     remedy?: string;
 };
 
-export type GetProfileIssuesResult = {
+type GetProfileIssuesResult = {
     items: ProfileIssue[];
     total: number;
     returned: number;
@@ -50,11 +50,11 @@ export type GetProfileIssuesResult = {
     note?: string;
 };
 
-export const NO_ARR_NOTE =
+const NO_ARR_NOTE =
     'No Radarr, Sonarr or Whisparr is configured, so there are no quality profiles to check — this is a blind ' +
     'spot, not a clean bill of health. Add one of those services in config.yaml.';
 
-export const DRIFT_NOT_CHECKED_NOTE =
+const DRIFT_NOT_CHECKED_NOTE =
     'No `profilarr` service is configured, so drift between its saved profiles and what Radarr/Sonarr actually ' +
     'hold was not checked.';
 
@@ -73,7 +73,7 @@ const project = (issue: ProfileIssue, detail: DetailLevel): ProfileIssue => {
     return rest;
 };
 
-export function profileIssueLine(issue: ProfileIssue): string {
+function profileIssueLine(issue: ProfileIssue): string {
     const where = [issue.service, issue.instance].filter((s): s is string => s !== undefined).join('/');
     const profile = issue.profile === undefined ? '' : ` \`${issue.profile}\``;
     return `${where}${profile} — ${issue.kind} (${issue.confidence}): ${issue.detail}`;
@@ -284,7 +284,7 @@ export async function buildGetProfileIssues(
     };
 }
 
-export const summarizeProfileIssues = (result: GetProfileIssuesResult, arrInstanceCount: number): string => {
+const summarizeProfileIssues = (result: GetProfileIssuesResult, arrInstanceCount: number): string => {
     if (arrInstanceCount === 0) return result.note ?? '';
     const withNote = (text: string): string => (result.note === undefined ? text : `${text} ${result.note}`);
     // Profilarr can degrade alongside the arr adapters; only an all-arr outage

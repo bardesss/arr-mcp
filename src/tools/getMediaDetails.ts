@@ -77,7 +77,7 @@ async function withSeerrRatings<T extends { kind: string; ids: { tmdb?: number }
     return Object.keys(merged).length === 0 ? details : { ...details, ratings: merged };
 }
 
-export type MediaDetailsQuery = {
+type MediaDetailsQuery = {
     query?: string;
     service?: ServiceId;
     instance?: string | undefined;
@@ -94,7 +94,7 @@ export type MediaDetailsQuery = {
  * would read as "the item does not exist".
  */
 /** Another film or series the title matched exactly as well as the answer did. */
-export type MatchCandidate = Pick<FilmOrSeries, 'kind' | 'title' | 'year' | 'ids'> & {
+type MatchCandidate = Pick<FilmOrSeries, 'kind' | 'title' | 'year' | 'ids'> & {
     acquisition?: { service: string; id?: string };
 };
 

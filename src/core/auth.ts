@@ -7,7 +7,7 @@ import { fenceText } from './fence.ts';
  * ServiceHttp; keeping the two apart is what stops Transmission's session
  * handshake leaking into the adapter contract.
  */
-export interface AuthContext {
+interface AuthContext {
     url: URL;
     headers: Headers;
     method: string;

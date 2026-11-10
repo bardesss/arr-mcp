@@ -1,6 +1,6 @@
 import * as z from 'zod/v4';
 
-export const DETAIL_LEVELS = ['minimal', 'standard', 'full'] as const;
+const DETAIL_LEVELS = ['minimal', 'standard', 'full'] as const;
 export type DetailLevel = (typeof DETAIL_LEVELS)[number];
 
 export const DEFAULT_LIMIT = 50;

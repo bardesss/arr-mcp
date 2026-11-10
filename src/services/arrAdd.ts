@@ -15,7 +15,7 @@ import type { AddCandidate, AddMediaOptions, QualityProfile, RootFolder, Tag } f
  * reads its profiles, root folders and tags here.
  */
 
-export type ArrAddShape = {
+type ArrAddShape = {
     /** `movie` or `series` — the REST noun. */
     resource: 'movie' | 'series';
     /** `tmdbId` or `tvdbId` — the field the add posts back. */

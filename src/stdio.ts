@@ -29,7 +29,7 @@ export const stdioCeiling = (): Ceiling => ({
     caller: STDIO_CALLER
 });
 
-export type StdioDeps = {
+type StdioDeps = {
     configDir: string;
     audit: WriteAudit;
     events: WebhookEvents;

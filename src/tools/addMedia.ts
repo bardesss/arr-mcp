@@ -238,7 +238,7 @@ const FOLDER_ID: Record<string, RegExp> = { radarr: /tmdb(?:id)?-(\d+)/i, sonarr
  * title. Undefined when nothing disagrees. The wrong-match case of #535: an
  * old folder without an id that the media server matched to another film.
  */
-export function folderDoubt(path: string, candidate: AddCandidate, type: string, externalId: string): string | undefined {
+function folderDoubt(path: string, candidate: AddCandidate, type: string, externalId: string): string | undefined {
     const name = trimSlash(path).split(/[\\/]/).pop() ?? '';
     const id = FOLDER_ID[type]?.exec(name)?.[1];
     if (id !== undefined && id !== externalId) return `the folder name carries id ${id}, not ${externalId}`;

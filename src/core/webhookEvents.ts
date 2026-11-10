@@ -11,7 +11,7 @@ import type { HistoryEntry, HistoryQuery, Window } from '../services/types.ts';
  * `logs.db`, for the same reasons as those. This one is a convenience rather than
  * a trail, so it does not pay for `synchronous = FULL`, and it prunes itself.
  */
-export const EVENTS_FILENAME = 'events.db';
+const EVENTS_FILENAME = 'events.db';
 
 /** A backstop under the retention: a noisy instance must not grow the file for ever. */
 export const MAX_EVENT_ROWS = 50_000;

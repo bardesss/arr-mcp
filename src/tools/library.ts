@@ -50,7 +50,7 @@ export type LibrarySnapshot = {
 };
 
 /** Which configured media server is the primary, and the secondary if there is one. */
-export type LibraryMediaServers = {
+type LibraryMediaServers = {
     primaryId: string;
     secondary?: { id: string; identity: IdentityResolver | undefined };
 };

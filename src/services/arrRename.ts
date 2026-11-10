@@ -227,7 +227,7 @@ const renamePass = async (
     return renamedCount(settled.message);
 };
 
-export type TwoPassResult = {
+type TwoPassResult = {
     renamed: number;
     /** Files imported while the temporary format was live, and so named by it. */
     caughtInWindow: string[];

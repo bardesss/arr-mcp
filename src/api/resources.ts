@@ -7,7 +7,7 @@ import type { ImdbDataset } from '../metadata/imdbDataset.ts';
 import { withoutCredentials } from '../tools/stackHealth.ts';
 
 /** Secrets appear only as `…Set` booleans. */
-export type AppResource = {
+type AppResource = {
     id: string;
     type: ServiceId;
     name: string | null;

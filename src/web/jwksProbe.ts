@@ -1,10 +1,10 @@
 import { ALGORITHMS } from '../mcp/oauthVerifier.ts';
 
-export type JwksKey = { kid: string; alg: string; refused?: string };
+type JwksKey = { kid: string; alg: string; refused?: string };
 
 /** A word for the log line, which must not carry a URL or anything else the
  *  issuer sent. */
-export type JwksOutcome = 'unreachable' | 'redirect' | 'http' | 'too-large' | 'not-json' | 'no-keys' | 'no-usable-keys' | 'ok';
+type JwksOutcome = 'unreachable' | 'redirect' | 'http' | 'too-large' | 'not-json' | 'no-keys' | 'no-usable-keys' | 'ok';
 
 /** What the OAuth card's Test found at `jwks_uri`. `ok` means at least one key
  *  arr-mcp would verify a token with. */

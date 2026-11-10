@@ -7,7 +7,7 @@ import { hasCalendar, type CalendarEntry, type ServiceAdapter } from '../service
 import { MediaKindSchema, holds } from './mediaKind.ts';
 import { episodeCode } from '../core/labels.ts';
 
-export type GetCalendarResult = {
+type GetCalendarResult = {
     items: CalendarEntry[];
     total: number;
     returned: number;

@@ -20,7 +20,7 @@ import type { MediaCards } from '../ui/mediaCards.ts';
 
 export const RESOURCE_MIME_TYPE = 'text/html;profile=mcp-app';
 /** The deprecated flat key older hosts read; set beside `ui.resourceUri`, as the SDK's helper does. */
-export const RESOURCE_URI_META_KEY = 'ui/resourceUri';
+const RESOURCE_URI_META_KEY = 'ui/resourceUri';
 export const MEDIA_CARDS_URI = 'ui://arr-mcp/media-cards.html';
 
 /**
@@ -29,10 +29,10 @@ export const MEDIA_CARDS_URI = 'ui://arr-mcp/media-cards.html';
  * some clients forward to the model (#234). The view is handed the whole
  * result, `_meta` included, so it reads them from here.
  */
-export const CARDS_META_KEY = 'arr-mcp/cards';
+const CARDS_META_KEY = 'arr-mcp/cards';
 
 /** The capability a client declares when it renders MCP Apps. */
-export const UI_EXTENSION_ID = 'io.modelcontextprotocol/ui';
+const UI_EXTENSION_ID = 'io.modelcontextprotocol/ui';
 const CLIENT_CAPABILITIES_KEY = 'io.modelcontextprotocol/clientCapabilities';
 
 type Capabilities = { extensions?: Record<string, unknown> } | undefined;
@@ -46,7 +46,7 @@ type Capabilities = { extensions?: Record<string, unknown> } | undefined;
  * fresh server that never saw `initialize` — so the answer is `undefined`
  * there, not `false`, and `tools.media_cards` is the switch for that case.
  */
-export function clientRendersApps(server: McpServer, ctx: unknown): boolean | undefined {
+function clientRendersApps(server: McpServer, ctx: unknown): boolean | undefined {
     const envelope = (ctx as { mcpReq?: { envelope?: Record<string, unknown> } } | undefined)?.mcpReq?.envelope;
     // `server.server` is optional here only because some callers register onto a stand-in.
     const initialized = (server as Partial<McpServer>).server?.getClientCapabilities();

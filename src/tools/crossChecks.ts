@@ -43,7 +43,7 @@ export type CrossCheckSubject = {
  * asked. They are separate because an empty `warnings` means "looked and found
  * nothing" only for a service that is not in `unchecked`.
  */
-export type Advice = { warnings: string[]; unchecked: string[] };
+type Advice = { warnings: string[]; unchecked: string[] };
 
 /**
  * The `subject` field of a plan for a write on an *arr item, spread in; empty

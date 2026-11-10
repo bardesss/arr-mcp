@@ -215,7 +215,7 @@ export type IndexInput = Omit<MergedItem, 'presence'> & {
 };
 
 /** One `search` hit and how well it matched, lower is better (`titleMatch.ts`). */
-export type RankedHit = { item: MergedItem; rank: number };
+type RankedHit = { item: MergedItem; rank: number };
 
 export type BuildOptions = {
     /**
@@ -335,7 +335,7 @@ export class ArtistTitleRefusal extends Error {
  * artist, which is where an album id comes from. A pointer to `get_library`
  * alone sent a caller after an album id no library row carries.
  */
-export const artistRefusal = (name: string, artist: MergedItem): Error =>
+const artistRefusal = (name: string, artist: MergedItem): Error =>
     new ArtistTitleRefusal(
         `"${name}" is a Lidarr artist, and this tool reads the film and series chain. For its albums and their ids, use get_media_details with service: "lidarr", the artist id and detail: "full". get_library with kind: "artist" lists artists with their album count, profile and file state.`,
         artist
@@ -359,7 +359,7 @@ export class BookTitleRefusal extends Error {
  * points at `search_media`, because a film of the same name that is not in the
  * library yet is what someone asking this tool may well have meant.
  */
-export const bookRefusal = (name: string, id: string | undefined): Error =>
+const bookRefusal = (name: string, id: string | undefined): Error =>
     new BookTitleRefusal(
         `"${name}" matches only a Grimmory book in your library, and this tool reads the film and series chain. For the book, use get_media_details with service: "grimmory"${id === undefined ? ' and its id' : ` and id: "${id}"`}. A film or series of that name not in your library yet is found by search_media.`,
         id

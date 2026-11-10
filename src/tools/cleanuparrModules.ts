@@ -57,7 +57,7 @@ export function moduleNotes(set: CleanuparrRuleSet): string[] {
     return notes;
 }
 
-export type SaveDirs = {
+type SaveDirs = {
     /** The client whose torrents these are. */
     service: string;
     /** Distinct save directories, as the client reports them. */

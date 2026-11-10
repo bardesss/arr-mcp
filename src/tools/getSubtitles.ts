@@ -4,7 +4,7 @@ import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, 
 import type { ServiceAdapter, SubtitleCapable, SubtitleGap, SubtitleProvider } from '../services/types.ts';
 import { episodeCode } from '../core/labels.ts';
 
-export type GetSubtitlesResult = {
+type GetSubtitlesResult = {
     items: SubtitleGap[];
     total: number;
     returned: number;

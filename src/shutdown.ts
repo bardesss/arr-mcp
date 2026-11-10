@@ -2,10 +2,10 @@ import type { Server } from 'node:http';
 import { logger } from './core/logger.ts';
 
 /** Under `docker stop`'s 10 s, so the process leaves by itself before SIGKILL. */
-export const SHUTDOWN_DEADLINE_MS = 8_000;
+const SHUTDOWN_DEADLINE_MS = 8_000;
 
 /** How long open connections get to finish before they are cut. */
-export const DRAIN_GRACE_MS = 5_000;
+const DRAIN_GRACE_MS = 5_000;
 
 export type ShutdownStep = { name: string; run: () => void | Promise<void> };
 

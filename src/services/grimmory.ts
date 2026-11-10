@@ -157,7 +157,7 @@ const auditInstant = (since: string): number => Date.parse(NO_OFFSET.test(since)
  * How long a metadata lookup may take. Grimmory asks every enabled provider in
  * turn and streams the answers, and the call ends only when the last one has.
  */
-export const PROSPECTIVE_TIMEOUT_MS = 60_000;
+const PROSPECTIVE_TIMEOUT_MS = 60_000;
 const BOOK_TEXT_FIELDS = [
     'title',
     'subtitle',

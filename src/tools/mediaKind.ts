@@ -21,7 +21,7 @@ export const MediaKindSchema = z
  * declare it as `queueKind`; Seerr, the media servers, Prowlarr and the
  * download clients hold more than one kind, or none, and answer `undefined`.
  */
-export const heldKind = (a: ServiceAdapter): LibraryKind | undefined => (a as Partial<QueueCapable>).queueKind;
+const heldKind = (a: ServiceAdapter): LibraryKind | undefined => (a as Partial<QueueCapable>).queueKind;
 
 /**
  * The services worth asking about `kind`: every one, without a kind; with one,

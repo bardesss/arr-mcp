@@ -25,9 +25,9 @@ import { hasQueue, type MediaDetails, type SearchHit, type ServiceAdapter } from
  * `downloaded` has its file (a series: every aired episode, or whatever it
  * has once nothing is looking for more); `downloading` is in the queue now.
  */
-export type CardStatus = 'absent' | 'monitored' | 'unmonitored' | 'downloaded' | 'downloading';
+type CardStatus = 'absent' | 'monitored' | 'unmonitored' | 'downloaded' | 'downloading';
 
-export type MediaCard = {
+type MediaCard = {
     type: 'movie' | 'series';
     /** Fenced. */
     title: string;
@@ -65,7 +65,7 @@ export type MediaCards = {
 /** A grid past this is a wall, and every card costs an image request. */
 export const MAX_CARDS = 20;
 
-export type StatusFacts = {
+type StatusFacts = {
     type: 'movie' | 'series';
     inLibrary: boolean;
     monitored?: boolean | undefined;
@@ -150,7 +150,7 @@ const refKey = (ref: { service: string; id: string } | undefined): string | unde
  * One queue read per *arr that manages a card, in parallel. A queue that will
  * not answer only costs the badge its `downloading` state, never the answer.
  */
-export async function downloadingRefs(adapters: readonly ServiceAdapter[], services: ReadonlySet<string>): Promise<Set<string>> {
+async function downloadingRefs(adapters: readonly ServiceAdapter[], services: ReadonlySet<string>): Promise<Set<string>> {
     const queues = adapters.filter(a => services.has(a.id)).filter(hasQueue);
     const settled = await Promise.allSettled(queues.map(async a => ({ service: a.id, rows: await a.getQueue() })));
     const refs = new Set<string>();

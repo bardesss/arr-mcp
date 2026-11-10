@@ -32,7 +32,7 @@ type LogLines = { service: string; read: number; total: number };
 
 type Shaped<T> = { items: T[]; total: number; returned: number; offset: number; truncated: boolean };
 
-export type StackHealthResult = {
+type StackHealthResult = {
     services: ConnectionDiagnosis[];
     disks: Shaped<DiskSpace>;
     failures: Shaped<HealthCheck>;
@@ -105,7 +105,7 @@ export type StackHealthResult = {
  * path is only ever posted back inside the write tools, which resolve it
  * themselves.
  */
-export type InstanceOptions = {
+type InstanceOptions = {
     instance: string;
     qualityProfiles: { id: number; name: string }[];
     /**
@@ -119,7 +119,7 @@ export type InstanceOptions = {
     tags: string[];
 };
 
-export type InstancePermissions = { instance: string; safe_write: boolean; destructive: boolean };
+type InstancePermissions = { instance: string; safe_write: boolean; destructive: boolean };
 
 /**
  * Where each instance lives — **never how to authenticate to it**. A sibling of
@@ -131,7 +131,7 @@ export type InstancePermissions = { instance: string; safe_write: boolean; destr
  * key rather than retrieve it. A script needing credentials runs beside the
  * same config and imports `loadConfig`.
  */
-export type InstanceEndpoint = { instance: string; service: ServiceId; baseUrl: string };
+type InstanceEndpoint = { instance: string; service: ServiceId; baseUrl: string };
 
 /**
  * A base URL with its userinfo removed.
@@ -466,7 +466,7 @@ export async function buildStackHealth(
  * failing health check, then each disk, mounts of one filesystem folded into
  * one line.
  */
-export function healthLines(result: Pick<StackHealthResult, 'services' | 'failures' | 'disks'>): string[] {
+function healthLines(result: Pick<StackHealthResult, 'services' | 'failures' | 'disks'>): string[] {
     const services = result.services.map(s => {
         // A zero latency is a diagnosis built without a request, not a fast one.
         if (s.ok) return `${s.service} — ok${s.version === undefined ? '' : `, ${s.version}`}${s.latency_ms > 0 ? `, ${s.latency_ms} ms` : ''}`;
@@ -486,7 +486,7 @@ export function healthLines(result: Pick<StackHealthResult, 'services' | 'failur
  * `minimal` empties both, so a text that only listed what it kept would read
  * as complete when it is not.
  */
-export function shownLine(result: Pick<StackHealthResult, 'failures' | 'disks'>): string {
+function shownLine(result: Pick<StackHealthResult, 'failures' | 'disks'>): string {
     const { failures, disks } = result;
     const parts = [
         ...(failures.total === 0
@@ -498,7 +498,7 @@ export function shownLine(result: Pick<StackHealthResult, 'failures' | 'disks'>)
 }
 
 /** One sentence on what is about to go, because that is the question a cleanup service raises. */
-export function cleanupLine(cleanup: CleanupOverview | undefined): string {
+function cleanupLine(cleanup: CleanupOverview | undefined): string {
     const candidates = cleanup?.candidates;
     if (cleanup === undefined || candidates === undefined) return '';
     const off = cleanup.autoDelete?.enabled === false ? ' Its automatic deletion is off, so nothing goes on its own.' : '';

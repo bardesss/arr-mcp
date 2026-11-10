@@ -34,7 +34,7 @@ import { BOOK_MATCH_THRESHOLD } from '../services/grimmory.ts';
  * cached list every caller pays for.
  */
 
-export type MetadataIssue = {
+type MetadataIssue = {
     service: string;
     /** The media server's item id — what `fix_metadata` acts on. */
     itemId: string;
@@ -74,7 +74,7 @@ export type MetadataIssue = {
     examples?: string[];
 };
 
-export type GetMetadataIssuesResult = {
+type GetMetadataIssuesResult = {
     items: MetadataIssue[];
     total: number;
     returned: number;

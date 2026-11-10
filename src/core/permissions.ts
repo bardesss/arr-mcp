@@ -16,8 +16,7 @@ import type { AnyServiceConfig } from '../config/schema.ts';
  * refused would reasonably read that as a bug. Someone who genuinely wants
  * neither leaves both off, which is the default (see PermissionsSchema).
  */
-export const WRITE_TIERS = ['safe', 'destructive'] as const;
-export type WriteTier = (typeof WRITE_TIERS)[number];
+export type WriteTier = 'safe' | 'destructive';
 
 /** The YAML key each tier is granted by, for error messages that can be acted on. */
 const TIER_KEY: Record<WriteTier, string> = {
@@ -25,7 +24,7 @@ const TIER_KEY: Record<WriteTier, string> = {
     destructive: 'destructive'
 };
 
-export type PermissionVerdict =
+type PermissionVerdict =
     | { allowed: true; tier: WriteTier }
     | { allowed: false; tier: WriteTier; reason: string; remedy: string };
 
