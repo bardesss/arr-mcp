@@ -64,16 +64,33 @@ export async function buildGetMediaDetails(
 async function withSeerrRatings<T extends { kind: string; ids: { tmdb?: number }; ratings?: Record<string, number> }>(
     adapters: readonly ServiceAdapter[],
     details: T
-): Promise<T> {
+): Promise<T & { seerrBlocklisted?: true }> {
     const seerr = adapters.find((a): a is SeerrAdapter => a instanceof SeerrAdapter);
     const tmdb = details.ids.tmdb;
     if (seerr === undefined || tmdb === undefined) return details;
 
     const kind = details.kind === 'series' ? 'series' : 'movie';
-    const extra = await seerr.getRatings(tmdb, kind);
+    const [extra, blocklisted] = await Promise.all([seerr.getRatings(tmdb, kind), blocklistedIn(seerr, tmdb, details.kind)]);
 
     const merged = { ...extra, ...details.ratings };
-    return Object.keys(merged).length === 0 ? details : { ...details, ratings: merged };
+    const rated = Object.keys(merged).length === 0 ? details : { ...details, ratings: merged };
+    return blocklisted ? { ...rated, seerrBlocklisted: true } : rated;
+}
+
+/**
+ * Whether Seerr refuses requests for this film or series (#602), so a caller
+ * deciding whether to delete or re-add it knows. Only ever `true`: absent
+ * covers "not blocklisted" and "could not tell", and the second degrades
+ * rather than failing the details it decorates, as the ratings do.
+ */
+async function blocklistedIn(seerr: SeerrAdapter, tmdb: number, kind: string): Promise<boolean> {
+    if (kind !== 'movie' && kind !== 'series') return false;
+    try {
+        return await seerr.isBlocklisted(tmdb, kind === 'series' ? 'tv' : 'movie');
+    } catch (err) {
+        logger.warn({ service: seerr.id, tmdb, err }, 'seerr blocklist lookup failed; continuing without it');
+        return false;
+    }
 }
 
 type MediaDetailsQuery = {
