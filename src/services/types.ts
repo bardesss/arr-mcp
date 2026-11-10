@@ -2134,7 +2134,7 @@ export interface BookMetadataIssueCapable {
 export const hasBookMetadataIssues = (a: ServiceAdapter): a is ServiceAdapter & BookMetadataIssueCapable =>
     typeof (a as Partial<BookMetadataIssueCapable>).listBookMetadataIssues === 'function';
 
-/** The metadata of a book that `fix_metadata` and `update_media` read, compare and write. Values are raw, never fenced. */
+/** The metadata of a book that `fix_metadata` and `update_book` read, compare and write. Values are raw, never fenced. */
 export type BookFields = {
     title?: string;
     subtitle?: string;

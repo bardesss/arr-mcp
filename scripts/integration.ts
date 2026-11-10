@@ -1086,7 +1086,7 @@ if (config.services?.grimmory !== undefined) {
         passes += 1;
         // update_book, dry run only: the preview reads the book and sends nothing.
         if (firstId === undefined) console.log('SKIP update_book — Grimmory has no book to preview against.');
-        else await run('update_book', { id: String(firstId), title: 'integration dry run', dry_run: true }, 'DRY RUN ONLY — never applied from this script');
+        else await run('update_book', { id: String(firstId), lock_fields: ['title'], dry_run: true }, 'DRY RUN ONLY — never applied from this script');
     } catch (err) {
         console.error(`FAIL grimmory — ${redactHosts((err as Error).message, hosts)}`);
         failures += 1;

@@ -3074,7 +3074,8 @@ these fields:
 `lock_fields` and `unlock_fields` take `title`, `authors`, `series`,
 `series_number` and `tags`. Only the fields named are sent. A blank title, author,
 tag or series is refused, and a series is cleared with `""` and the categories
-with `[]`. Naming no field is refused. 
+with `[]`. Naming no field is refused.
+
 A locked field is refused unless the same call unlocks it. A book with every
 field locked is refused, with the advice to unlock it in Grimmory, since
 `unlock_fields` releases single fields. Locking and unlocking one field in the
@@ -3093,7 +3094,7 @@ book, and the book fields for a film, series or artist.
 
 ## Prompts and resources
 
-Forty-one tools do not tell you which one to reach for, and the questions
+Forty-two tools do not tell you which one to reach for, and the questions
 people actually ask are rarely one call.
 
 **Five prompts**, which most clients surface as slash commands:

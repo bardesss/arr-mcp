@@ -1090,6 +1090,17 @@ describe('update_book', () => {
         await expect(call({ id: '58', title: 'New' })).rejects.toMatchObject({ kind: 'PermissionDenied', service: 'grimmory' });
         expect(puts()).toEqual([]);
     });
+
+    it('refuses a token from an update_media preview of the same book', async () => {
+        const { call, puts } = editTool();
+        const media = writeTool((s, context) => registerUpdateMedia(s, context, [new GrimmoryAdapter(grimmoryConfig({ safe_write: true }), grimmoryServer({ 'GET /api/v1/books/58': json(BOOK) }).fetch)]), { safe_write: true });
+        const preview = await media({ service: 'grimmory', id: '58', title: 'New' });
+        const other = await call({ id: '58', title: 'New', confirm: preview.structuredContent.confirm_token });
+        expect(other.structuredContent.applied).toBe(false);
+        expect(other.structuredContent.confirm_error).toBeDefined();
+        expect(puts()).toEqual([]);
+    });
+
     it('still edits a book through update_media, with the same preview', async () => {
         const viaBook = editTool();
         const book = await viaBook.call({ id: '58', title: 'X' });
@@ -1102,6 +1113,7 @@ describe('update_book', () => {
         });
         expect(media.structuredContent.effects).toEqual(book.structuredContent.effects);
         expect(media.structuredContent.target).toBe(book.structuredContent.target);
+        expect(media.structuredContent.summary).toBe(book.structuredContent.summary);
     });
 });
 

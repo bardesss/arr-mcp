@@ -186,7 +186,7 @@ export function registerUpdateBook(server: McpServer, context: WriteContext, ada
         name: 'update_book',
         title: 'Edit a Grimmory book',
         description:
-            "Edits one Grimmory book by hand: title, authors, series (\"\" clears it), series number and tags (its categories; [] clears them), and locks fields so a metadata refresh leaves them alone. A locked field is refused unless the same call unlocks it, and Grimmory may rewrite the book file and rename it. Film, series or artist: update_media. From a provider: fix_metadata. Previews first; confirm to apply. Field reference: arr://docs/update_book.",
+            "Edits one Grimmory book by hand: title, authors, series, series number, categories (`tags`) and field locks. A locked field is refused unless the same call unlocks it, and Grimmory may rewrite the book file and rename it. Film, series or artist: update_media. From a provider: fix_metadata. Previews first; confirm to apply. Field reference: arr://docs/update_book.",
         inputSchema: UpdateBookInput,
         service: ({ instance }) => resolveTarget(adapters, TARGET, 'grimmory', instance).id,
         operation: 'update_book',

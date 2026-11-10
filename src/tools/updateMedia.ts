@@ -137,7 +137,7 @@ const TARGET = serviceTarget({
 });
 
 const UpdateMediaInput = z.object({
-    ...targetInput(TARGET, 'radarr for a film, sonarr for a series, lidarr for an artist, grimmory for a book.'),
+    ...targetInput(TARGET, 'radarr for a film, sonarr for a series, lidarr for an artist.[[grimmory: Deprecated: use update_book for a book.]]'),
     id: z
         .string()
         .min(1)
@@ -238,7 +238,7 @@ export function registerUpdateMedia(
                     metadata_profile !== undefined
                 ) {
                     throw new ServiceError('NotFound', service, 'a book has no film, series or artist settings', {
-                        remedy: 'Drop quality_profile, root_folder, monitored, minimum_availability, series_type and metadata_profile. A book takes title, authors, series, series_number, tags, lock_fields and unlock_fields.'
+                        remedy: 'Drop quality_profile, root_folder, monitored, minimum_availability, series_type and metadata_profile. Edit a book with update_book.'
                     });
                 }
                 return planBook(books, id, { title, authors, series, series_number, tags, lock_fields, unlock_fields });
@@ -252,7 +252,7 @@ export function registerUpdateMedia(
                 unlock_fields !== undefined
             ) {
                 throw new ServiceError('NotFound', service, 'title, authors, series, series_number and the field locks are Grimmory options', {
-                    remedy: 'Films, series and artists are not edited by hand here. Drop them, or name a Grimmory book.'
+                    remedy: 'Films, series and artists are not edited by hand here. Drop them, or edit a Grimmory book with update_book.'
                 });
             }
             const lidarr = adapter.type === 'lidarr';
