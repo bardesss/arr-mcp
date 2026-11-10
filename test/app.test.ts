@@ -12,7 +12,8 @@ import { PlexAdapter } from '../src/services/plex.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import type { ProfileDiagnosticsCapable, ServiceAdapter } from '../src/services/types.ts';
 import { DRIFT_PENDING_NOTE, NO_MATCHING_INSTANCE_NOTE } from '../src/tools/profileIssues/index.ts';
-import { TOOL_NAMES } from '../src/tools/register.ts';
+import { TOOL_SERVICES } from '../src/mcp/toolSurface.ts';
+import { TOOL_NAMES, WRITE_TOOLS } from '../src/tools/register.ts';
 import { rpcPayload as parseRpcPayload } from '../scripts/lib/rpc.ts';
 import { jsonResponse } from './helpers/serve.ts';
 
@@ -364,20 +365,20 @@ describe('the advertised tool surface', () => {
         name: string;
         title?: string;
         description?: string;
+        inputSchema?: { properties?: Record<string, unknown> };
         annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean };
     };
 
-    const listTools = async (): Promise<Advertised[]> => {
-        const res = await app().request(
-            'http://localhost:6060/mcp',
-            rpc(toolsList, { Authorization: `Bearer ${TOKEN}` })
-        );
+    const listToolsOf = async (a: ReturnType<typeof appWith>): Promise<Advertised[]> => {
+        const res = await a.request('http://localhost:6060/mcp', rpc(toolsList, { Authorization: `Bearer ${TOKEN}` }));
         const body = await res.text();
         const payload = JSON.parse(body.slice(body.indexOf('{'), body.lastIndexOf('}') + 1)) as {
             result: { tools: Advertised[] };
         };
         return payload.result.tools;
     };
+
+    const listTools = (): Promise<Advertised[]> => listToolsOf(app());
 
     /** The writes. Everything else only reads. */
     const WRITES = [
@@ -436,11 +437,53 @@ describe('the advertised tool surface', () => {
         expect((await listTools()).map(t => t.name).sort()).toEqual([...TOOL_NAMES].sort());
     });
 
-    it('registers every tool even when its service is not configured', async () => {
-        // Nothing is configured in this test app. Hiding a tool would make the
-        // surface depend on config, so a model that learned a tool exists must
-        // not find it missing after an edit.
+    it('registers every tool before anything is configured', async () => {
+        // Nothing is configured in this test app, so there is no stack to
+        // tailor to and every tool shows.
         expect(await listTools()).toHaveLength(TOOL_NAMES.length);
+    });
+
+    const withServices = (services: Record<string, unknown>) =>
+        appWith(ConfigSchema.parse({ auth: { bearer_token: TOKEN, password_hash: PASSWORD_HASH }, services }));
+
+    it('lists a write tool only where one of its services is configured', async () => {
+        const listed = (await listToolsOf(withServices({ radarr: { url: 'http://192.0.2.10:7878', api_key: 'k' } }))).map(t => t.name);
+        const left = [
+            'delete_episode_files',
+            'delete_request',
+            'fix_metadata',
+            'manage_indexer',
+            'pause_downloads',
+            'request_media',
+            'respond_to_request',
+            'retry_download',
+            'set_monitoring',
+            'set_watched',
+            'sync_database',
+            'trigger_subtitle_search'
+        ];
+        expect(TOOL_NAMES.filter(n => !listed.includes(n)).sort()).toEqual(left);
+        expect(listed).toContain('get_subtitles');
+        expect(listed).toHaveLength(TOOL_NAMES.length - 12);
+    });
+
+    it('advertises no book field on update_media without grimmory', async () => {
+        const tools = await listToolsOf(withServices({ radarr: { url: 'http://192.0.2.10:7878', api_key: 'k' } }));
+        const fields = Object.keys(tools.find(t => t.name === 'update_media')?.inputSchema?.properties ?? {});
+        expect(fields).toContain('quality_profile');
+        expect(fields.filter(f => ['title', 'authors', 'lock_fields'].includes(f))).toEqual([]);
+        const description = tools.find(t => t.name === 'update_media')?.description ?? '';
+        expect(description).not.toMatch(/Grimmory|lock_fields|series number/);
+    });
+
+    it('gives every write tool a TOOL_SERVICES entry', () => {
+        expect(WRITES.filter(n => TOOL_SERVICES[n] === undefined)).toEqual([]);
+    });
+
+    it('keeps a typical stack within the forty-tool budget', async () => {
+        const svc = (port: number, extra: Record<string, unknown> = {}) => ({ url: `http://192.0.2.10:${port}`, api_key: 'k', ...extra });
+        const small = withServices({ radarr: svc(7878), sonarr: svc(8989), sabnzbd: svc(8080), jellyfin: svc(8096, { default_user: 'u' }) });
+        expect((await listToolsOf(small)).length).toBeLessThanOrEqual(40);
     });
 
     /**
@@ -501,6 +544,7 @@ describe('the advertised tool surface', () => {
 
         const writes = tools.filter(t => t.annotations?.readOnlyHint === false).map(t => t.name);
         expect(writes.sort()).toEqual(WRITES);
+        expect([...WRITE_TOOLS].sort()).toEqual(writes);
     });
 
     /**

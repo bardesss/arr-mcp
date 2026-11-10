@@ -88,20 +88,20 @@ const SetMonitoringInput = z.object({
         .enum(['album', 'artist'])
         .optional()
         .describe(
-            'lidarr only, and required there: whether `id` names an album or an artist. Refused on every other service.'
+            '[[lidarr: lidarr only, and required there: whether `id` names an album or an artist. Refused on every other service.]]'
         ),
     artists: z
         .array(z.string().min(1))
         .min(1)
         .optional()
         .describe(
-            'lidarr artist level only: artist ids, as integer strings. Omit to apply to every artist in that Lidarr.'
+            '[[lidarr: lidarr artist level only: artist ids, as integer strings. Omit to apply to every artist in that Lidarr.]]'
         ),
     monitor_new_items: z
         .enum(['all', 'none', 'new'])
         .optional()
         .describe(
-            'lidarr artist level only: the standing rule for albums Lidarr discovers later. `none` is what a finished, stable library wants.'
+            '[[lidarr: lidarr artist level only: the standing rule for albums Lidarr discovers later. `none` is what a finished, stable library wants.]]'
         ),
     season: z
         .number()

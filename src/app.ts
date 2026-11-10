@@ -254,7 +254,7 @@ export function mcpServerFactory(
         // them, so a client that surfaces neither is exactly as capable as
         // before — `test/mcp.test.ts` asserts that rather than trusting it.
         registerAllPrompts(server, surface);
-        registerAllResources(server, tools);
+        registerAllResources(server, tools, surface);
         // MCP Apps: the poster-card view the card tools point at (`mcp/apps.ts`).
         if (tools.mediaCards) registerAppResources(server);
         return server;

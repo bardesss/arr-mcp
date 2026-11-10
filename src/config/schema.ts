@@ -686,10 +686,10 @@ export const ConfigSchema = z.object({
     /** Absent means off, and the route answers 404. */
     webhooks: WebhooksSchema.optional(),
     /**
-     * How much of the tool surface a client sees. Absent means every tool,
-     * always: the surface stays the same whatever is configured, which is what
-     * keeps saved prompts working. `hide_unusable` is the opt-in for a small
-     * stack that would rather not pay context for tools it cannot use (#518).
+     * How much of the tool surface a client sees. A write tool none of whose
+     * services is configured is never listed. Absent means every read stays,
+     * which keeps saved prompts working; `hide_unusable` is the opt-in for a
+     * small stack that would rather not pay context for reads it cannot use (#518).
      * `media_cards: false` turns the MCP Apps poster cards off: no `_meta.ui`
      * on the tools, no `ui://` resource, and none of the queue reads behind
      * them — for an HTTP client that cannot render them and does not say so.

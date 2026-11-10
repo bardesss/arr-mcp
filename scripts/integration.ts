@@ -46,7 +46,7 @@ import { ShelfmarkAdapter } from '../src/services/shelfmark.ts';
 import { BOOK_MATCH_THRESHOLD, GrimmoryAdapter } from '../src/services/grimmory.ts';
 import { ServiceError } from '../src/core/errors.ts';
 import { hostsOf, redactHosts, secretsOf } from './lib/redact.ts';
-import { callTool as rpcCallTool, type ToolCallResult } from './lib/rpc.ts';
+import { callTool as rpcCallTool, rpcPayload, type ToolCallResult } from './lib/rpc.ts';
 
 type ToolName = (typeof TOOL_NAMES)[number];
 type Case = { tool: ToolName; args: Record<string, unknown> };
@@ -190,8 +190,30 @@ const callTool = (name: string, args: Record<string, unknown>): Promise<ToolCall
 let passes = 0;
 let failures = 0;
 
+/** What `tools/list` shows on this stack: a write whose services are all missing is not there. */
+const listed = await (async (): Promise<Set<string>> => {
+    const res = await app.request('http://localhost:6060/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', Authorization: `Bearer ${scriptToken}` },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 0, method: 'tools/list' })
+    });
+    const payload = rpcPayload<{ tools: { name: string }[] }>(await res.text());
+    if (payload.error !== undefined || payload.result === undefined) {
+        throw new Error(`tools/list failed, so no tool can be told from a missing one: ${JSON.stringify(payload.error ?? payload)}`);
+    }
+    return new Set((payload.result?.tools ?? []).map(t => t.name));
+})();
+
+/** Logs the skip and answers true when the stack does not list `tool`. */
+function notListed(tool: string): boolean {
+    if (listed.has(tool)) return false;
+    console.log(`SKIP ${tool} — skipped (not listed on this stack)`);
+    return true;
+}
+
 /** Runs one case, printing PASS/FAIL with latency and the tool's own summary line. */
 async function run(tool: string, args: Record<string, unknown>, note?: string): Promise<ToolCallResult | undefined> {
+    if (notListed(tool)) return undefined;
     const label = `${tool} ${JSON.stringify(args)}${note === undefined ? '' : ` — ${note}`}`;
     const started = performance.now();
 
@@ -237,6 +259,7 @@ async function expectError(
     expected: RegExp,
     note: string
 ): Promise<void> {
+    if (notListed(tool)) return;
     const label = `${tool} ${JSON.stringify(args)} — ${note}`;
     const started = performance.now();
 

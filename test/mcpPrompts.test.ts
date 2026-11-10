@@ -168,6 +168,12 @@ describe('scoped to the tools the client sees', () => {
         expect(await textOf('whats_wrong', {}, { ...RADARR_ONLY, hideUnusable: false })).toContain('unhealthy indexer');
     });
 
+    it('offers trigger_scan only when a service that can scan is configured', async () => {
+        expect(await textOf('whats_wrong', {}, RADARR_ONLY)).toContain('`trigger_scan`');
+        const noScan: SurfaceOptions = { configured: new Set(['sabnzbd']), hideUnusable: false };
+        expect(await textOf('whats_wrong', {}, noScan)).not.toContain('trigger_scan');
+    });
+
     it('keeps every step without hide_unusable', async () => {
         const text = await textOf('whats_wrong', {}, { ...RADARR_ONLY, hideUnusable: false });
         expect(text).toContain('4. `get_subtitles`');

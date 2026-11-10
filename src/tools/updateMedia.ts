@@ -153,8 +153,6 @@ const NAME_OF: Partial<Record<BookField, Lockable>> = Object.fromEntries(
 );
 const nameOf = (field: BookField): string => NAME_OF[field] ?? field;
 
-const BOOK_ONLY = 'Grimmory books only. ';
-
 
 type BookArgs = {
     title?: string | undefined;
@@ -296,7 +294,7 @@ const UpdateMediaInput = z.object({
         .string()
         .optional()
         .describe(
-            'Lidarr only: metadata profile name or id to switch to, which decides the album types and release statuses the artist gets. It applies at the artist’s next refresh, which this does not start. A name that matches none is refused, listing the ones the instance has.'
+            '[[lidarr: Lidarr only: metadata profile name or id to switch to, which decides the album types and release statuses the artist gets. It applies at the artist’s next refresh, which this does not start. A name that matches none is refused, listing the ones the instance has.]]'
         ),
     tags: z
         .array(z.string())
@@ -304,20 +302,20 @@ const UpdateMediaInput = z.object({
         .describe(
             'Tag labels or ids that already exist. Replaces the whole set — pass [] to clear it. On a Grimmory book these are its categories: free text that need not exist yet, replacing the set.'
         ),
-    title: z.string().min(1).optional().describe(`${BOOK_ONLY}The new title.`),
-    authors: z.array(z.string().min(1)).min(1).optional().describe(`${BOOK_ONLY}The authors; replaces the list.`),
-    series: z.string().optional().describe(`${BOOK_ONLY}The series name. "" clears it.`),
-    series_number: z.number().positive().optional().describe(`${BOOK_ONLY}The book's number in its series.`),
+    title: z.string().min(1).optional().describe('[[grimmory: Grimmory books only. The new title.]]'),
+    authors: z.array(z.string().min(1)).min(1).optional().describe('[[grimmory: Grimmory books only. The authors; replaces the list.]]'),
+    series: z.string().optional().describe('[[grimmory: Grimmory books only. The series name. "" clears it.]]'),
+    series_number: z.number().positive().optional().describe("[[grimmory: Grimmory books only. The book's number in its series.]]"),
     lock_fields: z
         .array(z.enum(LOCKABLE))
         .min(1)
         .optional()
-        .describe(`${BOOK_ONLY}Fields to lock after writing, so a metadata refresh leaves them alone.`),
+        .describe('[[grimmory: Grimmory books only. Fields to lock after writing, so a metadata refresh leaves them alone.]]'),
     unlock_fields: z
         .array(z.enum(LOCKABLE))
         .min(1)
         .optional()
-        .describe(`${BOOK_ONLY}Fields to unlock before writing. A locked field is refused unless this call unlocks it.`),
+        .describe('[[grimmory: Grimmory books only. Fields to unlock before writing. A locked field is refused unless this call unlocks it.]]'),
     move_files: z
         .boolean()
         .default(true)
@@ -335,7 +333,7 @@ export function registerUpdateMedia(
         name: 'update_media',
         title: 'Change what a library item is set to',
         description:
-            'Changes settings on an item already in Radarr[[lidarr: , Lidarr]] or Sonarr (quality profile, root folder, monitoring, tags, Radarr\'s minimum availability, Sonarr\'s series type[[lidarr: , Lidarr\'s metadata profile]]), or edits a Grimmory book\'s title, authors, series, series number and tags, with `lock_fields` or `unlock_fields`. The only way to change a Radarr item\'s monitoring. [[lidarr: On Lidarr, `id` is an artist, `monitor_new_items` stays with set_monitoring, and a new metadata profile applies at the artist\'s next refresh, which can remove albums.]] Takes `service` and `id`. Changing `root_folder` **moves the files on disk** unless `move_files: false`. `tags` replaces the whole set and an unknown tag is refused; stack_health at `detail: "full"` lists profiles, folders and tags. [[grimmory: A locked book field is refused unless the same call unlocks it, and Grimmory may write the change into the book file and rename it.]] Previews first; confirm to apply. Field reference: arr://docs/update_media.',
+            'Changes settings on an item already in Radarr[[lidarr: , Lidarr]] or Sonarr (quality profile, root folder, monitoring, tags, Radarr\'s minimum availability, Sonarr\'s series type[[lidarr: , Lidarr\'s metadata profile]])[[grimmory: , or edits a Grimmory book\'s title, authors, series, series number and tags, with `lock_fields` or `unlock_fields`]]. The only way to change a Radarr item\'s monitoring. [[lidarr: On Lidarr, `id` is an artist, `monitor_new_items` stays with set_monitoring, and a new metadata profile applies at the artist\'s next refresh, which can remove albums.]] Takes `service` and `id`. Changing `root_folder` **moves the files on disk** unless `move_files: false`. `tags` replaces the whole set and an unknown tag is refused; stack_health at `detail: "full"` lists profiles, folders and tags. [[grimmory: A locked book field is refused unless the same call unlocks it, and Grimmory may write the change into the book file and rename it.]] Previews first; confirm to apply. Field reference: arr://docs/update_media.',
         inputSchema: UpdateMediaInput,
         target: { adapters, to: TARGET },
         operation: 'update_media',

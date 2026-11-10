@@ -164,11 +164,10 @@ export function buildToolContext(
 /**
  * One registration point.
  *
- * Tools whose service is not configured are **still registered**: reads return
- * an empty result, writes refuse with a remedy. Hiding a tool would make
- * the surface depend on configuration, and treats the tool
- * surface as the public API — a model that learned `get_subtitles` exists must
- * not find it missing after a config edit.
+ * Every tool is registered here, configured or not: reads return an empty
+ * result, writes refuse with a remedy. What a client is *sent* is narrowed
+ * afterwards by `shapeToolSurface`: a write whose services are all missing is
+ * left out, and with `tools.hide_unusable` so is a read.
  */
 export function registerAllTools(server: McpServer, context: ToolContext): void {
     const { adapters, dataset, instances, seerrIdentity, library, write } = context;
@@ -201,11 +200,9 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerLookupMedia(server, adapters, dataset, context.mediaCards);
     registerDiscoverMedia(server, seerr, dataset);
 
-    // Registered unconditionally like every read tool, and for the same 
-    // reason: the tool surface is the public API and must not depend on
-    // configuration. A stack with no write permission still *has*
-    // trigger_search — it refuses, naming the key to set, which is a far better
-    // answer than a tool the model was told about and cannot find.
+    // A stack with no write permission still *has* trigger_search: it refuses,
+    // naming the key to set. Only a write with no service configured at all
+    // is left out of `tools/list` (`shapeToolSurface`).
     registerTriggerSearch(server, write, adapters);
     registerTriggerScan(server, write, adapters);
     registerTriggerSubtitleSearch(server, write, adapters);
@@ -235,6 +232,31 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerRemoveBlocklistItem(server, write, adapters);
     registerManageIndexer(server, write, adapters);
 }
+
+/** The tools that write (`readOnlyHint: false`). `shapeToolSurface` hides these when none of their services is configured. */
+export const WRITE_TOOLS: ReadonlySet<string> = new Set([
+    'add_media',
+    'clean_queue',
+    'delete_episode_files',
+    'delete_media',
+    'delete_request',
+    'fix_metadata',
+    'grab_release',
+    'manage_indexer',
+    'pause_downloads',
+    'remove_blocklist_item',
+    'remove_queue_item',
+    'request_media',
+    'respond_to_request',
+    'retry_download',
+    'set_monitoring',
+    'set_watched',
+    'sync_database',
+    'trigger_scan',
+    'trigger_search',
+    'trigger_subtitle_search',
+    'update_media'
+]);
 
 /**
  * The tool surface, frozen at 1.0.

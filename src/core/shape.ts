@@ -9,7 +9,7 @@ export const MAX_LIMIT = 500;
 export const DetailSchema = z
     .enum(DETAIL_LEVELS)
     .default('standard')
-    .describe('How much per-item detail to return. Defaults to standard.');
+    .describe('How much per-item detail to return; defaults to standard.');
 
 export const LimitSchema = z
     .number()
@@ -17,7 +17,7 @@ export const LimitSchema = z
     .min(1)
     .max(MAX_LIMIT)
     .default(DEFAULT_LIMIT)
-    .describe(`Maximum items to return. Defaults to ${DEFAULT_LIMIT}, hard maximum ${MAX_LIMIT}.`);
+    .describe(`Maximum items to return; defaults to ${DEFAULT_LIMIT}, hard maximum ${MAX_LIMIT}.`);
 
 /**
  * How many to skip — the other half of `limit`, and the parameter #103 guessed
@@ -35,7 +35,7 @@ export const OffsetSchema = z
     .min(0)
     .default(0)
     .describe(
-        'Items to skip: page two of 50 is `offset: 50`. Pair it with `sort`, or items can move between pages.'
+        'Items to skip: page two of 50 is `offset: 50`; pair it with `sort`, or items can move between pages.'
     );
 
 /**

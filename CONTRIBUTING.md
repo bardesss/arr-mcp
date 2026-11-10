@@ -150,7 +150,7 @@ agent configuration, and it breaks **silently** — the model stops finding the
 tool rather than raising an error. Changes to tool names or parameters therefore
 get stricter review than ordinary refactors. Since 1.0, a renamed tool keeps its
 old name as an alias for one full minor, with the deprecation stated in the
-tool's own description text.
+tool's own description text. A new write tool needs a `TOOL_SERVICES` entry and a `WRITE_TOOLS` entry, or it is listed on every stack.
 
 Tool count has a ceiling because model accuracy degrades measurably past roughly
 40 tools. There are 40 now, so the ceiling is reached and `test/app.test.ts`
