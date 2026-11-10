@@ -285,8 +285,7 @@ const CASES: Case[] = [
     {
         name: 'managed, an artist',
         diagnosis: () => buildChain(QUERY, healthy({ item: artist({ acquisition: { service: 'lidarr', id: '7', monitored: false, hasFile: false } }) })),
-        // plan refuses an `id` at the artist level, which takes a list
-        expected: { tool: 'set_monitoring', arguments: { service: 'lidarr', level: 'artist', artists: ['7'], monitored: true } }
+        expected: { tool: 'update_media', arguments: { service: 'lidarr', id: '7', monitored: true } }
     },
     {
         name: 'file, an artist',
@@ -627,6 +626,10 @@ const lidarrStub = () =>
         listArtistMonitorPolicies: async () => [{ artistId: '7', artistName: 'Daft Punk', monitored: false, monitorNewItems: 'all' }],
         setArtistMonitorPolicy: async () => undefined,
         setMonitoring: async () => undefined,
+        // update_media's artist policy needs the adapter to count as able to update and add.
+        readForUpdate: async () => ({ title: 'Daft Punk', monitored: false, tagIds: [] }),
+        updateMedia: async () => ({}),
+        addMedia: async () => ({}),
         getQueue: async () => [
             { service: 'lidarr', id: 'q1', title: 'Some.Release', status: 'failed', mediaId: '7', downloadId: 'LDR1' }
         ],
