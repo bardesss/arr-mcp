@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.77.4](https://github.com/bardesss/arr-mcp/compare/v1.77.3...v1.77.4) (2026-11-10)
+
+
+### Bug Fixes
+
+* **cleanuparr:** mark 2.11 as tested, and drop Seeker cycle events from history ([#582](https://github.com/bardesss/arr-mcp/issues/582)) ([d05467c](https://github.com/bardesss/arr-mcp/commit/d05467cbaa891b69e11ce53a0585abbff296046c))
+
 ## [1.77.3](https://github.com/bardesss/arr-mcp/compare/v1.77.2...v1.77.3) (2026-11-10)
 
 
