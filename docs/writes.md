@@ -51,7 +51,8 @@ write, and says which permission to enable.
 | `set_watched` | safe | `safe_write` |
 | `sync_database` | safe | `safe_write` |
 | `remove_blocklist_item` | safe | `safe_write` |
-| `manage_indexer` | safe to add, edit, disable or enable; destructive to delete | `safe_write`, or `destructive` for `delete` |
+| `manage_indexer` | safe (destructive only through its deprecated `delete`) | `safe_write`, or `destructive` for `delete` |
+| `delete_indexer` | destructive | `destructive` |
 | `remove_queue_item` | destructive | `destructive` |
 | `clean_queue` | destructive | `destructive` |
 | `delete_media` | destructive | `destructive` |
@@ -154,11 +155,12 @@ it.
 the most-downloaded release. It is safe for the same reason, and the preview names
 the file before anything is queued.
 
-`manage_indexer` is the one tool whose tier depends on its arguments. Disabling
-an indexer is undone by enabling it, so it needs only `safe_write`; deleting it
-throws away the indexer's settings and credentials, so it needs `destructive`.
-They share a tool to stay inside the tool budget, not because they share a
-risk, and a confirmation token issued for one will not apply the other.
+Disabling an indexer is undone by enabling it, so `manage_indexer` needs only
+`safe_write`; deleting it throws away the indexer's settings and credentials, so
+`delete_indexer` needs `destructive`. `manage_indexer` still accepts `delete`,
+deprecated, and then asks for `destructive` too; that is why it keeps its
+`destructiveHint` for now. A confirmation token issued for one will not apply
+the other.
 
 Adding and editing an indexer are safe for the same reason disabling is: each
 is undone by the tool itself, a delete or an edit back. Neither ever carries a

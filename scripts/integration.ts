@@ -139,6 +139,8 @@ const DYNAMIC_TOOLS: ToolName[] = [
     'remove_blocklist_item',
     // Needs a real Prowlarr indexer id from get_indexers. Dry run of a delete,
     // so the preview reads every app's sync level.
+    'delete_indexer',
+    // Dry run of a disable, off the same indexer row.
     'manage_indexer',
     // Needs a real service+id the same way trigger_search does. Driven off
     // the same searchableHit, but kept to one call: this one polls every
@@ -851,12 +853,17 @@ const indexerRow = ((indexersResult?.structuredContent as { items?: unknown[] } 
 if (indexerRow !== undefined) {
     const instance = indexerRow.service.split('/')[1];
     await run(
+        'delete_indexer',
+        { id: indexerRow.id, dry_run: true, ...(instance === undefined ? {} : { instance }) },
+        'DRY RUN ONLY — never applied from this script'
+    );
+    await run(
         'manage_indexer',
-        { id: indexerRow.id, action: 'delete', dry_run: true, ...(instance === undefined ? {} : { instance }) },
+        { id: indexerRow.id, action: 'disable', dry_run: true, ...(instance === undefined ? {} : { instance }) },
         'DRY RUN ONLY — never applied from this script'
     );
 } else {
-    console.log('SKIP manage_indexer — no Prowlarr indexer to preview against.');
+    console.log('SKIP delete_indexer — no Prowlarr indexer to preview against.');
 }
 
 /**

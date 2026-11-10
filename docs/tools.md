@@ -1,6 +1,6 @@
 # Tools
 
-Forty-three of them. The first twenty read; the last twenty-three write, and are
+Forty-four of them. The first twenty read; the last twenty-four write, and are
 off until you turn them on — see [writes](writes.md).
 
 | Tool | Answers |
@@ -47,7 +47,8 @@ off until you turn them on — see [writes](writes.md).
 | `fix_metadata` | Repair one item whose metadata does not describe its files; on Grimmory, a book, from its metadata providers; on Lidarr, an artist's file tags |
 | `set_watched` | Mark this watched or unwatched in Jellyfin; on Grimmory, mark a book read or unread |
 | `sync_database` | Have Profilarr pull its database from git again |
-| `manage_indexer` | Add a public indexer, change its priority, profile, tags or seeding, stop grabbing from it, or delete it |
+| `manage_indexer` | Add a public indexer, change its priority, profile, tags or seeding, or stop grabbing from it |
+| `delete_indexer` | Delete a Prowlarr indexer, and its copy in each app |
 
 The rest of this page is the shape of the answers: the fields whose meaning is
 not obvious, and the places where a value is deliberately absent rather than
@@ -147,10 +148,10 @@ saying a dead service is fine is worse than no snapshot at all. Clients on the
 
 **A client can tell the reads from the writes without reading prose.** Every
 tool carries a title and an annotation: `readOnlyHint` on the twenty that only
-read, and on the twenty-three writes `destructiveHint`, taken from the same permission
+read, and on the twenty-four writes `destructiveHint`, taken from the same permission
 tier the write gate itself runs on — so a tool cannot be gated as destructive
 and advertised as safe. A client deciding what to auto-approve, or what to warn
-about, reads those rather than guessing from forty-three similarly-shaped
+about, reads those rather than guessing from forty-four similarly-shaped
 descriptions. `idempotentHint` is deliberately absent: the confirmation token is
 single-use, so repeating a write does not repeat it, and neither answer would be
 true.
@@ -1834,8 +1835,9 @@ same trap `remove_queue_item` documents, and it is checked the same way.
 
 ## `manage_indexer`
 
-Adds, edits, disables, re-enables or deletes one Prowlarr indexer, then queues
-Prowlarr's Application Indexer Sync. Every action but `add` takes `id` from
+Adds, edits, disables or re-enables one Prowlarr indexer, then queues
+Prowlarr's Application Indexer Sync. Deleting is [`delete_indexer`](#delete_indexer);
+`delete` here still works, deprecated, and shows the same preview. Every action but `add` takes `id` from
 `get_indexers`: `21` for a row shown as `prowlarr:21`.
 
 What happens to the copies in Radarr and Sonarr depends on each app's sync
@@ -1895,14 +1897,28 @@ it has. The cost is that an app at Add and Remove Only reports the indexer as
 failing until it is enabled again or deleted. An app whose tags exclude the
 indexer never had it, and the preview says so.
 
-`add`, `edit`, `disable` and `enable` are safe tier. `delete` is destructive:
-Prowlarr keeps nothing to restore, so getting it back means adding the
-indexer again, credentials included. The tool is annotated `destructiveHint`
-because one of its actions is.
+`add`, `edit`, `disable` and `enable` are safe tier. The tool is still annotated
+`destructiveHint` while the deprecated `delete` is accepted, and a token from
+any of the safe actions is refused by `delete_indexer`.
 
 Adding and deleting the same indexer seconds apart can leave a copy behind in
 an app: the delete's sync joins the add's, which is still running. The next
 sync clears it; `trigger_scan` on Prowlarr runs one.
+
+## `delete_indexer`
+
+Deletes one Prowlarr indexer, with `id` from `get_indexers` (`21` for a row
+shown as `prowlarr:21`), then queues Application Indexer Sync. Destructive:
+Prowlarr keeps nothing to restore, so getting it back means adding the indexer
+again, credentials included. To stop grabs and keep the indexer, use
+`manage_indexer` with `disable`.
+
+The preview says per app what happens, as in the `delete` row of the table
+under [`manage_indexer`](#manage_indexer): an app with sync on loses its copy,
+and an app with sync off keeps a copy that fails every search until removed by
+hand. It works on Prowlarr older than 1.8 too. `manage_indexer`'s deprecated
+`delete` runs the same plan and apply, but a confirm token from one tool is
+refused by the other.
 
 ## `set_watched`
 
@@ -3127,7 +3143,7 @@ book, and the book fields for a film, series or artist.
 
 ## Prompts and resources
 
-Forty-three tools do not tell you which one to reach for, and the questions
+Forty-four tools do not tell you which one to reach for, and the questions
 people actually ask are rarely one call.
 
 **Five prompts**, which most clients surface as slash commands:
