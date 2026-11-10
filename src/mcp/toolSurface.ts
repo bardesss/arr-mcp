@@ -45,6 +45,7 @@ export const TOOL_SERVICES: Readonly<Record<string, readonly ServiceId[]>> = {
     trigger_subtitle_search: ['bazarr'],
     get_indexers: ['prowlarr'],
     manage_indexer: ['prowlarr'],
+    update_book: ['grimmory'],
     sync_database: ['profilarr'],
     get_requests: ['seerr'],
     respond_to_request: ['seerr'],

@@ -9,17 +9,15 @@ import {
     hasMediaUpdate,
     hasMetadataProfiles,
     type ArtistMonitorNewItems,
-    type BookField,
-    type BookFields,
     type BookMetadataCapable,
     type MediaAddCapable,
     type MediaUpdateCapable,
     type QualityProfile,
     type ServiceAdapter
 } from '../services/types.ts';
-import { describeBookChange, diffBookFields } from './bookMetadata.ts';
 import { chooseOne, freeSpace, FOLDER_MATCH, PROFILE_MATCH, TAG_MATCH } from './chooseOne.ts';
 import { NO_ALBUMS_PROFILE, SEARCH_AFTER_REFRESH } from './lidarrProfiles.ts';
+import { applyBook, LOCKABLE, planBook } from './updateBook.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 import { titled } from '../core/labels.ts';
 import { targetInput, serviceTarget } from './serviceTarget.ts';
@@ -138,137 +136,8 @@ const TARGET = serviceTarget({
     hint: 'Radarr manages films, Sonarr series, Lidarr artists and Grimmory books.'
 });
 
-/** The book fields `update_media` can lock or unlock, by the name a caller uses. */
-const LOCKABLE = ['title', 'authors', 'series', 'series_number', 'tags'] as const;
-type Lockable = (typeof LOCKABLE)[number];
-const BOOK_FIELD_OF: Record<Lockable, BookField> = {
-    title: 'title',
-    authors: 'authors',
-    series: 'seriesName',
-    series_number: 'seriesNumber',
-    tags: 'categories'
-};
-const NAME_OF: Partial<Record<BookField, Lockable>> = Object.fromEntries(
-    Object.entries(BOOK_FIELD_OF).map(([name, field]) => [field, name])
-);
-const nameOf = (field: BookField): string => NAME_OF[field] ?? field;
-
-
-type BookArgs = {
-    title?: string | undefined;
-    authors?: string[] | undefined;
-    series?: string | undefined;
-    series_number?: number | undefined;
-    tags?: string[] | undefined;
-    lock_fields?: Lockable[] | undefined;
-    unlock_fields?: Lockable[] | undefined;
-};
-
-/**
- * A hand edit to one book. Only the fields named are sent, and a field is
- * blanked only by an explicit `series: ""` or `tags: []`, never by leaving it
- * out. A locked field is refused here rather than skipped by the server, so
- * the preview never promises a change that will not land.
- */
-async function planBook(book: ServiceAdapter & BookMetadataCapable, rawId: string, args: BookArgs): Promise<WritePlan> {
-    // `58` or `grimmory:58`; anything else is refused before a request is made.
-    const id = rawId.replace(/^grimmory:/, '');
-    if (!/^\d+$/.test(id)) {
-        throw new ServiceError('NotFound', book.type, `"${rawId}" is not a Grimmory book id`, {
-            remedy: 'Pass the book id as digits, as in 58 or grimmory:58: `acquisition.id` on a get_library record.'
-        });
-    }
-    const { title, authors, series, series_number, tags } = args;
-    const lock = [...new Set(args.lock_fields ?? [])].map(n => BOOK_FIELD_OF[n]);
-    const unlock = [...new Set(args.unlock_fields ?? [])].map(n => BOOK_FIELD_OF[n]);
-
-    if (
-        title === undefined &&
-        authors === undefined &&
-        series === undefined &&
-        series_number === undefined &&
-        tags === undefined &&
-        lock.length === 0 &&
-        unlock.length === 0
-    ) {
-        throw new Error('Nothing to change. Name at least one of title, authors, series, series_number, tags, lock_fields or unlock_fields.');
-    }
-    const both = lock.filter(f => unlock.includes(f));
-    if (both.length > 0) {
-        throw new Error(`Cannot lock and unlock the same field in one call: ${both.map(nameOf).join(', ')} is in both lock_fields and unlock_fields.`);
-    }
-    if (tags?.some(t => t.trim() === '')) {
-        throw new Error('A tag cannot be blank. Pass [] to clear the categories.');
-    }
-    if (title !== undefined && title.trim() === '') throw new Error('The title cannot be blank.');
-    if (authors?.some(a => a.trim() === '')) throw new Error('An author cannot be blank.');
-    if (series !== undefined && series !== '' && series.trim() === '') {
-        throw new Error('The series cannot be blank. Pass "" to clear it.');
-    }
-
-    const state = await book.readBookMetadata(id);
-    const wanted: BookFields = {
-        ...(title === undefined ? {} : { title }),
-        ...(authors === undefined ? {} : { authors }),
-        ...(series === undefined || series === '' ? {} : { seriesName: series }),
-        ...(series_number === undefined ? {} : { seriesNumber: series_number }),
-        ...(tags === undefined || tags.length === 0 ? {} : { categories: tags })
-    };
-    // Explicit blanking, and only where there is something to blank.
-    const clear: BookField[] = [
-        ...(series === '' && state.fields.seriesName !== undefined ? (['seriesName'] as const) : []),
-        ...(tags?.length === 0 && (state.fields.categories?.length ?? 0) > 0 ? (['categories'] as const) : [])
-    ];
-
-    const stillLocked = state.locked.filter(f => !unlock.includes(f));
-    const { changes, keptLocked } = diffBookFields(state.fields, wanted, stillLocked, Object.keys(wanted) as BookField[]);
-    const blocked = [...keptLocked, ...clear.filter(f => stillLocked.includes(f))];
-    if (blocked.length > 0) {
-        const it = blocked.length === 1 ? 'it' : 'them';
-        throw new ServiceError('NotFound', book.type, `${blocked.map(nameOf).join(', ')} ${blocked.length === 1 ? 'is' : 'are'} locked in Grimmory`, {
-            remedy: `Add ${it} to unlock_fields in this same call to edit ${it}, or leave ${it} out.`
-        });
-    }
-    const changed = [...(Object.keys(changes) as BookField[]), ...clear];
-    if (changed.length > 0 && state.allLocked) {
-        throw new ServiceError('NotFound', book.type, `${state.label} has every metadata field locked in Grimmory`, {
-            remedy: 'Unlock the book in Grimmory first; unlock_fields only releases single fields.'
-        });
-    }
-
-    // A lock already in the wanted state is not a change.
-    const lockNow = lock.filter(f => !state.locked.includes(f));
-    const unlockNow = unlock.filter(f => state.locked.includes(f));
-
-    const target = `${book.id}:${id}`;
-    if (changed.length === 0 && lockNow.length === 0 && unlockNow.length === 0) {
-        return { target, summary: `${state.label} already has those values and locks in Grimmory.`, effects: [], noop: true };
-    }
-
-    const effects = [
-        ...(Object.keys(changes) as BookField[]).map(f => describeBookChange(f, state.fields[f], changes[f])),
-        ...clear.map(f => describeBookChange(f, state.fields[f], undefined)),
-        ...(unlockNow.length === 0 ? [] : [`Unlocks ${unlockNow.map(nameOf).join(', ')} first, so the edit can land.`]),
-        ...(lockNow.length === 0
-            ? []
-            : [`Locks ${lockNow.map(nameOf).join(', ')} afterwards, so a later metadata refresh leaves ${lockNow.length === 1 ? 'it' : 'them'} alone.`]),
-        ...(changed.length === 0
-            ? []
-            : ['Grimmory may also write the new metadata into the book file, and move it to match its naming pattern, when its metadata settings say so.'])
-    ];
-    const parts = [...(changed.length === 0 ? [] : [changed.map(nameOf).join(', ')]), ...(lockNow.length + unlockNow.length === 0 ? [] : ['field locks'])];
-
-    return {
-        target,
-        summary: `Change the ${parts.join(' and ')} of ${state.label} in Grimmory.`,
-        effects,
-        // The changes themselves are bound, not the strings that were asked for.
-        args: { service: 'grimmory', id, fields: changes, clear, lock: lockNow, unlock: unlockNow }
-    };
-}
-
 const UpdateMediaInput = z.object({
-    ...targetInput(TARGET, 'radarr for a film, sonarr for a series, lidarr for an artist, grimmory for a book.'),
+    ...targetInput(TARGET, 'radarr for a film, sonarr for a series, lidarr for an artist.[[grimmory: Deprecated: use update_book for a book.]]'),
     id: z
         .string()
         .min(1)
@@ -299,23 +168,21 @@ const UpdateMediaInput = z.object({
     tags: z
         .array(z.string())
         .optional()
-        .describe(
-            'Tag labels or ids that already exist. Replaces the whole set — pass [] to clear it. On a Grimmory book these are its categories: free text that need not exist yet, replacing the set.'
-        ),
-    title: z.string().min(1).optional().describe('[[grimmory: Grimmory books only. The new title.]]'),
-    authors: z.array(z.string().min(1)).min(1).optional().describe('[[grimmory: Grimmory books only. The authors; replaces the list.]]'),
-    series: z.string().optional().describe('[[grimmory: Grimmory books only. The series name. "" clears it.]]'),
-    series_number: z.number().positive().optional().describe("[[grimmory: Grimmory books only. The book's number in its series.]]"),
+        .describe('Tag labels or ids that already exist. Replaces the whole set — pass [] to clear it.'),
+    title: z.string().min(1).optional().describe('[[grimmory: Deprecated: use update_book.]]'),
+    authors: z.array(z.string().min(1)).min(1).optional().describe('[[grimmory: Deprecated: use update_book.]]'),
+    series: z.string().optional().describe('[[grimmory: Deprecated: use update_book.]]'),
+    series_number: z.number().positive().optional().describe('[[grimmory: Deprecated: use update_book.]]'),
     lock_fields: z
         .array(z.enum(LOCKABLE))
         .min(1)
         .optional()
-        .describe('[[grimmory: Grimmory books only. Fields to lock after writing, so a metadata refresh leaves them alone.]]'),
+        .describe('[[grimmory: Deprecated: use update_book.]]'),
     unlock_fields: z
         .array(z.enum(LOCKABLE))
         .min(1)
         .optional()
-        .describe('[[grimmory: Grimmory books only. Fields to unlock before writing. A locked field is refused unless this call unlocks it.]]'),
+        .describe('[[grimmory: Deprecated: use update_book.]]'),
     move_files: z
         .boolean()
         .default(true)
@@ -333,7 +200,7 @@ export function registerUpdateMedia(
         name: 'update_media',
         title: 'Change what a library item is set to',
         description:
-            'Changes settings on an item already in Radarr[[lidarr: , Lidarr]] or Sonarr (quality profile, root folder, monitoring, tags, Radarr\'s minimum availability, Sonarr\'s series type[[lidarr: , Lidarr\'s metadata profile]])[[grimmory: , or edits a Grimmory book\'s title, authors, series, series number and tags, with `lock_fields` or `unlock_fields`]]. The only way to change a Radarr item\'s monitoring. [[lidarr: On Lidarr, `id` is an artist, `monitor_new_items` stays with set_monitoring, and a new metadata profile applies at the artist\'s next refresh, which can remove albums.]] Takes `service` and `id`. Changing `root_folder` **moves the files on disk** unless `move_files: false`. `tags` replaces the whole set and an unknown tag is refused; get_instance_options lists profiles, folders and tags. [[grimmory: A locked book field is refused unless the same call unlocks it, and Grimmory may write the change into the book file and rename it.]] Previews first; confirm to apply. Field reference: arr://docs/update_media.',
+            'Changes settings on an item already in Radarr[[lidarr: , Lidarr]] or Sonarr (quality profile, root folder, monitoring, tags, Radarr\'s minimum availability, Sonarr\'s series type[[lidarr: , Lidarr\'s metadata profile]]). The only way to change a Radarr item\'s monitoring. [[grimmory: A Grimmory book is update_book.]] [[lidarr: On Lidarr, `id` is an artist, `monitor_new_items` stays with set_monitoring, and a new metadata profile applies at the artist\'s next refresh, which can remove albums.]] Takes `service` and `id`. Changing `root_folder` **moves the files on disk** unless `move_files: false`. `tags` replaces the whole set and an unknown tag is refused; get_instance_options lists profiles, folders and tags. Previews first; confirm to apply. Field reference: arr://docs/update_media.',
         inputSchema: UpdateMediaInput,
         target: { adapters, to: TARGET },
         operation: 'update_media',
@@ -371,7 +238,7 @@ export function registerUpdateMedia(
                     metadata_profile !== undefined
                 ) {
                     throw new ServiceError('NotFound', service, 'a book has no film, series or artist settings', {
-                        remedy: 'Drop quality_profile, root_folder, monitored, minimum_availability, series_type and metadata_profile. A book takes title, authors, series, series_number, tags, lock_fields and unlock_fields.'
+                        remedy: 'Drop quality_profile, root_folder, monitored, minimum_availability, series_type and metadata_profile. Edit a book with update_book.'
                     });
                 }
                 return planBook(books, id, { title, authors, series, series_number, tags, lock_fields, unlock_fields });
@@ -385,7 +252,7 @@ export function registerUpdateMedia(
                 unlock_fields !== undefined
             ) {
                 throw new ServiceError('NotFound', service, 'title, authors, series, series_number and the field locks are Grimmory options', {
-                    remedy: 'Films, series and artists are not edited by hand here. Drop them, or name a Grimmory book.'
+                    remedy: 'Films, series and artists are not edited by hand here. Drop them, or edit a Grimmory book with update_book.'
                 });
             }
             const lidarr = adapter.type === 'lidarr';
@@ -587,14 +454,7 @@ export function registerUpdateMedia(
 
         async apply(plan, { id }, adapter) {
             if (hasBookMetadata(adapter)) {
-                // From the plan the token was verified against, the book id
-                // included: `id` as given may still carry its `grimmory:` prefix.
-                // Unlock first so the write can land, lock last so the new values are kept.
-                const bound = plan.args as { id: string; fields: BookFields; clear: BookField[]; lock: BookField[]; unlock: BookField[] };
-                if (bound.unlock.length > 0) await adapter.setBookFieldLocks(bound.id, bound.unlock, false);
-                if (Object.keys(bound.fields).length > 0 || bound.clear.length > 0) await adapter.writeBookMetadata(bound.id, bound.fields, bound.clear);
-                if (bound.lock.length > 0) await adapter.setBookFieldLocks(bound.id, bound.lock, true);
-                return { changed: [...Object.keys(bound.fields), ...bound.clear] };
+                return applyBook(adapter, plan);
             }
             const a = plan.args as {
                 qualityProfileId?: number;

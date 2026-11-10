@@ -41,6 +41,7 @@ write, and says which permission to enable.
 | `respond_to_request` | safe | `safe_write` |
 | `add_media` | safe | `safe_write` |
 | `update_media` | safe; destructive with a Lidarr `metadata_profile` | `safe_write`; `destructive` with a metadata profile |
+| `update_book` | safe | `safe_write` |
 | `set_monitoring` | safe | `safe_write` |
 | `grab_release` | safe | `safe_write` |
 | `request_media` | safe | `safe_write` |
@@ -117,11 +118,12 @@ restore, because Lidarr skips the move when the folder it moves from is not on
 disk. The preview says so, and moving the files to that folder with
 `move_files: true` and back sets the paths right again.
 
-On a Grimmory book `update_media` edits the title, authors, series and
+`update_book` edits a Grimmory book's title, authors, series and
 categories, and Grimmory may write the change into the book file and move it to
 match its naming pattern. It stays safe for the same reason as a root folder
 move. The preview shows the old values, and setting them back with the same
 tool makes Grimmory write them into the file and rename it again.
+`update_media` still takes the same fields on a book, deprecated.
 
 `trigger_scan`'s `rename` action is safe on the same reading: it renames files
 within the library to the service's own scheme, and renaming again puts them

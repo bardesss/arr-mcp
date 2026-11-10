@@ -402,6 +402,7 @@ describe('the advertised tool surface', () => {
         'trigger_scan',
         'trigger_search',
         'trigger_subtitle_search',
+        'update_book',
         'update_media'
     ];
 
@@ -460,11 +461,12 @@ describe('the advertised tool surface', () => {
             'set_monitoring',
             'set_watched',
             'sync_database',
-            'trigger_subtitle_search'
+            'trigger_subtitle_search',
+            'update_book'
         ];
         expect(TOOL_NAMES.filter(n => !listed.includes(n)).sort()).toEqual(left);
         expect(listed).toContain('get_subtitles');
-        expect(listed).toHaveLength(TOOL_NAMES.length - 12);
+        expect(listed).toHaveLength(TOOL_NAMES.length - 13);
     });
 
     it('advertises no book field on update_media without grimmory', async () => {
@@ -494,7 +496,7 @@ describe('the advertised tool surface', () => {
      * is a decision, not a fix for a failing test.
      */
     const DESCRIPTION_CAP = 1000;
-    const DESCRIPTIONS_TOTAL_CAP = 28_440;
+    const DESCRIPTIONS_TOTAL_CAP = 28_590;
 
     it(`keeps every tool description under ${DESCRIPTION_CAP} characters`, async () => {
         const long = (await listTools())
@@ -1376,7 +1378,7 @@ describe('prompts and resources, beside the tools rather than instead of them', 
         );
         const { result } = (await rpcPayload(res)) as { result: { tools: unknown[] } };
         expect(result.tools).toHaveLength(TOOL_NAMES.length);
-        expect(TOOL_NAMES.length).toBeLessThanOrEqual(41);
+        expect(TOOL_NAMES.length).toBeLessThanOrEqual(42);
     });
 });
 
