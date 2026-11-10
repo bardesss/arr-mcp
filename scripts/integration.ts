@@ -88,6 +88,7 @@ const CASES: Case[] = [
     { tool: 'get_library', args: { min_rating: 8, rating_source: 'rottenTomatoes', limit: 5 } },
     { tool: 'get_media_details', args: { query: 'the' } },
     { tool: 'search_media', args: { query: 'the', source: 'library', detail: 'full', limit: 10 } },
+    { tool: 'search_media', args: { query: 'matrix', source: 'discover' } },
     { tool: 'lookup_media', args: { query: 'matrix' } },
     { tool: 'discover_media', args: { media_type: 'movie', detail: 'full' } },
     { tool: 'diagnose', args: { query: 'the' } },

@@ -302,7 +302,7 @@ discovers later, and `none` is the only value that stops the wanted list growing
 by itself. Both levels are written with Lidarr's bulk endpoints, which queued no
 `MoveArtist` job in the runs that were captured.
 
-`lookup_media` returns Lidarr's artist lookup, and `add_media` adds an artist by
+search_media `source: "discover"` returns Lidarr's artist lookup, and `add_media` adds an artist by
 its MusicBrainz id, with a quality profile, a metadata profile (the root
 folder's default when none is named), and Lidarr's own `monitor` values and
 `monitor_new_items`. `update_media` changes an artist's quality profile,
@@ -1052,7 +1052,7 @@ configuration page, which reloads the config).
 ### Poster cards
 
 In a client that renders [MCP Apps](https://github.com/modelcontextprotocol/ext-apps),
-`get_media_details`, `search_media`, `lookup_media` and `get_library` show films
+`get_media_details`, `search_media` and `get_library` show films
 and series as poster cards. Building them reads the Radarr and Sonarr queues for
 the "downloading" badge, so it only happens for a client that declares MCP Apps
 support. Over stateless HTTP a client cannot declare anything the server keeps,

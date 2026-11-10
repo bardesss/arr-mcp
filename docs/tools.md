@@ -7,7 +7,7 @@ off until you turn them on — see [writes](writes.md).
 | --- | --- |
 | `diagnose` | Why is this not playable? |
 | `stack_health` | Is anything broken, out of disk, or not scanning? |
-| `search_media` | What do I have, what exists, what can I get? Books in Grimmory too, from the library |
+| `search_media` | What do I have, what exists, what can I get? `source: "discover"` tells me about a title without adding it; artists too, with Lidarr, and books, with Shelfmark. Books in Grimmory too, from the library |
 | `get_media_details` | Everything about one item; on Lidarr, one artist and the albums under it; on Grimmory, one book and its files |
 | `get_metadata_issues` | Which films and series have metadata that does not describe their files; which Grimmory books have a low match score or no identifier |
 | `get_library` | What's in my library — joined across Radarr, Sonarr, Lidarr and your media server, and where they disagree; Lidarr artists are their own kind, joined by MusicBrainz id; Grimmory books are their own kind too |
@@ -22,7 +22,7 @@ off until you turn them on — see [writes](writes.md).
 | `get_playback` | What am I watching, and what can I continue |
 | `get_indexers` | Which indexers are healthy, and what they recently rejected |
 | `get_requests` | What has been requested, and what is still pending |
-| `lookup_media` | Tell me about this, without adding it; artists too, with Lidarr, and books, with Shelfmark |
+| `lookup_media` | Deprecated: `search_media` with `source: "discover"` returns the same rows |
 | `discover_media` | What exists in this genre, year, or rating band |
 | `trigger_search` | Go look for this again — the whole thing, one season, or specific episodes; on Lidarr, an artist or some of its albums |
 | `trigger_scan` | Refresh and rescan a library or one item, rename one item, import a download that never landed, put a mislabeled Sonarr file on the right episode, rerun NZBGet's post-processing, or rescan a Grimmory library or its Bookdrop |
@@ -194,7 +194,7 @@ case. arr-mcp cannot know a tracker's minimum, so it is the caller's number.
 
 ## Narrowing a read to one kind
 
-`search_media`, `lookup_media`, `get_queue` and `get_calendar` take an optional
+`search_media`, `get_queue` and `get_calendar` take an optional
 `kind`: `movie` (Radarr), `series` (Sonarr, Whisparr), `artist` (Lidarr) or `book`
 (Shelfmark, Grimmory), the same values as `get_library`. The parameter names the
 services next to each kind, so a request that only says "add it to Radarr" still
@@ -212,7 +212,7 @@ waits on Lidarr and Shelfmark or gets their answers mixed in.
 - **`get_calendar`** asks only the *arr holding that kind. `series` covers
   Sonarr and Whisparr, and `artist` gives Lidarr's albums.
 
-**A trailing year is read as a year** in `search_media` and `lookup_media`:
+**A trailing year is read as a year** in `search_media`:
 `Paranormal Activity 2027`, `(2027)` or `[2027]`. The services get the title
 alone, and hits from that year rank first among equally good title matches. A
 title that ends in its own number still wins over the shorter title, so `Wonder
@@ -222,7 +222,7 @@ year, because release names carry it.
 
 ## Poster cards
 
-`get_media_details`, `search_media`, `lookup_media` and `get_library` name the
+`get_media_details`, `search_media` and `get_library` name the
 `ui://arr-mcp/media-cards.html` view in `_meta.ui`, and put its data in the
 result's own `_meta`, under `arr-mcp/cards`: `{ view, items, total }`, where
 `view` is `detail` for `get_media_details` and `grid` otherwise, `items` holds at
@@ -410,7 +410,7 @@ hold ids, `download_id`, and, for a lookup, the words you gave as `query`.
 | `managed`, in Radarr | `update_media` with `monitored: true` (`set_monitoring` refuses Radarr) |
 | `managed`, in Sonarr or Whisparr | `set_monitoring` with `monitored: true` |
 | `managed`, in Lidarr | `set_monitoring` with `level: "artist"`, `artists: [id]` and `monitored: true`, never `id`: the artist flag only, each album keeps its own |
-| `managed` or `resolve`, nothing manages it | `lookup_media` with your `query`, only when you diagnosed by title, and for `managed` not while an *arr of its kind (any *arr, for a media server's id with no kind) could not be read; an artist comes back among Lidarr's hits, each with the MusicBrainz id `add_media` takes as `ids.mbid` |
+| `managed` or `resolve`, nothing manages it | search_media `source: "discover"` with your `query`, only when you diagnosed by title, and for `managed` not while an *arr of its kind (any *arr, for a media server's id with no kind) could not be read; an artist comes back among Lidarr's hits, each with the MusicBrainz id `add_media` takes as `ids.mbid` |
 | `request`, pending | `respond_to_request` with `verdict: "approve"`, only if you may act on that request (it is yours, or `allow_other_users` is on) |
 | `queue`, import pending | `trigger_scan` with `action: "import"` and the `download_id` of the *arr's row, on Radarr, Sonarr or Lidarr |
 | `queue`, fault | `remove_queue_item` with the row's service and id; it deletes partial data and does not blocklist |
@@ -716,7 +716,7 @@ out. A read-only key cannot see the queue, so `get_queue` reports Shelfmark as
 degraded with that key rather than claiming the queue is empty. A book search fails
 the same way, as degraded, and Shelfmark is asked again after five minutes.
 
-To get a book, `lookup_media` finds it (`kind: book`) and `grab_release` with
+To get a book, search_media `source: "discover"` finds it (`kind: book`) and `grab_release` with
 `service: shelfmark` and that id queues the most-downloaded file, with `safe_write`
 on. The preview names the file first. To choose another, `get_releases` lists what
 is on offer, most-downloaded first, with rows from sources that count nothing last,
@@ -920,7 +920,7 @@ not row on albums.
 
 `search_media` with `source: "library"` finds an artist by **name** — "do I have
 any Daft Punk" is a library question, and the artist row answers it.
-`source: "discover"`, which is what `lookup_media` runs, answers with Lidarr's
+`source: "discover"` answers with Lidarr's
 artist lookup: artists to add, each with its MusicBrainz id under `ids.mbid`
 and, for one not yet in Lidarr, as `id` too. That id is what `add_media` takes
 as `external_id` for Lidarr.
@@ -1613,7 +1613,7 @@ and Sonarr's own web UI does and returns every candidate, so a model can
 compare them and pick one for `grab_release`.
 
 `service` and either `id` or `title` are required: this searches one movie or
-series, or on Shelfmark one book, with `id` from a `lookup_media` row. It never
+series, or on Shelfmark one book, with `id` from a search_media `source: "discover"` row. It never
 merges across services the way `get_history` and `get_wanted` do.
 
 A `title` is resolved the way `get_media_details` resolves one, to the id the
