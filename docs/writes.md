@@ -437,11 +437,9 @@ the run.
 | `diagnose` | `whisparr` | The item's history behind the Cleanuparr and Reclaimerr checks | No Whisparr on the maintainer's stack; inherited from Sonarr's spec, not captured |
 | `retry_download` | `whisparr` | The check for a replacement grab, which traces the download through Sonarr's helper | No Whisparr on the maintainer's stack; inherited from Sonarr's spec, not captured |
 | `delete_media` | `grimmory` | Deleting a book | The test response is a hand-made mock; no live book has been deleted |
-| `delete_media` | `seerr` | Blocklisting with `seerr_blocklist` | Written from Seerr's own route (`server/routes/blocklist.ts`), whose request body differs from its published spec. The reads (the blocklist route, a missing row's 404, `/auth/me`) are checked against a live Seerr 3.5.1; the writes were not run |
-| `blocklist_media` | `radarr` | Adding and removing an import exclusion | The list read is checked against a live Radarr 6.4; the writes were not run, since they change the live list |
+| `delete_media` | `seerr` | Blocklisting with `seerr_blocklist` | Written from Seerr's own route (`server/routes/blocklist.ts`), whose request body differs from its published spec. The blocklist call itself is confirmed live through `blocklist_media` on Seerr 3.5.1; the delete-then-blocklist path was not run, since it deletes a film |
 | `blocklist_media` | `sonarr` | Adding and removing an import exclusion | The list read is checked against a live Sonarr 4.0; the writes were not run |
 | `blocklist_media` | `lidarr` | Import exclusions | No Lidarr on the maintainer's stack; written from Lidarr's spec |
-| `blocklist_media` | `seerr` | Adding to and removing from the blocklist | The same; removing also deletes Seerr's requests and issues for the title, so a live run needs a throwaway title |
 | `set_watched` | `grimmory` | Marking a book read or unread | The test response is a hand-made mock; no live book has been changed |
 | `import_download` | `grimmory` | Approving one Bookdrop file (`id`) | Built from Grimmory's OpenAPI spec and mocks; the first real approval is its test |
 | `get_history` | `grimmory` | The `BOOK_UPLOADED` audit row | No upload has been captured, so the shape follows Grimmory's API description |

@@ -3067,7 +3067,9 @@ Seerr credits a blocklist entry to a user: arr-mcp credits it to the API key's
 own user. The old `/blacklist` path is a deprecated alias; arr-mcp uses
 `/blocklist`.
 
-**Unverified live** (Seerr): adding to and removing from the blocklist.
+Confirmed live against Seerr 3.5.1: an add stores the title, `movie` and the
+API key's user, and turns the title's status to blocklisted; a remove leaves no
+Seerr record of a title that had none before.
 
 ### Import exclusions
 
@@ -3088,7 +3090,8 @@ on Radarr) is refused. Whisparr is refused for now: its exclusion field is named
 `tvdbId` while its add flow speaks ThePornDB ids, and which one the field holds
 needs a live capture.
 
-**Unverified live** (Radarr): adding and removing an exclusion. The list read is live-checked against 6.4.
+Confirmed live against Radarr 6.4: an add stores `tmdbId`, `movieTitle` and
+`movieYear`, and a remove deletes it by its row id.
 
 **Unverified live** (Sonarr): adding and removing an exclusion. The list read is live-checked against 4.0.
 
