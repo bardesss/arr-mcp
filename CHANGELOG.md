@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.77.3](https://github.com/bardesss/arr-mcp/compare/v1.77.2...v1.77.3) (2026-11-10)
+
+
+### Bug Fixes
+
+* **stack_health:** list each service, failing check and disk in the text ([#580](https://github.com/bardesss/arr-mcp/issues/580)) ([dea90d2](https://github.com/bardesss/arr-mcp/commit/dea90d27f31859c76828e5017957e1f6a0aa458b))
+
 ## [1.77.2](https://github.com/bardesss/arr-mcp/compare/v1.77.1...v1.77.2) (2026-11-10)
 
 
