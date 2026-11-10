@@ -253,6 +253,31 @@ export function registerUpdateMedia(
             // signed. Anything that needs the one artist's own record stays on
             // the path below.
             if (lidarr && (id === undefined || monitor_new_items !== undefined)) {
+                // Refused rather than dropped, as on the single-item path below:
+                // this branch can reach every artist, so an option it ignores
+                // (a `title` meant to name one) must not turn into a bulk preview.
+                if (
+                    title !== undefined ||
+                    authors !== undefined ||
+                    series !== undefined ||
+                    series_number !== undefined ||
+                    lock_fields !== undefined ||
+                    unlock_fields !== undefined
+                ) {
+                    throw new ServiceError('NotFound', service, 'title, authors, series, series_number and the field locks are Grimmory options', {
+                        remedy: 'An artist is named by `id`, never a title. Drop them, or edit a Grimmory book with update_book.'
+                    });
+                }
+                if (series_type !== undefined) {
+                    throw new ServiceError('NotFound', service, 'series_type is a Sonarr option', {
+                        remedy: 'An artist has no numbering scheme. Drop it.'
+                    });
+                }
+                if (minimum_availability !== undefined) {
+                    throw new ServiceError('NotFound', service, 'minimum_availability is a Radarr option', {
+                        remedy: 'Lidarr has no availability threshold. Use set_monitoring to choose which albums.'
+                    });
+                }
                 const others = [
                     ['quality_profile', quality_profile],
                     ['root_folder', root_folder],

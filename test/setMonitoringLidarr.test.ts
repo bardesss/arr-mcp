@@ -416,6 +416,37 @@ describe('update_media on every lidarr artist', () => {
         expect(h.sent).toEqual([]);
     });
 
+    it('refuses a title instead of previewing every artist', async () => {
+        const h = bothTools();
+        const err = await h.update({ service: 'lidarr', title: 'Alex G', monitored: false }).catch((e: unknown) => e);
+        expect((err as Error).message).toMatch(/Grimmory options/);
+        expect(h.sent).toEqual([]);
+    });
+
+    it('refuses minimum_availability and series_type rather than dropping them', async () => {
+        const h = bothTools();
+        for (const extra of [{ minimum_availability: 'released' }, { series_type: 'anime' }]) {
+            const noId = await h.update({ service: 'lidarr', monitored: false, ...extra }).catch((e: unknown) => e);
+            const withId = await h.update({ service: 'lidarr', id: '1', monitor_new_items: 'none', ...extra }).catch((e: unknown) => e);
+            expect((noId as Error).message).toMatch(/is a (Radarr|Sonarr) option/);
+            expect((withId as Error).message).toMatch(/is a (Radarr|Sonarr) option/);
+        }
+        expect(h.sent).toEqual([]);
+    });
+
+    it('names set_monitoring for the album flag in the preview', async () => {
+        const h = bothTools();
+        const preview = await h.update({ service: 'lidarr', monitored: false });
+        expect(String(preview.structuredContent.effects)).toContain('use set_monitoring with level "album"');
+    });
+
+    it('points the artist level refusal of id at update_media', async () => {
+        const h = bothTools();
+        const err = await h.setMonitoring({ service: 'lidarr', level: 'artist', id: '1', monitored: false }).catch((e: unknown) => e);
+        expect((err as Error).message).toMatch(/update_media/);
+        expect((err as Error).message).not.toMatch(/omit `artists`/);
+    });
+
     it('still sets the artist level through set_monitoring', async () => {
         const h = bothTools();
         const viaOld = await h.setMonitoring({ service: 'lidarr', level: 'artist', monitored: false });
@@ -454,24 +485,22 @@ describe('set_monitoring with two lidarrs', () => {
         const impls = [flac.impl, mp3.impl];
         const adapters: ServiceAdapter[] = configs.map((c, i) => new LidarrAdapter(c as never, impls[i]!));
 
-        let call: Call = () => Promise.reject(new Error('not registered'));
+        const calls: Record<string, Call> = {};
         const server = {
-            registerTool(_n: string, config: { inputSchema: z.ZodObject }, handler: Call) {
-                call = args => handler(config.inputSchema.parse(args) as Record<string, unknown>);
+            registerTool(name: string, config: { inputSchema: z.ZodObject }, handler: Call) {
+                calls[name] = args => handler(config.inputSchema.parse(args) as Record<string, unknown>);
             }
         };
-        registerSetMonitoring(
-            server as never,
-            {
-                permissions: permissionSourceFrom(namedInstances('lidarr', configs as AnyServiceConfig[])),
-                confirm: new ConfirmTokens(),
-                audit: WriteAudit.ephemeral(),
-                library: { invalidate: vi.fn() } as never
-            } as never,
-            adapters
-        );
+        const context = {
+            permissions: permissionSourceFrom(namedInstances('lidarr', configs as AnyServiceConfig[])),
+            confirm: new ConfirmTokens(),
+            audit: WriteAudit.ephemeral(),
+            library: { invalidate: vi.fn() } as never
+        } as never;
+        registerSetMonitoring(server as never, context, adapters);
+        registerUpdateMedia(server as never, context, adapters);
 
-        return { call: (a: Record<string, unknown>) => call(a), flac: flac.sent, mp3: mp3.sent };
+        return { call: (a: Record<string, unknown>) => calls.set_monitoring!(a), update: (a: Record<string, unknown>) => calls.update_media!(a), flac: flac.sent, mp3: mp3.sent };
     }
 
     it('refuses to guess which Lidarr, and names both', async () => {
@@ -516,6 +545,15 @@ describe('set_monitoring with two lidarrs', () => {
         expect((err as Error).message).toMatch(/no artist with id 2/);
         expect((err as ServiceError).remedy).toMatch(/acquisition\.service is lidarr\/flac\. Ids are per instance/);
         expect((err as ServiceError).remedy).toMatch(/omit `artists` to apply to every artist there\.$/);
+    });
+
+    it('does not tell update_media to omit id after a mistyped id', async () => {
+        const h = twoLidarrs();
+        const old = await h.call({ service: 'lidarr', instance: 'flac', level: 'artist', artists: ['2'], monitored: false }).catch((e: unknown) => e);
+        expect((old as ServiceError).remedy).toMatch(/omit `artists`/);
+        const err = await h.update({ service: 'lidarr', instance: 'flac', id: '2', monitored: false, monitor_new_items: 'none' }).catch((e: unknown) => e);
+        expect((err as ServiceError).remedy).toMatch(/acquisition\.service is lidarr\/flac\. Ids are per instance/);
+        expect((err as ServiceError).remedy).not.toMatch(/omit/);
     });
 
     it('treats a list holding one entry as one Lidarr: no instance needed, no per-instance caveat', async () => {

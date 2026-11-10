@@ -82,7 +82,7 @@ export async function planArtistPolicy(
             const row =
                 instancesOfType(adapters, 'lidarr').length < 2
                     ? 'a get_library artist row'
-                    : `a get_library artist row whose acquisition.service is ${adapter.id}. Ids are per instance, and a row for an artist two Lidarrs hold may carry another instance's id, so take this one's from ${adapter.id} itself, or omit \`${ids}\` to apply to every artist there`;
+                    : `a get_library artist row whose acquisition.service is ${adapter.id}. Ids are per instance, and a row for an artist two Lidarrs hold may carry another instance's id, so take this one's from ${adapter.id} itself${ids === 'artists' ? ', or omit `artists` to apply to every artist there' : ''}`;
             throw new ServiceError('NotFound', adapter.id, `Lidarr has no artist with id ${missing.join(', ')}`, {
                 remedy: `Lidarr holds ${all.length} artists. Take an id from acquisition.id on ${row}.`
             });
@@ -126,7 +126,7 @@ export async function planArtistPolicy(
         effects.push(
             monitored
                 ? `Lidarr sets the artist-level monitor flag on ${scope}. This is not the album flag: each album keeps its own, and the monitored ones come back into Lidarr's wanted lists, calendar and automatic searches.`
-                : `Lidarr clears the artist-level monitor flag on ${scope}. Their albums keep their own flags, but Lidarr leaves all of them out of its wanted lists, calendar and automatic searches until the artist is monitored again — use level "album" to stop wanting one album for good. Files on disk are untouched either way.`
+                : `Lidarr clears the artist-level monitor flag on ${scope}. Their albums keep their own flags, but Lidarr leaves all of them out of its wanted lists, calendar and automatic searches until the artist is monitored again — use set_monitoring with level "album" to stop wanting one album for good. Files on disk are untouched either way.`
         );
     }
     effects.push(`State found before the change: ${tally(targets)}.`);

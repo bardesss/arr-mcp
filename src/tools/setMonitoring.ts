@@ -54,7 +54,7 @@ const SetMonitoringInput = z.object({
         .min(1)
         .optional()
         .describe(
-            '[[lidarr: Deprecated: use update_media with `id`.]]'
+            '[[lidarr: Deprecated: use update_media, one `id` per call.]]'
         ),
     monitor_new_items: z
         .enum(['all', 'none', 'new'])
@@ -122,8 +122,8 @@ export function registerSetMonitoring(
                 }
                 if (id !== undefined || season !== undefined || episodes !== undefined) {
                     throw new Error(
-                        'The artist level takes `artists`, not `id`, `season` or `episodes`. ' +
-                            'An artist is not one item: name artists, or omit `artists` for all of them.'
+                        'The artist level is deprecated and takes `artists`, not `id`, `season` or `episodes`. ' +
+                            'Use update_media instead: it takes an artist `id`, or no `id` for every artist.'
                     );
                 }
                 if (!hasArtistMonitor(adapter)) {
