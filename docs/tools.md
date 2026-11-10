@@ -516,7 +516,7 @@ one. Absent when nothing configured seeds.
 
 With Cleanuparr configured, its health findings join the failing checks: an
 unhealthy entry, a disconnected *arr or download client, a Queue Cleaner that
-is not scheduled, dry run being on, and a Cleanuparr minor newer than 2.10
+is not scheduled, dry run being on, and a Cleanuparr minor newer than 2.11
 (flagged as untested). A source it could not read is a warning of its own, and
 the rest still report.
 
