@@ -44,6 +44,7 @@ import { LibraryLoader } from './library.ts';
 import { registerLookupMedia } from './lookupMedia.ts';
 import { registerDeleteRequest, registerRespondToRequest } from './manageRequests.ts';
 import { registerManageIndexer } from './manageIndexer.ts';
+import { registerUpdateBook } from './updateBook.ts';
 import { registerPauseDownloads } from './pauseDownloads.ts';
 import { registerRetryDownload } from './retryDownload.ts';
 import { registerRemoveBlocklistItem } from './removeBlocklistItem.ts';
@@ -233,6 +234,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerFixMetadata(server, write, context.mediaServers, library, undefined, adapters.find(hasBookMetadata), adapters);
     registerRemoveBlocklistItem(server, write, adapters);
     registerManageIndexer(server, write, adapters);
+    registerUpdateBook(server, write, adapters);
 }
 
 /** The tools that write (`readOnlyHint: false`). `shapeToolSurface` hides these when none of their services is configured. */
@@ -257,6 +259,7 @@ export const WRITE_TOOLS: ReadonlySet<string> = new Set([
     'trigger_scan',
     'trigger_search',
     'trigger_subtitle_search',
+    'update_book',
     'update_media'
 ]);
 
@@ -308,5 +311,6 @@ export const TOOL_NAMES = [
     'set_watched',
     'fix_metadata',
     'remove_blocklist_item',
-    'manage_indexer'
+    'manage_indexer',
+    'update_book'
 ] as const;

@@ -154,6 +154,9 @@ const DYNAMIC_TOOLS: ToolName[] = [
     // Needs a real service+id, like the writes above, and is driven off the
     // same searchableHit. Dry run: a real call would move files.
     'update_media',
+    // Needs a real Grimmory book id; dry run off its first book, skipped when
+    // Grimmory is not configured.
+    'update_book',
     // Sonarr-only, and both need a real series id — the same reason as the
     // five above. Driven as dry runs off the first Sonarr search hit.
     'set_monitoring',
@@ -1081,12 +1084,16 @@ if (config.services?.grimmory !== undefined) {
         console.log(`PASS grimmory ${connection.version ?? '?'}: ${findings.length} finding(s), ${hits.length} search hit(s), ${rows.length} book(s), ${details} (${ms}ms)`);
         for (const f of findings) console.log(`     ${f.type} ${f.source}`);
         passes += 1;
+        // update_book, dry run only: the preview reads the book and sends nothing.
+        if (firstId === undefined) console.log('SKIP update_book — Grimmory has no book to preview against.');
+        else await run('update_book', { id: String(firstId), title: 'integration dry run', dry_run: true }, 'DRY RUN ONLY — never applied from this script');
     } catch (err) {
         console.error(`FAIL grimmory — ${redactHosts((err as Error).message, hosts)}`);
         failures += 1;
     }
 } else {
     console.log('SKIP grimmory — not configured.');
+    console.log('SKIP update_book — Grimmory is not configured.');
 }
 
 /**

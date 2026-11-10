@@ -11,5 +11,11 @@ export type Deprecation = { tool: string; param?: string; value?: string; use: s
 export const DEPRECATIONS: readonly Deprecation[] = [
     { tool: 'lookup_media', use: 'search_media' },
     // Removal drops the `options` field that `detail: "full"` returns; `full` itself stays.
-    { tool: 'stack_health', param: 'detail', value: 'full', use: 'get_instance_options' }
+    { tool: 'stack_health', param: 'detail', value: 'full', use: 'get_instance_options' },
+    { tool: 'update_media', param: 'title', use: 'update_book' },
+    { tool: 'update_media', param: 'authors', use: 'update_book' },
+    { tool: 'update_media', param: 'series', use: 'update_book' },
+    { tool: 'update_media', param: 'series_number', use: 'update_book' },
+    { tool: 'update_media', param: 'lock_fields', use: 'update_book' },
+    { tool: 'update_media', param: 'unlock_fields', use: 'update_book' }
 ];

@@ -1,6 +1,6 @@
 # Tools
 
-Forty-one of them. The first twenty read; the last twenty-one write, and are
+Forty-two of them. The first twenty read; the last twenty-two write, and are
 off until you turn them on — see [writes](writes.md).
 
 | Tool | Answers |
@@ -41,7 +41,8 @@ off until you turn them on — see [writes](writes.md).
 | `delete_request` | Drop a request record entirely |
 | `request_media` | Ask Seerr for this, through its approval queue and quotas |
 | `add_media` | Add this film or series and start looking for it; on Lidarr, an artist |
-| `update_media` | Change the profile, folder, monitoring or tags of something already there, and a Lidarr artist's metadata profile; on Grimmory, a book's title, authors, series and categories |
+| `update_media` | Change the profile, folder, monitoring or tags of something already there, and a Lidarr artist's metadata profile |
+| `update_book` | Edit a Grimmory book's title, authors, series, categories and field locks |
 | `fix_metadata` | Repair one item whose metadata does not describe its files; on Grimmory, a book, from its metadata providers; on Lidarr, an artist's file tags |
 | `set_watched` | Mark this watched or unwatched in Jellyfin; on Grimmory, mark a book read or unread |
 | `sync_database` | Have Profilarr pull its database from git again |
@@ -145,10 +146,10 @@ saying a dead service is fine is worse than no snapshot at all. Clients on the
 
 **A client can tell the reads from the writes without reading prose.** Every
 tool carries a title and an annotation: `readOnlyHint` on the twenty that only
-read, and on the twenty-one writes `destructiveHint`, taken from the same permission
+read, and on the twenty-two writes `destructiveHint`, taken from the same permission
 tier the write gate itself runs on — so a tool cannot be gated as destructive
 and advertised as safe. A client deciding what to auto-approve, or what to warn
-about, reads those rather than guessing from forty-one similarly-shaped
+about, reads those rather than guessing from forty-two similarly-shaped
 descriptions. `idempotentHint` is deliberately absent: the confirmation token is
 single-use, so repeating a write does not repeat it, and neither answer would be
 true.
@@ -2978,7 +2979,7 @@ A non-admin account needs `canDeleteBook`.
 `add_media`'s counterpart: it changes what something already in Radarr, Sonarr
 or Lidarr is set to — `quality_profile`, `root_folder`, `monitored`, `tags`,
 Radarr's `minimum_availability`, Sonarr's `series_type`, Lidarr's
-`metadata_profile`.
+`metadata_profile`. A Grimmory book is [`update_book`](#update_book).
 
 Radarr and Sonarr are written through their editors (`PUT /movie/editor`,
 `PUT /series/editor`), which change only the fields sent. A new `root_folder`
@@ -3052,10 +3053,13 @@ folder is still on disk it can leave the track files' recorded paths at the new
 root folder when switched back, which the preview says, and moving the files to
 that folder with `move_files: true` and back sets the paths right again.
 
-### Grimmory
+## `update_book`
 
-`service: "grimmory"` edits a book by hand, with `id` from `acquisition.id` on a
-`get_library` book row. It takes these fields:
+Edits a Grimmory book by hand, with `id` from `acquisition.id` on a
+`get_library` book row, as `58` or `grimmory:58`. It takes `instance` when
+several Grimmory servers are configured, and no `service`, because only
+Grimmory edits books. For a film, series or artist use `update_media`. It takes
+these fields:
 
 | Parameter | Sets |
 | --- | --- |
@@ -3070,10 +3074,7 @@ that folder with `move_files: true` and back sets the paths right again.
 `lock_fields` and `unlock_fields` take `title`, `authors`, `series`,
 `series_number` and `tags`. Only the fields named are sent. A blank title, author,
 tag or series is refused, and a series is cleared with `""` and the categories
-with `[]`. Naming no field is refused. `quality_profile`, `root_folder`,
-`monitored`, `minimum_availability`, `series_type` and `metadata_profile` are
-refused for a book, and the book fields are refused for a film, series or artist.
-
+with `[]`. Naming no field is refused. 
 A locked field is refused unless the same call unlocks it. A book with every
 field locked is refused, with the advice to unlock it in Grimmory, since
 `unlock_fields` releases single fields. Locking and unlocking one field in the
@@ -3084,6 +3085,11 @@ nothing a no-op.
 Grimmory may write the change into the book file and move it to match its naming
 pattern, when its metadata settings say so, and the preview says that. Safe tier.
 A non-admin account needs `canEditMetadata`.
+
+`update_media` still accepts these fields on a Grimmory book, deprecated, and
+gives the same preview. It refuses `quality_profile`, `root_folder`,
+`monitored`, `minimum_availability`, `series_type` and `metadata_profile` for a
+book, and the book fields for a film, series or artist.
 
 ## Prompts and resources
 
