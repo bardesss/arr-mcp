@@ -103,8 +103,9 @@ const isLidarr = (a: ServiceAdapter): a is Lidarr => hasTagRepair(a) && hasMedia
  * tags in its files. The prefix is matched in any case, as `resolveInstance`
  * matches instance names. An id written that way that no configured Lidarr
  * matches, or that has nothing after the colon, is refused by the `service`
- * routing (`unknownLidarr`); any other id is a media-server item. Read from the arguments alone, so the permission
- * check sees which service is written to before anything is resolved.
+ * routing (`unknownLidarr`); any other id is a media-server item. Read from
+ * the arguments alone, so the permission check sees which service is written
+ * to before anything is resolved.
  */
 const lidarrTarget = (music: readonly ServiceAdapter[], id: string | undefined): { adapter: Lidarr; artistId: string } | undefined => {
     if (id === undefined) return undefined;

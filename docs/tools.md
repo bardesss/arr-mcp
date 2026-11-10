@@ -1572,8 +1572,8 @@ bare array rather than the paginated envelope this server needs.
 are different namespaces, and a shared number would otherwise merge two
 unrelated items' history into one answer.
 
-`mediaId` is the movie or series id — hand it straight to `get_media_details`
-or `trigger_search`. Sonarr also reports `episodeId` separately; it is never
+`mediaId` is the movie, series or artist id — hand it straight to
+`get_media_details` or `trigger_search`. Sonarr also reports `episodeId` separately; it is never
 folded into `mediaId`.
 
 ## `get_wanted`

@@ -13,6 +13,7 @@ import { arrGrabRecorded } from './arrDownloadTrace.ts';
 import { readArrHistory } from './arrHistory.ts';
 import { listArrImportCandidates, runArrManualImport } from './arrManualImport.ts';
 import { deleteArrMedia, lidarrCalendarPath, readArrQueue, readLidarrCalendar, removeArrQueueItem } from './arrQueue.ts';
+import { lidarrDate } from './arrRecord.ts';
 import { findLidarrReleases, grabLidarrRelease } from './arrRelease.ts';
 import { arrStartLibraryScan } from './arrSystem.ts';
 import { readArrWanted } from './arrWanted.ts';
@@ -140,9 +141,9 @@ type RawArtist = {
  */
 export const MUSICBRAINZ_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** Read through `lidarrDate`, so an album with no release date has no year rather than year one. */
 const yearOf = (releaseDate: string | null | undefined): number | undefined => {
-    if (typeof releaseDate !== 'string') return undefined;
-    const match = /^(\d{4})-\d{2}-\d{2}/.exec(releaseDate);
+    const match = /^(\d{4})-\d{2}-\d{2}/.exec(lidarrDate(releaseDate) ?? '');
     return match?.[1] === undefined ? undefined : Number(match[1]);
 };
 

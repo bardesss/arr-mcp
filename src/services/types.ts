@@ -351,7 +351,7 @@ export type QueueItem = {
     errorMessage?: string;
     /** The *arr's id for the movie, series or artist this row was grabbed for, as a string. Absent on an orphan and on a download client's row. */
     mediaId?: string;
-    /** No movie or series behind it. Not the same as safe to remove. */
+    /** No movie, series or artist behind it. Not the same as safe to remove. */
     orphaned?: boolean;
     /** Internal, Lidarr only: the row names an artist but no album, so Lidarr cannot ignore the download. Never returned by a tool. */
     noAlbum?: true;
@@ -360,7 +360,7 @@ export type QueueItem = {
     /** The download client's own id for this grab — what `import_download`'s
      *  `import` action is addressed with. */
     downloadId?: string;
-    /** Why Radarr or Sonarr will not import it, one line per reason. */
+    /** Why Radarr, Sonarr, Whisparr or Lidarr will not import it, one line per reason. */
     statusMessages?: string[];
     /** ISO 8601, when the item arrived. Grimmory's Bookdrop rows only. */
     addedAt?: string;
@@ -759,7 +759,7 @@ export type HistoryEntry = {
      *  below `detail: full`. */
     rawEvent?: string;
     title: string; // fenced
-    /** The movie or series id — hand it to get_media_details or trigger_search. */
+    /** The movie, series or artist id — hand it to get_media_details or trigger_search. */
     mediaId?: string;
     /** Webhook rows only. A re-added title gets a new `mediaId`, and these stay. */
     externalIds?: { tmdb?: number; tvdb?: number; imdb?: string };
@@ -1019,7 +1019,7 @@ export const hasMetadataRepair = (a: ServiceAdapter): a is ServiceAdapter & Meta
     typeof (a as Partial<MetadataRepairCapable>).repairMetadata === 'function';
 
 /**
- * One release Radarr or Sonarr has decided not to grab again.
+ * One release Radarr, Sonarr, Whisparr or Lidarr has decided not to grab again.
  *
  * The answer to "why does this keep getting skipped": `reason` is the *arr's
  * own message, usually relayed from the download client. Fenced, like every
@@ -1033,8 +1033,9 @@ export type BlocklistEntry = {
     at: string; // ISO
     reason?: string; // fenced
     protocol?: string;
-    /** The movie or series it belongs to — hand it to get_media_details. Never
-     *  the episode, on Sonarr, for the same reason WantedItem.id is not. */
+    /** The movie, series or artist it belongs to — hand it to
+     *  get_media_details. Never the episode, on Sonarr, for the same reason
+     *  WantedItem.id is not. */
     mediaId?: string;
 };
 
