@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.80.0](https://github.com/bardesss/arr-mcp/compare/v1.79.0...v1.80.0) (2026-11-10)
+
+
+### Features
+
+* **search_media:** take over lookup_media, which stays as a deprecated alias ([#595](https://github.com/bardesss/arr-mcp/issues/595)) ([2408335](https://github.com/bardesss/arr-mcp/commit/2408335ad0c363d155608f7f543d6ee4ab2036cf))
+* **tools:** delete_indexer, out of manage_indexer ([#600](https://github.com/bardesss/arr-mcp/issues/600)) ([d9b01be](https://github.com/bardesss/arr-mcp/commit/d9b01bec5dfc150b7d20a4b7611ca6668872e040))
+* **tools:** get_instance_options, and a service filter on stack_health ([#596](https://github.com/bardesss/arr-mcp/issues/596)) ([16ffd29](https://github.com/bardesss/arr-mcp/commit/16ffd29ca9fa514d8deb3f330cf2928a6de3391b))
+* **tools:** import_download, out of trigger_scan ([#599](https://github.com/bardesss/arr-mcp/issues/599)) ([843b1bf](https://github.com/bardesss/arr-mcp/commit/843b1bfecc4b4d84ab46808236e6aa61da341a63))
+* **tools:** update_book for Grimmory edits, out of update_media ([#597](https://github.com/bardesss/arr-mcp/issues/597)) ([0fe2e93](https://github.com/bardesss/arr-mcp/commit/0fe2e937ae51eb62cc16239e78ee89823ecc683d))
+* **update_media:** every Lidarr artist at once, and monitor_new_items; set_monitoring's artist level is deprecated ([#598](https://github.com/bardesss/arr-mcp/issues/598)) ([57b487b](https://github.com/bardesss/arr-mcp/commit/57b487b55f36b6b3c9b395d284e031ebc5d4f01f))
+
+
+### Bug Fixes
+
+* whats_wrong spacing, wider export guard, shutdown test startup wait ([#593](https://github.com/bardesss/arr-mcp/issues/593)) ([c112bc3](https://github.com/bardesss/arr-mcp/commit/c112bc38551dd53045408f8d02ac0235abd1469c))
+
 ## [1.79.0](https://github.com/bardesss/arr-mcp/compare/v1.78.0...v1.79.0) (2026-11-10)
 
 
