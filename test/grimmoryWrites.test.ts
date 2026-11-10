@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AnyServiceConfig } from '../src/config/schema.ts';
 import { resetGrimmoryLockouts } from '../src/core/auth.ts';
+import { CONFIRM_REASON, ConfirmTokens } from '../src/core/confirm.ts';
 import { GrimmoryAdapter, MAX_BOOKDROP_PAGES } from '../src/services/grimmory.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import { registerTriggerScan } from '../src/tools/triggerScan.ts';
@@ -1091,14 +1092,24 @@ describe('update_book', () => {
         expect(puts()).toEqual([]);
     });
 
-    it('refuses a token from an update_media preview of the same book', async () => {
-        const { call, puts } = editTool();
-        const media = writeTool((s, context) => registerUpdateMedia(s, context, [new GrimmoryAdapter(grimmoryConfig({ safe_write: true }), grimmoryServer({ 'GET /api/v1/books/58': json(BOOK) }).fetch)]), { safe_write: true });
-        const preview = await media({ service: 'grimmory', id: '58', title: 'New' });
-        const other = await call({ id: '58', title: 'New', confirm: preview.structuredContent.confirm_token });
-        expect(other.structuredContent.applied).toBe(false);
-        expect(other.structuredContent.confirm_error).toBeDefined();
-        expect(puts()).toEqual([]);
+    it('refuses a token from an update_media preview of the same book, and the reverse, as another operation', async () => {
+        const shared = new ConfirmTokens();
+        const perms = { safe_write: true };
+        const server = grimmoryServer({ 'GET /api/v1/books/58': json(BOOK), 'PUT /api/v1/books/58/metadata': json({}) });
+        const adapter = new GrimmoryAdapter(grimmoryConfig(perms), server.fetch);
+        const book = writeTool((s, context) => registerUpdateBook(s, context, [adapter]), perms, shared);
+        const media = writeTool((s, context) => registerUpdateMedia(s, context, [adapter]), perms, shared);
+
+        const mediaPreview = await media({ service: 'grimmory', id: '58', title: 'New' });
+        const viaBook = await book({ id: '58', title: 'New', confirm: mediaPreview.structuredContent.confirm_token });
+        expect(viaBook.structuredContent.applied).toBe(false);
+        expect(viaBook.structuredContent.confirm_error).toBe(CONFIRM_REASON.mismatch);
+
+        const bookPreview = await book({ id: '58', title: 'New' });
+        const viaMedia = await media({ service: 'grimmory', id: '58', title: 'New', confirm: bookPreview.structuredContent.confirm_token });
+        expect(viaMedia.structuredContent.applied).toBe(false);
+        expect(viaMedia.structuredContent.confirm_error).toBe(CONFIRM_REASON.mismatch);
+        expect(server.sent.filter(r => r.method === 'PUT')).toEqual([]);
     });
 
     it('still edits a book through update_media, with the same preview', async () => {
