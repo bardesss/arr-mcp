@@ -88,6 +88,7 @@ const CASES: Case[] = [
     { tool: 'get_library', args: { min_rating: 8, rating_source: 'rottenTomatoes', limit: 5 } },
     { tool: 'get_media_details', args: { query: 'the' } },
     { tool: 'search_media', args: { query: 'the', source: 'library', detail: 'full', limit: 10 } },
+    { tool: 'search_media', args: { query: 'matrix', source: 'discover' } },
     { tool: 'lookup_media', args: { query: 'matrix' } },
     { tool: 'discover_media', args: { media_type: 'movie', detail: 'full' } },
     { tool: 'diagnose', args: { query: 'the' } },
@@ -655,7 +656,7 @@ if (addCandidate === undefined) {
  *
  * There is no fixed candidate list here: Whisparr has no metadata-provider
  * search by id the way TMDB gives Radarr one, so candidates are found the way
- * a caller actually would — through the same discover search lookup_media
+ * a caller actually would — through the same discover search search_media
  * uses — rather than invented.
  */
 const whisparrDiscover = await run(

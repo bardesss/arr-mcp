@@ -13,7 +13,7 @@ import { buildDiscoverMedia } from '../src/tools/discoverMedia.ts';
 import { buildGetMediaDetails, registerGetMediaDetails, resolveMediaDetails } from '../src/tools/getMediaDetails.ts';
 import { GrimmoryAdapter } from '../src/services/grimmory.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
-import { buildLookupMedia, lookupSummary, registerLookupMedia } from '../src/tools/lookupMedia.ts';
+import { lookupSummary, registerLookupMedia } from '../src/tools/lookupMedia.ts';
 import { buildSearchMedia, registerSearchMedia, searchSummary } from '../src/tools/searchMedia.ts';
 import { repeat } from './helpers/bigFixture.ts';
 import { expectWithinBudget } from './helpers/budget.ts';
@@ -272,9 +272,18 @@ describe('lookup_media', () => {
     );
 
     it('returns metadata without adding anything', async () => {
-        const result = await buildLookupMedia([lookupRadarr], { query: 'some film', detail: 'full', limit: 50 });
+        const result = await buildSearchMedia([lookupRadarr], { source: 'discover', query: 'some film', detail: 'full', limit: 50 });
         expect(result.items[0]).toMatchObject({ source: 'discover', ids: { tmdb: 550, imdb: 'tt0137523' } });
         expect(result.items[0]?.monitored).toBe(false);
+    });
+
+    it('returns the same rows as search_media with source discover', async () => {
+        const args = { query: 'some film', detail: 'full' as const, limit: 50, offset: 0 };
+        type Out = { structuredContent: { total: number } };
+        const alias = (await callTool((s, a) => registerLookupMedia(s, a), [lookupRadarr], args)) as unknown as Out;
+        const search = (await callTool((s, a) => registerSearchMedia(s, a), [lookupRadarr], { ...args, source: 'discover' })) as unknown as Out;
+        expect(alias.structuredContent).toEqual(search.structuredContent);
+        expect(alias.structuredContent.total).toBeGreaterThan(0);
     });
 
     it('merges results from every service that can look up', async () => {
@@ -286,7 +295,7 @@ describe('lookup_media', () => {
                 }
             })
         );
-        const result = await buildLookupMedia([lookupRadarr, seerr], { query: 'some film', detail: 'full', limit: 50 });
+        const result = await buildSearchMedia([lookupRadarr, seerr], { source: 'discover', query: 'some film', detail: 'full', limit: 50 });
         expect(result.items.map(i => i.service).sort()).toEqual(['radarr', 'seerr']);
     });
 
@@ -299,7 +308,7 @@ describe('lookup_media', () => {
                 }
             })
         );
-        const result = await buildLookupMedia([seerr], { query: 'some show', detail: 'full', limit: 50 });
+        const result = await buildSearchMedia([seerr], { source: 'discover', query: 'some show', detail: 'full', limit: 50 });
         expect(result.items[0]?.year).toBe(2024);
     });
 });
@@ -1274,16 +1283,16 @@ describe('IMDb ratings on the not-yet-owned paths', () => {
     });
 
     it('rates a lookup hit for something not in the library at all', async () => {
-        const result = await buildLookupMedia(
+        const result = await buildSearchMedia(
             [lookupRadarr],
-            { query: 'some film', detail: 'standard', limit: 50 },
+            { source: 'discover', query: 'some film', detail: 'standard', limit: 50 },
             dataset()
         );
         expect(result.items[0]?.ratings?.imdb).toBe(9.3);
     });
 
     it('leaves lookup exactly as it was when no dataset is configured', async () => {
-        const result = await buildLookupMedia([lookupRadarr], { query: 'some film', detail: 'standard', limit: 50 });
+        const result = await buildSearchMedia([lookupRadarr], { source: 'discover', query: 'some film', detail: 'standard', limit: 50 });
         expect(result.items[0]?.ratings).toBeUndefined();
     });
 

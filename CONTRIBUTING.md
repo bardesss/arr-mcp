@@ -257,7 +257,7 @@ small, shaped change, and a service in no slot at all is a different product.
 
 - **Lidarr — the rest of it.** The adapter has shipped, with twenty-seven capabilities. `LibraryCapable` and `SearchCapable`, so
   `get_library` lists artists, `search_media` finds them, and its discover
-  source (`lookup_media`) finds artists to add. `MediaAddCapable` and
+  source (`search_media` with `source: "discover"`) finds artists to add. `MediaAddCapable` and
   `MetadataProfileCapable`, so `add_media` adds one by its MusicBrainz id, with
   the metadata profile beside the quality profile. `MediaUpdateCapable`, so
   `update_media` changes an artist's profiles, root folder, monitoring and tags
@@ -382,7 +382,7 @@ small, shaped change, and a service in no slot at all is a different product.
   needs it to find or grab a book; with no authentication set up there is no key to
   store, and the read-only key still gives `stack_health`. The waiver rests on one
   thing: Shelfmark is a downloader run beside the rest of the stack, and finding,
-  grabbing, cancelling and retrying a book fit the existing `lookup_media`,
+  grabbing, cancelling and retrying a book fit the existing `search_media`,
   `get_releases`, `grab_release`, `remove_queue_item`, `retry_download` and
   `get_history` with no new tool. Ebooks only so far.
 
