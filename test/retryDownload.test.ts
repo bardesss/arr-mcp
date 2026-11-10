@@ -9,6 +9,7 @@ import { LidarrAdapter } from '../src/services/lidarr.ts';
 import { NzbgetAdapter } from '../src/services/nzbget.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import { SabnzbdAdapter } from '../src/services/sabnzbd.ts';
+import { WhisparrAdapter } from '../src/services/whisparr.ts';
 import type { DownloadTrace, RetryOutcome, RetryTarget, ServiceAdapter } from '../src/services/types.ts';
 import type { LibraryLoader } from '../src/tools/library.ts';
 import { registerRetryDownload } from '../src/tools/retryDownload.ts';
@@ -71,6 +72,7 @@ function harness(
         target?: RetryTarget;
         client?: 'sabnzbd' | 'nzbget';
         lidarr?: boolean;
+        whisparr?: () => Promise<DownloadTrace | undefined>;
     } = {}
 ) {
     const nzbget = opts.client === 'nzbget';
@@ -85,7 +87,15 @@ function harness(
     const run = vi.spyOn(client, 'runRetry').mockResolvedValue(outcome);
     const trace = vi.spyOn(radarr, 'traceDownload').mockImplementation(opts.trace ?? (async () => undefined));
 
-    const adapters: ServiceAdapter[] = [client, radarr, ...(opts.lidarr ? [new LidarrAdapter(keyed(8686), unused)] : [])];
+    const whisparr = new WhisparrAdapter(keyed(6969), unused);
+    if (opts.whisparr !== undefined) vi.spyOn(whisparr, 'traceDownload').mockImplementation(opts.whisparr);
+
+    const adapters: ServiceAdapter[] = [
+        client,
+        radarr,
+        ...(opts.lidarr ? [new LidarrAdapter(keyed(8686), unused)] : []),
+        ...(opts.whisparr === undefined ? [] : [whisparr])
+    ];
 
     let call: Call = () => Promise.reject(new Error('not registered'));
     const server = {
@@ -136,6 +146,22 @@ describe('retry_download', () => {
         const effects = structuredContent.effects.join(' ');
         expect(effects).toMatch(/lidarr is not checked for a replacement/i);
         expect(effects).not.toMatch(/whisparr/i);
+    });
+
+    it("traces Whisparr like Sonarr, so its replacement reaches the preview", async () => {
+        const h = harness({
+            whisparr: async () => ({
+                service: 'whisparr',
+                title: 'Old',
+                failedAt: '2026-10-01T10:00:00Z',
+                replacement: { title: 'New.Scene', grabbedAt: '2026-10-02T10:00:00Z', imported: false }
+            })
+        });
+        const { structuredContent } = await h.call({ service: 'sabnzbd', id: 'SABnzbd_nzo_abc' });
+
+        const effects = structuredContent.effects.join(' ');
+        expect(effects).toContain('whisparr has already grabbed New.Scene');
+        expect(effects).not.toMatch(/not checked/i);
     });
 
     it('warns when Radarr already imported a replacement', async () => {

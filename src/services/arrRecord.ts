@@ -27,6 +27,13 @@ export const mediaIdOf = (record: Partial<Record<MediaIdField, number | null>>, 
 export const mediaIdsParam = (kind: ArrKind): string => `${MEDIA_ID_FIELD[kind]}s`;
 
 /**
+ * How one item's history is asked for: `ids` sends that filter to `/history`;
+ * `seriesEndpoint` reads `/history/series?seriesId=` instead, for Whisparr,
+ * whose `/history` binds no `seriesIds` and silently answers every site's rows.
+ */
+export type ArrHistoryScope = 'ids' | 'seriesEndpoint';
+
+/**
  * Lidarr 3.1.6 names the protocol by its class, `UsenetDownloadProtocol` or
  * `TorrentDownloadProtocol`, where Lidarr 3.1.0, Radarr and Sonarr say
  * `usenet` or `torrent`. Mapped back, so a row reads the same whichever of them

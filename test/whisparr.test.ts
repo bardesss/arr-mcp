@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { KeyedServiceConfig } from '../src/config/schema.ts';
 import { WhisparrAdapter } from '../src/services/whisparr.ts';
+import { serving as servingByQuery } from './helpers/serve.ts';
 
 const config: KeyedServiceConfig = {
     url: 'http://192.168.1.20:6969',
@@ -148,5 +149,52 @@ describe('WhisparrAdapter', () => {
             { seasonNumber: 2018, monitored: true },
             { seasonNumber: 2019, monitored: false }
         ]);
+    });
+});
+
+/**
+ * Whisparr reads these through Sonarr's helpers. The bodies below are
+ * Sonarr-shaped by inheritance, not captured from Whisparr;
+ * test/whisparrInherited.test.ts checks that the two specs still agree.
+ */
+describe('WhisparrAdapter reads inherited from Sonarr', () => {
+    it('reports recent logs', async () => {
+        const { entries } = await adapter({
+            '/api/v3/log': { records: [{ time: '2026-11-05T05:59:00Z', level: 'warn', logger: 'RssSyncService', message: 'Indexer unavailable' }] }
+        }).getRecentLogs();
+        expect(entries).toMatchObject([{ service: 'whisparr', count: 1 }]);
+    });
+
+    it('traces a failed download', async () => {
+        const page = 'page=1&pageSize=50&sortKey=date&sortDirection=descending';
+        const trace = await new WhisparrAdapter(
+            config,
+            servingByQuery({
+                [`/api/v3/history?downloadId=abc&${page}`]: {
+                    records: [{ eventType: 'downloadFailed', date: '2026-10-01T10:00:00Z', seriesId: 3, sourceTitle: 'Old', downloadId: 'abc' }]
+                },
+                // Whisparr's /history binds no seriesIds; the site's grabs come from here.
+                '/api/v3/history/series?seriesId=3': []
+            })
+        ).traceDownload('abc');
+        expect(trace).toMatchObject({ service: 'whisparr', failedAt: '2026-10-01T10:00:00Z' });
+    });
+
+    it("reads one site's history through /history/series, newest first", async () => {
+        const read = await new WhisparrAdapter(
+            config,
+            servingByQuery({
+                '/api/v3/history/series?seriesId=3': [
+                    { id: 1, eventType: 'grabbed', date: '2026-10-01T10:00:00Z', seriesId: 3, sourceTitle: 'Old', downloadId: 'ABC' },
+                    { id: 2, eventType: 'downloadFolderImported', date: '2026-10-02T10:00:00Z', seriesId: 3, sourceTitle: 'Old', downloadId: 'ABC' }
+                ]
+            })
+        ).readHistory({ id: '3', eventType: 'imported', want: 10 });
+        expect(read).toMatchObject({ total: 1, items: [{ service: 'whisparr', id: '2', event: 'imported', mediaId: '3', downloadId: 'abc' }] });
+    });
+
+    it('lists running commands', async () => {
+        const rows = await adapter({ '/api/v3/command': [{ id: 3, name: 'RefreshSeries', status: 'started' }] }).listCommands();
+        expect(rows).toMatchObject([{ service: 'whisparr', commandId: 3, name: 'RefreshSeries', status: 'started' }]);
     });
 });

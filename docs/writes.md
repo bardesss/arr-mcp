@@ -414,6 +414,10 @@ the run.
 | `remove_queue_item` | `shelfmark` | Cancelling a Prowlarr row | Mock-only; the live Shelfmark has not been asked to cancel one |
 | `remove_queue_item` | `grimmory` | Discarding a Bookdrop file | Mock-only; no discard response was ever captured |
 | `remove_queue_item` | `qbittorrent` | Removing a torrent, with or without its files | No qBittorrent on the maintainer's stack |
+| `stack_health` | `whisparr` | The `commands` list and the `logs`, read through Sonarr's helpers | No Whisparr on the maintainer's stack; its API spec matches Sonarr's for these, so they are inherited, not captured |
+| `get_history` | `whisparr` | History rows, read through Sonarr's helper | No Whisparr on the maintainer's stack; inherited from Sonarr's spec, not captured |
+| `diagnose` | `whisparr` | The item's history behind the Cleanuparr and Reclaimerr checks | No Whisparr on the maintainer's stack; inherited from Sonarr's spec, not captured |
+| `retry_download` | `whisparr` | The check for a replacement grab, which traces the download through Sonarr's helper | No Whisparr on the maintainer's stack; inherited from Sonarr's spec, not captured |
 | `delete_media` | `grimmory` | Deleting a book | The test response is a hand-made mock; no live book has been deleted |
 | `set_watched` | `grimmory` | Marking a book read or unread | The test response is a hand-made mock; no live book has been changed |
 | `trigger_scan` | `grimmory` | Approving one Bookdrop file (`action: "bookdrop"` with `id`) | Built from Grimmory's OpenAPI spec and mocks; the first real approval is its test |

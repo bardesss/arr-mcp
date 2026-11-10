@@ -2,7 +2,7 @@ import { sanitizeGuid, fencer } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
 import type { ArrKind } from '../core/resolver.ts';
 import { ARR_PAGE_SIZE, pageIsNewestFirst, pageSizeFor, readArrPages, readTotal, type ArrRead } from './arrPaging.ts';
-import { mediaIdOf, mediaIdsParam } from './arrRecord.ts';
+import { mediaIdOf, mediaIdsParam, type ArrHistoryScope } from './arrRecord.ts';
 import type { HistoryEntry, HistoryEventType, HistoryQuery, Window } from './types.ts';
 
 /**
@@ -103,15 +103,19 @@ const EVENT_CODE: Record<ArrKind, Partial<Record<HistoryEventType, number | read
  * The newest rows first, filtered to `eventType` and `since`. With `want`, and
  * no `since`, it stops once it has that many and takes `total` from the
  * service (#293) rather than reading the whole history to count it.
+ *
+ * `scope` says how an `id` reaches the service: see `ArrHistoryScope`.
  */
 export async function readArrHistory(
     http: ServiceHttp,
     service: string,
     kind: ArrKind,
-    opts: HistoryQuery
+    opts: HistoryQuery,
+    scope: ArrHistoryScope = 'ids'
 ): Promise<Window<HistoryEntry>> {
     const code = opts.eventType === undefined ? undefined : EVENT_CODE[kind][opts.eventType];
     if (opts.eventType !== undefined && opts.eventType !== 'unknown' && code === undefined) return { items: [], total: 0 };
+    if (opts.id !== undefined && scope === 'seriesEndpoint') return readSeriesHistory(http, service, kind, opts, opts.id);
     let pages = await readHistoryPages(http, service, kind, opts, code);
     // Radarr 4 filters history through `filterKey`/`filterValue` and ignores a
     // bare `eventType`, so a filter sent upstream is checked, not trusted.
@@ -125,6 +129,26 @@ export async function readArrHistory(
     const total = pages.windowed ? readTotal(pages.read, items.length) : items.length;
     const stoppedEarly = pages.read.totalRecords !== undefined && pages.read.records.length < pages.read.totalRecords;
     return { items, total, ...(pages.windowed && pages.filteredHere && stoppedEarly ? { atMost: true as const } : {}) };
+}
+
+/**
+ * One series' history through `/history/series?seriesId=`, for Whisparr, whose
+ * `/history` binds no `seriesIds` (its spec) and so would answer every site's
+ * rows. That endpoint is a bare `HistoryResource[]` with no paging or sort,
+ * so the whole list comes back in one read and is sorted, then filtered here.
+ */
+async function readSeriesHistory(
+    http: ServiceHttp,
+    service: string,
+    kind: ArrKind,
+    opts: HistoryQuery,
+    id: string
+): Promise<Window<HistoryEntry>> {
+    const records = await http.get<RawHistory[]>(`${http.apiRoot}/history/series?seriesId=${encodeURIComponent(id)}`);
+    const items = toEntries(Array.isArray(records) ? records : [], service, kind, opts.since)
+        .filter(e => opts.eventType === undefined || e.event === opts.eventType)
+        .sort((a, b) => b.at.localeCompare(a.at));
+    return { items, total: items.length };
 }
 
 async function readHistoryPages(
@@ -180,9 +204,13 @@ async function readHistoryPages(
             return filterHere ? matched >= want : kept >= want;
         }
     });
-    const fence = fencer(service);
+    const entries = toEntries(read.records, service, kind, opts.since);
+    return { entries, read, windowed: want !== undefined, filteredHere: filterHere };
+}
 
-    const entries = read.records
+function toEntries(records: readonly RawHistory[], service: string, kind: ArrKind, since: string | undefined): HistoryEntry[] {
+    const fence = fencer(service);
+    return records
         .filter((r): r is RawHistory & { id: number } => typeof r.id === 'number')
         .map(r => {
             const raw = r.eventType ?? '';
@@ -213,7 +241,5 @@ async function readHistoryPages(
         // range on this endpoint. `stopWhen` above only ends the *paging*
         // early — the page holding the boundary still has older records on
         // it, and this is what drops them.
-        .filter(e => opts.since === undefined || e.at >= opts.since);
-
-    return { entries, read, windowed: want !== undefined, filteredHere: filterHere };
+        .filter(e => since === undefined || e.at >= since);
 }

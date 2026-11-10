@@ -53,9 +53,8 @@ not obvious, and the places where a value is deliberately absent rather than
 **Whisparr** is a Sonarr fork and answers wherever Sonarr does below, with one
 difference: a site has no seasons, so **a season is a release year**, `2019`
 rather than `1`. A year the site does not have is refused, and the refusal
-lists the years it does. It does not answer `get_history`, `get_wanted`,
-`update_media` or `fix_metadata`, nor `trigger_scan`'s `import` and `remap`
-actions, and its commands do not appear in `stack_health`'s `commands` list. `add_media` works as it does on Sonarr,
+lists the years it does. It does not answer `get_wanted`, `update_media` or
+`fix_metadata`, nor `trigger_scan`'s `import` and `remap` actions. `add_media` works as it does on Sonarr,
 by TVDB id — Whisparr reuses that field for its own scene-database id, not
 TheTVDB — except `series_type`, which is Sonarr only, and `monitor: "pilot"`,
 which a site has no equivalent of. Only Whisparr V2 is supported;
@@ -306,6 +305,8 @@ own strike list holds them now, and says when it has reached the strike limit
 and goes on Cleanuparr's next run. A torrent still seeding a file that is already in the
 library is `ok`, or `warning` when it has strikes, including qBittorrent's
 `seeding (no peers)`; `warning` never blocks the verdict.
+
+**Unverified live** (Whisparr): the item's history behind the Cleanuparr and Reclaimerr checks; inherited from Sonarr's spec, not captured.
 
 When a query matches nothing in the library, `diagnose` searches download
 history by release name before answering "Nothing in your stack matches". This
@@ -777,9 +778,9 @@ not have helped — Radarr reports its own per-minute refresh as `manual`.
 A command the service accepts without returning a command id fails rather than
 waiting, since there would be nothing to follow.
 
-Radarr, Sonarr, Lidarr and Prowlarr are read. Whisparr is not, because its
-command list has no captured fixture yet, so nothing can be concluded from a
-Whisparr command being absent.
+Radarr, Sonarr, Whisparr, Lidarr and Prowlarr are read.
+
+**Unverified live** (Whisparr): the `commands` list and the `logs` — read through Sonarr's helpers; its API spec matches Sonarr's for these, so this is inherited, not captured.
 
 **A command that is not in the list has finished.** The fifteen-minute window
 is what makes that readable rather than merely true: a search you started a
@@ -790,7 +791,7 @@ not a fault — and bounded like `scans` rather than sharing the `limit` budget.
 ### Why is it failing?
 
 At `detail: "full"`, `logs` lists the recent warnings and errors each Radarr,
-Sonarr, Prowlarr, Seerr and Bazarr wrote to its own log, newest first. A health
+Sonarr, Whisparr, Prowlarr, Seerr and Bazarr wrote to its own log, newest first. A health
 check says *what* is broken ("download client unavailable"); the log line says
 *why* ("Name does not resolve (qbittorrent:8080)", a path it cannot write).
 
@@ -1407,7 +1408,7 @@ later.
 imports, or its file gets deleted, it leaves the queue and `get_queue` has
 nothing to say about it. `trigger_search` cannot fill that gap either: it hands
 back a command handle, and Radarr and Sonarr do not report a search's outcome
-through it. `get_history` merges Radarr's, Sonarr's and Lidarr's own history logs with SABnzbd's,
+through it. `get_history` merges Radarr's, Sonarr's, Whisparr's and Lidarr's own history logs with SABnzbd's,
 NZBGet's, Bazarr's, Cleanuparr's, Reclaimerr's and Shelfmark's, plus Grimmory's
 audit log, and is the only tool that can answer "why did last night's download
 fail".
@@ -1423,6 +1424,8 @@ not yet recognise becomes `unknown` rather than being dropped.
 `event_type` filters on one normalised type — any of the above, or the ones
 the services below add (`subtitle`, `strike`, `protected` and the rest) — and
 `since` drops anything older.
+
+**Unverified live** (Whisparr): its history rows — read through Sonarr's helpers; its API spec matches Sonarr's for these, so this is inherited, not captured.
 
 On a Radarr that ignores the `eventType` parameter (Radarr 4), the filter is applied here and `total` is an upper bound once the read stops early.
 
@@ -2505,11 +2508,13 @@ the NZB came from. It is never shown back, and the audit log redacts it. When a
 SABnzbd job was added from a URL, a retry fetches the NZB again and may not keep
 the password; the preview says so.
 
-**Moved on.** The preview checks whether Radarr or Sonarr has already grabbed a
+**Moved on.** The preview checks whether Radarr, Sonarr or Whisparr has already grabbed a
 replacement for the same media and whether it was imported. If so it warns that
-retrying may leave two copies, and does not refuse. Whisparr and Lidarr are not
-checked; when one is configured, the preview says that too. A Radarr or Sonarr that
+retrying may leave two copies, and does not refuse. Lidarr is not
+checked; when one is configured, the preview says that too. A Radarr, Sonarr or Whisparr that
 cannot be reached is named rather than treated as "no replacement".
+
+**Unverified live** (Whisparr): the replacement check — read through Sonarr's helpers; its API spec matches Sonarr's for these, so this is inherited, not captured.
 
 **After the retry.** The result says which *arr is tracking the download (or that
 none recorded it), and repeats the two-copies warning when the preview found a
@@ -2632,7 +2637,7 @@ number. Zero, negative and fractional ids are refused before any call, with an
 error that says where to find a valid one. That holds for every tool that takes
 one of these ids, Sonarr episode ids included.
 `stack_health`'s `commands` list says whether it has finished; do not assume it
-has. Whisparr's commands are not reported there.
+has.
 
 ### What a scan does on each service
 

@@ -21,9 +21,11 @@ import {
     WHISPARR_ADD
 } from './arrAdd.ts';
 import { readArrProfileDiagnostics } from './arrProfiles.ts';
-import { postArrCommand, refreshArrItem, renameArrItem } from './arrCommands.ts';
+import { postArrCommand, readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
+import { readArrHistory } from './arrHistory.ts';
+import { traceArrDownload } from './arrDownloadTrace.ts';
 import { findArrReleases, grabArrRelease } from './arrRelease.ts';
-import { arrStartLibraryScan, arrVersion } from './arrSystem.ts';
+import { arrRecentLogs, arrStartLibraryScan, arrVersion } from './arrSystem.ts';
 import {
     type AddCandidate,
     type AddMediaOptions,
@@ -35,6 +37,15 @@ import {
     type CalendarCapable,
     type CalendarEntry,
     type CommandHandle,
+    type CommandStatus,
+    type CommandStatusCapable,
+    type DownloadTrace,
+    type DownloadTraceCapable,
+    type HistoryCapable,
+    type HistoryEntry,
+    type HistoryQuery,
+    type LogCapable,
+    type RecentLogs,
     type DeleteMediaOptions,
     type DiskSpaceCapable,
     type EpisodeFile,
@@ -151,6 +162,10 @@ export class WhisparrAdapter
         ServiceAdapter,
         DiskSpaceCapable,
         HealthCheckCapable,
+        LogCapable,
+        HistoryCapable,
+        DownloadTraceCapable,
+        CommandStatusCapable,
         LibraryScanCapable,
         ScanStateCapable,
         CalendarCapable,
@@ -199,6 +214,22 @@ export class WhisparrAdapter
             });
         }
         return raw;
+    }
+
+    async getRecentLogs(): Promise<RecentLogs> {
+        return arrRecentLogs(this.http, this.id);
+    }
+
+    async readHistory(opts: HistoryQuery): Promise<Window<HistoryEntry>> {
+        return readArrHistory(this.http, this.id, 'series', opts, 'seriesEndpoint');
+    }
+
+    async traceDownload(downloadId: string): Promise<DownloadTrace | undefined> {
+        return traceArrDownload(this.http, this.id, 'series', downloadId, 'seriesEndpoint');
+    }
+
+    async listCommands(): Promise<CommandStatus[]> {
+        return readArrCommands(this.http, this.id);
     }
 
     async startLibraryScan(): Promise<CommandHandle> {

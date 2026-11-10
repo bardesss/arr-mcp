@@ -764,6 +764,14 @@ table in `docs/writes.md` ("Not yet run against a live service"), and an
 two in step. Removing the row and the line is part of the pull request that
 adds the capture or confirms the run.
 
+**A claim without a capture is allowed only when the spec says it is the same.**
+Whisparr is a Sonarr fork, so it reads logs, history, download traces and
+running commands through Sonarr's helpers on Sonarr's captures. That holds only
+while `specs/whisparr.json` and `specs/sonarr.json` agree on every schema and
+path those helpers read, which `test/whisparrInherited.test.ts` checks. When it
+fails, capture Whisparr or unclaim the capability. Each such claim also keeps
+its `**Unverified live**` line and table row.
+
 ### Webhook payloads
 
 An *arr sends these rather than answering a request, so they have their own script:

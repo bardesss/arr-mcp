@@ -1,5 +1,6 @@
 import { fencer } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
+import type { ArrHistoryScope } from './arrRecord.ts';
 import type { DownloadTrace } from './types.ts';
 
 type RawTraceRecord = {
@@ -23,7 +24,8 @@ const time = (date: string | undefined): number => (date === undefined ? Number.
 /**
  * What a Radarr or Sonarr did with one download id: whether it marked the
  * download failed, and whether it then grabbed (and imported) a replacement
- * for the same media. Each read is one page of the newest 50 records: a
+ * for the same media. Each read is one page of the newest 50 records, except
+ * Whisparr's replacement read, which takes the whole item history: a
  * replacement worth warning about is recent, and the preview should not wait
  * on paging through years of history for one film or series.
  *
@@ -34,7 +36,8 @@ export async function traceArrDownload(
     http: ServiceHttp,
     service: string,
     kind: 'movie' | 'series',
-    downloadId: string
+    downloadId: string,
+    scope: ArrHistoryScope = 'ids'
 ): Promise<DownloadTrace | undefined> {
     const fence = fencer(service);
     const read = async (query: string): Promise<RawTraceRecord[]> =>
@@ -64,7 +67,13 @@ export async function traceArrDownload(
 
     const episodes = new Set(own.map(r => r.episodeId).filter((id): id is number => id !== undefined));
     const scoped = kind === 'movie' ? 'movieIds' : 'seriesIds';
-    const later = (await read(`${scoped}=${mediaId}&eventType=${GRABBED_CODE}`))
+    // Whisparr's `/history` binds no `seriesIds`; its per-series endpoint is a
+    // bare, unpaged array, so the grab filter is the local one below.
+    const grabs =
+        scope === 'seriesEndpoint'
+            ? await http.get<RawTraceRecord[]>(`${http.apiRoot}/history/series?seriesId=${mediaId}`)
+            : await read(`${scoped}=${mediaId}&eventType=${GRABBED_CODE}`);
+    const later = (Array.isArray(grabs) ? grabs : [])
         .filter(
             r =>
                 r.eventType === 'grabbed' &&
