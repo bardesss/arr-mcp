@@ -274,7 +274,7 @@ export function registerDeleteMedia(
             if (failed !== undefined) {
                 const step = plan.args?.['seerrBlocklist'] as SeerrBlocklistStep;
                 const kind = step.mediaType === 'tv' ? 'series' : 'movie';
-                return `Applied. ${plan.summary} But Seerr did not blocklist it: ${failed} To retry, call blocklist_media with action: "add", tmdb_id: ${step.tmdbId}, kind: "${kind}".`;
+                return `Applied. ${plan.summary} But Seerr did not blocklist it: ${failed} To retry, call blocklist_media with action: "add", id: ${step.tmdbId}, kind: "${kind}".`;
             }
             if ((outcome as { filesLeft?: boolean }).filesLeft !== true) return undefined;
             const title = plan.summary.replace(/^Delete (.*) from Grimmory, deleting .*$/, '$1');

@@ -58,7 +58,7 @@ write, and says which permission to enable.
 | `delete_media` | destructive | `destructive`, plus `safe_write` on Seerr with `seerr_blocklist` |
 | `delete_episode_files` | destructive | `destructive` |
 | `delete_request` | destructive | `destructive` |
-| `blocklist_media` | safe to add; destructive to remove | `safe_write`; `destructive` for `remove` |
+| `blocklist_media` | safe; destructive to remove from Seerr | `safe_write`; `destructive` for a Seerr `remove` |
 | `fix_metadata` | destructive | `destructive`, plus `allow_metadata_repair` on Plex |
 
 ### Where the tier boundary falls
@@ -72,7 +72,8 @@ confirm rather than after.
 `blocklist_media` falls on both sides. Adding a title to Seerr's blocklist only
 refuses what comes next, and removing it undoes that. But Seerr removes it by
 deleting its record of the title, with every request and issue for it, so
-`remove` needs `destructive`.
+`remove` needs `destructive`. An *arr's import exclusion takes nothing with it,
+so both directions there need only `safe_write`.
 
 `remove_queue_item` is destructive rather than safe because it deletes partial
 data, and because `blocklist: true` durably teaches Radarr, Sonarr, Whisparr or
@@ -436,8 +437,9 @@ the run.
 | `diagnose` | `whisparr` | The item's history behind the Cleanuparr and Reclaimerr checks | No Whisparr on the maintainer's stack; inherited from Sonarr's spec, not captured |
 | `retry_download` | `whisparr` | The check for a replacement grab, which traces the download through Sonarr's helper | No Whisparr on the maintainer's stack; inherited from Sonarr's spec, not captured |
 | `delete_media` | `grimmory` | Deleting a book | The test response is a hand-made mock; no live book has been deleted |
-| `delete_media` | `seerr` | Blocklisting with `seerr_blocklist` | Written from Seerr's own route (`server/routes/blocklist.ts`), whose request body differs from its published spec; the maintainer's Seerr was not reachable when it was built |
-| `blocklist_media` | `seerr` | Adding to and removing from the blocklist | The same; removing also deletes Seerr's requests and issues for the title, so a live run needs a throwaway title |
+| `delete_media` | `seerr` | Blocklisting with `seerr_blocklist` | Written from Seerr's own route (`server/routes/blocklist.ts`), whose request body differs from its published spec. The blocklist call itself is confirmed live through `blocklist_media` on Seerr 3.5.1; the delete-then-blocklist path was not run, since it deletes a film |
+| `blocklist_media` | `sonarr` | Adding and removing an import exclusion | The list read is checked against a live Sonarr 4.0; the writes were not run |
+| `blocklist_media` | `lidarr` | Import exclusions | No Lidarr on the maintainer's stack; written from Lidarr's spec |
 | `set_watched` | `grimmory` | Marking a book read or unread | The test response is a hand-made mock; no live book has been changed |
 | `import_download` | `grimmory` | Approving one Bookdrop file (`id`) | Built from Grimmory's OpenAPI spec and mocks; the first real approval is its test |
 | `get_history` | `grimmory` | The `BOOK_UPLOADED` audit row | No upload has been captured, so the shape follows Grimmory's API description |

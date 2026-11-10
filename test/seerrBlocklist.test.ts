@@ -161,7 +161,7 @@ describe('blocklist_media', () => {
 
     it('previews an add as a safe write naming the title, and sends nothing', async () => {
         const seerr = fakeSeerr();
-        const { structuredContent } = await setup(seerr).call({ action: 'add', tmdb_id: 348, kind: 'movie' });
+        const { structuredContent } = await setup(seerr).call({ action: 'add', id: 348, kind: 'movie' });
         expect(structuredContent.tier).toBe('safe');
         expect(structuredContent.summary).toMatch(/^Blocklist .*Alien.* \(1979\) in Seerr\.$/);
         expect(seerr.sent.filter(s => s.method !== 'GET')).toHaveLength(0);
@@ -169,36 +169,36 @@ describe('blocklist_media', () => {
 
     it('adds once confirmed', async () => {
         const seerr = fakeSeerr();
-        const { structuredContent } = await setup(seerr).confirmed({ action: 'add', tmdb_id: 1399, kind: 'series' });
+        const { structuredContent } = await setup(seerr).confirmed({ action: 'add', id: 1399, kind: 'series' });
         expect(structuredContent.applied).toBe(true);
         expect(seerr.sent.find(s => s.method === 'POST')?.body).toMatchObject({ tmdbId: 1399, mediaType: 'tv', title: 'Game of Thrones' });
     });
 
     it('is a no-op for a title already on the blocklist', async () => {
-        const { structuredContent } = await setup(fakeSeerr({ listed: ['movie:348'] })).call({ action: 'add', tmdb_id: 348, kind: 'movie' });
+        const { structuredContent } = await setup(fakeSeerr({ listed: ['movie:348'] })).call({ action: 'add', id: 348, kind: 'movie' });
         expect(structuredContent.noop).toBe(true);
     });
 
     it('refuses a remove on safe_write alone, because Seerr deletes the requests and issues with it', async () => {
         const seerr = fakeSeerr({ listed: ['movie:348'] });
-        await expect(setup(seerr).call({ action: 'remove', tmdb_id: 348, kind: 'movie' })).rejects.toThrow(/destructive/);
+        await expect(setup(seerr).call({ action: 'remove', id: 348, kind: 'movie' })).rejects.toThrow(/destructive/);
         expect(seerr.sent.filter(s => s.method === 'DELETE')).toHaveLength(0);
     });
 
     it('says what a remove costs, and removes once confirmed', async () => {
         const seerr = fakeSeerr({ listed: ['movie:348'] });
         const h = setup(seerr, false, true);
-        const preview = await h.call({ action: 'remove', tmdb_id: 348, kind: 'movie' });
+        const preview = await h.call({ action: 'remove', id: 348, kind: 'movie' });
         expect(preview.structuredContent.tier).toBe('destructive');
         expect(preview.structuredContent.effects.join(' ')).toContain('every request and issue');
 
-        const done = await h.confirmed({ action: 'remove', tmdb_id: 348, kind: 'movie' });
+        const done = await h.confirmed({ action: 'remove', id: 348, kind: 'movie' });
         expect(done.structuredContent.applied).toBe(true);
         expect(seerr.listed.has('movie:348')).toBe(false);
     });
 
     it('fails on a TMDB id Seerr does not know rather than blocklisting it blind', async () => {
-        await expect(setup(fakeSeerr()).call({ action: 'add', tmdb_id: 999, kind: 'movie' })).rejects.toThrow(/404/);
+        await expect(setup(fakeSeerr()).call({ action: 'add', id: 999, kind: 'movie' })).rejects.toThrow(/404/);
     });
 });
 
@@ -243,7 +243,7 @@ describe('delete_media with seerr_blocklist', () => {
         const { structuredContent, content } = await h.confirmed({ service: 'radarr', id: '412', seerr_blocklist: true });
         expect(structuredContent.applied).toBe(true);
         expect(content[0]?.text).toContain('Seerr did not blocklist it');
-        expect(content[0]?.text).toContain('blocklist_media with action: "add", tmdb_id: 348, kind: "movie"');
+        expect(content[0]?.text).toContain('blocklist_media with action: "add", id: 348, kind: "movie"');
     });
 
     it('leaves a title already on the blocklist alone', async () => {
@@ -300,5 +300,28 @@ describe('delete_media with seerr_blocklist on Sonarr', () => {
         });
         await h.confirmed({ service: 'sonarr', id: '7', seerr_blocklist: true });
         expect(seerr.sent.find(s => s.method === 'POST')?.body).toMatchObject({ tmdbId: 1399, mediaType: 'tv' });
+    });
+});
+
+describe('blocklist_media tmdb_id, deprecated since id replaced it', () => {
+    const setup = (seerr: ReturnType<typeof fakeSeerr>) =>
+        harness(registerBlocklistMedia as typeof registerDeleteMedia, {
+            adapters: [new SeerrAdapter(seerrConfig(true, false), seerr.impl)],
+            permissions: { seerr: seerrConfig(true, false) }
+        });
+
+    it('still blocklists in Seerr, as 1.81.0 did', async () => {
+        const seerr = fakeSeerr();
+        const done = await setup(seerr).confirmed({ action: 'add', tmdb_id: 348, kind: 'movie' });
+        expect(done.structuredContent.applied).toBe(true);
+        expect(seerr.sent.find(s => s.method === 'POST')?.body).toMatchObject({ tmdbId: 348, mediaType: 'movie' });
+    });
+
+    it('refuses an id and a tmdb_id that disagree', async () => {
+        await expect(setup(fakeSeerr()).call({ action: 'add', id: 1, tmdb_id: 348, kind: 'movie' })).rejects.toThrow(/different titles/);
+    });
+
+    it('refuses a call with neither', async () => {
+        await expect(setup(fakeSeerr()).call({ action: 'add', kind: 'movie' })).rejects.toThrow(/no id given/);
     });
 });

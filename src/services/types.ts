@@ -1976,6 +1976,22 @@ export interface MediaAddCapable {
 export const hasMediaAdd = (a: ServiceAdapter): a is ServiceAdapter & MediaAddCapable =>
     typeof (a as Partial<MediaAddCapable>).addMedia === 'function';
 
+/** One import list exclusion, by the *arr's own row id (`arrExclusions.ts`). */
+export type ImportExclusion = { id: number };
+
+/**
+ * Radarr, Sonarr and Lidarr: titles their own import lists will not add again.
+ * Keyed on the same external id `lookupForAdd` takes.
+ */
+export interface ImportExclusionCapable {
+    findImportExclusion(externalId: string): Promise<ImportExclusion | undefined>;
+    addImportExclusion(externalId: string, label: { title: string; year?: number }): Promise<void>;
+    removeImportExclusion(exclusionId: number): Promise<void>;
+}
+
+export const hasImportExclusions = (a: ServiceAdapter): a is ServiceAdapter & ImportExclusionCapable & MediaAddCapable =>
+    typeof (a as Partial<ImportExclusionCapable>).findImportExclusion === 'function' && hasMediaAdd(a);
+
 /**
  * Lidarr's second profile type, beside the quality profile: it decides which
  * album types and release statuses an artist gets at all. The same shape as a

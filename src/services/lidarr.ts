@@ -3,6 +3,8 @@ import { LIBRARY_TTL_MS } from '../core/cache.ts';
 import { ServiceError } from '../core/errors.ts';
 import { fenceText, fencer } from '../core/fence.ts';
 import { ArrAdapterBase } from './arrBase.ts';
+import { LIDARR_EXCLUSIONS, addExclusion, findExclusion, removeExclusion } from './arrExclusions.ts';
+import type { ImportExclusion } from './types.ts';
 import type { IndexInput } from '../core/resolver.ts';
 import { readMetadataProfiles, readProfileNames, readQualityProfiles, readRootFolders, readTags } from './arrAdd.ts';
 import { findArrBlocklistEntry, readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
@@ -718,6 +720,18 @@ export class LidarrAdapter
 
     async listMetadataProfiles(): Promise<QualityProfile[]> {
         return readMetadataProfiles(this.http, this.id);
+    }
+
+    async findImportExclusion(externalId: string): Promise<ImportExclusion | undefined> {
+        return findExclusion(this.http, LIDARR_EXCLUSIONS, externalId);
+    }
+
+    async addImportExclusion(externalId: string, label: { title: string; year?: number }): Promise<void> {
+        await addExclusion(this.http, LIDARR_EXCLUSIONS, externalId, label);
+    }
+
+    async removeImportExclusion(exclusionId: number): Promise<void> {
+        await removeExclusion(this.http, LIDARR_EXCLUSIONS, exclusionId);
     }
 
     async lookupForAdd(externalId: string): Promise<AddCandidate> {
