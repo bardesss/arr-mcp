@@ -116,6 +116,17 @@ describe('the tool list', () => {
         return (server as unknown as { _registeredTools: Record<string, { description?: string }> })._registeredTools;
     };
 
+    /** The same, with `sync_database` as a write and the other two as reads. */
+    const mixed = (opts: SurfaceOptions) => {
+        const server = shapeToolSurface(new McpServer({ name: 't', version: '0' }), opts);
+        const add = (name: string, annotations: Record<string, boolean>) =>
+            server.registerTool(name, { description: name, inputSchema: z.object({}), annotations }, async () => ({ content: [] }));
+        add('sync_database', { readOnlyHint: false, destructiveHint: false });
+        add('get_subtitles', { readOnlyHint: true });
+        add('get_queue', { readOnlyHint: true });
+        return (server as unknown as { _registeredTools: Record<string, unknown> })._registeredTools;
+    };
+
     it('keeps every tool unless hide_unusable is on', () => {
         expect(Object.keys(tools(on('radarr')))).toEqual(['get_queue', 'get_subtitles', 'sync_database']);
     });
@@ -126,6 +137,18 @@ describe('the tool list', () => {
 
     it('hides nothing before anything is configured', () => {
         expect(Object.keys(tools({ configured: new Set(), hideUnusable: true }))).toHaveLength(3);
+    });
+
+    it('hides a write tool none of whose services is configured, without hide_unusable', () => {
+        expect(Object.keys(mixed(on('radarr'))).sort()).toEqual(['get_queue', 'get_subtitles']);
+    });
+
+    it('keeps that write tool before anything is configured', () => {
+        expect(Object.keys(mixed(nothing))).toHaveLength(3);
+    });
+
+    it('keeps a write tool whose service is configured', () => {
+        expect(Object.keys(mixed(on('profilarr')))).toContain('sync_database');
     });
 
     it('resolves description scopes', () => {

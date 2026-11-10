@@ -16,8 +16,8 @@ import { SERVICES_KEY, type ServiceId } from '../config/schema.ts';
  *   not take and, when anything is configured, every service that is not;
  * - in a description, text wrapped in `[[lidarr|whisparr: …]]` when none of
  *   the services it names is configured;
- * - with `tools.hide_unusable`, the tools in `TOOL_SERVICES` none of whose
- *   services is configured.
+ * - the write tools in `TOOL_SERVICES` none of whose services is configured,
+ *   and with `tools.hide_unusable` the reads too.
  *
  * Only what a client reads changes. Validation still accepts every service id,
  * so a wrong one gets the tool's own refusal with its remedy, and the zod
@@ -35,9 +35,10 @@ export type SurfaceOptions = {
 };
 
 /**
- * Tools that do nothing without one of these services. Hidden only with
- * `tools.hide_unusable`. A tool that is not listed always shows: the merged
- * reads, the lookups and `diagnose` answer something on any stack.
+ * Tools that do nothing without one of these services. A write is hidden when
+ * none is configured, a read only with `tools.hide_unusable`. A tool that is
+ * not listed always shows: the merged reads, the lookups and `diagnose`
+ * answer something on any stack.
  */
 export const TOOL_SERVICES: Readonly<Record<string, readonly ServiceId[]>> = {
     get_subtitles: ['bazarr'],
@@ -63,6 +64,8 @@ export const TOOL_SERVICES: Readonly<Record<string, readonly ServiceId[]>> = {
     clean_queue: ['radarr', 'sonarr', 'whisparr', 'lidarr'],
     trigger_search: ['radarr', 'sonarr', 'whisparr', 'lidarr'],
     add_media: ['radarr', 'sonarr', 'whisparr', 'lidarr'],
+    trigger_scan: ['radarr', 'sonarr', 'whisparr', 'lidarr', 'jellyfin', 'plex', 'grimmory', 'prowlarr', 'nzbget'],
+    remove_queue_item: ['radarr', 'sonarr', 'whisparr', 'lidarr', 'sabnzbd', 'nzbget', 'transmission', 'qbittorrent', 'shelfmark', 'grimmory'],
     set_monitoring: ['sonarr', 'whisparr', 'lidarr'],
     delete_episode_files: ['sonarr', 'whisparr'],
     update_media: ['radarr', 'sonarr', 'lidarr', 'grimmory'],
@@ -79,10 +82,10 @@ const SCOPED = /\[\[([a-z|]+): ((?:[^\]]|\](?!\]))*)\]\]/g;
 const present = (services: readonly string[], opts: SurfaceOptions): boolean =>
     opts.configured.size === 0 || services.some(s => opts.configured.has(s as ServiceId));
 
-/** Whether a tool is listed to the client: false only when `hide_unusable` removed it. */
-export function toolUsable(name: string, opts: SurfaceOptions): boolean {
+/** Whether a tool is listed to the client: false when none of its services is configured and it is a write or `hide_unusable` is on. */
+export function toolUsable(name: string, opts: SurfaceOptions, write = false): boolean {
     const needs = TOOL_SERVICES[name];
-    return !(opts.hideUnusable && opts.configured.size > 0 && needs !== undefined && !present(needs, opts));
+    return !((write || opts.hideUnusable) && opts.configured.size > 0 && needs !== undefined && !present(needs, opts));
 }
 
 /** Resolves the `[[…]]` scopes in one piece of text. */
@@ -174,7 +177,8 @@ export function leanSchema<T>(schema: T, opts: SurfaceOptions): T {
 export function shapeToolSurface(server: McpServer, opts: SurfaceOptions): McpServer {
     const register = server.registerTool.bind(server) as (name: string, config: Record<string, unknown>, cb: unknown) => unknown;
     (server as unknown as { registerTool: typeof register }).registerTool = (name, config, cb) => {
-        if (!toolUsable(name, opts)) return undefined;
+        const write = (config['annotations'] as { readOnlyHint?: boolean } | undefined)?.readOnlyHint === false;
+        if (!toolUsable(name, opts, write)) return undefined;
         const description = config['description'];
         return register(
             name,

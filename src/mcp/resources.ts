@@ -6,7 +6,9 @@ import type { ArtistMonitorCapable, ArtistMonitorPolicy, ServiceAdapter } from '
 import type { ToolContext } from '../tools/register.ts';
 import { buildGetLibrary } from '../tools/getLibrary.ts';
 import { buildStackHealth } from '../tools/stackHealth.ts';
+import { WRITE_TOOLS } from '../tools/register.ts';
 import { TOOL_DOCS } from './toolDocs.ts';
+import { toolUsable, type SurfaceOptions } from './toolSurface.ts';
 
 /**
  * The four resources (0.9 spec ).
@@ -105,7 +107,7 @@ const policyCounts = (policies: readonly ArtistMonitorPolicy[]) => {
     };
 };
 
-export function registerAllResources(server: McpServer, context: ToolContext): void {
+export function registerAllResources(server: McpServer, context: ToolContext, surface?: SurfaceOptions): void {
     const { adapters, instances, library } = context;
 
     server.registerResource(
@@ -360,7 +362,9 @@ export function registerAllResources(server: McpServer, context: ToolContext): v
 
     // The field-by-field detail the tool descriptions point at (#518). Static
     // text, so it is listed once and costs nothing until a client reads it.
+    // Not for a tool `tools/list` leaves out: a docs resource never outlives its tool.
     for (const [tool, text] of Object.entries(TOOL_DOCS)) {
+        if (surface !== undefined && !toolUsable(tool, surface, WRITE_TOOLS.has(tool))) continue;
         server.registerResource(
             `docs-${tool}`,
             `arr://docs/${tool}`,

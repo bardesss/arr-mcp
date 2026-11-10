@@ -1,5 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
+import { WRITE_TOOLS } from '../tools/register.ts';
 import { toolUsable, type SurfaceOptions } from './toolSurface.ts';
 
 /**
@@ -38,7 +39,7 @@ type PromptStep = { tool?: string; text: string };
  */
 function numbered(steps: readonly PromptStep[], surface: SurfaceOptions): string {
     return steps
-        .filter(s => s.tool === undefined || toolUsable(s.tool, surface))
+        .filter(s => s.tool === undefined || toolUsable(s.tool, surface, WRITE_TOOLS.has(s.tool)))
         .map((s, i) => `${i + 1}. ${s.text}`)
         .join('\n');
 }
@@ -97,7 +98,7 @@ ${numbered(
     surface
 )}
 
-${toolUsable('get_indexers', surface) ? 'Then reconcile: a stalled download and an unhealthy indexer are usually one problem, not two. Say so rather than listing both.\n\n' : ''}Report only what needs action, most urgent first, with what to do about each. If nothing does, say that in one line — do not pad it with everything that is fine.
+${toolUsable('get_indexers', surface, WRITE_TOOLS.has('get_indexers')) ? 'Then reconcile: a stalled download and an unhealthy indexer are usually one problem, not two. Say so rather than listing both.\n\n' : ''}Report only what needs action, most urgent first, with what to do about each. If nothing does, say that in one line — do not pad it with everything that is fine.
 
 One thing you cannot see, so do not claim to: the write audit is not exposed as a tool and lives in the config UI at /ui/audit. If a stale scan is the problem, offer \`trigger_scan\` and say what it would do.`
             )

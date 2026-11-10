@@ -1029,18 +1029,22 @@ whole session, so arr-mcp sends only what applies to your stack:
 - longer field-by-field references are resources, `arr://docs/<tool>`, read
   only when a client asks for one.
 
-All 40 tools are still listed whatever you configure, so a saved prompt keeps
-finding the tool it names. On a small stack you can opt out of that:
+- a write tool is left out when none of its services is configured:
+  `trigger_subtitle_search` without Bazarr, `request_media` without Seerr,
+  `sync_database` without Profilarr, and so on. With nothing configured yet,
+  every tool is listed.
+
+The reads are still all listed, so a saved prompt keeps finding the tool it
+names. On a small stack you can hide those too:
 
 ```yaml
 tools:
   hide_unusable: true   # default false
 ```
 
-With it on, a tool that does nothing without a service you have not configured
-is left out of the list: `get_subtitles` and `trigger_subtitle_search` without
-Bazarr, the Seerr request tools without Seerr, `sync_database` without
-Profilarr, and so on. The reads that merge across services (`get_library`,
+With it on, a read that does nothing without a service you have not configured
+is left out as well: `get_subtitles` without Bazarr, `get_requests` without
+Seerr, and so on. The reads that merge across services (`get_library`,
 `get_queue`, `get_history`, `diagnose`, the lookups) always stay. It is set in
 `config.yaml` only, and takes effect after a restart (or the next save from the
 configuration page, which reloads the config).
