@@ -74,9 +74,15 @@ describe('CleanuparrAdapter health', () => {
     });
 
     it('warns on a minor version newer than the tested one', async () => {
+        const adapter = new CleanuparrAdapter(config, stub(healthRoutes({ '/api/status': { application: { version: '2.12.0.0' } } })));
+        const checks = await adapter.getFailedHealthChecks();
+        expect(checks.some(c => c.type === 'warning' && c.message.includes('2.12.0') && c.message.includes('2.11'))).toBe(true);
+    });
+
+    it('stays quiet about 2.11, checked live on 2.11.0', async () => {
         const adapter = new CleanuparrAdapter(config, stub(healthRoutes({ '/api/status': { application: { version: '2.11.0.0' } } })));
         const checks = await adapter.getFailedHealthChecks();
-        expect(checks.some(c => c.type === 'warning' && c.message.includes('2.11.0') && c.message.includes('2.10'))).toBe(true);
+        expect(checks.some(c => c.message.includes('untested'))).toBe(false);
     });
 
     it('stays quiet about the version on the tested minor', async () => {
