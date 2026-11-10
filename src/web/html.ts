@@ -71,20 +71,6 @@ function render(value: unknown): string {
     return esc(value);
 }
 
-/** Bytes as something a person reads, for disk-space displays. */
-export function humanBytes(bytes: number | undefined): string {
-    if (bytes === undefined || !Number.isFinite(bytes)) return '—';
-    const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
-    let value = bytes;
-    let unit = 0;
-    while (value >= 1024 && unit < units.length - 1) {
-        value /= 1024;
-        unit += 1;
-    }
-    // One decimal below 100 in any scaled unit: "24.1 GB" is the difference
-    // between two films and three, and "512 KB" gains nothing from ".0".
-    return `${unit > 0 && value < 100 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`;
-}
 
 /** An ISO timestamp as something scannable in a log table. */
 export function shortTime(iso: string): string {

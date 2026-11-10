@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.77.2](https://github.com/bardesss/arr-mcp/compare/v1.77.1...v1.77.2) (2026-11-10)
+
+
+### Bug Fixes
+
+* **seerr:** identify the media each get_requests issue is about ([#578](https://github.com/bardesss/arr-mcp/issues/578)) ([fd41c0e](https://github.com/bardesss/arr-mcp/commit/fd41c0e6069259a6b98d0175f94f7207c75ff704))
+
 ## [1.77.1](https://github.com/bardesss/arr-mcp/compare/v1.77.0...v1.77.1) (2026-11-10)
 
 
