@@ -117,7 +117,10 @@ describe('LidarrAdapter', () => {
      */
     it('claims library reads, search, monitoring, queue, history and blocklist reads and removals, trigger_scan, the stack_health reads, the wanted list and calendar, indexer search and grab, adding, updating, deleting, retagging, and nothing else', () => {
         const a = adapter({});
-        const own = Object.getOwnPropertyNames(LidarrAdapter.prototype).filter(name => name !== 'constructor');
+        // The shared reads live on `ArrAdapterBase`, so walk up to it; `numericId` is its protected helper.
+        const own = [LidarrAdapter.prototype, Object.getPrototypeOf(LidarrAdapter.prototype) as object].flatMap(proto =>
+            Object.getOwnPropertyNames(proto)
+        ).filter(name => name !== 'constructor' && name !== 'numericId');
 
         expect(own.sort()).toEqual([
             'addMedia',

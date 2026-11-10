@@ -1,22 +1,19 @@
-import { instanceId } from '../config/instances.ts';
-import type { ConfigByService, ServiceId } from '../config/schema.ts';
-import { apiKeyHeader } from '../core/auth.ts';
-import { LIBRARY_TTL_MS, TtlCache } from '../core/cache.ts';
+import type { ConfigByService } from '../config/schema.ts';
+import { LIBRARY_TTL_MS } from '../core/cache.ts';
 import { ServiceError } from '../core/errors.ts';
 import { fenceText, fencer } from '../core/fence.ts';
-import { ServiceHttp } from '../core/http.ts';
+import { ArrAdapterBase } from './arrBase.ts';
 import type { IndexInput } from '../core/resolver.ts';
 import { readMetadataProfiles, readProfileNames, readQualityProfiles, readRootFolders, readTags } from './arrAdd.ts';
 import { findArrBlocklistEntry, readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
-import { arrItemId, awaitArrCommand, postArrCommand, readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
+import { awaitArrCommand, postArrCommand, readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
 import { readArrHistory } from './arrHistory.ts';
 import { listArrImportCandidates, runArrManualImport } from './arrManualImport.ts';
 import { deleteArrMedia, lidarrCalendarPath, readArrQueue, readLidarrCalendar, removeArrQueueItem } from './arrQueue.ts';
 import { findLidarrReleases, grabLidarrRelease } from './arrRelease.ts';
-import { arrDiskSpace, arrFailedHealthChecks, arrScanState, arrStartLibraryScan, arrVersion } from './arrSystem.ts';
+import { arrStartLibraryScan } from './arrSystem.ts';
 import { readArrWanted } from './arrWanted.ts';
 import {
-    diagnoseConnection,
     type AddCandidate,
     type AddMediaOptions,
     type ArtistMonitorCapable,
@@ -29,11 +26,8 @@ import {
     type CommandHandle,
     type CommandStatus,
     type CommandStatusCapable,
-    type ConnectionDiagnosis,
     type DeleteMediaOptions,
-    type DiskSpace,
     type DiskSpaceCapable,
-    type HealthCheck,
     type HealthCheckCapable,
     type HistoryCapable,
     type HistoryEntry,
@@ -68,7 +62,6 @@ import {
     type RetagFile,
     type RetagRun,
     type RootFolder,
-    type ScanState,
     type ScanStateCapable,
     type SearchCapable,
     type SearchHit,
@@ -271,6 +264,7 @@ const LIBRARY_SCAN_TASK = 'RescanFolders';
  * failed rather than a bare `lidarr`.
  */
 export class LidarrAdapter
+    extends ArrAdapterBase
     implements
         ServiceAdapter,
         LibraryCapable,
@@ -301,60 +295,28 @@ export class LidarrAdapter
         MediaDeleteCapable,
         TagRepairCapable
 {
-    readonly type: ServiceId = 'lidarr';
-    readonly instance: string | undefined;
-    readonly id: string;
-
-    readonly #http: ServiceHttp;
-
-    /** The whole-album read, shared by every `listLibrary` in a snapshot. */
-    readonly #libraryCache = new TtlCache();
+    protected readonly scanTask = LIBRARY_SCAN_TASK;
 
     constructor(config: ConfigByService['lidarr'], fetchImpl: typeof fetch = fetch) {
-        this.instance = config.name;
-        this.id = instanceId('lidarr', config.name);
-        this.#http = new ServiceHttp(this.id, config, apiKeyHeader('X-Api-Key', config.api_key), fetchImpl, {
-            apiRoot: '/api/v1'
-        });
-    }
-
-    async getVersion(): Promise<string> {
-        return arrVersion(this.#http, this.id);
-    }
-
-    async getDiskSpace(): Promise<DiskSpace[]> {
-        return arrDiskSpace(this.#http, this.id);
-    }
-
-    /** Only the checks that are failing; their text is fenced, as Radarr's and Sonarr's is. */
-    async getFailedHealthChecks(): Promise<HealthCheck[]> {
-        return arrFailedHealthChecks(this.#http, this.id);
-    }
-
-    async getScanState(): Promise<ScanState> {
-        return arrScanState(this.#http, this.id, LIBRARY_SCAN_TASK);
+        super('lidarr', config, fetchImpl, { apiRoot: '/api/v1' });
     }
 
     /** Every album, used by `getMediaDetails` for one artist's discography. */
     #albumsOf(artistId: number): Promise<RawAlbum[]> {
-        return this.#libraryCache.get(`albums:${artistId}`, LIBRARY_TTL_MS, () =>
-            this.#http.get<RawAlbum[]>(`/api/v1/album?artistId=${artistId}`)
+        return this.libraryCache.get(`albums:${artistId}`, LIBRARY_TTL_MS, () =>
+            this.http.get<RawAlbum[]>(`/api/v1/album?artistId=${artistId}`)
         );
     }
 
     /** Every artist in the library, unfiltered. */
     #allArtists(): Promise<RawArtist[]> {
-        return this.#libraryCache.get('artists', LIBRARY_TTL_MS, () => this.#http.get<RawArtist[]>('/api/v1/artist'));
-    }
-
-    invalidateLibrary(): void {
-        this.#libraryCache.clear();
+        return this.libraryCache.get('artists', LIBRARY_TTL_MS, () => this.http.get<RawArtist[]>('/api/v1/artist'));
     }
 
     async listLibrary(): Promise<IndexInput[]> {
         const [artists, profileNames] = await Promise.all([
             this.#allArtists(),
-            readProfileNames(this.#http, this.id, this.#libraryCache)
+            readProfileNames(this.http, this.id, this.libraryCache)
         ]);
 
         return artists
@@ -438,7 +400,7 @@ export class LidarrAdapter
      */
     async #discover(query: string): Promise<SearchHit[]> {
         if (/^\s*(?:imdb|tmdb|tvdb|tpdb):/i.test(query)) return [];
-        const found = await this.#http.get<unknown>(`/api/v1/artist/lookup?term=${encodeURIComponent(query)}`);
+        const found = await this.http.get<unknown>(`/api/v1/artist/lookup?term=${encodeURIComponent(query)}`);
         if (!Array.isArray(found)) {
             throw new ServiceError('UpstreamError', this.id, '/api/v1/artist/lookup did not return an array');
         }
@@ -478,8 +440,8 @@ export class LidarrAdapter
         id: string,
         opts: { includeEpisodes: boolean; episodeLimit: number }
     ): Promise<MediaDetails> {
-        const artistId = arrItemId(this.id, 'artist', id);
-        const artist = await this.#http.get<RawArtist>(`/api/v1/artist/${artistId}`);
+        const artistId = this.numericId('artist', id);
+        const artist = await this.http.get<RawArtist>(`/api/v1/artist/${artistId}`);
         const title = fenceText(artist.artistName ?? '', { service: this.id, field: 'title' });
 
         const albums = opts.includeEpisodes ? (await this.#albumsOf(artistId)).filter(a => (a.id ?? 0) > 0) : [];
@@ -520,8 +482,8 @@ export class LidarrAdapter
      * `monitored` stand in for the truth and report a real change as a no-op.
      */
     async getMonitorState(id: string): Promise<MonitorState> {
-        const albumId = arrItemId(this.id, 'album', id);
-        const album = await this.#http.get<RawAlbum>(`/api/v1/album/${albumId}`);
+        const albumId = this.numericId('album', id);
+        const album = await this.http.get<RawAlbum>(`/api/v1/album/${albumId}`);
         const title = fenceText(album.title ?? '', { service: this.id, field: 'title' });
         const artist = album.artist?.artistName;
         const year = yearOf(album.releaseDate);
@@ -542,9 +504,9 @@ export class LidarrAdapter
     async setMonitoring(id: string, opts: MonitoringTarget): Promise<void> {
         this.refusePartialSelection({ season: opts.season, episodeIds: opts.episodeIds });
 
-        const albumId = arrItemId(this.id, 'album', id);
-        await this.#http.put('/api/v1/album/monitor', { albumIds: [albumId], monitored: opts.monitored }, true);
-        this.#libraryCache.clear();
+        const albumId = this.numericId('album', id);
+        await this.http.put('/api/v1/album/monitor', { albumIds: [albumId], monitored: opts.monitored }, true);
+        this.libraryCache.clear();
     }
 
     /**
@@ -570,7 +532,7 @@ export class LidarrAdapter
      * question about the set, and Lidarr has no filtered artist read.
      */
     async listArtistMonitorPolicies(): Promise<ArtistMonitorPolicy[]> {
-        const artists = await this.#http.get<RawArtist[]>('/api/v1/artist');
+        const artists = await this.http.get<RawArtist[]>('/api/v1/artist');
 
         return artists
             .filter((a): a is RawArtist & { id: number } => typeof a.id === 'number' && a.id > 0)
@@ -597,8 +559,8 @@ export class LidarrAdapter
     ): Promise<void> {
         if (artistIds.length === 0) return;
 
-        const ids = artistIds.map(id => arrItemId(this.id, 'artist', id));
-        await this.#http.put(
+        const ids = artistIds.map(id => this.numericId('artist', id));
+        await this.http.put(
             '/api/v1/artist/editor',
             {
                 artistIds: ids,
@@ -607,7 +569,7 @@ export class LidarrAdapter
             },
             true
         );
-        this.#libraryCache.clear();
+        this.libraryCache.clear();
     }
 
     readonly queueKind = 'artist';
@@ -618,7 +580,7 @@ export class LidarrAdapter
      * `orphaned`, read from `artistId`.
      */
     async getQueue(): Promise<QueueItem[]> {
-        return readArrQueue(this.#http, this.id, this.queueKind);
+        return readArrQueue(this.http, this.id, this.queueKind);
     }
 
     /** Lidarr keeps a blocklist, so `remove_queue_item`'s `blocklist` flag is honoured here. */
@@ -631,7 +593,7 @@ export class LidarrAdapter
      * for the album again: `skipRedownload` is left at its default, false.
      */
     async removeQueueItem(id: string, opts: RemoveQueueOptions): Promise<void> {
-        return removeArrQueueItem(this.#http, this.id, id, opts);
+        return removeArrQueueItem(this.http, this.id, id, opts);
     }
 
     /**
@@ -639,20 +601,20 @@ export class LidarrAdapter
      * would be a different namespace, and `get_history` does not take one.
      */
     async readHistory(opts: HistoryQuery): Promise<Window<HistoryEntry>> {
-        return readArrHistory(this.#http, this.id, 'artist', opts);
+        return readArrHistory(this.http, this.id, 'artist', opts);
     }
 
     /** `mediaId` on each row is the artist id, which `get_media_details` takes. */
     async readBlocklist(want?: number): Promise<Window<BlocklistEntry>> {
-        return readArrBlocklist(this.#http, this.id, 'artist', want);
+        return readArrBlocklist(this.http, this.id, 'artist', want);
     }
 
     async findBlocklistItem(id: string): Promise<BlocklistEntry | undefined> {
-        return findArrBlocklistEntry(this.#http, this.id, 'artist', id);
+        return findArrBlocklistEntry(this.http, this.id, 'artist', id);
     }
 
     async removeBlocklistItem(id: string): Promise<void> {
-        return removeArrBlocklistItem(this.#http, id);
+        return removeArrBlocklistItem(this.http, id);
     }
 
     /**
@@ -661,28 +623,28 @@ export class LidarrAdapter
      * "rescan artist folder after refresh" is set to Never (`RefreshArtistService`).
      */
     async startLibraryScan(): Promise<CommandHandle> {
-        return arrStartLibraryScan(this.#http, this.id, 'RefreshArtist');
+        return arrStartLibraryScan(this.http, this.id, 'RefreshArtist');
     }
 
     async refreshItem(id: string): Promise<CommandHandle> {
-        return refreshArrItem(this.#http, this.id, 'artist', id);
+        return refreshArrItem(this.http, this.id, 'artist', id);
     }
 
     /** Renames every file of the artist to Lidarr's own naming scheme. */
     async renameItem(id: string): Promise<CommandHandle> {
-        return renameArrItem(this.#http, this.id, 'artist', id);
+        return renameArrItem(this.http, this.id, 'artist', id);
     }
 
     async listImportCandidates(downloadId: string, mapping?: ImportMapping[]): Promise<ImportCandidate[]> {
-        return listArrImportCandidates(this.#http, this.id, 'artist', downloadId, mapping);
+        return listArrImportCandidates(this.http, this.id, 'artist', downloadId, mapping);
     }
 
     async runManualImport(downloadId: string, mapping?: ImportMapping[], paths?: string[]): Promise<CommandHandle> {
-        return runArrManualImport(this.#http, this.id, 'artist', downloadId, mapping, paths);
+        return runArrManualImport(this.http, this.id, 'artist', downloadId, mapping, paths);
     }
 
     async listCommands(): Promise<CommandStatus[]> {
-        return readArrCommands(this.#http, this.id);
+        return readArrCommands(this.http, this.id);
     }
 
     /**
@@ -690,13 +652,13 @@ export class LidarrAdapter
      * names the artist as `id`, and the album as `albumId` and `albumTitle`.
      */
     async readWanted(scope: WantedScope, want?: number): Promise<Window<WantedItem>> {
-        return readArrWanted(this.#http, this.id, 'artist', scope, want);
+        return readArrWanted(this.http, this.id, 'artist', scope, want);
     }
 
     /** Albums released in the window, each with its artist. Monitored only, as Lidarr's own calendar is. */
     async getCalendar(range: { start: Date; end: Date }): Promise<CalendarEntry[]> {
-        const albums = await this.#http.get<Parameters<typeof readLidarrCalendar>[0]>(
-            lidarrCalendarPath(this.#http.apiRoot, range)
+        const albums = await this.http.get<Parameters<typeof readLidarrCalendar>[0]>(
+            lidarrCalendarPath(this.http.apiRoot, range)
         );
         return readLidarrCalendar(albums, this.id);
     }
@@ -708,11 +670,11 @@ export class LidarrAdapter
      */
     async triggerSearch(id: string, target?: SearchTarget): Promise<CommandHandle> {
         this.#refuseSeasons(target?.season !== undefined || target?.episodes !== undefined);
-        const artistId = arrItemId(this.id, 'artist', id);
-        if (target?.albums === undefined) return postArrCommand(this.#http, this.id, { name: 'ArtistSearch', artistId });
+        const artistId = this.numericId('artist', id);
+        if (target?.albums === undefined) return postArrCommand(this.http, this.id, { name: 'ArtistSearch', artistId });
         // An album named twice is searched once: Lidarr would search it twice.
-        const albumIds = [...new Set(target.albums)].map(album => arrItemId(this.id, 'album', album));
-        return postArrCommand(this.#http, this.id, { name: 'AlbumSearch', albumIds });
+        const albumIds = [...new Set(target.albums)].map(album => this.numericId('album', album));
+        return postArrCommand(this.http, this.id, { name: 'AlbumSearch', albumIds });
     }
 
     /**
@@ -723,39 +685,39 @@ export class LidarrAdapter
      */
     async findReleases(opts: ReleaseScope): Promise<ReleaseCandidate[]> {
         this.#refuseSeasons(opts.season !== undefined || opts.episode !== undefined);
-        const artistId = arrItemId(this.id, 'artist', opts.id);
-        if (opts.album === undefined) return findLidarrReleases(this.#http, this.id, { artistId });
+        const artistId = this.numericId('artist', opts.id);
+        if (opts.album === undefined) return findLidarrReleases(this.http, this.id, { artistId });
 
-        const albumId = arrItemId(this.id, 'album', opts.album);
-        const album = await this.#http.get<RawAlbum>(`/api/v1/album/${albumId}`);
+        const albumId = this.numericId('album', opts.album);
+        const album = await this.http.get<RawAlbum>(`/api/v1/album/${albumId}`);
         if (album.artistId !== artistId) {
             throw new ServiceError('NotFound', this.id, `album ${albumId} is not one of artist ${artistId}'s albums`, {
                 remedy: 'Take the album id from get_media_details on that artist, at detail: "full".'
             });
         }
-        return findLidarrReleases(this.#http, this.id, { artistId, albumId });
+        return findLidarrReleases(this.http, this.id, { artistId, albumId });
     }
 
     /** Given the release-search timeout: see `grabLidarrRelease`. */
     async grabRelease(opts: { guid: string; indexerId: number }): Promise<void> {
-        await grabLidarrRelease(this.#http, this.id, opts);
+        await grabLidarrRelease(this.http, this.id, opts);
     }
 
     async listQualityProfiles(): Promise<QualityProfile[]> {
-        return readQualityProfiles(this.#http, this.id);
+        return readQualityProfiles(this.http, this.id);
     }
 
     /** Each carries the metadata profile it names as its default, if any. */
     async listRootFolders(): Promise<RootFolder[]> {
-        return readRootFolders(this.#http, this.id);
+        return readRootFolders(this.http, this.id);
     }
 
     async listTags(): Promise<Tag[]> {
-        return readTags(this.#http, this.id);
+        return readTags(this.http, this.id);
     }
 
     async listMetadataProfiles(): Promise<QualityProfile[]> {
-        return readMetadataProfiles(this.#http, this.id);
+        return readMetadataProfiles(this.http, this.id);
     }
 
     async lookupForAdd(externalId: string): Promise<AddCandidate> {
@@ -794,7 +756,7 @@ export class LidarrAdapter
         }
 
         const { id: _id, path: _path, ...rest } = raw;
-        const created = await this.#http.post<RawArtist>('/api/v1/artist', {
+        const created = await this.http.post<RawArtist>('/api/v1/artist', {
             ...rest,
             qualityProfileId: opts.qualityProfileId,
             metadataProfileId: opts.metadataProfileId,
@@ -813,15 +775,15 @@ export class LidarrAdapter
             });
         }
 
-        this.#libraryCache.clear();
+        this.libraryCache.clear();
         return { id: created.id, title: fenceText(created.artistName ?? '', { service: this.id, field: 'title' }) };
     }
 
     /** Read from the artist itself, not the library cache: a write must
      *  preview against what Lidarr holds now. */
     async readForUpdate(id: string): Promise<MediaUpdateState> {
-        const artistId = arrItemId(this.id, 'artist', id);
-        return this.#updateState(await this.#http.get<RawArtist>(`/api/v1/artist/${artistId}`));
+        const artistId = this.numericId('artist', id);
+        return this.#updateState(await this.http.get<RawArtist>(`/api/v1/artist/${artistId}`));
     }
 
     /**
@@ -838,8 +800,8 @@ export class LidarrAdapter
      * next one (`ArtistEditedService`, `ArtistService.UpdateArtists`).
      */
     async updateMedia(id: string, opts: MediaUpdateOptions): Promise<MediaUpdateState> {
-        const artistId = arrItemId(this.id, 'artist', id);
-        const updated = await this.#http.put<RawArtist[]>('/api/v1/artist/editor', {
+        const artistId = this.numericId('artist', id);
+        const updated = await this.http.put<RawArtist[]>('/api/v1/artist/editor', {
             artistIds: [artistId],
             ...(opts.monitored === undefined ? {} : { monitored: opts.monitored }),
             ...(opts.qualityProfileId === undefined ? {} : { qualityProfileId: opts.qualityProfileId }),
@@ -849,7 +811,7 @@ export class LidarrAdapter
             // Only ever true beside a new root folder, as on Radarr and Sonarr.
             moveFiles: opts.rootFolderPath !== undefined && opts.moveFiles
         });
-        this.#libraryCache.clear();
+        this.libraryCache.clear();
 
         // The editor answers with the artists it updated. A build that answers
         // something else is read back rather than reported as every field cleared.
@@ -882,7 +844,7 @@ export class LidarrAdapter
         }
 
         const mbid = externalId.toLowerCase();
-        const found = await this.#http.get<unknown>(`/api/v1/artist/lookup?term=lidarr:${mbid}`);
+        const found = await this.http.get<unknown>(`/api/v1/artist/lookup?term=lidarr:${mbid}`);
         const first: unknown = Array.isArray(found) ? found[0] : undefined;
         const artist = typeof first === 'object' && first !== null ? (first as RawArtist) : undefined;
         // The library's own artist also answers an id it used to have
@@ -906,8 +868,8 @@ export class LidarrAdapter
      * `addImportListExclusion`, Sonarr's spelling of the exclusion.
      */
     async deleteMedia(id: string, opts: DeleteMediaOptions): Promise<void> {
-        await deleteArrMedia(this.#http, this.id, 'artist', id, opts);
-        this.#libraryCache.clear();
+        await deleteArrMedia(this.http, this.id, 'artist', id, opts);
+        this.libraryCache.clear();
     }
 
     /**
@@ -916,11 +878,11 @@ export class LidarrAdapter
      * with no `oldValue`, read here as empty.
      */
     async previewRetag(id: string, albumId?: number): Promise<RetagFile[]> {
-        const artistId = arrItemId(this.id, 'artist', id);
+        const artistId = this.numericId('artist', id);
         // With `albumId`, Lidarr reads that album's files alone and ignores the
         // artist (`RetagTrackController`, the same on 2.1.3).
-        const album = albumId === undefined ? '' : `&albumId=${arrItemId(this.id, 'album', String(albumId))}`;
-        const rows = await this.#http.get<RawRetag[]>(`/api/v1/retag?artistId=${artistId}${album}`);
+        const album = albumId === undefined ? '' : `&albumId=${this.numericId('album', String(albumId))}`;
+        const rows = await this.http.get<RawRetag[]>(`/api/v1/retag?artistId=${artistId}${album}`);
         if (!Array.isArray(rows)) {
             throw new ServiceError('UpstreamError', this.id, '/api/v1/retag did not return an array');
         }
@@ -941,7 +903,7 @@ export class LidarrAdapter
 
     /** A setting Lidarr did not report stays unknown rather than read as off: off is the value that drops the scrub warning. */
     async readTagSettings(): Promise<{ scrubAudioTags: boolean | undefined; writeAudioTags: string }> {
-        const config = await this.#http.get<{ scrubAudioTags?: unknown; writeAudioTags?: unknown } | null>('/api/v1/config/metadataprovider');
+        const config = await this.http.get<{ scrubAudioTags?: unknown; writeAudioTags?: unknown } | null>('/api/v1/config/metadataprovider');
         const scrub = config?.scrubAudioTags;
         const write = config?.writeAudioTags;
         return { scrubAudioTags: typeof scrub === 'boolean' ? scrub : undefined, writeAudioTags: typeof write === 'string' ? write : 'unknown' };
@@ -954,11 +916,11 @@ export class LidarrAdapter
      * that fails is not a write that failed: the command can still run.
      */
     async retagFiles(id: string, trackFileIds: readonly number[]): Promise<RetagRun> {
-        const artistId = arrItemId(this.id, 'artist', id);
-        const handle = await postArrCommand(this.#http, this.id, { name: 'RetagFiles', artistId, files: [...trackFileIds] });
+        const artistId = this.numericId('artist', id);
+        const handle = await postArrCommand(this.http, this.id, { name: 'RetagFiles', artistId, files: [...trackFileIds] });
         let row: Awaited<ReturnType<typeof awaitArrCommand>>;
         try {
-            row = await awaitArrCommand(this.#http, this.id, handle.commandId);
+            row = await awaitArrCommand(this.http, this.id, handle.commandId);
         } catch (err) {
             return { settled: false, commandId: handle.commandId, reason: err instanceof Error ? err.message : String(err) };
         }
@@ -967,10 +929,6 @@ export class LidarrAdapter
             status: row.status,
             ...(row.message === undefined ? {} : { message: fenceText(row.message, { service: this.id, field: 'message' }) })
         };
-    }
-
-    async testConnection(): Promise<ConnectionDiagnosis> {
-        return diagnoseConnection(this.id, this.type, () => this.getVersion());
     }
 
     /** An artist has albums, not seasons or episodes. Refused rather than

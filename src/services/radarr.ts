@@ -1,9 +1,7 @@
 import { aliasesOf } from '../core/titleMatch.ts';
-import { instanceId } from '../config/instances.ts';
-import type { ConfigByService, ServiceId } from '../config/schema.ts';
-import { apiKeyHeader } from '../core/auth.ts';
-import { LIBRARY_TTL_MS, TtlCache } from '../core/cache.ts';
-import { ServiceHttp } from '../core/http.ts';
+import type { ConfigByService } from '../config/schema.ts';
+import { LIBRARY_TTL_MS } from '../core/cache.ts';
+import { ArrAdapterBase } from './arrBase.ts';
 import { fenceText } from '../core/fence.ts';
 import type { RawImage } from '../core/display.ts';
 import { arrDisplay } from './arrDisplay.ts';
@@ -20,7 +18,7 @@ import {
 import { readArrProfileDiagnostics } from './arrProfiles.ts';
 import { readArrHistory } from './arrHistory.ts';
 import { traceArrDownload } from './arrDownloadTrace.ts';
-import { arrItemId, postArrCommand, readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
+import { postArrCommand, readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
 import { listArrImportCandidates, runArrManualImport } from './arrManualImport.ts';
 import { readArrForUpdate, updateArrMedia } from './arrUpdate.ts';
 import { calendarPath, deleteArrMedia, readArrQueue, readRadarrCalendar, removeArrQueueItem } from './arrQueue.ts';
@@ -30,20 +28,16 @@ import { findArrReleases, grabArrRelease } from './arrRelease.ts';
 import { readArrWanted } from './arrWanted.ts';
 import { readAudioLanguages, type RawMediaInfo } from './arrMediaInfo.ts';
 import { flattenRatings, toMergedRatings, type RawRating } from './arrRatings.ts';
-import { arrDiskSpace, arrFailedHealthChecks, arrRecentLogs, arrScanState, arrStartLibraryScan, arrVersion } from './arrSystem.ts';
+import { arrRecentLogs, arrStartLibraryScan } from './arrSystem.ts';
 import {
-    diagnoseConnection,
     type BlocklistEntry,
     type IndexerSeedCriteria,
     type SeedCriteriaCapable,
     type CalendarCapable,
     type CalendarEntry,
-    type ConnectionDiagnosis,
-    type DiskSpace,
     type DiskSpaceCapable,
     type DownloadTrace,
     type DownloadTraceCapable,
-    type HealthCheck,
     type HealthCheckCapable,
     type LogCapable,
     type RecentLogs,
@@ -55,7 +49,6 @@ import {
     type MediaDetails,
     type QueueCapable,
     type QueueItem,
-    type ScanState,
     type ScanStateCapable,
     type AddCandidate,
     type AddMediaOptions,
@@ -132,6 +125,7 @@ type RawMovie = {
 const LIBRARY_SCAN_TASK = 'RefreshMovie';
 
 export class RadarrAdapter
+    extends ArrAdapterBase
     implements
         ServiceAdapter,
         DiskSpaceCapable,
@@ -158,161 +152,132 @@ export class RadarrAdapter
         ProfileDiagnosticsCapable,
         SeedCriteriaCapable
 {
-    readonly type: ServiceId = 'radarr';
-    readonly instance: string | undefined;
-    readonly id: string;
-    readonly #http: ServiceHttp;
-
-    /** The whole-library read, shared by `search(_, 'library')` and
-     *  `listLibrary` — both hit `/api/v3/movie`. Discarded on config reload
-     *  for free: `buildAdapters` constructs a new adapter. */
-    readonly #libraryCache = new TtlCache();
+    protected readonly scanTask = LIBRARY_SCAN_TASK;
 
     constructor(config: ConfigByService['radarr'], fetchImpl: typeof fetch = fetch) {
-        this.instance = config.name;
-        this.id = instanceId('radarr', config.name);
-        // The instance id, not the type: an error from the 4K instance has to
-        // say which one it came from, or two Radarrs produce indistinguishable
-        // failures.
-        this.#http = new ServiceHttp(this.id, config, apiKeyHeader('X-Api-Key', config.api_key), fetchImpl);
-    }
-
-    async getVersion(): Promise<string> {
-        return arrVersion(this.#http, this.id);
-    }
-
-    async getDiskSpace(): Promise<DiskSpace[]> {
-        return arrDiskSpace(this.#http, this.id);
-    }
-
-    async getFailedHealthChecks(): Promise<HealthCheck[]> {
-        return arrFailedHealthChecks(this.#http, this.id);
+        super('radarr', config, fetchImpl);
     }
 
     async getRecentLogs(): Promise<RecentLogs> {
-        return arrRecentLogs(this.#http, this.id);
+        return arrRecentLogs(this.http, this.id);
     }
 
     async startLibraryScan(): Promise<CommandHandle> {
-        return arrStartLibraryScan(this.#http, this.id, 'RefreshMovie');
-    }
-
-    async getScanState(): Promise<ScanState> {
-        return arrScanState(this.#http, this.id, LIBRARY_SCAN_TASK);
+        return arrStartLibraryScan(this.http, this.id, 'RefreshMovie');
     }
 
     readonly queueKind = 'movie';
 
     async getQueue(): Promise<QueueItem[]> {
-        return readArrQueue(this.#http, this.id, this.queueKind);
+        return readArrQueue(this.http, this.id, this.queueKind);
     }
 
     async readHistory(opts: HistoryQuery): Promise<Window<HistoryEntry>> {
-        return readArrHistory(this.#http, this.id, 'movie', opts);
+        return readArrHistory(this.http, this.id, 'movie', opts);
     }
 
     async traceDownload(downloadId: string): Promise<DownloadTrace | undefined> {
-        return traceArrDownload(this.#http, this.id, 'movie', downloadId);
+        return traceArrDownload(this.http, this.id, 'movie', downloadId);
     }
 
     async readWanted(scope: WantedScope, want?: number): Promise<Window<WantedItem>> {
-        return readArrWanted(this.#http, this.id, 'movie', scope, want);
+        return readArrWanted(this.http, this.id, 'movie', scope, want);
     }
 
     async findReleases(opts: ReleaseScope): Promise<ReleaseCandidate[]> {
-        return findArrReleases(this.#http, this.id, 'movie', opts);
+        return findArrReleases(this.http, this.id, 'movie', opts);
     }
 
     async grabRelease(opts: { guid: string; indexerId: number }): Promise<void> {
-        return grabArrRelease(this.#http, opts);
+        return grabArrRelease(this.http, opts);
     }
 
     async readBlocklist(want?: number): Promise<Window<BlocklistEntry>> {
-        return readArrBlocklist(this.#http, this.id, 'movie', want);
+        return readArrBlocklist(this.http, this.id, 'movie', want);
     }
 
     async findBlocklistItem(id: string): Promise<BlocklistEntry | undefined> {
-        return findArrBlocklistEntry(this.#http, this.id, 'movie', id);
+        return findArrBlocklistEntry(this.http, this.id, 'movie', id);
     }
 
     async getSeedCriteria(): Promise<IndexerSeedCriteria[]> {
-        return readSeedCriteria(this.#http, this.id, 'arr');
+        return readSeedCriteria(this.http, this.id, 'arr');
     }
 
     async removeBlocklistItem(id: string): Promise<void> {
-        return removeArrBlocklistItem(this.#http, id);
+        return removeArrBlocklistItem(this.http, id);
     }
 
     readonly supportsBlocklist = true;
 
     async removeQueueItem(id: string, opts: RemoveQueueOptions): Promise<void> {
-        return removeArrQueueItem(this.#http, this.id, id, opts);
+        return removeArrQueueItem(this.http, this.id, id, opts);
     }
 
     async deleteMedia(id: string, opts: DeleteMediaOptions): Promise<void> {
-        return deleteArrMedia(this.#http, this.id, 'movie', id, opts);
+        return deleteArrMedia(this.http, this.id, 'movie', id, opts);
     }
 
     async listQualityProfiles(): Promise<QualityProfile[]> {
-        return readQualityProfiles(this.#http, this.id);
+        return readQualityProfiles(this.http, this.id);
     }
 
     async listRootFolders(): Promise<RootFolder[]> {
-        return readRootFolders(this.#http, this.id);
+        return readRootFolders(this.http, this.id);
     }
 
     async listTags(): Promise<Tag[]> {
-        return readTags(this.#http, this.id);
+        return readTags(this.http, this.id);
     }
 
     async readProfileDiagnostics(): Promise<ProfileDiagnosticsData> {
-        return readArrProfileDiagnostics(this.#http);
+        return readArrProfileDiagnostics(this.http);
     }
 
     async listCommands(): Promise<CommandStatus[]> {
-        return readArrCommands(this.#http, this.id);
+        return readArrCommands(this.http, this.id);
     }
 
     async listImportCandidates(downloadId: string, mapping?: ImportMapping[]): Promise<ImportCandidate[]> {
-        return listArrImportCandidates(this.#http, this.id, 'movie', downloadId, mapping);
+        return listArrImportCandidates(this.http, this.id, 'movie', downloadId, mapping);
     }
 
     async runManualImport(downloadId: string, mapping?: ImportMapping[], paths?: string[]): Promise<CommandHandle> {
-        return runArrManualImport(this.#http, this.id, 'movie', downloadId, mapping, paths);
+        return runArrManualImport(this.http, this.id, 'movie', downloadId, mapping, paths);
     }
 
     async refreshItem(id: string): Promise<CommandHandle> {
-        return refreshArrItem(this.#http, this.id, 'movie', id);
+        return refreshArrItem(this.http, this.id, 'movie', id);
     }
 
     async renameItem(id: string): Promise<CommandHandle> {
-        return renameArrItem(this.#http, this.id, 'movie', id);
+        return renameArrItem(this.http, this.id, 'movie', id);
     }
 
     async readForUpdate(id: string): Promise<MediaUpdateState> {
-        return readArrForUpdate(this.#http, this.id, 'movie', id);
+        return readArrForUpdate(this.http, this.id, 'movie', id);
     }
 
     async updateMedia(id: string, opts: MediaUpdateOptions): Promise<MediaUpdateState> {
-        return updateArrMedia(this.#http, this.id, 'movie', id, opts);
+        return updateArrMedia(this.http, this.id, 'movie', id, opts);
     }
 
     /** Radarr resolves by TMDB id; a TVDB id will simply match nothing. */
     async lookupForAdd(externalId: string): Promise<AddCandidate> {
-        return lookupArrForAdd(this.#http, this.id, RADARR_ADD, externalId);
+        return lookupArrForAdd(this.http, this.id, RADARR_ADD, externalId);
     }
 
     async addMedia(opts: AddMediaOptions): Promise<{ id: number; title: string }> {
-        return addArrMedia(this.#http, this.id, RADARR_ADD, opts);
+        return addArrMedia(this.http, this.id, RADARR_ADD, opts);
     }
 
     async getCalendar(range: { start: Date; end: Date }): Promise<CalendarEntry[]> {
-        const movies = await this.#http.get<Parameters<typeof readRadarrCalendar>[0]>(calendarPath(this.#http.apiRoot, range));
+        const movies = await this.http.get<Parameters<typeof readRadarrCalendar>[0]>(calendarPath(this.http.apiRoot, range));
         return readRadarrCalendar(movies, this.id);
     }
 
     async getMediaDetails(id: string): Promise<MediaDetails> {
-        const m = await this.#http.get<RawMovie>(`/api/v3/movie/${arrItemId(this.id, 'movie', id)}`);
+        const m = await this.http.get<RawMovie>(`/api/v3/movie/${this.numericId('movie', id)}`);
         const ratings = flattenRatings(m.ratings);
         // No second read, unlike Sonarr's: Radarr embeds the file in the movie.
         const audioLanguages = readAudioLanguages(m.movieFile?.mediaInfo);
@@ -355,21 +320,16 @@ export class RadarrAdapter
      * ran.
      */
     async triggerSearch(id: string): Promise<CommandHandle> {
-        const movieId = arrItemId(this.id, 'movie', id);
+        const movieId = this.numericId('movie', id);
 
-        return postArrCommand(this.#http, this.id, { name: 'MoviesSearch', movieIds: [movieId] });
+        return postArrCommand(this.http, this.id, { name: 'MoviesSearch', movieIds: [movieId] });
     }
 
     /** The `/api/v3/movie` read behind both `search(_, 'library')` and
      *  `listLibrary` — Radarr has no server-side filter, so both need the
      *  whole list, and this is where they share one fetch for it. */
     #allMovies(): Promise<RawMovie[]> {
-        return this.#libraryCache.get('movies', LIBRARY_TTL_MS, () => this.#http.get<RawMovie[]>('/api/v3/movie'));
-    }
-
-    /** Drop the cached whole-library read, e.g. after a write. */
-    invalidateLibrary(): void {
-        this.#libraryCache.clear();
+        return this.libraryCache.get('movies', LIBRARY_TTL_MS, () => this.http.get<RawMovie[]>('/api/v3/movie'));
     }
 
     async search(query: string, source: SearchSource): Promise<SearchHit[]> {
@@ -383,7 +343,7 @@ export class RadarrAdapter
         }
 
         if (source === 'discover') {
-            const found = await this.#http.get<RawMovie[]>(
+            const found = await this.http.get<RawMovie[]>(
                 `/api/v3/movie/lookup?term=${encodeURIComponent(query)}`
             );
             return found.map(m => this.#toHit(m, 'discover'));
@@ -420,7 +380,7 @@ export class RadarrAdapter
      * this is the same `/api/v3/movie` read `search` already does, via `#allMovies`.
      */
     async listLibrary(): Promise<IndexInput[]> {
-        const [movies, profileNames] = await Promise.all([this.#allMovies(), readProfileNames(this.#http, this.id, this.#libraryCache)]);
+        const [movies, profileNames] = await Promise.all([this.#allMovies(), readProfileNames(this.http, this.id, this.libraryCache)]);
 
         return movies.map(m => ({
             kind: 'movie' as const,
@@ -460,7 +420,4 @@ export class RadarrAdapter
         }));
     }
 
-    async testConnection(): Promise<ConnectionDiagnosis> {
-        return diagnoseConnection(this.id, this.type, () => this.getVersion());
-    }
 }

@@ -1,14 +1,13 @@
 import { aliasesOf } from '../core/titleMatch.ts';
-import { instanceId } from '../config/instances.ts';
-import type { ConfigByService, ServiceId } from '../config/schema.ts';
-import { apiKeyHeader } from '../core/auth.ts';
-import { LIBRARY_TTL_MS, TtlCache } from '../core/cache.ts';
-import { ServiceHttp } from '../core/http.ts';
+import type { ConfigByService } from '../config/schema.ts';
+import { LIBRARY_TTL_MS } from '../core/cache.ts';
+import { ArrAdapterBase } from './arrBase.ts';
+import { seasonsOf, seriesHit } from './arrSeries.ts';
 import { fenceText } from '../core/fence.ts';
 import type { RawImage } from '../core/display.ts';
 import { arrDisplay } from './arrDisplay.ts';
 import { applyLimit } from '../core/shape.ts';
-import type { IndexInput, SeasonSummary } from '../core/resolver.ts';
+import type { IndexInput } from '../core/resolver.ts';
 import {
     addArrMedia,
     lookupArrForAdd,
@@ -21,7 +20,7 @@ import {
 import { readArrProfileDiagnostics } from './arrProfiles.ts';
 import { readArrHistory } from './arrHistory.ts';
 import { traceArrDownload } from './arrDownloadTrace.ts';
-import { arrItemId, postArrCommand, readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
+import { postArrCommand, readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
 import {
     listArrImportCandidates,
     planArrEpisodeRemap,
@@ -36,20 +35,16 @@ import { findArrReleases, grabArrRelease } from './arrRelease.ts';
 import { readArrWanted } from './arrWanted.ts';
 import { audioLanguagesByFileId } from './arrMediaInfo.ts';
 import { flattenSeriesRating, type RawRating } from './arrRatings.ts';
-import { arrDiskSpace, arrFailedHealthChecks, arrRecentLogs, arrScanState, arrStartLibraryScan, arrVersion } from './arrSystem.ts';
+import { arrRecentLogs, arrStartLibraryScan } from './arrSystem.ts';
 import {
-    diagnoseConnection,
     type BlocklistEntry,
     type IndexerSeedCriteria,
     type SeedCriteriaCapable,
     type CalendarCapable,
     type CalendarEntry,
-    type ConnectionDiagnosis,
-    type DiskSpace,
     type DiskSpaceCapable,
     type DownloadTrace,
     type DownloadTraceCapable,
-    type HealthCheck,
     type HealthCheckCapable,
     type LogCapable,
     type RecentLogs,
@@ -61,7 +56,6 @@ import {
     type MediaDetails,
     type QueueCapable,
     type QueueItem,
-    type ScanState,
     type ScanStateCapable,
     type AddCandidate,
     type AddMediaOptions,
@@ -167,6 +161,7 @@ type RawEpisodeFile = { id?: number; seasonNumber?: number; size?: number };
 const LIBRARY_SCAN_TASK = 'RefreshSeries';
 
 export class SonarrAdapter
+    extends ArrAdapterBase
     implements
         ServiceAdapter,
         DiskSpaceCapable,
@@ -196,159 +191,133 @@ export class SonarrAdapter
         ProfileDiagnosticsCapable,
         SeedCriteriaCapable
 {
-    readonly type: ServiceId = 'sonarr';
-    readonly instance: string | undefined;
-    readonly id: string;
-    readonly #http: ServiceHttp;
-
-    /** The whole-library read, shared by `search(_, 'library')` and
-     *  `listLibrary` — both hit `/api/v3/series`. Discarded on config reload
-     *  for free: `buildAdapters` constructs a new adapter. */
-    readonly #libraryCache = new TtlCache();
+    protected readonly scanTask = LIBRARY_SCAN_TASK;
 
     constructor(config: ConfigByService['sonarr'], fetchImpl: typeof fetch = fetch) {
-        this.instance = config.name;
-        this.id = instanceId('sonarr', config.name);
-        this.#http = new ServiceHttp(this.id, config, apiKeyHeader('X-Api-Key', config.api_key), fetchImpl);
-    }
-
-    async getVersion(): Promise<string> {
-        return arrVersion(this.#http, this.id);
-    }
-
-    async getDiskSpace(): Promise<DiskSpace[]> {
-        return arrDiskSpace(this.#http, this.id);
-    }
-
-    async getFailedHealthChecks(): Promise<HealthCheck[]> {
-        return arrFailedHealthChecks(this.#http, this.id);
+        super('sonarr', config, fetchImpl);
     }
 
     async getRecentLogs(): Promise<RecentLogs> {
-        return arrRecentLogs(this.#http, this.id);
+        return arrRecentLogs(this.http, this.id);
     }
 
     async startLibraryScan(): Promise<CommandHandle> {
-        return arrStartLibraryScan(this.#http, this.id, 'RefreshSeries');
-    }
-
-    async getScanState(): Promise<ScanState> {
-        return arrScanState(this.#http, this.id, LIBRARY_SCAN_TASK);
+        return arrStartLibraryScan(this.http, this.id, 'RefreshSeries');
     }
 
     readonly queueKind = 'series';
 
     async getQueue(): Promise<QueueItem[]> {
-        return readArrQueue(this.#http, this.id, this.queueKind);
+        return readArrQueue(this.http, this.id, this.queueKind);
     }
 
     async readHistory(opts: HistoryQuery): Promise<Window<HistoryEntry>> {
-        return readArrHistory(this.#http, this.id, 'series', opts);
+        return readArrHistory(this.http, this.id, 'series', opts);
     }
 
     async traceDownload(downloadId: string): Promise<DownloadTrace | undefined> {
-        return traceArrDownload(this.#http, this.id, 'series', downloadId);
+        return traceArrDownload(this.http, this.id, 'series', downloadId);
     }
 
     async readWanted(scope: WantedScope, want?: number): Promise<Window<WantedItem>> {
-        return readArrWanted(this.#http, this.id, 'series', scope, want);
+        return readArrWanted(this.http, this.id, 'series', scope, want);
     }
 
     async findReleases(opts: ReleaseScope): Promise<ReleaseCandidate[]> {
-        return findArrReleases(this.#http, this.id, 'series', opts);
+        return findArrReleases(this.http, this.id, 'series', opts);
     }
 
     async grabRelease(opts: { guid: string; indexerId: number }): Promise<void> {
-        return grabArrRelease(this.#http, opts);
+        return grabArrRelease(this.http, opts);
     }
 
     async readBlocklist(want?: number): Promise<Window<BlocklistEntry>> {
-        return readArrBlocklist(this.#http, this.id, 'series', want);
+        return readArrBlocklist(this.http, this.id, 'series', want);
     }
 
     async findBlocklistItem(id: string): Promise<BlocklistEntry | undefined> {
-        return findArrBlocklistEntry(this.#http, this.id, 'series', id);
+        return findArrBlocklistEntry(this.http, this.id, 'series', id);
     }
 
     async getSeedCriteria(): Promise<IndexerSeedCriteria[]> {
-        return readSeedCriteria(this.#http, this.id, 'arr');
+        return readSeedCriteria(this.http, this.id, 'arr');
     }
 
     async removeBlocklistItem(id: string): Promise<void> {
-        return removeArrBlocklistItem(this.#http, id);
+        return removeArrBlocklistItem(this.http, id);
     }
 
     readonly supportsBlocklist = true;
 
     async removeQueueItem(id: string, opts: RemoveQueueOptions): Promise<void> {
-        return removeArrQueueItem(this.#http, this.id, id, opts);
+        return removeArrQueueItem(this.http, this.id, id, opts);
     }
 
     /** Deletes the whole series. Sonarr has no per-episode delete on this path,
      *  which is why `delete_media` refuses to pretend otherwise. */
     async deleteMedia(id: string, opts: DeleteMediaOptions): Promise<void> {
-        return deleteArrMedia(this.#http, this.id, 'series', id, opts);
+        return deleteArrMedia(this.http, this.id, 'series', id, opts);
     }
 
     async listQualityProfiles(): Promise<QualityProfile[]> {
-        return readQualityProfiles(this.#http, this.id);
+        return readQualityProfiles(this.http, this.id);
     }
 
     async listRootFolders(): Promise<RootFolder[]> {
-        return readRootFolders(this.#http, this.id);
+        return readRootFolders(this.http, this.id);
     }
 
     async listTags(): Promise<Tag[]> {
-        return readTags(this.#http, this.id);
+        return readTags(this.http, this.id);
     }
 
     async readProfileDiagnostics(): Promise<ProfileDiagnosticsData> {
-        return readArrProfileDiagnostics(this.#http);
+        return readArrProfileDiagnostics(this.http);
     }
 
     async listCommands(): Promise<CommandStatus[]> {
-        return readArrCommands(this.#http, this.id);
+        return readArrCommands(this.http, this.id);
     }
 
     async listImportCandidates(downloadId: string, mapping?: ImportMapping[]): Promise<ImportCandidate[]> {
-        return listArrImportCandidates(this.#http, this.id, 'series', downloadId, mapping);
+        return listArrImportCandidates(this.http, this.id, 'series', downloadId, mapping);
     }
 
     async runManualImport(downloadId: string, mapping?: ImportMapping[], paths?: string[]): Promise<CommandHandle> {
-        return runArrManualImport(this.#http, this.id, 'series', downloadId, mapping, paths);
+        return runArrManualImport(this.http, this.id, 'series', downloadId, mapping, paths);
     }
 
     async planEpisodeRemap(seriesId: string, reassignments: EpisodeReassignment[]): Promise<EpisodeRemapPlan> {
-        return planArrEpisodeRemap(this.#http, this.id, seriesId, reassignments);
+        return planArrEpisodeRemap(this.http, this.id, seriesId, reassignments);
     }
 
     async runEpisodeRemap(seriesId: string, reassignments: EpisodeReassignment[]): Promise<EpisodeRemapOutcome> {
-        return runArrEpisodeRemap(this.#http, this.id, seriesId, reassignments);
+        return runArrEpisodeRemap(this.http, this.id, seriesId, reassignments);
     }
 
     async refreshItem(id: string): Promise<CommandHandle> {
-        return refreshArrItem(this.#http, this.id, 'series', id);
+        return refreshArrItem(this.http, this.id, 'series', id);
     }
 
     async renameItem(id: string): Promise<CommandHandle> {
-        return renameArrItem(this.#http, this.id, 'series', id);
+        return renameArrItem(this.http, this.id, 'series', id);
     }
 
     async readForUpdate(id: string): Promise<MediaUpdateState> {
-        return readArrForUpdate(this.#http, this.id, 'series', id);
+        return readArrForUpdate(this.http, this.id, 'series', id);
     }
 
     async updateMedia(id: string, opts: MediaUpdateOptions): Promise<MediaUpdateState> {
-        return updateArrMedia(this.#http, this.id, 'series', id, opts);
+        return updateArrMedia(this.http, this.id, 'series', id, opts);
     }
 
     /** Sonarr resolves by TVDB id, not TMDB — Radarr's id will match nothing. */
     async lookupForAdd(externalId: string): Promise<AddCandidate> {
-        return lookupArrForAdd(this.#http, this.id, SONARR_ADD, externalId);
+        return lookupArrForAdd(this.http, this.id, SONARR_ADD, externalId);
     }
 
     async addMedia(opts: AddMediaOptions): Promise<{ id: number; title: string }> {
-        return addArrMedia(this.#http, this.id, SONARR_ADD, opts);
+        return addArrMedia(this.http, this.id, SONARR_ADD, opts);
     }
 
     /**
@@ -359,16 +328,16 @@ export class SonarrAdapter
      */
     async setMonitoring(id: string, opts: MonitoringTarget): Promise<void> {
         if (opts.episodeIds !== undefined) {
-            const episodeIds = opts.episodeIds.map(e => arrItemId(this.id, 'episode', e));
-            await this.#http.put('/api/v3/episode/monitor', { episodeIds, monitored: opts.monitored }, true);
+            const episodeIds = opts.episodeIds.map(e => this.numericId('episode', e));
+            await this.http.put('/api/v3/episode/monitor', { episodeIds, monitored: opts.monitored }, true);
             return;
         }
 
-        const seriesId = arrItemId(this.id, 'series', id);
-        const series = await this.#http.get<RawSeries & { id: number }>(`/api/v3/series/${seriesId}`);
+        const seriesId = this.numericId('series', id);
+        const series = await this.http.get<RawSeries & { id: number }>(`/api/v3/series/${seriesId}`);
 
         if (opts.season === undefined) {
-            await this.#http.put(`/api/v3/series/${seriesId}`, { ...series, monitored: opts.monitored }, true);
+            await this.http.put(`/api/v3/series/${seriesId}`, { ...series, monitored: opts.monitored }, true);
             return;
         }
 
@@ -377,12 +346,12 @@ export class SonarrAdapter
         const seasons = (series.seasons ?? []).map(s =>
             s.seasonNumber === opts.season ? { ...s, monitored: opts.monitored } : s
         );
-        await this.#http.put(`/api/v3/series/${seriesId}`, { ...series, seasons }, true);
+        await this.http.put(`/api/v3/series/${seriesId}`, { ...series, seasons }, true);
     }
 
     async listEpisodeFiles(seriesId: string): Promise<EpisodeFile[]> {
-        const id = arrItemId(this.id, 'series', seriesId);
-        const files = await this.#http.getArray<RawEpisodeFile>(`/api/v3/episodefile?seriesId=${id}`);
+        const id = this.numericId('series', seriesId);
+        const files = await this.http.getArray<RawEpisodeFile>(`/api/v3/episodefile?seriesId=${id}`);
 
         return files
             .filter((f): f is RawEpisodeFile & { id: number } => typeof f.id === 'number')
@@ -398,11 +367,11 @@ export class SonarrAdapter
      *  discovering in production. */
     async deleteEpisodeFiles(fileIds: number[]): Promise<void> {
         if (fileIds.length === 0) return;
-        await this.#http.deleteWithBody('/api/v3/episodefile/bulk', { episodeFileIds: fileIds });
+        await this.http.deleteWithBody('/api/v3/episodefile/bulk', { episodeFileIds: fileIds });
     }
 
     async getCalendar(range: { start: Date; end: Date }): Promise<CalendarEntry[]> {
-        const episodes = await this.#http.get<Parameters<typeof readSonarrCalendar>[0]>(sonarrCalendarPath(this.#http.apiRoot, range));
+        const episodes = await this.http.get<Parameters<typeof readSonarrCalendar>[0]>(sonarrCalendarPath(this.http.apiRoot, range));
         return readSonarrCalendar(episodes, this.id);
     }
 
@@ -420,20 +389,20 @@ export class SonarrAdapter
      * posting one runs a real search on the user's stack.
      */
     async triggerSearch(id: string, target?: SearchTarget): Promise<CommandHandle> {
-        const seriesId = arrItemId(this.id, 'series', id);
+        const seriesId = this.numericId('series', id);
 
         const payload =
             target?.episodes !== undefined
-                ? { name: 'EpisodeSearch', episodeIds: target.episodes.map(e => arrItemId(this.id, 'episode', e)) }
+                ? { name: 'EpisodeSearch', episodeIds: target.episodes.map(e => this.numericId('episode', e)) }
                 : target?.season !== undefined
                   ? { name: 'SeasonSearch', seriesId, seasonNumber: target.season }
                   : { name: 'SeriesSearch', seriesId };
 
-        return postArrCommand(this.#http, this.id, payload);
+        return postArrCommand(this.http, this.id, payload);
     }
 
     async getMediaDetails(id: string, opts: { includeEpisodes: boolean; episodeLimit: number }): Promise<MediaDetails> {
-        const s = await this.#http.get<RawSeries>(`/api/v3/series/${arrItemId(this.id, 'series', id)}`);
+        const s = await this.http.get<RawSeries>(`/api/v3/series/${this.numericId('series', id)}`);
         const ratings = flattenSeriesRating(s.ratings);
 
         const base: MediaDetails = {
@@ -472,8 +441,8 @@ export class SonarrAdapter
         // A long-running series is hundreds of episodes; the same truncation
         // contract applies here as to any other list.
         const [episodes, audio] = await Promise.all([
-            this.#http.get<RawEpisode[]>(`/api/v3/episode?seriesId=${encodeURIComponent(id)}`),
-            audioLanguagesByFileId(this.#http, this.id, id)
+            this.http.get<RawEpisode[]>(`/api/v3/episode?seriesId=${encodeURIComponent(id)}`),
+            audioLanguagesByFileId(this.http, this.id, id)
         ]);
         const shaped = applyLimit(
             episodes.filter((e): e is RawEpisode & { id: number } => typeof e.id === 'number'),
@@ -505,12 +474,13 @@ export class SonarrAdapter
      *  `listLibrary` — Sonarr has no server-side filter, so both need the
      *  whole list, and this is where they share one fetch for it. */
     #allSeries(): Promise<RawSeries[]> {
-        return this.#libraryCache.get('series', LIBRARY_TTL_MS, () => this.#http.get<RawSeries[]>('/api/v3/series'));
+        return this.libraryCache.get('series', LIBRARY_TTL_MS, () => this.http.get<RawSeries[]>('/api/v3/series'));
     }
 
-    /** Drop the cached whole-library read, e.g. after a write. */
-    invalidateLibrary(): void {
-        this.#libraryCache.clear();
+    /** The shared hit plus Sonarr's display block. */
+    #toHit(s: RawSeries, source: SearchSource): SearchHit {
+        const display = arrDisplay(s, this.id, 'series', { lookup: source === 'discover' });
+        return { ...seriesHit(this.id, s, source), ...(display === undefined ? {} : { display }) };
     }
 
     async search(query: string, source: SearchSource): Promise<SearchHit[]> {
@@ -524,7 +494,7 @@ export class SonarrAdapter
         }
 
         if (source === 'discover') {
-            const found = await this.#http.get<RawSeries[]>(
+            const found = await this.http.get<RawSeries[]>(
                 `/api/v3/series/lookup?term=${encodeURIComponent(query)}`
             );
             return found.map(s => this.#toHit(s, 'discover'));
@@ -533,60 +503,15 @@ export class SonarrAdapter
         return [];
     }
 
-    #toHit(s: RawSeries, source: SearchSource): SearchHit {
-        return {
-            service: this.id,
-            source,
-            kind: 'series',
-            // `?? ` alone would keep a zero: a lookup omits `id` for something
-            // not in the library, but a build that sends 0 instead must not
-            // produce the id "0". Matches arrAdd's own `> 0` guard.
-            id: String((s.id !== undefined && s.id > 0 ? s.id : undefined) ?? s.tvdbId ?? ''),
-            title: fenceText(s.title ?? '', { service: this.id, field: 'title' }),
-            ...(s.year === undefined ? {} : { year: s.year }),
-            ids: {
-                ...(s.tvdbId === undefined ? {} : { tvdb: s.tvdbId }),
-                ...(s.imdbId === undefined ? {} : { imdb: s.imdbId })
-            },
-            ...(s.monitored === undefined ? {} : { monitored: s.monitored }),
-            ...((display => (display === undefined ? {} : { display }))(
-                arrDisplay(s, this.id, 'series', { lookup: source === 'discover' })
-            ))
-        };
-    }
 
-    /**
-     * Sonarr's half of a season row: the three denominators and the monitoring
-     * flag, no watch state. Sorted by season number so responses are stable
-     * across calls and diffable in tests — Sonarr's own order is not guaranteed.
-     *
-     * `monitored` is carried here as well as on `getMediaDetails` so that
-     * `seasons[].monitored` means one thing on both forms `get_media_details`
-     * can return. Omitted when Sonarr did not report it, never defaulted to
-     * `false` — see `SeasonSummary`.
-     */
-    #seasonsOf(raw: RawSeries): SeasonSummary[] | undefined {
-        if (raw.seasons === undefined) return undefined;
-        const rows = raw.seasons
-            .filter((s): s is typeof s & { seasonNumber: number } => typeof s.seasonNumber === 'number')
-            .map(s => ({
-                season: s.seasonNumber,
-                ...(s.monitored === undefined ? {} : { monitored: s.monitored }),
-                ...(s.statistics?.episodeFileCount === undefined ? {} : { onDisk: s.statistics.episodeFileCount }),
-                ...(s.statistics?.episodeCount === undefined ? {} : { aired: s.statistics.episodeCount }),
-                ...(s.statistics?.totalEpisodeCount === undefined ? {} : { total: s.statistics.totalEpisodeCount })
-            }))
-            .sort((a, b) => a.season - b.season);
-        return rows.length === 0 ? undefined : rows;
-    }
 
     /** The whole series library in one call, via `#allSeries` — the same read
      *  `search(_, 'library')` shares. */
     async listLibrary(): Promise<IndexInput[]> {
-        const [series, profileNames] = await Promise.all([this.#allSeries(), readProfileNames(this.#http, this.id, this.#libraryCache)]);
+        const [series, profileNames] = await Promise.all([this.#allSeries(), readProfileNames(this.http, this.id, this.libraryCache)]);
 
         return series.map(s => {
-            const seasons = this.#seasonsOf(s);
+            const seasons = seasonsOf(s);
             return {
                 kind: 'series' as const,
                 title: fenceText(s.title ?? '', { service: this.id, field: 'title' }),
@@ -629,7 +554,4 @@ export class SonarrAdapter
         });
     }
 
-    async testConnection(): Promise<ConnectionDiagnosis> {
-        return diagnoseConnection(this.id, this.type, () => this.getVersion());
-    }
 }
