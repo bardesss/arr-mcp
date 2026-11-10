@@ -29,7 +29,7 @@ off until you turn them on — see [writes](writes.md).
 | `trigger_scan` | Refresh and rescan a library or one item, rename one item, import a download that never landed, put a mislabeled Sonarr file on the right episode, rerun NZBGet's post-processing, or rescan a Grimmory library or its Bookdrop |
 | `trigger_subtitle_search` | Go and find the subtitles this is missing, now |
 | `grab_release` | Not that one — grab this release from `get_releases` instead; on Shelfmark, the most-downloaded file unless you name one |
-| `set_monitoring` | Turn monitoring on or off: a whole series (by id or title), one season, specific episodes; on Lidarr, `level: "album"` for one album or `level: "artist"` with `artists` and `monitor_new_items` for a policy over the set |
+| `set_monitoring` | Turn monitoring on or off: a whole series (by id or title), one season, specific episodes; on Lidarr, `level: "album"` for one album (the artist level, `level: "artist"`, is deprecated: use `update_media`) |
 | `retry_download` | Try this failed usenet download again, with its password if it needs one, or a failed or cancelled Shelfmark book |
 | `pause_downloads` | Pause, resume or throttle a download client, or one item in its queue |
 | `remove_queue_item` | Get rid of this stuck or wrong download; on Grimmory, discard a file waiting in the Bookdrop |
@@ -411,7 +411,7 @@ hold ids, `download_id`, and, for a lookup, the words you gave as `query`.
 | `managed`, not monitored and removed by a cleanup rule | none: monitoring would search for it again. Protect the title in Reclaimerr first; the summary names the removal |
 | `managed`, in Radarr | `update_media` with `monitored: true` (`set_monitoring` refuses Radarr) |
 | `managed`, in Sonarr or Whisparr | `set_monitoring` with `monitored: true` |
-| `managed`, in Lidarr | `set_monitoring` with `level: "artist"`, `artists: [id]` and `monitored: true`, never `id`: the artist flag only, each album keeps its own |
+| `managed`, in Lidarr | `update_media` with the artist `id` and `monitored: true`: the artist flag only, each album keeps its own |
 | `managed` or `resolve`, nothing manages it | `search_media` with `source: "discover"` with your `query`, only when you diagnosed by title, and for `managed` not while an *arr of its kind (any *arr, for a media server's id with no kind) could not be read; an artist comes back among Lidarr's hits, each with the MusicBrainz id `add_media` takes as `ids.mbid` |
 | `request`, pending | `respond_to_request` with `verdict: "approve"`, only if you may act on that request (it is yours, or `allow_other_users` is on) |
 | `queue`, import pending | `trigger_scan` with `action: "import"` and the `download_id` of the *arr's row, on Radarr, Sonarr or Lidarr |
@@ -853,8 +853,8 @@ and, under `playback`, `itemId` — the media server's own id, which is what
 `media_servers.jellyfin.itemId` instead, as
 [below](#which-media-server-has-it).
 
-**An artist's `acquisition.id` is Lidarr's artist id**, which `set_monitoring`
-takes with `level: "artist"`. An album id is not on a library row at all: take
+**An artist's `acquisition.id` is Lidarr's artist id**, which `update_media`
+takes as `id` to set its monitoring. An album id is not on a library row at all: take
 it from `get_media_details` on the artist, and pass it with `level: "album"`.
 `trigger_search`, `get_releases` and `grab_release` take the artist id as `id`,
 with album ids in `albums` or `album` to narrow the search, `update_media` takes
@@ -902,7 +902,7 @@ MusicBrainz artist id — the one id both Jellyfin and Plex publish for an artis
 | `title` | The artist name, fenced like every other service string |
 | `ids.mbid` | The artist's MusicBrainz id: Lidarr's `foreignArtistId`, Jellyfin's `ProviderIds.MusicBrainzArtist`, Plex's `mbid://` guid. Matched case-insensitively |
 | `albumCount` | How many albums Lidarr holds for the artist. The albums themselves are in `get_media_details` |
-| `acquisition.id` | Lidarr's artist id, which `set_monitoring` takes with `level: "artist"`, and `update_media` and `delete_media` take as `id` |
+| `acquisition.id` | Lidarr's artist id, which `update_media` and `delete_media` take as `id` |
 | `acquisition.status` | Lidarr's own artist status — `continuing` or `ended` — passed through |
 | `acquisition.addedAt` | When Lidarr added the artist, so `sort: "added"` works |
 | `acquisition.hasFile` | At least one track of any album is on disk, the same meaning `has_file` has for a series |
@@ -2986,12 +2986,12 @@ Radarr and Sonarr are written through their editors (`PUT /movie/editor`,
 moves the files there unless `move_files` is false.
 
 It is also **the only way to change a Radarr item's monitoring**.
-`set_monitoring` covers series and artists, and has never covered films.
+`set_monitoring` covers series and albums, and has never covered films.
 
 On **Lidarr**, `id` is an artist, and `metadata_profile` switches Lidarr's
 second profile, which decides the album types and release statuses the artist
 gets. It writes through Lidarr's Artist Editor (`PUT /artist/editor`), as
-`set_monitoring` writes an artist's policy, because `PUT /artist/{id}` queues a
+the artist policy below does, because `PUT /artist/{id}` queues a
 `MoveArtist` on every call. The editor starts no refresh, so a new metadata
 profile applies at the artist's next one, which may not come until the artist
 changes upstream. Lidarr's daily refresh takes only the artists its metadata
@@ -3016,8 +3016,14 @@ Lidarr picks the artists its daily refresh takes. An unknown name is refused,
 listing the instance's metadata profiles.
 
 `monitored` is the artist's own flag: the albums keep theirs, which
-`set_monitoring` with `level: "album"` changes, and the rule for new albums,
-`monitor_new_items`, is `set_monitoring`'s too.
+`set_monitoring` with `level: "album"` changes. `monitor_new_items` (`all`,
+`new` or `none`) is the rule for albums Lidarr finds later, and with no `id`,
+`monitored` and `monitor_new_items` reach every artist in that Lidarr. The
+preview reports the new-album policy and monitor flag found across them, the
+token is signed over the resolved artist ids, and the write goes through the
+bulk editor once. No other setting goes in the same call as `monitor_new_items`
+or a missing `id`. `set_monitoring` with `level: "artist"`, `artists` and
+`monitor_new_items` still works, deprecated, through the same preview and write.
 
 Takes `service` and `id`, never a title — `acquisition.id` on a `get_library`
 or `get_media_details` record. `get_instance_options` lists the

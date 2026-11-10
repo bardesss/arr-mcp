@@ -19,5 +19,8 @@ export const DEPRECATIONS: readonly Deprecation[] = [
     { tool: 'update_media', param: 'series', use: 'update_book' },
     { tool: 'update_media', param: 'series_number', use: 'update_book' },
     { tool: 'update_media', param: 'lock_fields', use: 'update_book' },
-    { tool: 'update_media', param: 'unlock_fields', use: 'update_book' }
+    { tool: 'update_media', param: 'unlock_fields', use: 'update_book' },
+    { tool: 'set_monitoring', param: 'level', value: 'artist', use: 'update_media' },
+    { tool: 'set_monitoring', param: 'artists', use: 'update_media' },
+    { tool: 'set_monitoring', param: 'monitor_new_items', use: 'update_media' }
 ];

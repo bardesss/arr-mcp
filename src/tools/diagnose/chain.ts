@@ -985,12 +985,11 @@ const lookupStep = (query: string, byWords: boolean): NextStep[] =>
 function monitorStep(acquisition: NonNullable<MergedItem['acquisition']>, item: MergedItem): NextStep[] {
     if (acquisition.id === undefined) return [];
     const target = instanceArgs(acquisition.service);
-    // Lidarr's artist level takes a list, and its plan refuses an `id` there.
     if (item.kind === 'artist') {
         return [
             {
-                tool: 'set_monitoring',
-                arguments: { ...target, level: 'artist', artists: [acquisition.id], monitored: true },
+                tool: 'update_media',
+                arguments: { ...target, id: acquisition.id, monitored: true },
                 why: `Turns on the artist-level monitor flag in ${acquisition.service}. Each album keeps its own monitor flag, which this does not change.`
             }
         ];

@@ -4,6 +4,7 @@ import * as z from 'zod/v4';
 import { ServiceError } from '../core/errors.ts';
 import type { NextStep } from '../core/nextStep.ts';
 import {
+    hasArtistMonitor,
     hasBookMetadata,
     hasMediaAdd,
     hasMediaUpdate,
@@ -15,6 +16,7 @@ import {
     type QualityProfile,
     type ServiceAdapter
 } from '../services/types.ts';
+import { applyArtistPolicy, planArtistPolicy } from './artistPolicy.ts';
 import { chooseOne, freeSpace, FOLDER_MATCH, PROFILE_MATCH, TAG_MATCH } from './chooseOne.ts';
 import { NO_ALBUMS_PROFILE, SEARCH_AFTER_REFRESH } from './lidarrProfiles.ts';
 import { applyBook, LOCKABLE, planBook } from './updateBook.ts';
@@ -141,7 +143,10 @@ const UpdateMediaInput = z.object({
     id: z
         .string()
         .min(1)
-        .describe("The item's id within that service — `acquisition.id` on a get_library or get_media_details record."),
+        .optional()
+        .describe(
+            "The item's id within that service — `acquisition.id` on a get_library or get_media_details record. [[lidarr: Omit it with `monitored` or `monitor_new_items` alone to reach every artist.]]"
+        ),
     quality_profile: z.string().optional().describe('Profile name or id to switch to.'),
     root_folder: z
         .string()
@@ -151,6 +156,12 @@ const UpdateMediaInput = z.object({
         .boolean()
         .optional()
         .describe('Monitor it, or stop. Works on Radarr, Sonarr and Lidarr, where it is the artist’s own flag and the albums keep theirs.'),
+    monitor_new_items: z
+        .enum(['all', 'none', 'new'])
+        .optional()
+        .describe(
+            '[[lidarr: Lidarr only: the standing rule for albums Lidarr discovers later. `none` is what a finished, stable library wants. Alone or with `monitored`, no other setting.]]'
+        ),
     minimum_availability: z
         .enum(['announced', 'inCinemas', 'released'])
         .optional()
@@ -200,7 +211,7 @@ export function registerUpdateMedia(
         name: 'update_media',
         title: 'Change what a library item is set to',
         description:
-            'Changes settings on an item already in Radarr[[lidarr: , Lidarr]] or Sonarr (quality profile, root folder, monitoring, tags, Radarr\'s minimum availability, Sonarr\'s series type[[lidarr: , Lidarr\'s metadata profile]]). The only way to change a Radarr item\'s monitoring. [[grimmory: A Grimmory book is update_book.]] [[lidarr: On Lidarr, `id` is an artist, `monitor_new_items` stays with set_monitoring, and a new metadata profile applies at the artist\'s next refresh, which can remove albums.]] Takes `service` and `id`. Changing `root_folder` **moves the files on disk** unless `move_files: false`. `tags` replaces the whole set and an unknown tag is refused; get_instance_options lists profiles, folders and tags. Previews first; confirm to apply. Field reference: arr://docs/update_media.',
+            'Changes settings on an item already in Radarr[[lidarr: , Lidarr]] or Sonarr (quality profile, root folder, monitoring, tags, Radarr\'s minimum availability, Sonarr\'s series type[[lidarr: , Lidarr\'s metadata profile]]). The only way to change a Radarr item\'s monitoring. [[grimmory: A Grimmory book is update_book.]] [[lidarr: On Lidarr, `id` is an artist; omit it with `monitored` or `monitor_new_items` to set every artist (`none` stops the wanted list growing by itself). The artist flag is not the album flag: albums keep their own, so stop wanting one with set_monitoring `level: "album"`. A new metadata profile applies at the artist\'s next refresh, which can remove albums.]] Takes `service` and `id`. Changing `root_folder` **moves the files on disk** unless `move_files: false`. `tags` replaces the whole set and an unknown tag is refused; get_instance_options lists profiles, folders and tags. Previews first; confirm to apply. Field reference: arr://docs/update_media.',
         inputSchema: UpdateMediaInput,
         target: { adapters, to: TARGET },
         operation: 'update_media',
@@ -209,10 +220,12 @@ export function registerUpdateMedia(
         async plan(
             {
             service,
+            instance,
             id,
             quality_profile,
             root_folder,
             monitored,
+            monitor_new_items,
             minimum_availability,
             series_type,
             tags,
@@ -227,6 +240,70 @@ export function registerUpdateMedia(
             },
             adapter
         ): Promise<WritePlan> {
+            const lidarr = adapter.type === 'lidarr';
+
+            if (monitor_new_items !== undefined && !lidarr) {
+                throw new ServiceError('NotFound', service, 'monitor_new_items is a Lidarr option', {
+                    remedy: 'Only an artist has a rule for new albums. Drop it.'
+                });
+            }
+
+            // Lidarr's artist policy: every artist when `id` is omitted, or the
+            // one named, written through the editor with the set the preview
+            // signed. Anything that needs the one artist's own record stays on
+            // the path below.
+            if (lidarr && (id === undefined || monitor_new_items !== undefined)) {
+                // Refused rather than dropped, as on the single-item path below:
+                // this branch can reach every artist, so an option it ignores
+                // (a `title` meant to name one) must not turn into a bulk preview.
+                if (
+                    title !== undefined ||
+                    authors !== undefined ||
+                    series !== undefined ||
+                    series_number !== undefined ||
+                    lock_fields !== undefined ||
+                    unlock_fields !== undefined
+                ) {
+                    throw new ServiceError('NotFound', service, 'title, authors, series, series_number and the field locks are Grimmory options', {
+                        remedy: 'An artist is named by `id`, never a title. Drop them, or edit a Grimmory book with update_book.'
+                    });
+                }
+                if (series_type !== undefined) {
+                    throw new ServiceError('NotFound', service, 'series_type is a Sonarr option', {
+                        remedy: 'An artist has no numbering scheme. Drop it.'
+                    });
+                }
+                if (minimum_availability !== undefined) {
+                    throw new ServiceError('NotFound', service, 'minimum_availability is a Radarr option', {
+                        remedy: 'Lidarr has no availability threshold. Use set_monitoring to choose which albums.'
+                    });
+                }
+                const others = [
+                    ['quality_profile', quality_profile],
+                    ['root_folder', root_folder],
+                    ['tags', tags],
+                    ['metadata_profile', metadata_profile]
+                ].filter(([, v]) => v !== undefined);
+                if (others.length > 0) {
+                    throw new Error(
+                        `${others.map(([k]) => `\`${String(k)}\``).join(', ')} change${others.length === 1 ? 's' : ''} one artist at a time. ` +
+                            (id === undefined
+                                ? 'Name the artist with `id`, or drop it: with no `id`, only `monitored` and `monitor_new_items` are set, on every artist.'
+                                : 'Set `monitor_new_items` in its own call: with it only `monitored` can be set alongside.')
+                    );
+                }
+                if (!hasArtistMonitor(adapter)) {
+                    throw new ServiceError('NotFound', adapter.id, `${adapter.id} cannot read or set an artist monitoring policy`);
+                }
+                return planArtistPolicy(adapters, adapter, { instance, artists: id === undefined ? undefined : [id], monitored, monitor_new_items }, 'id');
+            }
+
+            if (id === undefined) {
+                throw new Error(
+                    '`id` is required: only Lidarr can omit it, to reach every artist. Take it from `acquisition.id` on a get_library or get_media_details record.'
+                );
+            }
+
             if (hasBookMetadata(adapter)) {
                 const books = adapter;
                 if (
@@ -255,8 +332,6 @@ export function registerUpdateMedia(
                     remedy: 'Films, series and artists are not edited by hand here. Drop them, or edit a Grimmory book with update_book.'
                 });
             }
-            const lidarr = adapter.type === 'lidarr';
-
             if (
                 quality_profile === undefined &&
                 root_folder === undefined &&
@@ -440,6 +515,7 @@ export function registerUpdateMedia(
         // rescans every root folder, which can drop the track records whose
         // files have not reached the new root folder yet.
         followUps(_outcome, { service, instance, id }, plan): NextStep[] {
+            if (id === undefined) return [];
             const a = plan.args as { metadataProfileId?: number; rootFolderPath?: string; moveFiles?: boolean };
             if (a.metadataProfileId === undefined) return [];
             if (a.rootFolderPath !== undefined && a.moveFiles === false) return [];
@@ -452,7 +528,11 @@ export function registerUpdateMedia(
             ];
         },
 
-        async apply(plan, { id }, adapter) {
+        async apply(plan, { id, monitored, monitor_new_items }, adapter) {
+            if (hasArtistMonitor(adapter) && Array.isArray(plan.args?.artist_ids)) {
+                return applyArtistPolicy(adapter, plan, { monitored, monitor_new_items });
+            }
+            if (id === undefined) throw new Error('This write needs `id`. Check the arguments before confirming it.');
             if (hasBookMetadata(adapter)) {
                 return applyBook(adapter, plan);
             }

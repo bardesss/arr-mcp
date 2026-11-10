@@ -355,9 +355,12 @@ On Lidarr, `set_monitoring` takes `level`, because an album id and an artist id
 are different namespaces and Lidarr cannot tell them apart.
 
 `level: "album"` writes one album's own flag, and takes `id` from the `albums` of
-a `get_media_details` read on the artist. `level: "artist"` takes `artists` (one
-id, a list, or omit for every artist) or an artist row's `acquisition.id`, and
-writes the artist-level policy: `monitored`, `monitor_new_items`, or both.
+a `get_media_details` read on the artist. The artist's policy is `update_media`:
+`id` is an artist row's `acquisition.id`, or omitted for every artist, and
+`monitored`, `monitor_new_items` or both are written. That needed no new tool,
+since `update_media` already sets one artist. `set_monitoring` with
+`level: "artist"`, `artists` and `monitor_new_items` is deprecated and still
+works, through the same preview and write.
 
 Three things the preview says, because each one was found rather than assumed:
 
@@ -368,7 +371,7 @@ Three things the preview says, because each one was found rather than assumed:
   in every case its two albums kept exactly the flags they had. The same four
   writes on 3.1.6.5079, with `monitorNewItems: "all"` in place of `"none"`,
   left an artist's four albums as they were. An album's own flag is what
-  decides whether that album is wanted, and `level: "album"` is how it is set.
+  decides whether that album is wanted, and `set_monitoring` with `level: "album"` is how it is set.
   While its artist is unmonitored, though, Lidarr's wanted lists, calendar,
   RSS sync and missing and cutoff searches skip every album of that artist,
   so `get_wanted` and `get_calendar` leave them out until the artist is
@@ -376,7 +379,9 @@ Three things the preview says, because each one was found rather than assumed:
 - **`monitor_new_items` decides the future.** It is `all`, `new` or `none`, and
   `none` is the only value under which the wanted list cannot grow by itself.
   An artist added later carries Lidarr's own default, which this tool does not
-  read or set.
+  read or set. With `monitored` or `monitor_new_items` on an `id`, or with no
+  `id`, `update_media` takes no other setting in the same call, since the
+  policy is written for the whole set the preview named.
 - **The write names the artists the preview showed.** The confirmation token is
   signed over the resolved id list, so an artist added between the preview and
   the confirmation changes the signature and the old token is refused. The

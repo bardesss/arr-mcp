@@ -114,6 +114,18 @@ async function apply(h: ReturnType<typeof harness>, args: Record<string, unknown
     return h.call({ ...args, confirm: first.structuredContent.confirm_token });
 }
 
+describe('update_media without an id', () => {
+    it('refuses an omitted id outside lidarr', async () => {
+        const h = harness();
+        await expect(h.call({ service: 'radarr', monitored: false })).rejects.toThrow(/`id`.*(only|lidarr)/i);
+    });
+
+    it('refuses monitor_new_items outside lidarr', async () => {
+        const h = harness();
+        await expect(h.call({ service: 'radarr', id: '15', monitor_new_items: 'none' })).rejects.toThrow(/monitor_new_items is a Lidarr option/);
+    });
+});
+
 describe('update_media previews', () => {
     it('names what it is changing from and to', async () => {
         const h = harness();

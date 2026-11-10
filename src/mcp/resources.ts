@@ -19,7 +19,7 @@ import { toolUsable, type SurfaceOptions } from './toolSurface.ts';
  * wherever they are not surfaced. Nothing here originates — `arr://instances`
  * is `stack_health`'s services and permissions, `arr://health` is
  * `stack_health`, the summary is `get_library` aggregates, and the Lidarr
- * policy is the distribution `set_monitoring` reports in its preview.
+ * policy is the distribution `update_media` reports in its preview.
  *
  * Not in `src/tools/`, because these are not tools and putting them there
  * would invite the assumption that adding one costs against
@@ -246,7 +246,7 @@ export function registerAllResources(server: McpServer, context: ToolContext, su
     /**
      * Lidarr's monitoring policy, readable without a write.
      *
-     * This mirrors `set_monitoring`, which reports the same distribution in its
+     * This mirrors `update_media`, which reports the same distribution in its
      * preview, so it originates nothing — the rule every resource here rests on.
      * It exists because before it the only way to ask "is my music library
      * stable" was to invoke a write tool in dry run: an odd thing to have to do
@@ -264,7 +264,7 @@ export function registerAllResources(server: McpServer, context: ToolContext, su
         {
             title: 'Lidarr monitoring policy',
             description:
-                "Every Lidarr artist's monitoring policy in one read: how many will monitor albums they discover later, and how many carry the artist-level monitor flag. `set_monitoring` with `level: \"artist\"` (and `instance` when there is more than one Lidarr) is the live answer and the way to change it. The artist flag is not the album flag — an artist can read unmonitored while an album under it stays monitored — so read arr://library/summary for what is actually pending. With more than one Lidarr, `instances` reports each one that answered (one that did not is listed in `degraded`), since `set_monitoring` writes one instance at a time, and the totals add those instances up: an artist two Lidarrs hold counts once in each.",
+                "Every Lidarr artist's monitoring policy in one read: how many will monitor albums they discover later, and how many carry the artist-level monitor flag. `update_media` with no `id` (and `instance` when there is more than one Lidarr) is the live answer and the way to change it. The artist flag is not the album flag — an artist can read unmonitored while an album under it stays monitored — so read arr://library/summary for what is actually pending. With more than one Lidarr, `instances` reports each one that answered (one that did not is listed in `degraded`), since `update_media` writes one instance at a time, and the totals add those instances up: an artist two Lidarrs hold counts once in each.",
             mimeType: 'application/json',
             cacheHint: { ttlMs: MONITORING_TTL_MS, cacheScope: 'private' }
         },
@@ -297,10 +297,10 @@ export function registerAllResources(server: McpServer, context: ToolContext, su
                     stable: false,
                     ...(several ? { degraded } : {}),
                     note: several
-                        ? 'The policies could not be read, which is not the same as them being off. Call set_monitoring ' +
-                          'with level: "artist" and `instance` for the live answer.'
-                        : 'The policy could not be read, which is not the same as it being off. Call set_monitoring with ' +
-                          'level: "artist" for the live answer.'
+                        ? 'The policies could not be read, which is not the same as them being off. Call update_media ' +
+                          'with no `id` and `instance` for the live answer.'
+                        : 'The policy could not be read, which is not the same as it being off. Call update_media with ' +
+                          'no `id` for the live answer.'
                 });
             }
 
@@ -308,7 +308,7 @@ export function registerAllResources(server: McpServer, context: ToolContext, su
             const empty = total.artists === 0;
 
             // With several Lidarrs, a write names one of them or is refused.
-            const change = several ? 'set_monitoring with level: "artist" and `instance`' : 'set_monitoring with level: "artist"';
+            const change = several ? 'update_media with no `id` and `instance`' : 'update_media with no `id`';
             // The totals add the instances up, so an artist two of them hold is
             // counted in each, unlike get_library's one merged row.
             const counted = several ? ' (counted once per instance)' : '';

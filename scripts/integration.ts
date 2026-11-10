@@ -718,6 +718,17 @@ if (typeof searchableHit?.service === 'string' && searchableHit.id !== undefined
     console.log('SKIP update_media — search_media returned no *arr hit to preview against.');
 }
 
+/** Lidarr's artist policy through update_media: no `id` reaches every artist. A dry run, so nothing is written. */
+if ('lidarr' in (config.services ?? {})) {
+    await run(
+        'update_media',
+        { service: 'lidarr', monitor_new_items: 'none', dry_run: true },
+        'DRY RUN ONLY — previews the policy over every artist, with the state found'
+    );
+} else {
+    console.log('SKIP update_media on every Lidarr artist — lidarr is not configured.');
+}
+
 /**
  * trigger_scan and trigger_subtitle_search, dry run only — a real scan costs a
  * maintainer disk I/O on every run, and a real subtitle search hits providers.
