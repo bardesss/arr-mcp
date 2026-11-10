@@ -57,6 +57,7 @@ export const TOOL_SERVICES: Readonly<Record<string, readonly ServiceId[]>> = {
     get_metadata_issues: ['jellyfin', 'plex', 'grimmory'],
     fix_metadata: ['jellyfin', 'plex', 'grimmory', 'lidarr'],
     get_profile_issues: ['radarr', 'sonarr', 'whisparr'],
+    get_instance_options: ['radarr', 'sonarr', 'whisparr', 'lidarr'],
     get_wanted: ['radarr', 'sonarr', 'lidarr'],
     get_calendar: ['radarr', 'sonarr', 'whisparr', 'lidarr'],
     get_blocklist: ['radarr', 'sonarr', 'whisparr', 'lidarr'],

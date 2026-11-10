@@ -51,6 +51,7 @@ import { registerRequestMedia } from './requestMedia.ts';
 import { registerSearchMedia } from './searchMedia.ts';
 import { registerSetMonitoring } from './setMonitoring.ts';
 import { registerSetWatched } from './setWatched.ts';
+import { registerGetInstanceOptions } from './instanceOptions.ts';
 import { registerStackHealth } from './stackHealth.ts';
 import { registerSyncDatabase } from './syncDatabase.ts';
 import { registerTriggerScan } from './triggerScan.ts';
@@ -182,6 +183,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
         ...(context.eventLog === undefined ? {} : { events: context.eventLog.store })
     });
     registerStackHealth(server, adapters, instances, primary);
+    registerGetInstanceOptions(server, adapters);
     registerGetIndexers(server, adapters.filter(hasIndexers));
     registerGetSubtitles(server, adapters.filter(hasSubtitles));
     registerGetQueue(server, adapters);
@@ -268,6 +270,7 @@ export const WRITE_TOOLS: ReadonlySet<string> = new Set([
 export const TOOL_NAMES = [
     'diagnose',
     'stack_health',
+    'get_instance_options',
     'get_indexers',
     'get_subtitles',
     'get_queue',

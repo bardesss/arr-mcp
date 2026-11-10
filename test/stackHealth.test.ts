@@ -12,6 +12,7 @@ import type {
 } from '../src/services/types.ts';
 import type { ServiceInstance } from '../src/config/instances.ts';
 import { buildStackHealth, registerStackHealth } from '../src/tools/stackHealth.ts';
+import { buildInstanceOptions } from '../src/tools/instanceOptions.ts';
 
 /** What `ArrAdapter` used to name, now spelled as the capabilities it is. */
 type ArrLike = ServiceAdapter & DiskSpaceCapable & HealthCheckCapable;
@@ -650,6 +651,42 @@ describe('stack_health add options', () => {
                 tags: ['4k']
             }
         ]);
+    });
+
+    describe('get_instance_options', () => {
+        const noop = () => {};
+
+        it('lists the same profiles, folders and tags as detail: full', async () => {
+            expect(await buildInstanceOptions([addable()], {}, noop)).toEqual([
+                {
+                    instance: 'radarr',
+                    qualityProfiles: [{ id: 4, name: 'HD-1080p' }],
+                    rootFolders: [{ path: '/movies', freeSpaceBytes: 100 }],
+                    tags: ['4k']
+                }
+            ]);
+        });
+
+        it('returns nothing for a service that is not configured', async () => {
+            expect(await buildInstanceOptions([addable()], { service: 'sonarr' }, noop)).toEqual([]);
+        });
+
+        it('refuses an instance that does not exist, naming the ones that do', async () => {
+            const refused = buildInstanceOptions([addable()], { instance: 'nope' }, noop);
+            await expect(refused).rejects.toThrow(/no instance "nope"/);
+            await expect(refused).rejects.toThrow(/radarr/);
+        });
+
+        it('marks an instance degraded when its read is down', async () => {
+            const down: string[] = [];
+            const result = await buildInstanceOptions(
+                [addable({ tags: async () => Promise.reject(new Error('down')) })],
+                {},
+                id => down.push(id)
+            );
+            expect(result).toEqual([]);
+            expect(down).toEqual(['radarr']);
+        });
     });
 
     /**

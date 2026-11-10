@@ -12,7 +12,6 @@ import {
     hasDiskSpace,
     hasHealthChecks,
     hasLogs,
-    hasMediaAdd,
     hasScanState,
     type CleanupOverview,
     type CleanuparrRemovals,
@@ -24,6 +23,7 @@ import {
     type ScanState,
     type ServiceAdapter
 } from '../services/types.ts';
+import { buildInstanceOptions, type InstanceOptions } from './instanceOptions.ts';
 import { buildSeedingRules, type SeedingRules } from './seedingRules.ts';
 import { groupDisks, humanBytes } from '../core/disks.ts';
 
@@ -97,26 +97,6 @@ type StackHealthResult = {
      */
     logs?: Shaped<LogEntry> & { lines: LogLines[] };
     degraded: string[];
-};
-
-/**
- * The values `add_media` and `update_media` refuse to guess at. Paths and tag
- * labels are the **fenced** display forms: these are for reading, and the raw
- * path is only ever posted back inside the write tools, which resolve it
- * themselves.
- */
-type InstanceOptions = {
-    instance: string;
-    qualityProfiles: { id: number; name: string }[];
-    /**
-     * `unmappedFolders` names folders under this root that the instance
-     * associates with no item. Reported here because the root folder read
-     * already returns it and dropping it hid the only API-visible trace of a
-     * mapping the service has lost. It is a fact, not a fault: a hand-dropped
-     * folder and a delete that kept its files look identical from here.
-     */
-    rootFolders: { path: string; freeSpaceBytes?: number; unmappedFolders?: string[] }[];
-    tags: string[];
 };
 
 type InstancePermissions = { instance: string; safe_write: boolean; destructive: boolean };
@@ -311,43 +291,9 @@ export async function buildStackHealth(
         })
     );
 
-    // Settled per instance, never awaited bare: an instance whose profile list
-    // is down still has health worth reporting, and this list is the least
-    // important thing in the response.
-    const options =
-        opts.detail !== 'full'
-            ? undefined
-            : (
-                  await Promise.all(
-                      adapters.filter(hasMediaAdd).map(async adapter => {
-                          try {
-                              const [profiles, folders, tags] = await Promise.all([
-                                  adapter.listQualityProfiles(),
-                                  adapter.listRootFolders(),
-                                  adapter.listTags()
-                              ]);
-                              return [
-                                  {
-                                      instance: adapter.id,
-                                      qualityProfiles: profiles.map(p => ({ id: p.id, name: p.display })),
-                                      rootFolders: folders.map(f => ({
-                                          path: f.display,
-                                          ...(f.freeSpaceBytes === undefined ? {} : { freeSpaceBytes: f.freeSpaceBytes }),
-                                          ...(f.unmappedFolders === undefined ? {} : { unmappedFolders: f.unmappedFolders })
-                                      })),
-                                      tags: tags.map(t => t.display)
-                                  }
-                              ];
-                          } catch (err) {
-                              logger.warn({ service: adapter.id, err }, 'add options unavailable; omitting');
-                              markDegraded(adapter.id);
-                              return [];
-                          }
-                      })
-                  )
-              )
-                  .flat()
-                  .sort((a, b) => a.instance.localeCompare(b.instance));
+    // Settled per instance inside the builder: an instance whose profile list
+    // is down still has health worth reporting.
+    const options = opts.detail !== 'full' ? undefined : await buildInstanceOptions(adapters, {}, markDegraded);
 
     const cleanupAdapter = opts.detail === 'full' ? adapters.find(hasCleanup) : undefined;
     const removalSource = opts.detail === 'full' ? adapters.find(hasCleanuparrRemovals) : undefined;
@@ -573,7 +519,7 @@ export function registerStackHealth(
             title: 'Stack health',
             annotations: READ_ONLY,
             description:
-                'Health of every configured service: version, disk space, failing health checks, last library scan, and what each instance may do (`permissions`, whose ids are the valid `instance` values). Answers partially, with a `degraded` list, when a service is down. `commands` follows up trigger_search and trigger_scan: queued, running, and finished in the last 15 minutes, so a command not listed has finished. `detail: "full"` adds `options` (the quality profiles, root folders and tags add_media and update_media need: read them here, never guess), `seedingRules` (client, indexer [[cleanuparr: and Cleanuparr ]]seed limits[[cleanuparr:  and removal rules]]), [[reclaimerr: Reclaimerr `cleanup` (what will be deleted or moved, and when), ]]and each service\'s recent warnings and errors in `logs`; check `lastSeen`, since an old line may no longer apply. API keys are never returned. Field reference: arr://docs/stack_health.',
+                'Health of every configured service: version, disk space, failing health checks, last library scan, and what each instance may do (`permissions`, whose ids are the valid `instance` values). Answers partially, with a `degraded` list, when a service is down. `commands` follows up trigger_search and trigger_scan: queued, running, and finished in the last 15 minutes, so a command not listed has finished. Profiles, root folders and tags: get_instance_options (`options` at `detail: "full"` is deprecated). `detail: "full"` adds `seedingRules` (client, indexer [[cleanuparr: and Cleanuparr ]]seed limits[[cleanuparr:  and removal rules]]), [[reclaimerr: Reclaimerr `cleanup` (what will be deleted or moved, and when), ]]and each service\'s recent warnings and errors in `logs`; check `lastSeen`, since an old line may no longer apply. API keys are never returned. Field reference: arr://docs/stack_health.',
             inputSchema: StackHealthInput,
             outputSchema: stackHealthOutput(primaryMediaServer !== undefined)
         },
