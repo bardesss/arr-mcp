@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.81.0](https://github.com/bardesss/arr-mcp/compare/v1.80.0...v1.81.0) (2026-11-10)
+
+
+### Features
+
+* **seerr:** blocklist a title in Seerr from delete_media, and blocklist_media to add or lift one ([#603](https://github.com/bardesss/arr-mcp/issues/603)) ([899aee9](https://github.com/bardesss/arr-mcp/commit/899aee9db77f4f430ca1cb106fcdc2ccdd73e8e2)), closes [#602](https://github.com/bardesss/arr-mcp/issues/602)
+
 ## [1.80.0](https://github.com/bardesss/arr-mcp/compare/v1.79.0...v1.80.0) (2026-11-10)
 
 
