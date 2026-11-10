@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.79.0](https://github.com/bardesss/arr-mcp/compare/v1.78.0...v1.79.0) (2026-11-10)
+
+
+### Features
+
+* **tools:** list write tools only where their service is configured, and trim tools/list ([#587](https://github.com/bardesss/arr-mcp/issues/587)) ([26873a7](https://github.com/bardesss/arr-mcp/commit/26873a739065707008f41938c45b31ab4f5d7128))
+* **whisparr:** report logs, history, downloads and running commands through Sonarr's shared helpers ([#590](https://github.com/bardesss/arr-mcp/issues/590)) ([a78ce71](https://github.com/bardesss/arr-mcp/commit/a78ce71ffc658d599a56ab61e2bda25dbcded2d6))
+
 ## [1.78.0](https://github.com/bardesss/arr-mcp/compare/v1.77.4...v1.78.0) (2026-11-10)
 
 
