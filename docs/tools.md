@@ -1766,10 +1766,10 @@ could spend another's quota.
 ## `get_requests`
 
 At `detail: "full"` the answer also carries `issues`: what your users have
-reported as broken, each naming the media it is about — title plus TMDB,
-TVDB and Seerr media ids — and with its newest comments. The issue payload
+reported as broken, each naming the media it is about — title plus TMDB
+and TVDB ids — and with its newest comments. The issue payload
 itself carries the ids but no title, so the title is resolved from the media
-detail endpoint, once per distinct title. Seerr numbers both the kind
+detail endpoint, once per distinct title and at most four reads in flight. Seerr numbers both the kind
 (`video`, `audio`, `subtitle`, `other`) and the state (`open`, `resolved`);
 both are mapped to words here, because a model handed `issueType: 2` cannot say
 what is wrong with the film.

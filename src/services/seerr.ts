@@ -4,6 +4,7 @@ import { TtlCache } from '../core/cache.ts';
 import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
 import { fenceText } from '../core/fence.ts';
+import { mapLimit } from '../core/gather.ts';
 import { BACKDROP_SIZE, POSTER_SIZE, compactDisplay, tmdbImageUrl, type Display } from '../core/display.ts';
 import { logger } from '../core/logger.ts';
 import { LOG_LINES, foldLogLines } from './logLines.ts';
@@ -96,6 +97,9 @@ type RawIssue = {
  *  what is wrong with the film. */
 const ISSUE_TYPE: Record<number, string> = { 1: 'video', 2: 'audio', 3: 'subtitle', 4: 'other' };
 const ISSUE_STATUS: Record<number, string> = { 1: 'open', 2: 'resolved' };
+
+/** Detail reads in flight while resolving issue titles — the same cap as the metadata sweep's SERIES_CONCURRENCY. */
+const ISSUE_TITLE_CONCURRENCY = 4;
 
 /** An argument twenty comments long is not what the caller asked for. */
 const ISSUE_COMMENT_CAP = 3;
@@ -344,9 +348,10 @@ export class SeerrAdapter
      * carries the ids (MediaInfo: `id`, `mediaType`, `tmdbId`, `tvdbId`) but
      * no title, so the title is resolved from the media detail endpoint —
      * the same read `getMediaRequests` already makes — once per distinct
-     * title, not once per issue. A title that cannot be read leaves the ids
-     * in place rather than failing the whole list: issues are never a reason
-     * for `get_requests` to fail.
+     * title, not once per issue, and at most four detail reads in flight.
+     * A title that cannot be read leaves the ids in place rather than
+     * failing the whole list: issues are never a reason for `get_requests`
+     * to fail.
      */
     async getIssues(opts: { limit: number }): Promise<MediaIssue[]> {
         const params = new URLSearchParams({
@@ -362,7 +367,12 @@ export class SeerrAdapter
             .filter((i): i is RawIssue & { id: number } => typeof i.id === 'number')
             .slice(0, opts.limit);
 
-        const lookups = new Map<string, Promise<string | undefined>>();
+        // One entry per distinct title, resolved through mapLimit: without
+        // the cap, `limit: 500` with 500 different titles fires 500 detail
+        // reads at Seerr at once. The dedupe and the per-title catch stay
+        // as they are — a title that cannot be read resolves undefined.
+        const distinct: { mediaType: 'movie' | 'tv'; tmdbId: number }[] = [];
+        const seenKeys = new Set<string>();
         for (const i of rows) {
             const mediaType = mediaTypeOf(i.media?.mediaType);
             // An empty payload title is no title at all (getMediaRequests
@@ -375,17 +385,17 @@ export class SeerrAdapter
             )
                 continue;
             const key = `${mediaType}:${i.media.tmdbId}`;
-            if (!lookups.has(key)) {
-                lookups.set(
-                    key,
-                    this.getMediaRequests(mediaType, i.media.tmdbId)
-                        .then(r => r.media?.title)
-                        .catch(() => undefined)
-                );
-            }
+            if (seenKeys.has(key)) continue;
+            seenKeys.add(key);
+            distinct.push({ mediaType, tmdbId: i.media.tmdbId });
         }
         const titles = new Map(
-            await Promise.all([...lookups].map(async ([key, p]) => [key, await p] as const))
+            await mapLimit(distinct, ISSUE_TITLE_CONCURRENCY, async d => {
+                const title = await this.getMediaRequests(d.mediaType, d.tmdbId)
+                    .then(r => r.media?.title)
+                    .catch(() => undefined);
+                return [`${d.mediaType}:${d.tmdbId}`, title] as const;
+            })
         );
 
         return rows.map(i => {
@@ -411,7 +421,6 @@ export class SeerrAdapter
                 // populated for tv media, always null for movies. Matching
                 // #toRequest, which omits it in both cases.
                 ...(typeof i.media?.tvdbId !== 'number' ? {} : { tvdbId: i.media.tvdbId }),
-                ...(typeof i.media?.id !== 'number' ? {} : { seerrMediaId: i.media.id }),
                 ...(title === undefined ? {} : { title }),
                 ...((name => (name === undefined ? {} : { reportedBy: fenceText(name, { service: this.id, field: 'user' }) }))(
                     nameOf(i.createdBy ?? {})

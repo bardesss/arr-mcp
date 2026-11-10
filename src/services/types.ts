@@ -1142,8 +1142,6 @@ export type MediaIssue = {
     tmdbId?: number;
     /** TVDB id from the issue payload; absent for movies (Seerr sends null). */
     tvdbId?: number;
-    /** Seerr's own media id (`media.id` in the issue payload). */
-    seerrMediaId?: number;
     reportedBy?: string;
     /** The newest comments, fenced and capped — an issue can carry dozens. */
     comments: string[];
