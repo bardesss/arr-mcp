@@ -2,7 +2,6 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import type { ServiceInstance } from '../config/instances.ts';
 import { ServiceIdSchema, serviceOf, type ServiceId } from '../config/schema.ts';
-import { INSTANCE_PARAM_DESCRIPTION } from './resolveInstance.ts';
 import { ServiceError } from '../core/errors.ts';
 import { logger } from '../core/logger.ts';
 import { DetailSchema, LimitSchema, READ_ONLY, TruncationSchema, applyLimit, listText, memoBy, toolInput, type DetailLevel } from '../core/shape.ts';
@@ -25,6 +24,7 @@ import {
     type ServiceAdapter
 } from '../services/types.ts';
 import { buildInstanceOptions, selectAdapters, type InstanceOptions } from './instanceOptions.ts';
+import { INSTANCE_PARAM_DESCRIPTION } from './resolveInstance.ts';
 import { buildSeedingRules, type SeedingRules } from './seedingRules.ts';
 import { groupDisks, humanBytes } from '../core/disks.ts';
 
@@ -200,10 +200,8 @@ export async function buildStackHealth(
     // One rule for adapters and for the permission and endpoint rows, so a
     // filtered answer never lists an instance it did not check.
     const adapters = selectAdapters(allAdapters, opts);
-    const wanted = opts.instance === undefined || opts.instance === '' ? undefined : opts.instance.toLowerCase();
-    const instances = allInstances?.filter(
-        i => (opts.service === undefined || i.type === opts.service) && (wanted === undefined || i.id.toLowerCase() === wanted)
-    );
+    const filtered = opts.service !== undefined || (opts.instance !== undefined && opts.instance !== '');
+    const instances = filtered ? allInstances?.filter(i => adapters.some(a => a.id === i.id)) : allInstances;
     const services: ConnectionDiagnosis[] = [];
     const degraded: string[] = [];
     const disks: DiskSpace[] = [];
@@ -307,7 +305,7 @@ export async function buildStackHealth(
     const removalSource = opts.detail === 'full' ? adapters.find(hasCleanuparrRemovals) : undefined;
     // Independent reads: none waits on another.
     const [seedingRules, cleanup, cleanuparrRemovals] = await Promise.all([
-        opts.detail === 'full' ? buildSeedingRules(adapters, markDegraded) : undefined,
+        opts.detail === 'full' && !filtered ? buildSeedingRules(adapters, markDegraded) : undefined,
         cleanupAdapter === undefined || degraded.includes(cleanupAdapter.id)
             ? undefined
             : cleanupAdapter.readCleanupOverview(opts.limit).catch((err: unknown) => {
@@ -514,7 +512,7 @@ const stackHealthOutput = memoBy((withPrimary: boolean) => z.looseObject({
 }));
 
 const StackHealthInput = toolInput({
-    detail: DetailSchema.describe('How much detail; defaults to standard. Deprecated: `options` at "full", use get_instance_options.'),
+    detail: DetailSchema.describe('How much detail; defaults to standard. `full` also returns `options` (Deprecated: use get_instance_options).'),
     limit: LimitSchema,
     service: serviceOf(ServiceIdSchema.options).optional(),
     instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION)
@@ -532,7 +530,7 @@ export function registerStackHealth(
             title: 'Stack health',
             annotations: READ_ONLY,
             description:
-                'Health of every configured service: version, disk space, failing health checks, last library scan, and what each instance may do (`permissions`, whose ids are the valid `instance` values). Answers partially, with a `degraded` list, when a service is down. `commands` follows up trigger_search and trigger_scan: queued, running, and finished in the last 15 minutes, so a command not listed has finished. Profiles, root folders and tags: get_instance_options (`options` at `detail: "full"` is deprecated). `service` or `instance` checks one. `detail: "full"` adds `seedingRules` (client, indexer [[cleanuparr: and Cleanuparr ]]seed limits[[cleanuparr:  and removal rules]]), [[reclaimerr: Reclaimerr `cleanup` (what will be deleted or moved, and when), ]]and each service\'s recent warnings and errors in `logs`; check `lastSeen`, since an old line may no longer apply. API keys are never returned. Field reference: arr://docs/stack_health.',
+                'Health of every configured service: version, disk space, failing health checks, last library scan, and what each instance may do (`permissions`, whose ids are the valid `instance` values). Answers partially, with a `degraded` list, when a service is down. `commands` follows up trigger_search and trigger_scan: queued, running, and finished in the last 15 minutes, so a command not listed has finished. Profiles, root folders and tags: get_instance_options (`options` at `detail: "full"` is deprecated). `service` or `instance` checks one, without `seedingRules`. `detail: "full"` adds `seedingRules` (client, indexer [[cleanuparr: and Cleanuparr ]]seed limits[[cleanuparr:  and removal rules]]), [[reclaimerr: Reclaimerr `cleanup` (what will be deleted or moved, and when), ]]and each service\'s recent warnings and errors in `logs`; check `lastSeen`, since an old line may no longer apply. API keys are never returned. Field reference: arr://docs/stack_health.',
             inputSchema: StackHealthInput,
             outputSchema: stackHealthOutput(primaryMediaServer !== undefined)
         },

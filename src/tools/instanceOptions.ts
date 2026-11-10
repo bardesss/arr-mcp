@@ -1,9 +1,9 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import type { ServiceId } from '../config/schema.ts';
-import { serviceOf } from '../config/schema.ts';
+import { serviceOf, type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { logger } from '../core/logger.ts';
+import { humanBytes } from '../core/disks.ts';
 import { READ_ONLY, listText, toolInput } from '../core/shape.ts';
 import { hasMediaAdd, type ServiceAdapter } from '../services/types.ts';
 import { INSTANCE_PARAM_DESCRIPTION } from './resolveInstance.ts';
@@ -31,20 +31,29 @@ export type InstanceOptions = {
 type AdapterFilter = { service?: ServiceId | undefined; instance?: string | undefined };
 
 /**
- * The adapters one `service`/`instance` pair names. An `instance` is an id as
- * `permissions` lists it (`radarr`, `radarr/4k`); one that matches nothing is
- * refused with the ids that exist, so the next call is not a second guess.
+ * The adapters one `service`/`instance` pair names. `instance` is the bare
+ * name (`4k`, as `resolveInstance` takes it) or the full id `permissions` lists
+ * (`radarr/4k`). One that matches nothing, or that belongs to another service
+ * than `service`, is refused with the ids that exist, so the next call is not
+ * a second guess.
  */
 export function selectAdapters<T extends ServiceAdapter>(adapters: readonly T[], filter: AdapterFilter): T[] {
     const { service, instance } = filter;
     if (instance !== undefined && instance !== '') {
         const wanted = instance.toLowerCase();
-        if (!adapters.some(a => a.id.toLowerCase() === wanted)) {
+        const named = adapters.filter(a => a.id.toLowerCase() === wanted || (a.instance ?? '').toLowerCase() === wanted);
+        if (named.length === 0) {
             throw new ServiceError('NotFound', 'arr-mcp', `no instance "${instance}"`, {
                 remedy: `Configured: ${adapters.map(a => a.id).join(', ') || 'none'}.`
             });
         }
-        return adapters.filter(a => a.id.toLowerCase() === wanted && (service === undefined || a.type === service));
+        const picked = service === undefined ? named : named.filter(a => a.type === service);
+        if (picked.length === 0) {
+            throw new ServiceError('NotFound', 'arr-mcp', `no instance "${instance}" under ${service}`, {
+                remedy: `"${instance}" is ${named.map(a => a.id).join(', ')}. Drop service or change it.`
+            });
+        }
+        return picked;
     }
     return service === undefined ? [...adapters] : adapters.filter(a => a.type === service);
 }
@@ -59,7 +68,7 @@ export async function buildInstanceOptions(
     markDegraded: (id: string) => void
 ): Promise<InstanceOptions[]> {
     const rows = await Promise.all(
-        selectAdapters(adapters.filter(hasMediaAdd), filter).map(async adapter => {
+        selectAdapters(adapters, filter).filter(hasMediaAdd).map(async adapter => {
             try {
                 const [profiles, folders, tags] = await Promise.all([
                     adapter.listQualityProfiles(),
@@ -98,8 +107,16 @@ const GetInstanceOptionsOutput = z.looseObject({
     degraded: z.array(z.string())
 });
 
-const lineOf = (o: InstanceOptions): string =>
-    `${o.instance} — profiles: ${o.qualityProfiles.map(p => `${p.name} (${p.id})`).join(', ') || 'none'}; root folders: ${o.rootFolders.map(f => f.path).join(', ') || 'none'}; tags: ${o.tags.join(', ') || 'none'}`;
+const folderText = (f: InstanceOptions['rootFolders'][number]): string => {
+    const notes = [
+        ...(f.freeSpaceBytes === undefined ? [] : [`${humanBytes(f.freeSpaceBytes)} free`]),
+        ...(f.unmappedFolders === undefined ? [] : [`${f.unmappedFolders.length} unmapped`])
+    ];
+    return notes.length === 0 ? f.path : `${f.path} (${notes.join(', ')})`;
+};
+
+export const optionsLine = (o: InstanceOptions): string =>
+    `${o.instance} — profiles: ${o.qualityProfiles.map(p => `${p.name} (${p.id})`).join(', ') || 'none'}; root folders: ${o.rootFolders.map(folderText).join(', ') || 'none'}; tags: ${o.tags.join(', ') || 'none'}`;
 
 export function registerGetInstanceOptions(server: McpServer, adapters: readonly ServiceAdapter[]): void {
     server.registerTool(
@@ -108,7 +125,7 @@ export function registerGetInstanceOptions(server: McpServer, adapters: readonly
             title: 'Instance options',
             annotations: READ_ONLY,
             description:
-                'Quality profiles, root folders and tags of each Radarr, Sonarr, Whisparr and Lidarr instance: the values add_media and update_media need, so read them here, never guess. For health use stack_health. Returns one row per instance (`qualityProfiles` with ids, `rootFolders` with free space and `unmappedFolders`, `tags`); an instance whose read fails is in `degraded`. `instance` is an id from stack_health `permissions`; an unknown one is refused with the valid ids.',
+                'Quality profiles, root folders and tags of each Radarr, Sonarr, Whisparr and Lidarr instance: the values add_media and update_media need, so read them here, never guess. For health use stack_health. One row per instance: profiles with ids, root folders with free space and `unmappedFolders`, tags. An instance whose read fails is in `degraded`; an unknown `instance` is refused with the valid ones.',
             inputSchema: GetInstanceOptionsInput,
             outputSchema: GetInstanceOptionsOutput
         },
@@ -119,7 +136,7 @@ export function registerGetInstanceOptions(server: McpServer, adapters: readonly
             });
             const summary = `${items.length} instance(s)${degraded.length === 0 ? '' : `; unavailable: ${degraded.join(', ')}`}.`;
             return {
-                content: [{ type: 'text', text: listText(summary, items.map(lineOf), line => line) }],
+                content: [{ type: 'text', text: listText(summary, items.map(optionsLine), line => line) }],
                 structuredContent: { items, degraded }
             };
         }

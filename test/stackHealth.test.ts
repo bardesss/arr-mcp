@@ -12,7 +12,7 @@ import type {
 } from '../src/services/types.ts';
 import type { ServiceInstance } from '../src/config/instances.ts';
 import { buildStackHealth, registerStackHealth } from '../src/tools/stackHealth.ts';
-import { buildInstanceOptions } from '../src/tools/instanceOptions.ts';
+import { buildInstanceOptions, registerGetInstanceOptions } from '../src/tools/instanceOptions.ts';
 
 /** What `ArrAdapter` used to name, now spelled as the capabilities it is. */
 type ArrLike = ServiceAdapter & DiskSpaceCapable & HealthCheckCapable;
@@ -486,18 +486,9 @@ describe('stack_health', () => {
     });
 });
 
-/**
- * `arr://instances` needs to say what each instance is allowed to do, and a
- * resource must mirror a tool rather than originate — a client that ignores
- * resources must not be the only one unable to answer "what may I do here".
- * So stack_health reports it.
- *
- * The permission *source* is untouched: `permissionSourceFrom` still reads
- * config, deliberately, so an adapter cannot widen its own grants. This
- * reports the gate's answer; it does not become a second one.
- */
 describe('stack_health service and instance filter', () => {
     const sonarr = { ...fakeArr({ diagnosis: { ...healthy, service: 'sonarr' } }), id: 'sonarr', type: 'sonarr' } as ArrLike;
+    const radarr4k = { ...fakeArr({ diagnosis: healthy }), id: 'radarr/4k', instance: '4k' } as ArrLike;
     const instance = (id: string, type: 'radarr' | 'sonarr') =>
         ({ id, type, config: { url: `http://${id}:1`, permissions: { safe_write: false, destructive: false } } }) as unknown as ServiceInstance;
 
@@ -517,11 +508,43 @@ describe('stack_health service and instance filter', () => {
         expect(result.services.map(s => s.service)).toEqual(['radarr']);
     });
 
+    it('takes the bare instance name as well as the full id', async () => {
+        const all = [fakeArr({ diagnosis: healthy }), radarr4k];
+        const rows = [instance('radarr', 'radarr'), instance('radarr/4k', 'radarr')];
+        const byName = await buildStackHealth(all, { ...std, service: 'radarr', instance: '4k' }, rows);
+        const byId = await buildStackHealth(all, { ...std, instance: 'radarr/4k' }, rows);
+        expect(byName.permissions?.map(p => p.instance)).toEqual(['radarr/4k']);
+        expect(byId.permissions?.map(p => p.instance)).toEqual(['radarr/4k']);
+    });
+
     it('refuses an instance that does not exist', async () => {
         await expect(buildStackHealth([fakeArr({ diagnosis: healthy })], { ...std, instance: 'nope' })).rejects.toThrow(/no instance "nope"/);
     });
+
+    it('refuses a service and instance that disagree, saying which the instance is', async () => {
+        const refused = buildStackHealth([fakeArr({ diagnosis: healthy }), sonarr], { ...std, service: 'sonarr', instance: 'radarr' });
+        await expect(refused).rejects.toThrow(/no instance "radarr" under sonarr/);
+        await expect(refused).rejects.toThrow(/Drop service or change it/);
+    });
+
+    it('leaves seedingRules out under a filter, so it cannot report gaps that need the whole stack', async () => {
+        const client = { ...fakeArr({ diagnosis: healthy }), id: 'qbittorrent', type: 'qbittorrent', getSeedLimits: async () => ({ service: 'qbittorrent', action: 'stop' }) } as unknown as ArrLike;
+        const full = { detail: 'full', limit: 50 } as const;
+        expect((await buildStackHealth([client], full)).seedingRules).toBeDefined();
+        expect((await buildStackHealth([client, sonarr], { ...full, service: 'sonarr' })).seedingRules).toBeUndefined();
+    });
 });
 
+/**
+ * `arr://instances` needs to say what each instance is allowed to do, and a
+ * resource must mirror a tool rather than originate — a client that ignores
+ * resources must not be the only one unable to answer "what may I do here".
+ * So stack_health reports it.
+ *
+ * The permission *source* is untouched: `permissionSourceFrom` still reads
+ * config, deliberately, so an adapter cannot widen its own grants. This
+ * reports the gate's answer; it does not become a second one.
+ */
 describe('stack_health permissions', () => {
     const instance = (id: string, safe_write: boolean, destructive: boolean) =>
         ({
@@ -701,6 +724,35 @@ describe('stack_health add options', () => {
             const refused = buildInstanceOptions([addable()], { instance: 'nope' }, noop);
             await expect(refused).rejects.toThrow(/no instance "nope"/);
             await expect(refused).rejects.toThrow(/radarr/);
+        });
+
+        it('takes the bare instance name as well as the full id', async () => {
+            const named = { ...addable(), id: 'radarr/4k', instance: '4k' } as unknown as ServiceAdapter;
+            for (const filter of [{ service: 'radarr', instance: '4k' }, { instance: 'radarr/4k' }] as const) {
+                expect((await buildInstanceOptions([addable(), named], filter, noop)).map(o => o.instance)).toEqual(['radarr/4k']);
+            }
+        });
+
+        it('refuses a service and instance that disagree', async () => {
+            await expect(buildInstanceOptions([addable()], { service: 'sonarr', instance: 'radarr' }, noop)).rejects.toThrow(/under sonarr/);
+        });
+
+        it('answers through the tool handler, with free space and unmapped folders in the text', async () => {
+            const server = new McpServer({ name: 'test', version: '0.0.0' });
+            registerGetInstanceOptions(
+                server,
+                [addable({ folders: async () => [{ path: '/movies', display: '/movies', freeSpaceBytes: 2 * 1024 ** 3, unmappedFolders: ['a', 'b'] }] })]
+            );
+            const tool = (server as unknown as {
+                _registeredTools: Record<string, { handler: (a: Record<string, unknown>, e: object) => Promise<{ content: { text: string }[]; structuredContent: { items: unknown[]; degraded: string[] } }> }>;
+            })._registeredTools.get_instance_options!;
+            const result = await tool.handler({}, {});
+            expect(result.structuredContent.degraded).toEqual([]);
+            expect(result.structuredContent.items).toHaveLength(1);
+            const [summary, line] = result.content[0]!.text.split('\n');
+            expect(summary).toBe('1 instance(s).');
+            expect(line).toContain('HD-1080p (4)');
+            expect(line).toMatch(/\/movies \(2\.\d+ GiB free, 2 unmapped\)/);
         });
 
         it('marks an instance degraded when its read is down', async () => {

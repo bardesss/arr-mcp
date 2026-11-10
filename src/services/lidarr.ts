@@ -242,8 +242,8 @@ const LIBRARY_SCAN_TASK = 'RescanFolders';
  *
  * `MediaAddCapable` and `MetadataProfileCapable` are `add_media`'s: an artist
  * added by its MusicBrainz id, with a metadata profile beside the quality
- * profile, root folder and tags. `stack_health` lists the last three at
- * `detail: "full"`, as it does for the other services that add.
+ * profile, root folder and tags. `get_instance_options` lists the last three,
+ * as it does for the other services that add.
  *
  * `MediaUpdateCapable` is `update_media`'s: an artist's quality and metadata
  * profiles, root folder, monitoring and tags, changed through the Artist
