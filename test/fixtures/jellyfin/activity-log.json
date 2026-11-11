@@ -2,7 +2,7 @@
     "Items": [
         {
             "Id": 52311,
-            "Name": "Someone heeft afspelen van Some Film gestopt op Tv in woonkamer",
+            "Name": "Someone heeft afspelen van Some Film gestopt op Living Room TV",
             "Type": "VideoPlaybackStopped",
             "ItemId": "b55278d542047434299055789bc9da3f",
             "Date": "2026-10-19T19:00:59.5222629Z",
