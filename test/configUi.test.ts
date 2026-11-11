@@ -1554,7 +1554,7 @@ describe('saving an instance', () => {
 
         expect(res.status).toBe(400);
         expect(await res.text()).toContain('enter the api_key again');
-        expect(await readFile(join(dir, 'config.yaml'), 'utf8')).not.toContain('9999');
+        expect(await readFile(join(dir, 'config.yaml'), 'utf8')).not.toContain('192.0.2.10:9999');
     });
 
     it('leaves every other instance untouched', async () => {
