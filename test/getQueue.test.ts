@@ -400,6 +400,12 @@ describe('get_queue', () => {
         });
     });
 
+    // `Sabnzbd`: Radarr, Sonarr and Lidarr take the nzo_id as their download id unchanged.
+    it("gives a SABnzbd row its nzo_id as the downloadId, the one the *arr's row carries", async () => {
+        const result = await buildGetQueue([sabnzbd()], opts);
+        expect(result.items[0]).toMatchObject({ id: 'SABnzbd_nzo_ab12', downloadId: 'SABnzbd_nzo_ab12' });
+    });
+
     it('keeps a SABnzbd ETA once timeleft includes a day', async () => {
         const queued = {
             queue: {

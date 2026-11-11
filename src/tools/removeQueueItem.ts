@@ -1,6 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { ServiceError } from '../core/errors.ts';
+import { PENDING_STATUSES } from '../services/arrRecord.ts';
 import { hasQueue, hasQueueRemove, type QueueItem, type QueueRemoveCapable, type ServiceAdapter } from '../services/types.ts';
 import { applyOrphaned, canClearOrphans, planOrphaned } from './cleanQueue.ts';
 import { outcomeText, registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
@@ -75,9 +76,7 @@ type RemoveBound = { service: string; id: string; removeFromClient: boolean; blo
  * sends `blocklist=false`. An orphaned row is read too: one whose grab the
  * service could not map back to its media still has the record.
  */
-const PENDING = new Set(['delay', 'downloadclientunavailable', 'fallback']);
-
-const isPending = (item: QueueItem): boolean => PENDING.has(item.status.toLowerCase());
+const isPending = (item: QueueItem): boolean => PENDING_STATUSES.has(item.status.toLowerCase());
 
 /** Whether `blocklist=true` would blocklist this row, rather than do nothing (or fail, from Sonarr 5.0.0.2569). */
 async function blocklists(adapter: ServiceAdapter & QueueRemoveCapable, item: QueueItem): Promise<boolean> {

@@ -245,6 +245,12 @@ describe('cross-checks — delete', () => {
         expect(advice.warnings).toEqual(['Alien (1979) is still downloading in radarr.']);
     });
 
+    // Radarr attaches this to a magnet still fetching its metadata (`QBittorrent`).
+    it('counts a row still on its way as downloading, with the message it carries', async () => {
+        const fetching = row({ status: 'queued', errorMessage: 'qBittorrent is downloading metadata' });
+        expect((await check(subject, 'delete', { queues: { radarr: [fetching] } })).warnings).toEqual(['Alien (1979) is still downloading in radarr.']);
+    });
+
     it('warns that a seeding row may not free the disk space if hardlinked', async () => {
         const advice = await check(subject, 'delete', {
             queues: { qbittorrent: [{ service: 'qbittorrent', id: 'abc', title: 'Alien 1979 1080p', status: 'seeding' }] }

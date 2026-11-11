@@ -14,6 +14,7 @@ import { registerDiagnose } from '../src/tools/diagnose/index.ts';
 import { registerGetMediaDetails } from '../src/tools/getMediaDetails.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
 import { registerSearchMedia } from '../src/tools/searchMedia.ts';
+import { registerPauseDownloads } from '../src/tools/pauseDownloads.ts';
 import { registerRemoveQueueItem } from '../src/tools/removeQueueItem.ts';
 import { registerRespondToRequest } from '../src/tools/manageRequests.ts';
 import { instanceArgs } from '../src/tools/resolveInstance.ts';
@@ -104,11 +105,14 @@ const withRows = (...items: QueueItem[]): EvidenceOverride => ({ queue: { items,
 const HASH = 'abcdef0123456789abcdef0123456789abcdef01';
 
 /** A torrent client's row: linked to the *arr's by hash, with no download id of its own. */
+// A finished torrent, as the qBittorrent adapter reads one: a size, and nothing left.
 const qbit = (status: string): QueueItem => ({
     service: 'qbittorrent',
     id: HASH,
     title: fence('Some.Film.2026.1080p'),
     status,
+    sizeBytes: 1000,
+    remainingBytes: 0,
     torrent: { hash: HASH, category: '', tags: [], trackerDomains: [], stopped: false, seeding: true }
 });
 
@@ -234,6 +238,12 @@ const CASES: Case[] = [
         name: 'queue, a finished torrent stopped at its seed limit, import pending',
         diagnosis: () => buildChain(QUERY, healthy(withRows(qbit('stopped'), row({ downloadId: HASH.toUpperCase() })))),
         expected: { tool: 'import_download', arguments: { service: 'radarr', action: 'import', download_id: HASH.toUpperCase() } }
+    },
+    {
+        name: 'queue, paused before it finished, on a download client row',
+        on: 'hd',
+        diagnosis: () => buildChain(QUERY, healthy(withRows(clientRow({ status: 'paused', remainingBytes: 10 })))),
+        expected: { tool: 'pause_downloads', arguments: { service: 'sabnzbd', action: 'resume', id: 'nzo_1' } }
     },
     {
         name: 'queue, import pending on a download client row',
@@ -675,7 +685,9 @@ const namedWorld = (): ServiceAdapter[] => [
     stub('sabnzbd', {
         getQueue: async () => [{ service: 'sabnzbd', id: 'nzo_1', title: 'Some.Film', status: 'failed' }],
         removeQueueItem: async () => undefined,
-        supportsBlocklist: false
+        supportsBlocklist: false,
+        readPauseState: async () => ({ paused: true, scope: 'nzo_1' }),
+        setPaused: async () => undefined
     }),
     jellyfinStub()
 ];
@@ -697,6 +709,7 @@ function realTools(adapters: ServiceAdapter[] = world(), identity: Partial<Ident
     registerSetMonitoring(server, write, adapters);
     registerUpdateMedia(server, write, adapters);
     registerRemoveQueueItem(server, write, adapters);
+    registerPauseDownloads(server, write, adapters);
     registerRespondToRequest(server, write, adapters, identity as IdentityResolver);
     registerSearchMedia(server, adapters);
     registerGetMediaDetails(server, adapters, new LibraryLoader(adapters, undefined));

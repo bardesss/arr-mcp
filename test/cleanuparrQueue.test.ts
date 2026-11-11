@@ -247,6 +247,17 @@ describe('strikes on queue rows', () => {
         expect(items[1]).not.toHaveProperty('markedForRemoval');
     });
 
+    // SABnzbd's nzo_id is the *arr's download id (`Sabnzbd`), so its row carries the grab's strikes too.
+    it('puts the strikes on a SABnzbd row by its download id, like the *arr row of the same grab', async () => {
+        const sab = { service: 'sabnzbd', id: 'SABnzbd_nzo_ab12', title: 'x', status: 'queued', downloadId: 'SABnzbd_nzo_ab12' } as QueueItem;
+        const arr = { service: 'radarr', id: '9', title: 'x', status: 'warning', downloadId: 'SABnzbd_nzo_ab12' } as QueueItem;
+        const items = [sab, arr];
+        const standing: DownloadStrikes[] = [{ downloadId: 'sabnzbd_nzo_ab12', markedForRemoval: false, strikes: [{ count: 1, reason: 'failed import', kind: 'FailedImport', lastAt: 't' }] }];
+        await annotateCleanuparr(items, [withStrikes(seeding(), standing), transmission], () => {});
+        expect(items[0]?.strikes).toEqual([{ count: 1, reason: 'failed import', lastAt: 't' }]);
+        expect(items[1]?.strikes).toEqual(items[0]?.strikes);
+    });
+
     it('keeps the removal mark when Cleanuparr lists no typed strike for it', async () => {
         const items = [row({})];
         await annotateCleanuparr(items, [withStrikes(seeding(), [{ downloadId: 'aaa', markedForRemoval: true, strikes: [] }]), transmission], () => {});

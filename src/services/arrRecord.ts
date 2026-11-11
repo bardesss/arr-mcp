@@ -6,6 +6,14 @@ import type { ArrKind } from '../core/resolver.ts';
  * Also Lidarr's "no date", which its wanted list, calendar and album years read.
  */
 
+/**
+ * The *arrs' queue statuses, lowercased, for a release they hold and have sent
+ * to no download client (`PendingReleaseReason`). The queue lists no `fallback`
+ * release (`GetPendingQueue` reads `WithoutFallback`); a row that did carry it
+ * would still be one held.
+ */
+export const PENDING_STATUSES: ReadonlySet<string> = new Set(['delay', 'downloadclientunavailable', 'fallback']);
+
 /** The field naming a row's media, one per kind of library. */
 export const MEDIA_ID_FIELD = {
     movie: 'movieId',

@@ -1,4 +1,4 @@
-import type { ServiceId } from '../../config/schema.ts';
+import { DOWNLOAD_CLIENTS, type ServiceId } from '../../config/schema.ts';
 import { ServiceError } from '../../core/errors.ts';
 import { gather, type Gathered } from '../../core/gather.ts';
 import { logger } from '../../core/logger.ts';
@@ -49,10 +49,6 @@ export type DiagnoseDeps = {
 
 const CLEANUPARR_WINDOW_MS = 30 * 86_400_000;
 const CLEANUPARR_EVENT_LIMIT = 500;
-/** The download clients whose own history outlives the queue. A torrent client
- *  keeps none once the torrent is removed, so only the usenet clients have one
- *  today; `hasHistory` decides, so a client that gains one is read too. */
-const CLIENT_SERVICES: readonly ServiceId[] = ['sabnzbd', 'nzbget', 'transmission', 'qbittorrent'];
 
 const rowsOf = (read: HistoryEntry[] | { items: HistoryEntry[] } | undefined): HistoryEntry[] =>
     read === undefined ? [] : Array.isArray(read) ? read : read.items;
@@ -72,7 +68,10 @@ async function historyByName(
     degraded: string[],
     probe: Probe
 ): Promise<HistoryEntry[] | undefined> {
-    const sources = adapters.filter(hasHistory).filter(a => hasCleanuparr(a) || CLIENT_SERVICES.includes(a.type));
+    // Cleanuparr, and each download client that keeps a history of its own: a
+    // torrent client keeps none once the torrent is removed, so only the usenet
+    // clients do; `hasHistory` decides, so a client that gains one is read too.
+    const sources = adapters.filter(hasHistory).filter(a => hasCleanuparr(a) || DOWNLOAD_CLIENTS.includes(a.type));
     if (sources.length === 0 && events === undefined) return undefined;
     const since = new Date(Date.now() - CLEANUPARR_WINDOW_MS).toISOString();
     const reads = await Promise.all([
