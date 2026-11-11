@@ -443,7 +443,7 @@ the run.
 | `remove_queue_item` | `qbittorrent` | Removing a torrent, with or without its files | No qBittorrent on the maintainer's stack |
 | `get_stack_health` | `whisparr` | The `commands` list and the `logs`, read through Sonarr's helpers | No Whisparr on the maintainer's stack; its API spec matches Sonarr's for these, so they are inherited, not captured |
 | `get_history` | `whisparr` | History rows, read through Sonarr's helper | No Whisparr on the maintainer's stack; inherited from Sonarr's spec, not captured |
-| `diagnose` | `whisparr` | The item's history behind the Cleanuparr and Reclaimerr checks | No Whisparr on the maintainer's stack; inherited from Sonarr's spec, not captured |
+| `diagnose_media` | `whisparr` | The item's history behind the Cleanuparr and Reclaimerr checks | No Whisparr on the maintainer's stack; inherited from Sonarr's spec, not captured |
 | `retry_download` | `whisparr` | The check for a replacement grab, which traces the download through Sonarr's helper | No Whisparr on the maintainer's stack; inherited from Sonarr's spec, not captured |
 | `delete_media` | `grimmory` | Deleting a book | The test response is a hand-made mock; no live book has been deleted |
 | `delete_media` | `seerr` | Blocklisting with `seerr_blocklist` | Written from Seerr's own route (`server/routes/blocklist.ts`), whose request body differs from its published spec. The blocklist call itself is confirmed live through `blocklist_media` on Seerr 3.5.1; the delete-then-blocklist path was not run, since it deletes a film |
