@@ -18,6 +18,7 @@ import type {
     SubtitleGap
 } from '../../services/types.ts';
 import { removalSentence, upcomingSentence } from '../cleanupStatus.ts';
+import { importStepFor } from '../importStep.ts';
 import { instanceArgs } from '../resolveInstance.ts';
 
 type Stage = 'resolve' | 'request' | 'managed' | 'file' | 'queue' | 'indexers' | 'library' | 'scan' | 'subtitles';
@@ -597,21 +598,6 @@ function strikeNoteFor(row: QueueItem, standing: Evidence['strikes']): string {
     return ` ${each.join(', ')} from Cleanuparr so far.${hit.markedForRemoval ? ' It has reached Cleanuparr\'s strike limit and is removed on its next run.' : ''}`;
 }
 
-/** Radarr, Sonarr and Lidarr import a download by id. Whisparr has no manual import, so a call to it would be refused and is never offered. */
-const IMPORTERS: readonly string[] = ['radarr', 'sonarr', 'lidarr'];
-
-/**
- * The *arr that should import this row: its own service when it is one, since a
- * title match can pick up another instance's grab. Only a download client's row
- * (no media id) falls back to the item's managing service: an *arr row that
- * cannot import is another service's grab, not this item's.
- */
-function importerFor(row: QueueItem, item: MergedItem): string | undefined {
-    return [row.service, row.mediaId === undefined ? item.acquisition?.service : undefined].find(
-        (s): s is string => s !== undefined && IMPORTERS.includes(instanceArgs(s).service)
-    );
-}
-
 /**
  * The import to offer for a grab whose download has finished. Built from a row
  * that carries a download id and not from the row that was picked: a torrent
@@ -620,13 +606,7 @@ function importerFor(row: QueueItem, item: MergedItem): string | undefined {
 function importStep(mine: readonly QueueItem[], item: MergedItem): NextStep | undefined {
     const pending = mine.filter(q => classifyQueueStatus(q) === 'importPending' && q.downloadId !== undefined);
     const source = pending.find(q => q.mediaId !== undefined) ?? pending[0];
-    const importer = source === undefined ? undefined : importerFor(source, item);
-    if (source?.downloadId === undefined || importer === undefined) return undefined;
-    return {
-        tool: 'import_download',
-        arguments: { ...instanceArgs(importer), action: 'import', download_id: source.downloadId },
-        why: `Asks ${importer} to import the finished download.`
-    };
+    return source === undefined ? undefined : importStepFor(source, item.acquisition?.service);
 }
 
 /** The rows that stand for this row's download, itself included. */

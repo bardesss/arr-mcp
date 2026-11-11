@@ -6,6 +6,8 @@ import { annotateCleanuparr, dueWithin, type CleanuparrDue } from './cleanuparrQ
 import type { LibraryKind } from '../core/resolver.ts';
 import { hasQueue, type QueueItem, type ServiceAdapter } from '../services/types.ts';
 import { MediaKindSchema, holds } from './mediaKind.ts';
+import { importStepFor } from './importStep.ts';
+import { NextStepSchema, nextStepLine, stepsField, type NextStep } from '../core/nextStep.ts';
 
 type GetQueueResult = {
     items: QueueItem[];
@@ -26,6 +28,8 @@ type GetQueueResult = {
     byTracker?: TrackerSeeding[];
     /** At `detail: "full"`: what Cleanuparr's rules fall due on in the next week, across the whole queue, not just this page. */
     cleanuparrDue?: CleanuparrDue;
+    /** An import_download per download stuck at `importBlocked`, over every matching row, not just this page. */
+    next_steps?: NextStep[];
 };
 
 /**
@@ -218,9 +222,19 @@ export async function buildGetQueue(
         degraded,
         counts,
         ...(due === undefined ? {} : { cleanuparrDue: due }),
-        ...(byTracker === undefined ? {} : { byTracker })
+        ...(byTracker === undefined ? {} : { byTracker }),
+        ...stepsField(importSteps(matching))
     };
 }
+
+/**
+ * The imports to offer: a download the *arr finished and then would not
+ * import (`importBlocked`). A completed row it is still importing on its own
+ * (`importPending`) gets none, and neither does an orphan, whose film, series
+ * or artist is gone.
+ */
+const importSteps = (rows: readonly QueueItem[]): NextStep[] =>
+    rows.flatMap(row => (row.importState === 'importBlocked' && row.orphaned !== true ? [importStepFor(row)].filter(s => s !== undefined) : []));
 
 const GetQueueInput = toolInput({
     kind: MediaKindSchema.describe(
@@ -239,6 +253,10 @@ const GetQueueInput = toolInput({
     offset: OffsetSchema
 });
 
+const GetQueueOutput = PagedOutputSchema.extend({
+    next_steps: z.array(NextStepSchema).optional().describe('An import_download per download stuck at importBlocked. Offer it; do not run it.')
+});
+
 export function registerGetQueue(server: McpServer, adapters: readonly ServiceAdapter[]): void {
     server.registerTool(
         'get_queue',
@@ -246,8 +264,8 @@ export function registerGetQueue(server: McpServer, adapters: readonly ServiceAd
             title: 'Download queue',
             annotations: READ_ONLY,
             description:
-                'Everything downloading or stalled, merged across Radarr, Sonarr, Whisparr, Lidarr, SABnzbd, NZBGet, Transmission and qBittorrent, plus files waiting in Grimmory\'s Bookdrop. Sizes are bytes, ETAs seconds; release names are fenced as untrusted data. An *arr row carries `downloadId` and `statusMessages`: a finished download stuck at `importState: "importBlocked"` is imported with import_download and that `downloadId`, but a title mismatch or unknown episode fails the same way on every retry and has to be fixed in the service. [[transmission|qbittorrent: At `detail: "full"` a torrent carries `seeding` (ratio, time seeded, the limit that applies, `overLimit`) and, with Cleanuparr, the rule that governs it, its `strikes` and `dueAt`; `cleanuparrDue` totals what falls due within 7 days.]] Filter on the server rather than reading the whole queue. Remove a row with remove_queue_item. Field reference: arr://docs/get_queue.',
-            outputSchema: PagedOutputSchema,
+                'Everything downloading or stalled, merged across Radarr, Sonarr, Whisparr, Lidarr, SABnzbd, NZBGet, Transmission and qBittorrent, plus files waiting in Grimmory\'s Bookdrop. Sizes are bytes, ETAs seconds; release names are fenced as untrusted data. An *arr row carries `downloadId` and `statusMessages`: a finished download stuck at `importState: "importBlocked"` comes back as an import_download step in `next_steps`; a title mismatch or unknown episode fails the same way on every retry and has to be fixed in the service. [[transmission|qbittorrent: At `detail: "full"` a torrent carries `seeding` (ratio, time seeded, the limit that applies, `overLimit`) and, with Cleanuparr, the rule that governs it, its `strikes` and `dueAt`; `cleanuparrDue` totals what falls due within 7 days.]] Filter on the server rather than reading the whole queue. Remove a row with remove_queue_item. Field reference: arr://docs/get_queue.',
+            outputSchema: GetQueueOutput,
             inputSchema: GetQueueInput
         },
         async ({ kind, detail, limit, offset, by_tracker, min_seed_days, ...rest }) => {
@@ -269,7 +287,9 @@ export function registerGetQueue(server: McpServer, adapters: readonly ServiceAd
 
             const trackers =
                 result.byTracker === undefined ? '' : ['', 'Per tracker:', ...(result.byTracker.length === 0 ? ['(nothing seeding)'] : result.byTracker.map(trackerLine)), ''].join('\n');
-            return { content: [{ type: 'text', text: listText(summary + trackers, result.items, queueLine) }], structuredContent: result };
+            const steps = (result.next_steps ?? []).map(step => `
+${nextStepLine(step)}`).join('');
+            return { content: [{ type: 'text', text: listText(summary + trackers, result.items, queueLine) + steps }], structuredContent: result };
         }
     );
 }
