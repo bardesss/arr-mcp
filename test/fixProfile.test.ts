@@ -341,6 +341,17 @@ describe('fix_profile', () => {
             expect(served.puts).toHaveLength(0);
         });
 
+        it('lets the matched entry decide when an unmatched one of the same type sits beside it', async () => {
+            const stray = { id: 1, name: 'somewhere-else', count: 0 };
+            const goes = harness(serving(withFloor(POSITIVE_TOTAL + 1)), { extra: [profilarrDouble({ arrs: [stray, { id: 2, name: 'radarr', count: 0 }] })] });
+            expect((await goes.call(ARGS)).structuredContent.confirm_token).toBeDefined();
+
+            const served = serving(withFloor(POSITIVE_TOTAL + 1));
+            const refused = harness(served, { extra: [profilarrDouble({ arrs: [stray, { id: 2, name: 'radarr', count: 1 }] })] });
+            await expect(refused.call(ARGS)).rejects.toThrow(/Profilarr syncs all 1 quality profiles/);
+            expect(served.puts).toHaveLength(0);
+        });
+
         it('refuses when Profilarr cannot be asked, rather than guessing', async () => {
             const served = serving(withFloor(POSITIVE_TOTAL + 1));
             const { call } = harness(served, { extra: [profilarrDouble({ fails: true })] });
