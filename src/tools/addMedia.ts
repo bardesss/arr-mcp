@@ -7,6 +7,7 @@ import { MUSICBRAINZ_ID } from '../services/lidarr.ts';
 import {
     hasMediaAdd,
     hasQueue,
+    hasRetry,
     hasMetadataProfiles,
     hasReleaseGrab,
     hasReleaseSearch,
@@ -395,10 +396,21 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
                         queueChecked = true;
                         if (queued !== undefined) {
                             // An `error` row is a failed download still in the queue: queueing the
-                            // same release again would not help, but retry_download takes this id.
-                            const summary = queued.status === 'error'
-                                ? `${top.title} already failed in ${service}'s queue. To try it again, use retry_download with id "${queued.id}".`
-                                : `${top.title} is already queued in ${service}.`;
+                            // same release again would not help. retry_download takes this id only
+                            // when Shelfmark says it can be retried, which its own check reads.
+                            const retryable =
+                                queued.status === 'error' &&
+                                hasRetry(adapter) &&
+                                (await adapter.findRetryTarget(queued.id, { hasPassword: false }).then(
+                                    () => true,
+                                    () => false
+                                ));
+                            const summary =
+                                queued.status !== 'error'
+                                    ? `${top.title} is already queued in ${service}.`
+                                    : retryable
+                                      ? `${top.title} already failed in ${service}'s queue. To try it again, use retry_download with id "${queued.id}".`
+                                      : `${top.title} already failed in ${service}'s queue and cannot be retried. Pick another file with get_releases and grab_release.`;
                             return {
                                 target,
                                 summary,

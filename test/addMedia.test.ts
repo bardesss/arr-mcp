@@ -1008,13 +1008,26 @@ describe('add_media on Shelfmark', () => {
 
     describe('when the release is already queued', () => {
         /** The recorded queue task, keyed by the top release's source_id the way Shelfmark keys its tasks. */
-        async function queuedTop(bucket: 'queued' | 'error' = 'queued') {
+        async function queuedTop(bucket: 'queued' | 'error' = 'queued', retryAvailable?: boolean) {
             const probe = bookHarness();
             const top = (await probe.shelfmark.findReleases({ id: BOOK_ID }))[0];
             const raw = (recorded('releases') as { releases: { source_id: string }[] }).releases.find(r => hashOf(r.source_id) === top?.guid?.split(':')[1]);
             const status = recorded('status') as Record<string, Record<string, Record<string, unknown>>>;
             const [task] = Object.values(status).flatMap(tasks => Object.values(tasks));
-            return { ...status, [bucket]: { [raw?.source_id as string]: { ...task, status: bucket } } };
+            const row = { ...task, status: bucket, ...(retryAvailable === undefined ? {} : { retry_available: retryAvailable }) };
+            return { ...status, [bucket]: { [raw?.source_id as string]: row } };
+        }
+
+        /** The queue and the activity snapshot both holding the failed copy, as Shelfmark reports one. */
+        async function failedTop(retryAvailable: boolean) {
+            const queue = await queuedTop('error', retryAvailable);
+            return bookHarness({
+                answers: {
+                    '/api/status': () => json(queue),
+                    '/api/activity/snapshot': () => json({ status: { error: queue.error } }),
+                    '/api/activity/history': () => json([])
+                }
+            });
         }
 
         it('is a no-op with nothing to confirm, and sends nothing', async () => {
@@ -1027,13 +1040,22 @@ describe('add_media on Shelfmark', () => {
         });
 
         it('says a failed copy in the queue failed and points to retry_download with its id', async () => {
-            const queue = await queuedTop('error');
-            const h = bookHarness({ answers: { '/api/status': () => json(queue) } });
+            const h = await failedTop(true);
             const { structuredContent } = await h.call({ service: 'shelfmark', external_id: BOOK_ID });
             const top = (await h.shelfmark.findReleases({ id: BOOK_ID }))[0];
             expect(structuredContent.summary).toContain('already failed');
             expect(structuredContent.summary).toContain(`retry_download with id "${top?.guid?.split(':')[1]}"`);
             expect(structuredContent.summary).not.toContain('already queued');
+            expect(structuredContent.noop).toBe(true);
+            expect(h.downloads()).toEqual([]);
+        });
+
+        it('points to grab_release instead when Shelfmark says the failed copy cannot be retried', async () => {
+            const h = await failedTop(false);
+            const { structuredContent } = await h.call({ service: 'shelfmark', external_id: BOOK_ID });
+            expect(structuredContent.summary).toContain('cannot be retried');
+            expect(structuredContent.summary).toContain('grab_release');
+            expect(structuredContent.summary).not.toContain('retry_download');
             expect(structuredContent.noop).toBe(true);
             expect(h.downloads()).toEqual([]);
         });
