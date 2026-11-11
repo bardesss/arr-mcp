@@ -4,12 +4,12 @@ import { describe, expect, it } from 'vitest';
 import type { KeyedServiceConfig } from '../src/config/schema.ts';
 import { unfenced } from '../src/core/titleMatch.ts';
 import { LidarrAdapter } from '../src/services/lidarr.ts';
-import { hasDiskSpace, hasHealthChecks, hasScanState } from '../src/services/types.ts';
+import { hasDiskSpace, hasHealthChecks, hasLogs, hasScanState } from '../src/services/types.ts';
 
 /**
- * What `stack_health` reads from Lidarr: disks, failing health checks and the
- * last library scan, through the shared `arr*` system reads. The fixtures are
- * the 3.1.6 captures already committed.
+ * What `stack_health` reads from Lidarr: disks, failing health checks, the last
+ * library scan and the recent warnings and errors, through the shared `arr*`
+ * system reads. The fixtures are the 3.1.6 captures already committed.
  */
 
 const config: KeyedServiceConfig = {
@@ -24,13 +24,16 @@ const fixture = (name: string): unknown =>
 
 function lidarr(routes: Record<string, unknown>) {
     const seen: string[] = [];
+    const urls: URL[] = [];
     const impl = (async (input: string | URL | Request) => {
-        const path = new URL(input instanceof Request ? input.url : String(input)).pathname;
+        const url = new URL(input instanceof Request ? input.url : String(input));
+        const path = url.pathname;
         seen.push(path);
+        urls.push(url);
         if (!(path in routes)) return new Response(JSON.stringify({ message: 'not found' }), { status: 404 });
         return new Response(JSON.stringify(routes[path]), { headers: { 'content-type': 'application/json' } });
     }) as unknown as typeof fetch;
-    return { adapter: new LidarrAdapter(config, impl), seen };
+    return { adapter: new LidarrAdapter(config, impl), seen, urls };
 }
 
 const CAPTURED = {
@@ -40,11 +43,12 @@ const CAPTURED = {
 };
 
 describe('Lidarr in stack_health', () => {
-    it('claims disks, health checks and scan state', () => {
+    it('claims disks, health checks, scan state and logs', () => {
         const { adapter } = lidarr({});
         expect(hasDiskSpace(adapter)).toBe(true);
         expect(hasHealthChecks(adapter)).toBe(true);
         expect(hasScanState(adapter)).toBe(true);
+        expect(hasLogs(adapter)).toBe(true);
     });
 
     it('reads scan state, health and disks from /api/v1', async () => {
@@ -64,6 +68,29 @@ describe('Lidarr in stack_health', () => {
         expect(read[0]).toMatchObject({ service: 'lidarr', path: disks[0]?.path, freeSpace: disks[0]?.freeSpace, totalSpace: disks[0]?.totalSpace });
 
         expect(seen).toEqual(['/api/v1/system/task', '/api/v1/health', '/api/v1/diskspace']);
+    });
+
+    it('reads its recent warnings and errors from /api/v1/log, folded', async () => {
+        const { adapter, seen, urls } = lidarr({ '/api/v1/log': fixture('log') });
+        const page = fixture('log') as { totalRecords: number; records: unknown[] };
+
+        const { entries, read, total } = await adapter.getRecentLogs();
+
+        expect(seen).toEqual(['/api/v1/log']);
+        const q = urls[0]?.searchParams;
+        expect([q?.get('level'), q?.get('sortKey'), q?.get('sortDirection')]).toEqual(['warn', 'time', 'descending']);
+        expect({ read, total }).toEqual({ read: page.records.length, total: page.totalRecords });
+        expect(entries.reduce((n, e) => n + e.count, 0)).toBe(page.records.length);
+        expect(entries.length).toBeLessThan(page.records.length);
+        expect(entries.every(e => e.service === 'lidarr' && e.firstSeen <= e.lastSeen)).toBe(true);
+        expect(entries[0]?.message).toMatch(/^<<untrusted:lidarr\./);
+    });
+
+    // From 2.8.1.4482, `LogController` answers this page when `LogDbEnabled` is off.
+    it('says when its log database is off, rather than reporting a log with no warnings', async () => {
+        const { adapter } = lidarr({ '/api/v1/log': { page: 0, pageSize: 0, sortDirection: 'default', totalRecords: 0, records: [] } });
+
+        expect(await adapter.getRecentLogs()).toEqual({ entries: [], read: 0, total: 0, logDbEnabled: false });
     });
 
     /**

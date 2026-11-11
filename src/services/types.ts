@@ -110,6 +110,8 @@ export type RecentLogs = {
     entries: LogEntry[];
     read: number;
     total: number;
+    /** `false` when an *arr's log database is turned off, so its API serves no log lines. Absent otherwise. */
+    logDbEnabled?: false;
 };
 
 export interface LogCapable {

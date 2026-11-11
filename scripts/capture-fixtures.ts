@@ -736,6 +736,7 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         { name: 'diskspace', path: LIDARR_STATIC_PATHS['diskspace'] },
         { name: 'health', path: LIDARR_STATIC_PATHS['health'] },
         { name: 'system-task', path: LIDARR_STATIC_PATHS['system-task'] },
+        { name: 'log', path: LIDARR_STATIC_PATHS['log'], anonymise: anonymiseArrLog },
         { name: 'command', path: LIDARR_STATIC_PATHS['command'] },
         {
             // `includeUnknownArtistItems` is off upstream by default, which
@@ -830,9 +831,9 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         { name: 'history', path: '/api/v1/history?pageSize=20' },
         { name: 'command', path: '/api/v1/command' },
         {
-            // Every level, unlike the Radarr and Sonarr entries: the adapter asks
-            // for warnings and worse, but a healthy Prowlarr has none, and an
-            // empty list records no shape.
+            // Every level, unlike the Radarr, Sonarr and Lidarr entries: the
+            // adapter asks for warnings and worse, but a healthy Prowlarr has
+            // none, and an empty list records no shape.
             name: 'log',
             path: '/api/v1/log?page=1&pageSize=20&sortKey=time&sortDirection=descending',
             anonymise: anonymiseArrLog

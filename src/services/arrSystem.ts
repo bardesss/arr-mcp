@@ -58,15 +58,24 @@ export async function arrFailedHealthChecks(http: ServiceHttp, id: string): Prom
 }
 
 type RawLogPage = {
+    pageSize?: number | null;
     totalRecords?: number | null;
     records?: { time?: string; level?: string | null; logger?: string | null; message?: string | null; exceptionType?: string | null }[] | null;
 };
 
-/** Warnings and errors, newest first, lines differing only in a date-time folded into one with a count. */
+/**
+ * Warnings and errors, newest first, lines differing only in a date-time folded
+ * into one with a count. With its log database turned off (`LogDbEnabled`), an
+ * *arr's `LogController` answers `new PagingResource<LogResource>()`, with no
+ * records and a `pageSize` of 0, while a read with the database on echoes the
+ * `pageSize` asked for. That page is reported as `logDbEnabled: false`, not as
+ * a log with no warnings.
+ */
 export async function arrRecentLogs(http: ServiceHttp, id: string): Promise<RecentLogs> {
     const page = await http.get<RawLogPage>(
         `${http.apiRoot}/log?page=1&pageSize=${LOG_LINES}&sortKey=time&sortDirection=descending&level=warn`
     );
+    if (page.pageSize === 0) return { entries: [], read: 0, total: 0, logDbEnabled: false };
     const records = page.records ?? [];
     const lines = records.flatMap(r =>
         typeof r.time === 'string'

@@ -15,7 +15,7 @@ import { listArrImportCandidates, runArrManualImport } from './arrManualImport.t
 import { deleteArrMedia, lidarrCalendarPath, readArrQueue, readLidarrCalendar, removeArrQueueItem } from './arrQueue.ts';
 import { lidarrDate } from './arrRecord.ts';
 import { findLidarrReleases, grabLidarrRelease } from './arrRelease.ts';
-import { arrStartLibraryScan } from './arrSystem.ts';
+import { arrRecentLogs, arrStartLibraryScan } from './arrSystem.ts';
 import { readArrWanted } from './arrWanted.ts';
 import {
     type AddCandidate,
@@ -41,6 +41,7 @@ import {
     type LibraryCapable,
     type LibraryMaintenanceCapable,
     type LibraryScanCapable,
+    type LogCapable,
     type ManualImportCapable,
     type MediaAddCapable,
     type MediaDeleteCapable,
@@ -58,6 +59,7 @@ import {
     type QueueCapable,
     type QueueItem,
     type QueueRemoveCapable,
+    type RecentLogs,
     type ReleaseCandidate,
     type ReleaseGrabCapable,
     type ReleaseScope,
@@ -229,10 +231,12 @@ const LIBRARY_SCAN_TASK = 'RescanFolders';
  * `resource: 'artist'` where they take one; an import `mapping` is refused,
  * because it names movies and episodes.
  *
- * `DiskSpaceCapable`, `HealthCheckCapable` and `ScanStateCapable` are
- * `stack_health`'s: the disks, the failing health checks and the last library
- * scan, through the shared `arrDiskSpace`, `arrFailedHealthChecks` and
- * `arrScanState`.
+ * `DiskSpaceCapable`, `HealthCheckCapable`, `LogCapable` and `ScanStateCapable`
+ * are `stack_health`'s: the disks, the failing health checks, the recent
+ * warnings and errors and the last library scan, through the shared
+ * `arrDiskSpace`, `arrFailedHealthChecks`, `arrRecentLogs` and `arrScanState`.
+ * Lidarr's `/api/v1/log` takes the same `level=warn` filter and `time` sort as
+ * Radarr's (`LogController`, 2.1.3 and 3.1.0).
  *
  * `WantedCapable` and `CalendarCapable` are `get_wanted`'s and
  * `get_calendar`'s: albums, through the shared `readArrWanted` with
@@ -287,6 +291,7 @@ export class LidarrAdapter
         CommandStatusCapable,
         DiskSpaceCapable,
         HealthCheckCapable,
+        LogCapable,
         ScanStateCapable,
         WantedCapable,
         CalendarCapable,
@@ -303,6 +308,10 @@ export class LidarrAdapter
 
     constructor(config: ConfigByService['lidarr'], fetchImpl: typeof fetch = fetch) {
         super('lidarr', config, fetchImpl, { apiRoot: '/api/v1' });
+    }
+
+    async getRecentLogs(): Promise<RecentLogs> {
+        return arrRecentLogs(this.http, this.id);
     }
 
     /** Every album, used by `getMediaDetails` for one artist's discography. */
