@@ -4,7 +4,7 @@ import type { NextStep } from '../../core/nextStep.ts';
 import { unfenced } from '../../core/titleMatch.ts';
 import { ARR_KIND, type MergedItem } from '../../core/resolver.ts';
 import { fenceText } from '../../core/fence.ts';
-import { PENDING_STATUSES } from '../../services/arrRecord.ts';
+import { isLidarrRow, PENDING_STATUSES, usenetRerun } from '../../services/arrRecord.ts';
 import type {
     AlbumSummary,
     CleanupRemoval,
@@ -518,6 +518,9 @@ function pausedRemedy(client: QueueItem | undefined): string {
 }
 const queueFinishedRemedy = (item: MergedItem): string =>
     `The download is complete, but the client reports a problem, and ${arrOf(item)} imports nothing while it stands. Fix it in the client (free disk space and retry the download, for one); ${arrOf(item)} imports it once the client no longer reports the problem.`;
+/** A usenet download the *arr marks with a warning after the client filed it in its history (`usenetRerun`); the step's detail shows the message. */
+const queueUsenetFinishedRemedy = (row: QueueItem): string =>
+    `The client reports a problem, and ${row.service} imports nothing while it stands. ${usenetRerun(row, 'The message')}`;
 /** Only the *arr's row speaks for the torrent, and only its message tells missing files from a finished download with a problem. */
 const queueUnconfirmedRemedy = (item: MergedItem): string =>
     `If the message says the files are missing, remove the download with remove_queue_item and let ${arrOf(item)} search again; otherwise fix what it reports, and it is imported once the warning clears.`;
@@ -545,8 +548,6 @@ const queueServicesFor = (item: MergedItem): readonly ServiceId[] => (item.kind 
  */
 /** What ties a client's row to the *arr's row for the same grab. */
 const downloadKey = (row: QueueItem): string | undefined => (row.downloadId ?? row.torrent?.hash)?.toLowerCase();
-
-const isLidarrRow = (row: QueueItem): boolean => row.service === 'lidarr' || row.service.startsWith('lidarr/');
 
 export function queueRowsFor(rows: readonly QueueItem[], item: MergedItem): QueueItem[] {
     const acquisition = item.acquisition;
@@ -635,7 +636,7 @@ function sameGrab(row: QueueItem, mine: readonly QueueItem[]): QueueItem[] {
     return key === undefined ? [row] : mine.filter(q => q === row || downloadKey(q) === key);
 }
 
-type Kept = 'importPending' | 'complete' | 'unconfirmed';
+type Kept = 'importPending' | 'complete' | 'usenet' | 'unconfirmed';
 
 /**
  * Why removing this row would throw away finished files, if it would: its
@@ -647,19 +648,21 @@ type Kept = 'importPending' | 'complete' | 'unconfirmed';
  * no such copy.
  *
  * With no client row in the grab, only the *arr's row says nothing is left. On
- * usenet every byte arrived: SABnzbd's failed unpack and NZBGet's unpack out of
- * space or failed move are warnings from their history (`Sabnzbd`, `Nzbget`). A
- * torrent is `unconfirmed`: the *arrs read qBittorrent's missing files as a
- * warning with nothing left, like a finished torrent its client reports an
- * error on (`QBittorrent`, `TransmissionBase`), and only the message tells the
- * two apart, which Radarr and Sonarr word in their UI language. The removal
- * stays back, since it may be the only copy.
+ * usenet that is a warning from the client's history (`usenet`, read by
+ * `usenetRerun`), and the removal stays back, since only the *arr's message
+ * tells a download that holds every byte from one the client deleted. A torrent
+ * is `unconfirmed`: the *arrs read qBittorrent's missing files as a warning
+ * with nothing left, like a finished torrent its client reports an error on
+ * (`QBittorrent`, `TransmissionBase`), and only the message tells the two
+ * apart, which Radarr and Sonarr word in their UI language. The removal stays
+ * back, since it may be the only copy.
  */
 function finishedFiles(row: QueueItem, grab: readonly QueueItem[], cls: QueueClass): Kept | undefined {
     if (grab.some(q => q !== row && classifyQueueStatus(q) === 'importPending')) return 'importPending';
     if (cls === 'failed' || grab.some(q => q.status.toLowerCase() === 'missing files')) return undefined;
     if (!grab.some(complete)) return undefined;
-    return grab.some(isClientRow) || row.protocol === 'usenet' ? 'complete' : 'unconfirmed';
+    if (grab.some(isClientRow)) return 'complete';
+    return row.protocol === 'usenet' ? 'usenet' : 'unconfirmed';
 }
 
 /**
@@ -676,6 +679,7 @@ function troubleRemedy(cls: Trouble, kept: Kept | undefined, row: QueueItem, gra
         const said = grab.find(isClientRow) ?? row;
         return isClientRow(row) && grab.some(q => !isClientRow(q)) ? queueClientWarningRemedy(item, said) : queueWarningRemedy(item, said);
     }
+    if (kept === 'usenet') return queueUsenetFinishedRemedy(row);
     return kept === 'complete' ? queueFinishedRemedy(item) : queueUnconfirmedRemedy(item);
 }
 
