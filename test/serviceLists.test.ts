@@ -31,7 +31,8 @@ const read = (p: string): string => readFileSync(new URL(`../${p}`, import.meta.
 const pkg = JSON.parse(read('package.json')) as { description: string; overrides: Record<string, string> };
 const unraidOverview = /<Overview>([\s\S]*?)<\/Overview>/.exec(read('unraid/arr-mcp.xml'))?.[1] ?? '';
 const proxmox = JSON.parse(read('proxmox/json/arr-mcp.json')) as { description: string };
-const readmeLine9 = read('README.md').split('\n')[8] ?? '';
+// Found by its shape, not by index, so a reordered README header still finds it.
+const readmeServices = read('README.md').split('\n').find(line => line.startsWith('**Radarr · ')) ?? '';
 
 interface Body {
   type: string;
@@ -53,7 +54,7 @@ describe('service lists', () => {
     ['package.json description', pkg.description],
     ['unraid Overview', unraidOverview],
     ['proxmox json description', proxmox.description],
-    ['README line 9', readmeLine9],
+    ['README service line', readmeServices],
   ])('%s names every service', (_where, text) => {
     for (const name of NAMES) expect(text).toMatch(new RegExp(`\\b${name}\\b`));
   });
