@@ -129,8 +129,18 @@ describe('get_library on one media server', () => {
         for (const [k, f] of Object.entries(tool.inputSchema.shape)) {
             expect((f.description ?? '').split(/(?<=[.;])\s+(?=[A-Z`])/).length, k).toBe(1);
         }
-        expect(TOOL_DOCS.get_library).toContain('rescaled to 0-10');
-        expect(TOOL_DOCS.get_library).toContain('before `limit`');
+        // Every rule moved out of a field description is still in the docs resource.
+        for (const moved of [
+            'rescaled to 0-10',
+            'before `limit`',
+            'excluded from both answers',
+            '`tvdb` is series-only',
+            'for an artist it also means the music read did not run',
+            'reporting them in `ratingCoverage`',
+            'matched on tmdb, tvdb or imdb ids only'
+        ]) {
+            expect(TOOL_DOCS.get_library).toContain(moved);
+        }
     });
 
     it('does not offer missing_from', () => {
