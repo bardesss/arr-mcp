@@ -2553,7 +2553,7 @@ Applies the one fix `get_profile_issues` can prove: a profile's minimum custom
 format score that nothing can reach (`unreachable_floor`) or that sits exactly
 on the total of its positive formats (`knife_edge_floor`). Takes `service`,
 `instance`, `profile` (the name `get_profile_issues` printed; an id also works)
-and `finding` (that finding's `kind`). Radarr, Sonarr and Whisparr.
+and `finding` (`unreachable_floor` or `knife_edge_floor`). Radarr, Sonarr and Whisparr.
 
 The new minimum is the total of the profile's positive custom formats less the
 cheapest one, so a release that lacks only the cheapest format still passes,
@@ -2563,16 +2563,20 @@ read again and written back whole with only `minFormatScore` changed.
 
 It refuses:
 
-- a `likely` finding or `profilarr_drift`, which a person decides or Profilarr
-  reconciles;
+- a profile with fewer than two positively scored formats: its lowered floor
+  would be 0, dropping the only requirement it has, and which one to stop
+  requiring is your call;
 - a finding the profile no longer has. The check runs again at the preview, so
   a profile fixed since `get_profile_issues` last ran is not written to;
 - an unknown profile, and the refusal lists the instance's profiles;
-- every profile on an instance Profilarr syncs quality profiles to. Profilarr's
-  API reports how many profiles it syncs, not which, so a profile it may own is
-  not touched: its next sync would overwrite the change. Make it in Profilarr,
-  or, for a profile Profilarr does not manage, in the arr. With Profilarr
-  configured but unreachable the write is refused rather than guessed.
+- every profile on an instance where Profilarr syncs as many quality profiles
+  as the instance holds (its per-arr count from `/status`); the next sync
+  would overwrite the change, so make it in Profilarr. A smaller count is not
+  refused: Profilarr does not say which profiles, so the preview opens with a
+  warning that its next sync may put the old value back. A count of 0 is not
+  mentioned. With Profilarr configured but unreachable, or with an enabled
+  Profilarr entry that matches no configured instance, the write is refused
+  rather than guessed.
 
 The confirm token is bound to the minimum and every format score as previewed:
 a profile edited since gives a fresh preview, and one that changes between the

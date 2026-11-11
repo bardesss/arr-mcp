@@ -99,11 +99,12 @@ grabs from then on, and the old minimum comes back only by editing it by hand;
 the preview shows it. It changes one number: the minimum custom format score of
 a profile `get_profile_issues` has proven unreachable or exactly on the edge,
 and it sends the profile back as the service sent it, with that score the only
-difference. It refuses a finding that no longer holds, a `likely` one and
-Profilarr drift, and every profile on an instance Profilarr syncs quality
-profiles to, since Profilarr reports how many profiles it syncs and not which
-and its next sync would overwrite the change
-([`fix_profile`](tools.md#fix_profile)).
+difference. It takes only the two floor findings, and refuses one that no
+longer holds. Profilarr reports how many quality profiles it syncs to each arr
+and not which: it refuses when that is every profile the instance holds, and
+warns in the preview when it is some, since its next sync may put the old
+value back (
+[`fix_profile`](tools.md#fix_profile)).
 
 `delete_media` on a Grimmory book always deletes the files. Grimmory has no
 keep-files option, so the call needs `delete_files: true` and is refused

@@ -35,10 +35,14 @@ const discard = async (response: Response): Promise<void> => {
  * about which rule the write broke. The messages are the service's own text,
  * so they arrive fenced like any other, and a body of any other shape leaves
  * the plain status error as it was.
+ *
+ * Only `errorMessage` is read. `attemptedValue` echoes what was submitted and
+ * can be a key or password, so it never reaches the error. The message lands
+ * in the audit log with the rest of the error text.
  */
 async function withValidationMessages(error: ServiceError, response: Response): Promise<ServiceError> {
     try {
-        const body: unknown = JSON.parse((await response.text()).slice(0, 4000));
+        const body: unknown = JSON.parse(await response.text());
         if (!Array.isArray(body)) return error;
         const messages = body
             .map(row => (row as { errorMessage?: unknown } | null)?.errorMessage)
@@ -47,7 +51,7 @@ async function withValidationMessages(error: ServiceError, response: Response): 
         return new ServiceError(
             error.kind,
             error.service,
-            `${error.detail}: ${fenceText(messages.join('; '), { service: error.service, field: 'errorMessage' })}`,
+            `${error.detail}: ${fenceText(messages.join('; ').slice(0, 2000), { service: error.service, field: 'errorMessage' })}`,
             { ...(error.remedy === undefined ? {} : { remedy: error.remedy }), ...(error.status === undefined ? {} : { status: error.status }) }
         );
     } catch {

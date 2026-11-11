@@ -1,14 +1,12 @@
 export type Confidence = 'certain' | 'likely';
 
-export const FINDING_KINDS = [
-    'unreachable_floor',
-    'knife_edge_floor',
-    'subset_format_scored',
-    'language_preferred_not_required',
-    'dialect_sibling_missing',
-    'profilarr_drift'
-] as const;
-export type FindingKind = (typeof FINDING_KINDS)[number];
+export type FindingKind =
+    | 'unreachable_floor'
+    | 'knife_edge_floor'
+    | 'subset_format_scored'
+    | 'language_preferred_not_required'
+    | 'dialect_sibling_missing'
+    | 'profilarr_drift';
 
 /** The one edit `fix_profile` can make for a finding, as data rather than the prose in `remedy`. */
 type ProfileChange = { minFormatScore: number };
@@ -38,22 +36,35 @@ export function positiveTotal(profile: ProfileInput): number {
  * The floor `fix_profile` sets: the total less the cheapest positive format.
  * A release lacking only that format still passes, so the floor is reachable
  * with room to spare, and it is under the floor it replaces, which is at or
- * over the total. A profile with no positive format ends at 0.
+ * over the total.
+ *
+ * Undefined with fewer than two positive formats: the result would be 0, which
+ * drops the only requirement the profile has, and which format to stop
+ * requiring is a person's call.
  */
-function headroomFloor(profile: ProfileInput): number {
+function headroomFloor(profile: ProfileInput): number | undefined {
     const positives = profile.formatItems.filter(f => f.score > 0).map(f => f.score);
-    return positives.length === 0 ? 0 : positiveTotal(profile) - Math.min(...positives);
+    return positives.length < 2 ? undefined : positiveTotal(profile) - Math.min(...positives);
 }
 
 export function floorFindings(profile: ProfileInput): Finding[] {
     const total = positiveTotal(profile);
+    // One value feeds both the remedy's number and `change`, so they cannot drift.
+    const n = headroomFloor(profile);
+    const change = n === undefined ? {} : { change: { minFormatScore: n } };
     if (profile.minFormatScore > total) {
         return [{
             kind: 'unreachable_floor',
             confidence: 'certain',
             detail: `\`${profile.name}\` requires a score of ${profile.minFormatScore}, but every custom format it scores adds up to at most ${total}. Nothing can satisfy it.`,
-            remedy: `lower this profile's minimum custom format score below ${total}, or score the formats that would supply the difference.`,
-            change: { minFormatScore: headroomFloor(profile) }
+            remedy:
+                (n !== undefined
+                    ? `lower this profile's minimum custom format score to ${n}, the total less its cheapest format (anything below ${total} is reachable)`
+                    : total > 0
+                      ? `lower this profile's minimum custom format score below ${total}`
+                      : `lower this profile's minimum custom format score to 0 or less`) +
+                ', or score the formats that would supply the difference.',
+            ...change
         }];
     }
     if (total > 0 && profile.minFormatScore === total) {
@@ -61,8 +72,11 @@ export function floorFindings(profile: ProfileInput): Finding[] {
             kind: 'knife_edge_floor',
             confidence: 'certain',
             detail: `\`${profile.name}\` requires ${profile.minFormatScore}, which is exactly the total of every positive custom format. Each one must match, and a single negative match rejects the release.`,
-            remedy: `lower this profile's minimum custom format score so it has headroom above the formats you actually require.`,
-            change: { minFormatScore: headroomFloor(profile) }
+            remedy:
+                n !== undefined
+                    ? `lower this profile's minimum custom format score to ${n}, so a release missing its cheapest format still passes.`
+                    : `lower this profile's minimum custom format score so it has headroom above the formats you actually require.`,
+            ...change
         }];
     }
     return [];

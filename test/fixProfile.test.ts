@@ -50,7 +50,7 @@ const keyed = (port: number, destructive = true): KeyedServiceConfig => ({
 type Served = { impl: typeof fetch; puts: Array<{ path: string; body: Profile }>; profile: Profile };
 
 /** One profile on a fake *arr: GET list and detail, PUT echoed back with 202 as Radarr answers. */
-function serving(initial: Profile, opts: { putAnswer?: () => Response; detail?: () => Profile } = {}): Served {
+function serving(initial: Profile, opts: { putAnswer?: () => Response; detail?: () => Profile; others?: Profile[] } = {}): Served {
     const state = { profile: initial, puts: [] as Served['puts'] };
     const impl = (async (input: string | URL | Request, init?: RequestInit) => {
         const url = new URL(input instanceof Request ? input.url : String(input));
@@ -63,7 +63,7 @@ function serving(initial: Profile, opts: { putAnswer?: () => Response; detail?: 
             state.profile = body;
             return jsonResponse(body, 202);
         }
-        if (method === 'GET' && url.pathname === '/api/v3/qualityprofile') return jsonResponse([state.profile]);
+        if (method === 'GET' && url.pathname === '/api/v3/qualityprofile') return jsonResponse([state.profile, ...(opts.others ?? [])]);
         if (method === 'GET' && url.pathname === detail) return jsonResponse(opts.detail?.() ?? state.profile);
         if (method === 'GET' && (url.pathname === '/api/v3/customformat' || url.pathname === '/api/v3/language')) {
             return jsonResponse([]);
@@ -87,34 +87,31 @@ type Call = (args: Record<string, unknown>) => Promise<{
     structuredContent: WriteToolResult;
 }>;
 
-const profilarrDouble = (opts: { syncs?: number; enabled?: boolean; arrName?: string; fails?: boolean } = {}) =>
-    ({
+type PfArr = { id: number; name: string; count: number; enabled?: boolean };
+
+/** Profilarr's status as the adapter reports it: a per-arr count of synced quality profiles, never which. */
+const profilarrDouble = (opts: { arrs?: PfArr[]; fails?: boolean } = {}) => {
+    const arrs = opts.arrs ?? [{ id: 1, name: 'radarr', count: 1 }];
+    return {
         type: 'profilarr',
         id: 'profilarr',
         status: async () => {
             if (opts.fails === true) throw new Error('profilarr is down');
             return {
                 version: '2.2.0',
-                databases: [
-                    {
-                        id: 1,
-                        name: 'db',
-                        enabled: true,
-                        lastSyncedAt: null,
-                        counts: { customFormats: 1, qualityProfiles: opts.syncs ?? 3, regularExpressions: 0, delayProfiles: 0 }
-                    }
-                ],
-                arrs: [{ id: 1, name: opts.arrName ?? 'radarr', type: 'radarr', enabled: opts.enabled ?? true, drift: null }]
+                // Database counts are not what is asked: they say how many profiles exist, not how many reach this arr.
+                databases: [{ id: 1, name: 'db', enabled: true, lastSyncedAt: null, counts: { customFormats: 1, qualityProfiles: 9, regularExpressions: 0, delayProfiles: 0 } }],
+                arrs: arrs.map(a => ({ id: a.id, name: a.name, type: 'radarr', enabled: a.enabled ?? true, syncedQualityProfiles: a.count, drift: null }))
             };
         },
-        listArrs: async () => [{ id: 1, name: opts.arrName ?? 'radarr', type: 'radarr', url: 'http://192.0.2.10:7878' }]
-    }) as unknown as ServiceAdapter;
-
+        listArrs: async () => arrs.map(a => ({ id: a.id, name: a.name, type: 'radarr', url: `http://192.0.2.10:${7000 + a.id}` }))
+    } as unknown as ServiceAdapter;
+};
 function harness(
     served: Served,
-    opts: { destructive?: boolean; extra?: ServiceAdapter[]; adapter?: 'radarr' | 'sonarr' | 'whisparr' } = {}
+    opts: { destructive?: boolean; extra?: ServiceAdapter[]; adapter?: 'radarr' | 'sonarr' | 'whisparr'; name?: string } = {}
 ) {
-    const config = keyed(7878, opts.destructive ?? true);
+    const config = { ...keyed(7878, opts.destructive ?? true), ...(opts.name === undefined ? {} : { name: opts.name }) };
     const adapter: ServiceAdapter =
         opts.adapter === 'sonarr'
             ? new SonarrAdapter(config, served.impl)
@@ -169,6 +166,21 @@ describe('the findings carry the fix as data', () => {
             const change = floorFindings(input(floor, [100, 40, 60]))[0]?.change;
             expect(change?.minFormatScore).toBeLessThan(floor);
             expect(floorFindings(input(change?.minFormatScore ?? -1, [100, 40, 60]))).toEqual([]);
+        }
+    });
+
+    it('carries no change when fewer than two formats score positively, and never says "below 0"', () => {
+        for (const scores of [[100], [100, -50], []]) {
+            const [finding] = floorFindings(input(200, scores));
+            expect(finding?.change).toBeUndefined();
+            expect(finding?.remedy).not.toMatch(/below 0/);
+        }
+    });
+
+    it('names in the remedy the number it would apply', () => {
+        for (const floor of [500, 200]) {
+            const [finding] = floorFindings(input(floor, [100, 40, 60]));
+            expect(finding?.remedy).toContain(`to ${finding?.change?.minFormatScore}`);
         }
     });
 
@@ -247,21 +259,11 @@ describe('fix_profile', () => {
         await expect(call({ ...ARGS, finding: 'knife_edge_floor' })).rejects.toThrow(/knife_edge_floor/);
     });
 
-    it('refuses a finding that is only likely, and names where to change it', async () => {
+    it.each(['language_preferred_not_required', 'profilarr_drift'])('rejects %s in the schema, so only the two floor kinds can be asked for', async finding => {
         const served = serving(withFloor(POSITIVE_TOTAL + 1));
         const { call } = harness(served);
 
-        await expect(call({ ...ARGS, finding: 'language_preferred_not_required' })).rejects.toThrow(
-            /unreachable_floor or knife_edge_floor/
-        );
-        expect(served.puts).toHaveLength(0);
-    });
-
-    it('refuses drift, which is Profilarr\'s to reconcile', async () => {
-        const served = serving(withFloor(POSITIVE_TOTAL + 1));
-        const { call } = harness(served);
-
-        await expect(call({ ...ARGS, finding: 'profilarr_drift' })).rejects.toThrow(/Profilarr/);
+        expect(() => call({ ...ARGS, finding })).toThrow(/unreachable_floor|knife_edge_floor/);
         expect(served.puts).toHaveLength(0);
     });
 
@@ -272,31 +274,71 @@ describe('fix_profile', () => {
         await expect(call({ ...ARGS, profile: 'Nope' })).rejects.toThrow(/Nope.*arr-mcp capture copy/s);
     });
 
-    describe('a profile Profilarr manages', () => {
-        it('is refused with the Profilarr remedy, before anything is previewed', async () => {
+    it('refuses a profile with one positive format, whose floor would drop its only requirement', async () => {
+        const one = withFloor(100);
+        one.formatItems = [{ format: 1, name: 'x265', score: 100 }];
+        const { call } = harness(serving(one));
+
+        await expect(call({ ...ARGS, finding: 'knife_edge_floor' })).rejects.toThrow(/fewer than two/);
+    });
+
+    describe('Profilarr syncs quality profiles to the instance', () => {
+        const others = (n: number): Profile[] => Array.from({ length: n }, (_, i) => ({ ...structuredClone(RECORDED), id: 100 + i, name: `other ${i}` }));
+
+        it('refuses when it syncs every profile the instance holds', async () => {
             const served = serving(withFloor(POSITIVE_TOTAL + 1));
-            const { call } = harness(served, { extra: [profilarrDouble()] });
+            const { call } = harness(served, { extra: [profilarrDouble({ arrs: [{ id: 1, name: 'radarr', count: 1 }] })] });
 
             const refusal = call(ARGS);
 
-            await expect(refusal).rejects.toThrow(/Profilarr/);
-            await expect(refusal).rejects.toThrow(/sync/);
+            await expect(refusal).rejects.toThrow(/Profilarr syncs all 1 quality profiles/);
+            await expect(refusal).rejects.toThrow(/Make the change in Profilarr/);
             expect(served.puts).toHaveLength(0);
         });
 
-        it('is not refused when Profilarr syncs no quality profile to this instance', async () => {
+        it('previews with a warning first when it syncs some of them, and still applies', async () => {
+            const served = serving(withFloor(POSITIVE_TOTAL + 1), { others: others(2) });
+            const { call } = harness(served, { extra: [profilarrDouble({ arrs: [{ id: 1, name: 'radarr', count: 1 }] })] });
+
+            const { structuredContent: preview } = await call(ARGS);
+
+            expect(preview.effects[0]).toMatch(/Profilarr syncs 1 of the 3 profiles on radarr and does not say which/);
+            expect(preview.effects[0]).toContain(String(POSITIVE_TOTAL + 1));
+            await call({ ...ARGS, confirm: preview.confirm_token });
+            expect(served.puts).toHaveLength(1);
+        });
+
+        it('goes ahead without a warning when the per-arr count is 0, however many profiles the databases hold', async () => {
             const served = serving(withFloor(POSITIVE_TOTAL + 1));
-            const { call } = harness(served, { extra: [profilarrDouble({ syncs: 0 })] });
+            const { call } = harness(served, { extra: [profilarrDouble({ arrs: [{ id: 1, name: 'radarr', count: 0 }] })] });
+
+            const { structuredContent: preview } = await call(ARGS);
+
+            expect(preview.confirm_token).toBeDefined();
+            expect(preview.effects.some(e => e.includes('Profilarr'))).toBe(false);
+        });
+
+        it('goes ahead when Profilarr is switched off for the instance', async () => {
+            const { call } = harness(serving(withFloor(POSITIVE_TOTAL + 1)), { extra: [profilarrDouble({ arrs: [{ id: 1, name: 'radarr', count: 1, enabled: false }] })] });
 
             expect((await call(ARGS)).structuredContent.confirm_token).toBeDefined();
         });
 
-        it('is not refused when Profilarr is switched off for this instance or manages another one', async () => {
-            const off = harness(serving(withFloor(POSITIVE_TOTAL + 1)), { extra: [profilarrDouble({ enabled: false })] });
-            const other = harness(serving(withFloor(POSITIVE_TOTAL + 1)), { extra: [profilarrDouble({ arrName: 'radarr-4k' })] });
+        it('goes ahead when the count belongs to another configured instance', async () => {
+            const served = serving(withFloor(POSITIVE_TOTAL + 1));
+            const fourK = new RadarrAdapter({ ...keyed(7879), name: '4k' }, served.impl);
+            const pf = profilarrDouble({ arrs: [{ id: 1, name: 'hd', count: 0 }, { id: 2, name: '4k', count: 5 }] });
+            const { call } = harness(served, { name: 'hd', extra: [fourK, pf] });
 
-            expect((await off.call(ARGS)).structuredContent.confirm_token).toBeDefined();
-            expect((await other.call(ARGS)).structuredContent.confirm_token).toBeDefined();
+            expect((await call({ ...ARGS, instance: 'hd' })).structuredContent.confirm_token).toBeDefined();
+        });
+
+        it('refuses rather than fail open when an enabled entry matches no configured instance', async () => {
+            const served = serving(withFloor(POSITIVE_TOTAL + 1));
+            const { call } = harness(served, { extra: [profilarrDouble({ arrs: [{ id: 1, name: 'somewhere-else', count: 0 }] })] });
+
+            await expect(call(ARGS)).rejects.toThrow(/matches no configured instance/);
+            expect(served.puts).toHaveLength(0);
         });
 
         it('refuses when Profilarr cannot be asked, rather than guessing', async () => {
@@ -310,7 +352,6 @@ describe('fix_profile', () => {
             warn.mockRestore();
         });
     });
-
     it('binds the confirm token to the profile as previewed', async () => {
         const served = serving(withFloor(POSITIVE_TOTAL + 1000));
         const { call } = harness(served);
