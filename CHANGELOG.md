@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.84.0](https://github.com/bardesss/arr-mcp/compare/v1.83.1...v1.84.0) (2026-11-11)
+
+
+### Features
+
+* offer the next call from get_queue and get_profile_issues ([#622](https://github.com/bardesss/arr-mcp/issues/622)) ([68d1248](https://github.com/bardesss/arr-mcp/commit/68d12483f40a4f24a5cc0a9c2ad155e2e1243760))
+* **surface:** trim descriptions, kinds and instructions to the configured services ([#621](https://github.com/bardesss/arr-mcp/issues/621)) ([ba1f931](https://github.com/bardesss/arr-mcp/commit/ba1f9312a4e63e67cf06731b27e90efa1c26eb47))
+
+
+### Bug Fixes
+
+* **queue:** name the usenet rerun call, and word one-item pauses ([#620](https://github.com/bardesss/arr-mcp/issues/620)) ([03fab3a](https://github.com/bardesss/arr-mcp/commit/03fab3af5f49f53f177f93c281a2151efdb90827))
+
 ## [1.83.1](https://github.com/bardesss/arr-mcp/compare/v1.83.0...v1.83.1) (2026-11-11)
 
 
