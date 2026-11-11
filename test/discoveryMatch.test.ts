@@ -125,6 +125,20 @@ describe('matchResults', () => {
         expect(rows[0]).not.toHaveProperty('address');
     });
 
+    it('marks a find added by its url as written when the configured name does not resolve at match time', async () => {
+        // The lookup fails now, so the configured url stays as written; the find
+        // still carries the address its probe reached.
+        const resolver = urlResolver(async () => {
+            throw new Error('ENOTFOUND');
+        });
+        const config = parse({ radarr: block('http://nas.lan:7878/') });
+        const found: Found[] = [{ type: 'radarr', url: 'http://nas.lan:7878', source: 'host', address: '192.168.1.10' }];
+        const rows = await matchResults(found, config, resolver);
+        expect(rows).toHaveLength(1);
+        expect(rows[0]?.status).toBe('added');
+        expect(rows[0]?.existingUrl).toBeUndefined();
+    });
+
     it('keeps a sweep hit on another address, and another type on the same address, as their own rows', async () => {
         const lan = async (url: string) => (url === 'http://nas.lan:7878' ? 'http://192.168.1.10:7878' : url);
         const found: Found[] = [

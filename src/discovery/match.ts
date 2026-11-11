@@ -59,6 +59,9 @@ function findAt(f: Found, resolve: (url: string) => Promise<string>): Promise<st
     }
 }
 
+/** A url compared as written, give or take a trailing slash and the case of its letters. */
+const asWritten = (url: string): string => url.replace(/\/+$/, '').toLowerCase();
+
 const isHostAndContainer = (a: Found, b: Found): boolean =>
     (a.source === 'host' && b.source === 'container') || (a.source === 'container' && b.source === 'host');
 
@@ -123,7 +126,17 @@ export async function matchResults(
         const { address, ...shown } = f;
         const row: ResultRow = { ...shown, status: 'new' };
         if (alsoAt !== undefined) row.alsoAt = alsoAt;
-        if (same.some(c => c.normalized === normalized || (alsoNormalized !== undefined && c.normalized === alsoNormalized))) {
+        // The url as written counts too: a configured name whose lookup failed
+        // stays as written, while the find carries the address it was probed at.
+        const urls = [f.url, ...(alsoAt === undefined ? [] : [alsoAt])].map(asWritten);
+        if (
+            same.some(
+                c =>
+                    c.normalized === normalized ||
+                    (alsoNormalized !== undefined && c.normalized === alsoNormalized) ||
+                    urls.includes(asWritten(c.url))
+            )
+        ) {
             row.status = 'added';
         } else if (same.length > 0) {
             row.status = isMultiInstance(f.type) ? 'maybe-second' : 'configured';
