@@ -1,4 +1,5 @@
 import * as z from 'zod/v4';
+import { KINDS_KEY } from '../config/schema.ts';
 import type { LibraryKind } from '../core/resolver.ts';
 import type { QueueCapable, ServiceAdapter } from '../services/types.ts';
 
@@ -11,9 +12,10 @@ import type { QueueCapable, ServiceAdapter } from '../services/types.ts';
  */
 export const MediaKindSchema = z
     .enum(['movie', 'series', 'artist', 'book'])
+    .meta({ [KINDS_KEY]: true })
     .optional()
     .describe(
-        'What the title is, which is also the service that holds it: `movie` (Radarr), `series` (Sonarr, Whisparr), `artist` (Lidarr), `book` (Shelfmark, Grimmory). Pass it when the request names one of those services. Services holding another kind are not asked. Omit for all.'
+        'What the title is, which is also the service that holds it. [[radarr: `movie`: Radarr.]] [[sonarr|whisparr: `series`: Sonarr, Whisparr.]] [[lidarr: `artist`: Lidarr.]] [[shelfmark|grimmory: `book`: Shelfmark, Grimmory.]] Pass it when the request names one of those services. Services holding another kind are not asked. Omit for all.'
     );
 
 /**

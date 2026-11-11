@@ -5,6 +5,7 @@ import { serviceOf, type ServiceId } from '../src/config/schema.ts';
 import type { IndexInput } from '../src/core/resolver.ts';
 import { leanJsonSchema, leanSchema, scopeText, shapeToolSurface, type SurfaceOptions } from '../src/mcp/toolSurface.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
+import { MediaKindSchema } from '../src/tools/mediaKind.ts';
 import { buildGetLibrary } from '../src/tools/getLibrary.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
 
@@ -150,6 +151,35 @@ describe('a service field', () => {
             target: 'draft-2020-12'
         });
         expect(own).toHaveProperty('$schema');
+    });
+});
+
+describe('a kind field', () => {
+    type Kind = { enum: unknown; description?: string };
+    const kindOf = (opts: SurfaceOptions): Kind => {
+        const view = leanSchema(z.object({ kind: MediaKindSchema }), opts) as unknown as {
+            '~standard': { jsonSchema: { input: (o: unknown) => { properties: { kind: Kind } } } };
+        };
+        return view['~standard'].jsonSchema.input({ target: 'draft-2020-12' }).properties.kind;
+    };
+
+    it('lists only the kinds the configured services hold', () => {
+        const kind = kindOf(on('radarr', 'sonarr', 'sabnzbd', 'jellyfin'));
+        expect(kind.enum).toEqual(['movie', 'series']);
+        expect(kind.description).not.toMatch(/Lidarr|Shelfmark|Grimmory/);
+        expect(kind.description).toContain('Radarr');
+    });
+
+    it('lists every kind before anything is configured', () => {
+        expect(kindOf(nothing).enum).toEqual(['movie', 'series', 'artist', 'book']);
+    });
+
+    it('lists every kind when no configured service holds one, rather than none', () => {
+        expect(kindOf(on('sabnzbd', 'seerr')).enum).toEqual(['movie', 'series', 'artist', 'book']);
+    });
+
+    it('still accepts every kind', () => {
+        expect(leanSchema(z.object({ kind: MediaKindSchema }), on('radarr')).safeParse({ kind: 'artist' }).success).toBe(true);
     });
 });
 

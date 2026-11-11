@@ -1,5 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
-import { DOWNLOAD_CLIENTS, SERVICES_KEY, type ServiceId } from '../config/schema.ts';
+import { DOWNLOAD_CLIENTS, KINDS_KEY, SERVICES_KEY, type ServiceId } from '../config/schema.ts';
+import type { LibraryKind } from '../core/resolver.ts';
 
 /**
  * Shapes what `tools/list` sends, at registration time (#518).
@@ -12,6 +13,7 @@ import { DOWNLOAD_CLIENTS, SERVICES_KEY, type ServiceId } from '../config/schema
  * - the ±2^53 bounds zod writes on a bare `.int()`, which read like real limits;
  * - on output schemas, field descriptions: `arr://docs/<tool>` and the results
  *   carry those, and Claude Code does not show output schemas to the model;
+ * - on a `kind` field, every kind no configured service holds (`KIND_SERVICES`);
  * - on a `service` field built with `serviceOf`, every service the tool does
  *   not take and, when anything is configured, every service that is not;
  * - in a description, text wrapped in `[[lidarr|whisparr: …]]` when none of
@@ -80,6 +82,14 @@ export const TOOL_SERVICES: Readonly<Record<string, readonly ServiceId[]>> = {
     grab_release: ['radarr', 'sonarr', 'whisparr', 'lidarr', 'shelfmark', 'transmission', 'qbittorrent']
 };
 
+/** The services that hold each kind. A `kind` field lists only the kinds a configured service holds. */
+const KIND_SERVICES: Readonly<Record<LibraryKind, readonly ServiceId[]>> = {
+    movie: ['radarr'],
+    series: ['sonarr', 'whisparr'],
+    artist: ['lidarr'],
+    book: ['shelfmark', 'grimmory']
+};
+
 const SAFE_INT = Number.MAX_SAFE_INTEGER;
 
 /** `[[lidarr|whisparr: text]]`: the text applies only with one of those services. */
@@ -144,6 +154,15 @@ export function leanJsonSchema(schema: unknown, io: 'input' | 'output', opts: Su
             out['enum'] = opts.configured.size === 0 || here.length === 0 ? taken : here;
         }
         delete out[SERVICES_KEY];
+    }
+    if (out[KINDS_KEY] === true) {
+        if (Array.isArray(out['enum'])) {
+            const held = (out['enum'] as unknown[]).filter(k => present(KIND_SERVICES[k as LibraryKind] ?? [], opts));
+            // A stack whose services hold no kind (download clients, Seerr)
+            // keeps them all: an empty enum would make the field unwritable.
+            if (held.length > 0) out['enum'] = held;
+        }
+        delete out[KINDS_KEY];
     }
 
     for (const key of ONE) if (isNode(out[key])) out[key] = leanJsonSchema(out[key], io, opts, false);
