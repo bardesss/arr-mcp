@@ -64,6 +64,7 @@ import { registerTriggerSubtitleSearch } from './triggerSubtitleSearch.ts';
 import { registerTriggerSearch } from './triggerSearch.ts';
 import { registerUpdateMedia } from './updateMedia.ts';
 import type { WriteContext } from './write.ts';
+import { toolUsable, type SurfaceOptions } from '../mcp/toolSurface.ts';
 
 /**
  * Identity resolvers built once, here, rather than inside the per-request
@@ -277,6 +278,9 @@ export const WRITE_TOOLS: ReadonlySet<string> = new Set([
     'update_book',
     'update_media'
 ]);
+
+/** Whether `tools/list` lists `name` on this surface, with its write flag looked up rather than passed by hand. */
+export const toolListed = (name: string, surface: SurfaceOptions): boolean => toolUsable(name, surface, WRITE_TOOLS.has(name));
 
 /**
  * The tool surface, frozen at 1.0.
