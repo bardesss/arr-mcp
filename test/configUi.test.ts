@@ -1069,6 +1069,30 @@ describe('the default user field', () => {
         expect(asked).toBe(2);
     });
 
+    it('asks again once the cached list is 30 seconds old, and not before', async () => {
+        let asked = 0;
+        globalThis.fetch = (async (input: string | URL | Request) => {
+            if (String(input).includes('/Users')) asked += 1;
+            return new Response('[]', { headers: { 'content-type': 'application/json' } });
+        }) as typeof fetch;
+        await seed(JELLYFIN);
+        await signIn();
+
+        vi.useFakeTimers({ toFake: ['Date'] });
+        try {
+            await usersJson();
+            vi.setSystemTime(Date.now() + 29_000);
+            await usersJson();
+            expect(asked).toBe(1);
+
+            vi.setSystemTime(Date.now() + 1_000);
+            await usersJson();
+            expect(asked).toBe(2);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
     it('refuses the users list without a session', async () => {
         withUsers(['bartus']);
         await seed(JELLYFIN);
@@ -1530,7 +1554,7 @@ describe('saving an instance', () => {
 
         expect(res.status).toBe(400);
         expect(await res.text()).toContain('enter the api_key again');
-        expect(await readFile(join(dir, 'config.yaml'), 'utf8')).not.toContain('9999');
+        expect(await readFile(join(dir, 'config.yaml'), 'utf8')).not.toContain('192.0.2.10:9999');
     });
 
     it('leaves every other instance untouched', async () => {

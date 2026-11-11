@@ -115,6 +115,12 @@ export async function lookupWithin(
   return out === TIMED_OUT ? undefined : out;
 }
 
+/** The address a probe connects to among a name's answers: private, IPv4 first. */
+export function pickPrivate(addresses: readonly string[]): string | undefined {
+  const usable = addresses.filter((a) => isPrivateAddress(a));
+  return usable.find((a) => isIP(a) === 4) ?? usable[0];
+}
+
 /**
  * A host is probed only at a private address. A name that resolves to a
  * private address and a public one as well (a router with a private A record
@@ -130,8 +136,7 @@ export async function resolvePrivate(
 ): Promise<HostOutcome> {
   const addresses = isIP(host) ? [host] : await lookupWithin(host, lookup, timeoutMs, gate);
   if (addresses === undefined || addresses.length === 0) return { ok: false, host, reason: `${host} does not resolve` };
-  const usable = addresses.filter((a) => isPrivateAddress(a));
-  const chosen = usable.find((a) => isIP(a) === 4) ?? usable[0];
+  const chosen = pickPrivate(addresses);
   if (chosen === undefined) {
     return { ok: false, host, reason: `${host} resolves to ${addresses[0] ?? host}, which is not a private address` };
   }

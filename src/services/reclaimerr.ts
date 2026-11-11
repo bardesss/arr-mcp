@@ -121,7 +121,7 @@ const HISTORY_WINDOWS_DAYS = [7, 30, 180, 730];
 const REMOVAL_WINDOW_DAYS = 365;
 const SCOPES_TTL_MS = 5 * 60_000;
 const RULES_TTL_MS = 5 * 60_000;
-/** Long enough to share one read between the checks and the overview of a single get_stack_health, or a lookup and a diagnose. */
+/** Long enough to share one read between the checks and the overview of a single get_stack_health, or a lookup and a diagnose_media. */
 const READ_TTL_MS = 30_000;
 /** How many times a capped event read halves its window towards now before giving up on the oldest rows. */
 const MAX_NARROWINGS = 6;

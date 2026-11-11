@@ -1,7 +1,14 @@
 import type { ServiceId } from '../config/schema.ts';
 import type { CatalogEntry, ProbeResponse } from './catalog.ts';
 
-export type Found = { type: ServiceId; url: string; version?: string; source: 'host' | 'container' | 'sweep' };
+export type Found = {
+    type: ServiceId;
+    url: string;
+    version?: string;
+    source: 'host' | 'container' | 'sweep';
+    /** The address the probe connected to, when that was not the url's host; used only to match finds. */
+    address?: string;
+};
 
 export type ProbeOpts = {
     timeoutMs: number;
@@ -48,11 +55,12 @@ async function fetchOnce(target: string, path: string, opts: ProbeOpts): Promise
     }
 }
 
-function match(host: string, entry: CatalogEntry, source: Found['source'], r: ProbeResponse): Found | undefined {
+function match(host: string, entry: CatalogEntry, source: Found['source'], r: ProbeResponse, address: string | undefined): Found | undefined {
     const hit = entry.identify(r);
     if (hit === undefined) return undefined;
     const found: Found = { type: entry.type, url: `http://${authority(host, entry.port)}`, source };
     if (hit.version !== undefined) found.version = hit.version;
+    if (address !== undefined && address !== host) found.address = address;
     return found;
 }
 
@@ -70,7 +78,7 @@ export async function probeHost(host: string, entries: readonly CatalogEntry[], 
             const first = group[0]!;
             const r = await fetchOnce(authority(opts.address ?? host, first.port), first.path, opts);
             if (r === undefined) return [];
-            return group.flatMap(e => match(host, e, source, r) ?? []);
+            return group.flatMap(e => match(host, e, source, r, opts.address) ?? []);
         })
     );
     return perGroup.flat();

@@ -206,9 +206,9 @@ describe('awaitArrCommand', () => {
     it('refuses to wait on a command the service gave no id for', async () => {
         const s = sequence([{ id: 9, status: 'completed' }]);
         await expect(awaitArrCommand(reader(s.impl), 'sonarr', 0, instantly)).rejects.toMatchObject({
-            kind: 'UpstreamError'
+            kind: 'UpstreamError',
+            message: expect.stringMatching(/returned no command id/)
         });
-        await expect(awaitArrCommand(reader(s.impl), 'sonarr', 0, instantly)).rejects.toThrow(/returned no command id/);
         expect(s.polls()).toBe(0);
     });
 
@@ -265,4 +265,14 @@ describe('arrItemId', () => {
         expect(() => arrItemId('radarr', 'queue', 'x')).toThrow(/get_queue/));
     it("points an album id at the artist's details", () =>
         expect(() => arrItemId('lidarr', 'album', 'x')).toThrow(/detail: "full"/));
+    // Id 0 is refused on every kind, not only an episode: no *arr hands one out.
+    it.each([
+        ['radarr', 'movie'],
+        ['radarr', 'queue'],
+        ['lidarr', 'artist'],
+        ['lidarr', 'album']
+    ] as const)('refuses id 0 for a %s %s, and takes 1', (service, kind) => {
+        expect(() => arrItemId(service, kind, '0')).toThrow(`"0" is not a ${service} ${kind} id`);
+        expect(arrItemId(service, kind, '1')).toBe(1);
+    });
 });

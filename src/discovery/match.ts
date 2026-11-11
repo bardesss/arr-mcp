@@ -2,10 +2,10 @@ import { lookup as dnsLookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { isMultiInstance, listInstances } from '../config/instances.ts';
 import type { Config } from '../config/schema.ts';
-import { LOOKUP_TIMEOUT_MS, lookupWithin, type LookupGate } from './addresses.ts';
+import { LOOKUP_TIMEOUT_MS, lookupWithin, pickPrivate, type LookupGate } from './addresses.ts';
 import type { Found } from './probe.ts';
 
-export type ResultRow = Found & {
+export type ResultRow = Omit<Found, 'address'> & {
     /** The same service reached a second way, when both ways agree on its version or address. */
     alsoAt?: string;
     status: 'new' | 'added' | 'configured' | 'maybe-second';
@@ -33,14 +33,34 @@ export function urlResolver(
         }
         let host = parsed.hostname.replace(/^\[|\]$/g, '');
         if (isIP(host) === 0) {
-            // A name that does not resolve in time is kept as written.
+            // A name that does not resolve in time is kept as written. Among its
+            // answers, the one a probe connects to (`resolvePrivate`), so an
+            // IPv6-first or public-first name still matches a sweep of its address.
             const addresses = await lookupWithin(host, lookup, timeoutMs, gate);
-            if (addresses?.[0] !== undefined) host = addresses[0];
+            const chosen = addresses === undefined ? undefined : (pickPrivate(addresses) ?? addresses[0]);
+            if (chosen !== undefined) host = chosen;
         }
-        const port = parsed.port || (parsed.protocol === 'https:' ? '443' : '80');
-        return `${parsed.protocol}//${isIP(host) === 6 ? `[${host}]` : host}:${port}`;
+        return normalizedAt(parsed, host);
     };
 }
+
+const normalizedAt = (parsed: URL, host: string): string => {
+    const port = parsed.port || (parsed.protocol === 'https:' ? '443' : '80');
+    return `${parsed.protocol}//${isIP(host) === 6 ? `[${host}]` : host}:${port}`;
+};
+
+/** A find's url at the address its probe connected to, when it recorded one. */
+function findAt(f: Found, resolve: (url: string) => Promise<string>): Promise<string> {
+    if (f.address === undefined) return resolve(f.url);
+    try {
+        return Promise.resolve(normalizedAt(new URL(f.url), f.address));
+    } catch {
+        return resolve(f.url);
+    }
+}
+
+/** A url compared as written, give or take a trailing slash and the case of its letters. */
+const asWritten = (url: string): string => url.replace(/\/+$/, '').toLowerCase();
 
 const isHostAndContainer = (a: Found, b: Found): boolean =>
     (a.source === 'host' && b.source === 'container') || (a.source === 'container' && b.source === 'host');
@@ -55,15 +75,31 @@ export async function matchResults(
     );
 
     // Every found url is resolved once, up front.
-    const at = await Promise.all(found.map(f => resolve(f.url)));
+    const at = await Promise.all(found.map(f => findAt(f, resolve)));
 
     // One row for a service seen both by the host and by its container name,
     // when there is evidence it is one service: both report the same version,
     // or both urls resolve to the same address. Two finds with no version and
     // different addresses stay two rows. The host url stays the main one.
+    // A sweep hit on an address a host or container find already resolves to
+    // is that same service again, not a second one: it adds no row, and a
+    // sweep row gives way to a host or container find of the same address.
     const merged: { found: Found; normalized: string; alsoAt?: string; alsoNormalized?: string }[] = [];
     found.forEach((f, i) => {
         const normalized = at[i]!;
+        const sameAddress = merged.find(
+            m =>
+                m.found.type === f.type &&
+                (m.found.source === 'sweep' || f.source === 'sweep') &&
+                (m.normalized === normalized || m.alsoNormalized === normalized)
+        );
+        if (sameAddress !== undefined) {
+            if (sameAddress.found.source === 'sweep' && f.source !== 'sweep') {
+                sameAddress.found = f;
+                sameAddress.normalized = normalized;
+            }
+            return;
+        }
         const twin = merged.find(
             m =>
                 m.found.type === f.type &&
@@ -86,9 +122,21 @@ export async function matchResults(
     const rows: ResultRow[] = [];
     for (const { found: f, normalized, alsoAt, alsoNormalized } of merged) {
         const same = configured.filter(c => c.type === f.type);
-        const row: ResultRow = { ...f, status: 'new' };
+        // The probed address only serves the match; the row shows the url.
+        const { address, ...shown } = f;
+        const row: ResultRow = { ...shown, status: 'new' };
         if (alsoAt !== undefined) row.alsoAt = alsoAt;
-        if (same.some(c => c.normalized === normalized || (alsoNormalized !== undefined && c.normalized === alsoNormalized))) {
+        // The url as written counts too: a configured name whose lookup failed
+        // stays as written, while the find carries the address it was probed at.
+        const urls = [f.url, ...(alsoAt === undefined ? [] : [alsoAt])].map(asWritten);
+        if (
+            same.some(
+                c =>
+                    c.normalized === normalized ||
+                    (alsoNormalized !== undefined && c.normalized === alsoNormalized) ||
+                    urls.includes(asWritten(c.url))
+            )
+        ) {
             row.status = 'added';
         } else if (same.length > 0) {
             row.status = isMultiInstance(f.type) ? 'maybe-second' : 'configured';

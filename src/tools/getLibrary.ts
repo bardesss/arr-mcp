@@ -555,6 +555,7 @@ const getLibraryInput = byMediaServers(ids => toolInput({
         .optional()
         .describe(
             'both, arr_only (likely broken import), jellyfin_only (unmanaged, any media server) or unknown (the other half was not read)' +
+                // Joined with a semicolon, not a new sentence: each field keeps to one sentence.
                 (ids === undefined ? '.' : '; with two media servers, measured against the primary.')
         ),
     ...(ids === undefined

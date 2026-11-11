@@ -2587,10 +2587,12 @@ can never be satisfied", and that reason is in the error.
 Destructive tier: the profile decides what the instance grabs from then on, and
 putting the old minimum back is a manual edit.
 
-**Unverified live** (Sonarr): the profile read and write. Only Radarr 6.4.4 was
-captured, on a throwaway copy of a profile; Sonarr shares the code and path.
+**Unverified live** (Sonarr): the profile write. Sonarr 4.0's profile list is
+recorded, and it carries no `language` where Radarr's does; the `PUT` was
+captured only on Radarr 6.4.4, on a throwaway copy of a profile.
 
-**Unverified live** (Whisparr): the profile read and write, as for Sonarr.
+**Unverified live** (Whisparr): the profile read and write. It shares the code
+and path with Radarr, whose exchange was captured.
 
 ## `sync_database`
 
@@ -3342,7 +3344,7 @@ book, and the book fields for a film, series or artist.
 
 ## Prompts and resources
 
-Forty-five tools do not tell you which one to reach for, and the questions
+Forty-six tools do not tell you which one to reach for, and the questions
 people actually ask are rarely one call.
 
 **Five prompts**, which most clients surface as slash commands:
