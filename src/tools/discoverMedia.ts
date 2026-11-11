@@ -227,7 +227,7 @@ const DiscoverMediaInput = toolInput({
         .string()
         .optional()
         .describe(
-            'A TMDB numeric id — find something like it. Seerr only, and mutually exclusive with genre/year/min_rating: it answers a different question.'
+            '[[seerr: A TMDB numeric id — find something like it. Seerr only, and mutually exclusive with genre/year/min_rating: it answers a different question.]]'
         ),
     detail: DetailSchema,
     limit: LimitSchema,
@@ -239,7 +239,7 @@ const DiscoverMediaOutput = PagedOutputSchema.extend({
         .string()
         .optional()
         .describe(
-            'Present when an empty list needs defending — for example when neither Seerr nor the IMDb dataset is configured, so nothing could answer. Report the reason rather than saying nothing matched.'
+            'Present when an empty list needs defending — for example when nothing configured could answer. Report the reason rather than saying nothing matched.'
         )
 });
 
@@ -254,7 +254,7 @@ export function registerDiscoverMedia(
             title: 'Discover trending media',
             annotations: READ_ONLY,
             description:
-                'Browse what exists rather than what you have: films or series by genre, year and minimum rating, or things similar to one you know via similar_to. To find one title by name, use search_media. Answered by Seerr when it is configured — TMDB-backed, so the rating is TMDB’s. With no Seerr, genre/year/min_rating are answered from the local IMDb dataset instead, where the rating is IMDb’s; similar_to needs Seerr and has no dataset fallback.',
+                'Browse what exists rather than what you have: films or series by genre, year and minimum rating, or things similar to one you know via similar_to. To find one title by name, use search_media. [[seerr: Answered by Seerr, TMDB-backed, so the rating is TMDB’s; similar_to needs Seerr.]] Without Seerr, genre/year/min_rating are answered from the local IMDb dataset, where the rating is IMDb’s.',
             outputSchema: DiscoverMediaOutput,
             inputSchema: DiscoverMediaInput
         },

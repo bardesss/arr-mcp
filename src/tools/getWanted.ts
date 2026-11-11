@@ -22,7 +22,7 @@ type GetWantedResult = {
 const WantedScopeSchema = z
     .enum(['missing', 'upgradable'])
     .describe(
-        '`missing`: monitored items with no file at all (on Lidarr, an album with any track missing). `upgradable`: monitored items that have a file but not yet at the quality profile\'s cutoff. Required — the two answer different questions, and a default would silently hide one of them.'
+        '`missing`: monitored items with no file at all[[lidarr:  (on Lidarr, an album with any track missing)]]. `upgradable`: monitored items that have a file but not yet at the quality profile\'s cutoff. Required — the two answer different questions, and a default would silently hide one of them.'
     );
 
 /**
@@ -115,7 +115,7 @@ export function registerGetWanted(server: McpServer, adapters: readonly ServiceA
             title: 'Missing and upgradable',
             annotations: READ_ONLY,
             description:
-                'Radarr, Sonarr and Lidarr\'s own wanted lists. `scope` is required: `"missing"` is monitored items with no file, `"upgradable"` monitored items with a file below the profile\'s quality cutoff. Unlike get_library it lists missing episodes one by one. Sonarr rows carry `season`, `episode` and `episodeTitle`; [[lidarr: Lidarr rows are `kind: "artist"` with `albumId` and `albumTitle`, and `albumId` is what set_monitoring takes with `level: "album"`. On Lidarr an album missing any track counts as missing, so it can be in both lists, and albums of an unmonitored artist are left out.]] Unmonitored gaps never appear. `detail: "minimal"` drops titles and air dates. Field reference: arr://docs/get_wanted.',
+                'The {{and: radarr=Radarr; sonarr=Sonarr; lidarr=Lidarr}} wanted lists. `scope` is required: `"missing"` is monitored items with no file, `"upgradable"` monitored items with a file below the profile\'s quality cutoff. Unlike get_library it lists missing episodes one by one. [[sonarr: Sonarr rows carry `season`, `episode` and `episodeTitle`.]] [[lidarr: Lidarr rows are `kind: "artist"` with `albumId` and `albumTitle`, and `albumId` is what set_monitoring takes with `level: "album"`. On Lidarr an album missing any track counts as missing, so it can be in both lists, and albums of an unmonitored artist are left out.]] Unmonitored gaps never appear. `detail: "minimal"` drops titles and air dates. Field reference: arr://docs/get_wanted.',
             outputSchema: PagedOutputSchema,
             inputSchema: GetWantedInput
         },

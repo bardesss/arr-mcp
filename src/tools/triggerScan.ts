@@ -178,14 +178,14 @@ const TriggerScanInput = z.object({
         .enum(['scan', 'rename', 'import', 'remap', 'postprocess', 'bookdrop'])
         .default('scan')
         .describe(
-            "scan rescans the library, or just one item when `id` is given (on Lidarr only the refresh narrows to one artist: the rescan still reads every root folder); on Radarr, Sonarr, Whisparr and Lidarr it refreshes metadata from the provider first. rename renames one item's files to the service's own naming scheme, and requires `id`. bookdrop rescans Grimmory's Bookdrop folder for new files. Deprecated: use import_download for import, remap, postprocess, and bookdrop with `id`."
+            "scan rescans the library, or just one item when `id` is given[[lidarr:  (on Lidarr only the refresh narrows to one artist: the rescan still reads every root folder)]]; on an *arr it refreshes metadata from the provider first. rename renames one item's files to the service's own naming scheme, and requires `id`. [[grimmory: bookdrop rescans Grimmory's Bookdrop folder for new files.]] Deprecated: use import_download for import, remap, postprocess, and bookdrop with `id`."
         ),
     id: z
         .string()
         .min(1)
         .optional()
         .describe(
-            'One movie, series or Lidarr artist id — `acquisition.id` on a get_library record. Omit with action: "scan" to scan the whole library.'
+            'One {{or: radarr=movie; sonarr|whisparr=series; lidarr=Lidarr artist; grimmory=book; jellyfin|plex=media-server item}} id — `acquisition.id` on a get_library record. Omit with action: "scan" to scan the whole library.'
         ),
     library: z
         .string()
@@ -209,7 +209,7 @@ export function registerTriggerScan(
         name: 'trigger_scan',
         title: 'Refresh and scan a library',
         description:
-            "Asks a service to reconcile itself with what is on disk: the \"it downloaded but will not play\" fix, and the usual fix for a stale scan diagnose_media reports. No `id` rescans the whole library of Radarr, Sonarr, Whisparr, Lidarr, Jellyfin, Plex or Grimmory; on Prowlarr it pushes the indexer list to the apps. An `id` refreshes and rescans one item. On Jellyfin and Plex a scan only finds changed files; wrong metadata is fix_metadata. `action`: `rename` (files to the service's naming, needs `id`), [[grimmory: `bookdrop` (rescan Grimmory's Bookdrop).]] Importing a download: import_download. Most actions queue and return; follow them in get_stack_health `commands`. Previews first; confirm to run. Field reference: arr://docs/trigger_scan.",
+            "Asks a service to reconcile itself with what is on disk: the \"it downloaded but will not play\" fix, and the usual fix for a stale scan diagnose_media reports. No `id` rescans the whole library[[prowlarr: ; on Prowlarr it pushes the indexer list to the apps]]. An `id` refreshes and rescans one item. [[jellyfin|plex: On {{and: jellyfin=Jellyfin; plex=Plex}} a scan only finds changed files; wrong metadata is fix_metadata.]] `action`: `rename` (files to the service's naming, needs `id`), [[grimmory: `bookdrop` (rescan Grimmory's Bookdrop).]] Importing a download: import_download. Most actions queue and return; follow them in get_stack_health `commands`. Previews first; confirm to run. Field reference: arr://docs/trigger_scan.",
         inputSchema: TriggerScanInput,
         // Resolved from the arguments, so the permission checked, the audit row
         // written and the token issued all name the same instance. Only the

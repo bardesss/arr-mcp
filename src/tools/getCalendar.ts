@@ -120,7 +120,7 @@ export async function buildGetCalendar(
 
 const GetCalendarInput = toolInput({
     kind: MediaKindSchema.describe(
-        'Only one service\'s calendar: `movie` (Radarr), `series` (Sonarr, Whisparr), `artist` (Lidarr\'s albums). Pass it when the request names one of those services; only they are asked. Omit for all.'
+        'Only one service\'s calendar. [[radarr: `movie`: Radarr.]] [[sonarr|whisparr: `series`: {{and: sonarr=Sonarr; whisparr=Whisparr}}.]] [[lidarr: `artist`: Lidarr\'s albums.]] Pass it when the request names one of those services; only they are asked. Omit for all.'
     ),
     detail: DetailSchema,
     limit: LimitSchema,
@@ -144,7 +144,7 @@ export function registerGetCalendar(server: McpServer, adapters: readonly Servic
             title: 'Upcoming releases',
             annotations: READ_ONLY,
             description:
-                'Films, episodes and albums due in a date window, merged from Radarr, Sonarr, Whisparr and Lidarr and sorted by date. Covers both upcoming releases and recently aired items, with whether each already has a file. What is already overdue is get_wanted.',
+                'Films, episodes and albums due in a date window, merged from {{and: radarr=Radarr; sonarr=Sonarr; whisparr=Whisparr; lidarr=Lidarr}} and sorted by date. Covers both upcoming releases and recently aired items, with whether each already has a file. What is already overdue is get_wanted.',
             outputSchema: GetCalendarOutput,
             inputSchema: GetCalendarInput
         },

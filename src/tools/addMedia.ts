@@ -284,7 +284,7 @@ const AddMediaInput = z.object({
         .string()
         .min(1)
         .describe(
-            'TMDB id for radarr, TVDB id for sonarr or whisparr, as an integer string; the MusicBrainz artist id, a GUID, for lidarr.[[shelfmark: For a book, the `id` of its search row.]] From search_media `source: "discover"`.'
+            '[[radarr: TMDB id for radarr, an integer string.]] [[sonarr: TVDB id for sonarr, an integer string.]] [[whisparr: TVDB id for whisparr, an integer string.]] [[lidarr: The MusicBrainz artist id, a GUID, for lidarr.]] [[shelfmark: For a book, the `id` of its search row.]] From search_media `source: "discover"`.'
         ),
     quality_profile: z
         .string()
@@ -299,7 +299,7 @@ const AddMediaInput = z.object({
         .enum(['all', 'future', 'missing', 'existing', 'firstSeason', 'lastSeason', 'pilot', 'first', 'latest', 'none'])
         .optional()
         .describe(
-            'Sonarr or Whisparr: which seasons to monitor. `future` is "only what has not aired yet", `all` is everything, `none` monitors the series but no season. `pilot` is Sonarr only — a site has no pilot scene. Lidarr: which albums — `first` or `latest` album, or `all`, `future`, `missing`, `existing` or `none`; `firstSeason`, `lastSeason` and `pilot` are refused there, and `first` and `latest` everywhere else. Omit for the service\'s own default. Radarr has no seasons — use `monitored` there.'
+            '[[sonarr|whisparr: {{or: sonarr=Sonarr; whisparr=Whisparr}}: which seasons to monitor. `future` is "only what has not aired yet", `all` is everything, `none` monitors the series but no season.]] [[whisparr: `pilot` is Sonarr only — a site has no pilot scene.]] [[lidarr: Lidarr: which albums — `first` or `latest` album, or `all`, `future`, `missing`, `existing` or `none`; `firstSeason`, `lastSeason` and `pilot` are refused there, and `first` and `latest` everywhere else.]] Omit for the service\'s own default. [[radarr: Radarr has no seasons — use `monitored` there.]]'
         ),
     monitor_new_items: z
         .enum(['all', 'none', 'new'])
@@ -317,12 +317,12 @@ const AddMediaInput = z.object({
         .enum(['announced', 'inCinemas', 'released'])
         .optional()
         .describe(
-            'Radarr only: how early it may grab. Defaults to `released`, which is what stops a brand-new film grabbing a cinema recording the day it is announced.'
+            '[[radarr: Radarr only: how early it may grab. Defaults to `released`, which is what stops a brand-new film grabbing a cinema recording the day it is announced.]]'
         ),
     series_type: z
         .enum(['standard', 'daily', 'anime'])
         .optional()
-        .describe('Sonarr only: the numbering scheme. `anime` for absolute numbering, `daily` for date-based.'),
+        .describe('[[sonarr: Sonarr only: the numbering scheme. `anime` for absolute numbering, `daily` for date-based.]]'),
     tags: z
         .array(z.string().min(1))
         .optional()
@@ -337,7 +337,7 @@ const AddMediaInput = z.object({
         .string()
         .min(1)
         .optional()
-        .describe('Not Lidarr: an existing folder under a root folder to adopt as it is, files and all.')
+        .describe('An existing folder under a root folder to adopt as it is, files and all.[[lidarr: Not on Lidarr.]]')
 });
 
 export function registerAddMedia(server: McpServer, context: WriteContext, adapters: readonly ServiceAdapter[]): void {
@@ -345,7 +345,7 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
         name: 'add_media',
         title: 'Add a film, series, site, artist or book',
         description:
-            'Adds a film to Radarr, a series to Sonarr, a site to Whisparr or an artist to Lidarr, and by default starts a search. [[shelfmark: A book (the search row `id`) queues its most-downloaded file; none on offer fails.]] For a Seerr request that goes through approval, use request_media. Ids: TMDB for Radarr, TVDB for Sonarr and Whisparr (Whisparr\'s own scene id in that field), MusicBrainz for Lidarr; get them from search_media `source: "discover"`, under `ids`. With more than one quality profile or root folder, name one: call without them and the preview refuses with the list. Sonarr and Whisparr take `monitor` (which seasons), Sonarr `series_type`, Radarr `minimum_availability`. [[lidarr: Lidarr takes `monitor` (which albums), `monitor_new_items` and `metadata_profile`; `monitor: "none"` needs `monitored: false` with it, and its search on add covers only monitored, released albums.]] An option sent to the wrong service is refused, not dropped. Previews first; confirm to add. Field reference: arr://docs/add_media.',
+            'Adds {{or: radarr=a film to Radarr; sonarr=a series to Sonarr; whisparr=a site to Whisparr; lidarr=an artist to Lidarr; shelfmark=a book to Shelfmark}}, and by default starts a search. [[shelfmark: A book (the search row `id`) queues its most-downloaded file; none on offer fails.]] [[seerr: For a Seerr request that goes through approval, use request_media.]] Ids come from search_media `source: "discover"`, under `ids`[[radarr|sonarr|whisparr|lidarr: : {{and: radarr=TMDB for Radarr; sonarr=TVDB for Sonarr; whisparr=TVDB for Whisparr (its own scene id in that field); lidarr=MusicBrainz for Lidarr}}]]. With more than one quality profile or root folder, name one: call without them and the preview refuses with the list. [[lidarr: Lidarr takes `monitor` (which albums), `monitor_new_items` and `metadata_profile`; `monitor: "none"` needs `monitored: false` with it, and its search on add covers only monitored, released albums.]] An option sent to the wrong service is refused, not dropped. Previews first; confirm to add. Field reference: arr://docs/add_media.',
         inputSchema: AddMediaInput,
         // The resolved instance id, not the bare type: permissions are granted per
         // instance, so checking `radarr` against a config that only grants

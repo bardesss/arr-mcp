@@ -183,6 +183,27 @@ describe('a kind field', () => {
     });
 });
 
+describe('scoped lists', () => {
+    const text = 'Merged across {{and: radarr=Radarr; sonarr|whisparr=Sonarr; sabnzbd=SABnzbd}}. Picks {{or: radarr=a film; lidarr=an artist}}.';
+
+    it('joins the configured items as an English list', () => {
+        expect(scopeText(text, on('radarr', 'sonarr', 'sabnzbd'))).toBe('Merged across Radarr, Sonarr and SABnzbd. Picks a film.');
+    });
+
+    it('joins two items without a comma, and with or', () => {
+        expect(scopeText(text, on('whisparr', 'sabnzbd', 'radarr', 'lidarr'))).toBe('Merged across Radarr, Sonarr and SABnzbd. Picks a film or an artist.');
+        expect(scopeText(text, on('sabnzbd', 'lidarr'))).toBe('Merged across SABnzbd. Picks an artist.');
+    });
+
+    it('keeps every item before anything is configured', () => {
+        expect(scopeText(text, nothing)).toBe('Merged across Radarr, Sonarr and SABnzbd. Picks a film or an artist.');
+    });
+
+    it('leaves nothing when no item applies', () => {
+        expect(scopeText('Picks {{or: lidarr=an artist}} here.', on('radarr'))).toBe('Picks here.');
+    });
+});
+
 describe('description scopes', () => {
     const text = 'Reads the queue. [[lidarr: An artist row has albums.]] [[transmission|qbittorrent: A torrent carries `seeding`.]] Done.';
 

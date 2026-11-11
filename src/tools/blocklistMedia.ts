@@ -72,16 +72,16 @@ const TARGET = serviceTarget({
 const BlocklistMediaInput = z.object({
     ...targetInput(TARGET),
     service: targetInput(TARGET).service.default('seerr'),
-    action: z.enum(['add', 'remove']).describe('add, or remove (on Seerr destructive: it also deletes its record of the title).'),
+    action: z.enum(['add', 'remove']).describe('add, or remove[[seerr:  (on Seerr destructive: it also deletes its record of the title)]].'),
     id: z
         .union([z.number().int().positive(), z.string().min(1)])
         .optional()
         .describe(
-            "The title's TMDB id (seerr, radarr), TVDB id (sonarr) or MusicBrainz artist id (lidarr), from `ids` on a search_media or get_media_details record."
+            "The title's {{or: seerr|radarr=TMDB id (seerr, radarr); sonarr=TVDB id (sonarr); lidarr=MusicBrainz artist id (lidarr)}}, from `ids` on a search_media or get_media_details record."
         ),
-    kind: z.enum(['movie', 'series']).optional().describe('Seerr only, where it is required.'),
+    kind: z.enum(['movie', 'series']).optional().describe('[[seerr: Seerr only, where it is required.]]'),
     // 1.81.0 shipped this, Seerr-only, before `id` covered the *arrs (DEPRECATIONS).
-    tmdb_id: z.number().int().positive().optional().describe('Deprecated: use id. Seerr only.')
+    tmdb_id: z.number().int().positive().optional().describe('[[seerr: Deprecated: use id. Seerr only.]]')
 });
 
 type Input = z.infer<typeof BlocklistMediaInput>;
@@ -106,7 +106,7 @@ export function registerBlocklistMedia(server: McpServer, context: WriteContext,
         name: 'blocklist_media',
         title: 'Blocklist a title',
         description:
-            "Adds a title to, or removes it from, Seerr's blocklist (nobody can request it) or, with `service`, an *arr's import exclusions (only its own import lists skip it). delete_media's `seerr_blocklist` adds to Seerr while deleting. Removing from Seerr is destructive: it also deletes the title's requests and issues. Previews first; confirm to apply.",
+            "Adds a title to, or removes it from, [[seerr: Seerr's blocklist (nobody can request it) or, with `service`,]] an *arr's import exclusions (only its own import lists skip it). [[seerr: delete_media's `seerr_blocklist` adds to Seerr while deleting. Removing from Seerr is destructive: it also deletes the title's requests and issues.]] Previews first; confirm to apply.",
         inputSchema: BlocklistMediaInput,
         target: { adapters, to: TARGET },
         operation: 'blocklist_media',

@@ -16,7 +16,8 @@ import type { LibraryKind } from '../core/resolver.ts';
  * - on a `kind` field, every kind no configured service holds (`KIND_SERVICES`);
  * - on a `service` field built with `serviceOf`, every service the tool does
  *   not take and, when anything is configured, every service that is not;
- * - in a description, text wrapped in `[[lidarr|whisparr: …]]` when none of
+ * - in a description, `{{and: lidarr=Lidarr; …}}` items whose service is not
+ *   configured, and text wrapped in `[[lidarr|whisparr: …]]` when none of
  *   the services it names is configured;
  * - the write tools in `TOOL_SERVICES` none of whose services is configured,
  *   and with `tools.hide_unusable` the reads too.
@@ -104,9 +105,26 @@ export function toolUsable(name: string, opts: SurfaceOptions, write = false): b
     return !((write || opts.hideUnusable) && opts.configured.size > 0 && needs !== undefined && !present(needs, opts));
 }
 
-/** Resolves the `[[…]]` scopes in one piece of text. */
+/**
+ * `{{and: radarr=Radarr; sonarr|whisparr=Sonarr}}`: a list whose items each
+ * apply only with their services, joined as English ("A, B and C"; `or` for
+ * "A, B or C"). An item's text holds no `;`, `=` or `}}`.
+ */
+const SCOPED_LIST = /\{\{(and|or): ([^}]*)\}\}/g;
+
+function scopeList(word: string, items: string, opts: SurfaceOptions): string {
+    const kept = items
+        .split(';')
+        .map(item => item.trim().split('='))
+        .filter(([services]) => present((services ?? '').split('|'), opts))
+        .map(([, label]) => (label ?? '').trim());
+    return kept.length < 2 ? (kept[0] ?? '') : `${kept.slice(0, -1).join(', ')} ${word} ${kept.at(-1)}`;
+}
+
+/** Resolves the `[[…]]` scopes and `{{and|or: …}}` lists in one piece of text. */
 export function scopeText(text: string, opts: SurfaceOptions): string {
     return text
+        .replace(SCOPED_LIST, (_, word: string, items: string) => scopeList(word, items, opts))
         .replace(SCOPED, (_, list: string, body: string) => (present(list.split('|'), opts) ? body : ''))
         .replace(/ {2,}/g, ' ')
         .replace(/ +([.,;:])/g, '$1')
