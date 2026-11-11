@@ -92,6 +92,21 @@ describe('matchResults', () => {
         }
     );
 
+    it.each([
+        ['both report one, and they differ', '10.10.7', '10.9.11'],
+        ['only the host reports one', '10.10.7', undefined],
+        ['only the container reports one', undefined, '10.9.11']
+    ])('keeps a container find apart from a configured host find on the same port when %s', async (_case, hostVersion, containerVersion) => {
+        const config = parse({ jellyfin: block('http://nas.lan:8096') });
+        const found: Found[] = [
+            { type: 'jellyfin', url: 'http://nas.lan:8096', source: 'host', ...(hostVersion === undefined ? {} : { version: hostVersion }) },
+            { type: 'jellyfin', url: 'http://jellyfin:8096', source: 'container', ...(containerVersion === undefined ? {} : { version: containerVersion }) }
+        ];
+        const rows = await matchResults(found, config, resolve);
+        expect(rows.map(r => r.url)).toEqual(['http://nas.lan:8096', 'http://jellyfin:8096']);
+        expect(rows.some(r => r.alsoAt !== undefined)).toBe(false);
+    });
+
     it('keeps a container find on another port apart from a configured host find', async () => {
         const config = parse({ radarr: block('http://nas.lan:7878') });
         const found: Found[] = [

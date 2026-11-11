@@ -131,6 +131,9 @@ export async function matchResults(
             // With no version to compare (an *arr says none without a key), the
             // same port and a host find that is a configured instance are enough:
             // the container name is that instance reached from inside Docker.
+            // A version on either side is evidence of its own, and two finds
+            // that disagree on it are two servers.
+            if (m.found.version !== undefined || f.version !== undefined) return false;
             const host = m.found.source === 'host' ? { url: m.found.url, normalized: m.normalized } : { url: f.url, normalized };
             return portOf(m.found.url) === portOf(f.url) && instanceOf(f.type, [host]) !== undefined;
         });
