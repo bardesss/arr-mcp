@@ -7,7 +7,7 @@ import { parseSabTimeleft, SabnzbdAdapter } from '../src/services/sabnzbd.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
 import { QbittorrentAdapter } from '../src/services/qbittorrent.ts';
 import { TransmissionAdapter } from '../src/services/transmission.ts';
-import type { ServiceAdapter } from '../src/services/types.ts';
+import type { QueueItem, ServiceAdapter } from '../src/services/types.ts';
 import { buildGetQueue, queueLine } from '../src/tools/getQueue.ts';
 import { repeat } from './helpers/bigFixture.ts';
 import { expectWithinBudget } from './helpers/budget.ts';
@@ -547,5 +547,61 @@ describe('queueLine', () => {
     it('a row with addedAt says how long it has waited', () => {
         const line = queueLine({ service: 'grimmory', id: '3', title: 'Example Book 3.epub', status: 'pending review', addedAt: '2026-11-01T09:00:00Z' });
         expect(line).toContain('waiting since 2026-11-01');
+    });
+});
+
+describe('next_steps', () => {
+    type Row = Partial<QueueItem> & { service: string; id: string };
+    const row = (r: Row): QueueItem => ({ title: 'Some.Film.2026-GROUP', status: 'completed', ...r });
+    const queueOf = (id: string, rows: QueueItem[]): ServiceAdapter => ({ id, type: id.split('/')[0], getQueue: async () => rows }) as unknown as ServiceAdapter;
+    const blocked = (service: string, id: string, downloadId: string): QueueItem =>
+        row({ service, id, downloadId, mediaId: '7', importState: 'importBlocked' });
+
+    it('offers import_download for a download stuck at importBlocked', async () => {
+        const result = await buildGetQueue([queueOf('radarr', [blocked('radarr', '1', 'ABC')])], { detail: 'standard', limit: 50 });
+        expect(result.next_steps).toEqual([
+            { tool: 'import_download', arguments: { service: 'radarr', action: 'import', download_id: 'ABC' }, why: 'Asks radarr to import the finished download.' }
+        ]);
+    });
+
+    it('offers one step for a grab listed by both the *arr and its client', async () => {
+        const client = row({ service: 'sabnzbd', id: 'SAB1', downloadId: 'ABC' });
+        const result = await buildGetQueue([queueOf('radarr', [blocked('radarr', '1', 'ABC')]), queueOf('sabnzbd', [client])], { detail: 'standard', limit: 50 });
+        expect(result.next_steps).toHaveLength(1);
+    });
+
+    it('offers one step for a season pack, whose episodes share one download', async () => {
+        const result = await buildGetQueue([queueOf('sonarr', [blocked('sonarr', '1', 'PACK'), blocked('sonarr', '2', 'PACK')])], { detail: 'standard', limit: 50 });
+        expect(result.next_steps).toHaveLength(1);
+    });
+
+    it('names the instance of a named arr', async () => {
+        const result = await buildGetQueue([queueOf('radarr/4k', [blocked('radarr/4k', '1', 'ABC')])], { detail: 'standard', limit: 50 });
+        expect(result.next_steps?.[0]?.arguments).toEqual({ service: 'radarr', instance: '4k', action: 'import', download_id: 'ABC' });
+    });
+
+    it('offers at most three', async () => {
+        const rows = ['A', 'B', 'C', 'D', 'E'].map((d, i) => blocked('sonarr', String(i), d));
+        const result = await buildGetQueue([queueOf('sonarr', rows)], { detail: 'standard', limit: 50 });
+        expect(result.next_steps).toHaveLength(3);
+    });
+
+    it('keeps a step whose row is past the page', async () => {
+        const rows = [row({ service: 'radarr', id: '9', status: 'downloading', etaSeconds: 1 }), blocked('radarr', '1', 'ABC')];
+        const result = await buildGetQueue([queueOf('radarr', rows)], { detail: 'standard', limit: 1 });
+        expect(result.next_steps).toHaveLength(1);
+    });
+
+    it('offers nothing for a completed download the *arr is still importing', async () => {
+        const result = await buildGetQueue([queueOf('radarr', [row({ service: 'radarr', id: '1', downloadId: 'ABC', mediaId: '7', importState: 'importPending' })])], {
+            detail: 'standard',
+            limit: 50
+        });
+        expect(result).not.toHaveProperty('next_steps');
+    });
+
+    it('offers nothing on Whisparr, which has no manual import', async () => {
+        const result = await buildGetQueue([queueOf('whisparr', [blocked('whisparr', '1', 'ABC')])], { detail: 'standard', limit: 50 });
+        expect(result).not.toHaveProperty('next_steps');
     });
 });
