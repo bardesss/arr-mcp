@@ -3705,6 +3705,14 @@ describe('finding services', () => {
             const page = await pending;
             expect(page).toContain('already added');
             expect(page).not.toContain('9.9.9-late');
+
+            // The miss is kept: a reload does not wait on the cap again. No fake
+            // time passes here, so a render that waited would never finish.
+            let second: string | undefined;
+            void servicesPage().then(p => (second = p));
+            await vi.waitFor(() => expect(second).toBeDefined(), { timeout: 1000 });
+            expect(second).toContain('already added');
+            expect(second).not.toContain('9.9.9-late');
         } finally {
             globalThis.fetch = realFetch;
             vi.useRealTimers();

@@ -444,7 +444,8 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
      * instance's own adapter reads: from its configured url, with its key.
      * Nothing is sent to the found address. A read is kept like the users
      * above, so a sweep's reloads ask once; one that fails or misses the cap
-     * leaves the cell empty.
+     * leaves the cell empty, and is kept as empty, so a hung instance costs
+     * the cap once, not on every reload.
      */
     const VERSION_LOOKUP_MS = 1500;
     let versionsCache: { config: Config; at: number; versions: Map<string, Promise<string | undefined>> } | undefined;
@@ -455,7 +456,13 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         let read = versionsCache.versions.get(instanceId);
         if (read === undefined) {
             const adapter = runtime.current.adapters.find(a => a.id === instanceId);
-            read = adapter === undefined ? Promise.resolve(undefined) : adapter.getVersion().catch(() => undefined);
+            read =
+                adapter === undefined
+                    ? Promise.resolve(undefined)
+                    : withTimeout(adapter.getVersion(), VERSION_LOOKUP_MS).then(
+                          v => (v === TIMED_OUT ? undefined : v),
+                          () => undefined
+                      );
             versionsCache.versions.set(instanceId, read);
         }
         return read;
@@ -465,7 +472,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         const rows = await Promise.all(
             run.rows.map(async row => {
                 if (row.version !== undefined || row.instanceId === undefined) return row;
-                const version = await withTimeout(versionOf(row.instanceId), VERSION_LOOKUP_MS);
+                const version = await versionOf(row.instanceId);
                 return typeof version === 'string' && version !== '' ? { ...row, version } : row;
             })
         );
