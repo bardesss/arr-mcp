@@ -8,8 +8,10 @@ import { targetInput, serviceTarget } from './serviceTarget.ts';
 
 /** The adapters that report orphaned queue items and can remove them. */
 type OrphanCapable = ServiceAdapter & QueueRemoveCapable & QueueCapable;
-export const canClearOrphans = (a: ServiceAdapter): a is OrphanCapable => hasQueueRemove(a) && hasQueue(a);
-export const ORPHAN_SERVICES = ['radarr', 'sonarr', 'whisparr', 'lidarr'] as const;
+const ORPHAN_SERVICES = ['radarr', 'sonarr', 'whisparr', 'lidarr'] as const;
+/** One guard for both tools, plan and apply: the service type and the capability. */
+export const canClearOrphans = (a: ServiceAdapter): a is OrphanCapable =>
+    (ORPHAN_SERVICES as readonly string[]).includes(a.type) && hasQueueRemove(a) && hasQueue(a);
 type OrphanBound = { ids: string[] };
 
 const TARGET = serviceTarget({
@@ -40,7 +42,7 @@ export async function planOrphaned(adapter: OrphanCapable): Promise<WritePlan<Or
             summary:
                 `${adapter.id} has no orphaned queue items stuck at importBlocked.` +
                 (adapter.type === 'lidarr'
-                    ? ' Lidarr before 2.10.1 never marks one importBlocked: there, a deleted artist\'s finished download stays `completed` with a warning in get_queue, and remove_queue_item removes it.'
+                    ? ' Lidarr before 2.10.1 never marks one importBlocked: there, a deleted artist\'s finished download stays `completed` with a warning in get_queue, and remove_queue_item with its `id` removes it.'
                     : ''),
             effects: [],
             noop: true

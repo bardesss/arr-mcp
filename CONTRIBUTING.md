@@ -275,7 +275,7 @@ small, shaped change, and a service in no slot at all is a different product.
   `get_queue`, `get_history` and `get_blocklist` include Lidarr; their fixtures
   were captured from Lidarr 3.1.0.4875 with download activity, and the reads
   were exercised against 2.1.3.3927 and 3.1.6.5079. `QueueRemoveCapable` is the
-  shared `removeArrQueueItem`, so `remove_queue_item` and `clean_queue` take
+  shared `removeArrQueueItem`, so `remove_queue_item`, with or without `orphaned`, takes
   Lidarr. `LibraryScanCapable`, `LibraryMaintenanceCapable`,
   `ManualImportCapable` and `CommandStatusCapable` are the shared helpers, with
   `resource: 'artist'` where they take one, so `trigger_scan` rescans, renames

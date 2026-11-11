@@ -233,8 +233,8 @@ library beside a lossy one, where most artists are in both, `diagnose_media` can
 an artist playable when only one instance has its files; `get_media_details`
 with `instance` reads each one.
 
-Every tool that acts on one Lidarr, such as `set_monitoring`, `trigger_scan`,
-`remove_queue_item`, takes `instance` and refuses to guess
+Every tool that acts on one Lidarr, such as `set_monitoring`, `trigger_scan`
+and `remove_queue_item`, takes `instance` and refuses to guess
 between them. `arr://lidarr/monitoring` reports each instance that answered
 beside the totals, and names one that did not in `degraded`; the totals add the
 instances up, so an artist both hold counts in each.

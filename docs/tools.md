@@ -1877,13 +1877,25 @@ for a row `get_queue` marks `orphaned`, and for a Lidarr row with no album,
 unless the release is blocklisted. The refusal changes nothing, so a torrent
 keeps seeding.
 
+**Unverified live** (Radarr): the grab-record read behind `blocklist: true`, read from Radarr's source.
+
+**Unverified live** (Sonarr): the same read, from Sonarr's source.
+
+**Unverified live** (Whisparr): the same read, from Whisparr's source.
+
+**Unverified live** (qBittorrent): removing a torrent, with or without its files.
+
+**Unverified live** (Shelfmark): cancelling a Prowlarr row.
+
+**Unverified live** (Grimmory): discarding a Bookdrop file.
+
 ### Orphaned downloads (`orphaned: true`)
 
 Pass `orphaned: true` in place of `id`, with `service` and `instance` naming one
 Radarr, Sonarr, Whisparr or Lidarr instance (exactly one of `id` and `orphaned`;
-both or neither is refused). `remove_from_client` is ignored, since it always
-removes from the client, and `blocklist: true` is refused. A download client is
-refused before anything is read.
+both or neither is refused). It always removes the download from the client, so
+`remove_from_client: false` is refused, and so is `blocklist: true`. A download
+client is refused before anything is read.
 
 Radarr and Sonarr leave a completed download in the queue forever when the film
 or series it belongs to has been deleted: there is nothing to import it into,
@@ -1908,8 +1920,8 @@ the first release whose `CompletedDownloadService` marks such a download
 `importState: "downloading"` and a warning ("Artist name mismatch, automatic
 import is not possible"), so on 2.1.3 to 2.10.0 the rule matches nothing, and a
 Lidarr preview with nothing to clean says so. Remove one of those with
-`remove_queue_item` and its `id`. A deleted artist's downloads that had already imported read
-`orphaned` with `importState: "imported"` instead, and are left alone: they are
+`remove_queue_item` and its `id`. A deleted artist's downloads that had already
+imported read `orphaned` with `importState: "imported"` instead, and are left alone: they are
 not stuck, and `remove_queue_item` removes one if it is wanted gone.
 
 The preview lists every item by name before anything is removed, and the
@@ -1921,18 +1933,6 @@ The text reports what actually happened, not what was planned: if only some of
 the items go it says so ("1 of 2 removed"), not only in `result`.
 `import_download` and `trigger_subtitle_search` do the same when part of a remap or
 a subtitle search did not run.
-
-**Unverified live** (Radarr): the grab-record read behind `blocklist: true`, read from Radarr's source.
-
-**Unverified live** (Sonarr): the same read, from Sonarr's source.
-
-**Unverified live** (Whisparr): the same read, from Whisparr's source.
-
-**Unverified live** (qBittorrent): removing a torrent, with or without its files.
-
-**Unverified live** (Shelfmark): cancelling a Prowlarr row.
-
-**Unverified live** (Grimmory): discarding a Bookdrop file.
 
 ## `manage_indexer`
 

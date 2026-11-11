@@ -221,8 +221,8 @@ them off. The cards are read-only for now.
   add, `add_media` adds one by its MusicBrainz id, `update_media` changes its
   profiles, root folder, monitoring and tags, and `delete_media` deletes it.
   Artists join to Jellyfin and Plex on the MusicBrainz artist id. `get_queue`,
-  `get_history` and `get_blocklist` include Lidarr, `remove_queue_item` (with
-  `orphaned: true`, a Lidarr cleanup too) takes a Lidarr download, and `trigger_scan` rescans and renames,
+  `get_history` and `get_blocklist` include Lidarr, `remove_queue_item` takes a
+  Lidarr download (`orphaned: true` clears its orphaned ones), and `trigger_scan` rescans and renames,
   and `import_download` imports for it. `get_stack_health` reports its disks, failing health checks,
   last library scan and, at `detail: "full"`, its recent warnings and errors.
   `get_wanted` and `get_calendar` list its albums.

@@ -85,10 +85,8 @@ function baseHarness(records: unknown[] = [BLOCKED_A, BLOCKED_B, ORPHAN_DOWNLOAD
     registerRemoveQueueItem(server as never, context, adapters);
 
     const tool = opts.tool ?? 'clean_queue';
-    return {
-        call: (args: Record<string, unknown>) => (calls.get(tool) ?? (() => Promise.reject(new Error('not registered'))))(args),
-        fetch
-    };
+    const callTool = (name: string, args: Record<string, unknown>) => (calls.get(name) ?? (() => Promise.reject(new Error('not registered'))))(args);
+    return { call: (args: Record<string, unknown>) => callTool(tool, args), callTool, fetch };
 }
 
 /** The same cleaning through both tools: `clean_queue` is the alias of `remove_queue_item` with `orphaned: true`. */
@@ -299,7 +297,7 @@ describe.each(TOOLS)('%s on lidarr', (tool, _args, lidarrArgs) => {
 
         expect(structuredContent.noop).toBe(true);
         expect(structuredContent.summary).toMatch(/before 2\.10\.1 never marks one importBlocked/);
-        expect(content[0]?.text).toContain('remove_queue_item removes it');
+        expect(content[0]?.text).toContain('remove_queue_item with its `id`');
     });
 });
 
@@ -315,11 +313,10 @@ describe('remove_queue_item orphaned', () => {
         expect(viaRemove.structuredContent.effects).toEqual(viaClean.structuredContent.effects);
     });
 
-    it('ignores remove_from_client: it always removes from the client', async () => {
+    it('refuses remove_from_client: false with orphaned, before any read', async () => {
         const h = remove();
-        const first = await h.call({ service: 'radarr', orphaned: true, remove_from_client: false });
-        await h.call({ service: 'radarr', orphaned: true, remove_from_client: false, confirm: first.structuredContent.confirm_token });
-        expect(h.fetch.deletes()[0]?.query).toMatchObject({ removeFromClient: 'true', blocklist: 'false' });
+        await expect(h.call({ service: 'radarr', orphaned: true, remove_from_client: false, dry_run: true })).rejects.toThrow(/cannot leave it alone/);
+        expect(h.fetch.sent).toHaveLength(0);
     });
 
     it('refuses an id with orphaned, naming the other', async () => {
@@ -351,5 +348,35 @@ describe('remove_queue_item orphaned', () => {
         const h = remove(undefined, { adapters: [qbit], permissions: { qbittorrent: permissive(true, true) } });
         await expect(h.call({ service: 'qbittorrent', orphaned: true, dry_run: true })).rejects.toThrow(/Radarr, Sonarr, Whisparr and Lidarr only/);
         expect((qbit as unknown as { getQueue: ReturnType<typeof vi.fn> }).getQueue).not.toHaveBeenCalled();
+    });
+
+    // One ConfirmTokens serves every tool, so a token must not carry from one
+    // kind of removal to another: each confirm is a fresh preview, not a delete.
+    describe('confirm tokens do not cross', () => {
+        const refused = (r: { structuredContent: WriteToolResult }) => {
+            expect(r.structuredContent.applied).not.toBe(true);
+            expect(r.structuredContent.confirm_token).toBeDefined();
+        };
+
+        it('a single-id token sent with orphaned', async () => {
+            const h = remove();
+            const first = await h.call({ service: 'radarr', id: '5' });
+            refused(await h.call({ service: 'radarr', orphaned: true, confirm: first.structuredContent.confirm_token }));
+            expect(h.fetch.deletes()).toHaveLength(0);
+        });
+
+        it('an orphaned token sent with an id', async () => {
+            const h = remove();
+            const first = await h.call({ service: 'radarr', orphaned: true });
+            refused(await h.call({ service: 'radarr', id: '5', confirm: first.structuredContent.confirm_token }));
+            expect(h.fetch.deletes()).toHaveLength(0);
+        });
+
+        it('a clean_queue token sent to remove_queue_item', async () => {
+            const h = remove();
+            const first = await h.callTool('clean_queue', { service: 'radarr' });
+            refused(await h.call({ service: 'radarr', orphaned: true, confirm: first.structuredContent.confirm_token }));
+            expect(h.fetch.deletes()).toHaveLength(0);
+        });
     });
 });

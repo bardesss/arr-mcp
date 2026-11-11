@@ -62,6 +62,11 @@ describe('DEPRECATIONS', () => {
         }
     });
 
+    it('describes clean_queue in one line that names the call to make', async () => {
+        const tools = await listTools();
+        expect(tools.find(t => t.name === 'clean_queue')?.description).toBe('Deprecated: use remove_queue_item with `orphaned: true`.');
+    });
+
     it('answers the old name with the same result', async () => {
         for (const [oldName, newName, args] of [
             ['stack_health', 'get_stack_health', {}],
