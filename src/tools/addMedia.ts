@@ -394,9 +394,14 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
                         const queued = (await adapter.getQueue()).find(row => row.id === hash);
                         queueChecked = true;
                         if (queued !== undefined) {
+                            // An `error` row is a failed download still in the queue: queueing the
+                            // same release again would not help, but retry_download takes this id.
+                            const summary = queued.status === 'error'
+                                ? `${top.title} already failed in ${service}'s queue. To try it again, use retry_download with id "${queued.id}".`
+                                : `${top.title} is already queued in ${service}.`;
                             return {
                                 target,
-                                summary: `${top.title} is already queued in ${service}.`,
+                                summary,
                                 effects: [],
                                 noop: true
                             };

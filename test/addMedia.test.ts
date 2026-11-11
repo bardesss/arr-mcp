@@ -1008,13 +1008,13 @@ describe('add_media on Shelfmark', () => {
 
     describe('when the release is already queued', () => {
         /** The recorded queue task, keyed by the top release's source_id the way Shelfmark keys its tasks. */
-        async function queuedTop() {
+        async function queuedTop(bucket: 'queued' | 'error' = 'queued') {
             const probe = bookHarness();
             const top = (await probe.shelfmark.findReleases({ id: BOOK_ID }))[0];
             const raw = (recorded('releases') as { releases: { source_id: string }[] }).releases.find(r => hashOf(r.source_id) === top?.guid?.split(':')[1]);
             const status = recorded('status') as Record<string, Record<string, Record<string, unknown>>>;
             const [task] = Object.values(status).flatMap(tasks => Object.values(tasks));
-            return { ...status, queued: { [raw?.source_id as string]: { ...task, status: 'queued' } } };
+            return { ...status, [bucket]: { [raw?.source_id as string]: { ...task, status: bucket } } };
         }
 
         it('is a no-op with nothing to confirm, and sends nothing', async () => {
@@ -1022,6 +1022,18 @@ describe('add_media on Shelfmark', () => {
             const h = bookHarness({ answers: { '/api/status': () => json(queue) } });
             const { structuredContent } = await h.call({ service: 'shelfmark', external_id: BOOK_ID });
             expect(structuredContent.summary).toContain('already queued');
+            expect(structuredContent.noop).toBe(true);
+            expect(h.downloads()).toEqual([]);
+        });
+
+        it('says a failed copy in the queue failed and points to retry_download with its id', async () => {
+            const queue = await queuedTop('error');
+            const h = bookHarness({ answers: { '/api/status': () => json(queue) } });
+            const { structuredContent } = await h.call({ service: 'shelfmark', external_id: BOOK_ID });
+            const top = (await h.shelfmark.findReleases({ id: BOOK_ID }))[0];
+            expect(structuredContent.summary).toContain('already failed');
+            expect(structuredContent.summary).toContain(`retry_download with id "${top?.guid?.split(':')[1]}"`);
+            expect(structuredContent.summary).not.toContain('already queued');
             expect(structuredContent.noop).toBe(true);
             expect(h.downloads()).toEqual([]);
         });
