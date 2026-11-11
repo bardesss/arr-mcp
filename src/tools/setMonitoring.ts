@@ -98,7 +98,7 @@ export function registerSetMonitoring(
         name: 'set_monitoring',
         title: 'Start or stop monitoring',
         description:
-            'Turns monitoring on or off. [[sonarr|whisparr: {{and: sonarr=Sonarr; whisparr=Whisparr}}: a series (by `id` or `title`), one `season`, or `episodes` (not both).]] [[lidarr: Lidarr takes `level: "album"` for one album\'s flag (ids from get_media_details on the artist, or a get_wanted `albumId`); its artist level is deprecated, use update_media.]] [[radarr: Radarr monitoring is update_media.]] [[sonarr|whisparr: Unmonitor **before** delete_episode_files, or {{and: sonarr=Sonarr; whisparr=Whisparr}} download the files again.]] Safe tier. The preview shows the current state; a season or episode that does not exist is refused rather than silently written. Previews first; confirm to apply. Field reference: arr://docs/set_monitoring.',
+            'Turns monitoring on or off. [[sonarr|whisparr: {{and: sonarr=Sonarr; whisparr=Whisparr}}: a series (by `id` or `title`), one `season`, or `episodes` (not both).]] [[lidarr: Lidarr takes `level: "album"` for one album\'s flag (ids from get_media_details on the artist, or a get_wanted `albumId`); its artist level is deprecated, use update_media.]] [[radarr: Radarr monitoring is update_media.]] [[sonarr|whisparr: Unmonitor **before** delete_episode_files, or the *arr downloads the files again.]] Safe tier. The preview shows the current state; a season or episode that does not exist is refused rather than silently written. Previews first; confirm to apply. Field reference: arr://docs/set_monitoring.',
         inputSchema: SetMonitoringInput,
         target: { adapters, to: TARGET },
         operation: 'set_monitoring',

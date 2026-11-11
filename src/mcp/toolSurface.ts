@@ -108,16 +108,21 @@ export function toolUsable(name: string, opts: SurfaceOptions, write = false): b
 /**
  * `{{and: radarr=Radarr; sonarr|whisparr=Sonarr}}`: a list whose items each
  * apply only with their services, joined as English ("A, B and C"; `or` for
- * "A, B or C"). An item's text holds no `;`, `=` or `}}`.
+ * "A, B or C"). An item keyed `*` is always kept, and one keyed `else` stands
+ * in when no scoped item applies. An item's text holds no `;`, `=` or `}}`.
  */
 const SCOPED_LIST = /\{\{(and|or): ([^}]*)\}\}/g;
 
 function scopeList(word: string, items: string, opts: SurfaceOptions): string {
-    const kept = items
-        .split(';')
-        .map(item => item.trim().split('='))
-        .filter(([services]) => present((services ?? '').split('|'), opts))
-        .map(([, label]) => (label ?? '').trim());
+    const pairs = items.split(';').map(item => {
+        const [services = '', label = ''] = item.trim().split('=');
+        return { services, label: label.trim() };
+    });
+    // `*` is kept on every stack; `else` stands in when nothing else applies.
+    const fallback = pairs.find(p => p.services === 'else')?.label;
+    const scoped = pairs.filter(p => p.services !== 'else' && p.services !== '*' && present(p.services.split('|'), opts));
+    const always = pairs.filter(p => p.services === '*');
+    const kept = [...(scoped.length === 0 && fallback !== undefined ? [fallback] : scoped.map(p => p.label)), ...always.map(p => p.label)];
     return kept.length < 2 ? (kept[0] ?? '') : `${kept.slice(0, -1).join(', ')} ${word} ${kept.at(-1)}`;
 }
 

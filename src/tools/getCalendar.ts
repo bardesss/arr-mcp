@@ -144,7 +144,7 @@ export function registerGetCalendar(server: McpServer, adapters: readonly Servic
             title: 'Upcoming releases',
             annotations: READ_ONLY,
             description:
-                'Films, episodes and albums due in a date window, merged from {{and: radarr=Radarr; sonarr=Sonarr; whisparr=Whisparr; lidarr=Lidarr}} and sorted by date. Covers both upcoming releases and recently aired items, with whether each already has a file. What is already overdue is get_wanted.',
+                'Films, episodes and albums due in a date window, merged from {{and: radarr=Radarr; sonarr=Sonarr; whisparr=Whisparr; lidarr=Lidarr; else=the *arrs}}, sorted by date. Covers both upcoming releases and recently aired items, with whether each already has a file. What is already overdue is get_wanted.',
             outputSchema: GetCalendarOutput,
             inputSchema: GetCalendarInput
         },

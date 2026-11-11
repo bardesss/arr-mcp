@@ -139,7 +139,7 @@ const TARGET = serviceTarget({
 });
 
 const UpdateMediaInput = z.object({
-    ...targetInput(TARGET, 'radarr for a film, sonarr for a series, lidarr for an artist.[[grimmory: Deprecated: use update_book for a book.]]'),
+    ...targetInput(TARGET, 'radarr for a film, sonarr for a series, lidarr for an artist. [[grimmory: Deprecated: use update_book for a book.]]'),
     id: z
         .string()
         .min(1)
@@ -211,7 +211,7 @@ export function registerUpdateMedia(
         name: 'update_media',
         title: 'Change what a library item is set to',
         description:
-            'Changes settings on an item already in {{or: radarr=Radarr; sonarr=Sonarr; lidarr=Lidarr}}: quality profile, root folder, monitoring, tags[[radarr: , Radarr\'s minimum availability]][[sonarr: , Sonarr\'s series type]][[lidarr: , Lidarr\'s metadata profile]]. [[radarr: The only way to change a Radarr item\'s monitoring.]] [[grimmory: A Grimmory book is update_book.]] [[lidarr: On Lidarr, `id` is an artist; omit it with `monitored` or `monitor_new_items` to set every artist (`none` stops the wanted list growing by itself). The artist flag is not the album flag: albums keep their own, so stop wanting one with set_monitoring `level: "album"`. A new metadata profile applies at the artist\'s next refresh, which can remove albums.]] Takes `service` and `id`. Changing `root_folder` **moves the files on disk** unless `move_files: false`. `tags` replaces the whole set and an unknown tag is refused; get_instance_options lists profiles, folders and tags. Previews first; confirm to apply. Field reference: arr://docs/update_media.',
+            '[[radarr|sonarr|lidarr: Changes settings on an item already in {{or: radarr=Radarr; sonarr=Sonarr; lidarr=Lidarr}}: quality profile, root folder, monitoring, tags]][[radarr: , Radarr\'s minimum availability]][[sonarr: , Sonarr\'s series type]][[lidarr: , Lidarr\'s metadata profile]][[radarr|sonarr|lidarr: .]] [[radarr: The only way to change a Radarr item\'s monitoring.]] [[grimmory: A Grimmory book is update_book.]] [[lidarr: On Lidarr, `id` is an artist; omit it with `monitored` or `monitor_new_items` to set every artist (`none` stops the wanted list growing by itself). The artist flag is not the album flag: albums keep their own, so stop wanting one with set_monitoring `level: "album"`. A new metadata profile applies at the artist\'s next refresh, which can remove albums.]] Takes `service` and `id`. Changing `root_folder` **moves the files on disk** unless `move_files: false`. `tags` replaces the whole set and an unknown tag is refused; get_instance_options lists profiles, folders and tags. Previews first; confirm to apply. Field reference: arr://docs/update_media.',
         inputSchema: UpdateMediaInput,
         target: { adapters, to: TARGET },
         operation: 'update_media',

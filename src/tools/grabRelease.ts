@@ -114,7 +114,7 @@ const GrabReleaseInput = z.object({
         .int()
         .nonnegative()
         .optional()
-        .describe('[[sonarr: Sonarr only. The `season` get_releases was called with, so the preview searches that season rather than the whole series.]]'),
+        .describe('[[sonarr|whisparr: {{or: sonarr=Sonarr; whisparr=Whisparr}} only. The `season` get_releases was called with, so the preview searches that season rather than the whole series.]]'),
     episode: z
         .string()
         .min(1)

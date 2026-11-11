@@ -199,6 +199,13 @@ describe('scoped lists', () => {
         expect(scopeText(text, nothing)).toBe('Merged across Radarr, Sonarr and SABnzbd. Picks a film or an artist.');
     });
 
+    it('always keeps a `*` item, and falls back to `else` when nothing else applies', () => {
+        const list = 'Looked up in {{and: cleanuparr=Cleanuparr; sabnzbd=client history; *=the event log}}. Merged across {{and: radarr=Radarr; else=every service}}.';
+        expect(scopeText(list, on('cleanuparr', 'sabnzbd'))).toBe('Looked up in Cleanuparr, client history and the event log. Merged across every service.');
+        expect(scopeText(list, on('radarr'))).toBe('Looked up in the event log. Merged across Radarr.');
+        expect(scopeText(list, nothing)).toBe('Looked up in Cleanuparr, client history and the event log. Merged across Radarr.');
+    });
+
     it('leaves nothing when no item applies', () => {
         expect(scopeText('Picks {{or: lidarr=an artist}} here.', on('radarr'))).toBe('Picks here.');
     });

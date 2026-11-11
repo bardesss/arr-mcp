@@ -284,7 +284,7 @@ const AddMediaInput = z.object({
         .string()
         .min(1)
         .describe(
-            '[[radarr: TMDB id for radarr, an integer string.]] [[sonarr: TVDB id for sonarr, an integer string.]] [[whisparr: TVDB id for whisparr, an integer string.]] [[lidarr: The MusicBrainz artist id, a GUID, for lidarr.]] [[shelfmark: For a book, the `id` of its search row.]] From search_media `source: "discover"`.'
+            '[[radarr|sonarr|whisparr: The {{or: radarr=TMDB id for radarr; sonarr|whisparr=TVDB id for sonarr or whisparr}}, as an integer string.]] [[lidarr: The MusicBrainz artist id, a GUID, for lidarr.]] [[shelfmark: For a book, the `id` of its search row.]] From search_media `source: "discover"`.'
         ),
     quality_profile: z
         .string()
@@ -337,7 +337,7 @@ const AddMediaInput = z.object({
         .string()
         .min(1)
         .optional()
-        .describe('An existing folder under a root folder to adopt as it is, files and all.[[lidarr: Not on Lidarr.]]')
+        .describe('An existing folder under a root folder to adopt as it is, files and all. [[lidarr: Not on Lidarr.]]')
 });
 
 export function registerAddMedia(server: McpServer, context: WriteContext, adapters: readonly ServiceAdapter[]): void {

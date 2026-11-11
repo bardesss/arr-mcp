@@ -98,3 +98,44 @@ describe('the tool list on a stack', () => {
         expect(tools.find(t => t.name === 'get_queue')?.description).toContain('downloadId');
     });
 });
+
+/** Stacks the grammar guard reads every listed tool on, each a realistic shape. */
+const SHAPES: Record<string, Record<string, unknown>> = {
+    ...STACKS,
+    empty: {},
+    grimmoryOnly: { grimmory: STACKS['books']!['grimmory'] },
+    shelfmarkOnly: { shelfmark: svc(8084) },
+    plexOnly: { plex: svc(32400) },
+    jellyfinOnly: { jellyfin: svc(8096, { default_user: 'u' }) },
+    prowlarrOnly: { prowlarr: svc(9696) },
+    seerrJellyfin: { seerr: svc(5055, { default_user: 'u' }), jellyfin: svc(8096, { default_user: 'u' }) },
+    whisparr: { whisparr: svc(6969), sabnzbd: svc(8080) },
+    radarrPlexQbit: { radarr: svc(7878), plex: svc(32400), qbittorrent: { url: 'http://192.0.2.10:8081' } }
+};
+
+/** What a dropped scope or an emptied list leaves behind. */
+const BROKEN: ReadonlyArray<[RegExp, string]> = [
+    [/\b(?:across|already in|Only)\s*[,;:.]/, 'a preposition with nothing after it'],
+    [/\b(?:across|looked up in|merged from)\s+(?:and\b|,)/, 'a list that came out empty'],
+    [/^(?:Or|And)\b/, 'a sentence continuing one that was dropped'],
+    [/[a-z`)]\.[A-Z]/, 'no space after a full stop'],
+    [/\band [A-Z][\w-]+(?: [\w-]+)? and\b/, 'two "and"s in one list']
+];
+
+describe('scoped text on any stack', () => {
+    it('reads as whole sentences', { timeout: 120_000 }, async () => {
+        const found: string[] = [];
+        for (const [stack, services] of Object.entries(SHAPES)) {
+            const configured = new Set(Object.keys(services)) as Set<ServiceId>;
+            const tools = await listTools(services);
+            const texts = [...tools.flatMap(t => descriptions(t).map(text => ({ tool: t.name, text }))), { tool: 'instructions', text: instructionsFor({ configured, hideUnusable: false }) }];
+            for (const { tool, text } of texts) {
+                for (const [pattern, why] of BROKEN) {
+                    const m = pattern.exec(text);
+                    if (m !== null) found.push(`${stack} ${tool}: ${why}: "…${text.slice(Math.max(0, m.index - 40), m.index + 30)}…"`);
+                }
+            }
+        }
+        expect([...new Set(found)]).toEqual([]);
+    });
+});
