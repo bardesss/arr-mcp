@@ -620,6 +620,9 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         { name: 'calendar', path: '/api/v3/calendar' },
         // See the Radarr entry: `unmappedFolders` rides along on this read.
         { name: 'rootfolder', path: '/api/v3/rootfolder' },
+        // The profile list `fix_profile` and `get_profile_issues` read. No PUT
+        // is recorded for Sonarr: this script only reads.
+        { name: 'qualityprofile', path: '/api/v3/qualityprofile' },
         { name: 'series', path: '/api/v3/series' },
         {
             name: 'episode',
