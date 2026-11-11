@@ -2,6 +2,9 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import type { ServiceInstance } from '../../config/instances.ts';
 import { logger } from '../../core/logger.ts';
+import { nextStepLine, stepsField, type NextStep } from '../../core/nextStep.ts';
+import { fixableOn } from '../fixProfile.ts';
+import { instanceArgs } from '../resolveInstance.ts';
 import {
     DetailSchema,
     LimitSchema,
@@ -48,6 +51,8 @@ type GetProfileIssuesResult = {
     degraded: string[];
     /** A fact about the stack's config, not this call — see the two notes below. */
     note?: string;
+    /** A fix_profile call per floor it can fix, on an instance Profilarr does not wholly sync. */
+    next_steps?: NextStep[];
 };
 
 const NO_ARR_NOTE =
@@ -212,6 +217,7 @@ export async function buildGetProfileIssues(
     );
 
     const items: ProfileIssue[] = [];
+    const fixable: Fixable[] = [];
     const degraded: string[] = [];
     const notes: string[] = [];
 
@@ -241,7 +247,10 @@ export async function buildGetProfileIssues(
                     ...languagePreferenceFindings(profile, data.formats),
                     ...dialectFindings(profile, data.formats, languages)
                 ];
-                for (const { change: _change, ...f } of findings) {
+                for (const { change, ...f } of findings) {
+                    if (change !== undefined && (f.kind === 'unreachable_floor' || f.kind === 'knife_edge_floor')) {
+                        fixable.push({ adapter, profileCount: data.profiles.length, profile: profile.name, finding: f.kind, floor: change.minFormatScore });
+                    }
                     items.push({
                         ...f,
                         remedy: `${profileOwner(adapter.type as ArrServiceType)}, ${f.remedy}`,
@@ -280,8 +289,32 @@ export async function buildGetProfileIssues(
         ...shaped,
         items: shaped.items.map(i => project(i, opts.detail)),
         degraded: degraded.sort(),
+        ...stepsField(profilarr !== undefined && degraded.includes(profilarr.id) ? [] : await fixSteps(fixable, adapters, instances)),
         ...(notes.length > 0 ? { note: notes.join(' ') } : {})
     };
+}
+
+/** A floor finding fix_profile can apply, before Profilarr has been asked whether the instance is its. */
+type Fixable = { adapter: ServiceAdapter; profileCount: number; profile: string; finding: 'unreachable_floor' | 'knife_edge_floor'; floor: number };
+
+/**
+ * The fix_profile calls to offer: one per fixable floor, on an instance
+ * fix_profile would not refuse as Profilarr's. Each instance is checked once,
+ * all at the same time; the caller skips this when Profilarr already failed.
+ */
+async function fixSteps(fixable: readonly Fixable[], adapters: readonly ServiceAdapter[], instances: readonly ServiceInstance[]): Promise<NextStep[]> {
+    const byAdapter = new Map(fixable.map(f => [f.adapter.id, f]));
+    const open = new Map(
+        await Promise.all([...byAdapter.values()].map(async f => [f.adapter.id, await fixableOn(adapters, f.adapter, instances, f.profileCount)] as const))
+    );
+    return [...fixable]
+        .sort((a, b) => a.adapter.id.localeCompare(b.adapter.id) || a.profile.localeCompare(b.profile))
+        .filter(f => open.get(f.adapter.id) === true)
+        .map(f => ({
+            tool: 'fix_profile',
+            arguments: { ...instanceArgs(f.adapter.id), profile: f.profile, finding: f.finding },
+            why: `Lowers the minimum custom format score to ${f.floor}, so a release missing its cheapest format still passes.`
+        }));
 }
 
 const summarizeProfileIssues = (result: GetProfileIssuesResult, arrInstanceCount: number): string => {
@@ -334,7 +367,7 @@ export function registerGetProfileIssues(
                 'on some profiles says nothing about which others score the same format. Drift findings are ' +
                 'instance-scoped, not tied to any one profile, and are unaffected by the `profile` filter. ' +
                 'Read-only — every `remedy` is a change to make in [[profilarr: Profilarr when it syncs that profile, or in ]]' +
-                'the arr itself[[profilarr:  when it does not]]; fix_profile applies a certain unreachable or knife-edge floor. Use it when a profile grabs the wrong release or ' +
+                'the arr itself[[profilarr:  when it does not]]; a floor fix_profile can fix comes back as a step in `next_steps`. Use it when a profile grabs the wrong release or ' +
                 'never upgrades; why one title is missing is diagnose_media.',
             outputSchema: GetProfileIssuesOutput,
             inputSchema: GetProfileIssuesInput
@@ -355,8 +388,10 @@ export function registerGetProfileIssues(
             const arrInstanceCount = adapters.filter(isArrAdapter).length;
             const summary = summarizeProfileIssues(result, arrInstanceCount);
 
+            const steps = (result.next_steps ?? []).map(step => `
+${nextStepLine(step)}`).join('');
             return {
-                content: [{ type: 'text', text: listText(summary, result.items, profileIssueLine) }],
+                content: [{ type: 'text', text: listText(summary, result.items, profileIssueLine) + steps }],
                 structuredContent: result
             };
         }

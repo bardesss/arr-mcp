@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { ServiceIdSchema } from '../../config/schema.ts';
-import { nextStepLine } from '../../core/nextStep.ts';
+import { NextStepSchema, nextStepLine } from '../../core/nextStep.ts';
 import { READ_ONLY, toolInput } from '../../core/shape.ts';
 import { buildChain, type Diagnosis } from './chain.ts';
 import { INSTANCE_PARAM_DESCRIPTION } from '../resolveInstance.ts';
@@ -39,7 +39,7 @@ const DiagnoseOutput = z.looseObject({
         summary: z.string(),
         remedy: z.string().optional(),
         next_steps: z
-            .array(z.looseObject({ tool: z.string(), arguments: z.looseObject({}), why: z.string() }))
+            .array(NextStepSchema)
             .optional()
             .describe(
                 'The call that would act on `remedy`. Offer it to the person and say what it would do; do not run it. A write previews first and asks for confirmation.'
