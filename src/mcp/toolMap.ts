@@ -48,7 +48,7 @@ export function renderToolMap(): string {
     });
     const kinds = Object.entries(KIND_SERVICES).map(([kind, services]) => `| \`${kind}\` | ${named(services)} |`);
     return [
-        'Which services each tool needs. A tool is listed when one of them is configured; ✎ marks a write.',
+        'A write is listed only when one of these is configured, and a read too with `tools.hide_unusable`; with nothing configured, everything is. ✎ marks a write. Deprecated aliases are left out.',
         '',
         '| Tool | Needs one of |',
         '| --- | --- |',
@@ -65,7 +65,7 @@ export function renderToolMap(): string {
 /** `doc` with the text between `start` and `end` replaced by `body`, the markers kept. */
 export function replaceBetween(doc: string, start: string, end: string, body: string): string {
     const from = doc.indexOf(start);
-    const to = doc.indexOf(end);
-    if (from === -1 || to < from) throw new Error(`markers ${start} … ${end} not found`);
+    const to = from === -1 ? -1 : doc.indexOf(end, from + start.length);
+    if (from === -1 || to === -1) throw new Error(`markers ${start} … ${end} not found`);
     return `${doc.slice(0, from + start.length)}\n${body}\n${doc.slice(to)}`;
 }

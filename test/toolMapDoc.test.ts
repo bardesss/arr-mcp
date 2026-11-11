@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { TOOL_SERVICES } from '../src/mcp/toolSurface.ts';
-import { MAP_END, MAP_START, renderToolMap } from '../src/mcp/toolMap.ts';
+import { MAP_END, MAP_START, renderToolMap, replaceBetween } from '../src/mcp/toolMap.ts';
 import { DEPRECATIONS } from '../src/tools/deprecations.ts';
 import { TOOL_NAMES, WRITE_TOOLS } from '../src/tools/register.ts';
 
@@ -35,6 +35,11 @@ describe('the tool map', () => {
         expect(map).toContain('| `book` | Shelfmark, Grimmory |');
     });
 
+    it('says when a read is listed, not only a write', () => {
+        expect(map).toContain('hide_unusable');
+        expect(map).toContain('Deprecated aliases are left out');
+    });
+
     it('is what docs/tools.md carries', () => {
         const start = doc.indexOf(MAP_START);
         const end = doc.indexOf(MAP_END);
@@ -54,5 +59,12 @@ describe('the route diagram', () => {
         const named = new Set((block ?? '').match(/\b[a-z]+(?:_[a-z]+)+\b/g) ?? []);
         expect(named.size).toBeGreaterThan(5);
         expect([...named].filter(n => !(TOOL_NAMES as readonly string[]).includes(n) && n !== 'next_steps')).toEqual([]);
+    });
+});
+
+describe('replaceBetween', () => {
+    it('finds the end marker after the start, even when one is quoted above it', () => {
+        const doc = ['see <!-- e --> here', '<!-- s -->', 'old', '<!-- e -->', 'tail'].join('\n');
+        expect(replaceBetween(doc, '<!-- s -->', '<!-- e -->', 'new')).toBe(['see <!-- e --> here', '<!-- s -->', 'new', '<!-- e -->', 'tail'].join('\n'));
     });
 });

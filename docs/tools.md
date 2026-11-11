@@ -57,7 +57,7 @@ off until you turn them on — see [writes](writes.md). `stack_health` and
 ## Which services each tool needs
 
 <!-- tool-map:start -->
-Which services each tool needs. A tool is listed when one of them is configured; ✎ marks a write.
+A write is listed only when one of these is configured, and a read too with `tools.hide_unusable`; with nothing configured, everything is. ✎ marks a write. Deprecated aliases are left out.
 
 | Tool | Needs one of |
 | --- | --- |
