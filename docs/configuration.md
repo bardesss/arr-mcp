@@ -1035,8 +1035,7 @@ whole session, so arr-mcp sends only what applies to your stack:
   configured, so the model does not look for a Lidarr you do not run;
 - a sentence about a service you do not run is left out of a description;
 - longer field-by-field references are resources, `arr://docs/<tool>`, read
-  only when a client asks for one.
-
+  only when a client asks for one;
 - a write tool is left out when none of its services is configured:
   `trigger_subtitle_search` without Bazarr, `request_media` without Seerr,
   `sync_database` without Profilarr, and so on. With nothing configured yet,
