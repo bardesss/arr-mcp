@@ -8,7 +8,7 @@ import type { AnyServiceConfig } from '../src/config/schema.ts';
 import { WriteAudit } from '../src/core/audit.ts';
 import { ConfirmTokens } from '../src/core/confirm.ts';
 import { permissionSourceFrom } from '../src/core/permissions.ts';
-import { registerGrabRelease } from '../src/tools/grabRelease.ts';
+import { registerGrabRelease, topRelease } from '../src/tools/grabRelease.ts';
 import type { LibraryLoader } from '../src/tools/library.ts';
 import { registerRemoveQueueItem } from '../src/tools/removeQueueItem.ts';
 import { registerRetryDownload } from '../src/tools/retryDownload.ts';
@@ -355,6 +355,14 @@ describe('the most-downloaded release by default', () => {
         const applied = await h.call({ service: 'shelfmark', id: ID, confirm: preview.structuredContent.confirm_token });
         expect(applied.structuredContent.applied).toBe(true);
         expect(h.sent()).toEqual(['most']);
+    });
+
+    it('shares its choice with add_media, so both bind the same release', async () => {
+        const h = tool();
+        const top = await topRelease(h.shelfmark, 'shelfmark', { id: ID });
+        const preview = await h.call({ service: 'shelfmark', id: ID });
+        expect(top.title).toContain('most');
+        expect(JSON.stringify(preview.structuredContent)).toContain(top.guid);
     });
 
     it('still takes a release that is named', async () => {

@@ -1,13 +1,16 @@
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { ServiceInstance } from '../src/config/instances.ts';
 import { instancesOf } from './helpers/instances.ts';
 import { describe, expect, it, vi } from 'vitest';
 import * as z from 'zod/v4';
 import type { AnyServiceConfig, ConfigByService, KeyedServiceConfig, ServiceId } from '../src/config/schema.ts';
+import { ConfigSchema } from '../src/config/schema.ts';
 import { WriteAudit } from '../src/core/audit.ts';
 import { ConfirmTokens } from '../src/core/confirm.ts';
 import { permissionSourceFrom } from '../src/core/permissions.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
+import { ShelfmarkAdapter } from '../src/services/shelfmark.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
 import { WhisparrAdapter } from '../src/services/whisparr.ts';
@@ -902,5 +905,107 @@ describe('add_media adopting an existing folder (#535)', () => {
         expect(effects(await h.call({ service: 'radarr', external_id: '603', path: '/movies/The Matrix {tmdb-604}' }))).toContain('carries id 604, not 603');
         expect(effects(await h.call({ service: 'radarr', external_id: '603', path: '/movies/Idiots' }))).toContain('does not match the title');
         expect(effects(await h.call({ service: 'radarr', external_id: '603', path: '/movies/Matrix [tmdbid-603]' }))).not.toContain('Check first');
+    });
+});
+
+/**
+ * Adding a book. MOCK-ONLY for the grab itself: the bodies are Shelfmark's
+ * recorded ones (test/fixtures/shelfmark), but no live Shelfmark has been asked
+ * to queue a release through `add_media`, the same standing as the default grab
+ * in `grab_release`.
+ */
+describe('add_media on Shelfmark', () => {
+    const BOOK_ID = 'googlebooks:5neBQgAACAAJ';
+    const recorded = (name: string): unknown => JSON.parse(readFileSync(join(import.meta.dirname, 'fixtures/shelfmark', `${name}.json`), 'utf8'));
+    const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+
+    function bookHarness() {
+        const fetchImpl = vi.fn(async (input: string | URL | Request, _init?: RequestInit) => {
+            const path = new URL(String(input)).pathname;
+            return json(recorded(path === '/api/releases/download' ? 'download' : path.replace('/api/', '').replace('/', '-')));
+        });
+        const config = ConfigSchema.parse({
+            auth: { bearer_token: 'a'.repeat(64) },
+            services: { shelfmark: { url: 'http://shelfmark:8084', permissions: { safe_write: true } } }
+        }).services.shelfmark as AnyServiceConfig;
+        const shelfmark = new ShelfmarkAdapter(config as never, fetchImpl as typeof fetch);
+        const h = harness({ adapters: [shelfmark], permissions: { shelfmark: config } });
+        const downloads = () =>
+            fetchImpl.mock.calls
+                .filter(c => new URL(String(c[0])).pathname === '/api/releases/download')
+                .map(c => JSON.parse((c[1] as RequestInit).body as string) as { source_id: string });
+        return { ...h, shelfmark, fetchImpl, downloads };
+    }
+
+    it('takes the id a book search returned, and previews the most-downloaded release', async () => {
+        const h = bookHarness();
+        const [hit] = await h.shelfmark.search('dutch', 'discover');
+        expect(hit).toMatchObject({ source: 'discover', kind: 'book', id: BOOK_ID });
+
+        const { structuredContent } = await h.call({ service: 'shelfmark', external_id: hit?.id });
+
+        const top = (await h.shelfmark.findReleases({ id: BOOK_ID }))[0];
+        expect(structuredContent.applied).toBe(false);
+        expect(structuredContent.summary).toContain('Add');
+        expect(structuredContent.summary).toContain('The Dutch Republic');
+        expect(top?.title).toContain('The Dutch Republic');
+        const releases = h.fetchImpl.mock.calls.filter(c => new URL(String(c[0])).pathname === '/api/releases');
+        expect(releases.length).toBeGreaterThan(0);
+        const asked = new URL(String(releases[0]?.[0])).searchParams;
+        // The search's id is `<provider>:<book_id>`, and the release listing takes it apart the same way.
+        expect(`${asked.get('provider')}:${asked.get('book_id')}`).toBe(hit?.id);
+        expect(h.downloads()).toEqual([]);
+    });
+
+    it('says the file lands in the Bookdrop and is approved with import_download', async () => {
+        const h = bookHarness();
+        const { structuredContent } = await h.call({ service: 'shelfmark', external_id: BOOK_ID });
+        const effects = structuredContent.effects.join(' ');
+        expect(effects).toContain('Bookdrop');
+        expect(effects).toContain('import_download');
+    });
+
+    it('queues the same release grab_release does for that id, once the token comes back', async () => {
+        const h = bookHarness();
+        const preview = await h.call({ service: 'shelfmark', external_id: BOOK_ID });
+        const applied = await h.call({ service: 'shelfmark', external_id: BOOK_ID, confirm: preview.structuredContent.confirm_token });
+        expect(applied.structuredContent.applied).toBe(true);
+
+        const top = (await h.shelfmark.findReleases({ id: BOOK_ID }))[0];
+        const raw = (recorded('releases') as { releases: { source_id: string }[] }).releases;
+        const sent = h.downloads();
+        expect(sent).toHaveLength(1);
+        expect(raw.map(r => r.source_id)).toContain(sent[0]?.source_id);
+        expect(top?.guid).toMatch(/^direct_download:[0-9a-f]{32}$/);
+        expect(h.invalidate).toHaveBeenCalled();
+    });
+
+    it.each([
+        ['monitor', { monitor: 'all' }],
+        ['quality_profile', { quality_profile: 'HD' }],
+        ['root_folder', { root_folder: '/books' }],
+        ['tags', { tags: ['kids'] }],
+        ['minimum_availability', { minimum_availability: 'released' }],
+        ['series_type', { series_type: 'anime' }],
+        ['metadata_profile', { metadata_profile: 'Standard' }],
+        ['monitor_new_items', { monitor_new_items: 'all' }],
+        ['path', { path: '/books/x' }],
+        ['monitored', { monitored: false }],
+        ['search_now', { search_now: false }]
+    ])('refuses %s, an *arr option, with a remedy and no call to Shelfmark', async (option, extra) => {
+        const h = bookHarness();
+        await expect(h.call({ service: 'shelfmark', external_id: BOOK_ID, ...extra })).rejects.toMatchObject({
+            kind: 'NotFound',
+            remedy: expect.stringContaining('book')
+        });
+        expect(h.fetchImpl).not.toHaveBeenCalled();
+        expect(option).toBeTruthy();
+    });
+
+    it('refuses an id that is not a book id, without grabbing', async () => {
+        const h = bookHarness();
+        await expect(h.call({ service: 'shelfmark', external_id: '603' })).rejects.toMatchObject({ kind: 'NotFound', service: 'shelfmark' });
+        await expect(h.call({ service: 'shelfmark', external_id: '603' })).rejects.not.toThrow(/radarr/);
+        expect(h.downloads()).toEqual([]);
     });
 });

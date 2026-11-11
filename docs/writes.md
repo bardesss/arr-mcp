@@ -166,7 +166,11 @@ it.
 
 `grab_release` on Shelfmark can pick the file itself: given only a book id, it takes
 the most-downloaded release. It is safe for the same reason, and the preview names
-the file before anything is queued.
+the file before anything is queued. `add_media` with `service: shelfmark` takes the
+same book id and queues the same file; its preview also says the file lands in
+Shelfmark's destination, which is Grimmory's Bookdrop when you point them at the same
+folder, where `import_download` approves it. The *arr options (`monitor`, profiles,
+root folder, tags, `path`) are refused there.
 
 Disabling an indexer is undone by enabling it, so `manage_indexer` needs only
 `safe_write`; deleting it throws away the indexer's settings and credentials, so
@@ -431,6 +435,7 @@ the run.
 | `get_stack_health` | `grimmory` | The warning for books left in the Bookdrop over a day | Rests on the same constructed file |
 | `get_queue` | `cleanuparr` | Seeding rules for a Transmission client | Only hand-written fixtures; the one tester runs qBittorrent |
 | `grab_release` | `shelfmark` | The default grab, with no release named | Mock-only; the live Shelfmark has not been asked for one |
+| `add_media` | `shelfmark` | Adding a book: the same grab as the default `grab_release`, then the Bookdrop approval | Mock-only; the live Shelfmark has not been asked to queue one, and the id shape is checked on recorded bodies only |
 | `retry_download` | `shelfmark` | Retrying a failed book, or a Prowlarr row | Every failed row on the live Shelfmark is marked not retryable |
 | `trigger_search` | `sonarr` | `SeasonSearch` and `EpisodeSearch` payloads | Posting one runs a real search on the stack, and Sonarr reports success for a command that matches nothing |
 | `add_media` | `radarr` | Adopting an existing folder with `path` | Never posted to a live Radarr |
