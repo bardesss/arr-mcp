@@ -260,5 +260,7 @@ describe('statement preparation', () => {
         } finally {
             prepare.mockRestore();
         }
+        // The reused statements still did their work.
+        expect(trail.counts()).toEqual({ applied: 2, denied: 0, total: 2 });
     });
 });
