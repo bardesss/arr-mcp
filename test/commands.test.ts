@@ -206,9 +206,9 @@ describe('awaitArrCommand', () => {
     it('refuses to wait on a command the service gave no id for', async () => {
         const s = sequence([{ id: 9, status: 'completed' }]);
         await expect(awaitArrCommand(reader(s.impl), 'sonarr', 0, instantly)).rejects.toMatchObject({
-            kind: 'UpstreamError'
+            kind: 'UpstreamError',
+            message: expect.stringMatching(/returned no command id/)
         });
-        await expect(awaitArrCommand(reader(s.impl), 'sonarr', 0, instantly)).rejects.toThrow(/returned no command id/);
         expect(s.polls()).toBe(0);
     });
 

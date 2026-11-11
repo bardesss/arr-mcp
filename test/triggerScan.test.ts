@@ -587,8 +587,42 @@ describe.each(IMPORT_TOOLS)('%s importing a finished download', (tool, register)
         });
 
         expect(second.structuredContent.applied).toBe(true);
+        // The apply's own read is the one that saw the grown list.
+        expect(reads).toBe(3);
         expect(posted).toHaveLength(1);
         expect(posted[0]?.files.map(f => f.path)).toEqual(['/downloads/Heat.1995.mkv']);
+    });
+
+    it('refuses the token and imports nothing when the list grows before the confirm', async () => {
+        // Reads: 1 the preview, 2 the confirm's re-plan, which already sees the new file.
+        let reads = 0;
+        const grown = [
+            CANDIDATES[0],
+            { ...CANDIDATES[0], path: '/downloads/Heat.1995.extra.mkv', relativePath: 'Heat.1995.extra.mkv' }
+        ];
+        const radarr = recordingFetch({ '/api/v3/command': { id: 5, name: 'ManualImport', status: 'queued' } });
+        const impl = (async (input: string | URL | Request, init?: RequestInit) => {
+            const url = new URL(input instanceof Request ? input.url : String(input));
+            if (url.pathname === '/api/v3/manualimport') return jsonResponse(++reads >= 2 ? grown : [CANDIDATES[0]]);
+            return radarr.impl(input, init);
+        }) as unknown as typeof fetch;
+        const h = harness({
+            adapters: [new RadarrAdapter(keyed(7878), impl)],
+            permissions: { radarr: permissive(true) }
+        });
+
+        const first = await h.call({ service: 'radarr', action: 'import', download_id: 'nzo_abc' });
+        const second = await h.call({
+            service: 'radarr',
+            action: 'import',
+            download_id: 'nzo_abc',
+            confirm: first.structuredContent.confirm_token
+        });
+
+        expect(second.structuredContent.applied).toBe(false);
+        expect(second.structuredContent.confirm_error).toBeDefined();
+        expect(second.structuredContent.effects.join(' ')).toContain('Heat.1995.extra.mkv');
+        expect(radarr.sent.some(x => x.method === 'POST')).toBe(false);
     });
 
     it('needs a download_id', async () => {
