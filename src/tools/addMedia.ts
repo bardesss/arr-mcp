@@ -2,9 +2,11 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
+import { logger } from '../core/logger.ts';
 import { MUSICBRAINZ_ID } from '../services/lidarr.ts';
 import {
     hasMediaAdd,
+    hasQueue,
     hasMetadataProfiles,
     hasReleaseGrab,
     hasReleaseSearch,
@@ -275,12 +277,12 @@ function folderDoubt(path: string, candidate: AddCandidate, type: string, extern
 }
 
 const AddMediaInput = z.object({
-    ...targetInput(TARGET, 'radarr for a film, sonarr for a series, whisparr for a site, lidarr for an artist, shelfmark for a book.'),
+    ...targetInput(TARGET, 'radarr for a film, sonarr for a series, whisparr for a site, lidarr for an artist[[shelfmark: , shelfmark for a book]].'),
     external_id: z
         .string()
         .min(1)
         .describe(
-            'TMDB id for radarr, TVDB id for sonarr or whisparr, as an integer string; the MusicBrainz artist id, a GUID, for lidarr; the book id for shelfmark. From search_media `source: "discover"`.'
+            'TMDB id for radarr, TVDB id for sonarr or whisparr, as an integer string; the MusicBrainz artist id, a GUID, for lidarr.[[shelfmark: For a book, the `id` of its search row.]] From search_media `source: "discover"`.'
         ),
     quality_profile: z
         .string()
@@ -341,7 +343,7 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
         name: 'add_media',
         title: 'Add a film, series, site, artist or book',
         description:
-            'Adds a film to Radarr, a series to Sonarr, a site to Whisparr or an artist to Lidarr, and by default starts a search. [[shelfmark: A book id alone queues its most-downloaded file.]] For a Seerr request that goes through approval, use request_media. Ids: TMDB for Radarr, TVDB for Sonarr and Whisparr (Whisparr\'s own scene id in that field), MusicBrainz for Lidarr; get them from search_media `source: "discover"`. With more than one quality profile or root folder, name one: call without them and the preview refuses with the list, so get_instance_options is not needed first. Sonarr and Whisparr take `monitor` (which seasons), Sonarr `series_type`, Radarr `minimum_availability`. [[lidarr: Lidarr takes `monitor` (which albums), `monitor_new_items` and `metadata_profile`; `monitor: "none"` needs `monitored: false` with it, and its search on add covers only monitored, released albums.]] An option sent to the wrong service is refused, not dropped. Previews first; confirm to add. Field reference: arr://docs/add_media.',
+            'Adds a film to Radarr, a series to Sonarr, a site to Whisparr or an artist to Lidarr, and by default starts a search. [[shelfmark: A book (the search row `id`) queues its most-downloaded file; none on offer fails.]] For a Seerr request that goes through approval, use request_media. Ids: TMDB for Radarr, TVDB for Sonarr and Whisparr (Whisparr\'s own scene id in that field), MusicBrainz for Lidarr; get them from search_media `source: "discover"`, under `ids`. With more than one quality profile or root folder, name one: call without them and the preview refuses with the list. Sonarr and Whisparr take `monitor` (which seasons), Sonarr `series_type`, Radarr `minimum_availability`. [[lidarr: Lidarr takes `monitor` (which albums), `monitor_new_items` and `metadata_profile`; `monitor: "none"` needs `monitored: false` with it, and its search on add covers only monitored, released albums.]] An option sent to the wrong service is refused, not dropped. Previews first; confirm to add. Field reference: arr://docs/add_media.',
         inputSchema: AddMediaInput,
         // The resolved instance id, not the bare type: permissions are granted per
         // instance, so checking `radarr` against a config that only grants
@@ -382,12 +384,40 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
                     search_now: search_now === false ? search_now : undefined
                 });
                 const top = await topRelease(adapter, service, { id: external_id });
+                const target = `${adapter.id}:${top.guid}`;
+                // A queue row's id is the hash of the release's source_id, which is the
+                // hash part of the guid (`guidOf`, `#queueItem` in shelfmark.ts).
+                const hash = top.guid.slice(top.guid.indexOf(':') + 1);
+                let queueChecked = false;
+                if (hasQueue(adapter)) {
+                    try {
+                        const queued = (await adapter.getQueue()).find(row => row.id === hash);
+                        queueChecked = true;
+                        if (queued !== undefined) {
+                            return {
+                                target,
+                                summary: `${top.title} is already queued in ${service}.`,
+                                effects: [],
+                                noop: true
+                            };
+                        }
+                    } catch (err) {
+                        logger.warn({ service: adapter.id, err }, 'could not read the queue to check for a duplicate book');
+                    }
+                }
+                const bookdrop = adapters.some(a => a.type === 'grimmory')
+                    ? "Shelfmark writes the file to its destination folder. When that is Grimmory's Bookdrop, the book waits in get_queue until import_download approves it."
+                    : 'Shelfmark writes the file to its destination folder.';
                 return {
-                    target: `${adapter.id}:${top.guid}`,
-                    summary: `Add the book ${external_id} to ${service}: grab ${top.title} from ${top.indexer}, the most-downloaded release on offer.`,
+                    target,
+                    summary: `Queue the book ${external_id} on ${service}: grab ${top.title} from ${top.indexer}, the most-downloaded release on offer.`,
                     effects: [
                         `Sends this release to ${service}'s download client.${top.downloads === undefined ? ' No release on offer has a download count, so this is simply the first listed.' : ` It has ${top.downloads} downloads.`}`,
-                        "Shelfmark writes the file to its destination folder. When that is Grimmory's Bookdrop, the book waits in get_queue until import_download approves it.",
+                        bookdrop,
+                        queueChecked
+                            ? "Shelfmark's queue has no copy of this release yet."
+                            : "Could not read Shelfmark's queue, so a copy already queued was not checked for.",
+                        "Grimmory's library is not checked for this book.",
                         'To take a different file, pick one from get_releases and pass its `guid` and `indexer_id` to grab_release.',
                         'The download appears in get_queue and can be removed again with remove_queue_item.'
                     ],

@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import type { ServiceInstance } from '../src/config/instances.ts';
 import { instancesOf } from './helpers/instances.ts';
@@ -15,6 +16,7 @@ import { SonarrAdapter } from '../src/services/sonarr.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
 import { WhisparrAdapter } from '../src/services/whisparr.ts';
 import { registerAddMedia } from '../src/tools/addMedia.ts';
+import { registerGrabRelease } from '../src/tools/grabRelease.ts';
 import type { CrossChecker } from '../src/tools/crossChecks.ts';
 import type { LibraryLoader } from '../src/tools/library.ts';
 import type { WriteToolResult } from '../src/tools/write.ts';
@@ -917,11 +919,14 @@ describe('add_media adopting an existing folder (#535)', () => {
 describe('add_media on Shelfmark', () => {
     const BOOK_ID = 'googlebooks:5neBQgAACAAJ';
     const recorded = (name: string): unknown => JSON.parse(readFileSync(join(import.meta.dirname, 'fixtures/shelfmark', `${name}.json`), 'utf8'));
-    const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+    const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
-    function bookHarness() {
+    type Answers = Record<string, () => Response>;
+    function bookHarness(opts: { answers?: Answers; grimmory?: boolean } = {}) {
         const fetchImpl = vi.fn(async (input: string | URL | Request, _init?: RequestInit) => {
             const path = new URL(String(input)).pathname;
+            const answer = opts.answers?.[path];
+            if (answer !== undefined) return answer();
             return json(recorded(path === '/api/releases/download' ? 'download' : path.replace('/api/', '').replace('/', '-')));
         });
         const config = ConfigSchema.parse({
@@ -929,13 +934,30 @@ describe('add_media on Shelfmark', () => {
             services: { shelfmark: { url: 'http://shelfmark:8084', permissions: { safe_write: true } } }
         }).services.shelfmark as AnyServiceConfig;
         const shelfmark = new ShelfmarkAdapter(config as never, fetchImpl as typeof fetch);
-        const h = harness({ adapters: [shelfmark], permissions: { shelfmark: config } });
+        const adapters = [shelfmark, ...(opts.grimmory === true ? [{ type: 'grimmory', id: 'grimmory' } as unknown as ServiceAdapter] : [])];
+        const h = harness({ adapters, permissions: { shelfmark: config } });
         const downloads = () =>
             fetchImpl.mock.calls
                 .filter(c => new URL(String(c[0])).pathname === '/api/releases/download')
                 .map(c => JSON.parse((c[1] as RequestInit).body as string) as { source_id: string });
-        return { ...h, shelfmark, fetchImpl, downloads };
+        /** grab_release over the same adapter and fetch, to compare what each sends. */
+        const grab = () => {
+            let call: Call = () => Promise.reject(new Error('not registered'));
+            registerGrabRelease(
+                { registerTool: (_n: string, c: { inputSchema: z.ZodObject }, handler: Call) => (call = a => handler(c.inputSchema.parse(a) as Record<string, unknown>)) } as never,
+                {
+                    permissions: permissionSourceFrom(instancesOf({ shelfmark: config })),
+                    confirm: new ConfirmTokens(),
+                    audit: WriteAudit.ephemeral(),
+                    library: { invalidate: vi.fn() } as unknown as LibraryLoader
+                },
+                [shelfmark]
+            );
+            return (a: Record<string, unknown>) => call(a);
+        };
+        return { ...h, shelfmark, fetchImpl, downloads, grab };
     }
+    const hashOf = (value: string) => createHash('sha256').update(value).digest('hex').slice(0, 32);
 
     it('takes the id a book search returned, and previews the most-downloaded release', async () => {
         const h = bookHarness();
@@ -944,11 +966,9 @@ describe('add_media on Shelfmark', () => {
 
         const { structuredContent } = await h.call({ service: 'shelfmark', external_id: hit?.id });
 
-        const top = (await h.shelfmark.findReleases({ id: BOOK_ID }))[0];
         expect(structuredContent.applied).toBe(false);
-        expect(structuredContent.summary).toContain('Add');
+        expect(structuredContent.summary).toContain('Queue the book');
         expect(structuredContent.summary).toContain('The Dutch Republic');
-        expect(top?.title).toContain('The Dutch Republic');
         const releases = h.fetchImpl.mock.calls.filter(c => new URL(String(c[0])).pathname === '/api/releases');
         expect(releases.length).toBeGreaterThan(0);
         const asked = new URL(String(releases[0]?.[0])).searchParams;
@@ -957,27 +977,86 @@ describe('add_media on Shelfmark', () => {
         expect(h.downloads()).toEqual([]);
     });
 
-    it('says the file lands in the Bookdrop and is approved with import_download', async () => {
-        const h = bookHarness();
-        const { structuredContent } = await h.call({ service: 'shelfmark', external_id: BOOK_ID });
-        const effects = structuredContent.effects.join(' ');
-        expect(effects).toContain('Bookdrop');
-        expect(effects).toContain('import_download');
+    it('names the Bookdrop and import_download only when Grimmory is configured', async () => {
+        const without = (await bookHarness().call({ service: 'shelfmark', external_id: BOOK_ID })).structuredContent.effects.join(' ');
+        expect(without).not.toContain('import_download');
+        const withGrimmory = (await bookHarness({ grimmory: true }).call({ service: 'shelfmark', external_id: BOOK_ID })).structuredContent.effects.join(' ');
+        expect(withGrimmory).toContain('Bookdrop');
+        expect(withGrimmory).toContain('import_download');
+        expect(withGrimmory).toContain('library is not checked');
     });
 
-    it('queues the same release grab_release does for that id, once the token comes back', async () => {
-        const h = bookHarness();
-        const preview = await h.call({ service: 'shelfmark', external_id: BOOK_ID });
-        const applied = await h.call({ service: 'shelfmark', external_id: BOOK_ID, confirm: preview.structuredContent.confirm_token });
+    it('sends the same download as grab_release for that id, and it is the most-downloaded row', async () => {
+        const viaAdd = bookHarness();
+        const preview = await viaAdd.call({ service: 'shelfmark', external_id: BOOK_ID });
+        const applied = await viaAdd.call({ service: 'shelfmark', external_id: BOOK_ID, confirm: preview.structuredContent.confirm_token });
         expect(applied.structuredContent.applied).toBe(true);
+        expect(viaAdd.invalidate).toHaveBeenCalled();
 
-        const top = (await h.shelfmark.findReleases({ id: BOOK_ID }))[0];
-        const raw = (recorded('releases') as { releases: { source_id: string }[] }).releases;
-        const sent = h.downloads();
-        expect(sent).toHaveLength(1);
-        expect(raw.map(r => r.source_id)).toContain(sent[0]?.source_id);
-        expect(top?.guid).toMatch(/^direct_download:[0-9a-f]{32}$/);
-        expect(h.invalidate).toHaveBeenCalled();
+        const viaGrab = bookHarness();
+        const grab = viaGrab.grab();
+        const grabPreview = await grab({ service: 'shelfmark', id: BOOK_ID });
+        await grab({ service: 'shelfmark', id: BOOK_ID, confirm: grabPreview.structuredContent.confirm_token });
+
+        expect(viaAdd.downloads()).toHaveLength(1);
+        expect(viaAdd.downloads()).toEqual(viaGrab.downloads());
+        const top = (await viaAdd.shelfmark.findReleases({ id: BOOK_ID }))[0];
+        expect(hashOf(viaAdd.downloads()[0]?.source_id as string)).toBe(top?.guid?.split(':')[1]);
+    });
+
+    describe('when the release is already queued', () => {
+        /** The recorded queue task, keyed by the top release's source_id the way Shelfmark keys its tasks. */
+        async function queuedTop() {
+            const probe = bookHarness();
+            const top = (await probe.shelfmark.findReleases({ id: BOOK_ID }))[0];
+            const raw = (recorded('releases') as { releases: { source_id: string }[] }).releases.find(r => hashOf(r.source_id) === top?.guid?.split(':')[1]);
+            const status = recorded('status') as Record<string, Record<string, Record<string, unknown>>>;
+            const [task] = Object.values(status).flatMap(tasks => Object.values(tasks));
+            return { ...status, queued: { [raw?.source_id as string]: { ...task, status: 'queued' } } };
+        }
+
+        it('is a no-op with nothing to confirm, and sends nothing', async () => {
+            const queue = await queuedTop();
+            const h = bookHarness({ answers: { '/api/status': () => json(queue) } });
+            const { structuredContent } = await h.call({ service: 'shelfmark', external_id: BOOK_ID });
+            expect(structuredContent.summary).toContain('already queued');
+            expect(structuredContent.noop).toBe(true);
+            expect(h.downloads()).toEqual([]);
+        });
+
+        it('previews a grab when the queue holds another book, and says the queue was checked', async () => {
+            const h = bookHarness();
+            const { structuredContent } = await h.call({ service: 'shelfmark', external_id: BOOK_ID });
+            expect(structuredContent.noop).not.toBe(true);
+            expect(structuredContent.effects.join(' ')).toContain('queue has no copy');
+        });
+
+        it('still previews, saying so, when the queue cannot be read', async () => {
+            const h = bookHarness({ answers: { '/api/status': () => json({ error: 'This API key is read-only' }, 403) } });
+            const { structuredContent } = await h.call({ service: 'shelfmark', external_id: BOOK_ID });
+            expect(structuredContent.noop).not.toBe(true);
+            expect(structuredContent.effects.join(' ')).toContain('Could not read');
+        });
+    });
+
+    it('rejects the token when the top release is a different one at confirm, and grabs nothing', async () => {
+        const releases = (recorded('releases') as { releases: Record<string, unknown>[] }).releases;
+        let listing = releases;
+        const h = bookHarness({ answers: { '/api/releases': () => json({ releases: listing }) } });
+        const preview = await h.call({ service: 'shelfmark', external_id: BOOK_ID });
+
+        vi.useFakeTimers({ toFake: ['Date'] });
+        try {
+            vi.setSystemTime(Date.now() + 10 * 60_000);
+            listing = [{ ...releases[0], source_id: 'someone-else', title: 'Another edition', extra: { downloads: 9_999_999 } }, ...releases];
+            const confirmed = await h.call({ service: 'shelfmark', external_id: BOOK_ID, confirm: preview.structuredContent.confirm_token });
+            expect(confirmed.structuredContent.applied).toBe(false);
+            expect(confirmed.structuredContent.confirm_error).toBeDefined();
+            expect(confirmed.structuredContent.summary).toContain('Another edition');
+            expect(h.downloads()).toEqual([]);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it.each([
@@ -992,20 +1071,21 @@ describe('add_media on Shelfmark', () => {
         ['path', { path: '/books/x' }],
         ['monitored', { monitored: false }],
         ['search_now', { search_now: false }]
-    ])('refuses %s, an *arr option, with a remedy and no call to Shelfmark', async (option, extra) => {
+    ])('refuses %s, an *arr option, naming it, with a remedy and no call to Shelfmark', async (option, extra) => {
         const h = bookHarness();
         await expect(h.call({ service: 'shelfmark', external_id: BOOK_ID, ...extra })).rejects.toMatchObject({
             kind: 'NotFound',
+            detail: `${option} is not a book option`,
             remedy: expect.stringContaining('book')
         });
         expect(h.fetchImpl).not.toHaveBeenCalled();
-        expect(option).toBeTruthy();
     });
 
-    it('refuses an id that is not a book id, without grabbing', async () => {
+    it('refuses an id that is not a book id, as Shelfmark and not as an *arr, without grabbing', async () => {
         const h = bookHarness();
-        await expect(h.call({ service: 'shelfmark', external_id: '603' })).rejects.toMatchObject({ kind: 'NotFound', service: 'shelfmark' });
-        await expect(h.call({ service: 'shelfmark', external_id: '603' })).rejects.not.toThrow(/radarr/);
+        const err = await h.call({ service: 'shelfmark', external_id: '603' }).then(() => undefined, (e: unknown) => e as { kind: string; service: string; message: string });
+        expect(err).toMatchObject({ kind: 'NotFound', service: 'shelfmark' });
+        expect(err?.message).not.toMatch(/radarr|tmdb/i);
         expect(h.downloads()).toEqual([]);
     });
 });
