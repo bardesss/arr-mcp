@@ -35,9 +35,9 @@ off until you turn them on — see [writes](writes.md). `stack_health` and
 | `set_monitoring` | Turn monitoring on or off: a whole series (by id or title), one season, specific episodes; on Lidarr, `level: "album"` for one album (the artist level, `level: "artist"`, is deprecated: use `update_media`) |
 | `retry_download` | Try this failed usenet download again, with its password if it needs one, or a failed or cancelled Shelfmark book |
 | `pause_downloads` | Pause, resume or throttle a download client, or one item in its queue |
-| `remove_queue_item` | Get rid of this stuck or wrong download; on Grimmory, discard a file waiting in the Bookdrop |
+| `remove_queue_item` | Get rid of this stuck or wrong download, or with `orphaned: true` every completed download whose film, series or artist no longer exists; on Grimmory, discard a file waiting in the Bookdrop |
 | `remove_blocklist_item` | Let this blocklisted release be grabbed again |
-| `clean_queue` | Clear out completed downloads whose film, series or artist no longer exists |
+| `clean_queue` | Deprecated: use `remove_queue_item` with `orphaned: true` |
 | `delete_media` | Remove this film, series or artist, optionally from disk; on Grimmory, delete a book and its files |
 | `delete_episode_files` | Free disk from one season or a handful of episodes, without touching the series |
 | `respond_to_request` | Approve or decline what someone asked for |
@@ -1877,6 +1877,51 @@ for a row `get_queue` marks `orphaned`, and for a Lidarr row with no album,
 unless the release is blocklisted. The refusal changes nothing, so a torrent
 keeps seeding.
 
+### Orphaned downloads (`orphaned: true`)
+
+Pass `orphaned: true` in place of `id`, with `service` and `instance` naming one
+Radarr, Sonarr, Whisparr or Lidarr instance (exactly one of `id` and `orphaned`;
+both or neither is refused). `remove_from_client` is ignored, since it always
+removes from the client, and `blocklist: true` is refused. A download client is
+refused before anything is read.
+
+Radarr and Sonarr leave a completed download in the queue forever when the film
+or series it belongs to has been deleted: there is nothing to import it into,
+so it sits at `importBlocked`. Both hide these from the queue by default, which
+is why they accumulate unnoticed — `get_queue` now asks for them and marks each
+one `orphaned`.
+
+The tool removes exactly the items that are **both** `orphaned` and
+`importState: "importBlocked"`, from the queue and from the download client.
+That pairing is not configurable, and the reason is the first half on its own:
+an item can be unlinked and still transferring, and deleting one of those
+destroys a download in progress. `orphaned` describes the missing media, never
+whether the item is finished with.
+
+It never blocklists. The release was fine — the film was deleted — so any of
+these can be grabbed again later.
+
+Lidarr does the same for an album whose artist was deleted, and `orphaned: true`
+takes `service: "lidarr"` with the same rule, **from Lidarr 2.10.1**. That is
+the first release whose `CompletedDownloadService` marks such a download
+`importBlocked`; before it, the download stays `status: "completed"` with
+`importState: "downloading"` and a warning ("Artist name mismatch, automatic
+import is not possible"), so on 2.1.3 to 2.10.0 the rule matches nothing, and a
+Lidarr preview with nothing to clean says so. Remove one of those with
+`remove_queue_item` and its `id`. A deleted artist's downloads that had already imported read
+`orphaned` with `importState: "imported"` instead, and are left alone: they are
+not stuck, and `remove_queue_item` removes one if it is wanted gone.
+
+The preview lists every item by name before anything is removed, and the
+confirmation token is bound to those exact ids, so an item that appears in the
+queue between preview and confirm is not swept up by a token issued before it
+existed.
+
+The text reports what actually happened, not what was planned: if only some of
+the items go it says so ("1 of 2 removed"), not only in `result`.
+`import_download` and `trigger_subtitle_search` do the same when part of a remap or
+a subtitle search did not run.
+
 **Unverified live** (Radarr): the grab-record read behind `blocklist: true`, read from Radarr's source.
 
 **Unverified live** (Sonarr): the same read, from Sonarr's source.
@@ -2626,42 +2671,9 @@ list.
 
 ## `clean_queue`
 
-Radarr and Sonarr leave a completed download in the queue forever when the film
-or series it belongs to has been deleted: there is nothing to import it into,
-so it sits at `importBlocked`. Both hide these from the queue by default, which
-is why they accumulate unnoticed — `get_queue` now asks for them and marks each
-one `orphaned`.
-
-The tool removes exactly the items that are **both** `orphaned` and
-`importState: "importBlocked"`, from the queue and from the download client.
-That pairing is not configurable, and the reason is the first half on its own:
-an item can be unlinked and still transferring, and deleting one of those
-destroys a download in progress. `orphaned` describes the missing media, never
-whether the item is finished with.
-
-It never blocklists. The release was fine — the film was deleted — so any of
-these can be grabbed again later.
-
-Lidarr does the same for an album whose artist was deleted, and `clean_queue`
-takes `service: "lidarr"` with the same rule, **from Lidarr 2.10.1**. That is
-the first release whose `CompletedDownloadService` marks such a download
-`importBlocked`; before it, the download stays `status: "completed"` with
-`importState: "downloading"` and a warning ("Artist name mismatch, automatic
-import is not possible"), so on 2.1.3 to 2.10.0 the rule matches nothing, and a
-Lidarr preview with nothing to clean says so. Remove one of those with
-`remove_queue_item`. A deleted artist's downloads that had already imported read
-`orphaned` with `importState: "imported"` instead, and are left alone: they are
-not stuck, and `remove_queue_item` removes one if it is wanted gone.
-
-The preview lists every item by name before anything is removed, and the
-confirmation token is bound to those exact ids, so an item that appears in the
-queue between preview and confirm is not swept up by a token issued before it
-existed.
-
-The text reports what actually happened, not what was planned: if only some of
-the items go it says so ("1 of 2 removed"), not only in `result`.
-`import_download` and `trigger_subtitle_search` do the same when part of a remap or
-a subtitle search did not run.
+Deprecated: use [`remove_queue_item`](#remove_queue_item) with `orphaned: true`. It
+takes `service` and `instance` as before, shows the same preview and removes the
+same items; it is removed in the next major release.
 
 ## `trigger_subtitle_search`
 

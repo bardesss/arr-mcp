@@ -234,7 +234,7 @@ an artist playable when only one instance has its files; `get_media_details`
 with `instance` reads each one.
 
 Every tool that acts on one Lidarr, such as `set_monitoring`, `trigger_scan`,
-`remove_queue_item` and `clean_queue`, takes `instance` and refuses to guess
+`remove_queue_item`, takes `instance` and refuses to guess
 between them. `arr://lidarr/monitoring` reports each instance that answered
 beside the totals, and names one that did not in `degraded`; the totals add the
 instances up, so an artist both hold counts in each.
@@ -327,7 +327,7 @@ still reads every root folder), renames an artist's files, and
 `import_download` imports a finished download by its id; see `docs/tools.md`. Its queue, history
 and blocklist read the way Radarr's and Sonarr's do, in `get_queue`,
 `get_history` and `get_blocklist`, and `remove_blocklist_item` takes a Lidarr
-entry, as `remove_queue_item` and `clean_queue` take a Lidarr download.
+entry, as `remove_queue_item` takes a Lidarr download.
 `get_history` with `service: "lidarr"` and `id` scopes to one artist. Those
 three fixtures were captured from Lidarr 3.1.0.4875 with real download activity
 (the history one merged from the newest rows of each event type), and the reads

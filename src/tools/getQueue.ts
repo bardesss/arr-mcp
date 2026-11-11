@@ -121,7 +121,7 @@ const project = (q: QueueItem, detail: DetailLevel): QueueItem => {
 
 /**
  * One queue row as a line. `service:id` leads the facts because it is what
- * `remove_queue_item` and `clean_queue` take, and a stuck download is the
+ * `remove_queue_item` takes, and a stuck download is the
  * usual reason anyone reads this list at all — so the blocking state and the
  * error come before the size and the ETA, which say only how long to wait.
  */

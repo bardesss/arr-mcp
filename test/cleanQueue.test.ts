@@ -8,6 +8,7 @@ import { LidarrAdapter } from '../src/services/lidarr.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
 import { registerCleanQueue } from '../src/tools/cleanQueue.ts';
+import { registerRemoveQueueItem } from '../src/tools/removeQueueItem.ts';
 import type { LibraryLoader } from '../src/tools/library.ts';
 import type { WriteToolResult } from '../src/tools/write.ts';
 import { instancesOf } from './helpers/instances.ts';
@@ -63,34 +64,42 @@ type Call = (args: Record<string, unknown>) => Promise<{
     structuredContent: WriteToolResult;
 }>;
 
-function harness(records: unknown[] = [BLOCKED_A, BLOCKED_B, ORPHAN_DOWNLOADING, HEALTHY, BLOCKED_LINKED], opts: { permissions?: Partial<Record<ServiceId, AnyServiceConfig>>; adapters?: ServiceAdapter[] } = {}) {
+function baseHarness(records: unknown[] = [BLOCKED_A, BLOCKED_B, ORPHAN_DOWNLOADING, HEALTHY, BLOCKED_LINKED], opts: { permissions?: Partial<Record<ServiceId, AnyServiceConfig>>; adapters?: ServiceAdapter[]; tool?: string } = {}) {
     const fetch = recordingFetch(records);
     const adapters = opts.adapters ?? [new RadarrAdapter(keyed(7878), fetch.impl)];
 
-    let call: Call = () => Promise.reject(new Error('not registered'));
+    const calls = new Map<string, Call>();
     const server = {
-        registerTool(_name: string, config: { inputSchema: z.ZodObject }, handler: Call) {
-            call = args => handler(config.inputSchema.parse(args) as Record<string, unknown>);
+        registerTool(name: string, config: { inputSchema: z.ZodObject }, handler: Call) {
+            calls.set(name, args => handler(config.inputSchema.parse(args) as Record<string, unknown>));
         }
     };
 
-    registerCleanQueue(
-        server as never,
-        {
-            permissions: permissionSourceFrom(instancesOf(opts.permissions ?? { radarr: permissive(true, true) })),
-            confirm: new ConfirmTokens(),
-            audit: WriteAudit.ephemeral(),
-            library: { invalidate: vi.fn() } as unknown as LibraryLoader
-        },
-        adapters
-    );
+    const context = {
+        permissions: permissionSourceFrom(instancesOf(opts.permissions ?? { radarr: permissive(true, true) })),
+        confirm: new ConfirmTokens(),
+        audit: WriteAudit.ephemeral(),
+        library: { invalidate: vi.fn() } as unknown as LibraryLoader
+    };
+    registerCleanQueue(server as never, context, adapters);
+    registerRemoveQueueItem(server as never, context, adapters);
 
-    return { call: (args: Record<string, unknown>) => call(args), fetch };
+    const tool = opts.tool ?? 'clean_queue';
+    return {
+        call: (args: Record<string, unknown>) => (calls.get(tool) ?? (() => Promise.reject(new Error('not registered'))))(args),
+        fetch
+    };
 }
 
-const args = { service: 'radarr' };
+/** The same cleaning through both tools: `clean_queue` is the alias of `remove_queue_item` with `orphaned: true`. */
+const TOOLS = [
+    ['remove_queue_item', { service: 'radarr', orphaned: true }, { service: 'lidarr', orphaned: true }],
+    ['clean_queue', { service: 'radarr' }, { service: 'lidarr' }]
+] as const;
 
-describe('clean_queue', () => {
+describe.each(TOOLS)('%s cleaning orphans', (tool, args) => {
+    const harness = (records?: unknown[], opts: Parameters<typeof baseHarness>[1] = {}) => baseHarness(records, { ...opts, tool });
+
     it('previews only the orphaned items that are import-blocked', async () => {
         const { structuredContent } = await harness().call({ ...args, dry_run: true });
         expect(structuredContent.summary).toContain('2');
@@ -188,7 +197,8 @@ describe('clean_queue', () => {
  * failed and told the caller nothing about the items that *had* been removed —
  * so a retry re-planned against a queue that had already changed underneath it.
  */
-describe('partial removal', () => {
+describe.each(TOOLS)('%s partial removal', (tool, args) => {
+    const harness = (records?: unknown[], opts: Parameters<typeof baseHarness>[1] = {}) => baseHarness(records, { ...opts, tool });
     const failingOn = (bad: (id: string) => boolean): ServiceAdapter => {
         const adapter = {
             id: 'radarr',
@@ -230,7 +240,8 @@ describe('partial removal', () => {
 });
 
 /** Lidarr marks a row orphaned when its artist is gone, as Radarr and Sonarr do for a film or series. */
-describe('clean_queue on lidarr', () => {
+describe.each(TOOLS)('%s on lidarr', (tool, _args, lidarrArgs) => {
+    const harness = (records?: unknown[], opts: Parameters<typeof baseHarness>[1] = {}) => baseHarness(records, { ...opts, tool });
     const ALBUM_BLOCKED = { id: 211, title: 'Deleted.Artist-Album-FLAC', status: 'completed', trackedDownloadState: 'importBlocked' };
     const ALBUM_DOWNLOADING = { id: 212, title: 'Gone.Artist-Live-MP3', status: 'downloading', trackedDownloadState: 'downloading' };
     const ALBUM_LINKED = { id: 213, title: 'Kept.Artist-Album-FLAC', status: 'completed', artistId: 12, trackedDownloadState: 'importBlocked' };
@@ -254,7 +265,7 @@ describe('clean_queue on lidarr', () => {
 
     it('asks Lidarr for the unknown-artist items it hides by default', async () => {
         const h = lidarrHarness();
-        await h.call({ service: 'lidarr', dry_run: true });
+        await h.call({ ...lidarrArgs, dry_run: true });
 
         const read = h.fetch.sent.find(s => s.method === 'GET' && s.path === '/api/v1/queue');
         expect(read?.query).toMatchObject({ includeUnknownArtistItems: 'true' });
@@ -262,7 +273,7 @@ describe('clean_queue on lidarr', () => {
 
     it('removes only the import-blocked album whose artist is gone, from the client, without blocklisting', async () => {
         const h = lidarrHarness();
-        const first = await h.call({ service: 'lidarr' });
+        const first = await h.call(lidarrArgs);
         const effects = first.structuredContent.effects.join(' ');
 
         expect(effects).toContain('Deleted.Artist');
@@ -272,7 +283,7 @@ describe('clean_queue on lidarr', () => {
         expect(effects).not.toContain('Older.Artist');
         expect(h.fetch.deletes()).toHaveLength(0);
 
-        await h.call({ service: 'lidarr', confirm: first.structuredContent.confirm_token });
+        await h.call({ ...lidarrArgs, confirm: first.structuredContent.confirm_token });
 
         expect(h.fetch.deletes().map(d => d.path)).toEqual(['/api/v1/queue/211']);
         expect(h.fetch.deletes()[0]?.query).toMatchObject({ removeFromClient: 'true', blocklist: 'false' });
@@ -284,10 +295,61 @@ describe('clean_queue on lidarr', () => {
             adapters: [new LidarrAdapter(keyed(8686) as never, fetch.impl)],
             permissions: { lidarr: permissive(true, true) }
         });
-        const { structuredContent, content } = await h.call({ service: 'lidarr', dry_run: true });
+        const { structuredContent, content } = await h.call({ ...lidarrArgs, dry_run: true });
 
         expect(structuredContent.noop).toBe(true);
         expect(structuredContent.summary).toMatch(/before 2\.10\.1 never marks one importBlocked/);
         expect(content[0]?.text).toContain('remove_queue_item removes it');
+    });
+});
+
+describe('remove_queue_item orphaned', () => {
+    const remove = (records?: unknown[], opts: Parameters<typeof baseHarness>[1] = {}) => baseHarness(records, { ...opts, tool: 'remove_queue_item' });
+
+    it('still cleans through clean_queue, with the same preview', async () => {
+        const viaClean = await baseHarness(undefined, { tool: 'clean_queue' }).call({ service: 'radarr', dry_run: true });
+        const viaRemove = await remove().call({ service: 'radarr', orphaned: true, dry_run: true });
+
+        expect(viaClean.structuredContent.target).toBe('radarr:orphaned');
+        expect(viaRemove.structuredContent.summary).toBe(viaClean.structuredContent.summary);
+        expect(viaRemove.structuredContent.effects).toEqual(viaClean.structuredContent.effects);
+    });
+
+    it('ignores remove_from_client: it always removes from the client', async () => {
+        const h = remove();
+        const first = await h.call({ service: 'radarr', orphaned: true, remove_from_client: false });
+        await h.call({ service: 'radarr', orphaned: true, remove_from_client: false, confirm: first.structuredContent.confirm_token });
+        expect(h.fetch.deletes()[0]?.query).toMatchObject({ removeFromClient: 'true', blocklist: 'false' });
+    });
+
+    it('refuses an id with orphaned, naming the other', async () => {
+        const h = remove();
+        await expect(h.call({ service: 'radarr', orphaned: true, id: '5', dry_run: true })).rejects.toThrow(/`id` or `orphaned: true`, not both/);
+        expect(h.fetch.sent).toHaveLength(0);
+    });
+
+    it('refuses neither id nor orphaned', async () => {
+        const h = remove();
+        await expect(h.call({ service: 'radarr', dry_run: true })).rejects.toThrow(/`orphaned: true`/);
+        expect(h.fetch.sent).toHaveLength(0);
+    });
+
+    it('refuses blocklist: true with orphaned, before any read', async () => {
+        const h = remove();
+        await expect(h.call({ service: 'radarr', orphaned: true, blocklist: true, dry_run: true })).rejects.toThrow(/never blocklists/);
+        expect(h.fetch.sent).toHaveLength(0);
+    });
+
+    it('refuses a download client with orphaned, before any read', async () => {
+        const qbit = {
+            id: 'qbittorrent',
+            type: 'qbittorrent',
+            getVersion: async () => '5.0.0',
+            getQueue: vi.fn(async () => []),
+            removeQueueItem: vi.fn()
+        } as unknown as ServiceAdapter;
+        const h = remove(undefined, { adapters: [qbit], permissions: { qbittorrent: permissive(true, true) } });
+        await expect(h.call({ service: 'qbittorrent', orphaned: true, dry_run: true })).rejects.toThrow(/Radarr, Sonarr, Whisparr and Lidarr only/);
+        expect((qbit as unknown as { getQueue: ReturnType<typeof vi.fn> }).getQueue).not.toHaveBeenCalled();
     });
 });
