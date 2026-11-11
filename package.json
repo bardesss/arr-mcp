@@ -26,7 +26,8 @@
     "capture:webhooks": "node scripts/capture-webhooks.ts",
     "integration": "node scripts/integration.ts",
     "multi-instance": "node scripts/multi-instance-check.ts",
-    "screenshots": "node scripts/screenshots.ts"
+    "screenshots": "node scripts/screenshots.ts",
+    "docs:tool-map": "node scripts/tool-map.ts"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.5",
