@@ -512,6 +512,37 @@ describe('ServiceHttp error mapping', () => {
     });
 });
 
+describe('ServiceHttp 400 validation messages', () => {
+    const refuse = (body: string) => http(async () => new Response(body, { status: 400 })).put('/api/v3/qualityprofile/1', {});
+
+    it('puts the arr errorMessage rows in the error, fenced, and keeps the status', async () => {
+        const failure = refuse(JSON.stringify([{ propertyName: '', errorMessage: 'Minimum is unreachable', severity: 'error' }, { errorMessage: 'Second' }]));
+        await expect(failure).rejects.toMatchObject({ status: 400 });
+        await expect(failure).rejects.toThrow(/<<untrusted:radarr\.errorMessage>>Minimum is unreachable; Second/);
+    });
+
+    it('never lets attemptedValue or propertyName reach the error', async () => {
+        const failure = refuse(JSON.stringify([{ propertyName: 'ApiKey', attemptedValue: 'hunter2-secret', errorMessage: 'Unable to connect' }]));
+        await expect(failure).rejects.toThrow(/Unable to connect/);
+        await expect(failure).rejects.toThrow(expect.objectContaining({ message: expect.not.stringMatching(/hunter2-secret|ApiKey/) }));
+    });
+
+    it('reads a long list whole and caps the joined message, not the body', async () => {
+        const rows = Array.from({ length: 400 }, (_, i) => ({ errorMessage: `rule ${i} broken` }));
+        await expect(refuse(JSON.stringify(rows))).rejects.toThrow(/rule 0 broken/);
+    });
+
+    it.each([
+        ['an object', JSON.stringify({ message: 'bad' })],
+        ['not JSON', '<html>bad</html>'],
+        ['rows without errorMessage', JSON.stringify([{ propertyName: 'x' }, null])]
+    ])('leaves the plain status error for %s', async (_name, body) => {
+        const failure = refuse(body);
+        await expect(failure).rejects.toThrow(/HTTP 400 at \/api\/v3\/qualityprofile\/1/);
+        await expect(failure).rejects.toThrow(expect.objectContaining({ message: expect.not.stringContaining('untrusted') }));
+    });
+});
+
 describe('ServiceHttp retry policy', () => {
     it('retries a read once on timeout, then succeeds', async () => {
         let calls = 0;

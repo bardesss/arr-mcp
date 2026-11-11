@@ -1,6 +1,7 @@
 import type { BaseServiceConfig } from '../config/schema.ts';
 import { takeUserinfo, type AuthStrategy } from './auth.ts';
 import { ServiceError, classifyFetchError, classifyHttpStatus, redirectedElsewhere } from './errors.ts';
+import { fenceText } from './fence.ts';
 import { logger } from './logger.ts';
 
 const CIRCUIT_THRESHOLD = 5;
@@ -27,6 +28,36 @@ const discard = async (response: Response): Promise<void> => {
         // A body already consumed or already errored needs no releasing.
     }
 };
+
+/**
+ * A *arr refuses a bad write with a 400 and a list of
+ * `{ propertyName, errorMessage }`; the status alone ("HTTP 400") says nothing
+ * about which rule the write broke. The messages are the service's own text,
+ * so they arrive fenced like any other, and a body of any other shape leaves
+ * the plain status error as it was.
+ *
+ * Only `errorMessage` is read. `attemptedValue` echoes what was submitted and
+ * can be a key or password, so it never reaches the error. The message lands
+ * in the audit log with the rest of the error text.
+ */
+async function withValidationMessages(error: ServiceError, response: Response): Promise<ServiceError> {
+    try {
+        const body: unknown = JSON.parse(await response.text());
+        if (!Array.isArray(body)) return error;
+        const messages = body
+            .map(row => (row as { errorMessage?: unknown } | null)?.errorMessage)
+            .filter((m): m is string => typeof m === 'string' && m !== '');
+        if (messages.length === 0) return error;
+        return new ServiceError(
+            error.kind,
+            error.service,
+            `${error.detail}: ${fenceText(messages.join('; ').slice(0, 2000), { service: error.service, field: 'errorMessage' })}`,
+            { ...(error.remedy === undefined ? {} : { remedy: error.remedy }), ...(error.status === undefined ? {} : { status: error.status }) }
+        );
+    } catch {
+        return error;
+    }
+}
 
 const REDIRECTS = new Set([301, 302, 303, 307, 308]);
 const MAX_REDIRECTS = 5;
@@ -404,8 +435,9 @@ export class ServiceHttp {
 
         const httpError = classifyHttpStatus(response.status, this.#id, safeUrl(target), this.#auth.remedy);
         if (httpError) {
+            const refined = httpError.status === 400 ? await withValidationMessages(httpError, response) : httpError;
             await discard(response);
-            throw httpError;
+            throw refined;
         }
 
         // The status line already said it worked, and nothing reads what comes

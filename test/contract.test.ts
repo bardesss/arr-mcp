@@ -182,6 +182,15 @@ const CONTRACTS: Record<string, ServiceContract> = {
                 fields: ['path', 'freeSpace', 'unmappedFolders', 'unmappedFolders.name']
             },
             {
+                // `fix_profile` writes the profile back whole with one field
+                // changed, so the id it addresses and the two fields it
+                // compares must exist.
+                path: '/api/v3/qualityprofile',
+                method: 'get',
+                fixture: 'test/fixtures/radarr/qualityprofile.json',
+                fields: ['id', 'name', 'minFormatScore', 'formatItems', 'formatItems.name', 'formatItems.score']
+            },
+            {
                 path: '/api/v3/blocklist',
                 method: 'get',
                 fixture: 'test/fixtures/radarr/blocklist.json',

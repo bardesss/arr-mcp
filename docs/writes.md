@@ -60,6 +60,7 @@ write, and says which permission to enable.
 | `delete_request` | destructive | `destructive` |
 | `blocklist_media` | safe; destructive to remove from Seerr | `safe_write`; `destructive` for a Seerr `remove` |
 | `fix_metadata` | destructive | `destructive`, plus `allow_metadata_repair` on Plex |
+| `fix_profile` | destructive | `destructive` |
 
 ### Where the tier boundary falls
 
@@ -92,6 +93,18 @@ release is blocklisted: with nothing to record an ignore against, the service
 would list the download again at the next refresh. Its preview also says when
 `blocklist: true` would blocklist nothing
 ([`remove_queue_item`](tools.md#remove_queue_item)).
+
+`fix_profile` is destructive because the profile decides what an instance
+grabs from then on, and the old minimum comes back only by editing it by hand;
+the preview shows it. It changes one number: the minimum custom format score of
+a profile `get_profile_issues` has proven unreachable or exactly on the edge,
+and it sends the profile back as the service sent it, with that score the only
+difference. It takes only the two floor findings, and refuses one that no
+longer holds. Profilarr reports how many quality profiles it syncs to each arr
+and not which: it refuses when that is every profile the instance holds, and
+warns in the preview when it is some, since its next sync may put the old
+value back (
+[`fix_profile`](tools.md#fix_profile)).
 
 `delete_media` on a Grimmory book always deletes the files. Grimmory has no
 keep-files option, so the call needs `delete_files: true` and is refused
@@ -452,6 +465,8 @@ the run.
 | `retry_download` | `whisparr` | The check for a replacement grab, which traces the download through Sonarr's helper | No Whisparr on the maintainer's stack; inherited from Sonarr's spec, not captured |
 | `delete_media` | `grimmory` | Deleting a book | The test response is a hand-made mock; no live book has been deleted |
 | `delete_media` | `seerr` | Blocklisting with `seerr_blocklist` | Written from Seerr's own route (`server/routes/blocklist.ts`), whose request body differs from its published spec. The blocklist call itself is confirmed live through `blocklist_media` on Seerr 3.5.1; the delete-then-blocklist path was not run, since it deletes a film |
+| `fix_profile` | `sonarr` | The profile read and write | Radarr 6.4.4 was captured live on a throwaway profile copy (read, `PUT` answered 202, a refused `PUT` answered 400 with its reason); Sonarr shares the code and the `/api/v3/qualityprofile/{id}` path but was not captured |
+| `fix_profile` | `whisparr` | The profile read and write | No Whisparr on the maintainer's stack; shares the code and path with Radarr, whose exchange was captured, but was not captured itself |
 | `blocklist_media` | `sonarr` | Adding and removing an import exclusion | The list read is checked against a live Sonarr 4.0; the writes were not run |
 | `blocklist_media` | `lidarr` | Import exclusions | No Lidarr on the maintainer's stack; written from Lidarr's spec |
 | `set_watched` | `grimmory` | Marking a book read or unread | The test response is a hand-made mock; no live book has been changed |

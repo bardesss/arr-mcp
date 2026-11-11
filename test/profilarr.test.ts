@@ -16,17 +16,18 @@ describe('ProfilarrAdapter', () => {
         const adapter = new ProfilarrAdapter(config, stub({
             '/api/v1/status': {
                 version: '2.2.0', uptime: 1, timezone: 'UTC', databases: [],
-                arrs: [{ id: 1, name: 'Sonarr', type: 'sonarr', enabled: true, sync: {}, drift: { lastCheckedAt: '2026-09-14T00:00:00Z', drifted: true, details: { qualityProfiles: 2, delayProfiles: 0, mediaManagement: 0 } } }]
+                arrs: [{ id: 1, name: 'Sonarr', type: 'sonarr', enabled: true, sync: { qualityProfiles: { count: 3 } }, drift: { lastCheckedAt: '2026-09-14T00:00:00Z', drifted: true, details: { qualityProfiles: 2, delayProfiles: 0, mediaManagement: 0 } } }]
             }
         }));
         const status = await adapter.status();
         expect(status.arrs[0]?.drift?.drifted).toBe(true);
+        expect(status.arrs[0]?.syncedQualityProfiles).toBe(3);
         expect(status.arrs[0]?.drift?.details.qualityProfiles).toBe(2);
     });
 
     it('keeps a null drift null rather than defaulting it to clean', async () => {
         const adapter = new ProfilarrAdapter(config, stub({
-            '/api/v1/status': { version: '2.2.0', uptime: 1, timezone: 'UTC', databases: [], arrs: [{ id: 1, name: 'Sonarr', type: 'sonarr', enabled: true, sync: {}, drift: null }] }
+            '/api/v1/status': { version: '2.2.0', uptime: 1, timezone: 'UTC', databases: [], arrs: [{ id: 1, name: 'Sonarr', type: 'sonarr', enabled: true, sync: { qualityProfiles: { count: 3 } }, drift: null }] }
         }));
         const status = await adapter.status();
         expect(status.arrs[0]?.drift).toBeNull();

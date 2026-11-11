@@ -17,7 +17,7 @@ import {
     readRootFolders,
     readTags
 } from './arrAdd.ts';
-import { readArrProfileDiagnostics } from './arrProfiles.ts';
+import { readArrProfileDiagnostics, readArrQualityProfile, updateArrQualityProfile } from './arrProfiles.ts';
 import { readArrHistory } from './arrHistory.ts';
 import { arrGrabRecorded, traceArrDownload } from './arrDownloadTrace.ts';
 import { postArrCommand, readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
@@ -67,8 +67,10 @@ import {
     type MediaUpdateOptions,
     type MediaUpdateState,
     type MediaDeleteCapable,
+    type ArrQualityProfileRecord,
     type ProfileDiagnosticsCapable,
     type ProfileDiagnosticsData,
+    type ProfileFixCapable,
     type QualityProfile,
     type QueueRemoveCapable,
     type ReleaseCandidate,
@@ -152,6 +154,7 @@ export class RadarrAdapter
         WantedCapable,
         ReleaseSearchCapable,
         ProfileDiagnosticsCapable,
+        ProfileFixCapable,
         SeedCriteriaCapable
 {
     protected readonly scanTask = LIBRARY_SCAN_TASK;
@@ -238,6 +241,14 @@ export class RadarrAdapter
 
     async readProfileDiagnostics(): Promise<ProfileDiagnosticsData> {
         return readArrProfileDiagnostics(this.http);
+    }
+
+    async readQualityProfile(id: number): Promise<ArrQualityProfileRecord> {
+        return readArrQualityProfile(this.http, id);
+    }
+
+    async updateQualityProfile(profile: ArrQualityProfileRecord): Promise<void> {
+        return updateArrQualityProfile(this.http, profile);
     }
 
     async listCommands(): Promise<CommandStatus[]> {

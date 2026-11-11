@@ -174,6 +174,8 @@ const DYNAMIC_TOOLS: ToolName[] = [
     'import_download',
     'trigger_subtitle_search',
     'clean_queue',
+    // Dry run off a certain floor finding from get_profile_issues; skipped when there is none.
+    'fix_profile',
     // Needs profilarr configured at all, which is optional — skipped rather
     // than invented on a stack that does not run it.
     'sync_database'
@@ -870,6 +872,56 @@ if (indexerRow !== undefined) {
     );
 } else {
     console.log('SKIP delete_indexer — no Prowlarr indexer to preview against.');
+}
+
+/**
+ * fix_profile, dry run only, off a certain floor finding that get_profile_issues
+ * reports. A dry run still plans, so an instance Profilarr syncs profiles to
+ * refuses it with the Profilarr remedy; that is the tool working, and counts as a pass.
+ */
+const profileFindings = await run(
+    'get_profile_issues',
+    { detail: 'full', limit: 200 },
+    'read again to pick a floor finding for fix_profile'
+);
+const floorFinding = (
+    (profileFindings?.structuredContent as { items?: Array<Record<string, unknown>> } | undefined)?.items ?? []
+).find(
+    i =>
+        (i.kind === 'unreachable_floor' || i.kind === 'knife_edge_floor') &&
+        typeof i.service === 'string' &&
+        typeof i.profile === 'string'
+);
+
+if (floorFinding === undefined) {
+    // Routine: a stack whose profiles have no unreachable or knife-edge floor.
+    console.log('SKIP fix_profile — no floor finding to preview against.');
+} else if (!notListed('fix_profile')) {
+    const args = {
+        service: floorFinding.service,
+        ...(typeof floorFinding.instance === 'string' ? { instance: floorFinding.instance } : {}),
+        profile: floorFinding.profile,
+        finding: floorFinding.kind,
+        dry_run: true
+    };
+    const label = `fix_profile ${JSON.stringify(args)} — DRY RUN ONLY — never applied from this script`;
+    try {
+        const result = await callTool('fix_profile', args);
+        const text = redactHosts(result.content?.[0]?.text ?? '', hosts);
+        if (result.isError !== true) {
+            console.log(`PASS ${label} — ${text}`);
+            passes += 1;
+        } else if (/Profilarr/.test(text)) {
+            console.log(`PASS ${label} — refused as expected: ${text}`);
+            passes += 1;
+        } else {
+            console.error(`FAIL ${label} — ${text}`);
+            failures += 1;
+        }
+    } catch (err) {
+        console.error(`FAIL ${label} — ${redactHosts((err as Error).message, hosts)}`);
+        failures += 1;
+    }
 }
 
 /**

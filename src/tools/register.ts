@@ -25,6 +25,7 @@ import { ALIAS_DESCRIPTION } from './deprecations.ts';
 import { registerDiagnose } from './diagnose/index.ts';
 import { registerDiscoverMedia } from './discoverMedia.ts';
 import { registerFixMetadata } from './fixMetadata.ts';
+import { registerFixProfile } from './fixProfile.ts';
 import { registerGetBlocklist } from './getBlocklist.ts';
 import { registerGetCalendar } from './getCalendar.ts';
 import { registerGetHistory, type EventLog } from './getHistory.ts';
@@ -244,6 +245,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerImportDownload(server, write, adapters);
     registerDeleteIndexer(server, write, adapters);
     registerBlocklistMedia(server, write, adapters);
+    registerFixProfile(server, write, adapters, instances);
 }
 
 /** The tools that write (`readOnlyHint: false`). `shapeToolSurface` hides these when none of their services is configured. */
@@ -256,6 +258,7 @@ export const WRITE_TOOLS: ReadonlySet<string> = new Set([
     'delete_media',
     'delete_request',
     'fix_metadata',
+    'fix_profile',
     'grab_release',
     'import_download',
     'manage_indexer',
@@ -329,5 +332,6 @@ export const TOOL_NAMES = [
     'update_book',
     'import_download',
     'delete_indexer',
-    'blocklist_media'
+    'blocklist_media',
+    'fix_profile'
 ] as const;

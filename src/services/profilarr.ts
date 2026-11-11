@@ -21,6 +21,8 @@ export type ProfilarrArrStatus = {
     name: string;
     type: 'radarr' | 'sonarr';
     enabled: boolean;
+    /** How many quality profiles Profilarr syncs to this arr. It does not say which. */
+    syncedQualityProfiles: number;
     drift: ProfilarrDrift | null;
 };
 export type ProfilarrDatabase = {
@@ -94,6 +96,7 @@ export class ProfilarrAdapter implements ServiceAdapter {
                 name: a.name,
                 type: a.type,
                 enabled: a.enabled,
+                syncedQualityProfiles: a.sync.qualityProfiles.count,
                 drift: a.drift
             }))
         };

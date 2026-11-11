@@ -1,8 +1,8 @@
 import type { ServiceHttp } from '../core/http.ts';
-import type { ProfileDiagnosticsData } from './types.ts';
+import type { ArrQualityProfileRecord, ProfileDiagnosticsData } from './types.ts';
 
 type RawFormatItem = { name?: string | null; score?: number };
-type RawProfile = { name?: string | null; minFormatScore?: number; formatItems?: RawFormatItem[] | null };
+type RawProfile = { id?: number; name?: string | null; minFormatScore?: number; formatItems?: RawFormatItem[] | null };
 type RawField = { name?: string | null; value?: unknown };
 type RawSpecification = {
     implementation?: string | null;
@@ -16,7 +16,7 @@ type RawLanguage = { id?: number; name?: string | null };
 /**
  * The three reads `get_profile_issues` needs from one Radarr, Sonarr or
  * Whisparr — shared because Radarr and Sonarr answer these identically.
- * GET only: arr-mcp never writes a profile or a custom format.
+ * GET only; the one profile write is `updateArrQualityProfile` below.
  */
 export async function readArrProfileDiagnostics(http: ServiceHttp): Promise<ProfileDiagnosticsData> {
     const [profiles, formats, languages] = await Promise.all([
@@ -27,6 +27,7 @@ export async function readArrProfileDiagnostics(http: ServiceHttp): Promise<Prof
 
     return {
         profiles: profiles.map(p => ({
+            ...(typeof p.id === 'number' ? { id: p.id } : {}),
             name: p.name ?? '',
             minFormatScore: p.minFormatScore ?? 0,
             formatItems: (p.formatItems ?? [])
@@ -48,4 +49,18 @@ export async function readArrProfileDiagnostics(http: ServiceHttp): Promise<Prof
             .filter((l): l is RawLanguage & { id: number; name: string } => typeof l.id === 'number' && typeof l.name === 'string')
             .map(l => ({ id: l.id, name: l.name }))
     };
+}
+
+/** One quality profile, whole, as the *arr sends it. */
+export async function readArrQualityProfile(http: ServiceHttp, id: number): Promise<ArrQualityProfileRecord> {
+    return http.get<ArrQualityProfileRecord>(`${http.apiRoot}/qualityprofile/${id}`);
+}
+
+/**
+ * Sends a profile back to `PUT /qualityprofile/{id}`. Radarr answers 202 with
+ * the profile, which nothing here reads; a refusal is a 400 whose
+ * `errorMessage` the transport puts in the thrown error.
+ */
+export async function updateArrQualityProfile(http: ServiceHttp, profile: ArrQualityProfileRecord): Promise<void> {
+    await http.put(`${http.apiRoot}/qualityprofile/${profile.id}`, profile, true);
 }
