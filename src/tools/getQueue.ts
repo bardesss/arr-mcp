@@ -224,16 +224,16 @@ export async function buildGetQueue(
 
 const GetQueueInput = toolInput({
     kind: MediaKindSchema.describe(
-        'Only one service\'s queue: `movie` (Radarr), `series` (Sonarr, Whisparr), `artist` (Lidarr), `book` (Shelfmark, Grimmory\'s Bookdrop). Pass it when the request names one of those services. Download clients are left out, since their rows are the same downloads. Omit for everything.'
+        'Only one service\'s queue. [[radarr: `movie`: Radarr.]] [[sonarr|whisparr: `series`: {{and: sonarr=Sonarr; whisparr=Whisparr}}.]] [[lidarr: `artist`: Lidarr.]] [[shelfmark|grimmory: `book`: {{and: shelfmark=Shelfmark; grimmory=Grimmory\'s Bookdrop}}.]] Pass it when the request names one of those services. Download clients are left out, since their rows are the same downloads. Omit for everything.'
     ),
     category: z.array(z.string()).min(1).optional().describe('Only torrents in these client categories.'),
     status: z.string().min(1).optional().describe('Only rows whose status starts with this, e.g. `seeding`, `stalled`.'),
     over_limit: z.boolean().optional().describe('Only rows past (true) or within (false) their seed limit.'),
-    struck: z.boolean().optional().describe('Only rows with (true) or without (false) Cleanuparr strikes.'),
-    due_within_days: z.number().int().min(0).max(365).optional().describe('Only rows Cleanuparr acts on within this many days.'),
-    unmatched: z.boolean().optional().describe('Only rows no Cleanuparr rule covers (true), or that one does (false).'),
+    struck: z.boolean().optional().describe('[[cleanuparr: Only rows with (true) or without (false) Cleanuparr strikes.]]'),
+    due_within_days: z.number().int().min(0).max(365).optional().describe('[[cleanuparr: Only rows Cleanuparr acts on within this many days.]]'),
+    unmatched: z.boolean().optional().describe('[[cleanuparr: Only rows no Cleanuparr rule covers (true), or that one does (false).]]'),
     by_tracker: z.boolean().optional().describe('Add `byTracker`: seed time per tracker hostname over the matching seeding torrents.'),
-    min_seed_days: z.number().min(0).max(365).optional().describe('With by_tracker: count per tracker what Cleanuparr removes before this seed time.'),
+    min_seed_days: z.number().min(0).max(365).optional().describe('[[cleanuparr: With by_tracker: count per tracker what Cleanuparr removes before this seed time.]]'),
     detail: DetailSchema,
     limit: LimitSchema,
     offset: OffsetSchema
@@ -246,7 +246,7 @@ export function registerGetQueue(server: McpServer, adapters: readonly ServiceAd
             title: 'Download queue',
             annotations: READ_ONLY,
             description:
-                'Everything downloading or stalled, merged across Radarr, Sonarr, Whisparr, Lidarr, SABnzbd, NZBGet, Transmission and qBittorrent, plus files waiting in Grimmory\'s Bookdrop. Sizes are bytes, ETAs seconds; release names are fenced as untrusted data. An *arr row carries `downloadId` and `statusMessages`: a finished download stuck at `importState: "importBlocked"` is imported with import_download and that `downloadId`, but a title mismatch or unknown episode fails the same way on every retry and has to be fixed in the service. [[transmission|qbittorrent: At `detail: "full"` a torrent carries `seeding` (ratio, time seeded, the limit that applies, `overLimit`) and, with Cleanuparr, the rule that governs it, its `strikes` and `dueAt`; `cleanuparrDue` totals what falls due within 7 days.]] Filter on the server rather than reading the whole queue. Remove a row with remove_queue_item. Field reference: arr://docs/get_queue.',
+                'Everything downloading or stalled, merged across every *arr queue and download client[[grimmory: , plus files waiting in Grimmory\'s Bookdrop]]. Sizes are bytes, ETAs seconds; release names are fenced as untrusted data. An *arr row carries `downloadId` and `statusMessages`: a finished download stuck at `importState: "importBlocked"` is imported with import_download and that `downloadId`, but a title mismatch or unknown episode fails the same way on every retry and has to be fixed in the service. [[transmission|qbittorrent: At `detail: "full"` a torrent carries `seeding` (ratio, time seeded, the limit that applies, `overLimit`) and, with Cleanuparr, the rule that governs it, its `strikes` and `dueAt`; `cleanuparrDue` totals what falls due within 7 days.]] Filter on the server rather than reading the whole queue. Remove a row with remove_queue_item. Field reference: arr://docs/get_queue.',
             outputSchema: PagedOutputSchema,
             inputSchema: GetQueueInput
         },

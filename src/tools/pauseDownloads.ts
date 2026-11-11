@@ -71,7 +71,7 @@ export function registerPauseDownloads(
         name: 'pause_downloads',
         title: 'Pause, resume or throttle a download client',
         description:
-            'Pauses, resumes or throttles one download client — SABnzbd, NZBGet, Transmission or qBittorrent — or one item in its queue when `id` is given. The bandwidth answer: "stop downloading for an hour", or `action: "limit"` with `speed_limit_kbps` (KiB/s) to slow it down instead of stopping it (0 removes the cap). A limit is always client-wide, never per item. Safe tier, because the undo is this same tool with the other action. It does NOT stop the *arrs grabbing: they carry on finding and sending releases, which then sit in the paused client. `service` is required and names one client; pausing "everything" means one call each. Previews first; confirm to apply it.',
+            'Pauses, resumes or throttles one download client ({{or: sabnzbd=SABnzbd; nzbget=NZBGet; transmission=Transmission; qbittorrent=qBittorrent}}) or one item in its queue when `id` is given. The bandwidth answer: "stop downloading for an hour", or `action: "limit"` with `speed_limit_kbps` (KiB/s) to slow it down instead of stopping it (0 removes the cap). A limit is always client-wide, never per item. Safe tier, because the undo is this same tool with the other action. It does NOT stop the *arrs grabbing: they carry on finding and sending releases, which then sit in the paused client. `service` is required and names one client; pausing "everything" means one call each. Previews first; confirm to apply it.',
         inputSchema: PauseDownloadsInput,
         // The resolved instance id, not the bare type — permissions are
         // granted per instance.

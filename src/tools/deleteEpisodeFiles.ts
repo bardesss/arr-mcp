@@ -31,7 +31,7 @@ const DeleteEpisodeFilesInput = z.object({
         .int()
         .min(0)
         .optional()
-        .describe('One season. 0 is specials. On Whisparr a season is a release year, e.g. 2019.'),
+        .describe('One season. 0 is specials.[[whisparr:  On Whisparr a season is a release year, e.g. 2019.]]'),
     episodes: z
         .array(z.string().min(1))
         .min(1)

@@ -271,10 +271,10 @@ const GetHistoryInput = toolInput({
     source: z
         .enum(['services', 'webhooks'])
         .default('services')
-        .describe('`services` asks each service for its own history. `webhooks` reads the events Radarr and Sonarr reported to arr-mcp, which survive deleting a title.'),
+        .describe('`services` asks each service for its own history.[[radarr|sonarr:  `webhooks` reads the events {{and: radarr=Radarr; sonarr=Sonarr}} reported to arr-mcp, which survive deleting a title.]]'),
     service: ServiceIdSchema.optional().describe('Scope to one service. Required alongside `id`.'),
     instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
-    id: z.string().min(1).optional().describe('One movie, series or Lidarr artist id — `acquisition.id` on a get_library or get_media_details record. Requires `service`.'),
+    id: z.string().min(1).optional().describe('One {{or: radarr=movie; sonarr|whisparr=series; lidarr=Lidarr artist}} id — `acquisition.id` on a get_library or get_media_details record. Requires `service`.'),
     event_type: EventTypeSchema,
     since: SinceSchema,
     detail: DetailSchema,
@@ -293,7 +293,7 @@ export function registerGetHistory(server: McpServer, adapters: readonly Service
             title: 'Download history',
             annotations: READ_ONLY,
             description:
-                'What happened to a download after it left the queue (grabbed, imported, failed, deleted), merged across the *arrs, SABnzbd, NZBGet, Bazarr (`subtitle` rows), Cleanuparr (strikes and removals), Reclaimerr (cleanup), Shelfmark and Grimmory, in one vocabulary with the upstream word kept as `rawEvent`. This answers "why did last night\'s download fail": get_queue cannot see finished or failed items, and a failure carries the download client\'s own message. Pass `service` and `id` to scope it to one movie, series or Lidarr artist. `downloadId` links a row to its *arr grab[[nzbget: ; on an NZBGet row it is what import_download `action: "postprocess"` takes]]. [[radarr|sonarr: Deleting a title also deletes its Radarr and Sonarr history, so `source: "webhooks"` reads what they reported to arr-mcp instead, when the library event log is on.]] Field reference: arr://docs/get_history.',
+                'What happened to a download after it left the queue (grabbed, imported, failed, deleted), merged across {{and: else=every service; radarr|sonarr|whisparr|lidarr=the *arrs; sabnzbd=SABnzbd; nzbget=NZBGet; bazarr=Bazarr (`subtitle` rows); cleanuparr=Cleanuparr (strikes and removals); reclaimerr=Reclaimerr (cleanup); shelfmark=Shelfmark; grimmory=Grimmory}}, in one vocabulary with the upstream word kept as `rawEvent`. This answers "why did last night\'s download fail": get_queue cannot see finished or failed items, and a failure carries the download client\'s own message. [[radarr|sonarr|whisparr|lidarr: Pass `service` and `id` to scope it to one {{or: radarr=movie; sonarr|whisparr=series; lidarr=Lidarr artist}}.]] `downloadId` links a row to its *arr grab[[nzbget: ; on an NZBGet row it is what import_download `action: "postprocess"` takes]]. [[radarr|sonarr: Deleting a title also deletes its Radarr and Sonarr history, so `source: "webhooks"` reads what they reported to arr-mcp instead, when the library event log is on.]] Field reference: arr://docs/get_history.',
             outputSchema: GetHistoryOutput,
             inputSchema: GetHistoryInput
         },

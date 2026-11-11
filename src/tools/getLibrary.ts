@@ -1,5 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
+import { KINDS_KEY } from '../config/schema.ts';
 import type { LibraryKind, MergedItem } from '../core/resolver.ts';
 import {
     DetailSchema,
@@ -513,7 +514,11 @@ export async function buildGetLibrary(loader: LibraryLoader, opts: LibraryQuery)
 }
 
 const getLibraryInput = byMediaServers(ids => toolInput({
-    kind: z.enum(['movie', 'series', 'artist', 'book']).optional().describe('Films, series, Lidarr artists or Grimmory books; omit for all.'),
+    kind: z
+        .enum(['movie', 'series', 'artist', 'book'])
+        .meta({ [KINDS_KEY]: true })
+        .optional()
+        .describe('Only {{or: radarr=films; sonarr|whisparr=series; lidarr=Lidarr artists; grimmory=Grimmory books; else=this kind}}; omit for all.'),
     year: z.number().int().optional(),
     genre: z.string().min(1).optional().describe('Matched case-insensitively against the *arr genres.'),
     monitored: z.boolean().optional(),
@@ -523,7 +528,7 @@ const getLibraryInput = byMediaServers(ids => toolInput({
         .describe(
             'Whether a file is on disk; for an artist, any track.'
         ),
-    watched: z.boolean().optional().describe('The media server\'s watch state, or a Grimmory book\'s read status; pair with `user` for someone else.'),
+    watched: z.boolean().optional().describe('The media server\'s watch state[[grimmory: , or a Grimmory book\'s read status]]; pair with `user` for someone else.'),
     user: UserSchema,
     // Undocumented on purpose: the spelling this tool had when the
     // surface froze at 1.0, where `get_playback` and `get_requests`
@@ -532,7 +537,7 @@ const getLibraryInput = byMediaServers(ids => toolInput({
     // described nowhere.
     watched_by: UserSchema,
     quality: z.string().min(1).optional().describe("Films, or a book's file format such as EPUB."),
-    library: z.string().min(1).optional().describe('A Grimmory library, by name; matches books only.'),
+    library: z.string().min(1).optional().describe('[[grimmory: A Grimmory library, by name; matches books only.]]'),
     added_since: z
         .string()
         .regex(/^\d{4}-\d{2}-\d{2}/, 'must start with an ISO 8601 date (YYYY-MM-DD), e.g. "2026-08-01" or "2026-08-01T00:00:00Z".')
@@ -605,7 +610,7 @@ export function registerGetLibrary(
             annotations: READ_ONLY,
             ...(mediaCards ? { _meta: mediaCardsToolMeta() } : {}),
             description:
-                'Your library joined across Radarr, Sonarr, Whisparr, Lidarr, Grimmory and your media server on shared external ids: films, series, artists and books. Use it for filtered lists and counts; for one title use get_media_details. `presence` is what no single service can tell: `arr_only` with a file is a likely broken import, `jellyfin_only` (spelled that way for any media server) is media nothing manages, and `unknown` means the other half was not read. When `degraded` or `note` explain a gap, report that reason rather than calling it unwatched or unrated. `has_file: false` with `monitored: true` is what you are still waiting for. [[lidarr: An artist\'s `monitored` is the artist-level flag, not the album flag; its albums and their ids come from get_media_details on the Lidarr artist.]] A series has an IMDb rating only with the IMDb dataset on, so ask `rating_source: "imdb"` explicitly. Series `seasons` and folder paths need `detail: "full"`. Field reference: arr://docs/get_library.' +
+                'Your library joined across {{and: radarr=Radarr; sonarr=Sonarr; whisparr=Whisparr; lidarr=Lidarr; grimmory=Grimmory; *=your media server}} on shared external ids. Use it for filtered lists and counts; for one title use get_media_details. `presence` is what no single service can tell: `arr_only` with a file is a likely broken import, `jellyfin_only` (spelled that way for any media server) is media nothing manages, and `unknown` means the other half was not read. When `degraded` or `note` explain a gap, report that reason rather than calling it unwatched or unrated. `has_file: false` with `monitored: true` is what you are still waiting for. [[lidarr: An artist\'s `monitored` is the artist-level flag, not the album flag; its albums and their ids come from get_media_details on the Lidarr artist.]] A series has an IMDb rating only with the IMDb dataset on, so ask `rating_source: "imdb"` explicitly. Series `seasons` and folder paths need `detail: "full"`. Field reference: arr://docs/get_library.' +
                 withBoth(
                     mediaServerIds,
                     'With two media servers, `presence`, `playback` and `seasons` describe the primary, and `media_servers` says per server whether it has the item and under which `itemId`; a server missing from that map was not read. The non-primary server is matched on tmdb, tvdb or imdb ids, so an item it holds without any reads `present: false`. Items only the non-primary server has do not appear here; search_media finds them.'

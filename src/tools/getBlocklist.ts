@@ -85,7 +85,7 @@ export function registerGetBlocklist(server: McpServer, adapters: readonly Servi
             title: 'Blocklisted releases',
             annotations: READ_ONLY,
             description:
-                'Why a release keeps getting skipped. Lists what Radarr, Sonarr, Whisparr and Lidarr have blocklisted — releases they will not grab again — with the reason each was blocklisted, usually relayed from the download client. This is the answer to "it keeps finding the same thing and never downloading it", which `get_history` shows as a repeating grab-then-fail and nothing explains. Rows carry `mediaId` for get_media_details (an artist id on a Lidarr row), and `id` for remove_blocklist_item. Newest first. Radarr, Sonarr, Whisparr and Lidarr only — the download clients have no blocklist of their own.',
+                'Why a release keeps getting skipped. Lists what each *arr has blocklisted — releases they will not grab again — with the reason each was blocklisted, usually relayed from the download client. This is the answer to "it keeps finding the same thing and never downloading it", which `get_history` shows as a repeating grab-then-fail and nothing explains. Rows carry `mediaId` for get_media_details[[lidarr:  (an artist id on a Lidarr row)]], and `id` for remove_blocklist_item. Newest first. *arrs only — the download clients have no blocklist of their own.',
             outputSchema: PagedOutputSchema,
             inputSchema: GetBlocklistInput
         },

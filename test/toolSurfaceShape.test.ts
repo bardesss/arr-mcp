@@ -5,6 +5,7 @@ import { serviceOf, type ServiceId } from '../src/config/schema.ts';
 import type { IndexInput } from '../src/core/resolver.ts';
 import { leanJsonSchema, leanSchema, scopeText, shapeToolSurface, type SurfaceOptions } from '../src/mcp/toolSurface.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
+import { MediaKindSchema } from '../src/tools/mediaKind.ts';
 import { buildGetLibrary } from '../src/tools/getLibrary.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
 
@@ -150,6 +151,63 @@ describe('a service field', () => {
             target: 'draft-2020-12'
         });
         expect(own).toHaveProperty('$schema');
+    });
+});
+
+describe('a kind field', () => {
+    type Kind = { enum: unknown; description?: string };
+    const kindOf = (opts: SurfaceOptions): Kind => {
+        const view = leanSchema(z.object({ kind: MediaKindSchema }), opts) as unknown as {
+            '~standard': { jsonSchema: { input: (o: unknown) => { properties: { kind: Kind } } } };
+        };
+        return view['~standard'].jsonSchema.input({ target: 'draft-2020-12' }).properties.kind;
+    };
+
+    it('lists only the kinds the configured services hold', () => {
+        const kind = kindOf(on('radarr', 'sonarr', 'sabnzbd', 'jellyfin'));
+        expect(kind.enum).toEqual(['movie', 'series']);
+        expect(kind.description).not.toMatch(/Lidarr|Shelfmark|Grimmory/);
+        expect(kind.description).toContain('Radarr');
+    });
+
+    it('lists every kind before anything is configured', () => {
+        expect(kindOf(nothing).enum).toEqual(['movie', 'series', 'artist', 'book']);
+    });
+
+    it('lists every kind when no configured service holds one, rather than none', () => {
+        expect(kindOf(on('sabnzbd', 'seerr')).enum).toEqual(['movie', 'series', 'artist', 'book']);
+    });
+
+    it('still accepts every kind', () => {
+        expect(leanSchema(z.object({ kind: MediaKindSchema }), on('radarr')).safeParse({ kind: 'artist' }).success).toBe(true);
+    });
+});
+
+describe('scoped lists', () => {
+    const text = 'Merged across {{and: radarr=Radarr; sonarr|whisparr=Sonarr; sabnzbd=SABnzbd}}. Picks {{or: radarr=a film; lidarr=an artist}}.';
+
+    it('joins the configured items as an English list', () => {
+        expect(scopeText(text, on('radarr', 'sonarr', 'sabnzbd'))).toBe('Merged across Radarr, Sonarr and SABnzbd. Picks a film.');
+    });
+
+    it('joins two items without a comma, and with or', () => {
+        expect(scopeText(text, on('whisparr', 'sabnzbd', 'radarr', 'lidarr'))).toBe('Merged across Radarr, Sonarr and SABnzbd. Picks a film or an artist.');
+        expect(scopeText(text, on('sabnzbd', 'lidarr'))).toBe('Merged across SABnzbd. Picks an artist.');
+    });
+
+    it('keeps every item before anything is configured', () => {
+        expect(scopeText(text, nothing)).toBe('Merged across Radarr, Sonarr and SABnzbd. Picks a film or an artist.');
+    });
+
+    it('always keeps a `*` item, and falls back to `else` when nothing else applies', () => {
+        const list = 'Looked up in {{and: cleanuparr=Cleanuparr; sabnzbd=client history; *=the event log}}. Merged across {{and: radarr=Radarr; else=every service}}.';
+        expect(scopeText(list, on('cleanuparr', 'sabnzbd'))).toBe('Looked up in Cleanuparr, client history and the event log. Merged across every service.');
+        expect(scopeText(list, on('radarr'))).toBe('Looked up in the event log. Merged across Radarr.');
+        expect(scopeText(list, nothing)).toBe('Looked up in Cleanuparr, client history and the event log. Merged across Radarr.');
+    });
+
+    it('leaves nothing when no item applies', () => {
+        expect(scopeText('Picks {{or: lidarr=an artist}} here.', on('radarr'))).toBe('Picks here.');
     });
 });
 

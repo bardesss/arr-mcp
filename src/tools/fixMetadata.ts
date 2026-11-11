@@ -623,7 +623,7 @@ const fixMetadataInput = byMediaServers(ids => z.object({
         .min(1)
         .optional()
         .describe(
-            'The media server item id, as get_metadata_issues prints it (`plex:119962`) or bare, or a Grimmory book as `grimmory:<book id>`[[lidarr: , or a Lidarr artist as `lidarr:<artistId>`]]. Wins over `query`.'
+            'The media server item id, as get_metadata_issues prints it (`plex:119962`) or bare[[grimmory: , or a Grimmory book as `grimmory:<book id>`]][[lidarr: , or a Lidarr artist as `lidarr:<artistId>`]]. Wins over `query`.'
         ),
     files: z
         .array(z.number().int().positive())
@@ -634,14 +634,14 @@ const fixMetadataInput = byMediaServers(ids => z.object({
         .string()
         .optional()
         .describe(
-            "Whose view of the library to read the episodes through. Defaults to the media server's default_user; on Jellyfin, naming anyone else needs services.jellyfin.allow_other_users."
+            "Whose view of the library to read the episodes through. Defaults to the media server's default_user[[jellyfin: ; on Jellyfin, naming anyone else needs services.jellyfin.allow_other_users]]."
         ),
     isbn: z
         .string()
         .min(10)
         .max(17)
         .optional()
-        .describe("Books only: search Grimmory's providers by this ISBN instead of the book's own.")
+        .describe("[[grimmory: Books only: search Grimmory's providers by this ISBN instead of the book's own.]]")
 }));
 
 export function registerFixMetadata(
@@ -659,7 +659,7 @@ export function registerFixMetadata(
         name: 'fix_metadata',
         title: 'Repair wrong metadata',
         description:
-            'Repairs films and series whose Jellyfin or Plex metadata does not describe the file on disk (a file `Episode 101` shown as S1E1 with another title). Not trigger_scan, which never replaces a wrong title. Give a title as `query`, or the `id` get_metadata_issues printed. The preview lists `numbering` findings (confident) and `title` findings (advisory); a film is judged on year and title. **Destructive**: re-identifies the item against TVDB or TMDB and replaces all its metadata, hand edits included, with no undo on Jellyfin. Locked fields are never overwritten. When the preview says a refresh cannot move the episodes, use trigger_scan `action: "rename"` on the Sonarr series, then a media-server rescan. On Jellyfin the repair holds the request open a long time: do not retry. [[grimmory: A Grimmory book is `grimmory:<book id>`, matched by ISBN or title and author.]] [[lidarr: For music, `id: "lidarr:<artistId>"` retags its files.]] Previews first; confirm to apply. Field reference: arr://docs/fix_metadata.' +
+            '[[jellyfin|plex: Repairs films and series whose media-server metadata does not describe the file on disk (a file `Episode 101` shown as S1E1 with another title). Not trigger_scan, which never replaces a wrong title. Give a title as `query`, or the `id` get_metadata_issues printed. The preview lists `numbering` findings (confident) and `title` findings (advisory); a film is judged on year and title. **Destructive**: re-identifies the item against TVDB or TMDB and replaces all its metadata, hand edits included.]] [[jellyfin: Jellyfin has no undo.]] [[jellyfin|plex: Locked fields are never overwritten.]] [[sonarr: When the preview says a refresh cannot move the episodes, use trigger_scan `action: "rename"` on the Sonarr series, then a media-server rescan.]] [[jellyfin: On Jellyfin the repair holds the request open a long time: do not retry.]] [[grimmory: A Grimmory book is `grimmory:<book id>`, matched by ISBN or title and author.]] [[lidarr: For music, `id: "lidarr:<artistId>"` retags its files.]] Previews first; confirm to apply. Field reference: arr://docs/fix_metadata.' +
             withBoth(
                 bothIds(servers),
                 'With two media servers configured, `service` picks one; it defaults to the primary, and an `id` prefixed `plex:` or `jellyfin:` picks that server.'

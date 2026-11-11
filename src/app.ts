@@ -11,7 +11,7 @@ import {
 } from '@modelcontextprotocol/server';
 import { Hono, type Context, type Next } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
-import type { OAuthConfig } from './config/schema.ts';
+import type { OAuthConfig, ServiceId } from './config/schema.ts';
 import { NO_CLIENT_ID, OAUTH_CALLER_PREFIX, type WriteAudit } from './core/audit.ts';
 import { logger } from './core/logger.ts';
 import type { LogStore } from './core/logs.ts';
@@ -22,7 +22,7 @@ import { claimJsonBody } from './mcp/jsonBody.ts';
 import { JwksUnavailable } from './mcp/oauthVerifier.ts';
 import { acceptingBoth, acceptsStream, asPlainJson } from './mcp/plainJson.ts';
 import { registerAllPrompts } from './mcp/prompts.ts';
-import { shapeToolSurface, type SurfaceOptions } from './mcp/toolSurface.ts';
+import { scopeText, shapeToolSurface, type SurfaceOptions } from './mcp/toolSurface.ts';
 import { registerAppResources } from './mcp/apps.ts';
 import { registerAllResources } from './mcp/resources.ts';
 import { RESOURCE_METADATA_PATHS, resourceMetadata, resourceMetadataUrl } from './mcp/resourceMetadata.ts';
@@ -83,10 +83,31 @@ const LIST_CACHE_TTL_MS = 60 * 60 * 1000;
  * that a list reports the whole count rather than the window, and that a write
  * happens in two calls rather than one.
  */
-const INSTRUCTIONS = `One endpoint for a self-hosted media stack: Radarr, Sonarr and Lidarr manage films, series and music, Whisparr scenes, Prowlarr the indexers, Profilarr quality profiles, Bazarr subtitles, Jellyfin and Plex playback, Seerr requests, Grimmory books and Shelfmark book downloads, SABnzbd, NZBGet, Transmission and qBittorrent downloads, Cleanuparr and Reclaimerr cleanup, Dispatcharr live TV.
+/** What each service does here, in the order the opening sentence names them; only the configured ones are named. */
+const ROLES: readonly (readonly [ServiceId, string])[] = [
+    ['radarr', 'Radarr films'],
+    ['sonarr', 'Sonarr series'],
+    ['lidarr', 'Lidarr music'],
+    ['whisparr', 'Whisparr scenes'],
+    ['prowlarr', 'Prowlarr indexers'],
+    ['profilarr', 'Profilarr quality profiles'],
+    ['bazarr', 'Bazarr subtitles'],
+    ['jellyfin', 'Jellyfin playback'],
+    ['plex', 'Plex playback'],
+    ['seerr', 'Seerr requests'],
+    ['grimmory', 'Grimmory books'],
+    ['shelfmark', 'Shelfmark book downloads'],
+    ['sabnzbd', 'SABnzbd downloads'],
+    ['nzbget', 'NZBGet downloads'],
+    ['transmission', 'Transmission downloads'],
+    ['qbittorrent', 'qBittorrent downloads'],
+    ['cleanuparr', 'Cleanuparr cleanup'],
+    ['reclaimerr', 'Reclaimerr cleanup'],
+    ['dispatcharr', 'Dispatcharr live TV']
+];
 
-Reading:
-- \`get_library\` is the join across Radarr, Sonarr, Whisparr, Lidarr, Grimmory and the media server (Jellyfin or Plex) — the only tool that can say a file one service believes in is missing from the other.
+const INSTRUCTIONS = `Reading:
+- \`get_library\` is the join across your library services and media server — the only tool that can say a file one service believes in is missing from the other.
 - \`diagnose_media\` answers "why can I not play this" in one call. Prefer it over assembling that answer from several reads.
 - Call the tool that answers the question directly. A tool's \`service\` field lists the services it takes on this stack, so there is no need to call \`get_stack_health\` first to find one.
 - Every list is a window: \`items\`, \`total\`, \`returned\`, \`offset\`, \`truncated\`. \`total\` counts the whole list, never the window — it is the number to report when someone asks how many. \`offset + returned < total\` means there is another page; page two of 50 is \`offset: 50\`.
@@ -99,6 +120,14 @@ Writing:
 - A write refused for permissions names the config key that would allow it. Report that key rather than retrying.
 
 Arguments are strict: an argument a tool does not have is refused rather than ignored, and the error lists what it does accept.`;
+
+/** The server instructions for this stack: the opening sentence names only the services it runs (#518's scoping, applied to the instructions too). */
+export const instructionsFor = (opts: SurfaceOptions): string => {
+    const roles = ROLES.map(([service, role]) => scopeText(`[[${service}: ${role}]]`, opts)).filter(r => r !== '');
+    return `One endpoint for a self-hosted media stack: ${roles.join(', ')}.
+
+${scopeText(INSTRUCTIONS, opts)}`;
+};
 
 /**
  * The token's ceiling, applied to the write gate and to every place that
@@ -207,10 +236,16 @@ export function mcpServerFactory(
             ...cappedTools(snapshot.tools, ceilingFor(snapshot.config.auth.oauth, ctx.authInfo)),
             eventLog: { store: events, enabled: snapshot.config.webhooks?.enabled === true }
         };
+        // Before any tool registers: trims what tools/list sends, and tailors
+        // it and the instructions to the services this config has (#518).
+        const surface: SurfaceOptions = {
+            configured: new Set(tools.instances.map(i => i.type)),
+            hideUnusable: snapshot.config.tools?.hide_unusable === true
+        };
         const server = new McpServer(
             { name: NAME, version: VERSION },
             {
-                instructions: INSTRUCTIONS,
+                instructions: instructionsFor(surface),
                 /**
                  * Declared false rather than left to default true.
                  *
@@ -241,12 +276,6 @@ export function mcpServerFactory(
                 }
             }
         );
-        // Before any tool registers: trims what tools/list sends, and tailors
-        // it to the services this config has (#518).
-        const surface: SurfaceOptions = {
-            configured: new Set(tools.instances.map(i => i.type)),
-            hideUnusable: snapshot.config.tools?.hide_unusable === true
-        };
         shapeToolSurface(server, surface);
         registerAllTools(server, tools);
         // Registered beside the tools, never instead of them. Client support
