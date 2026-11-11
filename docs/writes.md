@@ -54,7 +54,7 @@ write, and says which permission to enable.
 | `manage_indexer` | safe (destructive only through its deprecated `delete`) | `safe_write`, or `destructive` for `delete` |
 | `delete_indexer` | destructive | `destructive` |
 | `remove_queue_item` | destructive | `destructive` |
-| `clean_queue` | destructive | `destructive` |
+| `clean_queue` | destructive | `destructive` (deprecated: `remove_queue_item` with `orphaned: true`) |
 | `delete_media` | destructive | `destructive`, plus `safe_write` on Seerr with `seerr_blocklist` |
 | `delete_episode_files` | destructive | `destructive` |
 | `delete_request` | destructive | `destructive` |
@@ -226,7 +226,7 @@ process.
 A token that is refused for any reason but having been used already comes back
 as a fresh preview with a new token, and its text carries that preview's summary
 and effects as a first preview does. Some writes also bind what they act on, not
-only the arguments: `clean_queue` the queue items it listed,
+only the arguments: `remove_queue_item` with `orphaned: true` (and `clean_queue`) the queue items it listed,
 `delete_episode_files` the file ids, `grab_release` the release, and a
 `fix_metadata` retag the files, their albums and Lidarr's Scrub Existing Tags
 setting. For those, the same call is refused when that has moved since the old

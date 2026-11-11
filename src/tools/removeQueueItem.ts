@@ -2,7 +2,8 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { ServiceError } from '../core/errors.ts';
 import { hasQueue, hasQueueRemove, type QueueItem, type QueueRemoveCapable, type ServiceAdapter } from '../services/types.ts';
-import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
+import { applyOrphaned, canClearOrphans, planOrphaned } from './cleanQueue.ts';
+import { outcomeText, registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 import { targetInput, serviceTarget } from './serviceTarget.ts';
 
 /**
@@ -25,10 +26,16 @@ const TARGET = serviceTarget({
 
 const RemoveQueueItemInput = z.object({
     ...targetInput(TARGET),
-    id: z.string().min(1).describe('The queue item id, exactly as get_queue reported it.'),
+    id: z.string().min(1).optional().describe('The queue item id, exactly as get_queue reported it.'),
+    orphaned: z
+        .boolean()
+        .optional()
+        .describe(
+            'Instead of `id`. Refuses `blocklist: true` and `remove_from_client: false`.'
+        ),
     remove_from_client: z
         .boolean()
-        .default(true)
+        .optional()
         .describe(
             'Also drop it from the download client and delete partial data. Defaults to true, which is what "get rid of it" normally means.'
         ),
@@ -39,6 +46,8 @@ const RemoveQueueItemInput = z.object({
             'Blocklist the release so it is not grabbed again. Radarr, Sonarr, Whisparr and Lidarr only; ignored elsewhere. Defaults to false.'
         )
 });
+
+type RemoveBound = { service: string; id: string; removeFromClient: boolean; blocklist: boolean } | { ids: string[] };
 
 /**
  * Why `blocklist: true` blocklists one row and not another, read in Radarr
@@ -106,7 +115,7 @@ export function registerRemoveQueueItem(
         name: 'remove_queue_item',
         title: 'Remove a queue item',
         description:
-            'Removes one item from a download queue — the stuck-at-0%, wrong-release, or stalled download. Works against Radarr, Sonarr, Whisparr, Lidarr, SABnzbd, NZBGet, Transmission, qBittorrent, Shelfmark and Grimmory; take `service` and `id` from get_queue. Optionally deletes partial data and, on Radarr, Sonarr, Whisparr and Lidarr only, blocklists the release so it will not be grabbed again. On NZBGet, keeping the data parks the download in its history rather than deleting it. On Shelfmark it cancels a queued or running book, and a failed one has nothing to cancel. On Grimmory it discards a file waiting in the Bookdrop, which deletes the file from disk (so `remove_from_client: false` is refused). Previews first; confirm to remove it.',
+            'Removes one item from a download queue — the stuck-at-0%, wrong-release, or stalled download. Works against Radarr, Sonarr, Whisparr, Lidarr, SABnzbd, NZBGet, Transmission, qBittorrent, Shelfmark and Grimmory; take `service` and `id` from get_queue. Optionally deletes partial data and, on Radarr, Sonarr, Whisparr and Lidarr only, blocklists the release so it will not be grabbed again. On NZBGet, keeping the data parks the download in its history rather than deleting it. On Shelfmark it cancels a queued or running book, and a failed one has nothing to cancel. On Grimmory it discards a file waiting in the Bookdrop, which deletes the file from disk (so `remove_from_client: false` is refused). `orphaned: true` in place of `id` removes every finished download stuck at importBlocked because its film, series or artist is gone, from one Radarr, Sonarr, Whisparr or Lidarr instance and its client. Previews first; confirm to remove it.',
         inputSchema: RemoveQueueItemInput,
         // The resolved instance id, not the bare type: permissions are granted per
         // instance, so checking `radarr` against a config that only grants
@@ -115,7 +124,36 @@ export function registerRemoveQueueItem(
         operation: 'remove_queue_item',
         tier: 'destructive',
 
-        async plan({ id, remove_from_client, blocklist }, adapter): Promise<WritePlan<{ service: string; id: string; removeFromClient: boolean; blocklist: boolean }>> {
+        async plan({ id, orphaned, remove_from_client: requested, blocklist }, adapter): Promise<WritePlan<RemoveBound>> {
+            const remove_from_client = requested ?? true;
+            if (orphaned === true) {
+                if (id !== undefined) {
+                    throw new ServiceError('NotFound', adapter.id, 'pass `id` or `orphaned: true`, not both', {
+                        remedy: 'Leave out `id` to remove every orphaned download, or leave out `orphaned` to remove that one item.'
+                    });
+                }
+                if (requested === false) {
+                    throw new ServiceError('NotFound', adapter.id, '`orphaned` always removes the download from the client, so it cannot leave it alone', {
+                        remedy: 'Leave out `remove_from_client`. To keep a download, remove one row by `id` instead.'
+                    });
+                }
+                if (blocklist) {
+                    throw new ServiceError('NotFound', adapter.id, '`orphaned` never blocklists: the release was fine, the media was deleted', {
+                        remedy: 'Leave out `blocklist`. To blocklist one release, pass its `id` instead.'
+                    });
+                }
+                if (!canClearOrphans(adapter)) {
+                    throw new ServiceError('NotFound', adapter.id, `${adapter.id} reports no orphaned items`, {
+                        remedy: 'orphaned works with Radarr, Sonarr, Whisparr and Lidarr only.'
+                    });
+                }
+                return planOrphaned(adapter);
+            }
+            if (id === undefined) {
+                throw new ServiceError('NotFound', adapter.id, 'pass `id`, or `orphaned: true` for every orphaned download', {
+                    remedy: 'Take an id from get_queue.'
+                });
+            }
 
             // Read the live queue so the preview names the release rather than
             // an opaque id, and so an id that has already finished downloading
@@ -185,10 +223,17 @@ export function registerRemoveQueueItem(
             };
         },
 
+        applied: outcomeText,
+
         // What the plan resolved and the token is bound to, not the raw flags.
-        async apply(plan, { id }, adapter) {
+        async apply(plan, _args, adapter) {
             if (plan.args === undefined) throw new Error('remove_queue_item: the plan bound no flags to send');
-            await adapter.removeQueueItem(id, { removeFromClient: plan.args.removeFromClient, blocklist: plan.args.blocklist });
+            if ('ids' in plan.args) {
+                if (!canClearOrphans(adapter)) throw new Error('remove_queue_item: the plan bound orphans for an adapter that cannot clear them');
+                return applyOrphaned({ ...plan, args: plan.args }, adapter);
+            }
+            const { id, removeFromClient, blocklist } = plan.args;
+            await adapter.removeQueueItem(id, { removeFromClient, blocklist });
             return { removed: `${adapter.id}:${id}` };
         }
     });

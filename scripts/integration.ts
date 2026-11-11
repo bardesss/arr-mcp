@@ -827,7 +827,8 @@ if (typeof gap?.kind === 'string' && gap.id !== undefined && typeof want?.code2 
 }
 
 // Dry run without exception: this one really does delete downloaded data.
-await run('clean_queue', { service: 'radarr', dry_run: true }, 'DRY RUN ONLY — never applied from this script');
+await run('remove_queue_item', { service: 'radarr', orphaned: true, dry_run: true }, 'DRY RUN ONLY — never applied from this script');
+await run('clean_queue', { service: 'radarr', dry_run: true }, 'DRY RUN ONLY — never applied from this script (deprecated alias)');
 
 /**
  * The four remaining writes, all dry runs, each driven off something a

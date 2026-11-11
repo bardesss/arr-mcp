@@ -14,6 +14,8 @@ export const ALIAS_DESCRIPTION = (use: string): string => `Deprecated: use ${use
 
 export const DEPRECATIONS: readonly Deprecation[] = [
     { tool: 'lookup_media', use: 'search_media' },
+    // Removal drops clean_queue and its WRITE_TOOLS/TOOL_SERVICES/TOOL_NAMES entries; planOrphaned and applyOrphaned stay in cleanQueue.ts or move into removeQueueItem.ts.
+    { tool: 'clean_queue', use: 'remove_queue_item' },
     // Removal drops the old names from TOOL_NAMES and register.ts, and the `arr://docs/` aliases in TOOL_DOC_ALIASES.
     { tool: 'stack_health', use: 'get_stack_health', rename: true },
     { tool: 'diagnose', use: 'diagnose_media', rename: true },
