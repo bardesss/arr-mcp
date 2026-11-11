@@ -161,7 +161,7 @@ const historyEvent = (status: string): HistoryEventType => {
 /**
  * NZBGet's group `Status` (listgroups, QueueCoordinator/NzbInfo) mapped onto
  * the lowercase words the other download clients emit, which is what
- * `get_queue` merges and `diagnose` classifies. Post-processing stages are
+ * `get_queue` merges and `diagnose_media` classifies. Post-processing stages are
  * healthy progress, and `PP_FINISHED` is a finished download waiting to be
  * imported. Anything not listed is passed through lowercased.
  */

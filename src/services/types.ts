@@ -309,7 +309,7 @@ export type SubtitleProvider = {
     retryAt?: string;
 };
 
-/** One title, as `diagnose` asks about it: a film by its Radarr id, a series by its Sonarr id. */
+/** One title, as `diagnose_media` asks about it: a film by its Radarr id, a series by its Sonarr id. */
 export type SubtitleItem = { kind: 'movie'; id: number } | { kind: 'series'; seriesId: number };
 
 export interface SubtitleCapable {
@@ -662,7 +662,7 @@ export type CleanupOverview = {
     protections?: number;
 };
 
-/** One title's standing, for `get_media_details` and `diagnose`. */
+/** One title's standing, for `get_media_details` and `diagnose_media`. */
 export type CleanupStatus = {
     service: string;
     candidates: CleanupCandidate[];
@@ -1381,7 +1381,7 @@ export const hasSearchTrigger = (a: ServiceAdapter): a is ServiceAdapter & Searc
 /**
  * Starting the library scan whose staleness `getScanState` reports.
  *
- * The two go together deliberately: `diagnose` names a stale scan as the usual
+ * The two go together deliberately: `diagnose_media` names a stale scan as the usual
  * reason something downloaded is still not playable, and until 1.0 nothing
  * could act on that — its best answer ended "now go and do it yourself". Every
  * service whose scan state can be read can now also be asked to start one,
@@ -2257,7 +2257,7 @@ export const NO_MEDIA_SERVER_NOTE =
 
 /**
  * The three per-user reads a media server answers. Jellyfin has had these
- * since it was written; naming them is what lets `get_playback` and `diagnose`
+ * since it was written; naming them is what lets `get_playback` and `diagnose_media`
  * stop knowing which media server they are talking to.
  */
 export interface PlaybackCapable {

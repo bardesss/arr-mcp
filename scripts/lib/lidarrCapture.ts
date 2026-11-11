@@ -90,7 +90,7 @@ export const LIDARR_STATIC_PATHS = {
     diskspace: '/api/v1/diskspace',
     health: '/api/v1/health',
     'system-task': '/api/v1/system/task',
-    // What `stack_health` reports as recent warnings and errors.
+    // What `get_stack_health` reports as recent warnings and errors.
     log: '/api/v1/log?page=1&pageSize=20&sortKey=time&sortDirection=descending&level=warn',
     command: '/api/v1/command',
     // `includeArtist` and `includeAlbum` both default to false. Omitted, rows

@@ -256,7 +256,7 @@ async function resolveItem(
  * Every request for a title, matched on tmdbId or tvdbId, never on title, and
  * only among the requests for its kind: TMDB's film and series ids are separate
  * namespaces, so a film and a series can share a number. Shared with the write
- * cross-checks so a warning and `diagnose` cannot disagree about whether a
+ * cross-checks so a warning and `diagnose_media` cannot disagree about whether a
  * title was requested.
  */
 export function requestsFor(requests: readonly MediaRequest[], ids: ExternalIds, kind: 'movie' | 'series'): MediaRequest[] {
@@ -324,7 +324,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
     // Grimmory can read a book by id and the chain would otherwise walk it as
     // a film that has no file.
     if (target.service === 'grimmory') {
-        throw new ServiceError('NotFound', 'grimmory', 'A book never passes through the diagnose chain (requested, managed, downloaded, indexed, imported, scanned).', {
+        throw new ServiceError('NotFound', 'grimmory', 'A book never passes through the diagnosis chain (requested, managed, downloaded, indexed, imported, scanned).', {
             remedy: 'Use get_media_details with service "grimmory" and the book id to see its files and library, or get_stack_health for Grimmory itself.'
         });
     }
@@ -399,7 +399,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
                       id: a.id,
                       fetch: () =>
                           (budget.expired() ? Promise.resolve(TIMED_OUT) : budget.race(a.getQueue())).then(r => {
-                              if (r === TIMED_OUT) throw new ServiceError('Timeout', a.id, 'no answer within the diagnose budget');
+                              if (r === TIMED_OUT) throw new ServiceError('Timeout', a.id, 'no answer within the diagnosis budget');
                               return r;
                           })
                   }))

@@ -65,7 +65,7 @@ const presenceOf = (row: MergedItem | undefined): MediaServerPresence =>
 
 /**
  * One cached library index, shared by get_library, get_media_details and
- * diagnose (duplicating the join is how joins drift apart).
+ * diagnose_media (duplicating the join is how joins drift apart).
  *
  * The cache lives here rather than in the adapters, so adapters stay directly
  * testable against fixtures and caching policy sits in one reviewable place.

@@ -472,7 +472,7 @@ const CONTRACTS: Record<string, ServiceContract> = {
             { path: '/api/v1/health', method: 'get', fixture: 'test/fixtures/lidarr/health.json', fields: ['source', 'type', 'message'] },
             { path: '/api/v1/system/task', method: 'get', fixture: 'test/fixtures/lidarr/system-task.json', fields: ['taskName', 'lastExecution'] },
             {
-                // `stack_health` at `detail: "full"`. The captured page has no
+                // `get_stack_health` at `detail: "full"`. The captured page has no
                 // `exceptionType`, which the adapter also reads.
                 path: '/api/v1/log',
                 method: 'get',

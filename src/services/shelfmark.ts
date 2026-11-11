@@ -121,7 +121,7 @@ export class ShelfmarkAdapter
 {
     readonly type: ServiceId = 'shelfmark';
     readonly id = 'shelfmark';
-    /** Books, so `diagnose` leaves this queue out of a film's or series' answer. */
+    /** Books, so `diagnose_media` leaves this queue out of a film's or series' answer. */
     readonly queueKind = 'book';
     readonly grabsFirstReleaseByDefault = true;
     readonly supportsBlocklist = false;

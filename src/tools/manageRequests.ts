@@ -41,7 +41,7 @@ const seerrAdapter = (adapters: readonly ServiceAdapter[]): ServiceAdapter & Req
 
 /**
  * Whether the configured caller may act on this request: `allow_other_users`
- * is on, or it is their own. Shared with `diagnose`, so it offers an approval
+ * is on, or it is their own. Shared with `diagnose_media`, so it offers an approval
  * only where the write's own plan would accept it.
  */
 export async function mayManageRequest(request: MediaRequest, identity: IdentityResolver): Promise<boolean> {

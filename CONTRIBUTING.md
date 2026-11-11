@@ -283,7 +283,7 @@ small, shaped change, and a service in no slot at all is a different product.
   commands it queues. `DiskSpaceCapable`, `HealthCheckCapable` and
   `ScanStateCapable` are the shared `arr*` system reads, so `get_stack_health` also
   reports Lidarr's disks, failing health checks and last `RescanFolders` (its
-  disk scan). `LogCapable` is the shared `arrRecentLogs`, so `stack_health` at
+  disk scan). `LogCapable` is the shared `arrRecentLogs`, so `get_stack_health` at
   `detail: "full"` lists Lidarr's recent warnings and errors; the log fixture
   was captured from 3.1.6.5079.
   `WantedCapable` and `CalendarCapable`, so `get_wanted` and

@@ -21,7 +21,7 @@ import { outcomeText, registerWriteTool, type WriteContext, type WritePlan } fro
 import { titled } from '../core/labels.ts';
 
 /**
- * The other half of the answer `diagnose` gives most often.
+ * The other half of the answer `diagnose_media` gives most often.
  *
  * `diagnose_media` names a stale library scan as the usual reason something that
  * finished downloading is still not playable — and until 1.0 nothing here could

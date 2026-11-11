@@ -1764,6 +1764,12 @@ describe('buildChain — missing subtitles', () => {
         ]);
     });
 
+    it('never names an old tool in a next step', () => {
+        const d = buildChain('some film', healthy({ item: owned(), subtitles: read(gap()) }));
+        expect(d.verdict.next_steps?.length).toBeGreaterThan(0);
+        expect(JSON.stringify(d.verdict)).not.toMatch(/(?<![A-Za-z0-9_])(diagnose|stack_health)(?![A-Za-z0-9_])/);
+    });
+
     it('asks for the forced or hearing-impaired track the gap names', () => {
         const wanted = gap({ missing: [{ name: 'Dutch', code2: 'nl', forced: true, hearingImpaired: true }] });
         const d = buildChain('some film', healthy({ item: owned(), subtitles: read(wanted) }));

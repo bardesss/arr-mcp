@@ -187,9 +187,9 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
         ...(context.eventLog === undefined ? {} : { events: context.eventLog.store })
     };
     registerDiagnose(server, diagnoseDeps);
-    registerDiagnose(server, diagnoseDeps, 'diagnose', ALIAS_DESCRIPTION('diagnose_media'));
+    registerDiagnose(server, diagnoseDeps, { name: 'diagnose', description: ALIAS_DESCRIPTION('diagnose_media') });
     registerStackHealth(server, adapters, instances, primary);
-    registerStackHealth(server, adapters, instances, primary, 'stack_health', ALIAS_DESCRIPTION('get_stack_health'));
+    registerStackHealth(server, adapters, instances, primary, { name: 'stack_health', description: ALIAS_DESCRIPTION('get_stack_health') });
     registerGetInstanceOptions(server, adapters);
     registerGetIndexers(server, adapters.filter(hasIndexers));
     registerGetSubtitles(server, adapters.filter(hasSubtitles));

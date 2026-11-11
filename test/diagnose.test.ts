@@ -1000,7 +1000,7 @@ describe('diagnose', () => {
             seen.length = 0;
             const adapters = [stub('radarr', { listLibrary: async () => [FILM] }), grimmory()];
             const run = buildDiagnose({ adapters, library: new LibraryLoader(adapters, undefined) }, { service: 'grimmory', id: '58' });
-            await expect(run).rejects.toThrow(/never passes through the diagnose chain/);
+            await expect(run).rejects.toThrow(/never passes through the diagnosis chain/);
             await expect(run).rejects.toThrow(/get_media_details/);
             await expect(run).rejects.toThrow(/get_stack_health/);
             expect(seen).toEqual([]);

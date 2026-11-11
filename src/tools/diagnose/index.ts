@@ -52,11 +52,14 @@ const DiagnoseOutput = z.looseObject({
     degraded: z.array(z.string())
 });
 
+/** The full description of diagnose_media. */
+const DIAGNOSE_DESCRIPTION =
+    'Why is this not playable? Walks the chain (requested, managed, monitored, downloaded, indexed, imported, scanned) and names the first thing that explains it, with a `remedy` and, where a tool call fixes it, `next_steps` to offer the user; this tool never runs them. Give a title as `query`, or `service` plus `id` when you already hold an exact item. A title not in the library is looked up in Cleanuparr, download-client history and the library event log, so a removed release can still be explained. A step it could not check sets `certain: false`, and the summary says what was missed. [[reclaimerr: With Reclaimerr it says when a cleanup rule deleted or will delete the title;]] [[bazarr: with Bazarr it notes missing subtitles.]] [[lidarr: A Lidarr artist is walked too (tracks on disk, queue, indexers, media server): playable means at least one track, and get_media_details lists its albums.]] Field reference: arr://docs/diagnose_media.';
+
 export function registerDiagnose(
     server: McpServer,
     deps: DiagnoseDeps,
-    name = 'diagnose_media',
-    description = 'Why is this not playable? Walks the chain (requested, managed, monitored, downloaded, indexed, imported, scanned) and names the first thing that explains it, with a `remedy` and, where a tool call fixes it, `next_steps` to offer the user; this tool never runs them. Give a title as `query`, or `service` plus `id` when you already hold an exact item. A title not in the library is looked up in Cleanuparr, download-client history and the library event log, so a removed release can still be explained. A step it could not check sets `certain: false`, and the summary says what was missed. [[reclaimerr: With Reclaimerr it says when a cleanup rule deleted or will delete the title;]] [[bazarr: with Bazarr it notes missing subtitles.]] [[lidarr: A Lidarr artist is walked too (tracks on disk, queue, indexers, media server): playable means at least one track, and get_media_details lists its albums.]] Field reference: arr://docs/diagnose_media.'
+    { name, description }: { name: string; description: string } = { name: 'diagnose_media', description: DIAGNOSE_DESCRIPTION }
 ): void {
     server.registerTool(
         name,

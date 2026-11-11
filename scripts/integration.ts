@@ -93,6 +93,9 @@ const CASES: Case[] = [
     { tool: 'lookup_media', args: { query: 'matrix' } },
     { tool: 'discover_media', args: { media_type: 'movie', detail: 'full' } },
     { tool: 'diagnose_media', args: { query: 'the' } },
+    // The old names, kept as aliases for one minor.
+    { tool: 'stack_health', args: {} },
+    { tool: 'diagnose', args: { query: 'the' } },
     { tool: 'get_profile_issues', args: { detail: 'full' } }
 ];
 

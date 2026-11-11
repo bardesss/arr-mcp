@@ -105,10 +105,10 @@ function watchSentence(label: string, kind: CrossCheckSubject['kind'], found: Me
 }
 
 export function buildCrossChecker(adapters: readonly ServiceAdapter[], library: LibraryLoader): CrossChecker {
-    // `find`, as `diagnose` does, so a second instance cannot make the two disagree.
+    // `find`, as `diagnose_media` does, so a second instance cannot make the two disagree.
     const seerr = adapters.find(hasRequests);
     const reclaimerr = adapters.find(hasCleanup);
-    // Without Lidarr's artist queue, as in `diagnose`: an unreachable Lidarr
+    // Without Lidarr's artist queue, as in `diagnose_media`: an unreachable Lidarr
     // would otherwise leave every film "only partially checked".
     const queueAdapters = adapters
         .filter(hasQueue)
