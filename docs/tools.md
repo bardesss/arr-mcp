@@ -3342,7 +3342,7 @@ book, and the book fields for a film, series or artist.
 
 ## Prompts and resources
 
-Forty-five tools do not tell you which one to reach for, and the questions
+Forty-six tools do not tell you which one to reach for, and the questions
 people actually ask are rarely one call.
 
 **Five prompts**, which most clients surface as slash commands:

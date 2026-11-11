@@ -25,7 +25,7 @@ export type Gathered<T> = {
  * still a whole service whose absence is worth reporting.
  *
  * For the consumers that reason about whether a *service's own view* of the
- * library was missed — diagnose's certainty, and get_media_details' hedge on a
+ * library was missed — diagnose_media's certainty, and get_media_details' hedge on a
  * title it could not find. Neither reads `seasons`, and the episode source can
  * only ever add seasons to items another source already returned, so its
  * failure is no reason for either to doubt itself. `get_library`, which does
