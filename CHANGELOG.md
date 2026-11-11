@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.83.1](https://github.com/bardesss/arr-mcp/compare/v1.83.0...v1.83.1) (2026-11-11)
+
+
+### Bug Fixes
+
+* **add_media:** name a book by its title in the preview, and drop the Shelfmark add from the unverified list ([#616](https://github.com/bardesss/arr-mcp/issues/616)) ([2254f6e](https://github.com/bardesss/arr-mcp/commit/2254f6ed86e56c43313d50a749c9946be80c3a41))
+* **diagnose:** word each queue state for what it is ([#615](https://github.com/bardesss/arr-mcp/issues/615)) ([c307aab](https://github.com/bardesss/arr-mcp/commit/c307aab7ac8960dec897f4ad8900aa5f6f418667))
+* **discovery:** close the found services panel, show versions for added services and merge container duplicates ([#619](https://github.com/bardesss/arr-mcp/issues/619)) ([2604dab](https://github.com/bardesss/arr-mcp/commit/2604dabf3e1614112ff7c7cb4c364e70cf4963b1))
+* Shelfmark failed-copy wording, discovery duplicates, anonymised fixtures and missing tests ([#618](https://github.com/bardesss/arr-mcp/issues/618)) ([5efd013](https://github.com/bardesss/arr-mcp/commit/5efd013ece48dfb6889c75bd5655f9f8603f1080))
+
 ## [1.83.0](https://github.com/bardesss/arr-mcp/compare/v1.82.1...v1.83.0) (2026-11-11)
 
 
