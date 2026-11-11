@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ConfigSchema, type Config } from '../src/config/schema.ts';
-import { matchResults } from '../src/discovery/match.ts';
+import { matchResults, urlResolver } from '../src/discovery/match.ts';
 import type { Found } from '../src/discovery/probe.ts';
 
 const AUTH = { bearer_token: 'a'.repeat(64), username: 'admin', allowed_hosts: [] };
@@ -98,6 +98,31 @@ describe('matchResults', () => {
         const rows = await matchResults(found, parse({}), lan);
         expect(rows).toHaveLength(1);
         expect(rows[0]).toMatchObject({ url: 'http://nas.lan:7878', source: 'host' });
+    });
+
+    it.each([
+        ['IPv6-first', ['fd00::5', '192.168.1.10']],
+        ['public-first', ['203.0.113.7', '192.168.1.10']]
+    ])('matches a sweep hit to a host that resolves %s, on the address the probe would use', async (_order, answers) => {
+        const resolver = urlResolver(async host => (host === 'nas.lan' ? answers : []));
+        const found: Found[] = [
+            { type: 'radarr', url: 'http://nas.lan:7878', source: 'host' },
+            { type: 'radarr', url: 'http://192.168.1.10:7878', source: 'sweep' }
+        ];
+        const rows = await matchResults(found, parse({}), resolver);
+        expect(rows.map(r => r.url)).toEqual(['http://nas.lan:7878']);
+    });
+
+    it('matches on the address the probe connected to, and keeps that address out of the row', async () => {
+        // The resolver would place nas.lan elsewhere; the probe said where it went.
+        const elsewhere = async (url: string) => (url === 'http://nas.lan:7878' ? 'http://[fd00::5]:7878' : url);
+        const found: Found[] = [
+            { type: 'radarr', url: 'http://nas.lan:7878', source: 'host', address: '192.168.1.10' },
+            { type: 'radarr', url: 'http://192.168.1.10:7878', source: 'sweep' }
+        ];
+        const rows = await matchResults(found, parse({}), elsewhere);
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).not.toHaveProperty('address');
     });
 
     it('keeps a sweep hit on another address, and another type on the same address, as their own rows', async () => {
