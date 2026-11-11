@@ -85,7 +85,7 @@ host, port or scheme is refused with a message naming where it points. Set
 
 ## Jellyfin and `default_user`
 
-`get_library`, `get_media_details` (its title-query form) and `diagnose` all
+`get_library`, `get_media_details` (its title-query form) and `diagnose_media` all
 join Radarr/Sonarr against Jellyfin's per-user watch state. A user that does
 not exist in Jellyfin, or one that is refused, fails those tools outright,
 naming `default_user` and how to fix it, rather than silently answering as if
@@ -228,8 +228,8 @@ id the way a film two Radarrs hold is, and that row carries one instance's
 order whatever their order in `config.yaml` (with `flac` and `mp3`, always
 `mp3`). Its `acquisition.id` is that instance's: ids are per instance. The rest
 of that row is that one instance's too: `has_file` and `monitored`, and a
-`diagnose` built from it, say nothing about the other copy. In a lossless
-library beside a lossy one, where most artists are in both, `diagnose` can call
+`diagnose_media` built from it, say nothing about the other copy. In a lossless
+library beside a lossy one, where most artists are in both, `diagnose_media` can call
 an artist playable when only one instance has its files; `get_media_details`
 with `instance` reads each one.
 
@@ -282,8 +282,8 @@ Lidarr there is no artist row to join to, so the read would add every artist the
 server holds as `jellyfin_only` and answer "what does no *arr manage?" with the
 whole music collection.
 
-`diagnose` walks a Lidarr artist too, by name or by Lidarr artist id; see "Lidarr
-artists" under `diagnose` in [tools.md](tools.md). `get_media_details` asked
+`diagnose_media` walks a Lidarr artist too, by name or by Lidarr artist id; see "Lidarr
+artists" under `diagnose_media` in [tools.md](tools.md). `get_media_details` asked
 for an artist by title refuses it, naming `get_media_details` with
 `service: "lidarr"` and `detail: "full"` as the route that holds the albums.
 `fix_metadata` retags an artist's files by Lidarr id, as below.
@@ -395,7 +395,7 @@ hold client passwords. `permissions` are read as off whatever the file says, so
 A newer minor is untested, and `get_stack_health` flags it.
 
 It covers torrent clients only. Its findings appear in `get_stack_health`, its
-events in `get_history`, and `diagnose` uses them to explain a download it
+events in `get_history`, and `diagnose_media` uses them to explain a download it
 removed. At `detail: "full"`, its seeding rules also reach `get_queue`, but
 only for a client arr-mcp can match: the host and port of the download client
 in Cleanuparr must equal the host and port in the matching arr-mcp client's
@@ -426,7 +426,7 @@ and `get_stack_health` flags it.
 
 Its findings and what its rules will delete appear in `get_stack_health`, a title's
 cleanup state in `get_media_details`, its lifecycle events in `get_history`,
-and `diagnose` uses them to say a file was deleted by a cleanup rule, or is
+and `diagnose_media` uses them to say a file was deleted by a cleanup rule, or is
 about to be. Titles are matched on their TMDB id.
 
 ## Dispatcharr
@@ -962,7 +962,7 @@ can't reach it. Without it nothing listens: `/webhooks/*` answers 404.
 
 You can read the events under **Library events** on the Logs page, with
 [`get_history`](tools.md#get_history-and-the-event-log) and `source: "webhooks"`,
-and through `diagnose` when a title is no longer in your library.
+and through `diagnose_media` when a title is no longer in your library.
 
 Turn it on under **Library event log** on the Configuration page, which writes a
 generated secret and takes effect at once. Then add a connection in each Radarr
@@ -1051,7 +1051,7 @@ tools:
 With it on, a read that does nothing without a service you have not configured
 is left out as well: `get_subtitles` without Bazarr, `get_requests` without
 Seerr, and so on. The reads that merge across services (`get_library`,
-`get_queue`, `get_history`, `diagnose`, the lookups) always stay. It is set in
+`get_queue`, `get_history`, `diagnose_media`, the lookups) always stay. It is set in
 `config.yaml` only, and takes effect after a restart (or the next save from the
 configuration page, which reloads the config).
 
