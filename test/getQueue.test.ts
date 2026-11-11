@@ -570,6 +570,16 @@ describe('next_steps', () => {
         expect(result.next_steps).toHaveLength(1);
     });
 
+    it('offers one step for a season pack, whose episodes share one download', async () => {
+        const result = await buildGetQueue([queueOf('sonarr', [blocked('sonarr', '1', 'PACK'), blocked('sonarr', '2', 'PACK')])], { detail: 'standard', limit: 50 });
+        expect(result.next_steps).toHaveLength(1);
+    });
+
+    it('names the instance of a named arr', async () => {
+        const result = await buildGetQueue([queueOf('radarr/4k', [blocked('radarr/4k', '1', 'ABC')])], { detail: 'standard', limit: 50 });
+        expect(result.next_steps?.[0]?.arguments).toEqual({ service: 'radarr', instance: '4k', action: 'import', download_id: 'ABC' });
+    });
+
     it('offers at most three', async () => {
         const rows = ['A', 'B', 'C', 'D', 'E'].map((d, i) => blocked('sonarr', String(i), d));
         const result = await buildGetQueue([queueOf('sonarr', rows)], { detail: 'standard', limit: 50 });

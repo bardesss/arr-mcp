@@ -281,7 +281,7 @@ describe('next_steps', () => {
             {
                 tool: 'fix_profile',
                 arguments: { service: 'sonarr', profile: 'HD', finding: 'unreachable_floor' },
-                why: 'Lowers the minimum custom format score to 100, which a release can reach.'
+                why: 'Lowers the minimum custom format score to 100, so a release missing its cheapest format still passes.'
             }
         ]);
     });
@@ -295,6 +295,29 @@ describe('next_steps', () => {
     it('offers nothing where Profilarr syncs every profile, which fix_profile refuses', async () => {
         const result = await buildGetProfileIssues([arr(unreachable), profilarr(1)], { detail: 'full', limit: 10 }, []);
         expect(result).not.toHaveProperty('next_steps');
+    });
+
+    it('asks an unreachable Profilarr once, and offers nothing', async () => {
+        let reads = 0;
+        const down = {
+            id: 'profilarr',
+            type: 'profilarr',
+            status: async () => {
+                reads += 1;
+                throw new Error('profilarr is down');
+            },
+            listArrs: async () => []
+        } as never;
+        const result = await buildGetProfileIssues([arr(unreachable), down], { detail: 'full', limit: 10 }, []);
+        expect(result).not.toHaveProperty('next_steps');
+        expect(result.degraded).toContain('profilarr');
+        expect(reads).toBe(1);
+    });
+
+    it('names the instance of a named arr', async () => {
+        const named = { ...(arr(unreachable) as object), id: 'sonarr/anime', instance: 'anime' } as never;
+        const result = await buildGetProfileIssues([named], { detail: 'full', limit: 10 }, []);
+        expect(result.next_steps?.[0]?.arguments).toEqual({ service: 'sonarr', instance: 'anime', profile: 'HD', finding: 'unreachable_floor' });
     });
 
     it('still offers it where Profilarr syncs only some profiles', async () => {

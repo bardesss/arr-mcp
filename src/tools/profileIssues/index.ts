@@ -289,7 +289,7 @@ export async function buildGetProfileIssues(
         ...shaped,
         items: shaped.items.map(i => project(i, opts.detail)),
         degraded: degraded.sort(),
-        ...stepsField(await fixSteps(fixable, adapters, instances)),
+        ...stepsField(profilarr !== undefined && degraded.includes(profilarr.id) ? [] : await fixSteps(fixable, adapters, instances)),
         ...(notes.length > 0 ? { note: notes.join(' ') } : {})
     };
 }
@@ -297,20 +297,24 @@ export async function buildGetProfileIssues(
 /** A floor finding fix_profile can apply, before Profilarr has been asked whether the instance is its. */
 type Fixable = { adapter: ServiceAdapter; profileCount: number; profile: string; finding: 'unreachable_floor' | 'knife_edge_floor'; floor: number };
 
-/** The fix_profile calls to offer: one per fixable floor, on an instance fix_profile would not refuse as Profilarr's. */
+/**
+ * The fix_profile calls to offer: one per fixable floor, on an instance
+ * fix_profile would not refuse as Profilarr's. Each instance is checked once,
+ * all at the same time; the caller skips this when Profilarr already failed.
+ */
 async function fixSteps(fixable: readonly Fixable[], adapters: readonly ServiceAdapter[], instances: readonly ServiceInstance[]): Promise<NextStep[]> {
-    const open = new Map<string, Promise<boolean>>();
-    const steps: NextStep[] = [];
-    for (const f of [...fixable].sort((a, b) => a.adapter.id.localeCompare(b.adapter.id) || a.profile.localeCompare(b.profile))) {
-        if (!open.has(f.adapter.id)) open.set(f.adapter.id, fixableOn(adapters, f.adapter, instances, f.profileCount));
-        if (!(await open.get(f.adapter.id))) continue;
-        steps.push({
+    const byAdapter = new Map(fixable.map(f => [f.adapter.id, f]));
+    const open = new Map(
+        await Promise.all([...byAdapter.values()].map(async f => [f.adapter.id, await fixableOn(adapters, f.adapter, instances, f.profileCount)] as const))
+    );
+    return [...fixable]
+        .sort((a, b) => a.adapter.id.localeCompare(b.adapter.id) || a.profile.localeCompare(b.profile))
+        .filter(f => open.get(f.adapter.id) === true)
+        .map(f => ({
             tool: 'fix_profile',
             arguments: { ...instanceArgs(f.adapter.id), profile: f.profile, finding: f.finding },
-            why: `Lowers the minimum custom format score to ${f.floor}, which a release can reach.`
-        });
-    }
-    return steps;
+            why: `Lowers the minimum custom format score to ${f.floor}, so a release missing its cheapest format still passes.`
+        }));
 }
 
 const summarizeProfileIssues = (result: GetProfileIssuesResult, arrInstanceCount: number): string => {
