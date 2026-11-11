@@ -67,7 +67,7 @@ const EVENT_ROWS_SHOWN = 300;
 const MIN_PASSWORD = 12;
 
 /** What the config page needs of a discovery run; tests hand in a stub. */
-export type DiscoveryService = Pick<Discovery, 'quick' | 'startSweep' | 'view'>;
+export type DiscoveryService = Pick<Discovery, 'quick' | 'startSweep' | 'view' | 'clear'>;
 
 type WebDeps = {
     runtime: Runtime;
@@ -438,6 +438,41 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         return c.json({ users }, 200, NO_STORE);
     });
 
+    /**
+     * A found row that is a configured instance, but answered without a
+     * version (an *arr says none without its key), shows the version that
+     * instance's own adapter reads: from its configured url, with its key.
+     * Nothing is sent to the found address. A read is kept like the users
+     * above, so a sweep's reloads ask once; one that fails or misses the cap
+     * leaves the cell empty.
+     */
+    const VERSION_LOOKUP_MS = 1500;
+    let versionsCache: { config: Config; at: number; versions: Map<string, Promise<string | undefined>> } | undefined;
+    const versionOf = (instanceId: string): Promise<string | undefined> => {
+        if (versionsCache?.config !== runtime.config || Date.now() - versionsCache.at >= USERS_TTL_MS) {
+            versionsCache = { config: runtime.config, at: Date.now(), versions: new Map() };
+        }
+        let read = versionsCache.versions.get(instanceId);
+        if (read === undefined) {
+            const adapter = runtime.current.adapters.find(a => a.id === instanceId);
+            read = adapter === undefined ? Promise.resolve(undefined) : adapter.getVersion().catch(() => undefined);
+            versionsCache.versions.set(instanceId, read);
+        }
+        return read;
+    };
+    const withVersions = async (run: RunState | undefined): Promise<RunState | undefined> => {
+        if (run === undefined) return undefined;
+        const rows = await Promise.all(
+            run.rows.map(async row => {
+                if (row.version !== undefined || row.instanceId === undefined) return row;
+                const version = await withTimeout(versionOf(row.instanceId), VERSION_LOOKUP_MS);
+                return typeof version === 'string' && version !== '' ? { ...row, version } : row;
+            })
+        );
+        return { ...run, rows };
+    };
+    const viewRun = async (): Promise<RunState | undefined> => withVersions(await discovery.view(runtime.config));
+
     app.get('/ui/config', async c => {
         const session = guard(c);
         if (session === undefined) return c.redirect(entry(), 302);
@@ -445,7 +480,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         const tab = configTabNamed(c.req.query('tab'));
         // Matched against the config as it is now, so a service added from a
         // row since the run started is not offered again.
-        const run = tab === 'services' ? await discovery.view(runtime.config) : undefined;
+        const run = tab === 'services' ? await viewRun() : undefined;
         const prefill = tab === 'services' ? addPrefillFrom(c.req.query('add_type'), c.req.query('add_url'), runtime.config, run) : undefined;
         return c.html(
             configPage({
@@ -483,7 +518,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                         config: runtime.config,
                         csrf: runtime.sessions.csrfFor(session),
                         plaintextOnDisk: runtime.plaintextOnDisk,
-                        ...discoveryOpts(await discovery.view(runtime.config)),
+                        ...discoveryOpts(await viewRun()),
                         message
                     }),
                     status
@@ -517,6 +552,8 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
             return 'refused' in started ? started : undefined;
         })(c)
     );
+
+    app.post('/ui/config/discover/clear', c => discoverPost(async () => discovery.clear())(c));
 
     /**
      * The config mutations share everything except the one line that

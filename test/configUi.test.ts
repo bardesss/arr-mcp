@@ -3266,6 +3266,11 @@ describe('finding services', () => {
         status: 'new',
         ...over
     });
+    /** A row whose probe read no version, as an *arr answers without its key. */
+    const versionless = (over: Partial<Row>): Row => {
+        const { version: _version, ...rest } = row(over);
+        return rest;
+    };
 
     let state: Run | undefined;
     const quick = vi.fn(async (_host: string | undefined, _config: unknown) => {
@@ -3282,10 +3287,16 @@ describe('finding services', () => {
         state = undefined;
         quick.mockClear();
         startSweep.mockClear();
+        clear.mockClear();
         app = buildApp({ runtime, audit, logs, discovery: stub() });
     });
 
-    const stub = () => ({ quick, startSweep, view: async () => state });
+    const clear = vi.fn((): { refused: string } | undefined => {
+        if (state?.running) return { refused: 'A search is still running. Close it once it has finished.' };
+        state = undefined;
+        return undefined;
+    });
+    const stub = () => ({ quick, startSweep, view: async () => state, clear });
 
     const servicesPage = async (query = ''): Promise<string> =>
         (await call(`/ui/config?tab=services${query}`)).text();
@@ -3608,6 +3619,92 @@ describe('finding services', () => {
             expect(first).toContain('bartus');
         } finally {
             globalThis.fetch = realFetch;
+        }
+    });
+
+    it('closes the found services panel, but not while a search runs', async () => {
+        await signIn();
+        state = baseRun({ rows: [row({})] });
+        let page = await servicesPage();
+        expect(page).toContain('action="/ui/config/discover/clear"');
+
+        const bad = await call('/ui/config/discover/clear', form({ csrf: 'wrong' }));
+        expect(bad.status).toBe(403);
+        expect(clear).not.toHaveBeenCalled();
+
+        const res = await call('/ui/config/discover/clear', form({ csrf: await csrfFrom() }));
+        expect(res.status).toBe(303);
+        expect(res.headers.get('location')).toBe('/ui/config?tab=services');
+        page = await servicesPage();
+        expect(page).not.toContain('Found services');
+        expect(page).not.toContain('192.168.1.10:7878');
+
+        state = baseRun({ phase: 'sweep', running: true, range: '192.168.1.0/24', tried: 10, total: 256 });
+        expect(await servicesPage()).not.toContain('action="/ui/config/discover/clear"');
+        const refused = await call('/ui/config/discover/clear', form({ csrf: await csrfFrom() }));
+        expect(refused.status).toBe(400);
+        expect(await refused.text()).toContain('A search is still running');
+        expect(state).toBeDefined();
+    });
+
+    it("shows a configured instance's version through its own adapter, never asking the found address", async () => {
+        const asked: { url: string; key: string | null }[] = [];
+        const realFetch = globalThis.fetch;
+        globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+            const url = String(input instanceof Request ? input.url : input);
+            asked.push({ url, key: new Headers(input instanceof Request ? input.headers : init?.headers).get('x-api-key') });
+            if (url.includes('/system/status')) {
+                return new Response(JSON.stringify({ version: '5.3.6.9999' }), { headers: { 'content-type': 'application/json' } });
+            }
+            return new Response('{}', { headers: { 'content-type': 'application/json' } });
+        }) as typeof fetch;
+        try {
+            await seed('  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n');
+            app = buildApp({ runtime, audit, logs, discovery: stub() });
+            await signIn();
+            state = baseRun({
+                rows: [
+                    versionless({ url: 'http://192.168.1.10:7878', status: 'added', instanceId: 'radarr', alsoAt: 'http://radarr:7878' }),
+                    versionless({ type: 'sonarr', url: 'http://192.168.1.10:8989' })
+                ]
+            });
+            const page = await servicesPage();
+            expect(page).toContain('5.3.6.9999');
+            expect(page).toContain('also reachable at http://radarr:7878');
+            expect(asked.length).toBeGreaterThan(0);
+            for (const a of asked) expect(a.url.startsWith('http://192.0.2.10:7878/')).toBe(true);
+
+            // A sweep's reloads ask once.
+            await servicesPage();
+            expect(asked.filter(a => a.url.includes('/system/status'))).toHaveLength(1);
+        } finally {
+            globalThis.fetch = realFetch;
+        }
+    });
+
+    it('leaves the version empty when the configured instance does not answer in time', async () => {
+        const realFetch = globalThis.fetch;
+        globalThis.fetch = (() =>
+            new Promise<Response>(resolve =>
+                setTimeout(
+                    () => resolve(new Response(JSON.stringify({ version: '9.9.9-late' }), { headers: { 'content-type': 'application/json' } })),
+                    5000
+                )
+            )) as typeof fetch;
+        try {
+            await seed('  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n');
+            app = buildApp({ runtime, audit, logs, discovery: stub() });
+            await signIn();
+            state = baseRun({ rows: [versionless({ status: 'added', instanceId: 'radarr' })] });
+            vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+            const pending = servicesPage();
+            await vi.advanceTimersByTimeAsync(2000);
+            const page = await pending;
+            expect(page).toContain('already added');
+            expect(page).not.toContain('9.9.9-late');
+        } finally {
+            globalThis.fetch = realFetch;
+            vi.useRealTimers();
         }
     });
 

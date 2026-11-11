@@ -100,6 +100,41 @@ describe('quick', () => {
     });
 });
 
+describe('clear', () => {
+    it('forgets a finished run, so a sweep after it carries nothing over', async () => {
+        const d = new Discovery({
+            catalog,
+            lookup,
+            probe: async (host, entries, source) => entries.map(e => ({ type: e.type, url: `http://${host}:${e.port}`, source }))
+        });
+        await d.quick('nas.lan:3000', config);
+        expect(d.clear()).toBeUndefined();
+        expect(d.current()).toBeUndefined();
+        expect(await d.view(config)).toBeUndefined();
+    });
+
+    it('refuses while a sweep runs, and the sweep goes on', async () => {
+        let release!: () => void;
+        const gate = new Promise<void>(resolve => (release = resolve));
+        const d = new Discovery({
+            catalog,
+            lookup,
+            concurrency: 4,
+            probe: async host => {
+                if (host === '192.168.1.200') await gate;
+                return [];
+            }
+        });
+        d.startSweep('192.168.1.0/24', config);
+        expect(d.clear()?.refused).toContain('still running');
+        expect(d.current()?.running).toBe(true);
+        release();
+        await vi.waitFor(() => expect(d.current()?.running).toBe(false));
+        expect(d.clear()).toBeUndefined();
+        expect(d.current()).toBeUndefined();
+    });
+});
+
 const flush = () => new Promise<void>(resolve => setImmediate(resolve));
 
 describe('sweep', () => {
