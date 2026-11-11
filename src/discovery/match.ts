@@ -10,7 +10,10 @@ export type ResultRow = Omit<Found, 'address'> & {
     alsoAt?: string;
     status: 'new' | 'added' | 'configured' | 'maybe-second';
     existingUrl?: string;
-    /** The configured instance an `added` or `configured` row is, whose own adapter can read its version. */
+    /**
+     * The configured instance an `added` row is, whose own adapter can read its
+     * version. A `configured` row may be another server, so it names none.
+     */
     instanceId?: string;
 };
 
@@ -162,7 +165,6 @@ export async function matchResults(
         } else if (same.length > 0) {
             row.status = isMultiInstance(f.type) ? 'maybe-second' : 'configured';
             row.existingUrl = same[0]!.url;
-            if (row.status === 'configured') row.instanceId = same[0]!.id;
         }
         rows.push(row);
     }

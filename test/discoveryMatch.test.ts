@@ -111,7 +111,7 @@ describe('matchResults', () => {
         expect(rows.map(r => r.status)).toEqual(['maybe-second', 'added']);
     });
 
-    it('names the configured instance an added or configured row is, and none for a maybe-second', async () => {
+    it('names the configured instance an added row is, and none for a row that may be another server', async () => {
         const config = parse({ radarr: block('http://192.168.1.9:7878'), seerr: block('http://192.168.1.9:5055') });
         const found: Found[] = [
             { type: 'radarr', url: 'http://192.168.1.9:7878', source: 'sweep' },
@@ -122,7 +122,7 @@ describe('matchResults', () => {
         expect(rows.map(r => [r.status, r.instanceId])).toEqual([
             ['added', 'radarr'],
             ['maybe-second', undefined],
-            ['configured', 'seerr']
+            ['configured', undefined]
         ]);
     });
 
