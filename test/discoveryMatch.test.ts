@@ -77,6 +77,39 @@ describe('matchResults', () => {
         expect(rows[0]).toMatchObject({ url: 'http://nas.lan:7878', alsoAt: 'http://radarr:7878' });
     });
 
+    it('lists a sweep hit on the address a host or container find resolves to once, under the named url', async () => {
+        const lan = async (url: string) => (url === 'http://nas.lan:7878' ? 'http://192.168.1.10:7878' : resolve(url));
+        const found: Found[] = [
+            { type: 'radarr', url: 'http://nas.lan:7878', source: 'host' },
+            { type: 'radarr', url: 'http://radarr:7878', source: 'container' },
+            { type: 'radarr', url: 'http://192.168.1.10:7878', source: 'sweep' },
+            { type: 'radarr', url: 'http://172.18.0.5:7878', source: 'sweep' }
+        ];
+        const rows = await matchResults(found, parse({}), lan);
+        expect(rows.map(r => r.url)).toEqual(['http://nas.lan:7878', 'http://radarr:7878']);
+    });
+
+    it('lets a host find take over a sweep row on the same address, whatever the order', async () => {
+        const lan = async (url: string) => (url === 'http://nas.lan:7878' ? 'http://192.168.1.10:7878' : url);
+        const found: Found[] = [
+            { type: 'radarr', url: 'http://192.168.1.10:7878', source: 'sweep' },
+            { type: 'radarr', url: 'http://nas.lan:7878', source: 'host' }
+        ];
+        const rows = await matchResults(found, parse({}), lan);
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({ url: 'http://nas.lan:7878', source: 'host' });
+    });
+
+    it('keeps a sweep hit on another address, and another type on the same address, as their own rows', async () => {
+        const lan = async (url: string) => (url === 'http://nas.lan:7878' ? 'http://192.168.1.10:7878' : url);
+        const found: Found[] = [
+            { type: 'radarr', url: 'http://nas.lan:7878', source: 'host' },
+            { type: 'radarr', url: 'http://192.168.1.11:7878', source: 'sweep' },
+            { type: 'sonarr', url: 'http://192.168.1.10:7878', source: 'sweep' }
+        ];
+        expect(await matchResults(found, parse({}), lan)).toHaveLength(3);
+    });
+
     it('marks a merged row added when only its container url is the configured one', async () => {
         const config = parse({ radarr: block('http://radarr:7878') });
         const found: Found[] = [

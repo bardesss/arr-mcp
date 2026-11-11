@@ -61,9 +61,25 @@ export async function matchResults(
     // when there is evidence it is one service: both report the same version,
     // or both urls resolve to the same address. Two finds with no version and
     // different addresses stay two rows. The host url stays the main one.
+    // A sweep hit on an address a host or container find already resolves to
+    // is that same service again, not a second one: it adds no row, and a
+    // sweep row gives way to a host or container find of the same address.
     const merged: { found: Found; normalized: string; alsoAt?: string; alsoNormalized?: string }[] = [];
     found.forEach((f, i) => {
         const normalized = at[i]!;
+        const sameAddress = merged.find(
+            m =>
+                m.found.type === f.type &&
+                (m.found.source === 'sweep' || f.source === 'sweep') &&
+                (m.normalized === normalized || m.alsoNormalized === normalized)
+        );
+        if (sameAddress !== undefined) {
+            if (sameAddress.found.source === 'sweep' && f.source !== 'sweep') {
+                sameAddress.found = f;
+                sameAddress.normalized = normalized;
+            }
+            return;
+        }
         const twin = merged.find(
             m =>
                 m.found.type === f.type &&
