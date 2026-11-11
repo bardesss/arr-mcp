@@ -29,7 +29,7 @@ const SetMonitoringInput = z.object({
         .string()
         .min(1)
         .optional()
-        .describe('Sonarr or Whisparr: a series title in place of `id`. A title two series match equally is refused with both ids.'),
+        .describe('[[sonarr|whisparr: A series title in place of `id`. A title two series match equally is refused with both ids.]]'),
     id: z
         .string()
         .min(1)
@@ -68,7 +68,7 @@ const SetMonitoringInput = z.object({
         .min(0)
         .optional()
         .describe(
-            'One season. 0 is specials. Omit for the whole series. On Whisparr a season is a release year, e.g. 2019.'
+            '[[sonarr|whisparr: One season. 0 is specials. Omit for the whole series.]] [[whisparr: On Whisparr a season is a release year, e.g. 2019.]]'
         ),
     episodes: z
         .array(z.string().min(1))
@@ -98,7 +98,7 @@ export function registerSetMonitoring(
         name: 'set_monitoring',
         title: 'Start or stop monitoring',
         description:
-            'Turns monitoring on or off. Sonarr and Whisparr: a series (by `id` or `title`), one `season`, or `episodes` (not both). [[lidarr: Lidarr takes `level: "album"` for one album\'s flag (ids from get_media_details on the artist, or a get_wanted `albumId`); its artist level is deprecated, use update_media.]] Radarr monitoring is update_media. Unmonitor **before** delete_episode_files, or Sonarr downloads the files again. Safe tier. The preview shows the current state; a season or episode that does not exist is refused rather than silently written. Previews first; confirm to apply. Field reference: arr://docs/set_monitoring.',
+            'Turns monitoring on or off. [[sonarr|whisparr: {{and: sonarr=Sonarr; whisparr=Whisparr}}: a series (by `id` or `title`), one `season`, or `episodes` (not both).]] [[lidarr: Lidarr takes `level: "album"` for one album\'s flag (ids from get_media_details on the artist, or a get_wanted `albumId`); its artist level is deprecated, use update_media.]] [[radarr: Radarr monitoring is update_media.]] [[sonarr|whisparr: Unmonitor **before** delete_episode_files, or the *arr downloads the files again.]] Safe tier. The preview shows the current state; a season or episode that does not exist is refused rather than silently written. Previews first; confirm to apply. Field reference: arr://docs/set_monitoring.',
         inputSchema: SetMonitoringInput,
         target: { adapters, to: TARGET },
         operation: 'set_monitoring',

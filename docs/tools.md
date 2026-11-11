@@ -315,24 +315,25 @@ keeps no blocklist. Where an *arr's row and a client's are in the same state,
 the *arr's is the one named and removed. Short of a failure, a finished download
 is never offered for removal: a torrent seeding or stopped with nothing left, or
 a row with nothing left to download, such as one whose disk filled while
-unpacking, holds the only copy of the files, and its remedy says to fix what the
-client reports, after which the *arr imports it; one whose import is pending on
-another row of the same grab gets the import's remedy. A torrent qBittorrent
-says is missing its files is no such copy. A download paused or stopped before
-it finished asks you to resume it, and offers `pause_downloads` to do it when
-the client's own row is in the queue and paused too. The *arrs read every
-SABnzbd or NZBGet download as paused while that client's whole queue is, and the
-client's row then keeps the download's own status, so a row the client does not
-report paused gets a remedy to resume its whole queue, and no step. A torrent
-stopped with nothing left to download has finished: it waits on the import like
-a seeding one. A release the *arr holds back and has sent to no client (`delay`:
-a delay profile, a usenet minimum age, an indexer disabled after failures or
-another release already pending, among others) blocks with no remedy, like a
-download in progress, and `downloadClientUnavailable`, a release the *arr could
-not send, asks you to check its download clients. A message on an *arr's row
-that is not in trouble (NZBGet's PAR status on a finished download, "qBittorrent
-is downloading metadata") is not read as a fault; a row still on its way shows
-it after "Still downloading".
+unpacking, may hold the only copy of the files, and its remedy says to fix what
+the client reports, after which the *arr imports it (a usenet one's remedy names
+the call, below); one whose import is pending on another row of the same grab
+gets the import's remedy. A torrent qBittorrent says is missing its files is no
+such copy. A download paused or stopped before it finished asks you to resume
+it, and offers `pause_downloads` to do it when the client's own row is in the
+queue and paused too. The *arrs read every SABnzbd or NZBGet download as paused
+while that client's whole queue is, and the client's row then keeps the
+download's own status, so a row the client does not report paused gets a remedy
+to resume its whole queue, and no step. A torrent stopped with nothing left to
+download has finished: it waits on the import like a seeding one. A release the
+*arr holds back and has sent to no client (`delay`: a delay profile, a usenet
+minimum age, an indexer disabled after failures or another release already
+pending, among others) blocks with no remedy, like a download in progress, and
+`downloadClientUnavailable`, a release the *arr could not send, asks you to
+check its download clients. A message on an *arr's row that is not in trouble
+(NZBGet's PAR status on a finished download, "qBittorrent is downloading
+metadata") is not read as a fault; a row still on its way shows it after "Still
+downloading".
 
 With no row from the client in the grab, only the *arr's row says whether a
 torrent has finished, and it cannot tell one missing its files from a finished
@@ -340,9 +341,22 @@ one with a problem: the *arrs read both as a warning with nothing left, and only
 the message tells them apart, which Radarr and Sonarr word in their UI language.
 The removal stays back, since it may be the only copy, and the remedy says to
 remove the download if the *arr's message says the files are missing, and
-otherwise to fix what it reports. A usenet download with nothing left has
-finished, and a state `diagnose_media` does not know, with nothing left, is only
-to be checked.
+otherwise to fix what it reports. A usenet download with nothing left was filed
+in the client's history with a problem, which waiting does not clear, and the
+*arr's own download id says which client it was. On SABnzbd (an id that starts
+`SABnzbd_nzo_`) the warning is only an unpack that failed for a write error or a
+full disk, and the remedy says to retry it with `retry_download` and that id. On
+NZBGet (the 32-character `drone` id the *arrs give their grabs there) it is an
+unpack out of space, a failed move, a duplicate NZBGet skipped for a copy
+already in its history or, on Lidarr, which reads NZBGet's `BAD` delete status
+as a warning rather than a failure, a download a script marked bad. Only the
+*arr's message tells those apart, so the remedy says to run its post-processing
+again with `import_download`'s `postprocess` and that id, or to remove a deleted
+one from the *arr's queue, with `blocklist: true` on Lidarr if it was bad.
+`retry_download` on NZBGet wants its own history id, which the *arr's row does
+not carry. Any other id is only told to fix what the client reports.
+`import_download` says the same when it meets such a download. A state
+`diagnose_media` does not know, with nothing left, is only to be checked.
 
 When Cleanuparr removed or stopped the download and nothing is in the queue, the
 queue stage says so, with the date, its reason and its strike count, and
@@ -1330,10 +1344,12 @@ join rather than a finding about the library.
 
 ## `get_queue`
 
-Each Radarr, Sonarr or Lidarr row carries `downloadId`, the download client's
-own id for that grab. It is what `import_download` takes, and
-it is the link between "this is stuck at `importBlocked`" and doing something
-about it.
+Each Radarr, Sonarr, Whisparr or Lidarr row carries `downloadId`, the download
+client's own id for that grab. On Radarr, Sonarr and Lidarr it is what
+`import_download` takes (Whisparr has no manual import), and it is the link
+between "this is stuck at `importBlocked`" and doing something about it. SABnzbd
+and NZBGet rows carry the same id, so a client's row and the *arr's row of one
+grab match (below).
 
 **Unverified live** (qBittorrent): the torrent list, the seed limits and `by_tracker`; only login and health have met a real server.
 
@@ -1358,8 +1374,8 @@ leaves them out, and `minimal` keeps only `service`, `id`, `title` and `status`.
 NZBGet rows come from its own queue (`listgroups`). Sizes arrive in megabytes
 and are converted to bytes. The ETA is worked out from the current download
 rate and everything ahead in the queue, and a paused item gets none. A row's
-`downloadId` is the `drone` post-processing parameter Radarr and Sonarr attach
-to their grabs, so it matches the *arr row for the same download; a grab
+`downloadId` is the `drone` post-processing parameter Radarr, Sonarr and Lidarr
+attach to their grabs, so it matches the *arr row for the same download; a grab
 added by hand falls back to NZBGet's own `NZBID`.
 
 SABnzbd rows carry `downloadId` too: the job's `nzo_id`, which Radarr, Sonarr
@@ -2692,10 +2708,12 @@ the flag, so a stale cap cannot come back the next time anything enables it.
 
 Safe tier, because the undo is this same tool with the other `action`.
 
-**It does not stop Radarr or Sonarr grabbing.** They carry on searching and
-sending releases, which then sit in the paused client until it is resumed.
-The preview says so out loud, because a bare "paused" would let someone
-believe nothing is happening at all.
+**It does not stop the \*arrs grabbing.** They carry on searching and sending
+releases, which then sit in the paused client until it is resumed. The preview
+of a whole-client pause says so out loud, because a bare "paused" would let
+someone believe nothing is happening at all. Pausing or resuming one item leaves
+the rest of the client as it was, so that preview says nothing about what the
+*arrs grab meanwhile, and its undo names the same `id`.
 
 `service` is required, and names one client. That is deliberate rather than a
 missing convenience: every write's permissions are checked against exactly
@@ -2996,7 +3014,7 @@ Outcomes that look alike and are not:
 - **Everything rejected** — there are files and it will take none of them. A
   refusal naming the reasons. Reporting that as "nothing to do" would read as
   "it was already imported", which is the opposite of what happened.
-- **Still downloading** — the download is `queued`, `paused`, `delay` or
+- **Still downloading** — the download is `queued`, `paused` or
   `downloading`, so there is nothing to import yet. Radarr and Sonarr answer
   this with an HTTP 500 from a null dereference of their own rather than a clean
   refusal, so the message names the state `get_queue` reports instead of passing
@@ -3010,10 +3028,14 @@ Outcomes that look alike and are not:
   magnet with DHT off waits there for good), so it is named as a warning and the
   remedy points at the row's `errorMessage`, the client's own reason, and any
   `statusMessages`, in `get_queue` at `detail: "full"` (`standard` leaves
-  `errorMessage` out).
-- **Anything else** that is not `completed` (`unknown`,
-  `downloadClientUnavailable`, `fallback`) is reported only as not completed,
-  with no claim about what the client is doing.
+  `errorMessage` out). A usenet warning with nothing left is a download the
+  client filed with a problem, which waiting does not clear, so its remedy says
+  how to run it again, as `diagnose_media`'s does (see there).
+- **Anything else** that is not `completed` is reported only as not completed,
+  with no claim about what the client is doing. The download id names a
+  download the *arr tracks, so the other states it reports never come up: a
+  release it holds back (`delay`, `downloadClientUnavailable`, `fallback`) has
+  been sent to no client and has no download id yet.
 
 The import re-reads the candidates when it runs, and imports exactly the files
 the preview listed. If one of them is no longer importable, because the files

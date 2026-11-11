@@ -36,7 +36,7 @@ export function registerRemoveBlocklistItem(
         name: 'remove_blocklist_item',
         title: 'Un-blocklist a release',
         description:
-            'Removes one entry from Radarr, Sonarr, Whisparr or Lidarr\'s blocklist, so that release can be grabbed again. The fix for "this never downloads and I do not know why" once get_blocklist has said why. Take `service` and `id` from a get_blocklist row. Safe tier: the entry is a refusal to grab, and removing it only withdraws that refusal — nothing on disk changes, and on Radarr, Sonarr, Whisparr and Lidarr the release can be blocklisted again through remove_queue_item\'s `blocklist` flag. Previews first; confirm to remove it.',
+            'Removes one entry from an *arr\'s blocklist, so that release can be grabbed again. The fix for "this never downloads and I do not know why" once get_blocklist has said why. Take `service` and `id` from a get_blocklist row. Safe tier: the entry is a refusal to grab, and removing it only withdraws that refusal — nothing on disk changes, and the release can be blocklisted again through remove_queue_item\'s `blocklist` flag. Previews first; confirm to remove it.',
         inputSchema: RemoveBlocklistItemInput,
         target: { adapters, to: TARGET },
         operation: 'remove_blocklist_item',

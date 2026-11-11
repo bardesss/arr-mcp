@@ -111,8 +111,8 @@ describe('delete_media on Lidarr', () => {
         );
         const on = (...types: ServiceId[]) => scopeText(description, { configured: new Set(types), hideUnusable: false });
         expect(on('radarr')).not.toContain('Lidarr');
-        expect(on('radarr')).toContain('from Sonarr or Whisparr, or a book from Grimmory');
-        expect(on('lidarr')).toContain('a whole artist from Lidarr (by artist id, never an album id), or a book from Grimmory');
+        expect(on('radarr')).toContain('Removes a film from Radarr, optionally');
+        expect(on('lidarr')).toContain('Removes a whole artist from Lidarr (by artist id, never an album id), optionally');
     });
 
     it('previews the artist, its size and that every album goes, then deletes with the previewed flags', async () => {

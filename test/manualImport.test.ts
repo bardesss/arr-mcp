@@ -276,11 +276,50 @@ describe('a download that has not finished', () => {
         expect(s.sent.some(x => x.method === 'POST')).toBe(false);
     });
 
-    it('says only that it is not completed when the state is one it cannot read, such as the client being unreachable', async () => {
-        const s = stack(500, [{ ...RUNNING_ROW, status: 'downloadClientUnavailable' }]);
+    // `Sabnzbd`: a failed unpack is a warning from SABnzbd's history, with every
+    // byte downloaded. Waiting does not clear it, so the stall advice is left out.
+    it('names the call that runs a finished usenet download with a warning again, instead of saying to wait', async () => {
+        const s = stack(500, [{ ...RUNNING_ROW, downloadId: 'SABnzbd_nzo_abc', status: 'warning', protocol: 'usenet', size: 1000, sizeleft: 0 }]);
+        const err = (await new RadarrAdapter(keyed(7878), s.impl).runManualImport('SABnzbd_nzo_abc').catch((e: unknown) => e)) as { message: string; remedy: string };
+        expect(err.message).toMatch(/SABnzbd_nzo_abc has a warning in the download client/);
+        expect(err.remedy).toBe(
+            'get_queue reports it as warning/downloading: the client finished with it but reports a problem, which waiting does not clear, so there is nothing to import. SABnzbd could not unpack it (a write error or a full disk): fix that, then retry it in SABnzbd, or with retry_download on SABnzbd and `id` "SABnzbd_nzo_abc".'
+        );
+        expect(s.sent.some(x => x.method === 'POST')).toBe(false);
+    });
+
+    // The row is found whatever case the id was given in, and SABnzbd only knows its own spelling.
+    it('names the id as the *arr reports it, not as it was typed', async () => {
+        const s = stack(500, [{ ...RUNNING_ROW, downloadId: 'SABnzbd_nzo_abc', status: 'warning', protocol: 'usenet', size: 1000, sizeleft: 0 }]);
+        const err = (await new RadarrAdapter(keyed(7878), s.impl).runManualImport('sabnzbd_nzo_abc').catch((e: unknown) => e)) as { remedy: string };
+        expect(err.remedy).toContain('with retry_download on SABnzbd and `id` "SABnzbd_nzo_abc".');
+    });
+
+    // `QBittorrent`: a torrent can be a warning with nothing left too, and may still clear.
+    it('keeps the general warning remedy for a torrent with nothing left', async () => {
+        const s = stack(500, [{ ...RUNNING_ROW, downloadId: 'ABC123', status: 'warning', protocol: 'torrent', size: 1000, sizeleft: 0 }]);
+        const err = (await new RadarrAdapter(keyed(7878), s.impl).runManualImport('ABC123').catch((e: unknown) => e)) as { remedy: string };
+        expect(err.remedy).toMatch(/A stalled torrent often finishes later/);
+    });
+
+    it.each([
+        ['bytes still to come', 1000, 400],
+        ['no size', 0, 0]
+    ])('keeps the general warning remedy for a usenet download with %s', async (_case, size, sizeleft) => {
+        const s = stack(500, [{ ...RUNNING_ROW, downloadId: 'SABnzbd_nzo_abc', status: 'warning', protocol: 'usenet', size, sizeleft }]);
+        const err = (await new RadarrAdapter(keyed(7878), s.impl).runManualImport('SABnzbd_nzo_abc').catch((e: unknown) => e)) as { remedy: string };
+        expect(err.remedy).toMatch(/shows that row's `errorMessage`/);
+        expect(err.remedy).not.toMatch(/retry_download/);
+    });
+
+    // A tracked download's status is one of the client's six, and a held
+    // release has no download id, so this is only the fallback for anything
+    // else, such as `unknown`.
+    it('says only that it is not completed for a status it does not know', async () => {
+        const s = stack(500, [{ ...RUNNING_ROW, status: 'unknown' }]);
         await expect(new RadarrAdapter(keyed(7878), s.impl).listImportCandidates('nzo_abc')).rejects.toMatchObject({
             message: expect.stringMatching(/nzo_abc is not completed —/),
-            remedy: expect.stringMatching(/reports it as downloadClientUnavailable/)
+            remedy: expect.stringMatching(/reports it as unknown/)
         });
     });
 

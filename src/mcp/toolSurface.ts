@@ -1,5 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
-import { DOWNLOAD_CLIENTS, SERVICES_KEY, type ServiceId } from '../config/schema.ts';
+import { DOWNLOAD_CLIENTS, KINDS_KEY, SERVICES_KEY, type ServiceId } from '../config/schema.ts';
+import type { LibraryKind } from '../core/resolver.ts';
 
 /**
  * Shapes what `tools/list` sends, at registration time (#518).
@@ -12,9 +13,11 @@ import { DOWNLOAD_CLIENTS, SERVICES_KEY, type ServiceId } from '../config/schema
  * - the ±2^53 bounds zod writes on a bare `.int()`, which read like real limits;
  * - on output schemas, field descriptions: `arr://docs/<tool>` and the results
  *   carry those, and Claude Code does not show output schemas to the model;
+ * - on a `kind` field, every kind no configured service holds (`KIND_SERVICES`);
  * - on a `service` field built with `serviceOf`, every service the tool does
  *   not take and, when anything is configured, every service that is not;
- * - in a description, text wrapped in `[[lidarr|whisparr: …]]` when none of
+ * - in a description, `{{and: lidarr=Lidarr; …}}` items whose service is not
+ *   configured, and text wrapped in `[[lidarr|whisparr: …]]` when none of
  *   the services it names is configured;
  * - the write tools in `TOOL_SERVICES` none of whose services is configured,
  *   and with `tools.hide_unusable` the reads too.
@@ -80,6 +83,14 @@ export const TOOL_SERVICES: Readonly<Record<string, readonly ServiceId[]>> = {
     grab_release: ['radarr', 'sonarr', 'whisparr', 'lidarr', 'shelfmark', 'transmission', 'qbittorrent']
 };
 
+/** The services that hold each kind. A `kind` field lists only the kinds a configured service holds. */
+const KIND_SERVICES: Readonly<Record<LibraryKind, readonly ServiceId[]>> = {
+    movie: ['radarr'],
+    series: ['sonarr', 'whisparr'],
+    artist: ['lidarr'],
+    book: ['shelfmark', 'grimmory']
+};
+
 const SAFE_INT = Number.MAX_SAFE_INTEGER;
 
 /** `[[lidarr|whisparr: text]]`: the text applies only with one of those services. */
@@ -94,9 +105,31 @@ export function toolUsable(name: string, opts: SurfaceOptions, write = false): b
     return !((write || opts.hideUnusable) && opts.configured.size > 0 && needs !== undefined && !present(needs, opts));
 }
 
-/** Resolves the `[[…]]` scopes in one piece of text. */
+/**
+ * `{{and: radarr=Radarr; sonarr|whisparr=Sonarr}}`: a list whose items each
+ * apply only with their services, joined as English ("A, B and C"; `or` for
+ * "A, B or C"). An item keyed `*` is always kept, and one keyed `else` stands
+ * in when no scoped item applies. An item's text holds no `;`, `=` or `}}`.
+ */
+const SCOPED_LIST = /\{\{(and|or): ([^}]*)\}\}/g;
+
+function scopeList(word: string, items: string, opts: SurfaceOptions): string {
+    const pairs = items.split(';').map(item => {
+        const [services = '', label = ''] = item.trim().split('=');
+        return { services, label: label.trim() };
+    });
+    // `*` is kept on every stack; `else` stands in when nothing else applies.
+    const fallback = pairs.find(p => p.services === 'else')?.label;
+    const scoped = pairs.filter(p => p.services !== 'else' && p.services !== '*' && present(p.services.split('|'), opts));
+    const always = pairs.filter(p => p.services === '*');
+    const kept = [...(scoped.length === 0 && fallback !== undefined ? [fallback] : scoped.map(p => p.label)), ...always.map(p => p.label)];
+    return kept.length < 2 ? (kept[0] ?? '') : `${kept.slice(0, -1).join(', ')} ${word} ${kept.at(-1)}`;
+}
+
+/** Resolves the `[[…]]` scopes and `{{and|or: …}}` lists in one piece of text. */
 export function scopeText(text: string, opts: SurfaceOptions): string {
     return text
+        .replace(SCOPED_LIST, (_, word: string, items: string) => scopeList(word, items, opts))
         .replace(SCOPED, (_, list: string, body: string) => (present(list.split('|'), opts) ? body : ''))
         .replace(/ {2,}/g, ' ')
         .replace(/ +([.,;:])/g, '$1')
@@ -144,6 +177,15 @@ export function leanJsonSchema(schema: unknown, io: 'input' | 'output', opts: Su
             out['enum'] = opts.configured.size === 0 || here.length === 0 ? taken : here;
         }
         delete out[SERVICES_KEY];
+    }
+    if (out[KINDS_KEY] === true) {
+        if (Array.isArray(out['enum'])) {
+            const held = (out['enum'] as unknown[]).filter(k => present(KIND_SERVICES[k as LibraryKind] ?? [], opts));
+            // A stack whose services hold no kind (download clients, Seerr)
+            // keeps them all: an empty enum would make the field unwritable.
+            if (held.length > 0) out['enum'] = held;
+        }
+        delete out[KINDS_KEY];
     }
 
     for (const key of ONE) if (isNode(out[key])) out[key] = leanJsonSchema(out[key], io, opts, false);

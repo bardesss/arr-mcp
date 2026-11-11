@@ -98,21 +98,21 @@ const TriggerSearchInput = z.object({
         .min(0)
         .optional()
         .describe(
-            'Sonarr and Whisparr only. One season. 0 is specials. Omit for the whole series. On Whisparr a season is a release year, e.g. 2019.'
+            '[[sonarr|whisparr: {{and: sonarr=Sonarr; whisparr=Whisparr}} only. One season. 0 is specials. Omit for the whole series.]] [[whisparr: On Whisparr a season is a release year, e.g. 2019.]]'
         ),
     episodes: z
         .array(z.string().min(1))
         .min(1)
         .optional()
         .describe(
-            'Sonarr and Whisparr only. Specific episode ids, as integer strings. Mutually exclusive with `season`.'
+            '[[sonarr|whisparr: {{and: sonarr=Sonarr; whisparr=Whisparr}} only. Specific episode ids, as integer strings. Mutually exclusive with `season`.]]'
         ),
     albums: z
         .array(z.string().min(1))
         .min(1)
         .optional()
         .describe(
-            'Lidarr only. Specific album ids of the artist `id`, as integer strings, from get_media_details at `detail: "full"`. Omit to search the whole artist.'
+            '[[lidarr: Lidarr only. Specific album ids of the artist `id`, as integer strings, from get_media_details at `detail: "full"`. Omit to search the whole artist.]]'
         )
 });
 
@@ -125,7 +125,7 @@ export function registerTriggerSearch(
         name: 'trigger_search',
         title: 'Search indexers for a release',
         description:
-            'Asks Radarr, Sonarr, Whisparr or Lidarr to go looking for releases for one item it already tracks — the "it never downloaded, try again" action. Takes `service` and `id`, deliberately not a title: take `id` from `acquisition.id` on a get_library or get_media_details record. On Sonarr or Whisparr, give `season` to search one season or `episodes` for specific episode ids; giving both is refused rather than resolved, and neither on Radarr, which has no seasons. On Lidarr, `id` is the artist: give `albums` for specific album ids of that artist (from get_media_details at `detail: "full"`), or omit it to search the artist\'s monitored albums. This queues a search and returns immediately; it does not wait for a release to be found, and finding one is not guaranteed. Previews first; confirm to run it.',
+            'Asks {{or: radarr=Radarr; sonarr=Sonarr; whisparr=Whisparr; lidarr=Lidarr}} to go looking for releases for one item it already tracks — the "it never downloaded, try again" action. Takes `service` and `id`, deliberately not a title: take `id` from `acquisition.id` on a get_library or get_media_details record. [[sonarr|whisparr: On {{or: sonarr=Sonarr; whisparr=Whisparr}}, give `season` to search one season or `episodes` for specific episode ids; giving both is refused rather than resolved.]] [[radarr: Radarr has no seasons.]] [[lidarr: On Lidarr, `id` is the artist: give `albums` for specific album ids of that artist (from get_media_details at `detail: "full"`), or omit it to search the artist\'s monitored albums.]] This queues a search and returns immediately; it does not wait for a release to be found, and finding one is not guaranteed. Previews first; confirm to run it.',
         inputSchema: TriggerSearchInput,
         // The permission check follows the argument, so enabling `safe_write`
         // on Radarr does not quietly enable it on Sonarr.

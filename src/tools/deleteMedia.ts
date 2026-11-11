@@ -136,7 +136,7 @@ const DeleteMediaInput = z.object({
     seerr_blocklist: z
         .boolean()
         .default(false)
-        .describe('Radarr and Sonarr: also blocklist it in Seerr, so it cannot be requested again. Defaults to false.')
+        .describe('[[seerr: {{and: radarr=Radarr; sonarr=Sonarr}}: also blocklist it in Seerr, so it cannot be requested again. Defaults to false.]]')
 });
 
 export function registerDeleteMedia(
@@ -148,7 +148,7 @@ export function registerDeleteMedia(
         name: 'delete_media',
         title: 'Delete a film, series, artist or book',
         description:
-            'Removes a film from Radarr, a whole series (or Whisparr site) from Sonarr or Whisparr, [[lidarr: a whole artist from Lidarr (by artist id, never an album id),]] or a book from Grimmory, optionally deleting its files from disk. Grimmory always deletes the files of a book, so it needs `delete_files: true` and takes no import exclusion. Destructive and not undoable — files are gone, not moved to a recycle bin unless the service itself is configured for one. Takes `service` and `id`, never a title: take `id` from `acquisition.id` on a get_library or get_media_details record. Sonarr and Whisparr delete the entire series/site; to remove one season\'s files or specific episodes, use delete_episode_files instead. Previews first; confirm to delete.',
+            'Removes {{or: radarr=a film from Radarr; sonarr=a whole series from Sonarr; whisparr=a whole site from Whisparr; lidarr=a whole artist from Lidarr (by artist id, never an album id); grimmory=a book from Grimmory}}, optionally deleting its files from disk. [[grimmory: Grimmory always deletes the files of a book, so it needs `delete_files: true` and takes no import exclusion.]] Destructive and not undoable — files are gone, not moved to a recycle bin unless the service itself is configured for one. Takes `service` and `id`, never a title: take `id` from `acquisition.id` on a get_library or get_media_details record. [[sonarr|whisparr: On {{or: sonarr=Sonarr; whisparr=Whisparr}} it deletes the whole series; to remove one season\'s files or specific episodes, use delete_episode_files instead.]] Previews first; confirm to delete.',
         inputSchema: DeleteMediaInput,
         target: { adapters, to: TARGET },
         operation: 'delete_media',

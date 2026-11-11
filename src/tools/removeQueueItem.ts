@@ -44,7 +44,7 @@ const RemoveQueueItemInput = z.object({
         .boolean()
         .default(false)
         .describe(
-            'Blocklist the release so it is not grabbed again. Radarr, Sonarr, Whisparr and Lidarr only; ignored elsewhere. Defaults to false.'
+            'Blocklist the release so it is not grabbed again. *arr rows only; ignored elsewhere. Defaults to false.'
         )
 });
 
@@ -114,7 +114,7 @@ export function registerRemoveQueueItem(
         name: 'remove_queue_item',
         title: 'Remove a queue item',
         description:
-            'Removes one item from a download queue — the stuck-at-0%, wrong-release, or stalled download. Works against Radarr, Sonarr, Whisparr, Lidarr, SABnzbd, NZBGet, Transmission, qBittorrent, Shelfmark and Grimmory; take `service` and `id` from get_queue. Optionally deletes partial data and, on Radarr, Sonarr, Whisparr and Lidarr only, blocklists the release so it will not be grabbed again. On NZBGet, keeping the data parks the download in its history rather than deleting it. On Shelfmark it cancels a queued or running book, and a failed one has nothing to cancel. On Grimmory it discards a file waiting in the Bookdrop, which deletes the file from disk (so `remove_from_client: false` is refused). `orphaned: true` in place of `id` removes every finished download stuck at importBlocked because its film, series or artist is gone, from one Radarr, Sonarr, Whisparr or Lidarr instance and its client. Previews first; confirm to remove it.',
+            'Removes one item from a download queue — the stuck-at-0%, wrong-release, or stalled download. Take `service` and `id` from get_queue. Optionally deletes partial data and, on an *arr, blocklists the release so it will not be grabbed again. [[nzbget: On NZBGet, keeping the data parks the download in its history rather than deleting it.]] [[shelfmark: On Shelfmark it cancels a queued or running book, and a failed one has nothing to cancel.]] [[grimmory: On Grimmory it discards a file waiting in the Bookdrop, which deletes the file from disk (so `remove_from_client: false` is refused).]] [[radarr|sonarr|whisparr|lidarr: `orphaned: true` in place of `id` removes every finished download stuck at importBlocked because its film, series or artist is gone, from one *arr instance and its client.]] Previews first; confirm to remove it.',
         inputSchema: RemoveQueueItemInput,
         // The resolved instance id, not the bare type: permissions are granted per
         // instance, so checking `radarr` against a config that only grants

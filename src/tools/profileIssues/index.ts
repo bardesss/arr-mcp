@@ -359,15 +359,15 @@ export function registerGetProfileIssues(
             title: 'Profile issues',
             annotations: READ_ONLY,
             description:
-                'Faults in Radarr, Sonarr and Whisparr quality profiles: a ' +
+                'Faults in {{and: radarr=Radarr; sonarr=Sonarr; whisparr=Whisparr}} quality profiles: a ' +
                 'minimum custom format score nothing can reach, a score set exactly on the edge, a narrower ' +
                 'language format scored while a wider one sits at zero, a scored language the minimum does not ' +
-                'enforce, a dialect sibling left uncovered, and Profilarr-reported drift between its saved ' +
-                'profiles and what an instance actually holds. Each profile is checked on its own, so a finding ' +
+                'enforce, a dialect sibling left uncovered[[profilarr: , and Profilarr-reported drift between its saved ' +
+                'profiles and what an instance actually holds]]. Each profile is checked on its own, so a finding ' +
                 'on some profiles says nothing about which others score the same format. Drift findings are ' +
                 'instance-scoped, not tied to any one profile, and are unaffected by the `profile` filter. ' +
-                'Read-only — every `remedy` is a change to make in Profilarr when it syncs that profile, or in ' +
-                'the arr itself when it does not; a floor fix_profile can fix comes back as a step in `next_steps`. Use it when a profile grabs the wrong release or ' +
+                'Read-only — every `remedy` is a change to make in [[profilarr: Profilarr when it syncs that profile, or in ]]' +
+                'the arr itself[[profilarr:  when it does not]]; a floor fix_profile can fix comes back as a step in `next_steps`. Use it when a profile grabs the wrong release or ' +
                 'never upgrades; why one title is missing is diagnose_media.',
             outputSchema: GetProfileIssuesOutput,
             inputSchema: GetProfileIssuesInput

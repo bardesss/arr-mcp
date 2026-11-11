@@ -436,7 +436,7 @@ export const reassignmentsField = z
             path: z
                 .string()
                 .min(1)
-                .describe('The file, relative to the series folder as Sonarr names it ("Season 01/Show - S01E01 - Pilot.mkv"), or absolute.'),
+                .describe('The file, relative to the series folder ("Season 01/Show - S01E01 - Pilot.mkv"), or absolute.'),
             season: z.number().int().min(0),
             episode: z.number().int().min(1).describe('The episode this file really is.')
         })
@@ -448,14 +448,14 @@ export const mappingField = z
     .array(
         z.object({
             path: z.string().min(1).describe('A file in the download, as the import preview names it, or absolute.'),
-            movie_id: IdSchema.optional().describe('Radarr: the movie this file is, `acquisition.id` on get_library.'),
-            series_id: IdSchema.optional().describe('Sonarr: the series, `acquisition.id` on get_library.'),
-            season: z.number().int().min(0).optional().describe('Sonarr: the season the episodes are in.'),
+            movie_id: IdSchema.optional().describe('[[radarr: Radarr: the movie this file is, `acquisition.id` on get_library.]]'),
+            series_id: IdSchema.optional().describe('[[sonarr: Sonarr: the series, `acquisition.id` on get_library.]]'),
+            season: z.number().int().min(0).optional().describe('[[sonarr: Sonarr: the season the episodes are in.]]'),
             episodes: z
                 .array(z.number().int().min(1))
                 .min(1)
                 .optional()
-                .describe('Sonarr: the episode numbers in this file, more than one for a multi-episode file.')
+                .describe('[[sonarr: Sonarr: the episode numbers in this file, more than one for a multi-episode file.]]')
         })
     )
     .min(1)
@@ -468,7 +468,7 @@ const ImportDownloadInput = z.object({
         .enum(['import', 'postprocess', 'remap'])
         .default('import')
         .describe(
-            "import (default): a finished download, by `download_id`. postprocess (NZBGet): reruns its post-processing, by `download_id`. remap (Sonarr): moves imported files to the episodes they really are, with `id` and `reassignments`."
+            "import (default): a finished download, by `download_id`. [[nzbget: postprocess (NZBGet): reruns its post-processing, by `download_id`.]] [[sonarr: remap (Sonarr): moves imported files to the episodes they really are, with `id` and `reassignments`.]]"
         ),
     download_id: z
         .string()
@@ -482,7 +482,7 @@ const ImportDownloadInput = z.object({
         .min(1)
         .optional()
         .describe(
-            'For remap, the Sonarr series: `acquisition.id` on a get_library record. [[grimmory: On grimmory, the Bookdrop file to import, from get_queue.]]'
+            '[[sonarr: For remap, the Sonarr series: `acquisition.id` on a get_library record.]] [[grimmory: On grimmory, the Bookdrop file to import, from get_queue.]]'
         ),
     library: z
         .string()
@@ -502,7 +502,7 @@ export function registerImportDownload(server: McpServer, context: WriteContext,
         name: 'import_download',
         title: 'Import a finished download',
         description:
-            'Gets a finished download into the library when the *arr never took it: one stuck at `importBlocked` in get_queue, by its `download_id`; `mapping` fixes a wrong match (not on Lidarr). Previews the files it will import and skip, and never forces one the service refuses. [[nzbget: `postprocess` first reruns NZBGet\'s post-processing, for a download a broken script left unimportable.]] [[sonarr: `remap` says which episode an imported file really is.]] [[grimmory: On Grimmory, `id` is a Bookdrop file from get_queue.]] Rescan or rename: trigger_scan. An import queues and returns (get_stack_health `commands`). Previews first; confirm to run. Field reference: arr://docs/import_download.',
+            'Gets a finished download into the library when the *arr never took it: one stuck at `importBlocked` in get_queue, by its `download_id`; `mapping` fixes a wrong match[[lidarr:  (not on Lidarr)]]. Previews the files it will import and skip, and never forces one the service refuses. [[nzbget: `postprocess` first reruns NZBGet\'s post-processing, for a download a broken script left unimportable.]] [[sonarr: `remap` says which episode an imported file really is.]] [[grimmory: On Grimmory, `id` is a Bookdrop file from get_queue.]] Rescan or rename: trigger_scan. An import queues and returns (get_stack_health `commands`). Previews first; confirm to run. Field reference: arr://docs/import_download.',
         inputSchema: ImportDownloadInput,
         // Resolved from the arguments, so the permission checked, the audit row
         // written and the token issued all name the same instance.
