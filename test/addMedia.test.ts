@@ -1060,6 +1060,23 @@ describe('add_media on Shelfmark', () => {
             expect(h.downloads()).toEqual([]);
         });
 
+        it.each([
+            ['the snapshot read fails', () => json({ error: 'boom' }, 500)],
+            ['the row is outside the snapshot', () => json({ status: {} })]
+        ])('does not claim it cannot be retried when %s, and still names retry_download', async (_case, snapshot) => {
+            const queue = await queuedTop('error', true);
+            const h = bookHarness({
+                answers: { '/api/status': () => json(queue), '/api/activity/snapshot': snapshot, '/api/activity/history': () => json([]) }
+            });
+            const { structuredContent } = await h.call({ service: 'shelfmark', external_id: BOOK_ID });
+            const top = (await h.shelfmark.findReleases({ id: BOOK_ID }))[0];
+            expect(structuredContent.summary).toContain('already failed');
+            expect(structuredContent.summary).not.toContain('cannot be retried');
+            expect(structuredContent.summary).toContain(`retry_download with id "${top?.guid?.split(':')[1]}" may run it again`);
+            expect(structuredContent.noop).toBe(true);
+            expect(h.downloads()).toEqual([]);
+        });
+
         it('previews a grab when the queue holds another book, and says the queue was checked', async () => {
             const h = bookHarness();
             const { structuredContent } = await h.call({ service: 'shelfmark', external_id: BOOK_ID });
