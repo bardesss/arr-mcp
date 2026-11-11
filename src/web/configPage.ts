@@ -866,7 +866,15 @@ function discoveryPanel(run: RunState, keys: SafeHtml, refreshing: boolean): Saf
                         : `${run.hostTried}, ${run.hostAddress}`}) and `}container names: ${run.containersResolved ?? 0} resolved`;
     const reload = html`<a href="/ui/config?tab=services">Reload</a>`;
     return html`<div class="panel" id="discovery"${refreshing ? raw(` data-reload="${DISCOVERY_REFRESH_SECONDS}"`) : raw('')}>
-        <h3 style="margin:0 0 .75rem">Found services</h3>
+        <div class="row" style="justify-content:space-between;margin:0 0 .75rem">
+            <h3 style="margin:0">Found services</h3>
+            ${run.running
+                ? raw('')
+                : html`<form method="post" action="/ui/config/discover/clear" ${IGNORE_FORM}>
+                      ${keys}
+                      <button type="submit" class="ghost">Close</button>
+                  </form>`}
+        </div>
         ${run.running
             ? html`<p class="note">
                   Looking at ${what}.

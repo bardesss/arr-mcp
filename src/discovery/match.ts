@@ -10,6 +10,11 @@ export type ResultRow = Omit<Found, 'address'> & {
     alsoAt?: string;
     status: 'new' | 'added' | 'configured' | 'maybe-second';
     existingUrl?: string;
+    /**
+     * The configured instance an `added` row is, whose own adapter can read its
+     * version. A `configured` row may be another server, so it names none.
+     */
+    instanceId?: string;
 };
 
 const defaultLookup = async (host: string): Promise<string[]> => (await dnsLookup(host, { all: true })).map(a => a.address);
@@ -59,6 +64,16 @@ function findAt(f: Found, resolve: (url: string) => Promise<string>): Promise<st
     }
 }
 
+/** A url's port, the scheme's default when it names none; undefined for a url that does not parse. */
+const portOf = (url: string): string | undefined => {
+    try {
+        const u = new URL(url);
+        return u.port || (u.protocol === 'https:' ? '443' : '80');
+    } catch {
+        return undefined;
+    }
+};
+
 /** A url compared as written, give or take a trailing slash and the case of its letters. */
 const asWritten = (url: string): string => url.replace(/\/+$/, '').toLowerCase();
 
@@ -71,8 +86,18 @@ export async function matchResults(
     resolve: (url: string) => Promise<string> = urlResolver()
 ): Promise<ResultRow[]> {
     const configured = await Promise.all(
-        listInstances(config).map(async i => ({ type: i.type, url: i.config.url, normalized: await resolve(i.config.url) }))
+        listInstances(config).map(async i => ({ id: i.id, type: i.type, url: i.config.url, normalized: await resolve(i.config.url) }))
     );
+
+    /**
+     * The configured instance a find is, by address or by its url as written:
+     * a configured name whose lookup failed stays as written, while the find
+     * carries the address it was probed at.
+     */
+    const instanceOf = (type: Found['type'], pairs: readonly { url: string; normalized: string }[]) =>
+        configured.find(
+            c => c.type === type && pairs.some(p => c.normalized === p.normalized || asWritten(c.url) === asWritten(p.url))
+        );
 
     // Every found url is resolved once, up front.
     const at = await Promise.all(found.map(f => findAt(f, resolve)));
@@ -100,12 +125,18 @@ export async function matchResults(
             }
             return;
         }
-        const twin = merged.find(
-            m =>
-                m.found.type === f.type &&
-                isHostAndContainer(m.found, f) &&
-                ((m.found.version !== undefined && m.found.version === f.version) || m.normalized === normalized)
-        );
+        const twin = merged.find(m => {
+            if (m.found.type !== f.type || !isHostAndContainer(m.found, f)) return false;
+            if ((m.found.version !== undefined && m.found.version === f.version) || m.normalized === normalized) return true;
+            // With no version to compare (an *arr says none without a key), the
+            // same port and a host find that is a configured instance are enough:
+            // the container name is that instance reached from inside Docker.
+            // A version on either side is evidence of its own, and two finds
+            // that disagree on it are two servers.
+            if (m.found.version !== undefined || f.version !== undefined) return false;
+            const host = m.found.source === 'host' ? { url: m.found.url, normalized: m.normalized } : { url: f.url, normalized };
+            return portOf(m.found.url) === portOf(f.url) && instanceOf(f.type, [host]) !== undefined;
+        });
         if (!twin) {
             merged.push({ found: f, normalized });
         } else if (twin.found.source === 'host') {
@@ -126,18 +157,14 @@ export async function matchResults(
         const { address, ...shown } = f;
         const row: ResultRow = { ...shown, status: 'new' };
         if (alsoAt !== undefined) row.alsoAt = alsoAt;
-        // The url as written counts too: a configured name whose lookup failed
-        // stays as written, while the find carries the address it was probed at.
-        const urls = [f.url, ...(alsoAt === undefined ? [] : [alsoAt])].map(asWritten);
-        if (
-            same.some(
-                c =>
-                    c.normalized === normalized ||
-                    (alsoNormalized !== undefined && c.normalized === alsoNormalized) ||
-                    urls.includes(asWritten(c.url))
-            )
-        ) {
+        const pairs = [
+            { url: f.url, normalized },
+            ...(alsoAt === undefined || alsoNormalized === undefined ? [] : [{ url: alsoAt, normalized: alsoNormalized }])
+        ];
+        const instance = instanceOf(f.type, pairs);
+        if (instance !== undefined) {
             row.status = 'added';
+            row.instanceId = instance.id;
         } else if (same.length > 0) {
             row.status = isMultiInstance(f.type) ? 'maybe-second' : 'configured';
             row.existingUrl = same[0]!.url;

@@ -79,6 +79,18 @@ export class Discovery {
     }
 
     /**
+     * Forgets the last run, so the config page stops showing it. A run still
+     * going is refused rather than cut loose: its workers would keep writing to
+     * a run nobody can see, beside any new one started after.
+     */
+    clear(): { refused: string } | undefined {
+        if (this.state?.running) return { refused: 'A search is still running. Close it once it has finished.' };
+        this.state = undefined;
+        this.finds = [];
+        return undefined;
+    }
+
+    /**
      * The run with its rows matched against `config` now, so a service added
      * since the run started shows as already added rather than offered again.
      * Each configured url is resolved once per call.

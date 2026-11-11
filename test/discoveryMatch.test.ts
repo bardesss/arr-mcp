@@ -77,6 +77,70 @@ describe('matchResults', () => {
         expect(rows[0]).toMatchObject({ url: 'http://nas.lan:7878', alsoAt: 'http://radarr:7878' });
     });
 
+    it.each([
+        ['host first', 'host'],
+        ['container first', 'container']
+    ])(
+        'folds a container find into a configured host find on the same port, with no versions (%s)',
+        async (_order, first) => {
+            const config = parse({ radarr: block('http://nas.lan:7878') });
+            const host: Found = { type: 'radarr', url: 'http://nas.lan:7878', source: 'host' };
+            const container: Found = { type: 'radarr', url: 'http://radarr:7878', source: 'container' };
+            const rows = await matchResults(first === 'host' ? [host, container] : [container, host], config, resolve);
+            expect(rows).toHaveLength(1);
+            expect(rows[0]).toMatchObject({ url: 'http://nas.lan:7878', alsoAt: 'http://radarr:7878', status: 'added', instanceId: 'radarr' });
+        }
+    );
+
+    it.each([
+        ['both report one, and they differ', '10.10.7', '10.9.11'],
+        ['only the host reports one', '10.10.7', undefined],
+        ['only the container reports one', undefined, '10.9.11']
+    ])('keeps a container find apart from a configured host find on the same port when %s', async (_case, hostVersion, containerVersion) => {
+        const config = parse({ jellyfin: block('http://nas.lan:8096') });
+        const found: Found[] = [
+            { type: 'jellyfin', url: 'http://nas.lan:8096', source: 'host', ...(hostVersion === undefined ? {} : { version: hostVersion }) },
+            { type: 'jellyfin', url: 'http://jellyfin:8096', source: 'container', ...(containerVersion === undefined ? {} : { version: containerVersion }) }
+        ];
+        const rows = await matchResults(found, config, resolve);
+        expect(rows.map(r => r.url)).toEqual(['http://nas.lan:8096', 'http://jellyfin:8096']);
+        expect(rows.some(r => r.alsoAt !== undefined)).toBe(false);
+    });
+
+    it('keeps a container find on another port apart from a configured host find', async () => {
+        const config = parse({ radarr: block('http://nas.lan:7878') });
+        const found: Found[] = [
+            { type: 'radarr', url: 'http://nas.lan:7878', source: 'host' },
+            { type: 'radarr', url: 'http://radarr:7879', source: 'container' }
+        ];
+        expect(await matchResults(found, config, resolve)).toHaveLength(2);
+    });
+
+    it('keeps the finds apart when only the container find is the configured one', async () => {
+        const config = parse({ radarr: block('http://radarr:7878') });
+        const found: Found[] = [
+            { type: 'radarr', url: 'http://nas.lan:7878', source: 'host' },
+            { type: 'radarr', url: 'http://radarr:7878', source: 'container' }
+        ];
+        const rows = await matchResults(found, config, resolve);
+        expect(rows.map(r => r.status)).toEqual(['maybe-second', 'added']);
+    });
+
+    it('names the configured instance an added row is, and none for a row that may be another server', async () => {
+        const config = parse({ radarr: block('http://192.168.1.9:7878'), seerr: block('http://192.168.1.9:5055') });
+        const found: Found[] = [
+            { type: 'radarr', url: 'http://192.168.1.9:7878', source: 'sweep' },
+            { type: 'radarr', url: 'http://192.168.1.20:7878', source: 'sweep' },
+            { type: 'seerr', url: 'http://192.168.1.20:5055', source: 'sweep' }
+        ];
+        const rows = await matchResults(found, config, resolve);
+        expect(rows.map(r => [r.status, r.instanceId])).toEqual([
+            ['added', 'radarr'],
+            ['maybe-second', undefined],
+            ['configured', undefined]
+        ]);
+    });
+
     it('lists a sweep hit on the address a host or container find resolves to once, under the named url', async () => {
         const lan = async (url: string) => (url === 'http://nas.lan:7878' ? 'http://192.168.1.10:7878' : resolve(url));
         const found: Found[] = [
