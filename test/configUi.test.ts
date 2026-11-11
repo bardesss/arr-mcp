@@ -3671,6 +3671,9 @@ describe('finding services', () => {
             const page = await servicesPage();
             expect(page).toContain('5.3.6.9999');
             expect(page).toContain('also reachable at http://radarr:7878');
+            // The sonarr row has no version: its cell is empty, so the stacked
+            // layout draws no separator before it.
+            expect(page).toMatch(/192\.168\.1\.10:8989<\/td>\s*<td><\/td>/);
             expect(asked.length).toBeGreaterThan(0);
             for (const a of asked) expect(a.url.startsWith('http://192.0.2.10:7878/')).toBe(true);
 

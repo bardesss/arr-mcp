@@ -266,9 +266,10 @@ dialog .panel { margin: 0; border: 0; border-radius: 10px; max-height: 82vh; ove
 
      The :where wrapper keeps this at zero specificity so tr.lvl-40 td still
      colours a warning row. Without it the level cell of a warning renders
-     dim, and the level is the one word on that line worth colouring. */
+     dim, and the level is the one word on that line worth colouring.
+     An empty cell, such as a found service with no version, gets no separator. */
   .stacked td:where(:not(:last-child)) { display: inline; font-size: .8rem; color: var(--dim); }
-  .stacked td:where(:not(:last-child)) + td:where(:not(:last-child))::before { content: ' · '; }
+  .stacked td:where(:not(:last-child)) + td:where(:not(:last-child):not(:empty))::before { content: ' · '; }
   .stacked td:where(:last-child) { margin-top: .35rem; }
 }
 
