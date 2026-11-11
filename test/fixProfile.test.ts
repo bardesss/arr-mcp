@@ -342,7 +342,8 @@ describe('fix_profile', () => {
         });
 
         it('lets the matched entry decide when an unmatched one of the same type sits beside it', async () => {
-            const stray = { id: 1, name: 'somewhere-else', count: 0 };
+            // The stray's own count would refuse; only the matched entry's count may decide.
+            const stray = { id: 1, name: 'somewhere-else', count: 1 };
             const goes = harness(serving(withFloor(POSITIVE_TOTAL + 1)), { extra: [profilarrDouble({ arrs: [stray, { id: 2, name: 'radarr', count: 0 }] })] });
             expect((await goes.call(ARGS)).structuredContent.confirm_token).toBeDefined();
 
