@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.83.0](https://github.com/bardesss/arr-mcp/compare/v1.82.1...v1.83.0) (2026-11-11)
+
+
+### Features
+
+* **add_media:** add a book through Shelfmark ([#613](https://github.com/bardesss/arr-mcp/issues/613)) ([8078d5f](https://github.com/bardesss/arr-mcp/commit/8078d5f0e16b21fe419277b37b2200238fda806b))
+* **lidarr:** recent warnings and errors in stack_health ([#609](https://github.com/bardesss/arr-mcp/issues/609)) ([746b9c0](https://github.com/bardesss/arr-mcp/commit/746b9c003dbcf82133bfe98f6d6058241c1605f3))
+* **remove_queue_item:** remove every orphaned download on one instance; clean_queue becomes an alias ([#612](https://github.com/bardesss/arr-mcp/issues/612)) ([036aadb](https://github.com/bardesss/arr-mcp/commit/036aadb73249373170e2a935ea7b8f228ecc1f39))
+* **tools:** fix_profile applies a proven quality profile fix ([#614](https://github.com/bardesss/arr-mcp/issues/614)) ([9e7f35f](https://github.com/bardesss/arr-mcp/commit/9e7f35ffed7f6aa2a8ca7979c90a0b022638c9f2))
+* **tools:** get_stack_health and diagnose_media, with the old names as aliases ([#611](https://github.com/bardesss/arr-mcp/issues/611)) ([06cb62b](https://github.com/bardesss/arr-mcp/commit/06cb62bbda62afd9870380d7356ac7b0c73cac27))
+
 ## [1.82.1](https://github.com/bardesss/arr-mcp/compare/v1.82.0...v1.82.1) (2026-11-10)
 
 
