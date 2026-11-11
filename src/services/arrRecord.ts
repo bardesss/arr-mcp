@@ -1,9 +1,12 @@
 import type { ArrKind } from '../core/resolver.ts';
+import type { QueueItem } from './types.ts';
 
 /**
  * What Radarr, Sonarr and Lidarr rows share, read the same way wherever they
- * come from: the queue, history and the blocklist today, release search later.
- * Also Lidarr's "no date", which its wanted list, calendar and album years read.
+ * come from: the queue, history and the blocklist. Also Lidarr's "no date",
+ * which its wanted list, calendar and album years read, and what a finished
+ * usenet row with a warning needs to run again, which diagnose_media and
+ * import_download both say.
  */
 
 /**
@@ -13,6 +16,43 @@ import type { ArrKind } from '../core/resolver.ts';
  * would still be one held.
  */
 export const PENDING_STATUSES: ReadonlySet<string> = new Set(['delay', 'downloadclientunavailable', 'fallback']);
+
+/** A Lidarr queue row, from the bare instance or a named one. */
+export const isLidarrRow = (row: QueueItem): boolean => row.service === 'lidarr' || row.service.startsWith('lidarr/');
+
+/** A SABnzbd job id (`get_new_id`, a `mkstemp` name), which the *arrs take unchanged (`Sabnzbd`). */
+const SABNZBD_ID = /^SABnzbd_nzo_[A-Za-z0-9_]+$/;
+/** The `drone` id an *arr gives an NZB it sends NZBGet: a GUID without its dashes (`NzbgetProxy`). */
+const NZBGET_DRONE_ID = /^[0-9a-f]{32}$/;
+
+/**
+ * How to run a finished usenet download again once its client has filed it in
+ * its history with a problem: the *arrs read that as a warning with nothing
+ * left, and import none of it while it stands. The *arr's own id says which
+ * client it is. On SABnzbd it is only an unpack that failed for a write error
+ * or a full disk (`Sabnzbd`), and retry_download takes the id as it stands. On
+ * NZBGet it is an unpack out of space, a failed move, a duplicate NZBGet
+ * skipped for a copy already in its history (`GOOD`) or, on Lidarr, which
+ * leaves `BAD` out of its failed delete statuses, a download a script marked
+ * bad (`Nzbget`). Only the *arr's message tells those apart, and `message` says
+ * where it is. NZBGet's retry_download wants its own history id, which the
+ * *arr's row does not carry, so this names import_download's `postprocess`,
+ * which takes the *arr's. Another client, or an id of neither shape (an NZB
+ * added to NZBGet by hand has its own number), is only told to fix what it
+ * reports or remove the row, so a download id goes into the text only once its
+ * whole shape is known.
+ */
+export function usenetRerun(row: QueueItem, message: string): string {
+    const id = row.downloadId ?? '';
+    if (SABNZBD_ID.test(id)) {
+        return `SABnzbd could not unpack it (a write error or a full disk): fix that, then retry it in SABnzbd, or with retry_download on SABnzbd and \`id\` "${id}".`;
+    }
+    if (!NZBGET_DRONE_ID.test(id)) {
+        return `Fix what the client reports, or, if the client deleted the download, remove it from ${row.service}’s queue with remove_queue_item and \`id\` "${row.id}".`;
+    }
+    const lidarr = isLidarrRow(row);
+    return `On NZBGet, fix the cause (free disk space, for one), then run its post-processing again there, or with import_download on NZBGet, \`action: "postprocess"\` and \`download_id\` "${id}". If NZBGet deleted it as a duplicate${lidarr ? ' or as bad' : ''}, remove it from ${row.service}’s queue with remove_queue_item and \`id\` "${row.id}"${lidarr ? ', with `blocklist: true` if it was bad' : ''}. ${message} says which.`;
+}
 
 /** The field naming a row's media, one per kind of library. */
 export const MEDIA_ID_FIELD = {

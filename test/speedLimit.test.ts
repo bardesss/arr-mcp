@@ -239,7 +239,7 @@ describe('pause_downloads limit', () => {
             speed_limit_kbps: 1000,
             dry_run: true
         });
-        expect(structuredContent.effects.join(' ')).toMatch(/does not stop radarr or sonarr/i);
+        expect(structuredContent.effects.join(' ')).toContain('Does NOT stop the *arrs grabbing.');
     });
 
     it('is a no-op when the cap already matches', async () => {

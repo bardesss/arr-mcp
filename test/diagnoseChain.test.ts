@@ -1400,17 +1400,42 @@ describe('buildChain — each queue state is worded for what it is', () => {
         expect(run(radarrRow({ status: 'warning', errorMessage: dht, sizeBytes: 0, remainingBytes: 0 })).verdict.next_steps?.[0]?.tool).toBe('remove_queue_item');
     });
 
-    // `Sabnzbd` and `Nzbget`: a failed unpack for want of space is a warning from their history, with every byte downloaded.
+    // `Sabnzbd` and `Nzbget`: a warning from their history with nothing left. A
+    // failed unpack and a failed move hold every byte; a duplicate NZBGet deleted
+    // for a good copy holds none, and only the *arr's message says which.
+    const SAB_FINISHED_REMEDY =
+        'The client reports a problem, and radarr imports nothing while it stands. SABnzbd could not unpack it (a write error or a full disk): fix that, then retry it in SABnzbd, or with retry_download on SABnzbd and `id` "SABnzbd_nzo_1".';
+    // The *arrs give an NZB they send NZBGet a GUID without its dashes as its `drone` id (`NzbgetProxy`).
+    const DRONE = 'aaaabbbbccccddddeeeeffff00001111';
+    const NZBGET_FINISHED_REMEDY =
+        `The client reports a problem, and radarr imports nothing while it stands. On NZBGet, fix the cause (free disk space, for one), then run its post-processing again there, or with import_download on NZBGet, \`action: "postprocess"\` and \`download_id\` "${DRONE}". If NZBGet deleted it as a duplicate, remove it from radarr’s queue with remove_queue_item and \`id\` "q1". The message says which.`;
+    const nzbgetMessage = (unpack: string, move: string, del: string): string =>
+        `PAR Status: SUCCESS - Unpack Status: ${unpack} - Move Status: ${move} - Script Status: NONE - Delete Status: ${del} - Mark Status: NONE`;
     it.each([
-        ['SABnzbd', 'SABnzbd_nzo_1', 'Unpacking failed, write error or disk is full?'],
-        ['NZBGet', 'drone-1', 'PAR Status: SUCCESS - Unpack Status: SPACE - Move Status: NONE - Script Status: NONE - Delete Status: NONE - Mark Status: NONE']
-    ])('never offers to remove a usenet warning with nothing left to download (%s)', (_client, downloadId, text) => {
+        ['SABnzbd', 'SABnzbd_nzo_1', 'Unpacking failed, write error or disk is full?', SAB_FINISHED_REMEDY],
+        ['NZBGet out of space', DRONE, nzbgetMessage('SPACE', 'NONE', 'NONE'), NZBGET_FINISHED_REMEDY],
+        ['NZBGet failed move', DRONE, nzbgetMessage('SUCCESS', 'FAILURE', 'NONE'), NZBGET_FINISHED_REMEDY],
+        ['NZBGet duplicate', DRONE, nzbgetMessage('NONE', 'NONE', 'GOOD'), NZBGET_FINISHED_REMEDY]
+    ])('never offers to remove a usenet warning with nothing left to download, and names the call that runs it again (%s)', (_client, downloadId, text, remedy) => {
         const full = message('radarr', text);
         const d = run(radarrRow({ status: 'warning', protocol: 'usenet', downloadId, errorMessage: full, remainingBytes: 0 }));
         expect(stepFor(d, 'queue')?.detail).toBe(`Download warning: ${full}.`);
-        expect(d.verdict.remedy).toBe(FINISHED_REMEDY);
+        expect(d.verdict.remedy).toBe(remedy);
         expect(d.verdict.next_steps).toBeUndefined();
     });
+
+    // Another usenet client the *arr knows and arr-mcp does not, or an id of
+    // neither shape, such as a hand-set `drone` value: no call is named.
+    it.each(['drone-1', 'free text, not an id', 'SABnzbd_nzo_x and then free text', `${DRONE} and then free text`])(
+        'only says to fix it in the client, or remove the row, for a usenet id of no known shape (%s)',
+        downloadId => {
+            const full = message('radarr', 'Download contains multiple files and is not in a job folder');
+            const d = run(radarrRow({ status: 'warning', protocol: 'usenet', downloadId, errorMessage: full, remainingBytes: 0 }));
+            expect(d.verdict.remedy).toBe(
+                'The client reports a problem, and radarr imports nothing while it stands. Fix what the client reports, or, if the client deleted the download, remove it from radarr’s queue with remove_queue_item and `id` "q1".'
+            );
+        }
+    );
 
     it("does not offer another download's import for a finished warning", () => {
         const full = message('radarr', 'Unpacking failed, write error or disk is full?');
@@ -2467,6 +2492,21 @@ describe('buildChain — a Lidarr artist', () => {
         ]);
         expect(d.verdict.remedy).toMatch(/Lidarr/);
         expect(d.verdict.remedy).not.toMatch(/Radarr/);
+    });
+
+    // Lidarr leaves `BAD` out of its failed delete statuses (`Nzbget`), so a
+    // download a script marked bad, which NZBGet deleted, is a warning there.
+    it('tells Lidarr to remove a usenet download NZBGet deleted as bad, with a blocklist, and offers no removal step', () => {
+        const bad = fenceText('PAR Status: SUCCESS - Unpack Status: NONE - Move Status: NONE - Script Status: NONE - Delete Status: BAD - Mark Status: NONE', {
+            service: 'lidarr',
+            field: 'errorMessage'
+        });
+        const row = lidarrRow({ status: 'warning', protocol: 'usenet', downloadId: 'aaaabbbbccccddddeeeeffff00001111', errorMessage: bad, sizeBytes: 1000, remainingBytes: 0 });
+        const d = buildChain('daft punk', healthy({ item: noTracks(), queue: { items: [row], partial: [] } }));
+        expect(d.verdict.remedy).toBe(
+            'The client reports a problem, and lidarr imports nothing while it stands. On NZBGet, fix the cause (free disk space, for one), then run its post-processing again there, or with import_download on NZBGet, `action: "postprocess"` and `download_id` "aaaabbbbccccddddeeeeffff00001111". If NZBGet deleted it as a duplicate or as bad, remove it from lidarr’s queue with remove_queue_item and `id` "103", with `blocklist: true` if it was bad. The message says which.'
+        );
+        expect(d.verdict.next_steps).toBeUndefined();
     });
 
     it('offers to remove a failed Lidarr download', () => {
