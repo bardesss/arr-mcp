@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { MEDIA_ID_FIELD, mediaIdOf, mediaIdsParam, protocolName } from '../src/services/arrRecord.ts';
+import { MEDIA_ID_FIELD, mediaIdOf, mediaIdsParam, protocolName, usenetRerun } from '../src/services/arrRecord.ts';
+import type { QueueItem } from '../src/services/types.ts';
 
 /**
  * The row helpers the queue, history and blocklist share. Each read used to
@@ -43,5 +44,29 @@ describe('protocolName', () => {
         expect(protocolName('TorrentDownloadProtocol')).toBe('torrent');
         expect(protocolName('usenet')).toBe('usenet');
         expect(protocolName('somethingElse')).toBe('somethingElse');
+    });
+});
+
+describe('usenetRerun', () => {
+    const warned = (service: string): QueueItem => ({
+        service,
+        id: '7',
+        title: 'Some.Release.FLAC',
+        status: 'warning',
+        protocol: 'usenet',
+        sizeBytes: 1000,
+        remainingBytes: 0,
+        downloadId: 'aaaabbbbccccddddeeeeffff00001111'
+    });
+
+    // Lidarr leaves NZBGet's `BAD` out of its failed delete statuses, and a named instance is still Lidarr.
+    it('gives a named Lidarr instance the bad-download clause too', () => {
+        expect(usenetRerun(warned('lidarr/two'), 'The message')).toContain(
+            'If NZBGet deleted it as a duplicate or as bad, remove it from lidarr/two’s queue with remove_queue_item and `id` "7", with `blocklist: true` if it was bad.'
+        );
+    });
+
+    it('leaves the clause out for Radarr, which reads `BAD` as a failure', () => {
+        expect(usenetRerun(warned('radarr/hd'), 'The message')).toContain('If NZBGet deleted it as a duplicate, remove it from radarr/hd’s queue with remove_queue_item and `id` "7". The message says which.');
     });
 });
