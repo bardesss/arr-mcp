@@ -54,6 +54,103 @@ off until you turn them on — see [writes](writes.md). `stack_health` and
 | `manage_indexer` | Add a public indexer, change its priority, profile, tags or seeding, or stop grabbing from it |
 | `delete_indexer` | Delete a Prowlarr indexer, and its copy in each app |
 
+## Which services each tool needs
+
+<!-- tool-map:start -->
+Which services each tool needs. A tool is listed when one of them is configured; ✎ marks a write.
+
+| Tool | Needs one of |
+| --- | --- |
+| `diagnose_media` | any stack |
+| `get_stack_health` | any stack |
+| `get_instance_options` | Radarr, Sonarr, Whisparr, Lidarr |
+| `get_indexers` | Prowlarr |
+| `get_subtitles` | Bazarr |
+| `get_queue` | any stack |
+| `get_history` | any stack |
+| `get_wanted` | Radarr, Sonarr, Lidarr |
+| `get_releases` | Radarr, Sonarr, Whisparr, Lidarr, Shelfmark |
+| `get_blocklist` | Radarr, Sonarr, Whisparr, Lidarr |
+| `get_calendar` | Radarr, Sonarr, Whisparr, Lidarr |
+| `get_playback` | Jellyfin, Plex |
+| `get_requests` | Seerr |
+| `get_media_details` | any stack |
+| `get_metadata_issues` | Jellyfin, Plex, Grimmory |
+| `get_library` | any stack |
+| `get_profile_issues` | Radarr, Sonarr, Whisparr |
+| `search_media` | any stack |
+| `discover_media` | any stack |
+| `trigger_search` ✎ | Radarr, Sonarr, Whisparr, Lidarr |
+| `trigger_scan` ✎ | Radarr, Sonarr, Whisparr, Lidarr, Jellyfin, Plex, NZBGet, Grimmory, Prowlarr |
+| `trigger_subtitle_search` ✎ | Bazarr |
+| `remove_queue_item` ✎ | Radarr, Sonarr, Whisparr, Lidarr, SABnzbd, NZBGet, Transmission, qBittorrent, Shelfmark, Grimmory |
+| `delete_media` ✎ | Radarr, Sonarr, Whisparr, Lidarr, Grimmory |
+| `delete_episode_files` ✎ | Sonarr, Whisparr |
+| `set_monitoring` ✎ | Sonarr, Whisparr, Lidarr |
+| `respond_to_request` ✎ | Seerr |
+| `delete_request` ✎ | Seerr |
+| `add_media` ✎ | Radarr, Sonarr, Whisparr, Lidarr, Shelfmark |
+| `update_media` ✎ | Radarr, Sonarr, Lidarr, Grimmory |
+| `grab_release` ✎ | Radarr, Sonarr, Whisparr, Lidarr, Transmission, qBittorrent, Shelfmark |
+| `request_media` ✎ | Seerr |
+| `pause_downloads` ✎ | SABnzbd, NZBGet, Transmission, qBittorrent |
+| `retry_download` ✎ | SABnzbd, NZBGet, Shelfmark |
+| `sync_database` ✎ | Profilarr |
+| `set_watched` ✎ | Jellyfin, Grimmory |
+| `fix_metadata` ✎ | Lidarr, Jellyfin, Plex, Grimmory |
+| `remove_blocklist_item` ✎ | Radarr, Sonarr, Whisparr, Lidarr |
+| `manage_indexer` ✎ | Prowlarr |
+| `update_book` ✎ | Grimmory |
+| `import_download` ✎ | Radarr, Sonarr, Lidarr, NZBGet, Grimmory |
+| `delete_indexer` ✎ | Prowlarr |
+| `blocklist_media` ✎ | Radarr, Sonarr, Lidarr, Seerr |
+| `fix_profile` ✎ | Radarr, Sonarr, Whisparr |
+
+What `kind` means, and which services hold it. A `kind` field offers only the kinds a configured service holds.
+
+| Kind | Held by |
+| --- | --- |
+| `movie` | Radarr |
+| `series` | Sonarr, Whisparr |
+| `artist` | Lidarr |
+| `book` | Shelfmark, Grimmory |
+<!-- tool-map:end -->
+
+## Common routes
+
+Most questions take one of these paths. A write previews first and returns a
+`confirm` token; nothing below changes anything until it is called again with
+it. A `next_steps` edge is a call a result offers, never one it makes.
+
+```mermaid
+flowchart LR
+    ask(["Why can't I play it?"]) --> diagnose_media
+    subgraph find [Find]
+        search_media
+        get_library
+        discover_media
+    end
+    subgraph add [Add]
+        add_media
+        request_media
+    end
+    subgraph follow [Follow]
+        get_queue
+        get_history
+        get_stack_health
+    end
+    subgraph fix [Fix]
+        import_download
+        trigger_search
+        get_releases --> grab_release
+        remove_queue_item
+    end
+    find --> add --> follow --> fix
+    diagnose_media -- next_steps --> fix
+    get_queue -- next_steps --> import_download
+    get_profile_issues -- next_steps --> fix_profile
+```
+
 The rest of this page is the shape of the answers: the fields whose meaning is
 not obvious, and the places where a value is deliberately absent rather than
 `false`.

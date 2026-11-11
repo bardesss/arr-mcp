@@ -84,7 +84,7 @@ export const TOOL_SERVICES: Readonly<Record<string, readonly ServiceId[]>> = {
 };
 
 /** The services that hold each kind. A `kind` field lists only the kinds a configured service holds. */
-const KIND_SERVICES: Readonly<Record<LibraryKind, readonly ServiceId[]>> = {
+export const KIND_SERVICES: Readonly<Record<LibraryKind, readonly ServiceId[]>> = {
     movie: ['radarr'],
     series: ['sonarr', 'whisparr'],
     artist: ['lidarr'],
