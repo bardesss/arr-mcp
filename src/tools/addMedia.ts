@@ -410,7 +410,7 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
                     : 'Shelfmark writes the file to its destination folder.';
                 return {
                     target,
-                    summary: `Queue the book ${external_id} on ${service}: grab ${top.title} from ${top.indexer}, the most-downloaded release on offer.`,
+                    summary: `Queue the book ${top.title} on ${service} from ${top.indexer}, the most-downloaded release on offer.`,
                     effects: [
                         `Sends this release to ${service}'s download client.${top.downloads === undefined ? ' No release on offer has a download count, so this is simply the first listed.' : ` It has ${top.downloads} downloads.`}`,
                         bookdrop,

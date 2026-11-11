@@ -969,6 +969,8 @@ describe('add_media on Shelfmark', () => {
         expect(structuredContent.applied).toBe(false);
         expect(structuredContent.summary).toContain('Queue the book');
         expect(structuredContent.summary).toContain('The Dutch Republic');
+        // The id is for the model's next call, not for the person reading the preview.
+        expect(structuredContent.summary).not.toContain(BOOK_ID);
         const releases = h.fetchImpl.mock.calls.filter(c => new URL(String(c[0])).pathname === '/api/releases');
         expect(releases.length).toBeGreaterThan(0);
         const asked = new URL(String(releases[0]?.[0])).searchParams;
