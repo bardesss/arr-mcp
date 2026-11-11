@@ -462,7 +462,7 @@ export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable, Cl
     readonly type: ServiceId = 'cleanuparr';
     readonly id = 'cleanuparr';
     readonly #http: ServiceHttp;
-    /** One status read serves the connection test and the health checks of a stack_health pass. */
+    /** One status read serves the connection test and the health checks of a get_stack_health pass. */
     readonly #statusRead = cached(SHORT_READ_TTL_MS, () => this.#http.get<RawStatus>(`${CLEANUPARR_API}/status`));
 
     constructor(config: ConfigByService['cleanuparr'], fetchImpl: typeof fetch = fetch) {
@@ -531,7 +531,7 @@ export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable, Cl
         }
         if (general?.dryRun === true) out.push(check('general', 'warning', 'Dry run is on: Cleanuparr logs what it would do and does nothing'));
         // What Cleanuparr could not settle on its own and left for a person, until it is resolved in its UI.
-        // One line, because stack_health repeats it on every call: how many, and the newest.
+        // One line, because get_stack_health repeats it on every call: how many, and the newest.
         if (manual !== undefined && manual.count > 0) {
             const newest = manual.newest;
             const about = newest?.itemTitle === undefined || newest.itemTitle === null || newest.itemTitle === '' ? '' : ` (${newest.itemTitle})`;

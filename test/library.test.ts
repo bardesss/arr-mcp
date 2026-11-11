@@ -224,7 +224,7 @@ describe('LibraryLoader', () => {
     // #resolveUser propagated NotFound whenever `requested === undefined`,
     // so this exact case (nobody named, nothing configured) threw and the
     // whole read failed, even though the schema explicitly allows Jellyfin
-    // to be configured with no `default_user` (present only in stack_health).
+    // to be configured with no `default_user` (present only in get_stack_health).
     it('degrades to the arrs, with a note naming default_user, when no Jellyfin user is configured and none was requested', async () => {
         const noDefault = identity(
             new ServiceError('NotFound', 'jellyfin', 'no user was named and none is configured', {

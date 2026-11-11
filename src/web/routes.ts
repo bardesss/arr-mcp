@@ -277,7 +277,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
 
         const snapshot = runtime.current;
 
-        // Through `buildStackHealth`, the same function `stack_health` answers
+        // Through `buildStackHealth`, the same function `get_stack_health` answers
         // from. Two implementations of "is the stack healthy" is how the page
         // and the tool come to disagree.
         // It is live, not cached: a dashboard showing cached status is one

@@ -15,7 +15,7 @@ export type LibraryKind = 'movie' | 'series' | 'artist' | 'book';
 
 /**
  * The kinds an *arr manages and the acquisition chain reads: everything but a
- * book. The *arr helpers key their tables on this, and `diagnose` reads only
+ * book. The *arr helpers key their tables on this, and `diagnose_media` reads only
  * these rows.
  */
 export type ArrKind = Exclude<LibraryKind, 'book'>;
@@ -367,7 +367,7 @@ const bookRefusal = (name: string, id: string | undefined): Error =>
 
 /**
  * The best match among films and series, for the readers whose question is
- * about that chain: `get_media_details` and `fix_metadata`. `diagnose` also reads
+ * about that chain: `get_media_details` and `fix_metadata`. `diagnose_media` also reads
  * artists, so it does not use this.
  *
  * An artist must not shadow a film that happens to share its title, which the
@@ -567,7 +567,7 @@ export class LibraryIndex {
      *
      * `kind` is optional so today's callers, which do not have one to hand,
      * keep scanning movie keys before series keys unchanged. A caller that
-     * *does* know which it wants — `diagnose` will, since it already holds
+     * *does* know which it wants — `diagnose_media` will, since it already holds
      * the kind of the thing it is chasing — should pass it: a film and a
      * series can share the same numeric tmdb/tvdb id (unrelated id spaces
      * colliding), and without `kind` the first one indexed wins, silently

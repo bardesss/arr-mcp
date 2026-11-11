@@ -111,7 +111,7 @@ describe('connection', () => {
     });
 });
 
-describe('stack_health', () => {
+describe('get_stack_health', () => {
     it('finds nothing on the captured healthy server', async () => {
         await expect(adapter(server() as typeof fetch).getFailedHealthChecks()).resolves.toEqual([]);
     });

@@ -143,7 +143,7 @@ describe('ReclaimerrAdapter cleanup overview', () => {
         expect(overview.going).toEqual({ count: 5, firstAt: '2026-12-01T00:00:00Z' });
     });
 
-    it('reads the candidates once for the checks and the overview of one stack_health', async () => {
+    it('reads the candidates once for the checks and the overview of one get_stack_health', async () => {
         const seen: string[] = [];
         const adapter = new ReclaimerrAdapter(config, stub(routes({ '/api/v1': readOnly }), seen));
         await Promise.all([adapter.getFailedHealthChecks(), adapter.readCleanupOverview(10)]);

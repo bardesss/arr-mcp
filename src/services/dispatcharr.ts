@@ -173,7 +173,7 @@ export class DispatcharrAdapter implements ServiceAdapter, HealthCheckCapable {
     readonly type: ServiceId = 'dispatcharr';
     readonly id = 'dispatcharr';
     readonly #http: ServiceHttp;
-    /** One version read serves the connection test and the health checks of a stack_health pass. */
+    /** One version read serves the connection test and the health checks of a get_stack_health pass. */
     readonly #versionRead = cached(SHORT_READ_TTL_MS, () => this.#http.get<RawVersion>(VERSION_PATH));
 
     constructor(config: ConfigByService['dispatcharr'], fetchImpl: typeof fetch = fetch) {

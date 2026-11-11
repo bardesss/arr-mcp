@@ -108,7 +108,7 @@ export class TtlCache {
     }
 }
 
-/** How long a read shared inside one stack_health pass stays fresh. */
+/** How long a read shared inside one get_stack_health pass stays fresh. */
 export const SHORT_READ_TTL_MS = 10_000;
 
 type Cached<T> = (() => Promise<T>) & { clear(): void };

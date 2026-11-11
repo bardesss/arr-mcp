@@ -37,7 +37,7 @@ const instance = (id: string, safe_write: boolean, destructive: boolean): Servic
         id,
         type: id.split('/')[0],
         // Every real `ServiceInstance` carries a `url` — the config schema
-        // requires one, and `stack_health`'s `endpoints` reads it. A stand-in
+        // requires one, and `get_stack_health`'s `endpoints` reads it. A stand-in
         // without it is a shape production cannot produce.
         config: { url: 'http://192.0.2.10:7878', permissions: { safe_write, destructive } }
     }) as unknown as ServiceInstance;
@@ -402,7 +402,7 @@ describe('cache hints', () => {
  * would be unreachable wherever they are not surfaced.
  */
 describe('mirroring, never originating', () => {
-    it('exposes no instance stack_health cannot also report', async () => {
+    it('exposes no instance get_stack_health cannot also report', async () => {
         const body = (await read('arr://instances')) as {
             instances: { id: string; safe_write: boolean; destructive: boolean }[];
         };
@@ -417,8 +417,8 @@ describe('mirroring, never originating', () => {
         }
     });
 
-    it('says outright that stack_health is the live answer', () => {
+    it('says outright that get_stack_health is the live answer', () => {
         const health = registered()['arr://health'] as { metadata?: { description?: string } };
-        expect(health.metadata?.description).toContain('stack_health');
+        expect(health.metadata?.description).toContain('get_stack_health');
     });
 });

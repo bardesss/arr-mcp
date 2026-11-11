@@ -201,7 +201,7 @@ export const LOG_ROWS: LogRow[] = [
         levelName: 'info',
         service: 'jellyfin',
         msg: 'library scan completed in 4m 12s',
-        fields: '{"tool":"stack_health"}'
+        fields: '{"tool":"get_stack_health"}'
     },
     {
         id: 808,

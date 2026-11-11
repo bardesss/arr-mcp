@@ -169,7 +169,7 @@ const CONTRACTS: Record<string, ServiceContract> = {
             },
             { fixture: 'test/fixtures/radarr/movie-lookup.json', fields: ['title', 'tmdbId'] },
             {
-                // `unmappedFolders[].name` is the whole of what `stack_health`
+                // `unmappedFolders[].name` is the whole of what `get_stack_health`
                 // reports about a folder the instance maps to no item, and it
                 // is the only API-visible trace of a mapping the service has
                 // lost. `readRootFolders` has read `path` and `freeSpace` here
@@ -467,12 +467,12 @@ const CONTRACTS: Record<string, ServiceContract> = {
                 fixture: 'test/fixtures/lidarr/blocklist.json',
                 fields: ['records.id', 'records.artistId', 'records.sourceTitle', 'records.date', 'records.indexer', 'records.message', 'records.protocol']
             },
-            // The shared `arr*` system reads `stack_health` makes.
+            // The shared `arr*` system reads `get_stack_health` makes.
             { path: '/api/v1/diskspace', method: 'get', fixture: 'test/fixtures/lidarr/diskspace.json', fields: ['path', 'label', 'freeSpace', 'totalSpace'] },
             { path: '/api/v1/health', method: 'get', fixture: 'test/fixtures/lidarr/health.json', fields: ['source', 'type', 'message'] },
             { path: '/api/v1/system/task', method: 'get', fixture: 'test/fixtures/lidarr/system-task.json', fields: ['taskName', 'lastExecution'] },
             {
-                // `stack_health` at `detail: "full"`. The captured page has no
+                // `get_stack_health` at `detail: "full"`. The captured page has no
                 // `exceptionType`, which the adapter also reads.
                 path: '/api/v1/log',
                 method: 'get',

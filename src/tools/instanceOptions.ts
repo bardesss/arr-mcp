@@ -125,7 +125,7 @@ export function registerGetInstanceOptions(server: McpServer, adapters: readonly
             title: 'Instance options',
             annotations: READ_ONLY,
             description:
-                'Quality profiles, root folders and tags of each Radarr, Sonarr, Whisparr and Lidarr instance: the values add_media and update_media need, so read them here, never guess. For health use stack_health. One row per instance: profiles with ids, root folders with free space and `unmappedFolders`, tags. An instance whose read fails is in `degraded`; an unknown `instance` is refused with the valid ones.',
+                'Quality profiles, root folders and tags of each Radarr, Sonarr, Whisparr and Lidarr instance: the values add_media and update_media need, so read them here, never guess. For health use get_stack_health. One row per instance: profiles with ids, root folders with free space and `unmappedFolders`, tags. An instance whose read fails is in `degraded`; an unknown `instance` is refused with the valid ones.',
             inputSchema: GetInstanceOptionsInput,
             outputSchema: GetInstanceOptionsOutput
         },

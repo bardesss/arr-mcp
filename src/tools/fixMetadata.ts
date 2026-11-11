@@ -260,7 +260,7 @@ async function applyRetag(adapter: Lidarr, bound: { artistId: string; files: num
             status: 'unknown',
             ...(run.commandId > 0 ? { commandId: run.commandId } : {}),
             verified: false,
-            note: `NOT VERIFIED: Lidarr queued RetagFiles${run.commandId > 0 ? ` (command ${run.commandId})` : ''}, and arr-mcp stopped waiting for it: ${run.reason}. It may still run. stack_health's \`commands\` shows when it ends; then preview fix_metadata again to see which files still differ. Do not confirm it again.${scrubbed}`
+            note: `NOT VERIFIED: Lidarr queued RetagFiles${run.commandId > 0 ? ` (command ${run.commandId})` : ''}, and arr-mcp stopped waiting for it: ${run.reason}. It may still run. get_stack_health's \`commands\` shows when it ends; then preview fix_metadata again to see which files still differ. Do not confirm it again.${scrubbed}`
         };
     }
     const row = run;
@@ -415,7 +415,7 @@ async function resolve(loader: LibraryLoader, query: string, adapter: ServiceAda
             throw new ServiceError('Unreachable', adapter.id, `${serverName(adapter)}'s library could not be read, so "${best.title}" cannot be looked up there`, {
                 remedy: skipped
                     ? `Check that services.${adapter.id}.default_user is set and names a real user.`
-                    : `Check stack_health for ${adapter.id}.`
+                    : `Check get_stack_health for ${adapter.id}.`
             });
         }
         throw new ServiceError('NotFound', adapter.id, `"${best.title}" is not in ${serverName(adapter)}`, {

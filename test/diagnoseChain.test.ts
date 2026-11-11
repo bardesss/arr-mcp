@@ -1764,6 +1764,12 @@ describe('buildChain — missing subtitles', () => {
         ]);
     });
 
+    it('never names an old tool in a next step', () => {
+        const d = buildChain('some film', healthy({ item: owned(), subtitles: read(gap()) }));
+        expect(d.verdict.next_steps?.length).toBeGreaterThan(0);
+        expect(JSON.stringify(d.verdict)).not.toMatch(/(?<![A-Za-z0-9_])(diagnose|stack_health)(?![A-Za-z0-9_])/);
+    });
+
     it('asks for the forced or hearing-impaired track the gap names', () => {
         const wanted = gap({ missing: [{ name: 'Dutch', code2: 'nl', forced: true, hearingImpaired: true }] });
         const d = buildChain('some film', healthy({ item: owned(), subtitles: read(wanted) }));
@@ -2024,12 +2030,12 @@ describe('buildChain — a Lidarr artist', () => {
         expect(down.verdict.certain).toBe(false);
         // Named once: the verdict's own detail already says what was not read.
         expect(down.verdict.summary).toBe('lidarr/two could not be read, so whether anything manages it was not checked.');
-        expect(down.verdict.remedy).toBe('Check that lidarr/two is reachable, then diagnose again: it may be managing it.');
+        expect(down.verdict.remedy).toBe('Check that lidarr/two is reachable, then diagnose_media again: it may be managing it.');
         expect(down.verdict.next_steps).toBeUndefined();
 
         const film = buildChain('some film', healthy({ item: item({ acquisition: undefined, presence: 'jellyfin_only' }), libraryDegraded: ['radarr', 'radarr/4k'] }));
         expect(stepFor(film, 'managed')).toMatchObject({ status: 'unknown', detail: 'radarr and radarr/4k could not be read, so whether anything manages it was not checked.' });
-        expect(film.verdict).toMatchObject({ stage: 'managed', certain: false, remedy: 'Check that radarr and radarr/4k are reachable, then diagnose again: one of them may be managing it.' });
+        expect(film.verdict).toMatchObject({ stage: 'managed', certain: false, remedy: 'Check that radarr and radarr/4k are reachable, then diagnose_media again: one of them may be managing it.' });
         expect(film.verdict.summary).not.toContain('Could not check');
         expect(film.verdict.next_steps).toBeUndefined();
 
@@ -2047,7 +2053,7 @@ describe('buildChain — a Lidarr artist', () => {
         const guessed = item({ acquisition: undefined, presence: 'jellyfin_only' });
         const d = buildChain('some film', healthy({ item: guessed, itemKindGuessed: true, libraryDegraded: ['sonarr'] }));
         expect(stepFor(d, 'managed')).toMatchObject({ status: 'unknown', service: 'sonarr' });
-        expect(d.verdict).toMatchObject({ stage: 'managed', certain: false, remedy: 'Check that sonarr is reachable, then diagnose again: it may be managing it.' });
+        expect(d.verdict).toMatchObject({ stage: 'managed', certain: false, remedy: 'Check that sonarr is reachable, then diagnose_media again: it may be managing it.' });
 
         // The film's kind was known: Sonarr cannot hold it.
         const known = buildChain('some film', healthy({ item: guessed, libraryDegraded: ['sonarr'] }));
@@ -2065,7 +2071,7 @@ describe('buildChain — a Lidarr artist', () => {
 
     it('reports managed as unknown for a series while a Whisparr is unread', () => {
         const d = buildChain('some site', healthy({ item: item({ kind: 'series', acquisition: undefined, presence: 'jellyfin_only' }), libraryDegraded: ['whisparr'] }));
-        expect(d.verdict).toMatchObject({ stage: 'managed', certain: false, remedy: 'Check that whisparr is reachable, then diagnose again: it may be managing it.' });
+        expect(d.verdict).toMatchObject({ stage: 'managed', certain: false, remedy: 'Check that whisparr is reachable, then diagnose_media again: it may be managing it.' });
     });
 
     it('counts an unreachable Lidarr against an artist, and not against a film', () => {
@@ -2170,5 +2176,18 @@ describe('buildChain — a Lidarr artist', () => {
     it('says what a track on disk means before what the media server says', () => {
         const d = buildChain('daft punk', healthy({ item: artist() }));
         expect(d.verdict.summary).toMatch(/has tracks on disk\. That only means at least one track is there: get_media_details lists its albums and which of them have files\. Present in the jellyfin library\./);
+    });
+});
+
+describe('buildChain — the names it points at', () => {
+    it('never names an old tool in a next step or remedy', () => {
+        const verdicts = [
+            buildChain('nonexistent', { ...healthy(), item: undefined }),
+            buildChain('some film', { ...healthy(), item: item({ acquisition: undefined, presence: 'jellyfin_only' }), request: { status: 'declined' } }),
+            buildChain('some film', healthy({ item: item({ acquisition: undefined, presence: 'jellyfin_only' }), libraryDegraded: ['radarr', 'radarr/4k'] }))
+        ].map(d => d.verdict);
+        const text = JSON.stringify(verdicts.map(v => ({ remedy: v.remedy, next_steps: v.next_steps })));
+        expect(text).not.toMatch(/(?<![A-Za-z0-9_])(diagnose|stack_health)(?![A-Za-z0-9_])/);
+        expect(text).toContain('diagnose_media');
     });
 });

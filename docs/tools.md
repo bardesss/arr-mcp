@@ -1,12 +1,14 @@
 # Tools
 
 Forty-five of them. The first twenty read; the last twenty-five write, and are
-off until you turn them on — see [writes](writes.md).
+off until you turn them on — see [writes](writes.md). `stack_health` and
+`diagnose` are still listed as deprecated aliases of `get_stack_health` and
+`diagnose_media`; they take the same arguments and go in the next major.
 
 | Tool | Answers |
 | --- | --- |
-| `diagnose` | Why is this not playable? |
-| `stack_health` | Is anything broken, out of disk, or not scanning? |
+| `diagnose_media` | Why is this not playable? |
+| `get_stack_health` | Is anything broken, out of disk, or not scanning? |
 | `get_instance_options` | Which quality profiles, root folders and tags can I pick for Radarr, Sonarr, Whisparr and Lidarr? |
 | `search_media` | What do I have, what exists, what can I get? `source: "discover"` tells me about a title without adding it; artists too, with Lidarr, and books, with Shelfmark. Books in Grimmory too, from the library |
 | `get_media_details` | Everything about one item; on Lidarr, one artist and the albums under it; on Grimmory, one book and its files |
@@ -63,11 +65,11 @@ lists the years it does. It does not answer `get_wanted`, `update_media` or
 by TVDB id — Whisparr reuses that field for its own scene-database id, not
 TheTVDB — except `series_type`, which is Sonarr only, and `monitor: "pilot"`,
 which a site has no equivalent of. Only Whisparr V2 is supported;
-`stack_health` reports a V3 (Eros) instance as an unsupported version.
+`get_stack_health` reports a V3 (Eros) instance as an unsupported version.
 
 ## Every tool answers the same way
 
-Every read tool but `diagnose` takes `detail` (`minimal`/`standard`/`full`) and
+Every read tool but `diagnose_media` takes `detail` (`minimal`/`standard`/`full`) and
 `limit`, and reports `{ total, returned, offset, truncated }` — a truncated
 answer always says so.
 
@@ -79,7 +81,7 @@ answers a different question — *this is not the whole list* — and so stays
 you. Pair `offset` with `sort` when the order matters: without one the order is
 whatever the services returned, and an item can move between pages.
 
-`stack_health` is the exception and takes no `offset`. One `limit` budget spans
+`get_stack_health` is the exception and takes no `offset`. One `limit` budget spans
 its two lists, spent on failures before disks, so a single number could not say
 which list it meant to skip into — and neither is one you page through. The
 Reclaimerr candidates under `cleanup`, at `detail: "full"`, take their own
@@ -110,7 +112,7 @@ configured Prowlarr, each row naming the instance it came from, and one
 unreachable instance degrades by name rather than emptying the answer. At `detail: "full"` it reads the newest 50
 rejections across every Prowlarr, whatever `limit` is; `limit` pages the indexers only.
 
-`diagnose` takes a title, or an exact `service` plus `id`, and returns a verdict
+`diagnose_media` takes a title, or an exact `service` plus `id`, and returns a verdict
 rather than a list. With several instances of a service configured it also takes
 `instance`, worded exactly as the write tools word it.
 
@@ -271,7 +273,7 @@ A stored row differs from a service's own row in a few ways:
 
 The Logs page shows the same rows under **Library events**.
 
-## `diagnose`
+## `diagnose_media`
 
 It walks the whole chain — requested, managed, monitored, downloaded, indexed,
 imported, scanned — and names the first thing that explains the absence, with
@@ -279,7 +281,7 @@ what to do about it.
 
 No single service can answer this on its own. `get_library`'s
 `presence: arr_only` alone would only suggest the media server hasn't seen a
-file the *arr believes exists; `diagnose` checks further, and may find Radarr itself has
+file the *arr believes exists; `diagnose_media` checks further, and may find Radarr itself has
 no file yet and that neither the download queue nor an indexer rejection
 explains why — which is the real answer, and the one that tells you what to do
 next.
@@ -294,7 +296,7 @@ across a hole is worse than no verdict. When the title is found (in the media
 server, say) but no *arr claims it, and a Radarr, Sonarr, Whisparr or Lidarr
 that holds its kind could not be read, `managed` is `unknown` rather than
 "nothing is managing it": the verdict is `managed`, uncertain, and asks you to
-check that service and diagnose again, unless a blocked request comes first.
+check that service and run diagnose_media again, unless a blocked request comes first.
 A Jellyfin id gives no kind, nor does a Plex item that is not a film or a show,
 so there any *arr that could not be read counts.
 
@@ -313,7 +315,7 @@ library is `ok`, or `warning` when it has strikes, including qBittorrent's
 
 **Unverified live** (Whisparr): the item's history behind the Cleanuparr and Reclaimerr checks; inherited from Sonarr's spec, not captured.
 
-When a query matches nothing in the library, `diagnose` searches download
+When a query matches nothing in the library, `diagnose_media` searches download
 history by release name before answering "Nothing in your stack matches". This
 covers a film removed from Radarr whose torrent Cleanuparr then cleaned: no
 library has it, but Cleanuparr's events do. It reads Cleanuparr's events (the
@@ -330,13 +332,13 @@ leaves today's answer, and a history source that could not be read sets
 `certain: false`. A query that resolves never triggers this read. A title nothing matches is answered from the library and download history only. A service that has not answered within 10 seconds of the title being found is reported as not checked.
 
 With the [library event log](configuration.md#the-library-event-log) on, that
-search covers its last 30 days too, which is how `diagnose` can explain a title
+search covers its last 30 days too, which is how `diagnose_media` can explain a title
 deleted from Radarr or Sonarr, since deleting it removes its history from the
 service. The summary says, for example, "radarr reported deleting … on
 2026-11-05: files deleted." It doesn't say who deleted it, because the payload
 doesn't. The store can't be read: `event-log` in `degraded` and `certain: false`.
 
-With Reclaimerr configured, `diagnose` looks the title up there by its TMDB id.
+With Reclaimerr configured, `diagnose_media` looks the title up there by its TMDB id.
 When the managing *arr has no file and Reclaimerr deleted or moved the whole
 title in the last year, the file stage says so, with the date and the rule, and
 `remedy` says to protect it in Reclaimerr before searching again, since the same
@@ -346,7 +348,7 @@ title scheduled for deletion, or eligible at the next deletion run, the summary
 says so with the date and the rule. Neither blocks a playable verdict, and a
 Reclaimerr that cannot be read only adds it to `degraded`.
 
-With Bazarr configured, `diagnose` ends with a `subtitles` step for a title that
+With Bazarr configured, `diagnose_media` ends with a `subtitles` step for a title that
 has a file. It lists the languages Bazarr is missing for it and is `warning`, not
 `blocked`: the verdict stays where the other stages put it, a playable title is
 still `playable`, and `certain` does not depend on it. The summary of a playable
@@ -358,13 +360,13 @@ paging, so it is the one read that grows with the size of the library, and it
 adds Bazarr to `degraded` when it fails. Only the first Bazarr is read, as with
 Cleanuparr. An item with no id to match gaps by is `unknown`, not `ok`.
 
-**Books.** A book never passes through the chain, so `diagnose` refuses one,
+**Books.** A book never passes through the chain, so `diagnose_media` refuses one,
 including `service: "grimmory"`, before reading anything. The refusal points to
-`get_media_details` for the book and `stack_health` for Grimmory itself. A book
+`get_media_details` for the book and `get_stack_health` for Grimmory itself. A book
 with the same name as a film is skipped when a title is resolved, and a Grimmory
 outage does not lower `certain`.
 
-**Lidarr artists.** `diagnose` walks an artist as it does a film: by name, or with
+**Lidarr artists.** `diagnose_media` walks an artist as it does a film: by name, or with
 `service: "lidarr"` and the artist id. A film or series of the same name wins over
 the artist only when it matches the name as well as the artist does: an artist named exactly
 as asked beats a film that merely starts with or contains the name. The chain is the same, with these differences:
@@ -441,7 +443,7 @@ An applied `update_media` that switches a Lidarr artist's metadata profile
 returns a `trigger_scan` of the artist, unless the same call changes the root
 folder with `move_files: false`.
 
-## `stack_health`
+## `get_stack_health`
 
 With more than one instance of a service, each is reported separately. With
 Plex and Jellyfin both configured, `primaryMediaServer` names the one the tools
@@ -480,7 +482,7 @@ in `degraded` rather than in `failures`.
 
 ### Profiles, root folders and tags: `get_instance_options`
 
-`get_instance_options` takes optional `service` and `instance` (an id as `stack_health`'s `permissions`
+`get_instance_options` takes optional `service` and `instance` (an id as `get_stack_health`'s `permissions`
 lists it); an `instance` that does not exist is refused with the ones that do.
 
 It lists, per Radarr, Sonarr, Whisparr or Lidarr instance, the
@@ -493,8 +495,8 @@ I choose", not "is anything broken", which is why it is a tool of its own. An
 instance whose profile list cannot be read is named in `degraded` and left out
 of `items`.
 
-`stack_health` at `detail: "full"` still returns the same list as `options`, but
-that is deprecated: use `get_instance_options`. `stack_health` takes `service`
+`get_stack_health` at `detail: "full"` still returns the same list as `options`, but
+that is deprecated: use `get_instance_options`. `get_stack_health` takes `service`
 and `instance` as well, to check one.
 
 Each root folder also carries `unmappedFolders` when the instance reports any:
@@ -750,7 +752,7 @@ takes the `id` of a failed or cancelled row, with `safe_write` on, and refuses a
 row Shelfmark marks as not retryable. Shelfmark's history has no per-book scope, so
 `id` is refused on `get_history`.
 
-`diagnose` leaves Shelfmark out, because a book is not on the film and series
+`diagnose_media` leaves Shelfmark out, because a book is not on the film and series
 chain it walks.
 
 ### Grimmory
@@ -1143,7 +1145,7 @@ protections and events all carry. `cleanup` is **absent** when Reclaimerr has
 nothing on the title, when the title has no TMDB id, and when Reclaimerr could
 not be read.
 
-`diagnose` reads the same thing. A removal of the film (or its version, since
+`diagnose_media` reads the same thing. A removal of the film (or its version, since
 Radarr keeps one file per movie) or of the whole series explains a missing file
 only when the managing *arr imported nothing after it. A season or episode
 removal is mentioned beside the verdict instead, since the rest may still be on
@@ -1289,7 +1291,7 @@ about it.
 **Unverified live** (Grimmory): a file waiting in the Bookdrop, tested on a constructed file.
 
 Radarr, Sonarr and Lidarr rows also carry `mediaId`, the *arr's own id for the
-movie, series or artist the grab is for, and an orphaned row has none. `diagnose`
+movie, series or artist the grab is for, and an orphaned row has none. `diagnose_media`
 matches a row to a title by that id first, and falls back to the release name
 only when a row has none or comes from another instance.
 
@@ -1496,7 +1498,7 @@ per movie or series, and `get_media_details` shows one title's cleanup state.
 
 Shelfmark contributes its book downloads: `imported` for a finished one, `failed`
 with its reason, and `stopped` for a cancelled one, with Shelfmark's own word in
-`rawEvent`. See [Shelfmark](#shelfmark) under `stack_health` for how much it reads
+`rawEvent`. See [Shelfmark](#shelfmark) under `get_stack_health` for how much it reads
 and what `at` means on its rows. Passing `id` with `service: shelfmark` is refused.
 
 **Unverified live** (Shelfmark): the `failed` and `stopped` rows, tested on constructed answers.
@@ -2364,7 +2366,7 @@ Plex repair is on by default, behind `permissions.destructive: true` as for any
 destructive write. Film and series repairs have both been checked against a live
 Plex server. Switch it off with `services.plex.allow_metadata_repair: false` (the
 checkbox on the Plex card in the config UI). The two are
-separate switches: `stack_health` and `arr://instances` report
+separate switches: `get_stack_health` and `arr://instances` report
 `permissions.destructive` as `config.yaml` and your token allow, and know nothing of
 `allow_metadata_repair`, which `fix_metadata` checks on top of it. While it is
 off, a `dry_run` preview still lists the real mismatches, but the write is
@@ -2448,7 +2450,7 @@ Lidarr could not write still differs, and the result reads `NOT FIXED`; with
 Scrub on, the file may have lost its tags. The result reads `NOT VERIFIED` when
 that second preview cannot be read, when the command failed and yet no file
 still differs, and when Lidarr queued the command but arr-mcp stopped waiting
-for it. That command may still run: `stack_health`'s `commands` shows when it
+for it. That command may still run: `get_stack_health`'s `commands` shows when it
 ends, and a new preview then shows which files still differ. Lidarr writes a
 `retagged` row in `get_history` for each file it retagged, and for a file it
 failed to write too, so the row alone does not show the write happened.
@@ -2713,7 +2715,7 @@ An `id` on a Radarr, Sonarr, Whisparr or Lidarr call must be a positive whole
 number. Zero, negative and fractional ids are refused before any call, with an
 error that says where to find a valid one. That holds for every tool that takes
 one of these ids, Sonarr episode ids included.
-`stack_health`'s `commands` list says whether it has finished; do not assume it
+`get_stack_health`'s `commands` list says whether it has finished; do not assume it
 has.
 
 ### What a scan does on each service
@@ -2726,7 +2728,7 @@ command as the series page's Refresh & Scan button.
 
 That makes it the fix for an import refused over metadata the service has not
 caught up with, such as Sonarr's "Episode has a TBA title and recently aired".
-The flow is `trigger_scan` with the series `id`, then `stack_health` until
+The flow is `trigger_scan` with the series `id`, then `get_stack_health` until
 `commands` shows the refresh finished, then `import_download` again. A refresh only helps
 once the provider has the title.
 
@@ -2737,11 +2739,11 @@ what is already there, which is what `fix_metadata` is for.
 
 A scan is Lidarr's `RefreshArtist`, for the whole library or with `id` for one
 artist. The rescan after it is Lidarr's `RescanFolders`, the scan time
-`stack_health` reports under `scans`. With `id` only the refresh narrows: the
+`get_stack_health` reports under `scans`. With `id` only the refresh narrows: the
 rescan still reads every root folder unless the artist is new
 (`RefreshArtistService.RescanArtists`), so it reads the whole library from disk,
 as a full scan does. `rename` is `RenameArtist`, every file of that artist. Both
-appear in `stack_health`'s `commands`.
+appear in `get_stack_health`'s `commands`.
 
 ### On Plex
 
@@ -2753,14 +2755,14 @@ an error, because then nothing is.
 
 Plex returns no command id, so there is nothing in `commands` to poll. It
 reports the scan through each library's own `refreshing` flag instead, which is
-what `stack_health` and `diagnose` already read.
+what `get_stack_health` and `diagnose_media` already read.
 
 ### On Grimmory
 
 Grimmory takes two actions here.
 
 - `action: "scan"` rescans every library, or one with `library`, by name or by
-  id as `stack_health` and `get_library` show it. A name is matched ignoring
+  id as `get_stack_health` and `get_library` show it. A name is matched ignoring
   case. If a name and an id pick different libraries the call is refused and the
   refusal lists them. So is a name that matches two libraries differing only in
   case. A library that does not exist is refused, listing the ones
@@ -2796,7 +2798,7 @@ tool is refused by the other.
 | `action: "remap"` + `id` + `reassignments` | Tells Sonarr which episode an already-imported file really is, and renames those files to match. |
 | `service: "grimmory"` + `id` | Imports one Bookdrop file as a new book. See [On Grimmory](#importing-a-bookdrop-file-on-grimmory). |
 
-An import queues a command and returns; `stack_health`'s `commands` list says
+An import queues a command and returns; `get_stack_health`'s `commands` list says
 whether it has finished. `remap` and `postprocess` wait for their own result
 instead, see below. Safe tier.
 
@@ -2836,7 +2838,7 @@ A non-admin account needs `canAccessBookdrop`.
 
 ### Importing a download that never landed
 
-`diagnose` can tell you the import is the problem, and a library scan does not
+`diagnose_media` can tell you the import is the problem, and a library scan does not
 fix it: the file is still sitting in the download client's folder, and the *arr
 never took it. `get_queue` shows exactly this as a row stuck at
 `importState: "importBlocked"`.
@@ -3297,7 +3299,7 @@ people actually ask are rarely one call.
 | `arr://health` | A stack verdict, stamped with when it was taken |
 | `arr://library/summary` | Total, on disk, still wanted |
 | `arr://lidarr/monitoring` | Every Lidarr artist's monitoring policy: who will keep discovering albums, and who carries the artist flag; with more than one Lidarr, each instance that answered as well (one that did not is in `degraded`), and totals that add them up (an artist two hold counts in each) |
-| `arr://docs/<tool>` | The full field reference for the tools with the most to explain (`get_library`, `stack_health`, `get_queue` and fourteen more). Each of their descriptions is kept under 1,000 characters and ends with a pointer here |
+| `arr://docs/<tool>` | The full field reference for the tools with the most to explain (`get_library`, `get_stack_health`, `get_queue` and fourteen more). Each of their descriptions is kept under 1,000 characters and ends with a pointer here |
 
 **Client support for both is uneven, so nothing is reachable only through
 them.** A prompt is a sequence of tool calls the model could have made anyway,

@@ -32,7 +32,7 @@ describe('buildAdapters', () => {
             }
         });
 
-        // Alphabetical, so stack_health output is stable across restarts.
+        // Alphabetical, so get_stack_health output is stable across restarts.
         expect(buildAdapters(config).map(a => a.id)).toEqual([
             'bazarr',
             'jellyfin',

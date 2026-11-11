@@ -1,6 +1,6 @@
 /**
  * Title normalisation and ranking, shared by `search_media`, the resolver and
- * `diagnose`. Extracted from searchMedia when the third caller appeared: two
+ * `diagnose_media`. Extracted from searchMedia when the third caller appeared: two
  * copies is a coincidence, three is a module.
  *
  * Ranking contract: four tiers, lower is better — RANK_EXACT, RANK_PREFIX,

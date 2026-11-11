@@ -153,8 +153,9 @@ old name as an alias for one full minor, with the deprecation stated in the
 tool's own description text. A new write tool needs a `TOOL_SERVICES` entry and a `WRITE_TOOLS` entry, or it is listed on every stack.
 
 Tool count has a ceiling because model accuracy degrades measurably past roughly
-40 tools. There are 45 now, so the ceiling is passed and `test/app.test.ts`
-fails on a forty-sixth. New capability extends an existing tool wherever it can.
+40 tools. There are 47 now, two of them the old names of renamed tools
+(`stack_health`, `diagnose`) that stay for one minor, so the ceiling is passed and
+`test/app.test.ts` fails on a forty-eighth. New capability extends an existing tool wherever it can.
 Where it can't, a new tool is possible, but raising the ceiling needs a good
 reason: the pull request says why no existing tool can carry the capability and
 why it is worth the cost to every other tool, and it raises the limit in that
@@ -170,7 +171,7 @@ exist — so a rename fails there rather than silently in someone's client.
 resources is uneven and arr-mcp has to work on all of them, so anything only a
 resource could answer would be unreachable wherever they are not surfaced. When
 a resource needs a fact no tool reports, the fix is to extend the tool — that is
-why `stack_health` reports per-instance permissions.
+why `get_stack_health` reports per-instance permissions.
 
 ## Adding a service adapter
 
@@ -228,9 +229,9 @@ things it is trying to establish, and the checks that stand in for them:
 
 **Fit — does it belong in this server?**
 
-- **It sits on the chain `diagnose` walks** — requested, managed, monitored,
+- **It sits on the chain `diagnose_media` walks** — requested, managed, monitored,
   downloaded, indexed, imported, scanned. arr-mcp exists because the interesting
-  questions live between services. A service that cannot make `diagnose` smarter
+  questions live between services. A service that cannot make `diagnose_media` smarter
   is a second product, not a seventeenth adapter.
 - **It adds no new tool**, or the pull request argues explicitly for the one it
   adds. The tool ceiling above is already reached, so that argument has
@@ -278,11 +279,11 @@ small, shaped change, and a service in no slot at all is a different product.
   Lidarr. `LibraryScanCapable`, `LibraryMaintenanceCapable`,
   `ManualImportCapable` and `CommandStatusCapable` are the shared helpers, with
   `resource: 'artist'` where they take one, so `trigger_scan` rescans, renames
-  and imports a finished download for Lidarr, and `stack_health` follows the
+  and imports a finished download for Lidarr, and `get_stack_health` follows the
   commands it queues. `DiskSpaceCapable`, `HealthCheckCapable` and
-  `ScanStateCapable` are the shared `arr*` system reads, so `stack_health` also
+  `ScanStateCapable` are the shared `arr*` system reads, so `get_stack_health` also
   reports Lidarr's disks, failing health checks and last `RescanFolders` (its
-  disk scan). `LogCapable` is the shared `arrRecentLogs`, so `stack_health` at
+  disk scan). `LogCapable` is the shared `arrRecentLogs`, so `get_stack_health` at
   `detail: "full"` lists Lidarr's recent warnings and errors; the log fixture
   was captured from 3.1.6.5079.
   `WantedCapable` and `CalendarCapable`, so `get_wanted` and
@@ -310,7 +311,7 @@ small, shaped change, and a service in no slot at all is a different product.
   the integer spaces. `get_media_details` answers for an artist by Lidarr id,
   and refuses one asked for by title, naming `get_media_details` with
   `detail: "full"` for the albums and `get_library`'s `kind: "artist"` for the
-  artist list, rather than reporting it as absent. `diagnose` walks an artist,
+  artist list, rather than reporting it as absent. `diagnose_media` walks an artist,
   by name or by Lidarr id. `fix_metadata` repairs an artist's music by
   rewriting the tags in its files from Lidarr, by `id: "lidarr:<artistId>"`;
   an artist asked for by name is not retagged. The music read is its own source
@@ -365,10 +366,10 @@ small, shaped change, and a service in no slot at all is a different product.
 
 - **Dispatcharr — writes.** The adapter has shipped, read-only, by maintainer
   waiver on 2026-11-03. It missed three checks above: it is pre-1.0, only the
-  maintainer asked for it, and live TV never passes through the chain `diagnose`
+  maintainer asked for it, and live TV never passes through the chain `diagnose_media`
   walks. The waiver rests on one thing: Dispatcharr is where the Plex and
   Jellyfin servers arr-mcp already watches get their live TV, so a failing
-  playlist or guide is a fault in the stack `stack_health` is asked about. That
+  playlist or guide is a fault in the stack `get_stack_health` is asked about. That
   is the whole precedent. It does not extend to analytics or other services that
   merely sit near a media server, which is why Tautulli stays below. Building
   playlists, that is channel profiles, needs its own case: it spends at least
@@ -379,11 +380,11 @@ small, shaped change, and a service in no slot at all is a different product.
 
 - **Shelfmark — audiobooks.** The adapter has shipped by maintainer
   waiver on 2026-11-05. It missed two checks above: only the maintainer asked for
-  it, and a book never passes through the chain `diagnose` walks, so `diagnose`
+  it, and a book never passes through the chain `diagnose_media` walks, so `diagnose_media`
   leaves its queue out. It also comes close to the risk-class check:
   `SHELFMARK_API_KEY` is root-equivalent, and an install with authentication on
   needs it to find or grab a book; with no authentication set up there is no key to
-  store, and the read-only key still gives `stack_health`. The waiver rests on one
+  store, and the read-only key still gives `get_stack_health`. The waiver rests on one
   thing: Shelfmark is a downloader run beside the rest of the stack, and finding,
   grabbing, cancelling and retrying a book fit the existing `search_media`,
   `get_releases`, `grab_release`, `remove_queue_item`, `retry_download` and
@@ -393,7 +394,7 @@ small, shaped change, and a service in no slot at all is a different product.
   2026-11-07. The writes cover rescans, deletes, the Bookdrop, read status and
   metadata. It missed three checks above: the project is eight months old
   (first release 2026-03-20), only the maintainer asked for it, and a book never
-  passes through the chain `diagnose` walks, so `diagnose` refuses one. The age
+  passes through the chain `diagnose_media` walks, so `diagnose_media` refuses one. The age
   miss is the one Chaptarr was turned down on, so the reason is written down.
   Grimmory is the one book library with a management API to build on: Calibre's
   content server has an undocumented JSON interface with no version policy, and
@@ -401,7 +402,7 @@ small, shaped change, and a service in no slot at all is a different product.
   codebase and release numbering, and the maintainer runs it, so every change gets
   tested against a live v3.5.0. The rest of the waiver is Shelfmark's: the books
   the stack downloads have to land somewhere, and without the library half
-  `stack_health` can see a download finish and never see where it went. The risk
+  `get_stack_health` can see a download finish and never see where it went. The risk
   class holds, since it stores a username and password as Transmission and
   qBittorrent do, and talks only to the configured host. The waiver covers
   Grimmory alone. A Chaptarr request still waits for its date.
@@ -413,9 +414,9 @@ Named and **not** accepted, so nobody spends a weekend finding out:
   date-not-a-no case, and it is on this list so the date is visible rather than
   discovered in review.
 - **Tautulli.** Plex watch analytics. Real and well-run, and off the chain — it
-  cannot make `diagnose` smarter, which makes it a second product.
+  cannot make `diagnose_media` smarter, which makes it a second product.
 - **Recyclarr.** A config sync tool rather than a service with state worth
-  asking about. There is no question `diagnose` would put to it.
+  asking about. There is no question `diagnose_media` would put to it.
 - **autobrr.** Sits beside the chain rather than on it — it filters releases
   into a client this server already reads. It would spend new tools to answer
   questions the queue mostly already answers.
@@ -491,7 +492,7 @@ around them.
    plus whichever capability interfaces the service actually supports. A
    capability no existing service has gets its interface and type guard in
    `src/services/types.ts`, and the tools that should use it — usually
-   `stack_health` and `diagnose`'s `chain.ts` and `evidence.ts` — read it
+   `get_stack_health` and `diagnose_media`'s `chain.ts` and `evidence.ts` — read it
    through that guard.
    `src/services/sonarr.ts` is the simplest example; `src/services/transmission.ts`
    and `src/services/qbittorrent.ts` are the most unusual.
@@ -542,7 +543,7 @@ An adapter must:
 - accept an injectable `fetch` so it is testable without the service
 - **not implement a capability it has no fixture for.** Prowlarr is not
   `DiskSpaceCapable` because its diskspace endpoint 404s. A method nothing has
-  tested is a method `stack_health` will call in production
+  tested is a method `get_stack_health` will call in production
 
 Transport concerns — timeouts, retries, the circuit breaker, error
 classification — belong to `ServiceHttp` and must not be reimplemented in an

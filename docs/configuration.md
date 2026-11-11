@@ -85,14 +85,14 @@ host, port or scheme is refused with a message naming where it points. Set
 
 ## Jellyfin and `default_user`
 
-`get_library`, `get_media_details` (its title-query form) and `diagnose` all
+`get_library`, `get_media_details` (its title-query form) and `diagnose_media` all
 join Radarr/Sonarr against Jellyfin's per-user watch state. A user that does
 not exist in Jellyfin, or one that is refused, fails those tools outright,
 naming `default_user` and how to fix it, rather than silently answering as if
 Jellyfin were not there.
 
 Omitting `default_user` is supported — the service still appears in
-`stack_health`. `get_library` then returns the Radarr and Sonarr halves with
+`get_stack_health`. `get_library` then returns the Radarr and Sonarr halves with
 Jellyfin marked degraded and a note naming the key, rather than failing the
 whole read.
 
@@ -228,8 +228,8 @@ id the way a film two Radarrs hold is, and that row carries one instance's
 order whatever their order in `config.yaml` (with `flac` and `mp3`, always
 `mp3`). Its `acquisition.id` is that instance's: ids are per instance. The rest
 of that row is that one instance's too: `has_file` and `monitored`, and a
-`diagnose` built from it, say nothing about the other copy. In a lossless
-library beside a lossy one, where most artists are in both, `diagnose` can call
+`diagnose_media` built from it, say nothing about the other copy. In a lossless
+library beside a lossy one, where most artists are in both, `diagnose_media` can call
 an artist playable when only one instance has its files; `get_media_details`
 with `instance` reads each one.
 
@@ -239,7 +239,7 @@ between them. `arr://lidarr/monitoring` reports each instance that answered
 beside the totals, and names one that did not in `degraded`; the totals add the
 instances up, so an artist both hold counts in each.
 
-A configured Lidarr connects, appears in `stack_health` with its version, its
+A configured Lidarr connects, appears in `get_stack_health` with its version, its
 disks, any failing health checks and when its library was last scanned
 (`RescanFolders`, Lidarr's daily disk scan: its scheduled `RefreshArtist` skips
 the disk when no metadata changed, so it is not the scan time), and lists its
@@ -260,7 +260,7 @@ recent; the whole library is then read only when the daily `RefreshArtist`
 updates some metadata. A new install sets the time when it creates the task, so
 for up to a day it reports a scan that has not run.
 
-At `detail: "full"`, `stack_health` also lists its recent warnings and errors,
+At `detail: "full"`, `get_stack_health` also lists its recent warnings and errors,
 read from `/api/v1/log` and folded the way Radarr's and Sonarr's are. From
 2.8.1.4482 Lidarr can turn its log database off (`LogDbEnabled`); its row in
 `logs.lines` then says `logDbEnabled: false`.
@@ -282,8 +282,8 @@ Lidarr there is no artist row to join to, so the read would add every artist the
 server holds as `jellyfin_only` and answer "what does no *arr manage?" with the
 whole music collection.
 
-`diagnose` walks a Lidarr artist too, by name or by Lidarr artist id; see "Lidarr
-artists" under `diagnose` in [tools.md](tools.md). `get_media_details` asked
+`diagnose_media` walks a Lidarr artist too, by name or by Lidarr artist id; see "Lidarr
+artists" under `diagnose_media` in [tools.md](tools.md). `get_media_details` asked
 for an artist by title refuses it, naming `get_media_details` with
 `service: "lidarr"` and `detail: "full"` as the route that holds the albums.
 `fix_metadata` retags an artist's files by Lidarr id, as below.
@@ -351,7 +351,7 @@ and the album release search against 3.1.6.5079.
 Of the 22 capture endpoints exercised against a live Lidarr 3.1.6.5079, two
 still have no rows behind them (tag and indexer). Nothing reads indexers. Tags
 are read by the spec's `id` and `label`: `add_media` matches a tag it is given,
-and `stack_health` lists them at `detail: "full"`.
+and `get_stack_health` lists them at `detail: "full"`.
 
 The version floor is 2.1.3. The two monitoring write endpoints were captured on
 2.1.3.3927, the add on 3.1.6.5079, and the read fixtures come from 3.1.6.5079,
@@ -391,17 +391,17 @@ The key is under Settings > Account > API Key in Cleanuparr. Single instance
 only, because one Cleanuparr cleans one stack. Read-only: arr-mcp only ever
 sends GET requests to it, and never reads its download client settings, which
 hold client passwords. `permissions` are read as off whatever the file says, so
-`stack_health` never reports a write it cannot make. Written against Cleanuparr 2.10.x and checked against 2.11.0.
-A newer minor is untested, and `stack_health` flags it.
+`get_stack_health` never reports a write it cannot make. Written against Cleanuparr 2.10.x and checked against 2.11.0.
+A newer minor is untested, and `get_stack_health` flags it.
 
-It covers torrent clients only. Its findings appear in `stack_health`, its
-events in `get_history`, and `diagnose` uses them to explain a download it
+It covers torrent clients only. Its findings appear in `get_stack_health`, its
+events in `get_history`, and `diagnose_media` uses them to explain a download it
 removed. At `detail: "full"`, its seeding rules also reach `get_queue`, but
 only for a client arr-mcp can match: the host and port of the download client
 in Cleanuparr must equal the host and port in the matching arr-mcp client's
 `url`, and the client type must be the same. A rule set that matches no client,
 or that two Cleanuparr clients both point at, is left out of `get_queue` and
-named in `stack_health`'s `seedingRules.notes`.
+named in `get_stack_health`'s `seedingRules.notes`.
 
 ## Reclaimerr
 
@@ -415,18 +415,18 @@ services:
 `api_key` is an API token from Settings > Integrations in Reclaimerr, created
 with the read scopes `system:read`, `candidates:read`, `rules:read`,
 `events:read` and `protections:read`. Give it nothing else: arr-mcp only sends
-GET requests to Reclaimerr's versioned `/api/v1`, and `stack_health` warns when
+GET requests to Reclaimerr's versioned `/api/v1`, and `get_stack_health` warns when
 the token also carries `candidates:manage`, `protections:manage` or
 `tasks:run`. A token without one of the five still works for what it can read,
-and `stack_health` names the scopes it is missing. `permissions` are read as off
+and `get_stack_health` names the scopes it is missing. `permissions` are read as off
 whatever the file says. Single instance only, because one Reclaimerr owns one
 library's cleanup rules. Written against Reclaimerr 0.6.x, with 0.6.0 as the
 floor because that is where `rules:read` arrived. A newer minor is untested,
-and `stack_health` flags it.
+and `get_stack_health` flags it.
 
-Its findings and what its rules will delete appear in `stack_health`, a title's
+Its findings and what its rules will delete appear in `get_stack_health`, a title's
 cleanup state in `get_media_details`, its lifecycle events in `get_history`,
-and `diagnose` uses them to say a file was deleted by a cleanup rule, or is
+and `diagnose_media` uses them to say a file was deleted by a cleanup rule, or is
 about to be. Titles are matched on their TMDB id.
 
 ## Dispatcharr
@@ -448,10 +448,10 @@ read as off whatever the file says. Single instance only, because one
 Dispatcharr serves one set of playlists. If the connection test says the key
 cannot read M3U accounts, check the user's level and Dispatcharr's Settings →
 Network Access. Written against Dispatcharr 0.33.x, which is pre-1.0 and ships a
-minor about every three weeks; a newer minor is untested, and `stack_health`
+minor about every three weeks; a newer minor is untested, and `get_stack_health`
 flags it.
 
-Its findings appear in `stack_health`: failing or overdue playlists, provider
+Its findings appear in `get_stack_health`: failing or overdue playlists, provider
 accounts about to expire, and failing EPG sources.
 
 ## Shelfmark
@@ -470,7 +470,7 @@ Shelfmark starts with no authentication, and then needs no key: every route is
 open to anything that can reach it. Once authentication is on, what arr-mcp can
 do depends on the key:
 
-| `api_key` | `stack_health` | `get_queue`, `get_history`, finding, grabbing, cancelling and retrying books | Version check |
+| `api_key` | `get_stack_health` | `get_queue`, `get_history`, finding, grabbing, cancelling and retrying books | Version check |
 |---|---|---|---|
 | None, with no authentication set up | yes | yes | yes |
 | `SHELFMARK_API_KEY_READONLY` | yes | no | no |
@@ -480,7 +480,7 @@ With the read-only key Shelfmark cannot search for books either, so `search_medi
 
 Shelfmark's docs treat `SHELFMARK_API_KEY` as a root password, because an admin
 can set a post-download script that the server runs, so storing it here gives
-arr-mcp's config file that reach. Use the read-only key if `stack_health` is all
+arr-mcp's config file that reach. Use the read-only key if `get_stack_health` is all
 you want. arr-mcp writes three things: queueing a release and retrying a download
 with `safe_write` on, and cancelling a download with `destructive` on. Single instance only, because one Shelfmark holds one download
 queue. Needs Shelfmark 1.5.0 or newer, the first with `/api/stats`.
@@ -499,7 +499,7 @@ Grimmory has no API key. arr-mcp signs in with a username and password and keeps
 the access token in memory only. Any Grimmory user works, and the first request
 that needs one triggers the login. Reading books, libraries, the Bookdrop and the
 version needs a user who can see the libraries; the Bookdrop also needs
-`canAccessBookdrop`. A read the account is not allowed shows up in `stack_health`
+`canAccessBookdrop`. A read the account is not allowed shows up in `get_stack_health`
 as a notice naming it, and nothing else is affected.
 
 An admin account works and is the simplest, but an admin token can do everything
@@ -560,7 +560,7 @@ services:
     api_key: "…"
 ```
 
-**Reads span every instance.** `stack_health` reports each separately, and a
+**Reads span every instance.** `get_stack_health` reports each separately, and a
 library question answers from all of them at once — which is the whole point of
 running a second one. Every row says which instance it came from, as
 `radarr/4k`.
@@ -962,7 +962,7 @@ can't reach it. Without it nothing listens: `/webhooks/*` answers 404.
 
 You can read the events under **Library events** on the Logs page, with
 [`get_history`](tools.md#get_history-and-the-event-log) and `source: "webhooks"`,
-and through `diagnose` when a title is no longer in your library.
+and through `diagnose_media` when a title is no longer in your library.
 
 Turn it on under **Library event log** on the Configuration page, which writes a
 generated secret and takes effect at once. Then add a connection in each Radarr
@@ -1051,7 +1051,7 @@ tools:
 With it on, a read that does nothing without a service you have not configured
 is left out as well: `get_subtitles` without Bazarr, `get_requests` without
 Seerr, and so on. The reads that merge across services (`get_library`,
-`get_queue`, `get_history`, `diagnose`, the lookups) always stay. It is set in
+`get_queue`, `get_history`, `diagnose_media`, the lookups) always stay. It is set in
 `config.yaml` only, and takes effect after a restart (or the next save from the
 configuration page, which reloads the config).
 

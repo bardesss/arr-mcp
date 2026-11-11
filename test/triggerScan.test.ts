@@ -400,7 +400,7 @@ describe('trigger_scan on a single item', () => {
         expect(structuredContent.effects.join(' ')).not.toMatch(/metadata/i);
     });
 
-    it('points at stack_health only for a service it reports', async () => {
+    it('points at get_stack_health only for a service it reports', async () => {
         const followed = fakeItemAdapter({ listCommands: async () => [] });
         const unfollowed = fakeItemAdapter();
 
@@ -903,8 +903,8 @@ describe.each(IMPORT_TOOLS)('%s remapping episodes', (tool, register) => {
         expect(String(done.structuredContent.result)).toContain('renamed 1');
         expect(done.content[0]?.text).toContain('renamed 1');
         // It has finished by the time it answers, so it must not send anyone
-        // to stack_health to find out whether it worked.
-        expect(String(done.structuredContent.result)).not.toMatch(/stack_health/);
+        // to get_stack_health to find out whether it worked.
+        expect(String(done.structuredContent.result)).not.toMatch(/get_stack_health/);
     });
 
     const ROTATED = [

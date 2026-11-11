@@ -7,7 +7,7 @@ import { LidarrAdapter } from '../src/services/lidarr.ts';
 import { hasDiskSpace, hasHealthChecks, hasLogs, hasScanState } from '../src/services/types.ts';
 
 /**
- * What `stack_health` reads from Lidarr: disks, failing health checks, the last
+ * What `get_stack_health` reads from Lidarr: disks, failing health checks, the last
  * library scan and the recent warnings and errors, through the shared `arr*`
  * system reads. The fixtures are the 3.1.6 captures already committed.
  */
@@ -42,7 +42,7 @@ const CAPTURED = {
     '/api/v1/system/task': fixture('system-task')
 };
 
-describe('Lidarr in stack_health', () => {
+describe('Lidarr in get_stack_health', () => {
     it('claims disks, health checks, scan state and logs', () => {
         const { adapter } = lidarr({});
         expect(hasDiskSpace(adapter)).toBe(true);

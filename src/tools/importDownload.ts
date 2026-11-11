@@ -411,7 +411,7 @@ export async function applyImportAction(adapters: readonly ServiceAdapter[], pla
             toImportMapping(mapping),
             plan.args?.paths as string[] | undefined
         );
-        return `${importer.id} queued ${queued.name} for download ${download_id}. Importing runs in the background — check get_queue and stack_health's \`commands\` rather than expecting it to be done now.`;
+        return `${importer.id} queued ${queued.name} for download ${download_id}. Importing runs in the background — check get_queue and get_stack_health's \`commands\` rather than expecting it to be done now.`;
     }
 
     throw new Error(`${action} is missing what it needs: preview it again.`);
@@ -502,7 +502,7 @@ export function registerImportDownload(server: McpServer, context: WriteContext,
         name: 'import_download',
         title: 'Import a finished download',
         description:
-            'Gets a finished download into the library when the *arr never took it: one stuck at `importBlocked` in get_queue, by its `download_id`; `mapping` fixes a wrong match (not on Lidarr). Previews the files it will import and skip, and never forces one the service refuses. [[nzbget: `postprocess` first reruns NZBGet\'s post-processing, for a download a broken script left unimportable.]] [[sonarr: `remap` says which episode an imported file really is.]] [[grimmory: On Grimmory, `id` is a Bookdrop file from get_queue.]] Rescan or rename: trigger_scan. An import queues and returns (stack_health `commands`). Previews first; confirm to run. Field reference: arr://docs/import_download.',
+            'Gets a finished download into the library when the *arr never took it: one stuck at `importBlocked` in get_queue, by its `download_id`; `mapping` fixes a wrong match (not on Lidarr). Previews the files it will import and skip, and never forces one the service refuses. [[nzbget: `postprocess` first reruns NZBGet\'s post-processing, for a download a broken script left unimportable.]] [[sonarr: `remap` says which episode an imported file really is.]] [[grimmory: On Grimmory, `id` is a Bookdrop file from get_queue.]] Rescan or rename: trigger_scan. An import queues and returns (get_stack_health `commands`). Previews first; confirm to run. Field reference: arr://docs/import_download.',
         inputSchema: ImportDownloadInput,
         // Resolved from the arguments, so the permission checked, the audit row
         // written and the token issued all name the same instance.

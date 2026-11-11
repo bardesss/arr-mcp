@@ -20,7 +20,7 @@ const LOG_DATE_TIME = /(?<![\d.])(?:\d{4}[/.-]\d{1,2}[/.-]\d{1,2}|\d{1,2}[/.-]\d
 /**
  * A credential quoted in a URL or a header. The *arrs cleanse their own logs,
  * but Seerr and Bazarr make no such promise and a failed request is exactly what
- * a log line quotes, while `stack_health` promises no API key comes back. `(removed)`
+ * a log line quotes, while `get_stack_health` promises no API key comes back. `(removed)`
  * is what the *arrs write in the same place, so every service reads alike.
  */
 const LOG_CREDENTIAL = /\b((?:[a-z_-]*api[_-]?key|(?:access[_-]?)?token|passkey|password|passwd)["']?\s*[=:]\s*["']?)[^\s"'&,;}]+/gi;

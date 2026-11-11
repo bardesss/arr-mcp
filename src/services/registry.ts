@@ -26,7 +26,7 @@ import type { ServiceAdapter } from './types.ts';
  *
  * `listInstances` has already flattened one-or-many into a list ordered by id,
  * so this no longer decides ordering — it only decides construction. The order
- * is still alphabetical by id, which keeps stack_health's output stable across
+ * is still alphabetical by id, which keeps get_stack_health's output stable across
  * restarts and diffable in tests, and now keeps `radarr/4k` next to `radarr/hd`.
  *
  * No casts, and no swap that compiles. `ServiceInstance` is discriminated on

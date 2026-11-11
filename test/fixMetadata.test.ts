@@ -206,13 +206,13 @@ describe('fix_metadata', () => {
         expect(h.requested.filter(r => r !== 'GET /Users')).toEqual([]);
     });
 
-    it('sends a lone server that could not be read to stack_health, not to default_user', async () => {
+    it('sends a lone server that could not be read to get_stack_health, not to default_user', async () => {
         const h = harness({ item: seriesItem({ playback: { user: 'Sam' } }), degraded: ['jellyfin'] });
 
         const err = (await h.call({ query: 'Dragon Ball Kai' }).catch((e: unknown) => e)) as ServiceError;
         expect(err).toBeInstanceOf(ServiceError);
         expect(err.detail).toMatch(/could not be read/);
-        expect(err.remedy).toMatch(/stack_health/);
+        expect(err.remedy).toMatch(/get_stack_health/);
         expect(err.remedy).not.toMatch(/default_user/);
     });
 
@@ -1173,7 +1173,7 @@ describe('fix_metadata with two media servers', () => {
         const err = await h.call({ query: 'Dragon Ball Kai', service: 'jellyfin' }).catch((e: unknown) => e);
         expect(err).toBeInstanceOf(ServiceError);
         expect((err as ServiceError).detail).toMatch(/could not be read/);
-        expect((err as ServiceError).remedy).toMatch(/stack_health/);
+        expect((err as ServiceError).remedy).toMatch(/get_stack_health/);
         expect((err as ServiceError).remedy).not.toMatch(/trigger_scan/);
     });
 
@@ -1182,7 +1182,7 @@ describe('fix_metadata with two media servers', () => {
         const h = dual({ snapshot: { item: unread, degraded: ['jellyfin'] } });
 
         const err = (await h.call({ query: 'Dragon Ball Kai', service: 'jellyfin' }).catch((e: unknown) => e)) as ServiceError;
-        expect(err.remedy).toMatch(/stack_health/);
+        expect(err.remedy).toMatch(/get_stack_health/);
         expect(err.remedy).not.toMatch(/default_user/);
     });
 

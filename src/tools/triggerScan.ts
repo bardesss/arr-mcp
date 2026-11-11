@@ -21,9 +21,9 @@ import { outcomeText, registerWriteTool, type WriteContext, type WritePlan } fro
 import { titled } from '../core/labels.ts';
 
 /**
- * The other half of the answer `diagnose` gives most often.
+ * The other half of the answer `diagnose_media` gives most often.
  *
- * `diagnose` names a stale library scan as the usual reason something that
+ * `diagnose_media` names a stale library scan as the usual reason something that
  * finished downloading is still not playable — and until 1.0 nothing here could
  * act on it, so its best answer ended "now go and start one yourself". The tool
  * that identifies a problem should be able to fix it.
@@ -148,7 +148,7 @@ async function planBookScan(
 async function applyBookScan(adapter: ServiceAdapter & BookLibraryScanCapable, plan: WritePlan): Promise<string> {
     if (plan.args?.action === 'bookdrop') {
         await adapter.rescanBookdrop();
-        return `${adapter.id} is rescanning its Bookdrop folder. It runs in the background: new files show under the Bookdrop in Grimmory, and stack_health reports any left waiting.`;
+        return `${adapter.id} is rescanning its Bookdrop folder. It runs in the background: new files show under the Bookdrop in Grimmory, and get_stack_health reports any left waiting.`;
     }
 
     const ids = (plan.args?.libraryIds as string[] | undefined) ?? [];
@@ -192,7 +192,7 @@ const TriggerScanInput = z.object({
         .min(1)
         .optional()
         .describe(
-            '[[grimmory: Grimmory only: one library, by name or by id as stack_health and get_library show it. Omit to rescan every library.]]'
+            '[[grimmory: Grimmory only: one library, by name or by id as get_stack_health and get_library show it. Omit to rescan every library.]]'
         ),
     download_id: z.string().min(1).optional().describe('Deprecated: use import_download.'),
     // Checked against import_download's own schema when the call is planned: a second copy of it here would cost every client its tokens.
@@ -209,7 +209,7 @@ export function registerTriggerScan(
         name: 'trigger_scan',
         title: 'Refresh and scan a library',
         description:
-            "Asks a service to reconcile itself with what is on disk: the \"it downloaded but will not play\" fix, and the usual fix for a stale scan diagnose reports. No `id` rescans the whole library of Radarr, Sonarr, Whisparr, Lidarr, Jellyfin, Plex or Grimmory; on Prowlarr it pushes the indexer list to the apps. An `id` refreshes and rescans one item. On Jellyfin and Plex a scan only finds changed files; wrong metadata is fix_metadata. `action`: `rename` (files to the service's naming, needs `id`), [[grimmory: `bookdrop` (rescan Grimmory's Bookdrop).]] Importing a download: import_download. Most actions queue and return; follow them in stack_health `commands`. Previews first; confirm to run. Field reference: arr://docs/trigger_scan.",
+            "Asks a service to reconcile itself with what is on disk: the \"it downloaded but will not play\" fix, and the usual fix for a stale scan diagnose_media reports. No `id` rescans the whole library of Radarr, Sonarr, Whisparr, Lidarr, Jellyfin, Plex or Grimmory; on Prowlarr it pushes the indexer list to the apps. An `id` refreshes and rescans one item. On Jellyfin and Plex a scan only finds changed files; wrong metadata is fix_metadata. `action`: `rename` (files to the service's naming, needs `id`), [[grimmory: `bookdrop` (rescan Grimmory's Bookdrop).]] Importing a download: import_download. Most actions queue and return; follow them in get_stack_health `commands`. Previews first; confirm to run. Field reference: arr://docs/trigger_scan.",
         inputSchema: TriggerScanInput,
         // Resolved from the arguments, so the permission checked, the audit row
         // written and the token issued all name the same instance. Only the
@@ -337,20 +337,20 @@ export function registerTriggerScan(
                 const item = findItemAdapter(adapters, service, instance);
                 const queued = action === 'rename' ? await item.renameItem(id) : await item.refreshItem(id);
                 return hasCommandStatus(item)
-                    ? `${item.id} queued ${queued.name} for item ${id}. It runs in the background — stack_health's \`commands\` list says whether it has finished.`
-                    : `${item.id} queued ${queued.name} for item ${id}. It runs in the background, and stack_health's \`commands\` list does not report ${item.id}, so its absence there says nothing.`;
+                    ? `${item.id} queued ${queued.name} for item ${id}. It runs in the background — get_stack_health's \`commands\` list says whether it has finished.`
+                    : `${item.id} queued ${queued.name} for item ${id}. It runs in the background, and get_stack_health's \`commands\` list does not report ${item.id}, so its absence there says nothing.`;
             }
 
             const adapter = findAdapter(adapters, service, instance);
             const handle = await adapter.startLibraryScan();
 
             if (adapter.type === 'prowlarr') {
-                return `${adapter.id} is syncing its indexers to the apps connected to it. It runs in the background — stack_health's \`commands\` list says whether it has finished.${
+                return `${adapter.id} is syncing its indexers to the apps connected to it. It runs in the background — get_stack_health's \`commands\` list says whether it has finished.${
                     handle.commandId === 0 ? '' : ` Command id ${handle.commandId}.`
                 }`;
             }
 
-            return `${adapter.id} is ${hasLibraryMaintenance(adapter) ? 'refreshing and rescanning' : 'rescanning'} its library. It runs in the background — check get_media_details or stack_health in a few minutes rather than expecting it to be finished now.${
+            return `${adapter.id} is ${hasLibraryMaintenance(adapter) ? 'refreshing and rescanning' : 'rescanning'} its library. It runs in the background — check get_media_details or get_stack_health in a few minutes rather than expecting it to be finished now.${
                 handle.commandId === 0 ? '' : ` Command id ${handle.commandId}.`
             }${handle.detail === undefined ? '' : ` ${handle.detail}`}`;
         }

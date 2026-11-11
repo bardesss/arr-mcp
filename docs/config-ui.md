@@ -25,7 +25,7 @@ says what is wrong and what to do about it — the same `kind`, `detail` and
 `remedy` the MCP tools return — instead of showing a red cross you then have to
 investigate.
 
-The dashboard answers the same four questions `stack_health` does, from the same
+The dashboard answers the same four questions `get_stack_health` does, from the same
 code: is it reachable, is anything reporting a problem, is a disk filling up,
 and when did each library last finish a scan. A stale scan is the usual reason
 something downloaded is still not playable.

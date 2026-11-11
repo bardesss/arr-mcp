@@ -52,7 +52,7 @@ export const instanceId = (type: ServiceId, name?: string): string =>
  * Every configured instance, ordered by id.
  *
  * Sorted for the same reason `buildAdapters` was alphabetical before: it makes
- * stack_health's output stable across restarts and diffable in tests. Sorting
+ * get_stack_health's output stable across restarts and diffable in tests. Sorting
  * by id rather than by service keeps a service's own instances adjacent.
  */
 export function listInstances(config: Config): ServiceInstance[] {

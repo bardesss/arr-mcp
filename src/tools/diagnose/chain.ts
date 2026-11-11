@@ -1250,8 +1250,8 @@ export function buildChain(query: string, ev: Evidence, byWords: boolean): Diagn
             ? queueResult.remedy
             : blocking.stage === 'managed' && blocking.status === 'unknown'
               ? unreadArrs.length === 1
-                ? `Check that ${unreadArrs[0]} is reachable, then diagnose again: it may be managing it.`
-                : `Check that ${andList(unreadArrs)} are reachable, then diagnose again: one of them may be managing it.`
+                ? `Check that ${unreadArrs[0]} is reachable, then diagnose_media again: it may be managing it.`
+                : `Check that ${andList(unreadArrs)} are reachable, then diagnose_media again: one of them may be managing it.`
               : blocking.stage === 'managed' && removedOnPurpose
               ? `A cleanup rule removed it on purpose. Protect it in ${ev.cleanup?.service ?? 'the cleanup service'} first, or the same rule will remove it again, then turn monitoring on in ${acquisition?.service ?? 'the service managing it'}.`
               : blocking.stage === 'file'

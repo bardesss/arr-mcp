@@ -154,7 +154,7 @@ export const TruncationSchema = z.looseObject({
 /**
  * A whole tool's answer: the truncation envelope plus who failed to answer.
  *
- * Separate from `TruncationSchema` because `stack_health` nests two truncated
+ * Separate from `TruncationSchema` because `get_stack_health` nests two truncated
  * lists inside one answer and reports `degraded` once, at the top, for both.
  * Requiring it on the inner lists asserted something no tool produces — and,
  * being an output schema, that did not read as a wrong description: it failed

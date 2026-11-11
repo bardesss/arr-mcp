@@ -8,7 +8,7 @@ import type { ServiceAdapter } from '../services/types.ts';
  * Tools open-coded `adapters.find(a => a.id === service)`, which was exactly
  * right while `id` and service type were the same string. With two Radarrs they
  * are not, and that lookup matches *neither* — so this replaces every one of
- * them rather than being added beside them. `diagnose` was missed in that first
+ * them rather than being added beside them. `diagnose_media` was missed in that first
  * pass and kept answering "radarr is not configured" about a named Radarr until
  * it was converted too; if you are adding a by-service lookup, it belongs here.
  *

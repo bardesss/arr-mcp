@@ -202,9 +202,9 @@ describe('LidarrAdapter adding an artist', () => {
         expect(sent).toHaveLength(0);
     });
 
-    // `stack_health` lists every instance that can add, which now takes in
+    // `get_stack_health` lists every instance that can add, which now takes in
     // Lidarr: these are the names `add_media` insists on.
-    it('shows up in stack_health\'s add options at detail full', async () => {
+    it('shows up in get_stack_health\'s add options at detail full', async () => {
         const { adapter } = lidarr({ '/api/v1/system/status': { version: '3.1.6.5079' } });
         const result = await buildStackHealth([adapter], { detail: 'full', limit: 50 });
 

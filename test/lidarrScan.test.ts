@@ -20,7 +20,7 @@ import { instancesOf } from './helpers/instances.ts';
 /**
  * `trigger_scan` on Lidarr: rescan the library or one artist, rename an
  * artist's files, import a finished download by its id, and follow the
- * command in `stack_health`. All through the shared helpers with
+ * command in `get_stack_health`. All through the shared helpers with
  * `resource: 'artist'`. The import rows follow `ManualImportResource`
  * (Lidarr 3.1.0) and are invented.
  */
@@ -151,7 +151,7 @@ describe('Lidarr scans and renames', () => {
         expect(sent).toEqual([]);
     });
 
-    /** `stack_health` follows only the commands this server can start, so Lidarr's two must be on that list. */
+    /** `get_stack_health` follows only the commands this server can start, so Lidarr's two must be on that list. */
     it('reports its own refresh and rename commands, and not the per-minute pollers', async () => {
         // Relative to the real clock: the adapter reads `Date.now()` itself.
         const now = Date.now();

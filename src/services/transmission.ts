@@ -173,7 +173,7 @@ export class TransmissionAdapter
     readonly instance: string | undefined;
     readonly id: string;
     readonly #http: ServiceHttp;
-    /** One session-get serves the disk check, seed limits and speed limit of a stack_health pass. */
+    /** One session-get serves the disk check, seed limits and speed limit of a get_stack_health pass. */
     readonly #sessionRead = cached(SHORT_READ_TTL_MS, () => this.#readSession());
 
     constructor(config: ConfigByService['transmission'], fetchImpl: typeof fetch = fetch) {

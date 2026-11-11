@@ -218,7 +218,7 @@ describe('simple expressions', () => {
     });
 });
 
-describe('stack_health cleaner modules', () => {
+describe('get_stack_health cleaner modules', () => {
     const cleanuparr = (over: Record<string, unknown> = {}) => new CleanuparrAdapter(config, stub(routes(over))) as ServiceAdapter;
 
     it('lists the modules on the mapped set, without the unfenced paths, and checks the save directories', async () => {

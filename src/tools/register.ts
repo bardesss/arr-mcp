@@ -21,6 +21,7 @@ import { registerAddMedia } from './addMedia.ts';
 import { registerDeleteEpisodeFiles } from './deleteEpisodeFiles.ts';
 import { registerCleanQueue } from './cleanQueue.ts';
 import { registerDeleteMedia } from './deleteMedia.ts';
+import { ALIAS_DESCRIPTION } from './deprecations.ts';
 import { registerDiagnose } from './diagnose/index.ts';
 import { registerDiscoverMedia } from './discoverMedia.ts';
 import { registerFixMetadata } from './fixMetadata.ts';
@@ -89,7 +90,7 @@ export type ToolContext = {
     /** Added per request by the app, which owns the store and reads the setting from the current config. */
     eventLog?: EventLog;
     /** Every configured instance, as the config declares it — the source the
-     *  write gate reads, so `stack_health` cannot report a different answer. */
+     *  write gate reads, so `get_stack_health` cannot report a different answer. */
     instances: readonly ServiceInstance[];
     /** `tools.media_cards`: build MCP Apps poster cards at all (`mcp/apps.ts`). */
     mediaCards: boolean;
@@ -178,14 +179,17 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     const seerr = adapters.find((a): a is SeerrAdapter => a instanceof SeerrAdapter);
 
     const primary = bothIds(context.mediaServers)?.[0];
-    registerDiagnose(server, {
+    const diagnoseDeps = {
         adapters,
         library,
         ...(seerrIdentity === undefined ? {} : { seerrIdentity }),
         ...(primary === undefined ? {} : { primaryMediaServer: primary }),
         ...(context.eventLog === undefined ? {} : { events: context.eventLog.store })
-    });
+    };
+    registerDiagnose(server, diagnoseDeps);
+    registerDiagnose(server, diagnoseDeps, { name: 'diagnose', description: ALIAS_DESCRIPTION('diagnose_media') });
     registerStackHealth(server, adapters, instances, primary);
+    registerStackHealth(server, adapters, instances, primary, { name: 'stack_health', description: ALIAS_DESCRIPTION('get_stack_health') });
     registerGetInstanceOptions(server, adapters);
     registerGetIndexers(server, adapters.filter(hasIndexers));
     registerGetSubtitles(server, adapters.filter(hasSubtitles));
@@ -279,7 +283,9 @@ export const WRITE_TOOLS: ReadonlySet<string> = new Set([
  * so from 1.0 onward it takes a major version. Adding one is a minor.
  */
 export const TOOL_NAMES = [
+    'diagnose_media',
     'diagnose',
+    'get_stack_health',
     'stack_health',
     'get_instance_options',
     'get_indexers',

@@ -7,7 +7,7 @@ import type { ToolContext } from '../tools/register.ts';
 import { buildGetLibrary } from '../tools/getLibrary.ts';
 import { buildStackHealth } from '../tools/stackHealth.ts';
 import { WRITE_TOOLS } from '../tools/register.ts';
-import { TOOL_DOCS } from './toolDocs.ts';
+import { TOOL_DOC_ALIASES, TOOL_DOCS } from './toolDocs.ts';
 import { toolUsable, type SurfaceOptions } from './toolSurface.ts';
 
 /**
@@ -17,8 +17,8 @@ import { toolUsable, type SurfaceOptions } from './toolSurface.ts';
  * client support for resources is uneven, and arr-mcp has to work on all of
  * them, so a resource exposing something no tool returns would be unreachable
  * wherever they are not surfaced. Nothing here originates — `arr://instances`
- * is `stack_health`'s services and permissions, `arr://health` is
- * `stack_health`, the summary is `get_library` aggregates, and the Lidarr
+ * is `get_stack_health`'s services and permissions, `arr://health` is
+ * `get_stack_health`, the summary is `get_library` aggregates, and the Lidarr
  * policy is the distribution `update_media` reports in its preview.
  *
  * Not in `src/tools/`, because these are not tools and putting them there
@@ -116,7 +116,7 @@ export function registerAllResources(server: McpServer, context: ToolContext, su
         {
             title: 'Configured instances',
             description:
-                'Every configured service instance: its id, its type, and what it is permitted to do. The ids here are exactly the values other tools accept as `instance`. Mirrors stack_health, which answers the same thing for a client that does not surface resources.',
+                'Every configured service instance: its id, its type, and what it is permitted to do. The ids here are exactly the values other tools accept as `instance`. Mirrors get_stack_health, which answers the same thing for a client that does not surface resources.',
             mimeType: 'application/json',
             cacheHint: { ttlMs: INSTANCES_TTL_MS, cacheScope: 'private' }
         },
@@ -137,7 +137,7 @@ export function registerAllResources(server: McpServer, context: ToolContext, su
         {
             title: 'Stack health (snapshot)',
             description:
-                'A point-in-time verdict per service. **`stack_health` is the live answer** — this is a snapshot and says in `as_of` when it was taken. Read it again rather than trusting a pinned copy: a service that was reachable an hour ago may not be now.',
+                'A point-in-time verdict per service. **`get_stack_health` is the live answer** — this is a snapshot and says in `as_of` when it was taken. Read it again rather than trusting a pinned copy: a service that was reachable an hour ago may not be now.',
             mimeType: 'application/json',
             cacheHint: { ttlMs: HEALTH_TTL_MS, cacheScope: 'private' }
         },
@@ -159,7 +159,7 @@ export function registerAllResources(server: McpServer, context: ToolContext, su
                     services: [],
                     failures: [],
                     degraded: [],
-                    note: 'The health snapshot could not be taken. Call stack_health for the live answer.'
+                    note: 'The health snapshot could not be taken. Call get_stack_health for the live answer.'
                 });
             }
         }
@@ -363,14 +363,18 @@ export function registerAllResources(server: McpServer, context: ToolContext, su
     // The field-by-field detail the tool descriptions point at (#518). Static
     // text, so it is listed once and costs nothing until a client reads it.
     // Not for a tool `tools/list` leaves out: a docs resource never outlives its tool.
-    for (const [tool, text] of Object.entries(TOOL_DOCS)) {
-        if (surface !== undefined && !toolUsable(tool, surface, WRITE_TOOLS.has(tool))) continue;
+    const docs: [name: string, tool: string, text: string][] = [
+        ...Object.entries(TOOL_DOCS).map(([tool, text]): [string, string, string] => [tool, tool, text]),
+        ...Object.entries(TOOL_DOC_ALIASES).map(([old, current]): [string, string, string] => [old, current, TOOL_DOCS[current]!])
+    ];
+    for (const [name, tool, text] of docs) {
+        if (surface !== undefined && !toolUsable(name, surface, WRITE_TOOLS.has(name))) continue;
         server.registerResource(
-            `docs-${tool}`,
-            `arr://docs/${tool}`,
+            `docs-${name}`,
+            `arr://docs/${name}`,
             {
-                title: `${tool} reference`,
-                description: `The full field reference for ${tool}: every output field and its caveats.`,
+                title: `${name} reference`,
+                description: name === tool ? `The full field reference for ${name}: every output field and its caveats.` : `Deprecated: use arr://docs/${tool}.`,
                 mimeType: 'text/markdown'
             },
             uri => ({ contents: [{ uri: uri.href, mimeType: 'text/markdown', text }] })

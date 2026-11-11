@@ -221,7 +221,7 @@ export async function buildResolvedMediaDetails(
     );
 
     if (found === undefined) {
-        // `diagnose` (via its own `resolve` step) and `get_library` both hedge
+        // `diagnose_media` (via its own `resolve` step) and `get_library` both hedge
         // this exact claim across a degraded load; this is the third consumer
         // of the same `LibraryLoader` snapshot, and answering confidently
         // across the same hole is not a different situation. Named services,
@@ -291,7 +291,7 @@ export async function buildResolvedMediaDetails(
 /**
  * Two forms, both deliberate. `query` returns the merged record;
  * `service` + `id` returns one service's raw view, which is how you inspect a
- * join that looks wrong and what `diagnose` needs when `presence` says the two
+ * join that looks wrong and what `diagnose_media` needs when `presence` says the two
  * halves disagree.
  */
 export async function resolveMediaDetails(

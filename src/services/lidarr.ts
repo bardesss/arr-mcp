@@ -227,12 +227,12 @@ const LIBRARY_SCAN_TASK = 'RescanFolders';
  * `CommandStatusCapable` are `trigger_scan`'s: rescan the library or refresh
  * one artist (the rescan after it still reads every root folder), rename an
  * artist's files, import a finished download by its id, and follow the command
- * in `stack_health`. All four are the shared helpers, with
+ * in `get_stack_health`. All four are the shared helpers, with
  * `resource: 'artist'` where they take one; an import `mapping` is refused,
  * because it names movies and episodes.
  *
  * `DiskSpaceCapable`, `HealthCheckCapable`, `LogCapable` and `ScanStateCapable`
- * are `stack_health`'s: the disks, the failing health checks, the recent
+ * are `get_stack_health`'s: the disks, the failing health checks, the recent
  * warnings and errors and the last library scan, through the shared
  * `arrDiskSpace`, `arrFailedHealthChecks`, `arrRecentLogs` and `arrScanState`.
  * Lidarr's `/api/v1/log` takes the same `level=warn` filter and `time` sort as
