@@ -102,7 +102,7 @@ const BYTES_PER_GB = 1024 ** 3;
 /**
  * SABnzbd reports disk space as gigabytes in a string — confirmed against a
  * live 5.0.4, which returned `"4711.95"`. A silent NaN here would surface as
- * "0 bytes free" in stack_health, which reads as a crisis rather than a bug.
+ * "0 bytes free" in get_stack_health, which reads as a crisis rather than a bug.
  */
 const gigabytesToBytes = (value: string | undefined): number | undefined => {
     if (value === undefined) return undefined;

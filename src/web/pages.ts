@@ -281,7 +281,7 @@ export function dashboardPage(opts: {
               </div>`;
 
     /**
-     * The four things `stack_health` answers, on the page rather than only
+     * The four things `get_stack_health` answers, on the page rather than only
      * through a tool. Reachability alone is a dashboard that calls a service
      * healthy while its disk is full and its library has not been scanned for
      * a day — which is exactly the gap `diagnose` exists to explain after the

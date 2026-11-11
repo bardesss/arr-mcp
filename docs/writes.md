@@ -428,7 +428,7 @@ the run.
 | `grab_release` | `qbittorrent` | A magnet link sent to the client | No qBittorrent on the maintainer's stack |
 | `get_queue` | `qbittorrent` | The torrent list, the seed limits and `by_tracker`; only login and health have met a real server | No qBittorrent on the maintainer's stack; the fixtures were written from the WebUI API description |
 | `get_queue` | `grimmory` | A file waiting in the Bookdrop | The live Bookdrop was empty at capture; the row is tested on a constructed file |
-| `stack_health` | `grimmory` | The warning for books left in the Bookdrop over a day | Rests on the same constructed file |
+| `get_stack_health` | `grimmory` | The warning for books left in the Bookdrop over a day | Rests on the same constructed file |
 | `get_queue` | `cleanuparr` | Seeding rules for a Transmission client | Only hand-written fixtures; the one tester runs qBittorrent |
 | `grab_release` | `shelfmark` | The default grab, with no release named | Mock-only; the live Shelfmark has not been asked for one |
 | `retry_download` | `shelfmark` | Retrying a failed book, or a Prowlarr row | Every failed row on the live Shelfmark is marked not retryable |
@@ -441,7 +441,7 @@ the run.
 | `remove_queue_item` | `shelfmark` | Cancelling a Prowlarr row | Mock-only; the live Shelfmark has not been asked to cancel one |
 | `remove_queue_item` | `grimmory` | Discarding a Bookdrop file | Mock-only; no discard response was ever captured |
 | `remove_queue_item` | `qbittorrent` | Removing a torrent, with or without its files | No qBittorrent on the maintainer's stack |
-| `stack_health` | `whisparr` | The `commands` list and the `logs`, read through Sonarr's helpers | No Whisparr on the maintainer's stack; its API spec matches Sonarr's for these, so they are inherited, not captured |
+| `get_stack_health` | `whisparr` | The `commands` list and the `logs`, read through Sonarr's helpers | No Whisparr on the maintainer's stack; its API spec matches Sonarr's for these, so they are inherited, not captured |
 | `get_history` | `whisparr` | History rows, read through Sonarr's helper | No Whisparr on the maintainer's stack; inherited from Sonarr's spec, not captured |
 | `diagnose` | `whisparr` | The item's history behind the Cleanuparr and Reclaimerr checks | No Whisparr on the maintainer's stack; inherited from Sonarr's spec, not captured |
 | `retry_download` | `whisparr` | The check for a replacement grab, which traces the download through Sonarr's helper | No Whisparr on the maintainer's stack; inherited from Sonarr's spec, not captured |

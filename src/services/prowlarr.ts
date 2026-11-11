@@ -93,7 +93,7 @@ type RawRelease = {
  * Prowlarr manages indexers, not files, and exposes no diskspace endpoint —
  * `/api/v1/diskspace` returns 404, confirmed against a live instance. It is
  * therefore deliberately not `DiskSpaceCapable`: a method with no fixture is
- * one stack_health would call and nothing would have tested.
+ * one get_stack_health would call and nothing would have tested.
  *
  * It is also API v1, not v3 — Prowlarr never had a v3 like its siblings.
  */

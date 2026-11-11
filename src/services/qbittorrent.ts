@@ -201,7 +201,7 @@ export class QbittorrentAdapter
     readonly instance: string | undefined;
     readonly id: string;
     readonly #http: ServiceHttp;
-    /** Shared by the disk check and the seed limits of one stack_health pass; this adapter never writes preferences. */
+    /** Shared by the disk check and the seed limits of one get_stack_health pass; this adapter never writes preferences. */
     readonly #preferences = cached(SHORT_READ_TTL_MS, () => this.#http.get<RawPreferences>(`${API}/app/preferences`));
 
     constructor(config: ConfigByService['qbittorrent'], fetchImpl: typeof fetch = fetch) {

@@ -219,9 +219,9 @@ describe('LidarrAdapter search and grab', () => {
         expect(posts).toBe(1);
     });
 
-    // `stack_health` lists only the commands this server can start; a Lidarr
+    // `get_stack_health` lists only the commands this server can start; a Lidarr
     // search left out of that list could never be followed up.
-    it('keeps Lidarr searches in stack_health, and not the per-minute pollers', async () => {
+    it('keeps Lidarr searches in get_stack_health, and not the per-minute pollers', async () => {
         const now = Date.now();
         const ago = (ms: number) => new Date(now - ms).toISOString();
         const impl = (async (input: string | URL | Request) => {

@@ -1002,7 +1002,7 @@ describe('diagnose', () => {
             const run = buildDiagnose({ adapters, library: new LibraryLoader(adapters, undefined) }, { service: 'grimmory', id: '58' });
             await expect(run).rejects.toThrow(/never passes through the diagnose chain/);
             await expect(run).rejects.toThrow(/get_media_details/);
-            await expect(run).rejects.toThrow(/stack_health/);
+            await expect(run).rejects.toThrow(/get_stack_health/);
             expect(seen).toEqual([]);
         });
 

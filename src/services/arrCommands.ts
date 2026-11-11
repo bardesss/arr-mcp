@@ -227,7 +227,7 @@ export async function awaitArrCommand(
             'UpstreamError',
             service,
             `${service} queued the command but returned no command id, so arr-mcp cannot wait for it`,
-            { remedy: "stack_health's `commands` says whether it ran. Do not send it again." }
+            { remedy: "get_stack_health's `commands` says whether it ran. Do not send it again." }
         );
     }
     const deadline = Date.now() + COMMAND_WAIT_MS;
@@ -249,7 +249,7 @@ export async function awaitArrCommand(
                 service,
                 `${service} command ${commandId} was still ${status} after ${COMMAND_WAIT_MS / 1000}s`,
                 {
-                    remedy: `It has not failed — it is queued behind something. stack_health's \`commands\` says what ${service} is working on; check back there rather than sending this again.`
+                    remedy: `It has not failed — it is queued behind something. get_stack_health's \`commands\` says what ${service} is working on; check back there rather than sending this again.`
                 }
             );
         }

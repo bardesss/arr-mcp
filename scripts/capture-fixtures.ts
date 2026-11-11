@@ -574,7 +574,7 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         { name: 'diskspace', path: '/api/v3/diskspace' },
         { name: 'health', path: '/api/v3/health' },
         { name: 'system-task', path: '/api/v3/system/task' },
-        // What `stack_health` reports as recent warnings and errors.
+        // What `get_stack_health` reports as recent warnings and errors.
         {
             name: 'log',
             path: '/api/v3/log?page=1&pageSize=20&sortKey=time&sortDirection=descending&level=warn',
@@ -596,7 +596,7 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         },
         { name: 'movie-lookup', path: '/api/v3/movie/lookup?term=matrix' },
         // `unmappedFolders` rides along on this response and is what
-        // `stack_health` reports about folders the instance maps to no item.
+        // `get_stack_health` reports about folders the instance maps to no item.
         { name: 'rootfolder', path: '/api/v3/rootfolder' }
     ],
     sonarr: [
@@ -604,7 +604,7 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         { name: 'diskspace', path: '/api/v3/diskspace' },
         { name: 'health', path: '/api/v3/health' },
         { name: 'system-task', path: '/api/v3/system/task' },
-        // What `stack_health` reports as recent warnings and errors.
+        // What `get_stack_health` reports as recent warnings and errors.
         {
             name: 'log',
             path: '/api/v3/log?page=1&pageSize=20&sortKey=time&sortDirection=descending&level=warn',
@@ -850,7 +850,7 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
         { name: 'providers', path: '/api/providers' },
         { name: 'movies-wanted', path: '/api/movies/wanted' },
         { name: 'episodes-wanted', path: '/api/episodes/wanted' },
-        // The one-item reads `diagnose` makes. A movie takes the wanted list's
+        // The one-item reads `diagnose_media` makes. A movie takes the wanted list's
         // own filter; `episodes/wanted` ignores `seriesid[]`, so a series is
         // read from `episodes` (kept where a subtitle is missing) plus
         // `series` for its title.

@@ -30,7 +30,7 @@ Jellyfin — five APIs, five sets of ids, five half-answers. arr-mcp correlates
 them and hands back the causal chain:
 
 ```
-diagnose { query: "Blade" }
+diagnose_media { query: "Blade" }
 ```
 
 > No file on disk yet. Trigger a search in Radarr or Sonarr — nothing is
@@ -43,8 +43,8 @@ part it could not check rather than guessing across the hole.
 
 |  | |
 | --- | --- |
-| 🔍 **`diagnose` answers what no single service can** | Walks the whole chain — requested, managed, monitored, downloaded, indexed, imported, scanned — and names the *first* thing that explains the absence. |
-| 🗂️ **A record that outlives the title** | Deleting a title deletes its history. Turn on the [library event log](docs/configuration.md#the-library-event-log) and arr-mcp keeps what Radarr and Sonarr report, so `get_history` and `diagnose` can still tell you what happened to it. |
+| 🔍 **`diagnose_media` answers what no single service can** | Walks the whole chain — requested, managed, monitored, downloaded, indexed, imported, scanned — and names the *first* thing that explains the absence. |
+| 🗂️ **A record that outlives the title** | Deleting a title deletes its history. Turn on the [library event log](docs/configuration.md#the-library-event-log) and arr-mcp keeps what Radarr and Sonarr report, so `get_history` and `diagnose_media` can still tell you what happened to it. |
 | 🧮 **Quality profiles that cannot do what they say** | A minimum score nothing can reach, a language preferred but never required, a format scored where its wider twin sits at zero. Hand-built or synced from TRaSH Guides through Profilarr, the same checks apply. The arithmetic ones are proved rather than guessed, and every fix names a change to make in Profilarr, which owns them. |
 | 🛡️ **Indexer text is data, never instruction** | Release names from public indexers are attacker-controllable and flow straight into model context. arr-mcp fences every one of them. |
 | ✋ **Writes are opt-in, previewed, recorded** | Off until you turn them on, per service. Every write shows you exactly what it would do and waits for confirmation — and lands in an audit trail either way. |
@@ -200,7 +200,7 @@ them off. The cards are read-only for now.
 
 | | |
 | --- | --- |
-| **[Tools](docs/tools.md)** | All forty-five, what each answers, and the fields whose meaning is not obvious |
+| **[Tools](docs/tools.md)** | All forty-five (`stack_health` and `diagnose` stay as aliases for one more minor), what each answers, and the fields whose meaning is not obvious |
 | **[Writes](docs/writes.md)** | Turning them on, the two tiers, and the preview-and-confirm handshake |
 | **[Configuration](docs/configuration.md)** | `config.yaml`, the nine services that take a list, Jellyfin's `default_user`, running Plex and Jellyfin side by side |
 | **[Config UI](docs/config-ui.md)** | The four pages, and what each does that is not obvious |
@@ -214,7 +214,7 @@ them off. The cards are read-only for now.
 - At least one supported service, LAN-reachable: Radarr 4.0+, Sonarr 4.0+,
   Whisparr 2.x (V2 only, not Eros), Prowlarr 1.0+, Bazarr 1.4+, Jellyfin 10.9+, Plex Media Server (no minimum enforced; verified on 1.43),
   Seerr 1.0+, SABnzbd 3.0+, NZBGet 21.0+, Transmission 3.0+, qBittorrent 4.1+, Profilarr 2.2.0+, Cleanuparr 2.10.0+, Reclaimerr 0.6.0+, Dispatcharr 0.33.0+, Shelfmark 1.5.0+, Grimmory 3.5.0+
-- Lidarr 2.1.3+ for reading, monitoring, adding, changing and deleting artists, its queue, its wanted list and calendar, release search, `diagnose`, `trigger_scan` and `stack_health`:
+- Lidarr 2.1.3+ for reading, monitoring, adding, changing and deleting artists, its queue, its wanted list and calendar, release search, `diagnose_media`, `trigger_scan` and `get_stack_health`:
   `get_library` lists its artists with their album count, monitoring and file
   state, `get_media_details` lists an artist's albums, and `set_monitoring`
   writes one album's flag or an artist's policy. `search_media` with `source: "discover"` finds artists to
@@ -223,7 +223,7 @@ them off. The cards are read-only for now.
   Artists join to Jellyfin and Plex on the MusicBrainz artist id. `get_queue`,
   `get_history` and `get_blocklist` include Lidarr, `remove_queue_item` and
   `clean_queue` take a Lidarr download, and `trigger_scan` rescans and renames,
-  and `import_download` imports for it. `stack_health` reports its disks, failing health checks,
+  and `import_download` imports for it. `get_stack_health` reports its disks, failing health checks,
   last library scan and, at `detail: "full"`, its recent warnings and errors.
   `get_wanted` and `get_calendar` list its albums.
   `trigger_search`, `get_releases` and `grab_release` search its indexers for an

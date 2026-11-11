@@ -306,7 +306,7 @@ describe('indexer seed criteria', () => {
     });
 });
 
-describe('stack_health seeding rules', () => {
+describe('get_stack_health seeding rules', () => {
     // On the instance, not a prototype copy: the adapters keep `#http` private.
     const healthy = <T extends ServiceAdapter>(adapter: T): T => {
         adapter.testConnection = async () => ({ ok: true, service: adapter.id, latency_ms: 1 });
@@ -364,7 +364,7 @@ describe('stack_health seeding rules', () => {
     });
 });
 
-describe('stack_health Cleanuparr rules', () => {
+describe('get_stack_health Cleanuparr rules', () => {
     it('lists Cleanuparr rule sets mapped to their client, with notes', async () => {
         const s = {
             sets: [
@@ -433,7 +433,7 @@ describe('Cleanuparr seeding wording', () => {
     });
 });
 
-describe('stack_health Cleanuparr coverage', () => {
+describe('get_stack_health Cleanuparr coverage', () => {
     const rule = (over: object = {}) => ({ id: 'r', name: 'Keep 30 days', priority: 1, categories: ['radarr', 'tv-sonarr', 'cleanuparr-dead'], trackerPatterns: [], tagsAny: [], tagsAll: [], privacy: 'both', maxSeedHours: 720, unsupported: [], deleteSourceFiles: true, action: 'delete', ...over });
     const cleanuparr = (sets: object[], ignored: string[] = []) =>
         ({ id: 'cleanuparr', type: 'cleanuparr', getSeedingRules: async () => ({ sets, dryRun: false, enforced: true, ignored }) }) as unknown as ServiceAdapter;

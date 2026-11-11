@@ -156,7 +156,7 @@ curl -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/system/status
 ### `GET /health`
 
 A live connection test of every configured app, sorted by id. Same diagnosis the
-dashboard and `stack_health` give: `version` when the app is up, and
+dashboard and `get_stack_health` give: `version` when the app is up, and
 `error` with `kind` and `detail` when it is not, and `remedy` when there is
 one.
 

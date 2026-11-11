@@ -153,7 +153,7 @@ describe('bearer auth on /mcp', () => {
         );
 
         expect(res.status).toBe(200);
-        expect(await res.text()).toContain('stack_health');
+        expect(await res.text()).toContain('get_stack_health');
     });
 
     it('guards every method on /mcp, not just POST', async () => {
@@ -270,7 +270,7 @@ describe('the transport stays stateless', () => {
 
         expect(first.status).toBe(200);
         expect(second.status).toBe(200);
-        expect(await second.text()).toContain('stack_health');
+        expect(await second.text()).toContain('get_stack_health');
     });
 });
 
@@ -504,7 +504,7 @@ describe('the advertised tool surface', () => {
      * is a decision, not a fix for a failing test.
      */
     const DESCRIPTION_CAP = 1000;
-    const DESCRIPTIONS_TOTAL_CAP = 29_320;
+    const DESCRIPTIONS_TOTAL_CAP = 29_490;
 
     it(`keeps every tool description under ${DESCRIPTION_CAP} characters`, async () => {
         const long = (await listTools())
@@ -976,7 +976,7 @@ describe('every tool declares the shape it answers in', () => {
     });
 
     it('validates the answer of the one read tool that is not a list', async () => {
-        const result = await call('stack_health');
+        const result = await call('get_stack_health');
 
         expect(result.isError).toBeFalsy();
         expect(result.structuredContent).toHaveProperty('services');
@@ -1386,7 +1386,8 @@ describe('prompts and resources, beside the tools rather than instead of them', 
         );
         const { result } = (await rpcPayload(res)) as { result: { tools: unknown[] } };
         expect(result.tools).toHaveLength(TOOL_NAMES.length);
-        expect(TOOL_NAMES.length).toBeLessThanOrEqual(45);
+        // 47: get_stack_health and diagnose_media register beside stack_health and diagnose for one minor; PR 15 drops the old names.
+        expect(TOOL_NAMES.length).toBeLessThanOrEqual(47);
     });
 });
 
@@ -1904,10 +1905,10 @@ describe('OAuth tokens at /mcp', () => {
         expect(JSON.stringify(payload)).toContain('access token');
     });
 
-    // stack_health's permissions list is what a model plans from, so it has
+    // get_stack_health's permissions list is what a model plans from, so it has
     // to show the same ceiling the gate enforces.
-    it('reports permissions capped to the token in stack_health', async () => {
-        const stackHealth = { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'stack_health', arguments: {} } };
+    it('reports permissions capped to the token in get_stack_health', async () => {
+        const stackHealth = { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'get_stack_health', arguments: {} } };
         const permissionsFor = async (bearer: string) => {
             const res = await oauthApp(permissiveRadarr(), [deletableRadarr()]).request(
                 'http://localhost:6060/mcp',
@@ -2033,7 +2034,7 @@ describe('named tokens at /mcp', () => {
         return { app, trail };
     };
 
-    const stackHealth = { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'stack_health', arguments: {} } };
+    const stackHealth = { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'get_stack_health', arguments: {} } };
 
     it('accepts a named token and refuses an unknown one', async () => {
         const app = appWith(withTokens([{ name: 'phone', tier: 'read', token: PHONE }]));
@@ -2118,7 +2119,7 @@ describe('named tokens at /mcp', () => {
         expect(JSON.stringify(payload)).toContain("token 'laptop' has the write tier, which does not allow destructive writes");
     });
 
-    it('reports permissions capped to the token in stack_health', async () => {
+    it('reports permissions capped to the token in get_stack_health', async () => {
         const cfg = withTokens([
             { name: 'phone', tier: 'read', token: PHONE },
             { name: 'laptop', tier: 'write', token: LAPTOP },

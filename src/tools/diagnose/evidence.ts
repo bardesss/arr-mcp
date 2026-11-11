@@ -154,7 +154,7 @@ async function resolveItem(
         // error and remedy as get_media_details.
         if (!hasMediaDetails(adapter)) {
             throw new ServiceError('NotFound', target.service, `${target.service} cannot look up an item by id`, {
-                remedy: `Pass a service that holds media — radarr, sonarr, whisparr, lidarr, jellyfin or plex — or diagnose by query instead.`
+                remedy: `Pass a service that holds media — radarr, sonarr, whisparr, lidarr, jellyfin or plex — or use diagnose_media by query instead.`
             });
         }
 
@@ -325,7 +325,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
     // a film that has no file.
     if (target.service === 'grimmory') {
         throw new ServiceError('NotFound', 'grimmory', 'A book never passes through the diagnose chain (requested, managed, downloaded, indexed, imported, scanned).', {
-            remedy: 'Use get_media_details with service "grimmory" and the book id to see its files and library, or stack_health for Grimmory itself.'
+            remedy: 'Use get_media_details with service "grimmory" and the book id to see its files and library, or get_stack_health for Grimmory itself.'
         });
     }
 

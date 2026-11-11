@@ -64,7 +64,7 @@ type Case = { tool: ToolName; args: Record<string, unknown> };
  * before that was fixed they matched every rated film regardless of score.
  */
 const CASES: Case[] = [
-    { tool: 'stack_health', args: { detail: 'full' } },
+    { tool: 'get_stack_health', args: { detail: 'full' } },
     { tool: 'get_instance_options', args: {} },
     { tool: 'get_indexers', args: { detail: 'full' } },
     { tool: 'get_subtitles', args: { detail: 'full', limit: 100 } },
@@ -92,7 +92,7 @@ const CASES: Case[] = [
     { tool: 'search_media', args: { query: 'matrix', source: 'discover' } },
     { tool: 'lookup_media', args: { query: 'matrix' } },
     { tool: 'discover_media', args: { media_type: 'movie', detail: 'full' } },
-    { tool: 'diagnose', args: { query: 'the' } },
+    { tool: 'diagnose_media', args: { query: 'the' } },
     { tool: 'get_profile_issues', args: { detail: 'full' } }
 ];
 
@@ -355,7 +355,7 @@ for (const { tool, args } of CASES) {
 }
 
 /**
- * diagnose's verdict and remedy are the product this phase built, and a
+ * diagnose_media's verdict and remedy are the product this phase built, and a
  * single generic query does not exercise the chain the way a maintainer
  * actually would: a title that resolves, one that plainly does not, an
  * explicit service+id (the form get_media_details hands back for a join that
@@ -382,7 +382,7 @@ const searchHits = ((searchResult?.structuredContent as { items?: unknown[] } | 
 const searchHit = searchHits[0];
 
 /**
- * `diagnose` accepts a service+id from any of the eight, so it takes items[0]
+ * `diagnose_media` accepts a service+id from any of the eight, so it takes items[0]
  * above. `trigger_search` reaches only Radarr and Sonarr, and the first library
  * hit is routinely a Jellyfin one — taking items[0] for both made the run fail
  * on a tool that was behaving correctly, which is a script bug that would
@@ -395,20 +395,20 @@ const searchableHit = searchHits.find(h => h.service === 'radarr' || h.service =
 const managedHit = searchHits.find(h => h.service === 'radarr' || h.service === 'sonarr' || h.service === 'whisparr');
 
 if (existingTitle !== undefined) {
-    await run('diagnose', { query: existingTitle }, 'a title that exists');
+    await run('diagnose_media', { query: existingTitle }, 'a title that exists');
 }
-await run('diagnose', { query: 'zzz-not-a-real-title-9f3k2q' }, 'a title that does not exist');
+await run('diagnose_media', { query: 'zzz-not-a-real-title-9f3k2q' }, 'a title that does not exist');
 
 if (typeof searchHit?.service === 'string' && searchHit.id !== undefined) {
-    await run('diagnose', { service: searchHit.service, id: String(searchHit.id) }, 'explicit service+id');
+    await run('diagnose_media', { service: searchHit.service, id: String(searchHit.id) }, 'explicit service+id');
 } else {
-    console.log('SKIP diagnose explicit service+id — search_media returned no library hit to take one from.');
+    console.log('SKIP diagnose_media explicit service+id — search_media returned no library hit to take one from.');
 }
 
 if (brokenTitle !== undefined) {
-    await run('diagnose', { query: brokenTitle }, 'presence disagrees between services — genuinely broken');
+    await run('diagnose_media', { query: brokenTitle }, 'presence disagrees between services — genuinely broken');
 } else {
-    console.log('SKIP diagnose "genuinely broken" case — no arr_only/jellyfin_only item in the sampled library.');
+    console.log('SKIP diagnose_media "genuinely broken" case — no arr_only/jellyfin_only item in the sampled library.');
 }
 
 /**

@@ -335,7 +335,7 @@ export function registerGetProfileIssues(
                 'instance-scoped, not tied to any one profile, and are unaffected by the `profile` filter. ' +
                 'Read-only — every `remedy` is a change to make in Profilarr when it syncs that profile, or in ' +
                 'the arr itself when it does not, never one arr-mcp performs. Use it when a profile grabs the wrong release or ' +
-                'never upgrades; why one title is missing is diagnose.',
+                'never upgrades; why one title is missing is diagnose_media.',
             outputSchema: GetProfileIssuesOutput,
             inputSchema: GetProfileIssuesInput
         },

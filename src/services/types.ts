@@ -34,7 +34,7 @@ export interface ServiceAdapter {
     invalidateLibrary?(): void;
 }
 
-/** `service` is on every row because stack_health merges up to nine services
+/** `service` is on every row because get_stack_health merges up to nine services
  *  into one list, and a failure that does not say who reported it is not
  *  actionable. */
 export type DiskSpace = {
@@ -648,7 +648,7 @@ export type CleanupRemoval = {
 
 export type CleanupRule = { id: string; name: string; kind: string; outcome: string; enabled: boolean };
 
-/** The whole picture, for `stack_health`. Absent parts were not readable with the token's scopes. */
+/** The whole picture, for `get_stack_health`. Absent parts were not readable with the token's scopes. */
 export type CleanupOverview = {
     service: string;
     /** Whether the deletion task runs at all. Without it nothing is deleted on its own. */

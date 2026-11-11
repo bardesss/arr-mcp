@@ -38,7 +38,7 @@ const broken: ConnectionDiagnosis = {
 
 const std = { detail: 'standard', limit: 50 } as const;
 
-describe('stack_health primary media server', () => {
+describe('get_stack_health primary media server', () => {
     it('names the primary media server at every detail level', async () => {
         for (const detail of ['minimal', 'standard', 'full'] as const) {
             const result = await buildStackHealth([fakeArr({ diagnosis: healthy })], { detail, limit: 50 }, undefined, 'plex');
@@ -56,7 +56,7 @@ describe('stack_health primary media server', () => {
         registerStackHealth(server, adapters, undefined, primary);
         const tool = (server as unknown as {
             _registeredTools: Record<string, { handler: (a: Record<string, unknown>, e: object) => Promise<{ content: { text: string }[] }> }>;
-        })._registeredTools.stack_health!;
+        })._registeredTools.get_stack_health!;
         return (await tool.handler(args, {})).content[0]!.text;
     };
     const summaryOf = async (primary?: string, adapters = [fakeArr({ diagnosis: healthy })]) =>
@@ -147,7 +147,7 @@ describe('stack_health primary media server', () => {
         const server = new McpServer({ name: 'test', version: '0.0.0' });
         registerStackHealth(server, [], undefined, primary);
         const tool = (server as unknown as { _registeredTools: Record<string, { outputSchema: { shape: Record<string, unknown> } }> })
-            ._registeredTools.stack_health!;
+            ._registeredTools.get_stack_health!;
         return Object.keys(tool.outputSchema.shape);
     };
 
@@ -171,7 +171,7 @@ describe('stack_health primary media server', () => {
     });
 });
 
-describe('stack_health logs', () => {
+describe('get_stack_health logs', () => {
     const line = { service: 'radarr', level: 'error', logger: 'Transmission', message: 'm', count: 3, firstSeen: '2026-11-01T00:00:00Z', lastSeen: '2026-11-02T00:00:00Z' };
     const withLogs = (getRecentLogs: () => Promise<RecentLogs>) => ({ ...fakeArr({ diagnosis: healthy }), getRecentLogs });
 
@@ -211,7 +211,7 @@ describe('stack_health logs', () => {
     });
 });
 
-describe('stack_health', () => {
+describe('get_stack_health', () => {
     it('reports a healthy service with its version and latency', async () => {
         const result = await buildStackHealth([fakeArr({ diagnosis: healthy })], std);
 
@@ -493,7 +493,7 @@ describe('stack_health', () => {
     });
 });
 
-describe('stack_health service and instance filter', () => {
+describe('get_stack_health service and instance filter', () => {
     const sonarr = { ...fakeArr({ diagnosis: { ...healthy, service: 'sonarr' } }), id: 'sonarr', type: 'sonarr' } as ArrLike;
     const radarr4k = { ...fakeArr({ diagnosis: healthy }), id: 'radarr/4k', instance: '4k' } as ArrLike;
     const instance = (id: string, type: 'radarr' | 'sonarr') =>
@@ -546,13 +546,13 @@ describe('stack_health service and instance filter', () => {
  * `arr://instances` needs to say what each instance is allowed to do, and a
  * resource must mirror a tool rather than originate — a client that ignores
  * resources must not be the only one unable to answer "what may I do here".
- * So stack_health reports it.
+ * So get_stack_health reports it.
  *
  * The permission *source* is untouched: `permissionSourceFrom` still reads
  * config, deliberately, so an adapter cannot widen its own grants. This
  * reports the gate's answer; it does not become a second one.
  */
-describe('stack_health permissions', () => {
+describe('get_stack_health permissions', () => {
     const instance = (id: string, safe_write: boolean, destructive: boolean) =>
         ({
             id,
@@ -599,7 +599,7 @@ describe('stack_health permissions', () => {
  * any prompt the model later sees. A script that needs one runs beside the
  * config and imports `loadConfig` instead.
  */
-describe('stack_health endpoints', () => {
+describe('get_stack_health endpoints', () => {
     const SENTINEL = 'sk-do-not-ship-me-0123456789';
 
     const instanceWithUrl = (id: string, url: string) =>
@@ -681,7 +681,7 @@ describe('stack_health endpoints', () => {
  * read them, an agent has to invent a profile name and finds out it was wrong
  * once the download finishes.
  */
-describe('stack_health add options', () => {
+describe('get_stack_health add options', () => {
     const addable = (overrides: Partial<Record<'profiles' | 'folders' | 'tags', () => Promise<unknown>>> = {}) =>
         ({
             id: 'radarr',
@@ -830,7 +830,7 @@ describe('stack_health add options', () => {
 });
 
 /** The follow-up trigger_search and trigger_scan never had. */
-describe('stack_health commands', () => {
+describe('get_stack_health commands', () => {
     const running = (rows: unknown[]) =>
         ({
             id: 'radarr',

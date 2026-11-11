@@ -522,15 +522,16 @@ export function registerStackHealth(
     server: McpServer,
     adapters: readonly ServiceAdapter[],
     instances?: readonly ServiceInstance[],
-    primaryMediaServer?: string
+    primaryMediaServer?: string,
+    name = 'get_stack_health',
+    description = 'Health of every configured service: version, disk space, failing health checks, last library scan, and what each instance may do (`permissions`, whose ids are the valid `instance` values). Answers partially, with a `degraded` list, when a service is down. `commands` follows up trigger_search and trigger_scan: queued, running, and finished in the last 15 minutes, so a command not listed has finished. Profiles, root folders and tags: get_instance_options (`options` at `detail: "full"` is deprecated). `service` or `instance` checks one, without `seedingRules`. `detail: "full"` adds `seedingRules` (client, indexer [[cleanuparr: and Cleanuparr ]]seed limits[[cleanuparr:  and removal rules]]), [[reclaimerr: Reclaimerr `cleanup` (what will be deleted or moved, and when), ]]and each service\'s recent warnings and errors in `logs`; check `lastSeen`, since an old line may no longer apply. API keys are never returned. Field reference: arr://docs/get_stack_health.'
 ): void {
     server.registerTool(
-        'stack_health',
+        name,
         {
             title: 'Stack health',
             annotations: READ_ONLY,
-            description:
-                'Health of every configured service: version, disk space, failing health checks, last library scan, and what each instance may do (`permissions`, whose ids are the valid `instance` values). Answers partially, with a `degraded` list, when a service is down. `commands` follows up trigger_search and trigger_scan: queued, running, and finished in the last 15 minutes, so a command not listed has finished. Profiles, root folders and tags: get_instance_options (`options` at `detail: "full"` is deprecated). `service` or `instance` checks one, without `seedingRules`. `detail: "full"` adds `seedingRules` (client, indexer [[cleanuparr: and Cleanuparr ]]seed limits[[cleanuparr:  and removal rules]]), [[reclaimerr: Reclaimerr `cleanup` (what will be deleted or moved, and when), ]]and each service\'s recent warnings and errors in `logs`; check `lastSeen`, since an old line may no longer apply. API keys are never returned. Field reference: arr://docs/stack_health.',
+            description,
             inputSchema: StackHealthInput,
             outputSchema: stackHealthOutput(primaryMediaServer !== undefined)
         },

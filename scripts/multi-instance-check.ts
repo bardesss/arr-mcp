@@ -116,14 +116,14 @@ const expectRefusal = async (label: string, tool: string, args: Record<string, u
 
 // --- 1. every instance is its own adapter, everywhere ---------------------
 
-const health = await run('stack_health sees both instances', 'stack_health', { detail: 'full' });
+const health = await run('get_stack_health sees both instances', 'get_stack_health', { detail: 'full' });
 const healthIds = ((health?.structuredContent as { services?: { service?: string }[] } | undefined)?.services ?? []).map(
     s => s.service
 );
 for (const type of libraryTypes) {
     const want = [`${type}/hd`, `${type}/4k`];
-    if (want.every(id => healthIds.includes(id))) pass(`stack_health lists ${want.join(' and ')}`);
-    else fail(`stack_health lists ${want.join(' and ')}`, `got: ${healthIds.join(', ')}`);
+    if (want.every(id => healthIds.includes(id))) pass(`get_stack_health lists ${want.join(' and ')}`);
+    else fail(`get_stack_health lists ${want.join(' and ')}`, `got: ${healthIds.join(', ')}`);
 }
 
 // --- 2. reads fan out across instances ------------------------------------
@@ -162,7 +162,7 @@ await run('get_queue fans out', 'get_queue', { detail: 'full' });
 await run('get_calendar fans out', 'get_calendar', { detail: 'full', days_back: 7, days_ahead: 7 });
 await run('search_media over the doubled library', 'search_media', { query: 'the', source: 'library', limit: 5 });
 await run('get_media_details over the doubled library', 'get_media_details', { query: 'the' });
-await run('diagnose over the doubled library', 'diagnose', { query: 'the' });
+await run('diagnose over the doubled library', 'diagnose_media', { query: 'the' });
 
 // --- 2a. the queue and indexer fan-outs double ----------------------------
 //

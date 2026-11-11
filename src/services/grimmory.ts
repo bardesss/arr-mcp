@@ -630,7 +630,7 @@ export class GrimmoryAdapter implements ServiceAdapter, HealthCheckCapable, Sear
                 throw new ServiceError('NotFound', this.id, `Grimmory has no ${missing}`, {
                     remedy:
                         remedy ??
-                        'A book id is `acquisition.id` on get_library; a library is listed by stack_health and get_library.',
+                        'A book id is `acquisition.id` on get_library; a library is listed by get_stack_health and get_library.',
                     cause: error
                 });
             }

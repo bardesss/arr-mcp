@@ -375,7 +375,7 @@ function fakeCleanuparr(getRemovalRules: () => Promise<unknown>, calls: string[]
     } as unknown as ServiceAdapter;
 }
 
-describe('stack_health Cleanuparr removals', () => {
+describe('get_stack_health Cleanuparr removals', () => {
     it('reports them at full, named for the instance', async () => {
         const rules = await read();
         const result = await buildStackHealth([fakeCleanuparr(async () => rules)], { detail: 'full', limit: 50 });

@@ -158,7 +158,7 @@ describe('scoped to the tools the client sees', () => {
         const text = await textOf('whats_wrong', {}, RADARR_ONLY);
         expect(text).not.toContain('`get_indexers`');
         expect(text).not.toContain('`get_subtitles`');
-        expect(text).toContain('1. `stack_health`');
+        expect(text).toContain('1. `get_stack_health`');
         expect(text).toContain('2. `get_queue`');
         expect(text).not.toMatch(/^3\. /m);
     });

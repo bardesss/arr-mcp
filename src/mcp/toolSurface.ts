@@ -37,7 +37,7 @@ export type SurfaceOptions = {
 /**
  * Tools that do nothing without one of these services. A write is hidden when
  * none is configured, a read only with `tools.hide_unusable`. A tool that is
- * not listed always shows: the merged reads, the lookups and `diagnose`
+ * not listed always shows: the merged reads, the lookups and `diagnose_media`
  * answer something on any stack.
  */
 export const TOOL_SERVICES: Readonly<Record<string, readonly ServiceId[]>> = {

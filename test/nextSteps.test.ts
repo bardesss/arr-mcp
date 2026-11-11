@@ -777,7 +777,7 @@ describe('diagnose with next steps', () => {
             library: new LibraryLoader(adapters, undefined),
             ...(over.identity === undefined ? {} : { seerrIdentity: over.identity as IdentityResolver })
         });
-        const tool = tools.get('diagnose');
+        const tool = tools.get('diagnose_media');
         const out = await tool?.call({ query: 'some film' });
         return { out, tool };
     };
