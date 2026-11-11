@@ -44,7 +44,7 @@ off until you turn them on — see [writes](writes.md). `stack_health` and
 | `delete_request` | Drop a request record entirely |
 | `blocklist_media` | Stop anyone requesting this through Seerr, or an *arr's import lists adding it again; or lift either |
 | `request_media` | Ask Seerr for this, through its approval queue and quotas |
-| `add_media` | Add this film or series and start looking for it; on Lidarr, an artist |
+| `add_media` | Add this film or series and start looking for it; on Lidarr, an artist; on Shelfmark, a book |
 | `update_media` | Change the profile, folder, monitoring or tags of something already there, and a Lidarr artist's metadata profile |
 | `update_book` | Edit a Grimmory book's title, authors, series, categories and field locks |
 | `fix_metadata` | Repair one item whose metadata does not describe its files; on Grimmory, a book, from its metadata providers; on Lidarr, an artist's file tags |
@@ -732,7 +732,12 @@ the same way, as degraded, and Shelfmark is asked again after five minutes.
 
 To get a book, `search_media` with `source: "discover"` finds it (`kind: book`) and `grab_release` with
 `service: shelfmark` and that id queues the most-downloaded file, with `safe_write`
-on. The preview names the file first. To choose another, `get_releases` lists what
+on. The preview names the file first. `add_media` with `service: shelfmark` and the same
+id does the same, and is a no-op when Shelfmark's queue already holds that release;
+Grimmory's library is not checked. Its preview says the file lands in Grimmory's
+Bookdrop when Shelfmark writes there (named only with Grimmory configured), to be
+approved with `import_download`; the *arr options are refused. To choose another,
+`get_releases` lists what
 is on offer, most-downloaded first, with rows from sources that count nothing last,
 and `grab_release` takes a row's `guid` and `indexer_id`. Shelfmark has no indexer
 ids, so `indexer_id` is always 0. Listing searches every source

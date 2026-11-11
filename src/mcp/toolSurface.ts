@@ -68,7 +68,7 @@ export const TOOL_SERVICES: Readonly<Record<string, readonly ServiceId[]>> = {
     remove_blocklist_item: ['radarr', 'sonarr', 'whisparr', 'lidarr'],
     clean_queue: ['radarr', 'sonarr', 'whisparr', 'lidarr'],
     trigger_search: ['radarr', 'sonarr', 'whisparr', 'lidarr'],
-    add_media: ['radarr', 'sonarr', 'whisparr', 'lidarr'],
+    add_media: ['radarr', 'sonarr', 'whisparr', 'lidarr', 'shelfmark'],
     trigger_scan: ['radarr', 'sonarr', 'whisparr', 'lidarr', 'jellyfin', 'plex', 'grimmory', 'prowlarr', 'nzbget'],
     remove_queue_item: ['radarr', 'sonarr', 'whisparr', 'lidarr', 'sabnzbd', 'nzbget', 'transmission', 'qbittorrent', 'shelfmark', 'grimmory'],
     set_monitoring: ['sonarr', 'whisparr', 'lidarr'],

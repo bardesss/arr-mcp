@@ -13,6 +13,8 @@ import {
     hasReleaseGrab,
     hasReleaseSearch,
     type MagnetAddCapable,
+    type ReleaseCandidate,
+    type ReleaseSearchCapable,
     type ServiceAdapter
 } from '../services/types.ts';
 import { arrSubject, CROSS_CHECK_BUDGET_MS } from './crossChecks.ts';
@@ -145,6 +147,34 @@ const GrabReleaseInput = z.object({
         )
 });
 
+/**
+ * The release a service ranks first for `id`, for a grab that names none
+ * (`grabsFirstReleaseByDefault`: Shelfmark, by downloads). Shared with
+ * `add_media` on a book, so both queue the same file for the same id.
+ * The scope goes along, so the adapter refuses one it has none of rather than
+ * taking the top release of a search nobody asked for.
+ */
+export async function topRelease(
+    adapter: ServiceAdapter & ReleaseSearchCapable,
+    service: ServiceId,
+    scope: { id: string; season?: number | undefined; episode?: string | undefined; album?: string | undefined }
+): Promise<ReleaseCandidate & { guid: string; indexerId: number }> {
+    const top = (
+        await adapter.findReleases({
+            id: scope.id,
+            ...(scope.season === undefined ? {} : { season: scope.season }),
+            ...(scope.episode === undefined ? {} : { episode: scope.episode }),
+            ...(scope.album === undefined ? {} : { album: scope.album })
+        })
+    )[0];
+    if (top?.guid === undefined || top.indexerId === undefined) {
+        throw new ServiceError('NotFound', service, 'no release is on offer for that book', {
+            remedy: 'Check the id came from a search_media `source: "discover"` row, or try another edition of the book.'
+        });
+    }
+    return { ...top, guid: top.guid, indexerId: top.indexerId };
+}
+
 export function registerGrabRelease(
     server: McpServer,
     context: WriteContext,
@@ -225,21 +255,7 @@ export function registerGrabRelease(
                 id !== undefined &&
                 adapter.grabsFirstReleaseByDefault === true
             ) {
-                // The scope goes along, so the adapter refuses one it has none of
-                // rather than taking the top release of a search nobody asked for.
-                const top = (
-                    await adapter.findReleases({
-                        id,
-                        ...(season === undefined ? {} : { season }),
-                        ...(episode === undefined ? {} : { episode }),
-                        ...(album === undefined ? {} : { album })
-                    })
-                )[0];
-                if (top?.guid === undefined || top.indexerId === undefined) {
-                    throw new ServiceError('NotFound', service, 'no release is on offer for that book', {
-                        remedy: 'Check the id came from a search_media `source: "discover"` row, or try another edition of the book.'
-                    });
-                }
+                const top = await topRelease(adapter, service, { id, season, episode, album });
                 return {
                     target: `${adapter.id}:${top.guid}`,
                     summary: `Grab ${top.title} from ${top.indexer} for ${service}, the most-downloaded release on offer.`,

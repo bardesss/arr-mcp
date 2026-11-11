@@ -2,12 +2,19 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
+import { logger } from '../core/logger.ts';
 import { MUSICBRAINZ_ID } from '../services/lidarr.ts';
 import {
     hasMediaAdd,
+    hasQueue,
     hasMetadataProfiles,
+    hasReleaseGrab,
+    hasReleaseSearch,
     type ArtistMonitorNewItems,
+    type MediaAddCapable,
     type QualityProfile,
+    type ReleaseGrabCapable,
+    type ReleaseSearchCapable,
     type ServiceAdapter
 } from '../services/types.ts';
 import { chooseOne, freeSpace, FOLDER_MATCH, PROFILE_MATCH, TAG_MATCH } from './chooseOne.ts';
@@ -18,6 +25,7 @@ import { NO_ALBUMS_PROFILE, SEARCH_AFTER_REFRESH } from './lidarrProfiles.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 import { titled } from '../core/labels.ts';
 import { targetInput, serviceTarget } from './serviceTarget.ts';
+import { topRelease } from './grabRelease.ts';
 
 /**
  * The last of the writes, and the only one that has to *choose*
@@ -36,12 +44,29 @@ import { targetInput, serviceTarget } from './serviceTarget.ts';
  * cheaper than it is.
  */
 
+/** Shelfmark adds a book by queueing a release: it has no library of its own to add to. */
+type BookGrab = ServiceAdapter & ReleaseSearchCapable & ReleaseGrabCapable;
+const canAdd = (a: ServiceAdapter): a is (ServiceAdapter & MediaAddCapable) | BookGrab =>
+    hasMediaAdd(a) || (a.type === 'shelfmark' && hasReleaseSearch(a) && hasReleaseGrab(a));
+
 const TARGET = serviceTarget({
-    services: ['radarr', 'sonarr', 'whisparr', 'lidarr'],
-    can: hasMediaAdd,
+    services: ['radarr', 'sonarr', 'whisparr', 'lidarr', 'shelfmark'],
+    can: canAdd,
     cannot: 'cannot add media',
-    hint: 'Radarr adds films by TMDB id, Sonarr and Whisparr series or a site by TVDB id, and Lidarr artists by MusicBrainz id.'
+    hint: 'Radarr adds films by TMDB id, Sonarr and Whisparr series or a site by TVDB id, Lidarr artists by MusicBrainz id, and Shelfmark books by the id of a search_media `source: "discover"` row.'
 });
+
+/**
+ * An *arr option on a book. Refused for the same reason as on the wrong *arr:
+ * dropping it would add something other than what was asked for.
+ */
+function refuseBookOptions(service: ServiceId, given: Record<string, unknown>): void {
+    const named = Object.keys(given).find(key => given[key] !== undefined);
+    if (named === undefined) return;
+    throw new ServiceError('NotFound', service, `${named} is not a book option`, {
+        remedy: 'A book has no quality profile, root folder, monitoring or tags to set: Shelfmark queues the most-downloaded file for it. Drop the option, or choose a file yourself with get_releases and grab_release.'
+    });
+}
 
 /**
  * Lidarr's monitored check is skipped during any search (nothing sets
@@ -252,12 +277,12 @@ function folderDoubt(path: string, candidate: AddCandidate, type: string, extern
 }
 
 const AddMediaInput = z.object({
-    ...targetInput(TARGET, 'radarr for a film, sonarr for a series, whisparr for a site, lidarr for an artist.'),
+    ...targetInput(TARGET, 'radarr for a film, sonarr for a series, whisparr for a site, lidarr for an artist[[shelfmark: , shelfmark for a book]].'),
     external_id: z
         .string()
         .min(1)
         .describe(
-            'TMDB id for radarr, TVDB id for sonarr or whisparr, as an integer string; the MusicBrainz artist id, a GUID, for lidarr. From search_media `source: "discover"`.'
+            'TMDB id for radarr, TVDB id for sonarr or whisparr, as an integer string; the MusicBrainz artist id, a GUID, for lidarr.[[shelfmark: For a book, the `id` of its search row.]] From search_media `source: "discover"`.'
         ),
     quality_profile: z
         .string()
@@ -316,9 +341,9 @@ const AddMediaInput = z.object({
 export function registerAddMedia(server: McpServer, context: WriteContext, adapters: readonly ServiceAdapter[]): void {
     registerWriteTool(server, context, {
         name: 'add_media',
-        title: 'Add a film, series, site or artist',
+        title: 'Add a film, series, site, artist or book',
         description:
-            'Adds a film to Radarr, a series to Sonarr, a site to Whisparr or an artist to Lidarr, and by default starts a search. For a Seerr request that goes through approval, use request_media. Ids: TMDB for Radarr, TVDB for Sonarr and Whisparr (Whisparr\'s own scene id in that field), MusicBrainz for Lidarr; get them from search_media `source: "discover"`, under `ids`. With more than one quality profile or root folder, name one: call without them and the preview refuses with the list, so there is no need to call get_instance_options first. Sonarr and Whisparr take `monitor` (which seasons), Sonarr `series_type`, Radarr `minimum_availability`. [[lidarr: Lidarr takes `monitor` (which albums), `monitor_new_items` and `metadata_profile`; `monitor: "none"` needs `monitored: false` with it, and its search on add covers only monitored, released albums.]] An option sent to the wrong service is refused, not dropped. Previews first; confirm to add. Field reference: arr://docs/add_media.',
+            'Adds a film to Radarr, a series to Sonarr, a site to Whisparr or an artist to Lidarr, and by default starts a search. [[shelfmark: A book (the search row `id`) queues its most-downloaded file; none on offer fails.]] For a Seerr request that goes through approval, use request_media. Ids: TMDB for Radarr, TVDB for Sonarr and Whisparr (Whisparr\'s own scene id in that field), MusicBrainz for Lidarr; get them from search_media `source: "discover"`, under `ids`. With more than one quality profile or root folder, name one: call without them and the preview refuses with the list. Sonarr and Whisparr take `monitor` (which seasons), Sonarr `series_type`, Radarr `minimum_availability`. [[lidarr: Lidarr takes `monitor` (which albums), `monitor_new_items` and `metadata_profile`; `monitor: "none"` needs `monitored: false` with it, and its search on add covers only monitored, released albums.]] An option sent to the wrong service is refused, not dropped. Previews first; confirm to add. Field reference: arr://docs/add_media.',
         inputSchema: AddMediaInput,
         // The resolved instance id, not the bare type: permissions are granted per
         // instance, so checking `radarr` against a config that only grants
@@ -344,6 +369,61 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
             metadata_profile,
             path
         }, adapter): Promise<WritePlan> {
+            if (!hasMediaAdd(adapter)) {
+                refuseBookOptions(service, {
+                    quality_profile,
+                    root_folder,
+                    monitor,
+                    minimum_availability,
+                    series_type,
+                    tags,
+                    monitor_new_items,
+                    metadata_profile,
+                    path,
+                    monitored: monitored ? undefined : false,
+                    search_now: search_now === false ? search_now : undefined
+                });
+                const top = await topRelease(adapter, service, { id: external_id });
+                const target = `${adapter.id}:${top.guid}`;
+                // A queue row's id is the hash of the release's source_id, which is the
+                // hash part of the guid (`guidOf`, `#queueItem` in shelfmark.ts).
+                const hash = top.guid.slice(top.guid.indexOf(':') + 1);
+                let queueChecked = false;
+                if (hasQueue(adapter)) {
+                    try {
+                        const queued = (await adapter.getQueue()).find(row => row.id === hash);
+                        queueChecked = true;
+                        if (queued !== undefined) {
+                            return {
+                                target,
+                                summary: `${top.title} is already queued in ${service}.`,
+                                effects: [],
+                                noop: true
+                            };
+                        }
+                    } catch (err) {
+                        logger.warn({ service: adapter.id, err }, 'could not read the queue to check for a duplicate book');
+                    }
+                }
+                const bookdrop = adapters.some(a => a.type === 'grimmory')
+                    ? "Shelfmark writes the file to its destination folder. When that is Grimmory's Bookdrop, the book waits in get_queue until import_download approves it."
+                    : 'Shelfmark writes the file to its destination folder.';
+                return {
+                    target,
+                    summary: `Queue the book ${external_id} on ${service}: grab ${top.title} from ${top.indexer}, the most-downloaded release on offer.`,
+                    effects: [
+                        `Sends this release to ${service}'s download client.${top.downloads === undefined ? ' No release on offer has a download count, so this is simply the first listed.' : ` It has ${top.downloads} downloads.`}`,
+                        bookdrop,
+                        queueChecked
+                            ? "Shelfmark's queue has no copy of this release yet."
+                            : "Could not read Shelfmark's queue, so a copy already queued was not checked for.",
+                        "Grimmory's library is not checked for this book.",
+                        'To take a different file, pick one from get_releases and pass its `guid` and `indexer_id` to grab_release.',
+                        'The download appears in get_queue and can be removed again with remove_queue_item.'
+                    ],
+                    args: { guid: top.guid, indexerId: top.indexerId }
+                };
+            }
             const lidarr = adapter.type === 'lidarr';
             if (lidarr && path !== undefined) {
                 throw new ServiceError('NotFound', service, 'path is not a Lidarr option', {
@@ -547,6 +627,11 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
         },
 
         async apply(plan, _args, adapter) {
+            if (!hasMediaAdd(adapter)) {
+                const { guid, indexerId } = plan.args as { guid: string; indexerId: number };
+                await adapter.grabRelease({ guid, indexerId });
+                return { grabbed: `${adapter.id}:${guid}` };
+            }
             const a = plan.args as {
                 externalId: string;
                 qualityProfileId: number;
