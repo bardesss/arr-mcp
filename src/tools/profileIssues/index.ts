@@ -2,7 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import type { ServiceInstance } from '../../config/instances.ts';
 import { logger } from '../../core/logger.ts';
-import { NextStepSchema, nextStepLine, stepsField, type NextStep } from '../../core/nextStep.ts';
+import { nextStepLine, stepsField, type NextStep } from '../../core/nextStep.ts';
 import { fixableOn } from '../fixProfile.ts';
 import { instanceArgs } from '../resolveInstance.ts';
 import {
@@ -335,7 +335,6 @@ const GetProfileIssuesInput = toolInput({
 });
 
 const GetProfileIssuesOutput = PagedOutputSchema.extend({
-    next_steps: z.array(NextStepSchema).optional().describe('A fix_profile call per floor it can fix. Offer it; do not run it.'),
     note: z
         .string()
         .optional()

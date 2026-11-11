@@ -7,7 +7,7 @@ import type { LibraryKind } from '../core/resolver.ts';
 import { hasQueue, type QueueItem, type ServiceAdapter } from '../services/types.ts';
 import { MediaKindSchema, holds } from './mediaKind.ts';
 import { importStepFor } from './importStep.ts';
-import { NextStepSchema, nextStepLine, stepsField, type NextStep } from '../core/nextStep.ts';
+import { nextStepLine, stepsField, type NextStep } from '../core/nextStep.ts';
 
 type GetQueueResult = {
     items: QueueItem[];
@@ -253,10 +253,6 @@ const GetQueueInput = toolInput({
     offset: OffsetSchema
 });
 
-const GetQueueOutput = PagedOutputSchema.extend({
-    next_steps: z.array(NextStepSchema).optional().describe('An import_download per download stuck at importBlocked. Offer it; do not run it.')
-});
-
 export function registerGetQueue(server: McpServer, adapters: readonly ServiceAdapter[]): void {
     server.registerTool(
         'get_queue',
@@ -265,7 +261,7 @@ export function registerGetQueue(server: McpServer, adapters: readonly ServiceAd
             annotations: READ_ONLY,
             description:
                 'Everything downloading or stalled, merged across Radarr, Sonarr, Whisparr, Lidarr, SABnzbd, NZBGet, Transmission and qBittorrent, plus files waiting in Grimmory\'s Bookdrop. Sizes are bytes, ETAs seconds; release names are fenced as untrusted data. An *arr row carries `downloadId` and `statusMessages`: a finished download stuck at `importState: "importBlocked"` comes back as an import_download step in `next_steps`; a title mismatch or unknown episode fails the same way on every retry and has to be fixed in the service. [[transmission|qbittorrent: At `detail: "full"` a torrent carries `seeding` (ratio, time seeded, the limit that applies, `overLimit`) and, with Cleanuparr, the rule that governs it, its `strikes` and `dueAt`; `cleanuparrDue` totals what falls due within 7 days.]] Filter on the server rather than reading the whole queue. Remove a row with remove_queue_item. Field reference: arr://docs/get_queue.',
-            outputSchema: GetQueueOutput,
+            outputSchema: PagedOutputSchema,
             inputSchema: GetQueueInput
         },
         async ({ kind, detail, limit, offset, by_tracker, min_seed_days, ...rest }) => {
