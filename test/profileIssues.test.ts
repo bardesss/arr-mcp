@@ -252,3 +252,53 @@ function assertInstancesIsRequiredAtCompileTime(): void {
     registerGetProfileIssues({} as never, []);
 }
 void assertInstancesIsRequiredAtCompileTime;
+
+describe('next_steps', () => {
+    const arr = (profile: { name: string; minFormatScore: number; formatItems: { name: string; score: number }[] }, profileCount = 1) =>
+        ({
+            id: 'sonarr',
+            type: 'sonarr',
+            testConnection: async () => ({ ok: true, service: 'sonarr', latency_ms: 1 }),
+            getVersion: async () => '4.0.0',
+            readProfileDiagnostics: async () => ({
+                profiles: [profile, ...Array.from({ length: profileCount - 1 }, (_, i) => ({ name: `Other ${i}`, minFormatScore: 0, formatItems: [] }))],
+                formats: [],
+                languages: []
+            })
+        }) as never;
+    const unreachable = { name: 'HD', minFormatScore: 500, formatItems: [{ name: 'A', score: 100 }, { name: 'B', score: 50 }] };
+    const profilarr = (count: number) =>
+        ({
+            id: 'profilarr',
+            type: 'profilarr',
+            status: async () => ({ version: '2.2.0', databases: [], arrs: [{ id: 1, name: 'sonarr', type: 'sonarr', enabled: true, syncedQualityProfiles: count, drift: null }] }),
+            listArrs: async () => [{ id: 1, name: 'sonarr', type: 'sonarr', url: 'http://192.0.2.10:8989' }]
+        }) as never;
+
+    it('offers fix_profile for a floor it can fix', async () => {
+        const result = await buildGetProfileIssues([arr(unreachable)], { detail: 'full', limit: 10 }, []);
+        expect(result.next_steps).toEqual([
+            {
+                tool: 'fix_profile',
+                arguments: { service: 'sonarr', profile: 'HD', finding: 'unreachable_floor' },
+                why: 'Lowers the minimum custom format score to 100, which a release can reach.'
+            }
+        ]);
+    });
+
+    it('offers nothing for a floor with no proven fix', async () => {
+        const one = { name: 'HD', minFormatScore: 500, formatItems: [{ name: 'A', score: 100 }] };
+        const result = await buildGetProfileIssues([arr(one)], { detail: 'full', limit: 10 }, []);
+        expect(result).not.toHaveProperty('next_steps');
+    });
+
+    it('offers nothing where Profilarr syncs every profile, which fix_profile refuses', async () => {
+        const result = await buildGetProfileIssues([arr(unreachable), profilarr(1)], { detail: 'full', limit: 10 }, []);
+        expect(result).not.toHaveProperty('next_steps');
+    });
+
+    it('still offers it where Profilarr syncs only some profiles', async () => {
+        const result = await buildGetProfileIssues([arr(unreachable, 3), profilarr(1)], { detail: 'full', limit: 10 }, []);
+        expect(result.next_steps).toHaveLength(1);
+    });
+});

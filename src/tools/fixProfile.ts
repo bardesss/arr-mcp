@@ -71,6 +71,28 @@ async function profilarrSync(
     return unmatched ? 'unmatched' : { count: 0 };
 }
 
+/**
+ * Whether fix_profile would leave a profile on this instance to arr-mcp rather
+ * than refuse it as Profilarr's: no Profilarr, or one that syncs fewer
+ * profiles than the instance holds. A Profilarr that cannot be read counts as
+ * a refusal, as it does in fix_profile.
+ */
+export async function fixableOn(
+    adapters: readonly ServiceAdapter[],
+    adapter: ServiceAdapter,
+    instances: readonly ServiceInstance[],
+    profileCount: number
+): Promise<boolean> {
+    const profilarr = adapters.find(hasProfilarrReads);
+    if (profilarr === undefined) return true;
+    try {
+        const sync = await profilarrSync(profilarr, adapter, adapters, instances);
+        return sync !== 'unmatched' && !(sync.count >= profileCount && sync.count > 0);
+    } catch {
+        return false;
+    }
+}
+
 type Scored = { minFormatScore: number; formatItems: ReadonlyArray<{ name?: unknown; score?: unknown }> };
 
 /**
