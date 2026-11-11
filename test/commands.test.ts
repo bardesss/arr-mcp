@@ -265,4 +265,14 @@ describe('arrItemId', () => {
         expect(() => arrItemId('radarr', 'queue', 'x')).toThrow(/get_queue/));
     it("points an album id at the artist's details", () =>
         expect(() => arrItemId('lidarr', 'album', 'x')).toThrow(/detail: "full"/));
+    // Id 0 is refused on every kind, not only an episode: no *arr hands one out.
+    it.each([
+        ['radarr', 'movie'],
+        ['radarr', 'queue'],
+        ['lidarr', 'artist'],
+        ['lidarr', 'album']
+    ] as const)('refuses id 0 for a %s %s, and takes 1', (service, kind) => {
+        expect(() => arrItemId(service, kind, '0')).toThrow(`"0" is not a ${service} ${kind} id`);
+        expect(arrItemId(service, kind, '1')).toBe(1);
+    });
 });
