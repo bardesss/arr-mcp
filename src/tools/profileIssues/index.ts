@@ -241,7 +241,7 @@ export async function buildGetProfileIssues(
                     ...languagePreferenceFindings(profile, data.formats),
                     ...dialectFindings(profile, data.formats, languages)
                 ];
-                for (const f of findings) {
+                for (const { change: _change, ...f } of findings) {
                     items.push({
                         ...f,
                         remedy: `${profileOwner(adapter.type as ArrServiceType)}, ${f.remedy}`,
@@ -334,7 +334,7 @@ export function registerGetProfileIssues(
                 'on some profiles says nothing about which others score the same format. Drift findings are ' +
                 'instance-scoped, not tied to any one profile, and are unaffected by the `profile` filter. ' +
                 'Read-only — every `remedy` is a change to make in Profilarr when it syncs that profile, or in ' +
-                'the arr itself when it does not, never one arr-mcp performs. Use it when a profile grabs the wrong release or ' +
+                'the arr itself when it does not; fix_profile applies a certain unreachable or knife-edge floor. Use it when a profile grabs the wrong release or ' +
                 'never upgrades; why one title is missing is diagnose_media.',
             outputSchema: GetProfileIssuesOutput,
             inputSchema: GetProfileIssuesInput

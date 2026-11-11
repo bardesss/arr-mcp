@@ -1,6 +1,6 @@
 # Tools
 
-Forty-five of them. The first twenty read; the last twenty-five write, and are
+Forty-six of them. The first twenty read; the last twenty-six write, and are
 off until you turn them on — see [writes](writes.md). `stack_health` and
 `diagnose` are still listed as deprecated aliases of `get_stack_health` and
 `diagnose_media`; they take the same arguments and go in the next major.
@@ -48,6 +48,7 @@ off until you turn them on — see [writes](writes.md). `stack_health` and
 | `update_media` | Change the profile, folder, monitoring or tags of something already there, and a Lidarr artist's metadata profile |
 | `update_book` | Edit a Grimmory book's title, authors, series, categories and field locks |
 | `fix_metadata` | Repair one item whose metadata does not describe its files; on Grimmory, a book, from its metadata providers; on Lidarr, an artist's file tags |
+| `fix_profile` | Apply the fix for a quality profile whose minimum custom format score nothing can reach, or that sits exactly on the edge |
 | `set_watched` | Mark this watched or unwatched in Jellyfin; on Grimmory, mark a book read or unread |
 | `sync_database` | Have Profilarr pull its database from git again |
 | `manage_indexer` | Add a public indexer, change its priority, profile, tags or seeding, or stop grabbing from it |
@@ -151,10 +152,10 @@ saying a dead service is fine is worse than no snapshot at all. Clients on the
 
 **A client can tell the reads from the writes without reading prose.** Every
 tool carries a title and an annotation: `readOnlyHint` on the twenty that only
-read, and on the twenty-four writes `destructiveHint`, taken from the same permission
+read, and on the twenty-six writes `destructiveHint`, taken from the same permission
 tier the write gate itself runs on — so a tool cannot be gated as destructive
 and advertised as safe. A client deciding what to auto-approve, or what to warn
-about, reads those rather than guessing from forty-five similarly-shaped
+about, reads those rather than guessing from forty-six similarly-shaped
 descriptions. `idempotentHint` is deliberately absent: the confirmation token is
 single-use, so repeating a write does not repeat it, and neither answer would be
 true.
@@ -2516,7 +2517,8 @@ like it does. Read-only, and deliberately so: Profilarr owns quality profiles
 and custom formats, re-syncing them from its own git source, so a direct
 write here would be reverted on the next sync or reported back as drift.
 Every `remedy` is a change to make **in Profilarr** when it syncs the profile,
-or in the arr itself when it does not, never one this tool performs.
+or in the arr itself when it does not; this tool performs none of them, and
+[`fix_profile`](#fix_profile) applies the two floor findings.
 Profilarr's API says how many profiles it syncs to each arr but not which, so
 the remedy names both places.
 
@@ -2544,6 +2546,47 @@ an absence of drift findings is not misread as a clean bill of health.
 Needs at least one of Radarr, Sonarr or Whisparr configured to find anything.
 Drift findings additionally need a `profilarr` service — without one, `note`
 says so and the rest of the findings still run.
+
+## `fix_profile`
+
+Applies the one fix `get_profile_issues` can prove: a profile's minimum custom
+format score that nothing can reach (`unreachable_floor`) or that sits exactly
+on the total of its positive formats (`knife_edge_floor`). Takes `service`,
+`instance`, `profile` (the name `get_profile_issues` printed; an id also works)
+and `finding` (that finding's `kind`). Radarr, Sonarr and Whisparr.
+
+The new minimum is the total of the profile's positive custom formats less the
+cheapest one, so a release that lacks only the cheapest format still passes,
+the minimum is reachable, and the profile raises no finding of its own. The
+preview names the old and the new number. Nothing else is sent: the profile is
+read again and written back whole with only `minFormatScore` changed.
+
+It refuses:
+
+- a `likely` finding or `profilarr_drift`, which a person decides or Profilarr
+  reconciles;
+- a finding the profile no longer has. The check runs again at the preview, so
+  a profile fixed since `get_profile_issues` last ran is not written to;
+- an unknown profile, and the refusal lists the instance's profiles;
+- every profile on an instance Profilarr syncs quality profiles to. Profilarr's
+  API reports how many profiles it syncs, not which, so a profile it may own is
+  not touched: its next sync would overwrite the change. Make it in Profilarr,
+  or, for a profile Profilarr does not manage, in the arr. With Profilarr
+  configured but unreachable the write is refused rather than guessed.
+
+The confirm token is bound to the minimum and every format score as previewed:
+a profile edited since gives a fresh preview, and one that changes between the
+confirm and the write is refused. The arr can still refuse the write itself;
+Radarr answers a minimum no format can reach with "Minimum Custom Format Score
+can never be satisfied", and that reason is in the error.
+
+Destructive tier: the profile decides what the instance grabs from then on, and
+putting the old minimum back is a manual edit.
+
+**Unverified live** (Sonarr): the profile read and write. Only Radarr 6.4.4 was
+captured, on a throwaway copy of a profile; Sonarr shares the code and path.
+
+**Unverified live** (Whisparr): the profile read and write, as for Sonarr.
 
 ## `sync_database`
 

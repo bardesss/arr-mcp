@@ -27,7 +27,7 @@ const capabilities = (adapter: unknown): string[] =>
 const radarr = [
     'hasBlocklist', 'hasCalendar', 'hasCommandStatus', 'hasDiskSpace', 'hasDownloadTrace', 'hasHealthChecks',
     'hasHistory', 'hasImportExclusions', 'hasLibrary', 'hasLibraryMaintenance', 'hasLibraryScan', 'hasLogs', 'hasManualImport',
-    'hasMediaAdd', 'hasMediaDelete', 'hasMediaDetails', 'hasMediaUpdate', 'hasProfileDiagnostics', 'hasQueue',
+    'hasMediaAdd', 'hasMediaDelete', 'hasMediaDetails', 'hasMediaUpdate', 'hasProfileDiagnostics', 'hasProfileFix', 'hasQueue',
     'hasQueueRemove', 'hasReleaseGrab', 'hasReleaseSearch', 'hasScanState', 'hasSearch', 'hasSearchTrigger',
     'hasSeedCriteria', 'hasWanted'
 ];
@@ -39,7 +39,7 @@ describe('*arr adapter capabilities', () => {
         ['whisparr', () => new WhisparrAdapter(cfg), [
             'hasBlocklist', 'hasCalendar', 'hasCommandStatus', 'hasDiskSpace', 'hasDownloadTrace', 'hasEpisodeFiles',
             'hasHealthChecks', 'hasHistory', 'hasLibrary', 'hasLibraryMaintenance', 'hasLibraryScan', 'hasLogs',
-            'hasMediaAdd', 'hasMediaDelete', 'hasMediaDetails', 'hasMonitoring', 'hasProfileDiagnostics', 'hasQueue',
+            'hasMediaAdd', 'hasMediaDelete', 'hasMediaDetails', 'hasMonitoring', 'hasProfileDiagnostics', 'hasProfileFix', 'hasQueue',
             'hasQueueRemove', 'hasReleaseGrab', 'hasReleaseSearch', 'hasScanState', 'hasSearch', 'hasSearchTrigger',
             'hasSeedCriteria'
         ]],

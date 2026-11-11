@@ -252,7 +252,7 @@ export const hasIndexerWrites = (a: ServiceAdapter): a is ServiceAdapter & Index
     typeof (a as Partial<IndexerWriteCapable>).setIndexerEnabled === 'function';
 
 type ArrFormatItem = { name: string; score: number };
-type ArrQualityProfile = { name: string; minFormatScore: number; formatItems: ArrFormatItem[] };
+type ArrQualityProfile = { id?: number; name: string; minFormatScore: number; formatItems: ArrFormatItem[] };
 type ArrFormatSpecification = {
     implementation: string;
     negate: boolean;
@@ -279,6 +279,17 @@ export interface ProfileDiagnosticsCapable {
 
 export const hasProfileDiagnostics = (a: ServiceAdapter): a is ServiceAdapter & ProfileDiagnosticsCapable =>
     typeof (a as Partial<ProfileDiagnosticsCapable>).readProfileDiagnostics === 'function';
+
+/** A quality profile exactly as the *arr sends it. `fix_profile` sends it back with one field changed, so nothing else may be dropped. */
+export type ArrQualityProfileRecord = { id: number; name: string; minFormatScore: number } & Record<string, unknown>;
+
+export interface ProfileFixCapable {
+    readQualityProfile(id: number): Promise<ArrQualityProfileRecord>;
+    updateQualityProfile(profile: ArrQualityProfileRecord): Promise<void>;
+}
+
+export const hasProfileFix = (a: ServiceAdapter): a is ServiceAdapter & ProfileFixCapable =>
+    typeof (a as Partial<ProfileFixCapable>).updateQualityProfile === 'function';
 
 export type MissingLanguage = { name: string; code2: string; forced: boolean; hearingImpaired: boolean };
 

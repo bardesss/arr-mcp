@@ -19,7 +19,7 @@ import {
     readTags,
     SONARR_ADD
 } from './arrAdd.ts';
-import { readArrProfileDiagnostics } from './arrProfiles.ts';
+import { readArrProfileDiagnostics, readArrQualityProfile, updateArrQualityProfile } from './arrProfiles.ts';
 import { readArrHistory } from './arrHistory.ts';
 import { arrGrabRecorded, traceArrDownload } from './arrDownloadTrace.ts';
 import { postArrCommand, readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
@@ -82,8 +82,10 @@ import {
     type MediaDeleteCapable,
     type MonitoringCapable,
     type MonitoringTarget,
+    type ArrQualityProfileRecord,
     type ProfileDiagnosticsCapable,
     type ProfileDiagnosticsData,
+    type ProfileFixCapable,
     type QualityProfile,
     type QueueRemoveCapable,
     type ReleaseCandidate,
@@ -191,6 +193,7 @@ export class SonarrAdapter
         WantedCapable,
         ReleaseSearchCapable,
         ProfileDiagnosticsCapable,
+        ProfileFixCapable,
         SeedCriteriaCapable
 {
     protected readonly scanTask = LIBRARY_SCAN_TASK;
@@ -279,6 +282,14 @@ export class SonarrAdapter
 
     async readProfileDiagnostics(): Promise<ProfileDiagnosticsData> {
         return readArrProfileDiagnostics(this.http);
+    }
+
+    async readQualityProfile(id: number): Promise<ArrQualityProfileRecord> {
+        return readArrQualityProfile(this.http, id);
+    }
+
+    async updateQualityProfile(profile: ArrQualityProfileRecord): Promise<void> {
+        return updateArrQualityProfile(this.http, profile);
     }
 
     async listCommands(): Promise<CommandStatus[]> {

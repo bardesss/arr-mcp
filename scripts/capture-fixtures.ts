@@ -595,6 +595,11 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
             }
         },
         { name: 'movie-lookup', path: '/api/v3/movie/lookup?term=matrix' },
+        // The profile list `fix_profile` and `get_profile_issues` read. The
+        // single-profile read and the `PUT` (qualityprofile-detail.json,
+        // qualityprofile-put*.json) were recorded against a throwaway copy by
+        // hand, since this script only reads.
+        { name: 'qualityprofile', path: '/api/v3/qualityprofile' },
         // `unmappedFolders` rides along on this response and is what
         // `get_stack_health` reports about folders the instance maps to no item.
         { name: 'rootfolder', path: '/api/v3/rootfolder' }
