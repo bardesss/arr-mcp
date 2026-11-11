@@ -1,6 +1,6 @@
 import { SignJWT, createLocalJWKSet, exportJWK, generateKeyPair } from 'jose';
 import { describe, expect, it } from 'vitest';
-import { buildApp } from '../src/app.ts';
+import { buildApp, instructionsFor } from '../src/app.ts';
 import { ConfigSchema, ServiceIdSchema, type Config, type ServiceId } from '../src/config/schema.ts';
 import { WriteAudit } from '../src/core/audit.ts';
 import { attachLogStore, detachLogStore } from '../src/core/logger.ts';
@@ -2216,5 +2216,21 @@ describe('fix_metadata on Plex at /mcp', () => {
 
     it('names the setting ahead of a token that falls short as well', async () => {
         expect(await call(false, WRITER)).toContain('Plex repair is off');
+    });
+});
+
+describe('server instructions', () => {
+    const ALL = ['Radarr', 'Sonarr', 'Lidarr', 'Whisparr', 'Prowlarr', 'Profilarr', 'Bazarr', 'Jellyfin', 'Plex', 'Seerr', 'Grimmory', 'Shelfmark', 'SABnzbd', 'NZBGet', 'Transmission', 'qBittorrent', 'Cleanuparr', 'Reclaimerr', 'Dispatcharr'];
+
+    it('names only configured services', () => {
+        const text = instructionsFor({ configured: new Set<ServiceId>(['radarr', 'sonarr', 'sabnzbd', 'jellyfin']), hideUnusable: false });
+        for (const name of ['Radarr', 'Sonarr', 'SABnzbd', 'Jellyfin']) expect(text).toContain(name);
+        for (const name of ['Lidarr', 'Whisparr', 'Grimmory', 'Shelfmark', 'Cleanuparr', 'Reclaimerr', 'Dispatcharr', 'Plex', 'Seerr']) expect(text).not.toContain(name);
+    });
+
+    it('names every service before anything is configured', () => {
+        const text = instructionsFor({ configured: new Set(), hideUnusable: false });
+        for (const name of ALL) expect(text).toContain(name);
+        expect(text).not.toContain('[[');
     });
 });
