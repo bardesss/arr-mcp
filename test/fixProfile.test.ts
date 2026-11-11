@@ -20,11 +20,13 @@ import { instancesOf } from './helpers/instances.ts';
 import { jsonResponse } from './helpers/serve.ts';
 
 /**
- * Only Radarr 6.4.4 was captured live (a throwaway copy of a profile, read
- * and PUT; see test/fixtures/radarr/qualityprofile-*.json). Sonarr and
- * Whisparr share the same code over the same `/api/v3/qualityprofile/{id}`
- * path, so their tests below replay the Radarr shapes: they prove the path and
- * the body, not a Sonarr or Whisparr answer.
+ * Only Radarr 6.4.4 was captured live for the write (a throwaway copy of a
+ * profile, read and PUT; see test/fixtures/radarr/qualityprofile-*.json).
+ * Sonarr's profile list is recorded too (test/fixtures/sonarr/qualityprofile.json,
+ * read only) and has its own tests below; its PUT answer is not recorded.
+ * Whisparr shares the same code over the same `/api/v3/qualityprofile/{id}`
+ * path, so its test replays the Radarr shapes: it proves the path and the body,
+ * not a Whisparr answer.
  */
 const fixture = <T>(name: string): T =>
     JSON.parse(readFileSync(join(import.meta.dirname, 'fixtures/radarr', name), 'utf8')) as T;
@@ -242,6 +244,46 @@ describe('fix_profile', () => {
 
         expect(served.puts[0]?.path).toBe(`/api/v3/qualityprofile/${RECORDED.id}`);
         expect(served.puts[0]?.body.minFormatScore).toBe(HEADROOM);
+    });
+
+    /**
+     * Sonarr's own profile list, read live (test/fixtures/sonarr/qualityprofile.json).
+     * Its profiles carry no `language`, which Radarr's do. The detail read is
+     * served as the list element, and the PUT stays mock-only: no Sonarr has
+     * been written to.
+     */
+    describe('on the recorded Sonarr profile shape', () => {
+        const SONARR = JSON.parse(readFileSync(join(import.meta.dirname, 'fixtures/sonarr/qualityprofile.json'), 'utf8')) as Profile[];
+        const positives = (p: Profile) => p.formatItems.filter(f => f.score > 0).map(f => f.score);
+        const target = SONARR.find(p => positives(p).length >= 2)!;
+        const total = positives(target).reduce((a, b) => a + b, 0);
+        const headroom = total - Math.min(...positives(target));
+
+        it('previews the fix and PUTs the profile as read, with only the floor changed', async () => {
+            const before = { ...structuredClone(target), minFormatScore: total + 1 };
+            const served = serving(before, { others: SONARR.filter(p => p.id !== target.id) });
+            const { call } = harness(served, { adapter: 'sonarr' });
+            const args = { service: 'sonarr', profile: target.name, finding: 'unreachable_floor' };
+
+            const { structuredContent: preview } = await call(args);
+            expect(preview.applied).toBe(false);
+            expect(preview.summary).toContain(`from ${total + 1} to ${headroom}`);
+            expect(served.puts).toHaveLength(0);
+
+            const { structuredContent: applied } = await call({ ...args, confirm: preview.confirm_token });
+            expect(applied.applied).toBe(true);
+            expect(served.puts).toHaveLength(1);
+            expect(served.puts[0]?.path).toBe(`/api/v3/qualityprofile/${target.id}`);
+            expect(served.puts[0]?.body).toEqual({ ...before, minFormatScore: headroom });
+            expect(served.puts[0]?.body).not.toHaveProperty('language');
+        });
+
+        it('refuses the recorded profile as it stands, which has no unreachable floor, and writes nothing', async () => {
+            const served = serving(target, { others: SONARR.filter(p => p.id !== target.id) });
+            const { call } = harness(served, { adapter: 'sonarr' });
+            await expect(call({ service: 'sonarr', profile: target.name, finding: 'unreachable_floor' })).rejects.toThrow();
+            expect(served.puts).toHaveLength(0);
+        });
     });
 
     it('refuses a finding that no longer holds', async () => {
