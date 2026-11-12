@@ -84,6 +84,7 @@ const healthy = (over: EvidenceOverride = {}): Evidence => {
         subtitles: null,
         libraryDegraded: [],
         degraded: [],
+        arrs: ['lidarr', 'radarr', 'sonarr'],
         ...over
     };
     drop(merged);

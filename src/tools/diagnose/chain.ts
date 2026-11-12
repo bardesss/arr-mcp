@@ -38,7 +38,8 @@ export type Evidence = {
     /**
      * Set when `item.kind` is a stand-in: a media server named by id reports
      * no kind (Jellyfin's `item`), so `movie` is used. Every *arr then counts
-     * as one that could hold it.
+     * as one that could hold it, Lidarr aside for an item that carries a film
+     * or series id (`couldManage`).
      */
     itemKindGuessed?: true;
     /**
@@ -116,6 +117,11 @@ export type Evidence = {
      */
     libraryDegraded: readonly string[];
     degraded: readonly string[];
+    /**
+     * The *arr instances configured here (`radarr`, `sonarr/4k`, ...), so a
+     * remedy for an item nothing manages names only the *arrs this stack runs.
+     */
+    arrs: readonly string[];
 };
 
 export type Diagnosis = {
@@ -1036,16 +1042,50 @@ function subtitleStep(ev: Evidence, item: MergedItem): { step: Step; sentence: s
 const REMEDIES: Partial<Record<Stage, string>> = {
     resolve: 'Try search_media, which also looks at what you do not have yet, or request it through Seerr.',
     request: 'Approve or re-submit the request in Seerr.',
-    managed: 'Add it to Radarr or Sonarr, or turn monitoring on for it.',
     indexers: 'Check the indexer in Prowlarr; get_indexers shows its recent failures.'
     // `queue` is evidence-dependent (see queueStep's QueueResult), `file` is
-    // step-status-dependent (see fileRemedy), and `library`/`scan` need the
-    // configured server's name (see libraryRemedy); none of the three
-    // belong in a static per-stage map.
+    // step-status-dependent (see fileRemedy), `managed` names the *arrs the
+    // stack runs (see managedRemedy), and `library`/`scan` name the configured
+    // server (see libraryRemedy); none of the four fit a static per-stage map.
 };
 
-/** An artist nothing manages is added to Lidarr: add_media takes its MusicBrainz id, which search_media `source: "discover"` returns. */
-const ARTIST_MANAGED_REMEDY = 'Add it to Lidarr, or turn monitoring on for it.';
+/** The ids that make an item a film or a series: no music item carries them (`jellyfin.ts`, `plex.ts`). */
+const FILM_OR_SERIES_IDS = ['tmdb', 'tvdb', 'imdb'] as const;
+
+/**
+ * Whether an *arr of this type could manage the item: one of its kind, or,
+ * with the kind only guessed (`itemKindGuessed`), any *arr, Lidarr aside when
+ * the item carries a film or series id.
+ */
+const couldManage = (ev: Evidence, item: MergedItem, type: string): boolean => {
+    const holds = ARR_KIND[type];
+    if (holds === undefined) return false;
+    if (ev.itemKindGuessed !== true) return holds === item.kind;
+    return holds !== 'artist' || !FILM_OR_SERIES_IDS.some(key => item.ids[key] !== undefined);
+};
+
+/**
+ * The `managed` remedy. One the unread *arrs left unchecked asks to check
+ * them, and one a cleanup rule removed on purpose to protect it first.
+ * Otherwise it names only the *arrs this stack runs: for an item one of them
+ * has but does not monitor, that one (`monitorStep` carries the call), and for
+ * an item nothing manages, the configured *arrs that could manage it
+ * (`couldManage`).
+ */
+function managedRemedy(ev: Evidence, item: MergedItem, step: Step, unreadArrs: readonly string[], removedOnPurpose: boolean): string {
+    if (step.status === 'unknown') {
+        return unreadArrs.length === 1
+            ? `Check that ${unreadArrs[0]} is reachable, then diagnose_media again: it may be managing it.`
+            : `Check that ${andList(unreadArrs)} are reachable, then diagnose_media again: one of them may be managing it.`;
+    }
+    if (removedOnPurpose) {
+        return `A cleanup rule removed it on purpose. Protect it in ${ev.cleanup?.service ?? 'the cleanup service'} first, or the same rule will remove it again, then turn monitoring on in ${item.acquisition?.service ?? 'the service managing it'}.`;
+    }
+    if (item.acquisition !== undefined) return `Turn monitoring on for it in ${arrOf(item)}.`;
+    const able = Object.entries(ARR_NAMES).filter(([type]) => couldManage(ev, item, type));
+    const here = able.filter(([type]) => ev.arrs.some(id => instanceArgs(id).service === type)).map(([, name]) => name);
+    return here.length > 0 ? `Add it to ${orList(here)}.` : `No ${orList(able.map(([, name]) => name))} is configured here to manage it.`;
+}
 
 /** `library`/`scan` remedies name the configured media server, so unlike the
  *  rest of `REMEDIES` they can't be static strings. Only called once a
@@ -1168,20 +1208,21 @@ const allDegraded = (ev: Evidence): string[] => [...new Set([...ev.degraded, ...
 const certaintyDegraded = (ev: Evidence): string[] => servicesOnly(allDegraded(ev));
 
 /**
- * The *arrs of this kind, any instance, whose library read failed. Any of them
- * may hold an item no other source claims; a source-scoped id such as
- * `jellyfin:music` is a media server's read, never an *arr's. With the kind
- * only guessed (`itemKindGuessed`), every unread *arr counts.
+ * The *arrs that could manage the item (`couldManage`), any instance, whose
+ * library read failed. Any of them may hold an item no other source claims; a
+ * source-scoped id such as `jellyfin:music` is a media server's read, never an
+ * *arr's.
  */
-const arrsUnreadFor = (ev: Evidence, kind: MergedItem['kind']): string[] =>
-    servicesOnly(ev.libraryDegraded).filter(id => {
-        const holds = ARR_KIND[id.split('/')[0] ?? ''];
-        return holds !== undefined && (ev.itemKindGuessed === true || holds === kind);
-    });
+const arrsUnreadFor = (ev: Evidence, item: MergedItem): string[] =>
+    servicesOnly(ev.libraryDegraded).filter(id => couldManage(ev, item, id.split('/')[0] ?? ''));
 
-/** `a`, `a and b`, `a, b and c`. */
-const andList = (names: readonly string[]): string =>
-    names.length < 2 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names.at(-1) as string}`;
+/** `a`, `a and b`, `a, b and c`, or the same with `or`. */
+const listWith =
+    (word: string) =>
+    (names: readonly string[]): string =>
+        names.length < 2 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} ${word} ${names.at(-1) as string}`;
+const andList = listWith('and');
+const orList = listWith('or');
 
 const withSteps = (next: NextStep[]): { next_steps?: NextStep[] } => (next.length === 0 ? {} : { next_steps: next });
 
@@ -1272,7 +1313,7 @@ export function buildChain(query: string, ev: Evidence, byWords: boolean): Diagn
     // monitoring is off, and the check below needs that real signal to
     // tell "not monitored, and also no file" apart from "not monitored, but
     // it is sitting right there".
-    const unreadArrs = acquisition === undefined ? arrsUnreadFor(ev, item.kind) : [];
+    const unreadArrs = acquisition === undefined ? arrsUnreadFor(ev, item) : [];
     if (unreadArrs.length > 0) {
         // An *arr of this kind (any, when the kind was only guessed) whose
         // library read failed may hold the item, so "nothing manages it" is
@@ -1459,12 +1500,8 @@ export function buildChain(query: string, ev: Evidence, byWords: boolean): Diagn
     const remedy =
         blocking.stage === 'queue'
             ? queueResult.remedy
-            : blocking.stage === 'managed' && blocking.status === 'unknown'
-              ? unreadArrs.length === 1
-                ? `Check that ${unreadArrs[0]} is reachable, then diagnose_media again: it may be managing it.`
-                : `Check that ${andList(unreadArrs)} are reachable, then diagnose_media again: one of them may be managing it.`
-              : blocking.stage === 'managed' && removedOnPurpose
-              ? `A cleanup rule removed it on purpose. Protect it in ${ev.cleanup?.service ?? 'the cleanup service'} first, or the same rule will remove it again, then turn monitoring on in ${acquisition?.service ?? 'the service managing it'}.`
+            : blocking.stage === 'managed'
+              ? managedRemedy(ev, item, blocking, unreadArrs, removedOnPurpose)
               : blocking.stage === 'file'
               // The `file` step always carries the managing service: it is only
               // pushed on the branch where `acquisition` is defined.
@@ -1479,9 +1516,7 @@ export function buildChain(query: string, ev: Evidence, byWords: boolean): Diagn
                     ))
               : blocking.stage === 'library' || blocking.stage === 'scan'
                 ? libraryRemedy(blocking.stage, ev.mediaServer as string)
-                : blocking.stage === 'managed' && item.kind === 'artist'
-                  ? ARTIST_MANAGED_REMEDY
-                  : REMEDIES[blocking.stage];
+                : REMEDIES[blocking.stage];
     // The verdict's own stage is never also the aside (it is already the
     // headline), so `aside` only ever adds information here for a
     // non-queue verdict; same guard as the playable branch above.
@@ -1532,14 +1567,15 @@ function nextStepsFor(
                       {
                           tool: 'respond_to_request',
                           arguments: { id: String(ev.request.id), verdict: 'approve' },
-                          why: 'Approving hands the request to Radarr or Sonarr to search for it.'
+                          // Seerr hands a film to Radarr and a series to Sonarr, whatever else the stack runs.
+                          why: `Approving hands the request to ${item?.kind === 'movie' ? 'Radarr' : 'Sonarr'} to search for it.`
                       }
                   ]
                 : [];
         case 'managed':
-            // `managed` is unknown with an *arr of its kind unread (any *arr
-            // when the kind was only guessed), and a lookup would ask it too.
-            if (item !== undefined && acquisition === undefined && arrsUnreadFor(ev, item.kind).length > 0) return [];
+            // `managed` is unknown with an *arr that could manage it unread,
+            // and a lookup would ask it too.
+            if (item !== undefined && acquisition === undefined && arrsUnreadFor(ev, item).length > 0) return [];
             // An artist nothing manages gets the same lookup as a film or a
             // series: search_media `source: "discover"` answers with Lidarr's artists, each with the
             // MusicBrainz id add_media takes.

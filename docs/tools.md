@@ -344,13 +344,21 @@ adds "Also in" or "Not in" the other server's library, as extra detail and
 never as a blocking stage. A secondary that is down does not lower `certain`.
 
 **It also works with services down.** Any step it could not check sets
-`certain: false`, and the summary names what was missed. When the title is found (in the media
-server, say) but no *arr claims it, and a Radarr, Sonarr, Whisparr or Lidarr
-that holds its kind could not be read, `managed` is `unknown` rather than
-"nothing is managing it": the verdict is `managed`, uncertain, and asks you to
-check that service and run diagnose_media again, unless a blocked request comes first.
-A Jellyfin id gives no kind, nor does a Plex item that is not a film or a show,
-so there any *arr that could not be read counts.
+`certain: false`, and the summary names what was missed. When the title is found
+(in the media server, say) but no *arr claims it, and a Radarr, Sonarr, Whisparr
+or Lidarr that holds its kind could not be read, `managed` is `unknown` rather
+than "nothing is managing it": the verdict is `managed`, uncertain, and asks you
+to check that service and run diagnose_media again, unless a blocked request
+comes first. A Jellyfin id gives no kind, nor does a Plex item that is not a
+film or a show, so there any *arr that could not be read counts, Lidarr aside
+when the item carries a tmdb, tvdb or imdb id, as a film or a show does.
+
+Remedies name the *arr that manages the item. For one nothing manages, the
+`managed` remedy names the *arrs configured here that could manage it (of its
+kind, or, when its kind is not known, by the same rule), or says that none is;
+for one an *arr has but does not monitor, it names that *arr. The step that
+approves a Seerr request names Radarr for a film and Sonarr for a series, the
+two that Seerr hands its requests to.
 
 The queue stage words each state for what it is. Three block with a remedy and
 the removal step: a `failed` download; one with a warning (the *arrs' `warning`
