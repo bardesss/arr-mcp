@@ -309,23 +309,28 @@ which is stateless HTTP; `tools.media_cards: false` turns them off entirely
 
 ## `get_history` and the event log
 
-`delete_media` removes a title's history from Radarr or Sonarr along with the
-title. With `source: "webhooks"`, `get_history` reads the events those services
+`delete_media` removes a title's history from Radarr, Sonarr or Lidarr along
+with the title. With `source: "webhooks"`, `get_history` reads the events those services
 reported to arr-mcp instead, so this is the only record that survives a delete.
 It needs the [library event log](configuration.md#the-library-event-log) turned
 on, and it holds nothing from before that.
 
 `service`, `instance`, `id`, `event_type`, `since` and paging work as they do
 for the default `source: "services"`, which never includes stored rows. A service
-other than Radarr or Sonarr is refused. `note` says when the log is off or when
+other than Radarr, Sonarr or Lidarr is refused. `note` says when the log is off or when
 nothing has arrived, and an unreadable store is `event-log` in `degraded`.
 
 A stored row differs from a service's own row in a few ways:
 
 - `at` is when arr-mcp received the event, because the payload has no timestamp.
 - `id` is arr-mcp's own row number.
-- `externalIds` holds TMDB, TVDB and IMDb ids. A re-added title gets a new
-  `mediaId`, and these stay the same.
+- `externalIds` holds TMDB, TVDB and IMDb ids, or a Lidarr artist's MusicBrainz
+  id as `mbid`. A re-added title gets a new `mediaId`, and these stay the same.
+- A Lidarr row's title is `Artist - Album`. Lidarr's download failure names only
+  the release, which is not kept, so that row has no title; its `downloadId`
+  links it to the grab. Lidarr 3.1.6 sends an upgrade as a plain import, and
+  after an artist delete an album delete per album that says its files were
+  kept even when they went, so an album delete only ever says `files deleted`.
 - `added` is a new `event`, and events without a captured payload are `unknown`
   with their name in `rawEvent`, at every detail level.
 - `reason` is why a file went (`manual`), or for a deleted title whether its files
@@ -2906,9 +2911,10 @@ size on disk.
 
 With `delete_files: true` Lidarr deletes the artist's folder, through its
 recycle bin when one is set, unless that folder holds another artist's or is the
-same as one, when it deletes no files at all. The artist's history goes with it,
-and Lidarr's events are not in arr-mcp's event log, so only arr-mcp's audit
-trail keeps a record of the delete. `add_import_exclusion` keeps Lidarr's import
+same as one, when it deletes no files at all. The artist's history goes with it; with the
+[library event log](configuration.md#the-library-event-log) on, what Lidarr
+reported about the artist survives there, and arr-mcp's audit trail records the
+delete. `add_import_exclusion` keeps Lidarr's import
 lists from adding the artist again until one of its albums is added, by hand or
 through Lidarr's API, which deletes the exclusion. The preview runs none of the
 cross-checks (see [writes](writes.md)).

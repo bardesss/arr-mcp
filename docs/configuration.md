@@ -859,7 +859,7 @@ webhooks:
   retention_days: 30   # default
 ```
 
-Off by default. Radarr and Sonarr lose a title's history when it's deleted, so
+Off by default. Radarr, Sonarr and Lidarr lose a title's history when it's deleted, so
 this keeps what they report in `events.db`, next to `audit.db`, where a delete
 can't reach it. Without it nothing listens: `/webhooks/*` answers 404.
 
@@ -868,12 +868,12 @@ You can read the events under **Library events** on the Logs page, with
 and through `diagnose_media` when a title is no longer in your library.
 
 Turn it on under **Library event log** on the Configuration page, which writes a
-generated secret and takes effect at once. Then add a connection in each Radarr
-and Sonarr instance, under Settings, Connect, Webhook:
+generated secret and takes effect at once. Then add a connection in each Radarr,
+Sonarr and Lidarr instance, under Settings, Connect, Webhook:
 
 | Field | Value |
 |-------|-------|
-| URL | `http://<arr-mcp as the service reaches it>:6060/webhooks/radarr`, `/webhooks/sonarr`, or `/webhooks/radarr/4k` for a named instance |
+| URL | `http://<arr-mcp as the service reaches it>:6060/webhooks/radarr`, `/webhooks/sonarr`, `/webhooks/lidarr`, or `/webhooks/radarr/4k` for a named instance |
 | Method | POST |
 | Username | `arr-mcp` (any name works) |
 | Password | The password shown on the Configuration page |
@@ -883,10 +883,11 @@ Tick these triggers:
 | Trigger | Stored as |
 |---------|-----------|
 | On Grab | `grabbed` |
-| On File Import, On File Upgrade | `imported` |
-| On Movie Added, or On Series Add in Sonarr | `added` |
-| On Movie Delete, or On Series Delete | `deleted`, and whether the files went too |
+| On File Import, On File Upgrade (Lidarr: On Release Import, On Upgrade) | `imported` |
+| On Movie Added, On Series Add, or On Artist Add | `added` |
+| On Movie Delete, On Series Delete, On Artist Delete or On Album Delete | `deleted`, and whether the files went too |
 | On Movie File Delete, or On Episode File Delete | `deleted`, with the reason |
+| On Download Failure (Lidarr only) | `failed` |
 
 The file delete for an upgrade, On Rename and On Manual Interaction Required are
 optional. The first adds a row to every upgrade, and the other two are kept as
@@ -901,7 +902,7 @@ If you've set [`allowed_hosts`](#access), the host name in that URL has to be in
 the list. A container name like `arr-mcp` usually isn't, and the service gets a
 403 until it is.
 
-Only Radarr and Sonarr are accepted. Rename, manual interaction and health
+Only Radarr, Sonarr and Lidarr are accepted. Rename, manual interaction and health
 events are kept as `unknown` under their own name.
 
 Turning the log off keeps the secret and the stored events, and stops accepting
