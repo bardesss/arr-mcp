@@ -19,13 +19,10 @@ services:
 Both default to **false**. A service you add by hand-editing YAML acquires no
 write access by doing so.
 
-The tiers are ordered: `destructive: true` implies `safe_write`, so you never
-have to reason about a config that permits deleting a film but refuses to
-re-monitor it.
+The tiers are ordered: `destructive: true` implies `safe_write`.
 
-**Permissions are per instance.** `safe_write` on `radarr/hd` and nothing on
-`radarr/4k` is a configuration you can express: each entry carries its own
-`permissions` block.
+**Permissions are per instance.** Each entry carries its own `permissions`
+block, so `safe_write` on `radarr/hd` and nothing on `radarr/4k` works.
 
 A write the tier forbids is refused before anything is read for it. The refusal
 names the service, the id or title exactly as you gave it, and the tier it
@@ -75,42 +72,28 @@ deleting its record of the title, with every request and issue for it, so
 `remove` needs `destructive`. An *arr's import exclusion takes nothing with it,
 so both directions there need only `safe_write`.
 
-`remove_queue_item` is destructive rather than safe because it deletes partial
-data, and because `blocklist: true` durably teaches Radarr, Sonarr, Whisparr or
-Lidarr to refuse a release, which is hard to notice and hard to undo months
-later, when the same film mysteriously never grabs. SABnzbd, NZBGet, the torrent
-clients and Shelfmark have no blocklist of their own; ask for one there and the
-preview tells you it is being ignored rather than silently accepting a flag that
-does nothing. On Shelfmark it only cancels a queued or running book, and refuses
-`remove_from_client: false`, because Shelfmark has no way to leave the download
-alone. On Grimmory it discards a file waiting in the Bookdrop, which deletes the
-file from disk with no undo. It refuses `remove_from_client: false`, since
-Grimmory cannot discard a file and keep it, and `blocklist` is ignored there. On
-Radarr, Sonarr, Whisparr and Lidarr it refuses `remove_from_client: false` for a
-row `get_queue` marks `orphaned`, and for a Lidarr row with no album, unless the
-release is blocklisted: with nothing to record an ignore against, the service
-would list the download again at the next refresh. Its preview also says when
-`blocklist: true` would blocklist nothing
-([`remove_queue_item`](tools.md#remove_queue_item)).
+`remove_queue_item` is destructive because it deletes partial data, and because
+`blocklist: true` durably teaches Radarr, Sonarr, Whisparr or Lidarr to refuse a
+release, which is hard to notice and hard to undo months later. SABnzbd, NZBGet,
+the torrent clients and Shelfmark have no blocklist of their own; ask for one
+there and the preview says it is ignored. On Shelfmark it only cancels a queued
+or running book. On Grimmory it discards a file waiting in the Bookdrop, which
+deletes the file from disk with no undo, and `blocklist` is ignored. Both refuse
+`remove_from_client: false`. The other cases it refuses, and when `blocklist: true`
+would blocklist nothing, are in
+[`remove_queue_item`](tools.md#remove_queue_item).
 
 `fix_profile` is destructive because the profile decides what an instance
 grabs from then on, and the old minimum comes back only by editing it by hand;
-the preview shows it. It changes one number: the minimum custom format score of
-a profile `get_profile_issues` has proven unreachable or exactly on the edge,
-and it sends the profile back as the service sent it, with that score the only
-difference. It takes only the two floor findings, and refuses one that no
-longer holds. Profilarr reports how many quality profiles it syncs to each arr
-and not which: it refuses when that is every profile the instance holds, and
-warns in the preview when it is some, since its next sync may put the old
-value back (
-[`fix_profile`](tools.md#fix_profile)).
+the preview shows it. It changes one number, the minimum custom format score,
+and refuses a finding that no longer holds. It also refuses or warns when
+Profilarr would overwrite it ([`fix_profile`](tools.md#fix_profile)).
 
 `delete_media` on a Grimmory book always deletes the files. Grimmory has no
 keep-files option, so the call needs `delete_files: true` and is refused
 without it.
 
-`fix_metadata` is destructive without deleting a single byte, which is the
-clearest statement of where the line actually is: it replaces every metadata
+`fix_metadata` is destructive without deleting a single byte: it replaces every metadata
 field the media server held, including anything corrected by hand there, and
 the previous values are not recoverable. Unrecoverable is the test, not
 whether files were removed. On a Grimmory book it replaces the fields where the
@@ -130,20 +113,16 @@ sets it to now, marking it unread clears it, and an earlier one is not restored.
 
 `update_media` is safe, including when it changes the root folder, which asks
 the service to **move the files on disk**. Nothing is lost by a move: the undo
-is moving them back, and the service does the moving itself. That puts it
-alongside `add_media`, which starts multi-gigabyte downloads and is safe for
-the same reason. The preview names the source and the destination, because
-"change the root folder" reads cheaper than it is. A Lidarr metadata profile is
+is moving them back, and the service does the moving itself. `add_media`, which
+starts multi-gigabyte downloads, is safe for the same reason. The preview names
+the source and the destination. A Lidarr metadata profile is
 the one field it cannot always set back: once a refresh has removed the albums
 the new profile leaves out, switching back brings them in again as new albums,
 without their old flags. A call that changes it is destructive tier, so it needs
-`destructive` on that Lidarr, and the preview says what the refresh will do.
-A Lidarr root folder change with `move_files: false` stays safe tier too, though
-while the artist's current folder is still on disk it rewrites every track
-file's recorded path to the new root folder, which switching back does not
-restore, because Lidarr skips the move when the folder it moves from is not on
-disk. The preview says so, and moving the files to that folder with
-`move_files: true` and back sets the paths right again.
+`destructive` on that Lidarr. A Lidarr root folder change with
+`move_files: false` stays safe tier, though it can rewrite recorded track paths
+in a way switching back does not restore; the preview says so
+([`update_media`](tools.md#update_media)).
 
 `update_book` edits a Grimmory book's title, authors, series and
 categories, and Grimmory may write the change into the book file and move it to
@@ -153,9 +132,8 @@ tool makes Grimmory write them into the file and rename it again.
 
 `trigger_scan`'s `rename` action is safe on the same reading: it renames files
 within the library to the service's own scheme, and renaming again puts them
-back. `import_download` is safe too. Its `import` action only ever imports what
-the service is already willing to take: a file the service rejects is excluded
-and named, never forced. Its `remap` action changes which episode Sonarr says a
+back. `import_download` is safe too. Its `import` action only imports what
+the service is willing to take; a file the service rejects is excluded and named. Its `remap` action changes which episode Sonarr says a
 file is, and renames that file to match; a second remap puts both back. Nothing
 moves between folders and nothing is deleted. Renaming a rotated season additionally changes Sonarr's
 episode naming format for the length of two commands and puts it back: the
@@ -192,11 +170,8 @@ credential. `add` is limited to public indexers that need no login, and `edit`
 uses Prowlarr's bulk endpoint, which never sees the indexer's settings, so no
 API key, password or cookie passes through arr-mcp or lands in the audit trail.
 
-`pause_downloads` names one client rather than defaulting to all of them, and
-that is a permission property rather than a missing convenience: every write's
-tier is checked against exactly one resolved service id, so a tool spanning
-three clients would have to nominate one of them for that check, and enabling
-`safe_write` on SABnzbd would then quietly enable it on Transmission.
+`pause_downloads` names one client rather than all of them, because every
+write's tier is checked against exactly one resolved service id.
 
 `retry_download` is safe because it re-downloads at most what is missing and
 deletes nothing. The worst outcome is a second copy of something Radarr or
@@ -223,16 +198,14 @@ trigger_search { service: "radarr", id: "5" }
 
 The token is in the text as well as in the `confirm_token` field of
 `structuredContent`, because not every client forwards the structured half to
-the model, and a preview that only points at a field the model cannot see is a
-handshake it can never complete.
+the model.
 
 Tokens are single-use, expire after five minutes, and are cryptographically
 bound to the exact operation and arguments previewed: a token issued for one
 film cannot be replayed against another, and a token from a `delete_media`
 preview that left files on disk cannot be used to wipe them. A token only works
 in the arr-mcp process that issued it, so restarting invalidates any outstanding
-ones, and a token taken to a second instance is refused as coming from another
-process.
+ones, and a token taken to a second instance is refused.
 
 A token that is refused for any reason but having been used already comes back
 as a fresh preview with a new token, and its text carries that preview's summary
@@ -296,11 +269,8 @@ is the same with or without them. Requester names are never shown.
 
 ## `dry_run`
 
-The separate, terminal form: it describes the effect and issues no token at all,
-so it can never turn into a write. It works even with the tier switched off, and
+It describes the effect and issues no token, so it can never turn into a write. It works even with the tier switched off, and
 tells you which key you would need to set.
-
-That is how you answer *"what would this do?"* without granting anything first.
 
 ## Below the level of a whole item
 
@@ -309,10 +279,8 @@ monitoring on or off for a whole series, one season, or specific episodes: give
 `season` or `episodes`, never both, and giving neither targets the whole series.
 
 `trigger_search` takes the same `season` and `episodes` pair, refusing both
-together for the same reason: on Sonarr they select a different command
-entirely (`SeasonSearch` or `EpisodeSearch` instead of `SeriesSearch`), and
-conflating the two is how a request for one episode ends up re-grabbing a
-whole season. A season the series does not have, or an episode id that does
+together: on Sonarr they select `SeasonSearch` or `EpisodeSearch` instead of
+`SeriesSearch`. A season the series does not have, or an episode id that does
 not resolve, is refused (naming the seasons that do exist) rather than
 posted, because Sonarr accepts a command matching nothing and reports success.
 Radarr has no seasons, so `season` and `episodes` are refused there outright.
@@ -347,18 +315,15 @@ album, and its `id` is an artist id, never an album id.
 ### Unmonitor before you delete
 
 If a season's or episode's files are deleted while it is still monitored, Sonarr
-treats them as missing and re-downloads exactly what you just deleted. That is
-the reason these shipped as two separate tools rather than one that does both.
+treats them as missing and re-downloads exactly what you just deleted. 
 
 `delete_episode_files`'s preview warns when the target is still monitored, and
-says nothing when it is not, so the warning is worth reading rather than
-skipping past. It reads the episodes' own monitored flags, not Sonarr's
+says nothing when it is not. It reads the episodes' own monitored flags, not Sonarr's
 per-season summary of them, which `set_monitoring`'s episode form can leave
 behind.
 
 On a series long enough that the episode list is truncated, the preview says the
-monitoring state could not be established rather than staying quiet: silence
-there would read as "nothing is monitored".
+monitoring state could not be established.
 
 ### Both tools refuse rather than write into the dark
 
@@ -366,16 +331,13 @@ Given an episode id it cannot resolve (wrong, or past the 500-episode cap)
 either tool refuses outright rather than silently dropping it. `set_monitoring`
 refuses a season the series does not have, naming the seasons it does.
 
-A write that matches nothing would otherwise report success, and you would go on
-to delete files believing the season was unmonitored.
+
 
 When a file holds more than one episode, which Sonarr routinely does for a
 double episode, `delete_episode_files` names every episode the delete would take
 with it, not just the one you asked for.
 
-Episode ids for both tools come from `get_media_details`, whose `episodes` also
-carry `episodeFileId` (the file each episode is on, when it has one), which is
-how `delete_episode_files` resolves a target without a second read.
+Episode ids for both tools come from `get_media_details`.
 
 ### Lidarr: the artist flag is not the album flag
 
@@ -388,16 +350,11 @@ a `get_media_details` read on the artist. The artist's policy is `update_media`:
 `monitored`, `monitor_new_items` or both are written. That needed no new tool,
 since `update_media` already sets one artist.
 
-Three things the preview says, because each one was found rather than assumed:
+Three things the preview says:
 
-- **The artist flag is not the album flag.** A live library had an artist
-  reading `monitored: false` with an album under it still `monitored: true`,
-  and the write side agrees. On 2.1.3.3927 an artist was set to
-  `monitored: false`, to `true`, to `monitorNewItems: "none"`, and to both, and
-  in every case its two albums kept exactly the flags they had. The same four
-  writes on 3.1.6.5079, with `monitorNewItems: "all"` in place of `"none"`,
-  left an artist's four albums as they were. An album's own flag is what
-  decides whether that album is wanted, and `set_monitoring` with `level: "album"` is how it is set.
+- **The artist flag is not the album flag.** Changing an artist's `monitored`
+  or `monitorNewItems` leaves its albums' flags as they were. An album's own
+  flag decides whether that album is wanted, and `set_monitoring` with `level: "album"` is how it is set.
   While its artist is unmonitored, though, Lidarr's wanted lists, calendar,
   RSS sync and missing and cutoff searches skip every album of that artist,
   so `get_wanted` and `get_calendar` leave them out until the artist is
@@ -410,25 +367,16 @@ Three things the preview says, because each one was found rather than assumed:
   policy is written for the whole set the preview named.
 - **The write names the artists the preview showed.** The confirmation token is
   signed over the resolved id list, so an artist added between the preview and
-  the confirmation changes the signature and the old token is refused. The
-  alternative was a write that reached an artist nobody was shown.
+  the confirmation changes the signature and the old token is refused.
 
 `arr://lidarr/monitoring` reports the same distribution without a write.
 
-At the artist level the adapter writes the bulk editor endpoint only. The
-single-artist `PUT /api/v1/artist/{id}` queues a `MoveArtist` job on every call,
-even with `moveFiles=false` and an unchanged path, which is a library move
-nobody asked for. The editor endpoint queued none in three runs against
-2.1.3.3927, and the album monitor endpoint queued none either.
-
 ## Not yet run against a live service
 
-Every path below has tests, but none has a recorded response or a confirmed run
-against a real service behind it. A bug report here is likely its first real
+Every path below has tests, but no recorded response or confirmed run against a
+real service. A bug report here is likely its first real
 exercise. Where the tool has its own section, the same path carries an
-`**Unverified live**` line in [tools.md](tools.md). The row, and the line if
-there is one, come off in the pull request that adds the capture or confirms
-the run.
+`**Unverified live**` line in [tools.md](tools.md).
 
 | Tool | Service | What | Why |
 | --- | --- | --- | --- |
@@ -455,8 +403,8 @@ the run.
 | `diagnose_media` | `whisparr` | The item's history behind the Cleanuparr and Reclaimerr checks | No Whisparr on the maintainer's stack; inherited from Sonarr's spec, not captured |
 | `retry_download` | `whisparr` | The check for a replacement grab, which traces the download through Sonarr's helper | No Whisparr on the maintainer's stack; inherited from Sonarr's spec, not captured |
 | `delete_media` | `grimmory` | Deleting a book | The test response is a hand-made mock; no live book has been deleted |
-| `delete_media` | `seerr` | Blocklisting with `seerr_blocklist` | Written from Seerr's own route (`server/routes/blocklist.ts`), whose request body differs from its published spec. The blocklist call itself is confirmed live through `blocklist_media` on Seerr 3.5.1; the delete-then-blocklist path was not run, since it deletes a film |
-| `fix_profile` | `sonarr` | The profile write | Sonarr 4.0.19's profile list is recorded read-only (no `language` field, which Radarr's carries); the `PUT` was captured only on Radarr 6.4.4, on a throwaway profile copy (`PUT` answered 202, a refused `PUT` answered 400 with its reason), so on Sonarr it is unproven live |
+| `delete_media` | `seerr` | Blocklisting with `seerr_blocklist` | The blocklist call is confirmed live through `blocklist_media`; the delete-then-blocklist path was not run, since it deletes a film |
+| `fix_profile` | `sonarr` | The profile write | Sonarr's profile list is recorded read-only; the `PUT` was captured only on Radarr, so on Sonarr it is unproven live |
 | `fix_profile` | `whisparr` | The profile read and write | No Whisparr on the maintainer's stack; shares the code and path with Radarr, whose exchange was captured, but was not captured itself |
 | `blocklist_media` | `sonarr` | Adding and removing an import exclusion | The list read is checked against a live Sonarr 4.0; the writes were not run |
 | `blocklist_media` | `lidarr` | Import exclusions | No Lidarr on the maintainer's stack; written from Lidarr's spec |
@@ -478,10 +426,8 @@ The config UI's **Write audit** page reads the same trail.
 
 ## Ids, never titles
 
-Write tools take `service` and `id`. Titles are resolved fuzzily, which is fine
-when the cost of being wrong is a wrong answer and not fine when it is an action
-against the wrong film. Use `get_media_details` or `get_library` to get an id
-first.
+Write tools take `service` and `id`, because titles are resolved fuzzily. Use
+`get_media_details` or `get_library` to get an id first.
 
 `add_media` takes an external id instead: TMDB for Radarr, TVDB for Sonarr and
 Whisparr, all returned by `search_media` with `source: "discover"` under `ids`.
@@ -520,12 +466,9 @@ instead that monitoring alone grabs nothing: the artist has no monitored album
 until it gets another profile, whose albums `monitor_new_items` flags, or an
 album added in Lidarr, which a refresh keeps. With `all` or `new` (which has no
 album to compare with), a later profile change monitors every album it brings,
-and Lidarr then searches the released ones while the artist is monitored. In
-Lidarr newer than 3.2.0.5144 that search covers only albums released in the
-last 180 days, and older ones wait for RSS sync or `trigger_search`. It searches
-at the rescan after that refresh, or, when Lidarr's "Rescan Artist Folder after
-Refresh" setting skips that rescan (Never, or After Manual Refresh for a
-scheduled refresh), at the next disk scan. The preview says this too when
+and Lidarr then searches the released ones while the artist is monitored (in
+Lidarr newer than 3.2.0.5144, only those released in the last 180 days; when
+that search runs is in [`update_media`](tools.md#update_media)). The preview says this too when
 `monitor_new_items` is given.
 
 `monitor_new_items` also sets the albums an artist is added with: Lidarr's first
@@ -541,8 +484,7 @@ adds on import. The preview says each of these.
 ### With more than one instance, writes name one
 
 Adding a film with two Radarrs configured and no `instance` is refused, and the
-refusal lists the names rather than guessing: a 4K release landing in the HD
-instance is only discovered once the download has finished.
+refusal lists the names rather than guessing.
 
 ```
 add_media { service: "radarr", external_id: "550" }
@@ -553,8 +495,8 @@ add_media { service: "radarr", external_id: "550" }
 > library.
 
 That means **adding a second instance changes how existing prompts behave**:
-requests that used to be unambiguous start asking which instance you meant. That
-is deliberate, and it only affects writes.
+requests that used to be unambiguous start asking which instance you meant. It
+only affects writes.
 
 ## Managing someone else's request
 
@@ -571,11 +513,7 @@ their own display names, so another account could take the configured one. For
 the same reason, a `default_user` that matches more than one Seerr user is
 refused rather than guessed between.
 
-This is the same gate `get_requests` applies to reading them. Without it, the
-read side would refuse to so much as list a request that the write side would
-approve, and name the title and requester while previewing it. Request ids are
-small integers, so anything the read gate refused would have been one guess
-away.
+This is the same gate `get_requests` applies to reading them. 
 
 ## Unmonitoring a season always asks
 
@@ -586,5 +524,4 @@ form reports "no change was made" without asking.
 Sonarr's per-season `monitored` flag is an aggregate over the episode flags, and
 this tool's own episode form writes those flags without touching the aggregate:
 so a season can report itself unmonitored while its episodes are still
-monitored. Treating that as "nothing to do" wrote nothing and left Sonarr
-searching for exactly the episodes you were about to delete.
+monitored. 
