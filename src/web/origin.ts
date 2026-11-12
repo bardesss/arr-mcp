@@ -9,7 +9,7 @@ import type { Context } from 'hono';
  * port included, so it is right without a setting to configure and right behind
  * a reverse proxy for free.
  *
- * `mcpEndpoint` takes strings rather than a Hono `Context` on purpose — it is a
+ * `mcpEndpoint` takes strings rather than a Hono `Context` on purpose: it is a
  * parsing rule, and a parsing rule should be testable without standing up a
  * server. `sameOrigin` below reads several headers, so it takes the context.
  *
@@ -44,7 +44,7 @@ const forwardedHttps = (proto: string | undefined): boolean =>
 
 /**
  * `X-Forwarded-Proto` is the only forwarded header read here, and only because
- * omitting it breaks the TLS-terminating-proxy case outright — the page would
+ * omitting it breaks the TLS-terminating-proxy case outright: the page would
  * hand out an `http://` URL that cannot work.
  *
  * `X-Forwarded-Host` is deliberately not read. nginx, Caddy and Traefik all pass
@@ -52,7 +52,7 @@ const forwardedHttps = (proto: string | undefined): boolean =>
  * and would take a rendered string from a second header anyone can set.
  *
  * Note that when `auth.allowed_hosts` is non-empty, an unlisted `Host` is
- * already rejected in `app.ts` before any UI route runs — so a pinned instance
+ * already rejected in `app.ts` before any UI route runs, so a pinned instance
  * only ever renders a host that passed validation. Pinning it is the answer for
  * anyone reachable off a trusted LAN.
  *
@@ -84,8 +84,8 @@ export const apiEndpoint = (requestUrl: string, proto: string | undefined): stri
  * Whether this request came from the page it claims to.
  *
  * A browser sets `Origin` on any cross-origin form post and `Sec-Fetch-Site`
- * on every request, so a mismatch is decisive. Their absence is not — a
- * non-browser client sends neither — so absence is allowed through.
+ * on every request, so a mismatch is decisive. Their absence is not (a
+ * non-browser client sends neither), so absence is allowed through.
  */
 export function sameOrigin(c: Context): boolean {
     if (c.req.header('sec-fetch-site') === 'cross-site') return false;

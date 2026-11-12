@@ -1,7 +1,7 @@
 # The IMDb dataset
 
 > **If you want IMDb scores for TV series, you need this. There is no other way
-> to get them.** Nothing else in this stack has that number — not Sonarr, not
+> to get them.** Nothing else in this stack has that number: not Sonarr, not
 > Seerr, not Jellyfin. Leave the dataset off and `rating_source: imdb` on a
 > series matches nothing, which reads as "your shows are unrated" rather than
 > "this server cannot look that up". Films are unaffected.
@@ -13,7 +13,7 @@ Ratings across this stack are inconsistent, and for series they are absent.
 Radarr returns a per-source map, so a film can carry IMDb, TMDB, Rotten Tomatoes
 and Metacritic scores at once. Sonarr returns a single unlabelled number, which
 arr-mcp can only honestly record as TVDB's. Seerr's `/tv/{id}/ratings` is Rotten
-Tomatoes only — the combined endpoint that carries the IMDb half exists for
+Tomatoes only; the combined endpoint that carries the IMDb half exists for
 films alone, upstream.
 
 So **no service here can tell you a series' IMDb rating**, and asking
@@ -27,7 +27,7 @@ metadata:
     enabled: true
 ```
 
-Or tick **IMDb dataset** in the config UI, which applies immediately — the
+Or tick **IMDb dataset** in the config UI, which applies immediately: the
 download starts when you save if the dataset is empty or more than a week
 old, with no restart. Switching the dataset off and on again with a current
 `imdb.db` on disk downloads nothing.
@@ -38,7 +38,7 @@ audit log. The first ingest takes a few minutes; every tool answers exactly as
 it did before until it lands, and the dashboard says when it has finished.
 
 The ingest runs in its own thread and writes to its own connection, so the
-server keeps answering throughout — reads see the previous dataset until the
+server keeps answering throughout: reads see the previous dataset until the
 new one is committed, whole. That holds for the weekly refresh as much as the
 first one.
 
@@ -55,23 +55,23 @@ Measured against the live dumps on 2026-08-23:
 | First ingest | ~2 minutes |
 | Titles stored / rated | 811K / 811K |
 
-Only rated titles of a kind something can actually reach are stored — the other
+Only rated titles of a kind something can actually reach are stored: the other
 12 million rows are episodes and video games no query can touch. IMDb's
 `title.ratings.tsv` carries ~1.7M rows, all of it read into memory during
 ingest and none of it kept as a table: only a title's average and vote count
 survive, denormalised onto the title row itself, so a title with no rating is
 never stored in the first place. The ~1.7M ratings held transiently in memory,
 each as a single packed number rather than an object, are also where the peak
-ingest memory above comes from — it happens in the ingest worker thread and is
+ingest memory above comes from; it happens in the ingest worker thread and is
 released as soon as the ingest finishes.
 
 The dataset stores each title's rating alongside the title itself and indexes
 the browse order, so `discover_media` answers from an index walk rather than
-sorting every candidate — and it costs no extra disk, because the separate
+sorting every candidate, and it costs no extra disk, because the separate
 ratings table and its index went away in exchange.
 
 The on-disk figure is what a running server actually leaves behind, and it has
-not moved. It used to be ~125 MB, and the same reasons still explain the drop —
+not moved. It used to be ~125 MB, and the same reasons still explain the drop:
 `title` is `WITHOUT ROWID` (keyed on `tconst` alone, so the old layout stored
 every id twice), titles with no rating are never stored, and the database is
 vacuumed after each replace so freed pages go back to the OS rather than
@@ -85,7 +85,7 @@ dumps grow, and a figure in a README is only as good as the day it was taken.
 ## Weekly, though IMDb publishes daily
 
 What this holds is average ratings for titles that already exist, and an average
-over millions of votes moves by hundredths across a year — a nightly
+over millions of votes moves by hundredths across a year: a nightly
 re-download spent 6.5 GB a month to answer every question exactly as it did the
 night before.
 
@@ -114,12 +114,12 @@ is the one thing the dataset uniquely fills.
 
 So switch it on if:
 
-- **you want an IMDb number for a series** — the dataset is the only source, in
+- **you want an IMDb number for a series**: the dataset is the only source, in
   your library or out of it; or
 - **you do not run Seerr**, or want ratings to survive Seerr being down.
 
 The second is a footnote, not a feature. If TMDB and Rotten Tomatoes are enough
-for your series, you do not need this — but if you came here for IMDb scores on
+for your series, you do not need this, but if you came here for IMDb scores on
 TV, the first reason is the whole answer.
 
 ```
@@ -129,17 +129,17 @@ get_library({ kind: "series", watched: false, rating_source: "imdb",
 
 > The ten best-rated series you have not watched.
 
-## Two honest limits
+## Two limits
 
 The dataset keys on IMDb ids, and Radarr leads with TMDB ids, so titles carrying
-no IMDb id are never matched — they come back unrated, and counted.
+no IMDb id are never matched: they come back unrated, and counted.
 
 And the first ingest takes a while on a NAS. Everything answers exactly as it
 did before until it lands, and the dashboard says when it has finished.
 
 `discover_media` also falls back to the dataset when Seerr is not configured,
 where it previously returned nothing. Seerr still answers whenever it is
-present — it knows what is trending and requestable, which a static catalogue
+present: it knows what is trending and requestable, which a static catalogue
 does not.
 
 ## Licence
@@ -150,6 +150,6 @@ Those datasets are published for **personal and non-commercial use**.
 > [IMDb](https://www.imdb.com) ([datasets](https://developer.imdb.com/non-commercial-datasets/)).
 > Used with permission.
 
-arr-mcp never redistributes them and ships no prebuilt copy — your own container
+arr-mcp never redistributes them and ships no prebuilt copy: your own container
 downloads them, for your own use, only if you switch the dataset on. It is off
 by default.

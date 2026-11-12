@@ -104,7 +104,7 @@ describe('set_monitoring on lidarr', () => {
             const h = harness();
             const preview = await h.call({ service: 'lidarr', level: 'album', id: '7', monitored: false });
 
-            expect(preview.structuredContent.summary).toMatch(/Unmonitor .*House of Sugar.* — .*Alex G.* \(2019\) in lidarr/);
+            expect(preview.structuredContent.summary).toMatch(/Unmonitor .*House of Sugar.* by .*Alex G.* \(2019\) in lidarr/);
             const applied = await h.call({ service: 'lidarr', level: 'album', id: '7', monitored: false, confirm: tokenOf(preview) });
 
             expect(applied.structuredContent.applied).toBe(true);
@@ -344,7 +344,7 @@ describe('update_media on every lidarr artist', () => {
     it('names set_monitoring for the album flag in the preview', async () => {
         const h = updateTool();
         const preview = await h.update({ service: 'lidarr', monitored: false });
-        expect(String(preview.structuredContent.effects)).toContain('use set_monitoring with level "album"');
+        expect(String(preview.structuredContent.effects)).toContain('Use set_monitoring with level "album"');
     });
 });
 

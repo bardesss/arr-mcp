@@ -26,8 +26,8 @@ import {
 
 /**
  * Hand-written, and checked by the contract test against recorded fixtures
- * rather than a spec. Bazarr does serve swagger 2.0 at `/api/swagger.json` —
- * useful for finding endpoints — but codegen here targets OpenAPI 3.
+ * rather than a spec. Bazarr does serve swagger 2.0 at `/api/swagger.json`,
+ * useful for finding endpoints, but codegen here targets OpenAPI 3.
  *
  * Confirmed against a live Bazarr 1.6.0: every payload is wrapped in
  * `{ data: … }`, and the version field is `bazarr_version`.
@@ -49,7 +49,7 @@ type RawWantedEpisode = {
     sonarrSeriesId?: number;
     seriesTitle?: string;
     episodeTitle?: string;
-    /** Combined, as `"5x2"` — Bazarr has no separate season/episode fields. */
+    /** Combined, as `"5x2"`: Bazarr has no separate season/episode fields. */
     episode_number?: string;
     sceneName?: string | null;
     missing_subtitles?: RawMissing[];
@@ -70,7 +70,7 @@ type RawSeries = { sonarrSeriesId?: number; title?: string };
 /**
  * Bazarr reports the position as a single `"5x2"` string rather than separate
  * numbers, confirmed against a live Bazarr 1.6.0. Reading `season` and
- * `episode` — which is what this adapter did first — silently returned nothing
+ * `episode`, which is what this adapter did first, silently returned nothing
  * for every episode.
  */
 function parseEpisodeNumber(value: string | undefined): { season?: number; episode?: number } {
@@ -88,7 +88,7 @@ type RawHistory = {
     language?: string;
     provider?: string;
     /** Epoch seconds on some builds, a relative string ("2 days ago") on
-     *  others — see `bazarrTimestamp`. */
+     *  others: see `bazarrTimestamp`. */
     timestamp?: number | string;
     /** `MM/DD/YY HH:MM:SS`, as Bazarr's own UI formats it. */
     parsed_timestamp?: string;
@@ -128,7 +128,7 @@ export class BazarrAdapter
         this.instance = config.name;
         this.id = instanceId('bazarr', config.name);
         // Bazarr spells the header X-API-KEY, not X-Api-Key. Header names are
-        // case-insensitive per RFC 9110, so this is cosmetic — but it matches
+        // case-insensitive per RFC 9110, so this is cosmetic, but it matches
         // Bazarr's own documentation, which is what a reader will compare to.
         this.#http = new ServiceHttp(this.id, config, apiKeyHeader('X-API-KEY', config.api_key), fetchImpl);
     }
@@ -145,7 +145,7 @@ export class BazarrAdapter
     /**
      * Bazarr reports problems rather than a pass/fail per check, so every row
      * returned is a failure. There is no `ok` type to filter out, and the
-     * shared HealthCheck shape wants one — `warning` is the honest mapping.
+     * shared HealthCheck shape wants one: `warning` is the honest mapping.
      */
     async getFailedHealthChecks(): Promise<HealthCheck[]> {
         const body = await this.#http.get<Envelope<RawHealth[]>>('/api/system/health');
@@ -313,8 +313,8 @@ export class BazarrAdapter
      * string. The status text is provider-supplied and therefore fenced.
      *
      * **Compared case-insensitively.** A live Bazarr 1.6.0 returns `"Good"`
-     * with a capital G; an exact lowercase match — which is what this did
-     * first — reported every healthy provider as broken.
+     * with a capital G; an exact lowercase match, which is what this did
+     * first, reported every healthy provider as broken.
      *
      * `retry` carries a sentinel when nothing is scheduled: `"-"` on the
      * instance captured, `"End of information"` on others seen in the wild.
@@ -371,7 +371,7 @@ export class BazarrAdapter
     }
 
     /**
-     * What Bazarr has actually downloaded — the half `get_subtitles` cannot
+     * What Bazarr has actually downloaded: the half `get_subtitles` cannot
      * show, since that lists only what is still missing. Films and episodes
      * are two endpoints, one list, exactly as the wanted read is.
      *

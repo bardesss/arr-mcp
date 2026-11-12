@@ -72,14 +72,14 @@ const LIST_CACHE_TTL_MS = 60 * 60 * 1000;
  *
  * This is the only documentation every client reads. Prompts and resources
  * carry more, but support for both is uneven and a client that surfaces
- * neither still gets this — which is why the rules that live here are the ones
+ * neither still gets this, which is why the rules that live here are the ones
  * no single tool's description can hold: they are true *between* tools, and a
  * model that learns them from `get_library` has still not learned them for
  * `get_queue`.
  *
  * Deliberately not a tool index. `tools/list` already carries every description
  * and repeating them here would cost every session the same tokens twice; what
- * it names instead is the shape a caller cannot infer from any one of them —
+ * it names instead is the shape a caller cannot infer from any one of them;
  * that a list reports the whole count rather than the window, and that a write
  * happens in two calls rather than one.
  */
@@ -107,10 +107,10 @@ const ROLES: readonly (readonly [ServiceId, string])[] = [
 ];
 
 const INSTRUCTIONS = `Reading:
-- \`get_library\` is the join across your library services and media server — the only tool that can say a file one service believes in is missing from the other.
+- \`get_library\` is the join across your library services and media server: the only tool that can say a file one service believes in is missing from the other.
 - \`diagnose_media\` answers "why can I not play this" in one call. Prefer it over assembling that answer from several reads.
 - Call the tool that answers the question directly. A tool's \`service\` field lists the services it takes on this stack, so there is no need to call \`get_stack_health\` first to find one.
-- Every list is a window: \`items\`, \`total\`, \`returned\`, \`offset\`, \`truncated\`. \`total\` counts the whole list, never the window — it is the number to report when someone asks how many. \`offset + returned < total\` means there is another page; page two of 50 is \`offset: 50\`.
+- Every list is a window: \`items\`, \`total\`, \`returned\`, \`offset\`, \`truncated\`. \`total\` counts the whole list, never the window; it is the number to report when someone asks how many. \`offset + returned < total\` means there is another page; page two of 50 is \`offset: 50\`.
 - \`degraded\` names services that did not answer. A short list may be an outage rather than an answer, so say which it was.
 
 Writing:
@@ -133,7 +133,7 @@ ${scopeText(INSTRUCTIONS, opts)}`;
  * The token's ceiling, applied to the write gate and to every place that
  * reports what the gate permits.
  *
- * Everything else on the context is read-side and ungated — any of the three
+ * Everything else on the context is read-side and ungated; any of the three
  * scopes grants reads, because every write resolves its target by reading
  * first and a write-scoped token that could not read could not preview
  * anything.
@@ -198,7 +198,7 @@ function cappedTools(tools: ToolContext, ceiling: Ceiling): ToolContext {
  * so the two can never offer different tools, prompts or instructions.
  *
  * Over HTTP the factory runs once per request, so every call gets a fresh
- * McpServer. This is what keeps the transport stateless — do not hoist the
+ * McpServer. This is what keeps the transport stateless; do not hoist the
  * server out of the closure. Over stdio it runs once per connection.
  *
  * What a build costs, from `scripts/measure-mcp-factory.ts` (2026-11-09,
@@ -229,7 +229,7 @@ export function mcpServerFactory(
     return ctx => {
         const snapshot = runtime.current;
         // The ceiling is applied here rather than inside the tools because
-        // this factory already runs once per request — the same property
+        // this factory already runs once per request; the same property
         // that lets a config reload take effect without a restart. A request
         // with no authInfo is capped to reads.
         const tools: ToolContext = {
@@ -251,7 +251,7 @@ export function mcpServerFactory(
                  *
                  * `registerTool`/`registerPrompt`/`registerResource` each set
                  * `listChanged: getCapabilities().<kind>?.listChanged ?? true`,
-                 * so declaring it here is what makes the answer false — and it
+                 * so declaring it here is what makes the answer false, and it
                  * should be. The lists are static between config reloads (the
                  * property `LIST_CACHE_TTL_MS` rests on): nothing changes them
                  * while the server runs, not even the weekly IMDb refresh. A modern-era
@@ -264,7 +264,7 @@ export function mcpServerFactory(
                     prompts: { listChanged: false },
                     resources: { listChanged: false }
                 },
-                // A server option, not a `createMcpHandler` one — the hint
+                // A server option, not a `createMcpHandler` one; the hint
                 // travels from the era-blind server configuration to the
                 // era-aware encode seam, so a 2025-era response is unaffected.
                 cacheHints: {
@@ -281,7 +281,7 @@ export function mcpServerFactory(
         // Registered beside the tools, never instead of them. Client support
         // for prompts and resources is uneven and arr-mcp has to work on all of
         // them, so a client that surfaces neither is exactly as capable as
-        // before — `test/mcp.test.ts` asserts that rather than trusting it.
+        // before. `test/mcp.test.ts` asserts that rather than trusting it.
         registerAllPrompts(server, surface);
         registerAllResources(server, tools, surface);
         // MCP Apps: the poster-card view the card tools point at (`mcp/apps.ts`).
@@ -301,7 +301,7 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
     //
     // `allowedHosts` is deliberately NOT passed to the adapter, even though it
     // accepts one. The adapter installs its middleware when the app is
-    // constructed, which would freeze the value at build time — so pinning a
+    // constructed, which would freeze the value at build time, so pinning a
     // hostname from the config UI would silently do nothing until a restart,
     // and that is the one kind of security setting that must never appear to
     // have applied when it has not.
@@ -314,7 +314,7 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
      * An outer app purely for ordering.
      *
      * The adapter installs its JSON body parser when it is constructed, so
-     * anything registered on the app it returns is already behind that parser —
+     * anything registered on the app it returns is already behind that parser,
      * and a body it rejects never reaches a route of ours. Mounting it inside
      * an app of our own is what puts `claimJsonBody` in front of it, which is
      * the only position from which the refusal can be JSON. See `jsonBody.ts`.
@@ -366,7 +366,7 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
 
     /**
      * An empty list means "accept any Host", which is the right default for a
-     * LAN container reached by IP — and the reason the adapter's own option
+     * LAN container reached by IP, and the reason the adapter's own option
      * could not be used naively: it gates on `if (allowedHosts)`, and `[]` is
      * truthy, so an empty array installed validation with an empty allow-list
      * and rejected *every* request with 403. A container that rejects 100% of
@@ -380,7 +380,7 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
         // working because the browser sent `arr.example.com:6060`.
         //
         // The port is stripped from the *end*, never by splitting on the first
-        // colon — for `[fd00::1]:6060` that split lands inside the address and
+        // colon; for `[fd00::1]:6060` that split lands inside the address and
         // yields "[", so pinning a literal IPv6 host 403'd every request,
         // including the config page that is the only way to undo the pin.
         const host = (c.req.header('host') ?? '').toLowerCase();
@@ -392,7 +392,7 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
     });
 
     /**
-     * RFC 9728. Present only when `auth.oauth` is configured — a server with
+     * RFC 9728. Present only when `auth.oauth` is configured; a server with
      * no issuer to name has nothing to say here, and a 404 is the honest
      * answer. Registered after the Host allowlist so a pinned instance can
      * only ever advertise a name that passed it.
@@ -410,7 +410,7 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
         // (204 for OPTIONS, 405 with `Allow` for anything but GET/HEAD), which
         // isn't reusable here directly: it comes bundled with
         // `oauthMetadataResponse`, which would also serve
-        // `/.well-known/oauth-authorization-server` — the document this PR
+        // `/.well-known/oauth-authorization-server`; the document this PR
         // deliberately doesn't fabricate.
         app.all(path, (c: Context) => {
             if (c.req.method === 'OPTIONS') {
@@ -468,7 +468,7 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
         const metadataUrl =
             auth.oauth === undefined ? undefined : resourceMetadataUrl(c.req.url, c.req.header('x-forwarded-proto'));
         // `exactOptionalPropertyTypes` refuses `resourceMetadataUrl: undefined`
-        // on the SDK's own options types — the key must be absent, not present
+        // on the SDK's own options types; the key must be absent, not present
         // with an undefined value.
         const metadataOpt = metadataUrl === undefined ? {} : { resourceMetadataUrl: metadataUrl };
 
@@ -495,9 +495,9 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
 
             if (presented.via === 'none' || verifier === undefined) {
                 // `via` is the whole diagnosis: 'none' is a client that sent no
-                // credentials at all — which every MCP client does once, on the
-                // 401-then-retry handshake this endpoint's WWW-Authenticate invites
-                // — while 'header' or 'query' is a token that was presented and did
+                // credentials at all, which every MCP client does once, on the
+                // 401-then-retry handshake this endpoint's WWW-Authenticate invites,
+                // while 'header' or 'query' is a token that was presented and did
                 // not match. Without it the two read identically in the log, and
                 // "a client reconnected" is indistinguishable from "a stale token
                 // is still trying".
@@ -516,7 +516,7 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
                         ...(presented.via === 'none' && presented.queryOffered
                             ? {
                                   detail:
-                                      'A token in the URL is refused until auth.allow_token_in_url is enabled — turn it on in the config UI, under MCP endpoint.'
+                                      'A token in the URL is refused until auth.allow_token_in_url is enabled. Turn it on in the config UI, under MCP endpoint.'
                               }
                             : {})
                     },
@@ -557,16 +557,16 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
         }
 
         // A client that never asked for a stream gets one JSON object with a
-        // Content-Length rather than an SSE frame in a chunked body — and, more
+        // Content-Length rather than an SSE frame in a chunked body, and, more
         // to the point, is not refused with a 406 for saying so. See
         // `plainJson.ts`: both halves of that were how #103 started.
-        // Both media types, always — the transport demands both and refuses a
+        // Both media types, always; the transport demands both and refuses a
         // request naming only one, which caught a client asking for JSON *and*
         // a client asking for a stream. What the caller actually wanted is
         // decided on the way out, not by whether it guessed the header.
         const streaming = acceptsStream(c.req.raw);
         // `?? undefined` because a body-less request is marked with null rather
-        // than left unset — that is what makes the adapter's own parser stand
+        // than left unset; that is what makes the adapter's own parser stand
         // down. The transport must still see "no body", or a GET would be
         // answered as a malformed request instead of as the wrong method.
         const response = await handler.fetch(acceptingBoth(c.req.raw), {

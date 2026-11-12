@@ -12,13 +12,13 @@ import { mcpEndpoint } from '../web/origin.ts';
  * origin form instead. They serve the same document.
  *
  * Both also answer with `resource: <scheme>://<host>/mcp` rather than one
- * bare-origin path answering with the bare origin — RFC 9728 §3.1 pairs the
+ * bare-origin path answering with the bare origin (RFC 9728 §3.1 pairs the
  * bare-origin route with a bare-origin identifier, but every MCP client
- * derives the path-suffixed form (§3.3), so this is a deliberate compatibility
+ * derives the path-suffixed form, §3.3), so this is a deliberate compatibility
  * shim for the bare-origin probers, not a defect to "fix" into two documents.
  *
  * The second entry hardcodes `/mcp`, which `mcpEndpoint` (src/web/origin.ts)
- * also hardcodes — two places that would silently desync if the endpoint
+ * also hardcodes. Two places that would silently desync if the endpoint
  * path ever moved. Not worth deriving today: `src/app.ts` hardcodes `/mcp` a
  * third time for the route itself.
  */
@@ -35,7 +35,7 @@ export const RESOURCE_METADATA_PATHS = [
  * is the point: `Host` is caller-supplied and Node's HTTP parser forwards
  * bytes that are legal in a header but illegal in a URL host, so the
  * validation `allowed_hosts` already depends on is the validation this needs.
- * `undefined` means the Host was not usable — the route answers 404 rather
+ * `undefined` means the Host was not usable; the route answers 404 rather
  * than advertising a fabricated address.
  */
 export function resourceMetadataUrl(requestUrl: string, proto: string | undefined): string | undefined {

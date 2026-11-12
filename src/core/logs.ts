@@ -6,7 +6,7 @@ import { join } from 'node:path';
  * The SQLite ring buffer `logger.ts` has been pointing at, and
  * the store behind the config UI's log streams.
  *
- * A ring buffer, not an audit trail — the opposite of `audit.ts`, and kept in
+ * A ring buffer, not an audit trail; the opposite of `audit.ts`, and kept in
  * its own file for exactly that reason. Write records must survive forever;
  * log lines must not, or a chatty service fills a home server's disk. Sharing
  * one database would mean one retention policy for two things that need
@@ -54,7 +54,7 @@ type LogQuery = {
     /** Inclusive floor, so `warn` returns warnings, errors and fatals. */
     minLevel?: number;
     /**
-     * The media service a line is *about* — `service`, never `app` (see
+     * The media service a line is *about*. `service`, never `app` (see
      * logger.ts).
      *
      * A plain string rather than `ServiceId`: what writers actually put in this
@@ -112,7 +112,7 @@ export class LogStore {
         const db = new Database(join(configDir, LOG_FILENAME));
         db.pragma('journal_mode = WAL');
         // NORMAL, not FULL: unlike the audit trail, a log line lost to a power
-        // cut costs nothing — it was already on stdout — and fsyncing every
+        // cut costs nothing (it was already on stdout), and fsyncing every
         // line would make logging the slowest thing the process does.
         db.pragma('synchronous = NORMAL');
         return new LogStore(db);
@@ -127,7 +127,7 @@ export class LogStore {
      * Takes one pino JSON line. Never throws: logging must not be able to
      * break the thing it is logging about, and a malformed line is worth
      * dropping rather than crashing a tool call. That also means this cannot
-     * report its own failures through `logger` — doing so would recurse.
+     * report its own failures through `logger`; doing so would recurse.
      */
     write(line: string): void {
         try {
@@ -154,7 +154,7 @@ export class LogStore {
                 this.#prune();
             }
         } catch {
-            // Deliberately silent — see the doc comment.
+            // Deliberately silent; see the doc comment.
         }
     }
 
@@ -216,7 +216,7 @@ export class LogStore {
  *
  * One level of nesting is flattened because the field that matters most is
  * nested: a serialized `err` arrives as an object, and stringifying it whole
- * put an unreadable JSON blob in one table cell. `stack` is dropped — it is
+ * put an unreadable JSON blob in one table cell. `stack` is dropped; it is
  * the one field that is multi-line, and the message beside it already says
  * what happened.
  */

@@ -119,7 +119,7 @@ type RawAlbum = {
  * The fields `listLibrary` reads, named after `ArtistResource` in
  * `specs/lidarr.json`. An artist is the row because it is the level the
  * MusicBrainz artist id lives at, and that id is what joins music to a media
- * server. Albums are one call below it — see `getMediaDetails`.
+ * server. Albums are one call below it: see `getMediaDetails`.
  */
 type RawArtist = {
     id?: number;
@@ -154,7 +154,7 @@ const yearOf = (releaseDate: string | null | undefined): number | undefined => {
  *
  * This is the whole reason an artist is the row: Jellyfin and Plex both expose
  * the same id for an album artist, so the join that merges a *arr with a media
- * server finally has a key for music. Nothing is invented when it is absent — a
+ * server finally has a key for music. Nothing is invented when it is absent: a
  * row with no MBID simply does not join.
  */
 const artistIds = (artist: RawArtist): IndexInput['ids'] =>
@@ -334,7 +334,7 @@ export class LidarrAdapter
 
         return artists
             // A row with no usable id is one nothing can be asked about, so it
-            // is not a row — every other field on it would still be right.
+            // is not a row: every other field on it would still be right.
             .filter((a): a is RawArtist & { id: number } => (a.id ?? 0) > 0)
             .map(artist => {
                 const qualityProfileId = artist.qualityProfileId;
@@ -443,8 +443,8 @@ export class LidarrAdapter
     /**
      * One artist, with the albums under it.
      *
-     * The library rows on artists, so this is where an album id comes from —
-     * `set_monitoring` needs one for `level: "album"` — though a `get_wanted`
+     * Library rows are artists, so this is where an album id comes from.
+     * `set_monitoring` needs one for `level: "album"`, though a `get_wanted`
      * row's `albumId` and a Lidarr `get_calendar` row's `id` name albums too.
      * Albums are only read at `detail: "full"`, matching episodes on a series,
      * and capped by the same limit.
@@ -502,7 +502,7 @@ export class LidarrAdapter
         const year = yearOf(album.releaseDate);
 
         return {
-            label: `${title}${artist === undefined ? '' : ` — ${fenceText(artist, { service: this.id, field: 'artist' })}`}${
+            label: `${title}${artist === undefined ? '' : ` by ${fenceText(artist, { service: this.id, field: 'artist' })}`}${
                 year === undefined ? '' : ` (${year})`
             }`,
             monitored: album.monitored ?? false
@@ -801,7 +801,7 @@ export class LidarrAdapter
         });
         if (typeof created.id !== 'number' || created.id <= 0) {
             throw new ServiceError('UpstreamError', this.id, 'lidarr returned no id for the added artist', {
-                remedy: 'It may still have been added — check with search_media before trying again.'
+                remedy: 'It may still have been added. Check with search_media before trying again.'
             });
         }
 

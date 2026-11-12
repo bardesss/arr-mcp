@@ -3,7 +3,7 @@
  *
  * `replaceAll` is a synchronous better-sqlite3 transaction over millions of
  * rows followed by a VACUUM. On the main thread that froze every tool call,
- * connection test and web request for minutes, once a week — while `refresh.ts`
+ * connection test and web request for minutes, once a week, while `refresh.ts`
  * promised "several minutes of normal service, not a container that looks
  * broken". That was true of the download half only.
  *

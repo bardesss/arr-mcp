@@ -17,7 +17,7 @@ export const STDIO_CALLER = 'stdio';
  *
  * A stdio connection presents no credential: whoever can start the process is
  * the caller. Over HTTP a token's tier says what that caller may change, and
- * there is nothing here to hang a tier on — so the answer is the one that
+ * there is nothing here to hang a tier on, so the answer is the one that
  * needs no credential to be safe. Writes stay on `/mcp`, behind a token.
  */
 export const stdioCeiling = (): Ceiling => ({
@@ -46,7 +46,7 @@ type StdioDeps = {
  * No config UI and no HTTP listener: configure the services first, in the UI of
  * an HTTP instance or in config.yaml, then point this at the same directory.
  * A missing config.yaml is seeded as on any first start, which leaves a server
- * with no services that still lists every tool — enough for a client, or a
+ * with no services that still lists every tool; enough for a client, or a
  * registry, to see what it offers.
  */
 export async function serveOverStdio(deps: StdioDeps): Promise<{ close(): Promise<void> }> {
@@ -55,7 +55,7 @@ export async function serveOverStdio(deps: StdioDeps): Promise<{ close(): Promis
 
     logger.info({ adapters: runtime.current.adapters.map(a => a.id) }, 'arr-mcp serving MCP over stdio, read-only');
     if (runtime.current.adapters.length === 0) {
-        logger.warn({ config: configPath(configDir) }, 'no services configured — every tool will report that');
+        logger.warn({ config: configPath(configDir) }, 'no services configured, every tool will report that');
     }
 
     let handle: StdioServerHandle;

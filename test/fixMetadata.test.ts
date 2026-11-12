@@ -184,7 +184,7 @@ describe('fix_metadata', () => {
             await expect(h.call({ id })).rejects.toMatchObject({
                 kind: 'NotFound',
                 service: 'lidarr',
-                message: 'lidarr not found: no Lidarr is configured — Add a services.lidarr block to config.yaml and restart.'
+                message: 'lidarr not found: no Lidarr is configured. Add a services.lidarr block to config.yaml and restart.'
             });
         }
         expect(h.requested).toEqual([]);

@@ -45,7 +45,7 @@ type StackHealthResult = {
     scans: ScanState[];
     /**
      * The searches, scans, refreshes, renames and imports each service is
-     * running now, plus any it finished in the last fifteen minutes — the
+     * running now, plus any it finished in the last fifteen minutes; the
      * follow-up `trigger_search` and `trigger_scan` never had. Bounded like
      * `scans` and absent at `minimal`: a running command is not a fault.
      */
@@ -53,20 +53,20 @@ type StackHealthResult = {
     /** Present only with two media servers: the one tools default to. */
     primaryMediaServer?: string;
     /**
-     * What each instance is allowed to do — absent unless the caller supplied
+     * What each instance is allowed to do, absent unless the caller supplied
      * the instances, and absent at `minimal`, which answers "is anything
      * broken" and a permission is not a fault.
      *
      * Reported here because `arr://instances` needs it and a resource must
      * mirror a tool rather than originate one: a client that ignores resources
      * must not be the only one unable to answer "what may I do here". The
-     * permission *source* is untouched — `permissionSourceFrom` still reads
+     * permission *source* is untouched; `permissionSourceFrom` still reads
      * config so an adapter cannot widen its own grants. This reports the gate's
      * answer; it is not a second one.
      */
     permissions?: InstancePermissions[];
     /** Absent unless the caller supplied the instances, and absent at
-     *  `minimal` — a URL is not a fault. */
+     *  `minimal`; a URL is not a fault. */
     endpoints?: InstanceEndpoint[];
     /**
      * Torrent client defaults and indexer seed criteria, plus notes where they
@@ -96,7 +96,7 @@ type StackHealthResult = {
 type InstancePermissions = { instance: string; safe_write: boolean; destructive: boolean };
 
 /**
- * Where each instance lives — **never how to authenticate to it**. A sibling of
+ * Where each instance lives, **never how to authenticate to it**. A sibling of
  * `permissions` rather than a field on it, because a base URL is not a
  * permission and `InstancePermissions` would start lying about what it holds.
  *
@@ -110,15 +110,15 @@ type InstanceEndpoint = { instance: string; service: ServiceId; baseUrl: string 
 /**
  * A base URL with its userinfo removed.
  *
- * `UrlSchema` accepts `http://user:pass@host:9091` — Transmission and SABnzbd
- * are routinely deployed behind exactly that — and reporting it verbatim would
+ * `UrlSchema` accepts `http://user:pass@host:9091` (Transmission and SABnzbd
+ * are routinely deployed behind exactly that), and reporting it verbatim would
  * publish a credential into a model's context under a field whose whole
  * documented promise is that this server never returns one. The strip is here,
  * at the single place a URL leaves the process, rather than in the schema: the
  * adapters still need the URL they were configured with in order to connect.
  *
  * The string is returned untouched when it carries no userinfo, because
- * `new URL(...).toString()` normalises — it appends a trailing slash — and a
+ * `new URL(...).toString()` normalises (it appends a trailing slash) and a
  * URL nobody wrote is a small lie of its own.
  */
 export function withoutCredentials(url: string): string {
@@ -137,10 +137,10 @@ export function withoutCredentials(url: string): string {
 }
 
 /**
- * minimal — is anything broken? A verdict per service, and counts only.
- * standard — everything except disk paths, the longest strings in the response
+ * minimal: is anything broken? A verdict per service, and counts only.
+ * standard: everything except disk paths, the longest strings in the response
  *            and rarely what the question was about.
- * full — everything, paths included.
+ * full: everything, paths included.
  */
 function project(result: StackHealthResult, detail: DetailLevel): StackHealthResult {
     if (detail === 'full') return result;
@@ -179,7 +179,7 @@ function project(result: StackHealthResult, detail: DetailLevel): StackHealthRes
 
 /**
  * Composes per-service diagnoses into one answer. This tool must work
- * *especially* well when something is broken — a service
+ * *especially* well when something is broken; a service
  * that is down contributes a diagnosis and a `degraded` entry, never an
  * exception.
  */
@@ -240,7 +240,7 @@ export async function buildStackHealth(
                 hasDiskSpace(adapter) ? adapter.getDiskSpace() : Promise.resolve([]),
                 hasHealthChecks(adapter) ? adapter.getFailedHealthChecks() : Promise.resolve([]),
                 hasScanState(adapter) ? adapter.getScanState() : Promise.resolve(undefined),
-                // Skipped at `minimal`, which answers "is anything broken" —
+                // Skipped at `minimal`, which answers "is anything broken";
                 // a running command is not a fault, and this is a call per
                 // service that nobody asked for at that level.
                 hasCommandStatus(adapter) && opts.detail !== 'minimal'
@@ -344,7 +344,7 @@ export async function buildStackHealth(
     // `offset: 0` rather than omitted, so a hand-built envelope reports the
     // same five fields `applyLimit` does. This tool takes no `offset`
     // parameter: one budget spans two lists, so a single number could not say
-    // which of them it meant to skip into — and neither list is one you page
+    // which of them it meant to skip into, and neither list is one you page
     // through. `limit` here bounds context, it does not paginate.
     const shapedDisks =
         remaining === 0
@@ -409,14 +409,14 @@ export async function buildStackHealth(
 function healthLines(result: Pick<StackHealthResult, 'services' | 'failures' | 'disks'>): string[] {
     const services = result.services.map(s => {
         // A zero latency is a diagnosis built without a request, not a fast one.
-        if (s.ok) return `${s.service} — ok${s.version === undefined ? '' : `, ${s.version}`}${s.latency_ms > 0 ? `, ${s.latency_ms} ms` : ''}`;
+        if (s.ok) return `${s.service}: ok${s.version === undefined ? '' : `, ${s.version}`}${s.latency_ms > 0 ? `, ${s.latency_ms} ms` : ''}`;
         const detail = s.error?.detail ?? 'no detail';
         const remedy = s.error?.remedy === undefined ? '' : `${/[.!?]$/u.test(detail) ? '' : '.'} ${s.error.remedy}`;
-        return `${s.service} — ${s.error?.kind ?? 'failed'}: ${detail}${remedy}`;
+        return `${s.service} (${s.error?.kind ?? 'failed'}): ${detail}${remedy}`;
     });
-    const failures = result.failures.items.map(f => `${f.service} health check ${f.source} — ${f.type}: ${f.message}`);
+    const failures = result.failures.items.map(f => `${f.service} health check ${f.source} (${f.type}): ${f.message}`);
     const disks = groupDisks(result.disks.items).map(
-        d => `disk — ${humanBytes(d.freeSpace)} free${d.totalSpace === undefined ? '' : ` of ${humanBytes(d.totalSpace)}`}: ${d.mounts.join(', ')}`
+        d => `disk (${d.mounts.join(', ')}): ${humanBytes(d.freeSpace)} free${d.totalSpace === undefined ? '' : ` of ${humanBytes(d.totalSpace)}`}`
     );
     return [...services, ...failures, ...disks];
 }
@@ -451,7 +451,7 @@ function cleanupLine(cleanup: CleanupOverview | undefined): string {
 /**
  * The one read tool whose answer is not a list, so it declares its own shape
  * rather than the paged envelope. `disks` and `failures` are envelopes of
- * their own — one `limit` budget spans both, spent on failures first, which is
+ * their own; one `limit` budget spans both, spent on failures first, which is
  * why neither is the top-level list. Keyed on whether a primary media server
  * exists, the only thing the shape depends on.
  */
@@ -459,12 +459,12 @@ const stackHealthOutput = memoBy((withPrimary: boolean) => z.looseObject({
     services: z.array(z.unknown()).describe('One row per configured instance: reachable, version, latency.'),
     failures: TruncationSchema.describe('Health checks the services themselves are reporting.'),
     disks: TruncationSchema.describe('Free space per root folder.'),
-    scans: z.array(z.unknown()).describe('When each library was last scanned. Never truncated — bounded by the number of services.'),
+    scans: z.array(z.unknown()).describe('When each library was last scanned. Never truncated; bounded by the number of services.'),
     commands: z
         .array(z.unknown())
         .optional()
         .describe('Queued or running tasks, plus anything finished in the last fifteen minutes. Absent at `minimal`.'),
-    permissions: z.array(z.unknown()).optional().describe('What each instance may do. Absent at `minimal` — a permission is not a fault.'),
+    permissions: z.array(z.unknown()).optional().describe('What each instance may do. Absent at `minimal`: a permission is not a fault.'),
     endpoints: z.array(z.unknown()).optional().describe('Where each instance lives. Never a credential.'),
     seedingRules: z
         .object({

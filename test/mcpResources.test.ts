@@ -268,7 +268,7 @@ describe('the resources a client sees', () => {
                 'lidarr/mp3 could not be read, which is not the same as its policy being off, so the counts cover only the rest ' +
                     'and cannot say the wanted list will not grow. 1 artist(s) (counted once per instance) will keep monitoring ' +
                     'albums they discover later, or report no readable policy. Unmonitoring albums under those artists is a ' +
-                    'treadmill until the policy changes — update_media with no `id` and `instance` does it.'
+                    'treadmill until the policy changes; update_media with no `id` and `instance` does it.'
             );
         });
 
@@ -277,7 +277,7 @@ describe('the resources a client sees', () => {
 
             expect(body.note).toBe(
                 '1 artist(s) will keep monitoring albums they discover later, or report no readable policy. ' +
-                    'Unmonitoring albums under those artists is a treadmill until the policy changes — update_media ' +
+                    'Unmonitoring albums under those artists is a treadmill until the policy changes; update_media ' +
                     'with no `id` does it.'
             );
         });

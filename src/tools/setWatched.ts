@@ -9,7 +9,7 @@ import { byMediaServers, withBoth } from './mediaServers.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 
 /**
- * "Mark season 2 watched" — the write half of `get_playback`.
+ * "Mark season 2 watched"; the write half of `get_playback`.
  *
  * `safe` tier, with one caveat the preview states out loud: unmarking and
  * re-marking does not restore the original play date or resume position, so
@@ -22,7 +22,7 @@ import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts
  */
 const watchedRemedy = (adapters: readonly ServiceAdapter[]): string =>
     adapters.some(a => a.type === 'plex')
-        ? 'set_watched needs Jellyfin — arr-mcp cannot write Plex watch state. Add a services.jellyfin block alongside Plex, set primary_media_server, and restart.'
+        ? 'set_watched needs Jellyfin; arr-mcp cannot write Plex watch state. Add a services.jellyfin block alongside Plex, set primary_media_server, and restart.'
         : 'Watch state lives in Jellyfin. Add a services.jellyfin block to config.yaml and restart.';
 
 const jellyfinAdapter = (adapters: readonly ServiceAdapter[]): ServiceAdapter & WatchStateCapable => {
@@ -115,7 +115,7 @@ const setWatchedInput = byMediaServers(ids => z.object({
         .min(1)
         .optional()
         .describe(
-            '[[jellyfin: The Jellyfin item id — 32 hex characters. `playback.itemId` on a get_library or get_media_details record, or the `itemId` get_playback reports.]]' +
+            '[[jellyfin: The Jellyfin item id: 32 hex characters. `playback.itemId` on a get_library or get_media_details record, or the `itemId` get_playback reports.]]' +
                 withBoth(ids, 'Or `media_servers.jellyfin.itemId` when Plex is the primary media server.') +
                 ' [[grimmory: A book is `grimmory:<book id>`.]] [[radarr|sonarr: Not a {{or: radarr=Radarr; sonarr=Sonarr}} id.]]'
         ),
@@ -193,7 +193,7 @@ export function registerSetWatched(
                 };
             }
             const adapter = jellyfinAdapter(adapters);
-            // Configuration only, and before any network call — nothing
+            // Configuration only, and before any network call; nothing
             // Jellyfin returns can widen whose state may be written.
             const viewer = await requireIdentity(adapters, identity).resolve(user);
 
@@ -235,7 +235,7 @@ export function registerSetWatched(
                         : 'Anything unmarked comes back into Next Up.',
                     // The reason this is not a perfectly clean undo, said
                     // before the fact rather than discovered after.
-                    'Re-marking later restores the flag but not the original play date or resume position — that history is not recoverable.'
+                    'Re-marking later restores the flag but not the original play date or resume position. That history is not recoverable.'
                 ],
                 args: { itemId: item.id, viewer: viewer.id, watched, ...(season === undefined ? {} : { season }) }
             };

@@ -3,7 +3,7 @@ import { ServiceError } from '../core/errors.ts';
 import type { QualityProfile, RootFolder, Tag } from '../services/types.ts';
 
 /**
- * Resolving a profile, root folder or tag the caller named — shared by
+ * Resolving a profile, root folder or tag the caller named, shared by
  * `add_media` and `update_media`, which must agree about what "2160p" means.
  *
  * Exact matches are tried first and, crucially, a **loose match that is
@@ -18,7 +18,7 @@ import type { QualityProfile, RootFolder, Tag } from '../services/types.ts';
  *   silently picked whichever came first.
  *
  * Both are the same failure the "several, none named" refusal below exists to
- * prevent — a guess presented as a decision — and both are worse for arriving
+ * prevent (a guess presented as a decision), and both are worse for arriving
  * while looking like the tool had understood.
  */
 export function chooseOne<T>(
@@ -31,7 +31,7 @@ export function chooseOne<T>(
 ): T {
     if (options.length === 0) {
         throw new ServiceError('NotFound', service, `${service} has no ${what} configured`, {
-            remedy: `Add one in ${service}'s own settings first — nothing can be added without it.`
+            remedy: `Add one in ${service}'s own settings first. Nothing can be added without it.`
         });
     }
 
@@ -51,7 +51,7 @@ export function chooseOne<T>(
         }
 
         throw new ServiceError('NotFound', service, `"${requested}" matches more than one ${what} on ${service}`, {
-            remedy: `Be exact — it matches: ${loose.map(describe).join('; ')}. Naming the id is unambiguous.`
+            remedy: `Be exact. It matches: ${loose.map(describe).join('; ')}. Naming the id is unambiguous.`
         });
     }
 
@@ -59,7 +59,7 @@ export function chooseOne<T>(
     if (options.length === 1) return options[0]!;
 
     throw new ServiceError('NotFound', service, `${service} has several ${what}s and none was named`, {
-        remedy: `Name one — available: ${options.map(describe).join('; ')}. Not guessing, because the wrong one is not obvious until the download finishes.`
+        remedy: `Name one. Available: ${options.map(describe).join('; ')}. The wrong one is not obvious until the download finishes.`
     });
 }
 
@@ -74,13 +74,13 @@ export const freeSpace = (folder: RootFolder): string =>
 export const PROFILE_MATCH = {
     exact: (p: QualityProfile, requested: string): boolean =>
         String(p.id) === requested || p.name.toLowerCase() === requested.toLowerCase(),
-    // A numeric request is an id, full stop — never a substring of a name.
+    // A numeric request is an id, full stop, never a substring of a name.
     loose: (p: QualityProfile, requested: string): boolean =>
         !isNumeric(requested) && p.name.toLowerCase().includes(requested.toLowerCase())
 };
 
 /** Tags are single words, so a substring match would let "kid" hit "kids"
- *  and "kids-tv" at once — which `chooseOne` then refuses. Exact or id. */
+ *  and "kids-tv" at once, which `chooseOne` then refuses. Exact or id. */
 export const TAG_MATCH = {
     exact: (t: Tag, requested: string): boolean =>
         String(t.id) === requested || t.label.toLowerCase() === requested.toLowerCase(),

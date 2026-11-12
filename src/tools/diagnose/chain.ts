@@ -2,7 +2,7 @@ import { DOWNLOAD_CLIENTS, type ServiceId } from '../../config/schema.ts';
 import { servicesOnly } from '../../core/gather.ts';
 import type { NextStep } from '../../core/nextStep.ts';
 import { unfenced } from '../../core/titleMatch.ts';
-import { ARR_KIND, type MergedItem } from '../../core/resolver.ts';
+import { ARR_KIND, ARR_NAMES, type MergedItem } from '../../core/resolver.ts';
 import { fenceText } from '../../core/fence.ts';
 import { isLidarrRow, PENDING_STATUSES, usenetRerun } from '../../services/arrRecord.ts';
 import type {
@@ -51,7 +51,7 @@ export type Evidence = {
     /**
      * `items` is what the collector actually read, `partial` names the clients
      * that did not answer. One unreachable client used to erase the whole stage,
-     * discarding rows another client did return — including the stalled row that
+     * discarding rows another client did return, including the stalled row that
      * was the cause. `undefined` still means every client failed.
      */
     queue: { items: QueueItem[]; partial: string[] } | undefined;
@@ -66,10 +66,10 @@ export type Evidence = {
     scan: ScanState | undefined;
     /**
      * A third state beyond looked/could-not-look: **never configured**. Without
-     * it, a stack with no media server gets "Jellyfin cannot see it" — a claim
+     * it, a stack with no media server gets "Jellyfin cannot see it", a claim
      * about a service the user does not run.
      *
-     * The configured media server's id, absent when none is configured —
+     * The configured media server's id, absent when none is configured;
      * the stages need the name, not just whether one exists.
      */
     mediaServer?: string;
@@ -132,7 +132,7 @@ export type Diagnosis = {
     degraded: string[];
 };
 
-/** Reported in this order — it is the order the pipeline actually runs in. */
+/** Reported in this order; it is the order the pipeline actually runs in. */
 const DISPLAY_ORDER: readonly Stage[] = [
     'resolve',
     'request',
@@ -185,7 +185,7 @@ export const mentions = (haystack: string, item: MergedItem): boolean => {
     const words = titleWords(item);
     if (words.length === 0) return false;
 
-    // The needle is unfenced before tokenising, so the haystack must be too —
+    // The needle is unfenced before tokenising, so the haystack must be too;
     // otherwise the fence markers themselves become haystack tokens.
     const hayWords = tokenize(unfenced(haystack));
     const haySet = new Set(hayWords);
@@ -195,7 +195,7 @@ export const mentions = (haystack: string, item: MergedItem): boolean => {
     // "The.Simpsons.S32E01.2020" is no mismatch for a show that began in 1989.
     // Skip the guard entirely for series.
     if (item.kind !== 'series' && item.year !== undefined) {
-        // A year inside the title itself — "2049", "1917", "2001" — is not
+        // A year inside the title itself ("2049", "1917", "2001") is not
         // *the release's* year, and the word match above already accounted for
         // it. Only a year-shaped token that is not one of the title's own
         // words counts.
@@ -222,7 +222,7 @@ const withoutArticle = (words: string[]): string[] =>
 
 /**
  * Whether a release name is plausibly what a person asked for, when there is
- * no library item to compare against — the history fallback below. The query
+ * no library item to compare against (the history fallback below). The query
  * is read the way the resolver reads one: title words, then an optional bare
  * year, then an optional episode ("Shogun 2024 S01E03").
  *
@@ -319,13 +319,13 @@ function requestStep(ev: Evidence, item: MergedItem): Step {
     // recorded" about a service that was never asked.
     if (item.kind === 'artist') return SKIPPED('request', 'Seerr does not handle music, so there is no request to check.');
     // True both when Seerr itself could not be reached and when it answered
-    // but the item had no tmdb id to match against (evidence.ts) — the
+    // but the item had no tmdb id to match against (evidence.ts); the
     // wording has to hold in both cases rather than asserting an outage that
     // may not have happened.
     if (ev.request === undefined) {
         return { stage: 'request', service: 'seerr', status: 'unknown', detail: 'Could not determine whether this was requested.' };
     }
-    if (ev.request === null) return SKIPPED('request', 'No request recorded — not everything arrives through Seerr.');
+    if (ev.request === null) return SKIPPED('request', 'No request recorded. Not everything arrives through Seerr.');
 
     if (ev.request.status === 'declined') {
         return { stage: 'request', service: 'seerr', status: 'blocked', detail: 'The request was declined.' };
@@ -335,14 +335,14 @@ function requestStep(ev: Evidence, item: MergedItem): Step {
     }
     if (ev.request.status === 'unknown') {
         // Seerr answered, but not with a status this module recognises as a
-        // success — e.g. Overseerr's own FAILED. Reporting that as `ok`
+        // success, e.g. Overseerr's own FAILED. Reporting that as `ok`
         // ("The request is unknown.") would be green on a request that never
         // went anywhere.
         return {
             stage: 'request',
             service: 'seerr',
             status: 'blocked',
-            detail: 'Seerr reports the request in an indeterminate state — it may have failed to submit.'
+            detail: 'Seerr reports the request in an indeterminate state. It may have failed to submit.'
         };
     }
     return { stage: 'request', service: 'seerr', status: 'ok', detail: `The request is ${ev.request.status}.` };
@@ -350,8 +350,8 @@ function requestStep(ev: Evidence, item: MergedItem): Step {
 
 /**
  * An explicit set, not a regex over free text. `/stall|fail|error|paused/i`
- * reads `completed` — a download waiting to be imported, which is exactly the
- * broken import this tool exists to surface — as "still downloading", because
+ * reads `completed` (a download waiting to be imported, which is exactly the
+ * broken import this tool exists to surface) as "still downloading", because
  * "complete" contains none of those substrings. It misreads
  * `downloadClientUnavailable` and `warning`/`delay` the same way.
  *
@@ -415,7 +415,7 @@ type QueueClass = 'failed' | 'warning' | 'unrecognised' | 'importPending' | 'una
  * is not evidence of health.
  *
  * One exception. The literal `"unknown"` is not something a download client
- * reports — it is our own adapters' fallback for a status code they could not
+ * reports; it is our own adapters' fallback for a status code they could not
  * map. That is the service saying something unclassifiable, so it is
  * `indeterminate` rather than a fault.
  *
@@ -477,11 +477,20 @@ function pickQueueRow(mine: readonly QueueItem[]): { row: QueueItem; cls: QueueC
     return { row, cls: classifyQueueStatus(row) };
 }
 
-/** What the item's own *arr is called in a remedy: an artist's is Lidarr, which a film's grab never goes through. */
-const arrOf = (item: MergedItem): string => (item.kind === 'artist' ? 'Lidarr' : 'Radarr/Sonarr');
+/**
+ * What the item's own *arr is called in a remedy: the one that manages it, so a
+ * stack running only Radarr is not told about a Sonarr. A queue remedy is the
+ * verdict only when something manages the item (otherwise `buildChain` stops at
+ * `request` or `managed`), so the other names are a fallback.
+ */
+function arrOf(item: MergedItem): string {
+    const managing = item.acquisition === undefined ? undefined : ARR_NAMES[instanceArgs(item.acquisition.service).service];
+    if (managing !== undefined) return managing;
+    return item.kind === 'artist' ? 'Lidarr' : 'Radarr/Sonarr';
+}
 
 const queueFaultRemedy = (item: MergedItem): string =>
-    `Check the download client for the failed grab — retry it, remove it, or fix what it reports (e.g. connectivity to the indexer or news server), then let ${arrOf(item)} search again.`;
+    `Check the download client for the failed grab: retry it, remove it, or fix what it reports (e.g. connectivity to the indexer or news server), then let ${arrOf(item)} search again.`;
 /**
  * A warning that may be a stall, which can clear by itself: qBittorrent's
  * `stalled`, and the *arrs' `warning`, which they give one too (`QBittorrent`).
@@ -492,15 +501,19 @@ const queueWarningRemedy = (item: MergedItem, said: QueueItem): string =>
     MAY_STALL.has(said.status.toLowerCase())
         ? `A stalled torrent often finishes later, so waiting may be enough; otherwise fix what the client reports, or remove the download and let ${arrOf(item)} search again.`
         : `Fix what the client reports, or remove the download and let ${arrOf(item)} search again.`;
-/** A client's row cannot be blocklisted; when the *arr lists the grab too, its own queue row can. */
-const queueClientWarningRemedy = (item: MergedItem, said: QueueItem): string =>
-    `${queueWarningRemedy(item, said)} To blocklist a bad release, remove it from ${arrOf(item)}’s queue with \`blocklist: true\`.`;
+/**
+ * A client's row cannot be blocklisted; when the *arr lists the grab too, its
+ * own queue row can. The step offered removes the client's row, so the text
+ * names the *arr's row and its instance.
+ */
+const queueClientWarningRemedy = (item: MergedItem, said: QueueItem, arrRow: QueueItem): string =>
+    `${queueWarningRemedy(item, said)} To blocklist a bad release, remove it from ${arrRow.service}’s queue with remove_queue_item, \`id\` "${arrRow.id}" and \`blocklist: true\`.`;
 const queueUnrecognisedRemedy = (item: MergedItem): string =>
     `Check the download in the download client and fix what it reports, or remove it and let ${arrOf(item)} search again.`;
 /** For a state this module does not know, whose finished files keep the removal back. */
 const QUEUE_UNRECOGNISED_KEPT_REMEDY = 'Check the download in the download client and fix what it reports.';
 const queueImportRemedy = (item: MergedItem): string =>
-    `The download finished but has not been imported yet — check ${arrOf(item)}’s activity/history for why, then trigger the import manually if it did not run on its own.`;
+    `The download finished but has not been imported yet. Check ${arrOf(item)}’s activity/history for why, then trigger the import manually if it did not run on its own.`;
 
 /**
  * The *arrs read every download as paused while the client's whole queue is
@@ -519,12 +532,22 @@ function pausedRemedy(client: QueueItem | undefined): string {
 }
 const queueFinishedRemedy = (item: MergedItem): string =>
     `The download is complete, but the client reports a problem, and ${arrOf(item)} imports nothing while it stands. Fix it in the client (free disk space and retry the download, for one); ${arrOf(item)} imports it once the client no longer reports the problem.`;
-/** A usenet download the *arr marks with a warning after the client filed it in its history (`usenetRerun`); the step's detail shows the message. */
-const queueUsenetFinishedRemedy = (row: QueueItem): string =>
-    `The client reports a problem, and ${row.service} imports nothing while it stands. ${usenetRerun(row, 'The message')}`;
-/** Only the *arr's row speaks for the torrent, and only its message tells missing files from a finished download with a problem. */
-const queueUnconfirmedRemedy = (item: MergedItem): string =>
-    `If the message says the files are missing, remove the download with remove_queue_item and let ${arrOf(item)} search again; otherwise fix what it reports, and it is imported once the warning clears.`;
+/**
+ * A usenet download the *arr marks with a warning after the client filed it in
+ * its history (`usenetRerun`); the step's detail shows the message. It opens
+ * with the *arr as the remedies beside it name it, and the removal names the
+ * row's own instance, as `pausedRemedy` does, since this state offers no next
+ * step that would carry it.
+ */
+const queueUsenetFinishedRemedy = (item: MergedItem, row: QueueItem): string =>
+    `The client reports a problem, and ${arrOf(item)} imports nothing while it stands. ${usenetRerun(row, 'The message')}`;
+/**
+ * Only the *arr's row speaks for the torrent, and only its message tells
+ * missing files from a finished download with a problem. The removal names the
+ * row and its instance, since no next step in this state carries them.
+ */
+const queueUnconfirmedRemedy = (item: MergedItem, row: QueueItem): string =>
+    `If the message says the files are missing, remove the download from ${row.service}’s queue with remove_queue_item and \`id\` "${row.id}", and let ${arrOf(item)} search again; otherwise fix what it reports, and it is imported once the warning clears.`;
 
 /** The states that block with a remedy and offer the removal. */
 type Trouble = 'failed' | 'warning' | 'unrecognised';
@@ -657,10 +680,13 @@ function troubleRemedy(cls: Trouble, kept: Kept | undefined, row: QueueItem, gra
     if (cls === 'unrecognised') return kept === undefined ? queueUnrecognisedRemedy(item) : QUEUE_UNRECOGNISED_KEPT_REMEDY;
     if (kept === undefined) {
         const said = grab.find(isClientRow) ?? row;
-        return isClientRow(row) && grab.some(q => !isClientRow(q)) ? queueClientWarningRemedy(item, said) : queueWarningRemedy(item, said);
+        // The managing instance's row, when another instance lists the grab too.
+        const arrRows = isClientRow(row) ? grab.filter(q => !isClientRow(q)) : [];
+        const arrRow = arrRows.find(q => q.service === item.acquisition?.service) ?? arrRows[0];
+        return arrRow === undefined ? queueWarningRemedy(item, said) : queueClientWarningRemedy(item, said, arrRow);
     }
-    if (kept === 'usenet') return queueUsenetFinishedRemedy(row);
-    return kept === 'complete' ? queueFinishedRemedy(item) : queueUnconfirmedRemedy(item);
+    if (kept === 'usenet') return queueUsenetFinishedRemedy(item, row);
+    return kept === 'complete' ? queueFinishedRemedy(item) : queueUnconfirmedRemedy(item, row);
 }
 
 function queueStep(ev: Evidence, item: MergedItem): QueueResult {
@@ -686,7 +712,7 @@ function queueStep(ev: Evidence, item: MergedItem): QueueResult {
 
     if (mine.length === 0) {
         // A row for this item could be sitting on the client that failed
-        // to answer — a partial read cannot rule that out, so this is
+        // to answer; a partial read cannot rule that out, so this is
         // "could not fully look", not "looked and found nothing". That holds
         // for a Cleanuparr removal too: a re-grab could be on that client.
         const unreachable = `${effectivePartial.join(', ')} could not be reached, so the queue is only partially known.`;
@@ -809,8 +835,8 @@ function queueStep(ev: Evidence, item: MergedItem): QueueResult {
 
     if (cls === 'indeterminate') {
         // The row exists and mentions the item, but neither this module nor
-        // the adapter that read it knows what its status means — reported
-        // as could-not-classify — not folded into "active", which would claim
+        // the adapter that read it knows what its status means (reported
+        // as could-not-classify), not folded into "active", which would claim
         // progress there is no basis for, nor "fault", which would name a
         // problem it cannot.
         return {
@@ -823,9 +849,9 @@ function queueStep(ev: Evidence, item: MergedItem): QueueResult {
         };
     }
 
-    const eta = row.etaSeconds === undefined ? '' : ` — about ${Math.round(row.etaSeconds / 60)} minute(s) left`;
+    const eta = row.etaSeconds === undefined ? '' : `, about ${Math.round(row.etaSeconds / 60)} minute(s) left`;
     // A download genuinely in progress is not a fault: there is nothing to
-    // fix, so no remedy — see QueueResult's optional `remedy`.
+    // fix, so no remedy; see QueueResult's optional `remedy`.
     return {
         step: {
             stage: 'queue',
@@ -863,7 +889,7 @@ function indexerStep(ev: Evidence, item: MergedItem): Step {
         };
     }
 
-    // Nothing matched, but part of the answer is missing — the rejection that
+    // Nothing matched, but part of the answer is missing; the rejection that
     // explains this grab may be in the half that did not answer.
     if (down.length > 0) {
         return {
@@ -892,7 +918,7 @@ function libraryStep(ev: Evidence, item: MergedItem): Step {
         // Never "it is not in the library" when the library was not asked. Reads
         // `libraryDegraded`, not `degraded`: a failed scan probe belongs to the
         // latter and must not land here, because this stage is about the
-        // library *read*. `presence` alone is not enough of a guard either —
+        // library *read*. `presence` alone is not enough of a guard either;
         // `unknown` looks like "no evidence at all" to the check below, while
         // `hasFile` is real *arr data this module must not reinterpret.
         return { stage: 'library', service: server, status: 'unknown', detail: `${server} could not be reached, so its library was not checked.` };
@@ -927,12 +953,12 @@ function scanStep(ev: Evidence): Step {
     if (ev.degraded.includes(server)) {
         // Specifically the `getScanState` probe, and deliberately not
         // `libraryDegraded`. The two once shared an array, so a failed scan
-        // probe silently erased a library read that had succeeded — they are
+        // probe silently erased a library read that had succeeded; they are
         // independent endpoints and may disagree about what the server answered.
         return { stage: 'scan', service: server, status: 'unknown', detail: `${server} could not be reached, so its scan state was not checked.` };
     }
     if (ev.scan === undefined) return { stage: 'scan', service: server, status: 'unknown', detail: `${server}’s scan state could not be read.` };
-    if (ev.scan.running === true) return { stage: 'scan', service: server, status: 'blocked', detail: 'A library scan is running now — check again once it finishes.' };
+    if (ev.scan.running === true) return { stage: 'scan', service: server, status: 'blocked', detail: 'A library scan is running now. Check again once it finishes.' };
     if (ev.scan.lastCompleted === undefined) return { stage: 'scan', service: server, status: 'unknown', detail: `${server} reports no completed library scan.` };
     return { stage: 'scan', service: server, status: 'ok', detail: `Last library scan completed ${ev.scan.lastCompleted}.` };
 }
@@ -1008,13 +1034,13 @@ function subtitleStep(ev: Evidence, item: MergedItem): { step: Step; sentence: s
 }
 
 const REMEDIES: Partial<Record<Stage, string>> = {
-    resolve: 'Try search_media — it also looks at what you do not have yet — or request it through Seerr.',
+    resolve: 'Try search_media, which also looks at what you do not have yet, or request it through Seerr.',
     request: 'Approve or re-submit the request in Seerr.',
     managed: 'Add it to Radarr or Sonarr, or turn monitoring on for it.',
     indexers: 'Check the indexer in Prowlarr; get_indexers shows its recent failures.'
     // `queue` is evidence-dependent (see queueStep's QueueResult), `file` is
     // step-status-dependent (see fileRemedy), and `library`/`scan` need the
-    // configured server's name (see libraryRemedy) — none of the three
+    // configured server's name (see libraryRemedy); none of the three
     // belong in a static per-stage map.
 };
 
@@ -1032,7 +1058,7 @@ function libraryRemedy(stage: 'library' | 'scan', server: string): string {
 
 /**
  * The remedy must not claim a service was checked when it was not. It once
- * asserted "no indexer reported a failure" unconditionally — printed directly
+ * asserted "no indexer reported a failure" unconditionally, printed directly
  * beneath the summary's own "Could not check: queue, prowlarr".
  *
  * `'skipped'` alone cannot tell "not configured" from "checked and found
@@ -1049,7 +1075,7 @@ function fileRemedy(service: string, ev: Evidence, queueStatus: StepStatus, inde
 
     const search = `Trigger a search in ${service}`;
     if (uncheckable.length === 0) {
-        return `${search} — nothing is downloading and no indexer reported a failure.`;
+        return `${search}. Nothing is downloading and no indexer reported a failure.`;
     }
     return `${search} (${uncheckable.join(' and ')}, so that could not be ruled out).`;
 }
@@ -1081,7 +1107,7 @@ function unsearchableRemedy(ev: Evidence, service: string): string | undefined {
 }
 
 /**
- * A queue row can be genuinely blocked while `file` is still `ok` — a failing
+ * A queue row can be genuinely blocked while `file` is still `ok`; a failing
  * upgrade grab, say. That must not outrank a green chain, but going silent
  * about a real failure over-corrects: it is worth a mention, not the verdict.
  *
@@ -1089,19 +1115,19 @@ function unsearchableRemedy(ev: Evidence, service: string): string | undefined {
  * (a review finding's second symptom). A `request`/`managed`
  * verdict with genuinely no file yet (`monitored: false` *and*
  * `hasFile: false`) and a faulted queue row used to go silent about that
- * fault entirely — "…is not monitored." with a "turn monitoring on" remedy
+ * fault entirely: "…is not monitored." with a "turn monitoring on" remedy
  * that is not just incomplete but actively wrong, while the real cause
  * (`queueResult.step.detail`, e.g. "Download failed: news server refused")
  * sat discarded. `fileIsOk` still decides *which sentence*: true asserts a
  * file already exists ("does not block the file already on disk"), which
- * would be a fabricated claim when there is no file — false instead flags
+ * would be a fabricated claim when there is no file; false instead flags
  * the fault as the plausible actual cause of the verdict above it.
  */
 const queueAside = (queueResult: QueueResult, fileIsOk: boolean): string => {
     if (queueResult.remedy === undefined || queueResult.step.status !== 'blocked') return '';
     return fileIsOk
         ? ` (Also: ${queueResult.step.detail} This does not block the file already on disk, but may be worth checking.)`
-        : ` (Also: ${queueResult.step.detail} There is no file on disk yet, so this may be the actual cause — worth checking before assuming the remedy above will fix it.)`;
+        : ` (Also: ${queueResult.step.detail} There is no file on disk yet, so this may be the actual cause. Worth checking before assuming the remedy above will fix it.)`;
 };
 
 /**
@@ -1110,17 +1136,17 @@ const queueAside = (queueResult: QueueResult, fileIsOk: boolean): string => {
  * unmonitored", so this says so rather than guessing.
  *
  * Only for `request`/`managed` verdicts on a series or an artist with a file
- * already visible in the configured media server — a movie in that position is
+ * already visible in the configured media server; a movie in that position is
  * excluded upstream, so "episodes (or albums) you do not have yet" is always
  * literally true here.
  */
 const seriesFileVisibleHedge = (server: string, item: MergedItem): string =>
-    ` (A file is already on disk and visible in ${server} — this may only affect ${item.kind === 'artist' ? 'albums' : 'episodes'} you do not have yet.)`;
+    ` (A file is already on disk and visible in ${server}. This may only affect ${item.kind === 'artist' ? 'albums' : 'episodes'} you do not have yet.)`;
 
 /**
  * The top-level `Diagnosis.degraded` a caller sees, and the input to the
  * `resolve` verdict's own certainty below, are both "everything this
- * diagnosis could not fully check" — the union of probe reachability and
+ * diagnosis could not fully check"; the union of probe reachability and
  * library-read reachability. The two are kept separate for the per-stage
  * checks above, which each care about only one; nothing downstream of here
  * needs the distinction.
@@ -1128,14 +1154,14 @@ const seriesFileVisibleHedge = (server: string, item: MergedItem): string =>
 const allDegraded = (ev: Evidence): string[] => [...new Set([...ev.degraded, ...ev.libraryDegraded])].sort();
 
 /**
- * The same union, minus source-scoped ids (`gather.ts`'s `servicesOnly`) — the
+ * The same union, minus source-scoped ids (`gather.ts`'s `servicesOnly`); the
  * input to the `resolve` verdict's certainty, which is a claim about whether a
  * *service* could be asked.
  *
  * No stage of this chain reads `seasons`, so a failed `jellyfin:seasons` read
  * says nothing about whether a title exists or where it is stuck. Counted, it
  * made every diagnose verdict on a stack with a broken episode endpoint report
- * `certain: false` — hedging eight stages against a hole in none of them. The
+ * `certain: false`, hedging eight stages against a hole in none of them. The
  * top-level `degraded` still lists it: naming what did not answer is honest,
  * doubting an unrelated verdict over it is not.
  */
@@ -1203,7 +1229,7 @@ export function buildChain(query: string, ev: Evidence, byWords: boolean): Diagn
                     ? 'No configured service knows this title.'
                     : 'No configured service knows this title, but download history has a release by that name.'
         });
-        for (const stage of DISPLAY_ORDER.slice(1)) steps.push(SKIPPED(stage, 'Not reached — the item was never identified.'));
+        for (const stage of DISPLAY_ORDER.slice(1)) steps.push(SKIPPED(stage, 'Not reached. The item was never identified.'));
 
         const summary =
             releases.length === 0
@@ -1225,8 +1251,8 @@ export function buildChain(query: string, ev: Evidence, byWords: boolean): Diagn
                               (ev.history ?? []).some(r => r.externalIds !== undefined) ? ' with source: "webhooks"' : ''
                           } shows the full trail.`,
                 // Not knowing about it and not being able to look are different
-                // answers, and a degraded library service means the second —
-                // whether the library read itself failed or a diagnose probe did.
+                // answers, and a degraded library service means the second
+                // (whether the library read itself failed or a diagnose probe did).
                 ...withSteps(lookupStep(query, byWords)),
                 certain: certaintyDegraded(ev).length === 0
             },
@@ -1242,7 +1268,7 @@ export function buildChain(query: string, ev: Evidence, byWords: boolean): Diagn
     steps.push(requestStep(ev, item));
 
     // `file` is now computed whenever Radarr/Sonarr knows about the item at
-    // all, regardless of `monitored` — a file can exist on disk even when
+    // all, regardless of `monitored`; a file can exist on disk even when
     // monitoring is off, and the check below needs that real signal to
     // tell "not monitored, and also no file" apart from "not monitored, but
     // it is sitting right there".
@@ -1257,13 +1283,13 @@ export function buildChain(query: string, ev: Evidence, byWords: boolean): Diagn
             status: 'unknown',
             detail: `${andList(unreadArrs)} could not be read, so whether anything manages it was not checked.`
         });
-        steps.push(SKIPPED('file', 'Not reached — whether anything manages it is not known.'));
+        steps.push(SKIPPED('file', 'Not reached. Whether anything manages it is not known.'));
     } else if (acquisition === undefined) {
         // Not a list of the two *arrs, because the stack may run a third:
         // this is the branch where nothing configured claims the item, and
         // naming services that were never asked reads as a claim they were.
         steps.push({ stage: 'managed', status: 'blocked', detail: 'Nothing configured here is managing it.' });
-        steps.push(SKIPPED('file', 'Not reached — nothing is managing it.'));
+        steps.push(SKIPPED('file', 'Not reached. Nothing is managing it.'));
     } else {
         steps.push(
             acquisition.monitored
@@ -1303,7 +1329,7 @@ export function buildChain(query: string, ev: Evidence, byWords: boolean): Diagn
     // A file already on disk is proof that whatever request/managed history
     // led here worked well enough to produce it. An old declined or pending
     // request, or `monitored: false`, cannot be why playback fails when the
-    // file is sitting right there — from here only the media server's
+    // file is sitting right there; from here only the media server's
     // visibility of it matters.
     const fileIsOk = byStage.get('file')?.status === 'ok';
     const libStep = byStage.get('library');
@@ -1314,11 +1340,11 @@ export function buildChain(query: string, ev: Evidence, byWords: boolean): Diagn
     // `fileIsOk` means something different for a series than for a movie.
     // A movie's `hasFile` is unambiguous: this exact file is or is not on
     // disk. A series' `hasFile` (`sonarr.ts`: `episodeFileCount > 0`) is
-    // "any episode has a file" — true for a show sitting on seasons 1-4
+    // "any episode has a file", true for a show sitting on seasons 1-4
     // while season 5, the actual question, has never arrived. Excluding
     // request/managed there would silently drop the single most common
-    // series diagnosis — "monitoring got turned off" / "the new-season
-    // request is still pending" — under a confident "is available in
+    // series diagnosis, "monitoring got turned off" / "the new-season
+    // request is still pending", under a confident "is available in
     // <server> and playable", with no remedy and no mention. So the
     // exclusion applies only where the signal it depends on is actually
     // unambiguous: movies.
@@ -1341,7 +1367,7 @@ export function buildChain(query: string, ev: Evidence, byWords: boolean): Diagn
         certaintyPath = ['request', 'managed'];
     } else if (isBlocked('file')) {
         // A missing file is a symptom, not the cause: a stalled download or
-        // a dead indexer is — but only reached here because `file` is
+        // a dead indexer is. It is only reached here because `file` is
         // genuinely `blocked`, not merely mentioned by an unrelated row.
         if (isBlocked('queue')) {
             // Checked first: a queue row is live, current evidence about an
@@ -1359,12 +1385,12 @@ export function buildChain(query: string, ev: Evidence, byWords: boolean): Diagn
             certaintyPath = ['request', 'managed', 'queue', 'indexers', 'file'];
         }
     } else if (isBlocked('library')) {
-        // Only reachable with `fileIsOk` true — `libraryStep` can only
+        // Only reachable with `fileIsOk` true; `libraryStep` can only
         // report `blocked` when `acquisition.hasFile === true`, which is
         // exactly `file`'s own `ok` condition. request/managed are excluded
         // above, and correctly so: a scan explains a blocked library, and
         // an unknown scan costs certainty even when library alone would
-        // have been enough to verdict on) both apply here.
+        // have been enough to verdict on, so both apply here.
         verdictStage = isBlocked('scan') ? 'scan' : 'library';
         certaintyPath = ['file', 'library', 'scan'];
     } else {
@@ -1383,7 +1409,7 @@ export function buildChain(query: string, ev: Evidence, byWords: boolean): Diagn
             ? ''
             : ` Could not check: ${[...new Set(uncheckedElsewhere.map(s => byStage.get(s)?.service ?? s))].join(', ')}.`;
     // `fileIsOk` still decides which of the two `queueAside` sentences
-    // applies (see its own doc comment) — it no longer decides whether one
+    // applies (see its own doc comment); it no longer decides whether one
     // appears at all. A confirmed file is what lets the true wording say
     // "does not block the file already on disk"; its absence gets the
     // "may be the actual cause" wording instead, not silence.
@@ -1394,12 +1420,12 @@ export function buildChain(query: string, ev: Evidence, byWords: boolean): Diagn
 
     if (verdictStage === undefined) {
         // The positive claim "is available in <server> and playable" is only
-        // honest when `library` itself said `ok` — read the step, not just
+        // honest when `library` itself said `ok`; read the step, not just
         // whether a media server is configured: `certain: false` alone does
         // not retract an unqualified sentence sitting right next to it.
         // The third branch is reachable only when `library` was skipped for
-        // having no server (see `libraryStep`) — `file` being blocked would
-        // have taken a different verdict branch otherwise — so it echoes
+        // having no server (see `libraryStep`), `file` being blocked would
+        // have taken a different verdict branch otherwise, so it echoes
         // `libraryStep`'s own wording rather than inventing a second one.
         // `hasFile` on an artist is any track at all, which is nowhere near
         // "playable": the albums are one read down and may hold none.
@@ -1458,13 +1484,13 @@ export function buildChain(query: string, ev: Evidence, byWords: boolean): Diagn
                   : REMEDIES[blocking.stage];
     // The verdict's own stage is never also the aside (it is already the
     // headline), so `aside` only ever adds information here for a
-    // non-queue verdict — same guard as the playable branch above.
+    // non-queue verdict; same guard as the playable branch above.
     const summaryAside = blocking.stage === 'queue' ? '' : aside;
     const next = nextStepsFor(blocking.stage, { ev, query, byWords, queueNext: queueResult.next });
     // Item 3's first symptom: a `request`/`managed` verdict outranking a
     // library that is genuinely, confirmedly fine (`libraryConfirmedOk`) used
     // to leave that fact sitting unmentioned in `steps`, nowhere in the
-    // summary a caller actually reads. Only `request`/`managed` — `file`,
+    // summary a caller actually reads. Only `request`/`managed`, `file`,
     // `queue`, `indexers`, `library` and `scan` are all cases where `library`
     // is either not yet meaningful or is already the point.
     const hedge =

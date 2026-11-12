@@ -17,7 +17,7 @@ type RawBlocklist = {
     date?: string;
     protocol?: string;
     indexer?: string;
-    /** Why the *arr gave up on it — usually the download client's own words. */
+    /** Why the *arr gave up on it: usually the download client's own words. */
     message?: string;
 };
 
@@ -86,7 +86,7 @@ export async function findArrBlocklistEntry(
 
 /**
  * `DELETE /api/v3/blocklist/{id}` answers success for an id that does not
- * exist — probed live against both services — so a caller acting on a stale id
+ * exist, probed live against both services, so a caller acting on a stale id
  * would be told the release was un-blocklisted when nothing happened. The
  * existence check is the tool's, in `plan`, for the same reason
  * `remove_queue_item`'s is.

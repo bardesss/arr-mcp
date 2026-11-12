@@ -82,7 +82,7 @@ const FOLLOWABLE = new Set([
 const MAX_COMMANDS = 25;
 
 /**
- * What the service is running now, plus what it has just finished — the
+ * What the service is running now, plus what it has just finished: the
  * follow-up `trigger_search` and `trigger_scan` never had. A command that is
  * not in this list and not in the last fifteen minutes of it has finished;
  * that is the whole answer.
@@ -102,14 +102,14 @@ export async function readArrCommands(
         .filter((c): c is RawCommand & { id: number } => typeof c.id === 'number')
         // `commandName` is the task's own name; `name` is the display form,
         // and on some builds they differ in case only. Either matching is
-        // enough — dropping a real search because a build spelled it the
+        // enough: dropping a real search because a build spelled it the
         // other way would defeat the point of the list.
         .filter(c => FOLLOWABLE.has(c.name ?? '') || FOLLOWABLE.has(c.commandName ?? ''))
         .filter(c => {
             const status = (c.status ?? '').toLowerCase();
             if (status === 'queued' || status === 'started') return true;
             // `Date.parse` on a malformed value is NaN, which compares false
-            // against everything — a row with an unreadable end time drops out
+            // against everything: a row with an unreadable end time drops out
             // rather than being reported as running.
             return now - Date.parse(c.ended ?? '') <= RECENT_MS;
         })
@@ -205,7 +205,7 @@ export async function renameArrItem(
 const COMMAND_POLL_MS = 1_000;
 export const COMMAND_WAIT_MS = 180_000;
 
-/** Sonarr's terminal states. `completed` is not success on its own — see
+/** Sonarr's terminal states. `completed` is not success on its own: see
  *  `renamedCount` below for the command that lies about it. */
 const SETTLED = new Set(['completed', 'failed', 'aborted', 'cancelled']);
 
@@ -249,7 +249,7 @@ export async function awaitArrCommand(
                 service,
                 `${service} command ${commandId} was still ${status} after ${COMMAND_WAIT_MS / 1000}s`,
                 {
-                    remedy: `It has not failed — it is queued behind something. get_stack_health's \`commands\` says what ${service} is working on; check back there rather than sending this again.`
+                    remedy: `It has not failed: it is queued behind something. get_stack_health's \`commands\` says what ${service} is working on; check back there rather than sending this again.`
                 }
             );
         }
@@ -264,7 +264,7 @@ export async function awaitArrCommand(
  * The count is the only truthful signal this command gives. A rename blocked
  * because every destination is taken by another file in the same set finishes
  * `completed` with `result: successful` and the message "0 selected episode
- * files renamed for <series>" — verified live on Sonarr 4.0.19, and
+ * files renamed for <series>": verified live on Sonarr 4.0.19, and
  * independently in #264. Anything reading the status alone reports that as a
  * success.
  *

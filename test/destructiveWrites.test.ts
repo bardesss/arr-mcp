@@ -762,7 +762,7 @@ describe('remove_queue_item', () => {
         return { h, radarr, reads: () => radarr.sent.filter(s => s.path === '/api/v3/history') };
     };
     const KEPT_ALONE = 'Nothing was changed: a torrent keeps seeding, and the row stays. To delete the download too, leave out remove_from_client.';
-    const ORPHAN_REFUSAL = `radarr not found: radarr matched nothing in its library to this download, so it cannot leave the download alone and drop the row — ${KEPT_ALONE}`;
+    const ORPHAN_REFUSAL = `radarr not found: radarr matched nothing in its library to this download, so it cannot leave the download alone and drop the row. ${KEPT_ALONE}`;
     const ORPHAN = { ...KNOWN, movieId: undefined };
 
     // The four blocklist a download through its grab record, which usually goes
@@ -818,7 +818,7 @@ describe('remove_queue_item', () => {
             const h = harness(registerRemoveQueueItem, { adapters: [new LidarrAdapter(keyed(8686), lidarr.impl)], permissions: { lidarr: tiered(false, true) } });
             await expect(h.call({ service: 'lidarr', id: '91', remove_from_client: false, dry_run: true })).rejects.toMatchObject({
                 kind: 'NotFound',
-                message: `lidarr not found: lidarr matched no album to this download, so it cannot leave the download alone and drop the row — ${KEPT_ALONE}`
+                message: `lidarr not found: lidarr matched no album to this download, so it cannot leave the download alone and drop the row. ${KEPT_ALONE}`
             });
             expect(lidarr.sent.filter(s => s.method === 'DELETE')).toEqual([]);
         }
@@ -895,7 +895,7 @@ describe('remove_queue_item', () => {
             await expect(new SonarrAdapter(keyed(8989), unfiltered.impl).grabRecorded('nzo-91')).rejects.toMatchObject({
                 kind: 'UpstreamError',
                 message:
-                    'sonarr upstream error: its history was not filtered to download nzo-91, so whether that grab is recorded is unknown — Leave out blocklist to remove it without one.'
+                    'sonarr upstream error: its history was not filtered to download nzo-91, so whether that grab is recorded is unknown. Leave out blocklist to remove it without one.'
             });
         }
     });

@@ -5,7 +5,7 @@ import type { PermissionSource, WriteTier } from '../core/permissions.ts';
 /**
  * What the presented scopes permit, as a ceiling over the config.
  *
- * The three scopes are independent and unioned — a token presents whichever
+ * The three scopes are independent and unioned; a token presents whichever
  * it was granted. The one ordering applied here is the repo's own: the
  * destructive scope carries the safe tier with it, for the same reason
  * `destructive: true` grants `safe_write` in `core/permissions.ts`. Nothing

@@ -31,8 +31,8 @@ const tally = (policies: readonly ArtistMonitorPolicy[]): string => {
  *
  * `apply` writes this list and does not read the library again: a second read
  * resolves "all artists" against a set that may have grown since the preview,
- * which is exactly the write this exists to prevent. The value is always there
- * — `plan` puts it in `args`, and the token is checked against those same args —
+ * which is exactly the write this exists to prevent. The value is always there:
+ * `plan` puts it in `args`, and the token is checked against those same args,
  * so a plan without it is a bug here rather than a caller mistake.
  */
 const previewedArtistIds = (plan: WritePlan): string[] => {
@@ -123,7 +123,7 @@ export async function planArtistPolicy(
         effects.push(
             monitored
                 ? `Lidarr sets the artist-level monitor flag on ${scope}. This is not the album flag: each album keeps its own, and the monitored ones come back into Lidarr's wanted lists, calendar and automatic searches.`
-                : `Lidarr clears the artist-level monitor flag on ${scope}. Their albums keep their own flags, but Lidarr leaves all of them out of its wanted lists, calendar and automatic searches until the artist is monitored again — use set_monitoring with level "album" to stop wanting one album for good. Files on disk are untouched either way.`
+                : `Lidarr clears the artist-level monitor flag on ${scope}. Their albums keep their own flags, but Lidarr leaves all of them out of its wanted lists, calendar and automatic searches until the artist is monitored again. Use set_monitoring with level "album" to stop wanting one album for good. Files on disk are untouched either way.`
         );
     }
     effects.push(`State found before the change: ${tally(targets)}.`);

@@ -36,7 +36,7 @@ import { BOOK_MATCH_THRESHOLD } from '../services/grimmory.ts';
 
 type MetadataIssue = {
     service: string;
-    /** The media server's item id — what `fix_metadata` acts on. */
+    /** The media server's item id, what `fix_metadata` acts on. */
     itemId: string;
     /** Which kind of item this row is about. Films have no episode numbering,
      *  so their confident signal is the year instead. */
@@ -45,7 +45,7 @@ type MetadataIssue = {
     mismatches: number;
     /**
      * Optional because `detail: "minimal"` drops them, not because they are
-     * ever unknown — same contract as `get_subtitles`. `mismatches`, `remedy`
+     * ever unknown; same contract as `get_subtitles`. `mismatches`, `remedy`
      * and `fix` are the answer and survive every detail level.
      */
     /** How many of the series' episodes had a file to compare at all. */
@@ -55,7 +55,7 @@ type MetadataIssue = {
     /** The advisory half: the words disagree. */
     titleOnly?: number;
     /** How many mismatching episodes the server had already matched to a
-     *  provider episode — the signal that decides `remedy`. */
+     *  provider episode; the signal that decides `remedy`. */
     pinned?: number;
     /** How many have the disagreeing field locked, which no repair overwrites. */
     locked?: number;
@@ -97,7 +97,7 @@ type GetMetadataIssuesResult = {
 };
 
 const FIX: Record<Remedy, string> = {
-    refresh_metadata: 'fix_metadata — the server holds nothing of its own here, or matched the wrong thing, and re-identifying re-derives it.',
+    refresh_metadata: 'fix_metadata: the server holds nothing of its own here, or matched the wrong thing, and re-identifying re-derives it.',
     rename_files:
         'trigger_scan with action "rename" on the managing Radarr or Sonarr, then trigger_scan on the media server. An episode\'s season and number are stored at scan time, so only the file can change.',
     // Deliberately not an instruction. A title-only disagreement on an item the
@@ -137,7 +137,7 @@ const project = (issue: MetadataIssue, detail: DetailLevel): MetadataIssue => {
         return rest;
     }
     // minimal: which series, how bad, and what to run. `remedy` and `fix` stay
-    // — they are the answer, not the detail.
+    //; they are the answer, not the detail.
     const { examples: _e, pinned: _p, locked: _l, shifted: _s, specials: _sp, languages: _lg, compared: _c, numbering: _n, titleOnly: _t, ...rest } = issue;
     return rest;
 };
@@ -147,11 +147,11 @@ const EXAMPLE_LIMIT = 3;
 const bookFix = (id: string, allLocked: boolean, reason: string): string =>
     allLocked
         ? `Every metadata field on this book is locked, so a refresh changes nothing. Unlock the fields on the book in Grimmory, then run fix_metadata with id "grimmory:${id}".`
-        : `fix_metadata with id "grimmory:${id}" — listed for: ${reason}. Re-fetching its metadata can fill that in.`;
+        : `fix_metadata with id "grimmory:${id}" (listed for: ${reason}). Re-fetching its metadata can fill that in.`;
 
 /**
  * One metadata issue as a line. `fix` is carried verbatim because it is the
- * whole point of the row — it names the call that repairs this item, and a
+ * whole point of the row; it names the call that repairs this item, and a
  * reader who only sees the text block would otherwise have the diagnosis and
  * no remedy.
  */
@@ -162,7 +162,7 @@ export function metadataIssueLine(issue: MetadataIssue): string {
         issue.reason === undefined ? `${issue.mismatches} mismatch(es)` : issue.reason,
         issue.remedy
     ];
-    return `${issue.title} — ${facts.join(', ')} — ${issue.fix}`;
+    return `${issue.title}: ${facts.join(', ')}; ${issue.fix}`;
 }
 
 type Sweep = { issues: MetadataIssue[]; degraded: string[]; scanned: number; skipped: number; notComparable: string[] };
@@ -410,7 +410,7 @@ export function registerGetMetadataIssues(
 
 /** The line above the rows: what was compared, what disagrees, and what could not be read. */
 export function metadataIssuesSummary(result: GetMetadataIssuesResult): string {
-    if (result.itemsScanned === 0) return 'No media server library could be read, so nothing was compared — this is not a clean result.';
+    if (result.itemsScanned === 0) return 'No media server library could be read, so nothing was compared. This is not a clean result.';
     const rename = result.items.filter(i => i.remedy === 'rename_files').length;
     const look = result.items.filter(i => i.remedy === 'inspect').length;
     const skipped = result.itemsSkipped ?? 0;

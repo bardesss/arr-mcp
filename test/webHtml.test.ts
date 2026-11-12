@@ -67,8 +67,8 @@ describe('formatting helpers', () => {
     });
 
     it('reports unknown sizes as unknown rather than as zero', () => {
-        expect(humanBytes(undefined)).toBe('—');
-        expect(humanBytes(Number.NaN)).toBe('—');
+        expect(humanBytes(undefined)).toBe('n/a');
+        expect(humanBytes(Number.NaN)).toBe('n/a');
     });
 
     it('shortens an ISO timestamp for a log table', () => {

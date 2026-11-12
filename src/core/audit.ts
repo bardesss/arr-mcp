@@ -9,11 +9,11 @@ import { logger } from './logger.ts';
  * to my library, and who asked it to".
  *
  * SQLite rather than a JSONL file because 0.6's config page has to *read* this
- * back — filtered by service, by outcome, by date — and re-parsing an
+ * back (filtered by service, by outcome, by date) and re-parsing an
  * append-only text file to render a table is work we would only do once before
  * regretting it. `better-sqlite3` is already a dependency, so this costs no
  * new supply chain. The log ring buffer uses it too, in its own file and for
- * its own reasons — see `logs.ts`.
+ * its own reasons; see `logs.ts`.
  *
  * The file is the audit trail, so it lives beside `config.yaml` in the mounted
  * config volume, not in the container's ephemeral filesystem. A trail that
@@ -25,14 +25,14 @@ export const AUDIT_FILENAME = 'audit.db';
 /**
  * `attempted` is written *before* the service is called; every other outcome
  * replaces it once the call resolves. A row still reading `attempted` therefore
- * means arr-mcp died mid-write — which is precisely the case an audit log
+ * means arr-mcp died mid-write, which is precisely the case an audit log
  * exists to make visible, and the one an after-the-fact-only log cannot show.
  */
 type WriteOutcome =
     | 'attempted'
     | 'applied'
     | 'dry_run'
-    /** Refused by the permission tier — the service was never called. */
+    /** Refused by the permission tier; the service was never called. */
     | 'denied'
     /** Previewed because no valid confirmation token was presented. */
     | 'unconfirmed'
@@ -95,7 +95,7 @@ export type AuditRow = {
     outcome: string;
     detail: string | null;
     settled_at: string | null;
-    /** Null only on a row written before this column existed — every write
+    /** Null only on a row written before this column existed; every write
      *  since records `bearer` or the token's client id. */
     caller: string | null;
 };
@@ -125,7 +125,7 @@ CREATE INDEX IF NOT EXISTS write_audit_service ON write_audit (service, at DESC)
  * lacks. A schema version table would be the answer to a second column
  * arriving, not to this one.
  *
- * Nullable by necessity — SQLite cannot add a NOT NULL column without a
+ * Nullable by necessity. SQLite cannot add a NOT NULL column without a
  * default, and inventing one would be claiming to know who made writes that
  * happened before anyone was recording it.
  */
@@ -171,7 +171,7 @@ function safeArgs(args: Record<string, unknown>): string {
 class AuditUnavailableError extends Error {
     constructor(path: string, cause: unknown) {
         super(
-            `the write audit log at ${path} could not be opened, so writes are refused — ` +
+            `the write audit log at ${path} could not be opened, so writes are refused. ` +
                 `check the config volume is writable and not full. Reads are unaffected. ` +
                 `(${(cause as Error)?.message ?? 'unknown error'})`,
             { cause }
@@ -217,7 +217,7 @@ export class WriteAudit {
         }
     }
 
-    /** In-memory trail for tests — same schema, same statements, no file. */
+    /** In-memory trail for tests; same schema, same statements, no file. */
     static ephemeral(): WriteAudit {
         const db = new Database(':memory:');
         db.exec(SCHEMA);
@@ -249,7 +249,7 @@ export class WriteAudit {
 
     /**
      * The one legal mutation of an audit row: resolving `attempted` into what
-     * actually happened. Deliberately not an INSERT of a second row — an
+     * actually happened. Deliberately not an INSERT of a second row; an
      * operator scanning the trail should see one line per operation, with a
      * lingering `attempted` standing out as the anomaly it is.
      *
@@ -274,7 +274,7 @@ export class WriteAudit {
      * The three numbers the dashboard shows, counted in SQL.
      *
      * Not derived from `recent()`: that reads whole rows, `args` blob included,
-     * to compute three integers — and its limit silently became the reported
+     * to compute three integers, and its limit silently became the reported
      * total.
      */
     counts(): { applied: number; denied: number; total: number } {

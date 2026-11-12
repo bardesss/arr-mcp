@@ -3,6 +3,7 @@ import * as z from 'zod/v4';
 import type { ServiceInstance } from '../../config/instances.ts';
 import { logger } from '../../core/logger.ts';
 import { nextStepLine, stepsField, type NextStep } from '../../core/nextStep.ts';
+import { ARR_NAMES } from '../../core/resolver.ts';
 import { fixableOn } from '../fixProfile.ts';
 import { instanceArgs } from '../resolveInstance.ts';
 import {
@@ -49,14 +50,14 @@ type GetProfileIssuesResult = {
     offset: number;
     truncated: boolean;
     degraded: string[];
-    /** A fact about the stack's config, not this call — see the two notes below. */
+    /** A fact about the stack's config, not this call; see the two notes below. */
     note?: string;
     /** A fix_profile call per floor it can fix, on an instance Profilarr does not wholly sync. */
     next_steps?: NextStep[];
 };
 
 const NO_ARR_NOTE =
-    'No Radarr, Sonarr or Whisparr is configured, so there are no quality profiles to check — this is a blind ' +
+    'No Radarr, Sonarr or Whisparr is configured, so there are no quality profiles to check. This is a blind ' +
     'spot, not a clean bill of health. Add one of those services in config.yaml.';
 
 const DRIFT_NOT_CHECKED_NOTE =
@@ -64,14 +65,14 @@ const DRIFT_NOT_CHECKED_NOTE =
     'hold was not checked.';
 
 export const DRIFT_PENDING_NOTE =
-    'Profilarr has not checked for drift on at least one instance yet — that is "not checked", never "clean", ' +
+    'Profilarr has not checked for drift on at least one instance yet. That is "not checked", never "clean", ' +
     'so its absence from the findings below is not a clean bill of health.';
 
 export const NO_MATCHING_INSTANCE_NOTE =
     'The `service`/`instance` filter matched no configured instance, so this empty result is the filter excluding ' +
     'everything, not a clean bill of health.';
 
-/** `remedy` is dropped at `minimal` — it is guidance, not the finding itself. */
+/** `remedy` is dropped at `minimal`; it is guidance, not the finding itself. */
 const project = (issue: ProfileIssue, detail: DetailLevel): ProfileIssue => {
     if (detail !== 'minimal') return issue;
     const { remedy: _r, ...rest } = issue;
@@ -81,15 +82,13 @@ const project = (issue: ProfileIssue, detail: DetailLevel): ProfileIssue => {
 function profileIssueLine(issue: ProfileIssue): string {
     const where = [issue.service, issue.instance].filter((s): s is string => s !== undefined).join('/');
     const profile = issue.profile === undefined ? '' : ` \`${issue.profile}\``;
-    return `${where}${profile} — ${issue.kind} (${issue.confidence}): ${issue.detail}`;
+    return `${where}${profile}: ${issue.kind} (${issue.confidence}): ${issue.detail}`;
 }
-
-const ARR_NAMES: Record<ArrServiceType, string> = { radarr: 'Radarr', sonarr: 'Sonarr', whisparr: 'Whisparr' };
 
 /** Profilarr's API reports how many profiles it syncs per arr, not which, so
  *  a remedy cannot tell a synced profile from one made in the arr. */
 const profileOwner = (service: ArrServiceType): string =>
-    `In Profilarr if it syncs this profile, otherwise in ${ARR_NAMES[service]}`;
+    `In Profilarr if it syncs this profile, otherwise in ${ARR_NAMES[service] ?? service}`;
 
 const isArrAdapter =(a: ServiceAdapter): a is ServiceAdapter & ProfileDiagnosticsCapable =>
     (a.type === 'radarr' || a.type === 'sonarr' || a.type === 'whisparr') && hasProfileDiagnostics(a);
@@ -119,7 +118,7 @@ const safeHost = (url: string | undefined): string | undefined => {
  * name (or bare id). Never across service types, and undefined rather than a
  * guess.
  *
- * `ServiceAdapter` carries no URL of its own in production — `instances` is
+ * `ServiceAdapter` carries no URL of its own in production; `instances` is
  * the config-level source (`ServiceInstance.config.url`), keyed by the same
  * id an adapter reports. `(a as { url?: string }).url` is dead there; it
  * exists only for tests that pass a bare adapter double with its own `url`
@@ -145,7 +144,7 @@ const driftCounts = (d: ProfilarrDrift['details']): string =>
     `${d.qualityProfiles} quality profile(s), ${d.delayProfiles} delay profile(s), ${d.mediaManagement} media management setting(s)`;
 
 /**
- * `drift: null` means Profilarr has not checked yet — never rendered as
+ * `drift: null` means Profilarr has not checked yet, never rendered as
  * clean. Only `drifted: true` produces a finding; `drifted: false` is
  * genuinely clean and stays quiet.
  */
@@ -163,8 +162,8 @@ async function collectDriftFindings(
 
     for (const arrStatus of status.arrs) {
         if (opts.service !== undefined && arrStatus.type !== opts.service) continue;
-        // Profilarr is not managing this arr, so its drift status — checked
-        // or not — describes a relationship that is switched off, not a
+        // Profilarr is not managing this arr, so its drift status, checked
+        // or not, describes a relationship that is switched off, not a
         // live fact worth surfacing.
         if (!arrStatus.enabled) continue;
         const entry = entryById.get(arrStatus.id);
@@ -189,7 +188,7 @@ async function collectDriftFindings(
             confidence: 'certain',
             detail:
                 matched === undefined
-                    ? `Profilarr's \`${name}\` ${arrStatus.type} entry has drifted from what it last synced, but does not match any configured instance — listed as unattributed: ${counts} differ.`
+                    ? `Profilarr's \`${name}\` ${arrStatus.type} entry has drifted from what it last synced, but does not match any configured instance, so it is listed as unattributed: ${counts} differ.`
                     : `Profilarr's saved profiles have drifted from what this ${arrStatus.type} instance currently holds: ${counts} differ.`,
             remedy: 'In Profilarr, review the drift and re-sync this arr to reconcile it.'
         });
@@ -343,7 +342,7 @@ const GetProfileIssuesOutput = PagedOutputSchema.extend({
         .string()
         .optional()
         .describe(
-            "Present when a fact about the stack's config, not this call, needs stating — no arr " +
+            "Present when a fact about the stack's config, not this call, needs stating: no arr " +
                 'service configured at all, or no `profilarr` to check drift against.'
         )
 });
@@ -366,7 +365,7 @@ export function registerGetProfileIssues(
                 'profiles and what an instance actually holds]]. Each profile is checked on its own, so a finding ' +
                 'on some profiles says nothing about which others score the same format. Drift findings are ' +
                 'instance-scoped, not tied to any one profile, and are unaffected by the `profile` filter. ' +
-                'Read-only — every `remedy` is a change to make in [[profilarr: Profilarr when it syncs that profile, or in ]]' +
+                'Read-only: every `remedy` is a change to make in [[profilarr: Profilarr when it syncs that profile, or in ]]' +
                 'the arr itself[[profilarr:  when it does not]]; a floor fix_profile can fix comes back as a step in `next_steps`. Use it when a profile grabs the wrong release or ' +
                 'never upgrades; why one title is missing is diagnose_media.',
             outputSchema: GetProfileIssuesOutput,

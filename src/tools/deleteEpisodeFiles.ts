@@ -48,7 +48,7 @@ export function registerDeleteEpisodeFiles(
         name: 'delete_episode_files',
         title: 'Delete episode files',
         description:
-            'Deletes the files for one Sonarr season, or for specific episodes, from disk. Destructive and not undoable. Give `season` or `episodes`, never both; there is no whole-series form — that is delete_media. **Unmonitor first with set_monitoring**, or Sonarr treats the episodes as missing and re-downloads exactly what you just deleted; the preview says so when the target is still monitored. Leaves the series, its monitoring and its history in Sonarr — only the files go. Previews first; confirm to delete.',
+            'Deletes the files for one Sonarr season, or for specific episodes, from disk. Destructive and not undoable. Give `season` or `episodes`, never both; there is no whole-series form; that is delete_media. **Unmonitor first with set_monitoring**, or Sonarr treats the episodes as missing and re-downloads exactly what you just deleted; the preview says so when the target is still monitored. Leaves the series, its monitoring and its history in Sonarr; only the files go. Previews first; confirm to delete.',
         inputSchema: DeleteEpisodeFilesInput,
         target: { adapters, to: TARGET },
         operation: 'delete_episode_files',
@@ -59,14 +59,14 @@ export function registerDeleteEpisodeFiles(
             refuseBoth(season, episodes);
             if (season === undefined && episodes === undefined) {
                 throw new Error(
-                    'Give either `season` or `episodes`. There is no whole-series form here — use delete_media with `delete_files: true` for that.'
+                    'Give either `season` or `episodes`. There is no whole-series form here; use delete_media with `delete_files: true` for that.'
                 );
             }
 
             // Episodes on both paths, not just the `episodes` one. The
             // re-download warning below is the entire mitigation for shipping
             // monitoring and deletion as two primitives, and Sonarr's searches
-            // key on the **episode** monitored flag — `seasons[].monitored` is
+            // key on the **episode** monitored flag, `seasons[].monitored` is
             // a UI aggregate over it. Toggling a season cascades down, but
             // set_monitoring's own episode form writes episode flags and never
             // touches the aggregate, so a season can read `monitored: false`
@@ -77,7 +77,7 @@ export function registerDeleteEpisodeFiles(
             const label = titled(details.title, details.year);
             // A season the series does not have is refused, not reported as
             // "no files on disk": that sentence claims the season was looked
-            // at, and on Whisparr — where a season is a release year — `season:
+            // at, and on Whisparr (where a season is a release year) `season:
             // 1` is the likeliest wrong input. Only when seasons were reported:
             // no list is no evidence, and refusing on that would be a guess.
             checkScope(details, label, service, { season, episodes });
@@ -86,12 +86,12 @@ export function registerDeleteEpisodeFiles(
 
             let fileIds: number[];
             // Episodes whose file is about to go, so the preview can name
-            // exactly what will disappear and check their monitoring — not
+            // exactly what will disappear and check their monitoring; not
             // just the requested ids, which may be a strict subset of that
             // (see `collateral` below).
             let episodesLosingFiles: EpisodeSummary[] = [];
             // Requested episodes that share a file with an episode the caller
-            // did not name — Sonarr routinely stores a double episode as one
+            // did not name; Sonarr routinely stores a double episode as one
             // `episodefile`, so deleting episode 11's file can also remove
             // episode 12's without episode 12 ever being asked for.
             let collateral: EpisodeSummary[] = [];
@@ -147,7 +147,7 @@ export function registerDeleteEpisodeFiles(
 
             // Only when something targeted is actually still monitored. A
             // warning that always fires is noise nobody reads. Both paths ask
-            // the same question of the same field — the episode's own flag,
+            // the same question of the same field; the episode's own flag,
             // which is what Sonarr's searches key on.
             if (season !== undefined) {
                 const stillMonitored = (details.episodes ?? []).filter(
@@ -156,14 +156,14 @@ export function registerDeleteEpisodeFiles(
                 if (stillMonitored.length > 0) {
                     const plural = stillMonitored.length > 1;
                     effects.push(
-                        `${stillMonitored.length} episode(s) in season ${season} ${plural ? 'are' : 'is'} still monitored — Sonarr will search for ${plural ? 'them' : 'it'} again and re-download ${plural ? 'them' : 'it'}. Unmonitor the season first with set_monitoring.`
+                        `${stillMonitored.length} episode(s) in season ${season} ${plural ? 'are' : 'is'} still monitored. Sonarr will search for ${plural ? 'them' : 'it'} again and re-download ${plural ? 'them' : 'it'}. Unmonitor the season first with set_monitoring.`
                     );
                 } else if (details.episodesTruncated === true) {
                     // Finding nothing monitored is only an answer when
                     // everything was looked at. The episode list is capped at
                     // 500 and sliced in Sonarr's own order, so on a series
-                    // longer than that — The Simpsons, Doctor Who, a long
-                    // anime — this season's episodes can sit outside the
+                    // longer than that; The Simpsons, Doctor Who, a long
+                    // anime; this season's episodes can sit outside the
                     // window entirely, and silence would read as "nothing is
                     // monitored" when it means "I could not see". The files
                     // themselves come from `listEpisodeFiles`, which is not
@@ -171,7 +171,7 @@ export function registerDeleteEpisodeFiles(
                     // advisory that has a hole, and saying so is better than
                     // refusing a legitimate delete over it.
                     effects.push(
-                        `Whether season ${season} is still monitored could not be established — the episode list was truncated at 500, so some of its episodes were never fetched. If any of them is monitored, Sonarr will search for it again and re-download it. Unmonitor the season first with set_monitoring to be sure.`
+                        `Whether season ${season} is still monitored could not be established. The episode list was truncated at 500, so some of its episodes were never fetched. If any of them is monitored, Sonarr will search for it again and re-download it. Unmonitor the season first with set_monitoring to be sure.`
                     );
                 }
             } else {
@@ -180,7 +180,7 @@ export function registerDeleteEpisodeFiles(
                     const plural = stillMonitored.length > 1;
                     const names = stillMonitored.map(e => `S${e.season}E${e.episode}`).join(', ');
                     effects.push(
-                        `${names} ${plural ? 'are' : 'is'} still monitored — Sonarr will search for ${plural ? 'them' : 'it'} again and re-download ${plural ? 'them' : 'it'}. Unmonitor ${plural ? 'them' : 'it'} first with set_monitoring.`
+                        `${names} ${plural ? 'are' : 'is'} still monitored. Sonarr will search for ${plural ? 'them' : 'it'} again and re-download ${plural ? 'them' : 'it'}. Unmonitor ${plural ? 'them' : 'it'} first with set_monitoring.`
                     );
                 }
             }
@@ -198,7 +198,7 @@ export function registerDeleteEpisodeFiles(
                 // existed. The protection is the token's signature: `apply`
                 // gets whatever `plan` resolves at confirm time, and a
                 // resolution that has drifted from what was previewed fails to
-                // verify — the write is refused rather than applied against
+                // verify; the write is refused rather than applied against
                 // stale or changed ids.
                 args: { service, id, fileIds },
                 // Empty for named episodes, not absent: they are part of the

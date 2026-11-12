@@ -15,7 +15,7 @@ type RawLanguage = { id?: number; name?: string | null };
 
 /**
  * The three reads `get_profile_issues` needs from one Radarr, Sonarr or
- * Whisparr — shared because Radarr and Sonarr answer these identically.
+ * Whisparr: shared because Radarr and Sonarr answer these identically.
  * GET only; the one profile write is `updateArrQualityProfile` below.
  */
 export async function readArrProfileDiagnostics(http: ServiceHttp): Promise<ProfileDiagnosticsData> {

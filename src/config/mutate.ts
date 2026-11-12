@@ -63,7 +63,7 @@ const entriesOf = (services: Record<string, unknown>, type: ServiceId): Entry[] 
  * One unnamed entry is written as a bare block; anything else is a list.
  *
  * A single *named* entry stays a list on purpose. Collapsing it back to
- * `services.radarr` would rename `radarr/hd` to `radarr` — a second silent
+ * `services.radarr` would rename `radarr/hd` to `radarr`; a second silent
  * rename, undoing the one the user was explicitly asked to approve when the
  * name was introduced.
  */
@@ -91,8 +91,8 @@ const cloneServices = (config: Config): Record<string, unknown> =>
  * how this silently switched the IMDb dataset off: `metadata` was not in the
  * list, `saveConfig` deletes an absent `metadata` block, and so editing a
  * timeout on any card wiped a setting that card has nothing to do with. The
- * same rule the `build*Config` builders follow in `src/web/routes.ts` — carry
- * forward every field you do not own — and the spread keeps it true for keys
+ * same rule the `build*Config` builders follow in `src/web/routes.ts`, carry
+ * forward every field you do not own, and the spread keeps it true for keys
  * added later.
  */
 const validate = (config: Config, services: Record<string, unknown>): Config => {
@@ -119,7 +119,7 @@ const withPrimary = (config: Config, services: Record<string, unknown>): Config 
  * Applies form fields to an entry, leaving a blank credential as it was.
  *
  * Gated by the fields the service's schema has rather than by which fields the form happened to send.
- * Every card posts the same field names — an unchecked checkbox is simply
+ * Every card posts the same field names; an unchecked checkbox is simply
  * absent, so the form cannot distinguish "off" from "this service has no such
  * field", and the service schemas are **strict**: one stray
  * `allow_other_users` on a Radarr makes the whole config invalid.

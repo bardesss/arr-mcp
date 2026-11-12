@@ -79,7 +79,7 @@ export type ToolContext = {
     /**
      * The IMDb dataset, when configured.
      *
-     * `library` already closes over it — the owned-library join happens there
+     * `library` already closes over it; the owned-library join happens there
      * exactly once. This field is for the tools that answer about things you
      * may *not* own, which never touch the library index: search, lookup and
      * details. Spec calls that the path that matters most, because a
@@ -88,7 +88,7 @@ export type ToolContext = {
     dataset: ImdbDataset | undefined;
     /** Added per request by the app, which owns the store and reads the setting from the current config. */
     eventLog?: EventLog;
-    /** Every configured instance, as the config declares it — the source the
+    /** Every configured instance, as the config declares it; the source the
      *  write gate reads, so `get_stack_health` cannot report a different answer. */
     instances: readonly ServiceInstance[];
     /** `tools.media_cards`: build MCP Apps poster cards at all (`mcp/apps.ts`). */
@@ -97,7 +97,7 @@ export type ToolContext = {
      * The write half. Built once alongside the resolvers rather than per
      * request: `ConfirmTokens` holds the signing key and the spent-token set,
      * and rebuilding it per request would make every confirmation token invalid
-     * the moment it was issued — the handshake spans two calls by construction.
+     * the moment it was issued; the handshake spans two calls by construction.
      */
     write: WriteContext;
 };
@@ -278,7 +278,7 @@ export const toolListed = (name: string, surface: SurfaceOptions): boolean => to
  * The tool surface, frozen at 1.0.
  *
  * Renaming or removing any of these breaks every user's saved prompts
- * *silently* — the model stops finding the tool rather than raising an error —
+ * *silently*; the model stops finding the tool rather than raising an error;
  * so from 1.0 onward it takes a major version. Adding one is a minor.
  */
 export const TOOL_NAMES = [

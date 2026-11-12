@@ -52,7 +52,7 @@ function statusMessagesOf(service: string, r: RawQueueRecord): string[] {
 
 /**
  * Radarr and Sonarr report time remaining as a .NET `TimeSpan`, whose "c"
- * format is `[d.]hh:mm:ss[.fffffff]` — the fraction appears whenever it is
+ * format is `[d.]hh:mm:ss[.fffffff]`: the fraction appears whenever it is
  * non-zero, which is most of the time. Splitting on the first dot read
  * `00:04:32.1234567` as a day count of `00:04:32` and gave up, so the download
  * came back with no ETA at all.
@@ -79,7 +79,7 @@ export async function readArrQueue(
     kind: ArrKind
 ): Promise<QueueItem[]> {
     // Off upstream by default, which hides records whose movie, series or
-    // artist was deleted — stuck at importBlocked forever, and invisible here.
+    // artist was deleted: stuck at importBlocked forever, and invisible here.
     const includeUnknown = INCLUDE_UNKNOWN[kind];
     const records = await pageArr<RawQueueRecord>(http, `${http.apiRoot}/queue`, includeUnknown);
 
@@ -134,7 +134,7 @@ export async function removeArrQueueItem(
     // Both flags are serialised explicitly rather than omitted when false:
     // Radarr defaults `removeFromClient` to true, so leaving it out on a
     // remove-from-*arr-only request would also wipe it from the download
-    // client — the opposite of what was asked for.
+    // client: the opposite of what was asked for.
     await http.delete(
         `${http.apiRoot}/queue/${numeric}?removeFromClient=${String(opts.removeFromClient)}&blocklist=${String(opts.blocklist)}`
     );
@@ -155,7 +155,7 @@ const EXCLUSION_PARAM = {
     artist: 'addImportListExclusion'
 } as const satisfies Record<ArrKind, string>;
 
-/** Radarr's `/movie/{id}`, Sonarr's `/series/{id}`, Lidarr's `/artist/{id}` — same flags, different noun. */
+/** Radarr's `/movie/{id}`, Sonarr's `/series/{id}`, Lidarr's `/artist/{id}`: same flags, different noun. */
 export async function deleteArrMedia(
     http: ServiceHttp,
     service: string,
@@ -184,7 +184,7 @@ type RawCalendarMovie = {
 /**
  * A film has up to three dates, and the useful one is the earliest you could
  * actually watch it: digital, then physical, then cinema. A row with none of
- * the three is dropped — an undated calendar entry is noise.
+ * the three is dropped: an undated calendar entry is noise.
  */
 export function readRadarrCalendar(movies: RawCalendarMovie[], service: string): CalendarEntry[] {
     return movies
@@ -217,7 +217,7 @@ type RawCalendarEpisode = {
 /**
  * `dateField` exists because Whisparr V2 dates a scene with `releaseDate` and
  * never sends `airDateUtc`, and this filter drops any row without the field it
- * is given. Left hardcoded, a Whisparr calendar would come back empty — every
+ * is given. Left hardcoded, a Whisparr calendar would come back empty: every
  * row silently discarded, no error, nothing to notice. A Sonarr caller passes
  * nothing and is unaffected.
  */
@@ -310,7 +310,7 @@ export const calendarPath = (apiRoot: string, range: { start: Date; end: Date })
 
 /**
  * Sonarr omits the series object from calendar rows unless asked, so
- * `seriesTitle` came back empty for every episode — an episode calendar that
+ * `seriesTitle` came back empty for every episode: an episode calendar that
  * cannot say which series an episode belongs to is close to useless. Confirmed
  * against a live Sonarr 4.0.19 during a live capture.
  */

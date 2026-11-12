@@ -8,14 +8,14 @@ import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts
 import { targetInput, serviceTarget } from './serviceTarget.ts';
 
 /**
- * "Stop downloading, I need the bandwidth" — and its inverse, which is the
+ * "Stop downloading, I need the bandwidth", and its inverse, which is the
  * whole reason this is `safe` tier: the undo is the same tool with the other
  * action.
  *
  * `service` is **required**, one client per call, rather than defaulting to
  * every configured client. `registerWriteTool` resolves exactly one service id
  * from the arguments and checks that service's permissions, and a tool
- * spanning three clients would have to name one of them there — which is the
+ * spanning three clients would have to name one of them there, which is the
  * failure `write.ts` calls out by name: it would check SABnzbd's writes
  * against Transmission's `permissions` block, so enabling one client would
  * quietly enable another. Naming the client is a small cost; checking the
@@ -26,7 +26,7 @@ const TARGET = serviceTarget({
     services: DOWNLOAD_CLIENTS,
     can: hasPause,
     cannot: 'cannot be paused',
-    hint: 'The *arrs have no pause — they keep grabbing, and the grabs queue up in whichever client is configured.'
+    hint: 'The *arrs have no pause. They keep grabbing, and the grabs queue up in whichever client is configured.'
 });
 
 /** A speed cap is its own capability: a client can pause without having one,
@@ -52,7 +52,7 @@ const PauseDownloadsInput = z.object({
         .min(0)
         .optional()
         .describe(
-            'With action: "limit", the download cap in KiB/s — 0 removes the cap. Client-wide, never per item. Required for "limit" and ignored otherwise.'
+            'With action: "limit", the download cap in KiB/s; 0 removes the cap. Client-wide, never per item. Required for "limit" and ignored otherwise.'
         ),
     id: z
         .string()
@@ -73,7 +73,7 @@ export function registerPauseDownloads(
         description:
             'Pauses, resumes or throttles one download client ({{or: sabnzbd=SABnzbd; nzbget=NZBGet; transmission=Transmission; qbittorrent=qBittorrent}}) or one item in its queue when `id` is given. The bandwidth answer: "stop downloading for an hour", or `action: "limit"` with `speed_limit_kbps` (KiB/s) to slow it down instead of stopping it (0 removes the cap). A limit is always client-wide, never per item. Safe tier, because the undo is this same tool with the other action. It does NOT stop the *arrs grabbing: they carry on finding and sending releases, which then sit in the paused client. `service` is required and names one client; pausing "everything" means one call each. Previews first; confirm to apply it.',
         inputSchema: PauseDownloadsInput,
-        // The resolved instance id, not the bare type — permissions are
+        // The resolved instance id, not the bare type: permissions are
         // granted per instance.
         target: { adapters, to: TARGET },
         operation: 'pause_downloads',
@@ -87,7 +87,7 @@ export function registerPauseDownloads(
                     );
                 }
                 if (speed_limit_kbps === undefined) {
-                    throw new Error('limit needs `speed_limit_kbps` — the cap in KiB/s, or 0 to remove it.');
+                    throw new Error('limit needs `speed_limit_kbps`, the cap in KiB/s, or 0 to remove it.');
                 }
 
                 const client = findLimitAdapter(adapters, service, instance);
@@ -118,7 +118,7 @@ export function registerPauseDownloads(
                             ? `${client.id} will download as fast as the line allows${current.kbps === undefined ? '' : `, instead of the current ${current.kbps} KiB/s`}.`
                             : `Caps ${client.id} at ${wanted} KiB/s${current.kbps === undefined ? ', which currently has no limit' : `, from ${current.kbps} KiB/s`}. Client-wide, not per item.`,
                         'Does NOT stop the *arrs grabbing. They keep sending releases; they just arrive more slowly.',
-                        'Undo it by calling this tool again with action: "limit" and a different value — 0 removes the cap.'
+                        'Undo it by calling this tool again with action: "limit" and a different value; 0 removes the cap.'
                     ],
                     args: { action, kbps: speed_limit_kbps }
                 };

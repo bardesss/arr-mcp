@@ -39,7 +39,7 @@ export async function planOrphaned(adapter: OrphanCapable): Promise<WritePlan<Or
         target,
         summary: `Remove ${litter.length} orphaned item(s) from ${adapter.id}'s queue, and from the download client.`,
         effects: [
-            ...litter.map(i => `${i.title} — ${i.status}/${i.importState ?? 'unknown'}, no media behind it.`),
+            ...litter.map(i => `${i.title}: ${i.status}/${i.importState ?? 'unknown'}, no media behind it.`),
             'Deletes the downloaded data too. Nothing is blocklisted, so any of these can be grabbed again.'
         ],
         // Bound to the ids, so a token cannot apply to a queue that has
@@ -53,7 +53,7 @@ export async function applyOrphaned(plan: WritePlan<OrphanBound>, adapter: Orpha
 
     // Caught per item. Throwing on the first failure audited the whole
     // write as failed and told the caller nothing about the ones that
-    // *had* been removed — so a retry re-planned against a queue that
+    // *had* been removed, so a retry re-planned against a queue that
     // had already changed underneath it.
     //
     // Deliberately still serial: removal is two calls per item on some
@@ -82,7 +82,7 @@ export async function applyOrphaned(plan: WritePlan<OrphanBound>, adapter: Orpha
         return (
             `Removed ${removed.length} of ${ids.length} orphaned item(s) from ${adapter.id}'s queue. ` +
             `${failed.length} could not be removed: ${failed.join('; ')}. ` +
-            `Run the preview again — the queue has changed.`
+            `Run the preview again. The queue has changed.`
         );
     }
 

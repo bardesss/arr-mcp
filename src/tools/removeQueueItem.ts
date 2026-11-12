@@ -8,7 +8,7 @@ import { outcomeText, registerWriteTool, type WriteContext, type WritePlan } fro
 import { targetInput, serviceTarget } from './serviceTarget.ts';
 
 /**
- * "This has been stuck at 0% for two days, get rid of it" — the other thing
+ * "This has been stuck at 0% for two days, get rid of it"; the other thing
  * people actually want to write.
  *
  * Destructive tier rather than safe, even though a removed download can be
@@ -114,11 +114,11 @@ export function registerRemoveQueueItem(
         name: 'remove_queue_item',
         title: 'Remove a queue item',
         description:
-            'Removes one item from a download queue — the stuck-at-0%, wrong-release, or stalled download. Take `service` and `id` from get_queue. Optionally deletes partial data and, on an *arr, blocklists the release so it will not be grabbed again. [[nzbget: On NZBGet, keeping the data parks the download in its history rather than deleting it.]] [[shelfmark: On Shelfmark it cancels a queued or running book, and a failed one has nothing to cancel.]] [[grimmory: On Grimmory it discards a file waiting in the Bookdrop, which deletes the file from disk (so `remove_from_client: false` is refused).]] [[radarr|sonarr|whisparr|lidarr: `orphaned: true` in place of `id` removes every finished download stuck at importBlocked because its film, series or artist is gone, from one *arr instance and its client.]] Previews first; confirm to remove it.',
+            'Removes one item from a download queue: the stuck-at-0%, wrong-release, or stalled download. Take `service` and `id` from get_queue. Optionally deletes partial data and, on an *arr, blocklists the release so it will not be grabbed again. [[nzbget: On NZBGet, keeping the data parks the download in its history rather than deleting it.]] [[shelfmark: On Shelfmark it cancels a queued or running book, and a failed one has nothing to cancel.]] [[grimmory: On Grimmory it discards a file waiting in the Bookdrop, which deletes the file from disk (so `remove_from_client: false` is refused).]] [[radarr|sonarr|whisparr|lidarr: `orphaned: true` in place of `id` removes every finished download stuck at importBlocked because its film, series or artist is gone, from one *arr instance and its client.]] Previews first; confirm to remove it.',
         inputSchema: RemoveQueueItemInput,
         // The resolved instance id, not the bare type: permissions are granted per
         // instance, so checking `radarr` against a config that only grants
-        // `radarr/hd` would deny a permitted write — or worse, the reverse.
+        // `radarr/hd` would deny a permitted write, or worse, the reverse.
         target: { adapters, to: TARGET },
         operation: 'remove_queue_item',
         tier: 'destructive',
@@ -164,7 +164,7 @@ export function registerRemoveQueueItem(
             if (item === undefined) {
                 throw new ServiceError('NotFound', adapter.id, `nothing in ${adapter.id}'s queue has id "${id}"`, {
                     remedy:
-                        'It may have finished or already been removed. Call get_queue for a current list — queue ids are not stable once an item leaves the queue.'
+                        'It may have finished or already been removed. Call get_queue for a current list; queue ids are not stable once an item leaves the queue.'
                 });
             }
 

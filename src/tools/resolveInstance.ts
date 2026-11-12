@@ -7,14 +7,14 @@ import type { ServiceAdapter } from '../services/types.ts';
  *
  * Tools open-coded `adapters.find(a => a.id === service)`, which was exactly
  * right while `id` and service type were the same string. With two Radarrs they
- * are not, and that lookup matches *neither* — so this replaces every one of
+ * are not, and that lookup matches *neither*, so this replaces every one of
  * them rather than being added beside them. `diagnose_media` was missed in that first
  * pass and kept answering "radarr is not configured" about a named Radarr until
  * it was converted too; if you are adding a by-service lookup, it belongs here.
  *
  * The rule that matters is the last one: **several instances and none named is a
  * refusal, not a coin toss.** That is already this codebase's answer to
- * ambiguity, and it was written after a real incident — an ambiguous quality
+ * ambiguity, and it was written after a real incident; an ambiguous quality
  * profile match sent a film to 1080p against an explicit 2160p request, and it
  * was only discovered once the download finished (see `addMedia.ts`). Guessing
  * which Radarr receives a 4K release is the same failure with a worse blast
@@ -28,7 +28,7 @@ export function resolveInstance(
     type: ServiceId,
     instance?: string
 ): ServiceAdapter {
-    // `.type`, never `.id` — `id` is `radarr/4k` for a named instance, so
+    // `.type`, never `.id`; `id` is `radarr/4k` for a named instance, so
     // matching on it is what broke.
     const candidates = adapters.filter(a => a.type === type);
 
@@ -60,7 +60,7 @@ export function resolveInstance(
     );
 }
 
-/** The names as the caller would pass them — bare, not qualified, because
+/** The names as the caller would pass them, bare, not qualified, because
  *  `instance` takes `4k` rather than `radarr/4k`. */
 const nameList = (adapters: readonly ServiceAdapter[]): string =>
     adapters

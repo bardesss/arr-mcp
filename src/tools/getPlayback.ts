@@ -14,7 +14,7 @@ type GetPlaybackResult = {
     offset: number;
     truncated: boolean;
     degraded: string[];
-    /** A fact about the stack's config, not this call — see `NO_MEDIA_SERVER_NOTE`. */
+    /** A fact about the stack's config, not this call; see `NO_MEDIA_SERVER_NOTE`. */
     note?: string;
 };
 
@@ -33,8 +33,8 @@ const ScopeSchema = z
     .default('active')
     .describe(
         '`active` (default): now playing and what can be resumed. `next_up`: the next unwatched episode of every ' +
-            "series this user has in progress — your media server's own answer to what to watch next. `history`: " +
-            'recently watched movies and episodes, newest first — on Jellyfin including plays its activity log holds ' +
+            "series this user has in progress, your media server's own answer to what to watch next. `history`: " +
+            'recently watched movies and episodes, newest first, on Jellyfin including plays its activity log holds ' +
             'that never got marked played, such as an offline client syncing back.'
     );
 
@@ -118,7 +118,7 @@ export const summarize = (scope: PlaybackScope, result: GetPlaybackResult): stri
 /**
  * One playback row as a line. `kind` leads because a `now_playing` row and a
  * `resume` row mean quite different things and the scope alone does not
- * separate them — `scope: "active"` returns both.
+ * separate them; `scope: "active"` returns both.
  *
  * `user` is named on every row: `allow_other_users` lets one call span a
  * household, and a progress figure with no name against it invites the model
@@ -140,7 +140,7 @@ export function playbackLine(entry: PlaybackEntry): string {
     if (entry.source === 'activity_log')
         facts.push(entry.removedFromLibrary === true ? 'from activity log, since removed from library' : 'from activity log, not marked played');
 
-    return `${name} — ${facts.join(', ')}`;
+    return `${name}: ${facts.join(', ')}`;
 }
 
 const getPlaybackInput = byMediaServers(ids => toolInput({
@@ -157,7 +157,7 @@ const GetPlaybackOutput = PagedOutputSchema.extend({
         .string()
         .optional()
         .describe(
-            "Present when a fact about the stack's config, not this call, needs stating — for example no media server configured at all."
+            "Present when a fact about the stack's config, not this call, needs stating: for example no media server configured at all."
         )
 });
 

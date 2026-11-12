@@ -17,7 +17,7 @@ type GetRequestsResult = {
     degraded: string[];
     /**
      * What the household has reported as broken. A sibling list rather than a
-     * second kind of `items` — the pattern `get_indexers` uses for its
+     * second kind of `items`; the pattern `get_indexers` uses for its
      * rejections, and it leaves `items` meaning exactly what it always has.
      * Only at `detail: "full"`, and never a reason for the call to fail.
      */
@@ -52,7 +52,7 @@ export function requestLine(request: MediaRequest): string {
     if (request.tvdbId !== undefined) facts.push(`tvdb:${request.tvdbId}`);
     facts.push(`by ${request.requestedBy}`);
 
-    return `${request.title ?? '(untitled)'} — ${facts.join(', ')}`;
+    return `${request.title ?? '(untitled)'}: ${facts.join(', ')}`;
 }
 
 export async function buildGetRequests(
@@ -130,7 +130,7 @@ export function registerGetRequests(
             title: 'Requests',
             annotations: READ_ONLY,
             description:
-                'Media requests in Seerr — pending, approved or declined — for one user. Defaults to the configured user; reading another requires allow_other_users. At `detail: "full"` it also returns `issues`: what your users have reported as broken (video, audio, subtitle), each naming its media and newest comments. Issues are everyone\'s, not just this user\'s, and a Seerr that cannot answer for them still answers for the requests. Approve or decline with respond_to_request, remove with delete_request.',
+                'Media requests in Seerr (pending, approved or declined) for one user. Defaults to the configured user; reading another requires allow_other_users. At `detail: "full"` it also returns `issues`: what your users have reported as broken (video, audio, subtitle), each naming its media and newest comments. Issues are everyone\'s, not just this user\'s, and a Seerr that cannot answer for them still answers for the requests. Approve or decline with respond_to_request, remove with delete_request.',
             outputSchema: GetRequestsOutput,
             inputSchema: GetRequestsInput
         },

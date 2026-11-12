@@ -143,7 +143,7 @@ export function registerSetMonitoring(
 
                 // A season this series does not have is not a no-op: `sonarr.ts`
                 // maps every season, matches none, and PUTs the series back
-                // unchanged — so the tool would report `applied: true` for a write
+                // unchanged, so the tool would report `applied: true` for a write
                 // that provably did nothing, and the caller, believing the season
                 // is now unmonitored, would go on to delete its files. Refused
                 // instead, exactly as delete_episode_files refuses an episode id it
@@ -161,8 +161,8 @@ export function registerSetMonitoring(
                 // `noop` only for the whole-series form, where the current state is
                 // a single value Sonarr actually holds.
                 //
-                // The episode form targets a set that can disagree with itself —
-                // some monitored, some not — so no claim is made there. The season
+                // The episode form targets a set that can disagree with itself;
+                // some monitored, some not, so no claim is made there. The season
                 // form *looks* like it has an answer in `seasons[].monitored`, but
                 // that is a UI aggregate over the episode flags, and this tool's
                 // own episode form writes those flags without touching it. A

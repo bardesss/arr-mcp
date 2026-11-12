@@ -13,7 +13,7 @@ import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts
  * Seerr's blocklist (#602): a title on it cannot be requested by anyone, so a
  * film deleted from Radarr is not sent straight back by the next request or
  * watchlist sync. `delete_media` adds to it in the same call as the delete;
- * this tool is the rest — blocklisting a title that was never in Radarr or
+ * this tool is the rest, blocklisting a title that was never in Radarr or
  * Sonarr, retrying one the delete could not finish, and lifting one.
  *
  * Adding is `safe`: it changes nothing Seerr has, only refuses what comes

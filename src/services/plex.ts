@@ -55,7 +55,7 @@ export type RawPlexItem = {
     viewOffset?: number;
     viewCount?: number;
     lastViewedAt?: number;
-    /** `/status/sessions/history/all` only — documented and widely observed
+    /** `/status/sessions/history/all` only: documented and widely observed
      *  as the field history rows actually carry, unlike `lastViewedAt`.
      *  Unconfirmed against a live server pending the tester; read alongside
      *  `lastViewedAt` rather than betting on one. */
@@ -67,16 +67,16 @@ export type RawPlexItem = {
     Guid?: { id?: string }[];
     /** Legacy agents, e.g. `com.plexapp.agents.imdb://tt0111161?lang=en`. */
     guid?: string;
-    /** `/status/sessions` only — who is watching. XML-derived JSON, so this
+    /** `/status/sessions` only: who is watching. XML-derived JSON, so this
      *  comes back as either a string or a number depending on the row. */
     User?: { id?: string | number; title?: string };
-    /** `/status/sessions` only — what they are watching on. */
+    /** `/status/sessions` only: what they are watching on. */
     Player?: { title?: string };
-    /** Episodes from `/library/sections/{key}/all?type=4` — the series' ratingKey. */
+    /** Episodes from `/library/sections/{key}/all?type=4`: the series' ratingKey. */
     grandparentRatingKey?: string;
-    /** `/status/sessions/history/all` only — which account watched this row. */
+    /** `/status/sessions/history/all` only, which account watched this row. */
     accountID?: string | number;
-    /** Show rows only — Plex's own series-completion counters. */
+    /** Show rows only: Plex's own series-completion counters. */
     viewedLeafCount?: number;
     leafCount?: number;
     /** `/library/metadata/{id}` rows: the library section holding the item. */
@@ -104,7 +104,7 @@ export const msToSeconds = (ms: number | undefined): number | undefined =>
 export const epochToIso = (seconds: number | undefined): string | undefined =>
     typeof seconds === 'number' && seconds > 0 ? new Date(seconds * 1000).toISOString() : undefined;
 
-/** Digits required, not just finiteness — `Number('')` is 0 and would join
+/** Digits required, not just finiteness: `Number('')` is 0 and would join
  *  against every other item missing an id. */
 const numericId = (value: string | undefined): number | undefined =>
     value !== undefined && /^\d+$/.test(value.trim()) ? Number(value.trim()) : undefined;
@@ -119,7 +119,7 @@ const LEGACY_AGENTS: Record<string, 'imdb' | 'tmdb' | 'tvdb'> = {
  * The join with Radarr and Sonarr is on these three ids, and Plex reports them
  * in two mutually exclusive shapes depending on the agent the library was built
  * with. A library on a legacy agent whose ids were dropped would produce items
- * with no ids at all — indistinguishable from a Plex library that genuinely
+ * with no ids at all: indistinguishable from a Plex library that genuinely
  * shares nothing, which would make `get_library` report every film as
  * `arr_only`. Both shapes are read for that reason.
  */
@@ -163,15 +163,15 @@ type RawAccount = { id?: number; name?: string };
 type RawSection = {
     key?: string;
     type?: string;
-    /** The library's name, as the operator sees it in Plex — what a partial
+    /** The library's name, as the operator sees it in Plex: what a partial
      *  scan failure names, since a section key identifies nothing to them. */
     title?: string;
     /** Whether this section is being scanned right now. XML-derived JSON, so
      *  this comes back as a boolean, a number, or a string depending on the
-     *  server — never assume just one. */
+     *  server: never assume just one. */
     refreshing?: boolean | number | string;
     /** Epoch seconds this section last finished scanning. XML-derived JSON,
-     *  same instability as `refreshing` — a string here must not silently
+     *  same instability as `refreshing`: a string here must not silently
      *  drop out of `lastCompleted`. */
     scannedAt?: number | boolean | string;
     agent?: string;
@@ -254,7 +254,7 @@ export class PlexAdapter
      * A local `X-Plex-Token` is scoped to one account, so this always answers
      * with exactly one user: the owner `/accounts` names, or `default_user`
      * when it can't. Never `/myplex/account` or anything else that reaches
-     * plex.tv — see CONTRIBUTING.
+     * plex.tv: see CONTRIBUTING.
      */
     async listUsers(): Promise<ServiceUser[]> {
         const name = await this.#ownerName();
@@ -273,7 +273,7 @@ export class PlexAdapter
         }
 
         // /accounts is the documented candidate for naming the owner, but is
-        // unverified against a live server — worth knowing at runtime if this
+        // unverified against a live server: worth knowing at runtime if this
         // fallback is what actually ran. Logged once: every per-user call
         // reaches here, and a line per call would drown everything else.
         if (!this.#warnedUnverifiedOwner) {
@@ -286,7 +286,7 @@ export class PlexAdapter
 
     /**
      * The owner's name per `/accounts`, or undefined when the server declines
-     * to give one — including by not serving the endpoint at all.
+     * to give one, including by not serving the endpoint at all.
      *
      * A 404 here is swallowed on purpose. `ServiceHttp` classifies it as
      * `NotFound`, the same kind `IdentityResolver` raises for "no user by that
@@ -298,7 +298,7 @@ export class PlexAdapter
      * (#234). "The server did not name the owner" is exactly the case the
      * `default_user` fallback below already covers.
      *
-     * Only 404 — every other failure (auth, timeout, 5xx) still propagates,
+     * Only 404: every other failure (auth, timeout, 5xx) still propagates,
      * since those are reachability problems the caller must hear about.
      */
     async #ownerName(): Promise<string | undefined> {
@@ -340,14 +340,14 @@ export class PlexAdapter
 
     /**
      * `/library/onDeck` mixes resume and next-up rows with nothing marking
-     * which is which — unverified against a live server (question 3 for the
+     * which is which: unverified against a live server (question 3 for the
      * tester). Until answered: a non-zero `viewOffset` reads as `resume`, its
      * absence (or zero) as `next_up`. `getPlayback` reads this concurrently
      * with sessions, exactly as `jellyfin.ts` reads `/Sessions` alongside its
      * resumable list, and keeps only the resume half; `getNextUp` reads the
      * same endpoint again and keeps only the other half.
      *
-     * onDeck rows carry no per-user field in the documented shape — unlike
+     * onDeck rows carry no per-user field in the documented shape: unlike
      * sessions, which are server-wide. A local token names exactly one
      * account (see `listUsers`), so every row here is that account's by
      * construction and needs no filter.
@@ -375,7 +375,7 @@ export class PlexAdapter
             }));
 
         // A session's ratingKey routinely also shows up in onDeck (the
-        // resume list), and without this the same item is reported twice —
+        // resume list), and without this the same item is reported twice:
         // once as now_playing, once as resume, doubling `total`. Blank ids
         // (a row with no ratingKey) are excluded from the set rather than
         // matched against each other, so two unrelated no-id rows are never
@@ -408,11 +408,11 @@ export class PlexAdapter
     static readonly #MAX_HISTORY_PAGES = 20;
 
     async getWatchHistory(user: ServiceUser): Promise<PlaybackEntry[]> {
-        // No accountID, no attribution — excluding is safer than guessing
+        // No accountID, no attribution: excluding is safer than guessing
         // whose watch this was.
         const isMine = (item: RawPlexItem): boolean => item.accountID !== undefined && String(item.accountID) === user.id;
 
-        // Server-wide, not per-user — every account's rows come back
+        // Server-wide, not per-user: every account's rows come back
         // together, so the filter above is load-bearing: without it, another
         // household member's viewing would be stamped with this user's name.
         // A single unpaged page previously capped this at PAGE_SIZE
@@ -422,7 +422,7 @@ export class PlexAdapter
         // rows are found (or the server runs out), fixes that.
         // sort=viewedAt:desc: newest first, matching what this method
         // promises the caller. Plex's default history sort order, and the
-        // parameter spelling itself, are unverified against a live server —
+        // parameter spelling itself, are unverified against a live server:
         // if wrong the cap below would truncate from the oldest end, the
         // least useful prefix, without anything upstream ever finding out.
         const rows = await this.#paged(
@@ -447,7 +447,7 @@ export class PlexAdapter
      * until `stopEarly` says enough has already been collected.
      *
      * The tester's library is a few thousand items, so an unpaged read is a
-     * live risk, not a theoretical one — looping until a short page comes
+     * live risk, not a theoretical one: looping until a short page comes
      * back is what stops one call pulling the whole thing at once.
      *
      * The paging is sent as headers and query parameters (see `PAGE_SIZE`'s
@@ -457,16 +457,16 @@ export class PlexAdapter
      * proof paging did not advance and thrown as a diagnosis. Deliberately
      * not just the leading row: `ratingKey` identifies media, not a viewing
      * event, so two different pages can legitimately share a leading row
-     * while every other row on the page differs — a leading-row-only
+     * while every other row on the page differs: a leading-row-only
      * fingerprint would false-positive on that. Each row's own `ratingKey`
      * stands in for it when present, falling back to the whole row otherwise
-     * — a row shape with no `ratingKey` would otherwise leave that row
-     * comparing `undefined === undefined` forever. See N7.
+     * (a row shape with no `ratingKey` would otherwise leave that row
+     * comparing `undefined === undefined` forever). See N7.
      *
      * `maxPages` is a backstop, but the two callers want different things
      * from hitting it: a library section genuinely should never be that
      * long, so exceeding it is a diagnosis. `getWatchHistory` bounds a
-     * server-wide, potentially foreign-heavy read on purpose — passing
+     * server-wide, potentially foreign-heavy read on purpose: passing
      * `stopEarly` there means the cap is an expected, honest stop rather
      * than a failure, so it returns what was found instead of throwing.
      */
@@ -490,7 +490,7 @@ export class PlexAdapter
                     return out;
                 }
                 throw new ServiceError('UpstreamError', this.id, `did not finish paging after ${maxPages} pages`, {
-                    remedy: 'This is a backstop, not an expected outcome — check whether the section genuinely holds that many items.'
+                    remedy: 'This is a backstop, not an expected outcome: check whether the section genuinely holds that many items.'
                 });
             }
             const body = await this.#http.get<unknown>(request(start), {
@@ -499,7 +499,7 @@ export class PlexAdapter
             const rows = unwrap<RawPlexItem>(body, 'Metadata');
             const fingerprint = JSON.stringify(rows.map(r => (typeof r.ratingKey === 'string' ? r.ratingKey : r)));
             if (start > 0 && fingerprint === previousFingerprint) {
-                throw new ServiceError('UpstreamError', this.id, 'did not advance past start=0 — the whole page repeated', {
+                throw new ServiceError('UpstreamError', this.id, 'did not advance past start=0: the whole page repeated', {
                     remedy: 'Plex appears to be ignoring the X-Plex-Container-Start/Size paging, so paging never advanced.'
                 });
             }
@@ -518,7 +518,7 @@ export class PlexAdapter
         );
     }
 
-    /** No `types` means every section, regardless of its type — what
+    /** No `types` means every section, regardless of its type: what
      *  `getScanState` wants, since a scan can hit any of them. */
     async #sections(...types: string[]): Promise<(RawSection & { key: string })[]> {
         const body = await this.#http.get<unknown>('/library/sections');
@@ -529,12 +529,12 @@ export class PlexAdapter
     }
 
     /**
-     * A movie's `viewCount > 0` is "watched" — Plex has no partial-watch
+     * A movie's `viewCount > 0` is "watched": Plex has no partial-watch
      * state for a film. A show's `viewCount` counts *views*, not completion
      * (three replays of one episode would outscore a finished season), so a
      * series instead reads Plex's own `viewedLeafCount`/`leafCount` pair.
      * When a listing omits either, the honest answer is "unknown", not a
-     * guess built from the wrong field — so `watched` is left off entirely.
+     * guess built from the wrong field, so `watched` is left off entirely.
      */
     static #watched(item: RawPlexItem, kind: 'movie' | 'series'): boolean | undefined {
         if (kind === 'movie') return (item.viewCount ?? 0) > 0;
@@ -628,7 +628,7 @@ export class PlexAdapter
     /**
      * Per-season watch state for every series in a show section.
      *
-     * A second, independent read from `listUserLibrary` — deliberately not
+     * A second, independent read from `listUserLibrary`: deliberately not
      * shared, the same reasoning `jellyfin.ts` documents on its own
      * `listUserSeasons`: independent failure is the point. Episodes come from
      * `?type=4` on the same paged endpoint, standard Plex library-type
@@ -679,7 +679,7 @@ export class PlexAdapter
                     }))
                     .sort((a, b) => a.season - b.season)
             }))
-            // No external id, no join — see the identical filter in
+            // No external id, no join: see the identical filter in
             // jellyfin.ts's listUserSeasons for why this is dropped rather
             // than emitted as a second, seasons-only copy of the title.
             .filter(row => Object.keys(row.ids).length > 0);
@@ -689,7 +689,7 @@ export class PlexAdapter
         if (source !== 'library') return [];
 
         // Without includeGuids=1, Plex returns Guid-less rows and this join
-        // could never match Radarr/Sonarr — verified live: 0 Guid children
+        // could never match Radarr/Sonarr: verified live: 0 Guid children
         // without it, 55 with it, on the identical query. That measures the
         // parameter, not the rows: sent, library items carry their own ids,
         // episodes included (#272). See F3.
@@ -711,7 +711,7 @@ export class PlexAdapter
     }
 
     /**
-     * Plex's ids are numeric strings — a weaker check than Jellyfin's 32-hex
+     * Plex's ids are numeric strings: a weaker check than Jellyfin's 32-hex
      * item id, since it cannot tell a Plex rating key from a Radarr or Sonarr
      * id by shape alone. The remedy carries the weight that check can't.
      */
@@ -739,8 +739,8 @@ export class PlexAdapter
         return {
             service: this.id,
             // Mirrors jellyfin.ts: only a confirmed 'movie' or 'show' earns
-            // that kind. Guessing 'movie' for anything else — an episode, a
-            // season — would make diagnose/evidence.ts scan the wrong index
+            // that kind. Guessing 'movie' for anything else (an episode, a
+            // season) would make diagnose/evidence.ts scan the wrong index
             // and silently miss real hits.
             kind: item.type === 'movie' ? 'movie' : item.type === 'show' ? 'series' : 'item',
             id: ratingKey,
@@ -958,8 +958,8 @@ export class PlexAdapter
      * this is `safe` here exactly as it is on Jellyfin.
      *
      * Verified live against 1.43.1.10611: a refresh answers 200 with no body
-     * and no `Content-Type` at all — hence `discardBody`, since parsing that
-     * as JSON would report a scan that did start as a failure — and carries no
+     * and no `Content-Type` at all, hence `discardBody`, since parsing that
+     * as JSON would report a scan that did start as a failure, and carries no
      * command id, so `commandId` is 0 for the same reason Jellyfin's is rather
      * than inventing a number that looks pollable. The section's own
      * `refreshing` flag flipped true within a second, which is what
@@ -1010,13 +1010,13 @@ export class PlexAdapter
     /**
      * `/activities` was tried first and dropped: verified live, it carries
      * two `provider.subscription.refresh` activities permanently, which also
-     * matched a `library|refresh` test, so `running` was true forever — see
+     * matched a `library|refresh` test, so `running` was true forever: see
      * F2 in the fix report. Each `/library/sections` row's own `refreshing`
      * flips true only for the section actually being scanned, confirmed
      * against a real scan, and costs no extra call since `#sections()` is
      * already fetched for every library read.
      *
-     * `scannedAt` gives `lastCompleted` for free from the same read — the
+     * `scannedAt` gives `lastCompleted` for free from the same read: the
      * most recent one across sections, since a whole-server "last scan" is
      * whichever section finished most recently.
      */

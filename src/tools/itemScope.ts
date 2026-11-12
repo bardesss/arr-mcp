@@ -13,7 +13,7 @@ export function describable<A extends ServiceAdapter>(adapter: A, service: strin
 /** `whole` says what giving neither does, when the tool has a whole-item form. */
 export function refuseBoth(season: number | undefined, episodes: readonly string[] | undefined, whole?: string): void {
     if (season !== undefined && episodes !== undefined) {
-        throw new Error(`\`season\` and \`episodes\` were both given. They are different targets — send one.${whole === undefined ? '' : ` ${whole}`}`);
+        throw new Error(`\`season\` and \`episodes\` were both given. They are different targets; send one.${whole === undefined ? '' : ` ${whole}`}`);
     }
 }
 
@@ -47,7 +47,7 @@ export function checkScope(
                 service,
                 `Could not find episode(s) ${unresolved.join(', ')} on ${label}` +
                     (details.episodesTruncated === true
-                        ? ` — the episode list was truncated at ${EPISODE_LIMIT}, so they may simply not have been fetched.`
+                        ? `. The episode list was truncated at ${EPISODE_LIMIT}, so they may simply not have been fetched.`
                         : '.'),
                 { remedy: 'Check the episode ids from get_media_details.' }
             );

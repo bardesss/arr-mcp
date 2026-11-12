@@ -196,7 +196,7 @@ describe('Lidarr import by download id', () => {
 
         expect(candidates.map(c => c.path)).toEqual(['/dl/a/01.flac', '/dl/a/02.flac', '/dl/a/03.flac', '/dl/a/04.flac', '/dl/a/05.flac']);
         expect(candidates[0]).toMatchObject({ matchedId: 3, sizeBytes: 100, rejections: [] });
-        expect(unfenced(candidates[0]?.matchedTitle ?? '')).toBe('Some Artist — First');
+        expect(unfenced(candidates[0]?.matchedTitle ?? '')).toBe('Some Artist: First');
         expect(candidates[1]?.rejections).toEqual(['no track matched']);
         expect(candidates[2]?.rejections).toEqual(['no album matched', 'no release matched']);
         expect(candidates[3]?.rejections.map(unfenced)).toEqual(['Not an upgrade']);
@@ -274,7 +274,7 @@ describe('Lidarr import by download id', () => {
 
         await expect(adapter.listImportCandidates('aaaabbbbccccddddeeeeffff00001111')).rejects.toMatchObject({
             remedy: expect.stringContaining(
-                'On NZBGet, fix the cause (free disk space, for one), then run its post-processing again there, or with import_download on NZBGet, `action: "postprocess"` and `download_id` "aaaabbbbccccddddeeeeffff00001111". If NZBGet deleted it as a duplicate or as bad, remove it from lidarr’s queue with remove_queue_item and `id` "7", with `blocklist: true` if it was bad. Its `errorMessage`, which get_queue shows at `detail: "full"`, says which.'
+                'On NZBGet, fix the cause (free disk space, for one), then run its post-processing again there, or with import_download, `action: "postprocess"` and `download_id` "aaaabbbbccccddddeeeeffff00001111", on the NZBGet that holds it. If NZBGet deleted it as a duplicate or as bad, remove it from lidarr’s queue with remove_queue_item and `id` "7", with `blocklist: true` if it was bad. Its `errorMessage`, which get_queue shows at `detail: "full"`, says which.'
             )
         });
         expect(sent.map(s => s.path)).toEqual(['/api/v1/queue']);
@@ -367,7 +367,7 @@ describe('trigger_scan on lidarr', () => {
         const effects = structuredContent.effects.map(e => e.replace(/<<untrusted:[^>]*>>|<<\/>>/g, ''));
 
         expect(structuredContent.summary).toContain('Import 1 file(s) from download nzo-1 into lidarr');
-        expect(effects[0]).toContain('01.flac as Some Artist — First');
+        expect(effects[0]).toContain('01.flac as Some Artist: First');
         expect(effects.slice(1).join(' ')).toContain('no track matched');
     });
 

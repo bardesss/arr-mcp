@@ -61,7 +61,7 @@ const UrlSchema = z.url().refine(u => u.startsWith('http://') || u.startsWith('h
 
 /**
  * Shared by every service. Every concrete schema below is a *strict* object, so a
- * misspelled key fails at startup instead of being silently dropped — which is
+ * misspelled key fails at startup instead of being silently dropped, which is
  * the difference between "my timeout setting does nothing" taking a minute to
  * diagnose or an afternoon.
  */
@@ -96,7 +96,7 @@ type GrimmoryServiceConfig = z.infer<typeof GrimmoryServiceSchema>;
 
 /**
  * Goes into the qualified id (`radarr/4k`), which reaches audit rows, log
- * filters and eventually a tool parameter — so a `/` in here would make the id
+ * filters and eventually a tool parameter, so a `/` in here would make the id
  * ambiguous, and a space would make it unquotable in half the places it lands.
  */
 const InstanceNameSchema = z
@@ -131,7 +131,7 @@ const uniqueNames = (list: readonly { name: string }[], ctx: z.RefinementCtx): v
 
 /**
  * One block, as before, or a list of named ones. A union rather than a new key,
- * so every config that parses today parses unchanged — there is no migration
+ * so every config that parses today parses unchanged; there is no migration
  * and no upgrade step, the same reasoning that made `password_hash` optional.
  *
  * The shape picks the branch before the union runs: an array can only be the
@@ -167,13 +167,13 @@ export type Instanced<T> = T & { readonly name?: string | undefined };
 
 /**
  * What ServiceHttp needs from any service, whatever its auth shape. Derived
- * rather than parsed from its own schema — nothing ever validates against this
+ * rather than parsed from its own schema; nothing ever validates against this
  * alone, and a schema with no parser is a schema that drifts.
  */
 export type BaseServiceConfig = Pick<KeyedServiceConfig, 'url' | 'timeout_ms' | 'permissions'>;
 
 /**
- * Jellyfin and Seerr only — the two services with their own
+ * Jellyfin and Seerr only; the two services with their own
  * user concepts.
  *
  * `default_user` is optional on purpose: configuring a service purely so it
@@ -221,7 +221,7 @@ export type AnyServiceConfig = KeyedServiceConfig | MultiUserServiceConfig | Ple
  *
  * This exists so `buildAdapter` can narrow on `type` instead of casting.
  * Before it, every case in that switch restated its config type with an
- * unchecked `as`, and two of them needed no cast at all — every member of
+ * unchecked `as`, and two of them needed no cast at all; every member of
  * `AnyServiceConfig` structurally satisfies `Instanced<CredentialServiceConfig>`,
  * so the compiler accepted anything there and a swapped case body would have
  * shipped.
@@ -302,7 +302,7 @@ const multi = <Shape extends z.core.$ZodShape>(block: z.ZodObject<Shape, z.core.
  * Refuses a list, and says which services take one.
  *
  * Without this the reader gets zod's `expected object, received array`, which
- * is true but does not answer the question they actually have — they have just
+ * is true but does not answer the question they actually have; they have just
  * seen a list work under `radarr` and reasonably tried it here.
  */
 const singleOnly = <T extends z.ZodType>(schema: T) =>
@@ -402,8 +402,8 @@ const ServicesSchema = z
         /**
          * Jellyfin and Seerr issue one admin-scoped key that can answer for
          * anybody, which is what `allow_other_users` governs. A Plex
-         * `X-Plex-Token` is scoped to a single account — `PlexAdapter` never
-         * reads this flag and always reports account 1 as the only user — so
+         * `X-Plex-Token` is scoped to a single account (`PlexAdapter` never
+         * reads this flag and always reports account 1 as the only user) so
          * admitting `true` here would accept a shape the adapter then quietly
          * ignores. Refused, the same call the rest of this schema makes.
          */
@@ -437,8 +437,8 @@ const MetadataSchema = z
 
 /**
  * How the config UI looks. Server-side rather than a browser cookie because
- * this UI has exactly one account — there is no second person for a shared
- * setting to be wrong for — and it keeps the rule that everything the UI does
+ * this UI has exactly one account (there is no second person for a shared
+ * setting to be wrong for) and it keeps the rule that everything the UI does
  * is still just `config.yaml`.
  *
  * `system` is the default and follows `prefers-color-scheme`. The other two are
@@ -467,7 +467,7 @@ const OAuthScopesSchema = z
         destructive: z.string().min(1).default('arr-mcp:destructive')
     })
     // Otherwise `{read: x, write: x, destructive: x}` parses, and PR 2 reads a
-    // read-scoped token as carrying every tier — the one failure this whole
+    // read-scoped token as carrying every tier; the one failure this whole
     // block exists to refuse.
     .refine(value => new Set([value.read, value.write, value.destructive]).size === 3, {
         message: 'must name three distinct scopes'
@@ -475,7 +475,7 @@ const OAuthScopesSchema = z
 
 /**
  * HTTPS, or `http:` on a loopback host for testing against a local provider.
- * Protocol and host are checked together — checking them as two independent
+ * Protocol and host are checked together; checking them as two independent
  * ORs would accept `ftp://localhost`, since a loopback hostname alone
  * satisfied the check regardless of scheme.
  */
@@ -503,7 +503,7 @@ export const OAuthSchema = z.strictObject({
     /**
      * HTTPS, or a loopback host for testing against a local provider. The
      * MCP SDK's `buildOAuthProtectedResourceMetadata` enforces the same rule
-     * and throws when it is broken — refusing here means a bad issuer is a
+     * and throws when it is broken; refusing here means a bad issuer is a
      * fatal config error at startup rather than a 500 from the metadata
      * route.
      */
@@ -570,7 +570,7 @@ type NamedManagementKey = z.infer<typeof ManagementKeySchema>;
 /**
  * Named, rather than inlined into `ConfigSchema`, so `load.ts`'s salvage path
  * can parse against it directly. `ConfigSchema`'s `auth` field is this same
- * object with the oauth/allow_token_in_url refinement chained on — but the
+ * object with the oauth/allow_token_in_url refinement chained on, but the
  * salvage parse runs precisely when the rest of the file is already broken,
  * and wants the *unrefined* object: a cross-field check there would only make
  * salvage fail for a combination that has nothing to do with why the file
@@ -580,7 +580,7 @@ export const AuthSchema = z.strictObject({
     /** Pre-1.34 single token. Normalised into a `default` entry on parse. */
     bearer_token: z.string().length(64).optional(),
     tokens: z.array(McpTokenSchema).optional(),
-    /** Who logs into the config UI. Defaulted rather than generated —
+    /** Who logs into the config UI. Defaulted rather than generated;
      *  a random username helps nobody and is one more thing to look up. */
     username: z.string().min(1).default('admin'),
     /**
@@ -689,7 +689,7 @@ export const ConfigSchema = z.object({
     /** Absent means off, exactly like a service nobody configured. */
     metadata: MetadataSchema.optional(),
     /** Absent means `system`, so a config nobody touched stays as clean as it
-     *  started — the same reasoning as `metadata`. */
+     *  started, the same reasoning as `metadata`. */
     ui: UiSchema.optional(),
     /** Absent means off, and the route answers 404. */
     webhooks: WebhooksSchema.optional(),
@@ -700,7 +700,7 @@ export const ConfigSchema = z.object({
      * small stack that would rather not pay context for reads it cannot use (#518).
      * `media_cards: false` turns the MCP Apps poster cards off: no `_meta.ui`
      * on the tools, no `ui://` resource, and none of the queue reads behind
-     * them — for an HTTP client that cannot render them and does not say so.
+     * them. This is for an HTTP client that cannot render them and does not say so.
      */
     tools: z
         .object({ hide_unusable: z.boolean().default(false), media_cards: z.boolean().default(true) })

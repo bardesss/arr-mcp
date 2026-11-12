@@ -38,7 +38,7 @@ type RawSearchResult = {
     name?: string;
     releaseDate?: string;
     firstAirDate?: string;
-    /** TMDB's own score, 0–10. Seerr passes it straight through on both search
+    /** TMDB's own score, 0 to 10. Seerr passes it straight through on both search
      *  and discover, confirmed against the recorded fixtures. */
     voteAverage?: number;
     voteCount?: number;
@@ -50,7 +50,7 @@ type RawSearchResult = {
 
 type RawStatus = { version?: string; commitTag?: string };
 
-/** `/movie/{id}/ratingscombined` — Rotten Tomatoes *and* IMDb. `/tv/{id}/ratings`
+/** `/movie/{id}/ratingscombined`: Rotten Tomatoes *and* IMDb. `/tv/{id}/ratings`
  *  is the RT half alone; there is no combined endpoint for series. */
 type RawCombinedRatings = {
     rt?: { criticsScore?: number; audienceScore?: number };
@@ -60,8 +60,8 @@ type RawCombinedRatings = {
 
 /**
  * `/movie/{tmdbId}` and `/tv/{tmdbId}` in one shape. Upstream names the title
- * differently per media type — `title`/`releaseDate` for films, `name`/
- * `firstAirDate` for series — so both spellings are read.
+ * differently per media type: `title`/`releaseDate` for films, `name`/
+ * `firstAirDate` for series, so both spellings are read.
  */
 type RawMediaDetails = { title?: string; name?: string; releaseDate?: string; firstAirDate?: string };
 type RawRequest = {
@@ -84,8 +84,8 @@ type RawIssue = {
      * A MediaInfo, not a titled row: the recorded fixture carries `id`,
      * `mediaType`, `tmdbId` and `tvdbId` (null for movies) and no title at
      * all (specs/seerr.json: `Issue.media` is a `MediaInfo`). `title` stays
-     * read for tolerance — older payloads and hand-written shapes may carry
-     * one — but the title a caller sees comes from the media detail endpoint
+     * read for tolerance: older payloads and hand-written shapes may carry
+     * one, but the title a caller sees comes from the media detail endpoint
      * in `getIssues`, not from here.
      */
     media?: { id?: number; mediaType?: string; tmdbId?: number; tvdbId?: number | null; title?: string };
@@ -98,7 +98,7 @@ type RawIssue = {
 const ISSUE_TYPE: Record<number, string> = { 1: 'video', 2: 'audio', 3: 'subtitle', 4: 'other' };
 const ISSUE_STATUS: Record<number, string> = { 1: 'open', 2: 'resolved' };
 
-/** Detail reads in flight while resolving issue titles — the same cap as the metadata sweep's SERIES_CONCURRENCY. */
+/** Detail reads in flight while resolving issue titles: the same cap as the metadata sweep's SERIES_CONCURRENCY. */
 const ISSUE_TITLE_CONCURRENCY = 4;
 
 /** An argument twenty comments long is not what the caller asked for. */
@@ -107,7 +107,7 @@ const ISSUE_COMMENT_CAP = 3;
 /**
  * `requestedBy` does filter server-side, settled against a live Seerr 3.4.1.
  * The decisive probe filtered by a user with *zero* requests and got zero rows
- * back rather than the full set — a before/after count would have matched
+ * back rather than the full set: a before/after count would have matched
  * either way on the stack it was tested against.
  *
  * The in-memory filter still runs unconditionally: it costs nothing at
@@ -130,7 +130,7 @@ type GenreTable = { byLowerName: Map<string, number>; names: string[] };
  * A release year, or nothing.
  *
  * `Number(''.slice(0, 4))` is **0**, not NaN, so a `Number.isFinite` guard lets
- * it through — which is how a live preview read "The Origin of Hide and Seek
+ * it through, which is how a live preview read "The Origin of Hide and Seek
  * (0)". Seerr returns an empty `releaseDate` whenever TMDB has no date, which is
  * common. Four leading digits and a plausible value keep absent absent.
  */
@@ -208,7 +208,7 @@ export class SeerrAdapter
     /**
      * Every row, not the first page.
      *
-     * Seerr paginates — /user defaults to 10 — and a first-page-only read is a
+     * Seerr paginates (/user defaults to 10) and a first-page-only read is a
      * truncation that reads as absence. Same shape as the *arr queue reader in
      * arrQueue.ts: an empty page ends it whatever the count says, so a service
      * that disagrees with its own total cannot spin here.
@@ -251,7 +251,7 @@ export class SeerrAdapter
         // lifetime requests than that got nothing for `status: pending` once
         // its pending ones fell outside the window. Now that the read pages to
         // completion, pushing down is an efficiency rather than a correctness
-        // fix — it still fetches fewer rows.
+        // fix: it still fetches fewer rows.
         //
         // `declined` is deliberately absent: Seerr's filter vocabulary has no
         // value for it, and mapping it onto a near-miss like `deleted` would
@@ -330,8 +330,8 @@ export class SeerrAdapter
     }
 
     /**
-     * The issues a household has raised — "the audio is out of sync", "there
-     * are no subtitles" — which nothing in this stack could report.
+     * The issues a household has raised: "the audio is out of sync", "there
+     * are no subtitles", which nothing in this stack could report.
      *
      * Both vocabularies arrive as integers and are mapped to words: a model
      * handed `issueType: 2` cannot say what is wrong with the film. Comments
@@ -346,8 +346,8 @@ export class SeerrAdapter
      *
      * Each issue also names the media it is about. The issue payload itself
      * carries the ids (MediaInfo: `id`, `mediaType`, `tmdbId`, `tvdbId`) but
-     * no title, so the title is resolved from the media detail endpoint —
-     * the same read `getMediaRequests` already makes — once per distinct
+     * no title, so the title is resolved from the media detail endpoint:
+     * the same read `getMediaRequests` already makes, once per distinct
      * title, not once per issue, and at most four detail reads in flight.
      * A title that cannot be read leaves the ids in place rather than
      * failing the whole list: issues are never a reason for `get_requests`
@@ -370,7 +370,7 @@ export class SeerrAdapter
         // One entry per distinct title, resolved through mapLimit: without
         // the cap, `limit: 500` with 500 different titles fires 500 detail
         // reads at Seerr at once. The dedupe and the per-title catch stay
-        // as they are — a title that cannot be read resolves undefined.
+        // as they are: a title that cannot be read resolves undefined.
         const distinct: { mediaType: 'movie' | 'tv'; tmdbId: number }[] = [];
         const seenKeys = new Set<string>();
         for (const i of rows) {
@@ -463,7 +463,7 @@ export class SeerrAdapter
      * Approving is what actually sets a download in motion: Seerr hands the
      * request to Radarr or Sonarr, which searches and grabs. It is still the
      * `safe` tier because the state is reversible from Seerr's own UI and by
-     * this same call — but `respond_to_request`'s preview says what it will
+     * this same call, but `respond_to_request`'s preview says what it will
      * cost, because "approve" reads much cheaper than it is.
      */
     async respondToRequest(id: string, verdict: RequestVerdict): Promise<MediaRequest> {
@@ -483,7 +483,7 @@ export class SeerrAdapter
         // anyway would be a claim we did not verify.
         if (typeof updated.id !== 'number') {
             throw new ServiceError('UpstreamError', this.id, `${verdict} returned no request in its response`, {
-                remedy: 'The change may still have been applied — call get_requests to check before retrying.'
+                remedy: 'The change may still have been applied. Call get_requests to check before retrying.'
             });
         }
         return this.#toRequest(updated as RawRequest & { id: number });
@@ -494,8 +494,8 @@ export class SeerrAdapter
      *
      * Two things a live 3.4.1 settled that the spec does not. It resolves the
      * TVDB id itself from the TMDB `mediaId`, so nothing here has to supply
-     * one. And it does **not** refuse a duplicate — a second request for the
-     * same media creates a second row — which is why `request_media` checks
+     * one. And it does **not** refuse a duplicate: a second request for the
+     * same media creates a second row, which is why `request_media` checks
      * for an existing one itself rather than letting Seerr answer that.
      */
     async createRequest(opts: CreateRequestOptions): Promise<MediaRequest> {
@@ -510,7 +510,7 @@ export class SeerrAdapter
         // created, we do not claim it worked.
         if (typeof created.id !== 'number') {
             throw new ServiceError('UpstreamError', this.id, 'the request was created with no id in the response', {
-                remedy: 'It may still have been created — call get_requests to check before retrying.'
+                remedy: 'It may still have been created. Call get_requests to check before retrying.'
             });
         }
         return this.#toRequest(created as RawRequest & { id: number });
@@ -523,7 +523,7 @@ export class SeerrAdapter
      * worth paying for.
      *
      * Movies and series answer on different paths with differently-named title
-     * fields — `title`/`releaseDate` against `name`/`firstAirDate` — which is
+     * fields, `title`/`releaseDate` against `name`/`firstAirDate`, which is
      * why this cannot be one generic fetch.
      */
     async describeRequestMedia(
@@ -678,7 +678,7 @@ export class SeerrAdapter
     }
 
     /**
-     * Rotten Tomatoes, and for a film IMDb too — the one thing Seerr knows that
+     * Rotten Tomatoes, and for a film IMDb too: the one thing Seerr knows that
      * nothing else here does for a title you do not own.
      *
      * **One HTTP call per title**, which is why it is only ever used for a
@@ -687,7 +687,7 @@ export class SeerrAdapter
      * the search payload instead, which is free.
      *
      * Series get Rotten Tomatoes only. `/tv/{id}/ratings` has no `imdb` half,
-     * and there is no `ratingscombined` for TV — so an IMDb rating for a series
+     * and there is no `ratingscombined` for TV, so an IMDb rating for a series
      * still comes from the IMDb dataset or from nowhere.
      *
      * Degrades to nothing on failure. A ratings lookup that fails must not take
@@ -736,8 +736,8 @@ export class SeerrAdapter
     }
 
     /**
-     * `/genres/movie` and `/genres/tv` answer in the instance's own locale —
-     * `80=Misdaad` on a Dutch stack — unless `?language=en` is passed, which
+     * `/genres/movie` and `/genres/tv` answer in the instance's own locale
+     * (`80=Misdaad` on a Dutch stack) unless `?language=en` is passed, which
      * genuinely changes the response (confirmed live: two invented parameter
      * names both 400, so Seerr is not just ignoring it). A model overwhelmingly
      * says the English name, so both lists are fetched and merged by name; a
@@ -768,7 +768,7 @@ export class SeerrAdapter
 
     /**
      * A numeric TMDB id passes straight through in `discover` without ever
-     * reaching here — this is only for a name, which Seerr's own `genre` query
+     * reaching here: this is only for a name, which Seerr's own `genre` query
      * param does not understand and matches nothing against, silently.
      */
     async genreId(mediaType: 'movie' | 'tv', name: string): Promise<number> {
@@ -785,7 +785,7 @@ export class SeerrAdapter
     /**
      * Seerr's discover is TMDB-backed, so the rating floor is applied by TMDB
      * rather than by us. Design spec defers rating filters over your *own*
-     * library to the IMDb dataset — that is get_library earlier, not this.
+     * library to the IMDb dataset: that is get_library earlier, not this.
      */
     async discover(opts: {
         mediaType: 'movie' | 'tv';
@@ -821,7 +821,7 @@ export class SeerrAdapter
     /**
      * "Similar" is not implemented: live capture against Dune Part Two
      * (693134) had `/similar` answer with The Count of Monte Cristo, The
-     * Musketeer, National Lampoon's European Vacation — genre-bucket
+     * Musketeer, National Lampoon's European Vacation: genre-bucket
      * matching, not similarity. `/tv/{id}/similar` returned zero results
      * outright for a series that `/recommendations` answered for with over a
      * thousand. `recommendations` is the only one worth exposing.

@@ -28,9 +28,9 @@ Within that, two questions are separate and both matter:
 Most published MCP security work stops at the first question. Recent scanning
 research is a good example: ["Exposed by Design"](https://arxiv.org/abs/2608.00150)
 (July 2026) audited 640 production servers and found 91.8% without OAuth and 687
-instances with unrestricted shell tool access — entirely a statement about the
-first row. arr-mcp answers the first row with a mandatory token — its own MCP
-tokens, or OAuth 2.1 access tokens from an identity provider you already run —
+instances with unrestricted shell tool access, entirely a statement about the
+first row. arr-mcp answers the first row with a mandatory token (its own MCP
+tokens, or OAuth 2.1 access tokens from an identity provider you already run)
 and spends most of its design effort on the second.
 
 The second row is where the interesting failure is. An authenticated caller is
@@ -69,7 +69,7 @@ secret manager integration and no encryption at rest, so filesystem permissions
 on the config volume are the real boundary. And
 [`allow_token_in_url`](configuration.md#allow_token_in_url) puts an MCP
 token in the address when you turn it on, which a reverse proxy access log will
-happily record — it is off by default, and the cost is documented where it is
+happily record: it is off by default, and the cost is documented where it is
 enabled.
 
 ## The repair page renders the config file verbatim
@@ -79,7 +79,7 @@ keys and passwords come back as empty fields with an `unchanged` placeholder. Th
 [event log's secret](#the-library-event-log) is the one other exception, shown
 masked.
 
-The repair page — the one served when `config.yaml` does not load — breaks that
+The repair page (the one served when `config.yaml` does not load) breaks that
 rule. It shows the file as text, credentials included, because there is no
 parsed config to build a form from.
 
@@ -92,13 +92,13 @@ different exposures, chosen by the flavour of the operator's mistake.
 The file's contents go no further than that editor, which is behind the same
 session as the rest of the UI, sends `cache-control: no-store`, and is only
 reachable while the configuration is invalid. When the sign-in fields in `auth`
-cannot be read, no editor is served at all — see
+cannot be read, no editor is served at all; see
 [When config.yaml will not load](configuration.md#when-configyaml-will-not-load).
 
 The *error text* is a separate question, because it is not behind the session:
 it is the body of `/healthz`, the body of the 503 from `/mcp`, and the whole of
-the read-only page. So it deliberately carries a position — `at line 3, column
-12` — and never the line itself. That matters most for a YAML syntax error,
+the read-only page. So it deliberately carries a position (`at line 3, column
+12`) and never the line itself. That matters most for a YAML syntax error,
 whose usual cause is an API key holding a `:` or starting with a `*`, and which
 is also the case that produces the read-only page. The parser's own message is
 stripped of the source it quotes (`src/config/load.ts`), and `/healthz` is read
@@ -148,7 +148,7 @@ ends up able to do more than anyone consciously decided.
 **What arr-mcp does.**
 
 - Two ordered tiers, `safe_write` and `destructive`, both defaulting to false,
-  on **every service** — including the ones added by hand-editing YAML. See
+  on **every service**, including the ones added by hand-editing YAML. See
   [Writes](writes.md#permissions).
 - Permissions are **per instance**. `radarr/hd` can be writable while
   `radarr/4k` is not.
@@ -192,7 +192,7 @@ strings flow straight into model context.
   in an audit log.
 - Truncated at 2000 characters, so a single hostile overview cannot crowd out
   everything else in the answer.
-- Escaped rather than censored — the words survive verbatim, so the model can
+- Escaped rather than censored: the words survive verbatim, so the model can
   still read what the indexer actually said.
 
 Tool definitions themselves are static and registered in-process. Nothing
@@ -202,7 +202,7 @@ where a tool's description changes after you approved it.
 **What it does not solve.** Fencing does not make prompt injection impossible.
 It makes injected text *visibly* data and removes the characters that let a
 string render as something other than what it is. A model that decides to obey
-fenced text anyway is not something this server can prevent — which is precisely
+fenced text anyway is not something this server can prevent, which is precisely
 why the write path has a second line of defence. See MCP06.
 
 ## MCP04 Software Supply Chain and Dependency Tampering
@@ -254,7 +254,7 @@ destination.
 The one path-shaped argument is `add_media`'s `root_folder`, and it is a
 **selection, not a value**: the string is matched against the root folders that
 service already has configured, and anything matching none of them is refused
-with the available list rather than passed through — `chooseOne` in
+with the available list rather than passed through: `chooseOne` in
 `src/tools/chooseOne.ts`. The same is true of quality profiles. A model cannot
 name a directory into existence.
 
@@ -277,7 +277,7 @@ plus a token, and only a second call carrying that token mutates anything.
 - The token is an **HMAC over the exact operation**: tool, service, tier,
   operation, resolved target, and every effect-bearing argument. A token issued
   for "delete movie 5" cannot be replayed as "delete movie 9". Without that
-  binding a model could preview something harmless and confirm something else —
+  binding a model could preview something harmless and confirm something else,
   worse than no confirmation, because it would look like protection.
 - It binds to the **resolved id, not the phrase the user typed**, so a token
   cannot survive re-resolving a title to a different film.
@@ -291,7 +291,7 @@ plus a token, and only a second call carrying that token mutates anything.
 - Surrounding backticks, quotes and trailing punctuation are stripped before the
   token is parsed. The preview names the token inside backticks and ends the
   sentence with a period, so a caller that clips one character too many would
-  otherwise be refused — and the refusal reissues a token presented the same
+  otherwise be refused, and the refusal reissues a token presented the same
   way, which loops rather than recovers. Nothing about the check relaxes: none of
   those characters can occur in a token, the HMAC still decides, and the stripped
   form is what the single-use set records.
@@ -343,7 +343,7 @@ so far.
   direct client can also fill it.
 - A log line records two addresses where they differ: `ip` is the peer the
   socket actually came from, and `forwardedFor` is the first hop of
-  `X-Forwarded-For` when a request carried one. Beside, not instead — the
+  `X-Forwarded-For` when a request carried one. Beside, not instead: the
   header is caller-supplied, so a client inventing one cannot overwrite the
   only identifying field on a refused sign-in. There is no trusted-proxy list;
   treat `forwardedFor` as a claim.
@@ -359,7 +359,7 @@ so far.
 - When `auth.oauth` is configured, `/mcp` also accepts a short-lived OAuth 2.1
   access token in place of an MCP token. The token's signature,
   issuer, audience and expiry are verified against the issuer's JWKS, and its
-  scope becomes a ceiling on what `config.yaml` already permits — narrowing
+  scope becomes a ceiling on what `config.yaml` already permits, narrowing
   it, never widening it, and enforced by the same gate that governs an
   MCP token's tier. `/.well-known/oauth-protected-resource` serves the RFC 9728
   metadata document, and the 401 challenge carries `resource_metadata=`
@@ -368,7 +368,7 @@ so far.
 - Verifying a token means one outbound request: fetching the issuer's JWKS
   from `jwks_uri`, which the operator configures and this server never
   derives or discovers on its own. No credential leaves the box making it.
-  When that fetch fails, `/mcp` answers `503`, not `401` — the presented
+  When that fetch fails, `/mcp` answers `503`, not `401`: the presented
   token may be perfectly good, and a fetch outage is never reported as a bad
   credential. The one exception is a token whose unverified `exp` has
   passed: it is refused either way, so it gets the `401` that points at the
@@ -395,11 +395,11 @@ outlive the key, so if an admin key leaks, revoke it on the config page and also
 review the token list there.
 
 Request bodies are capped at 4 MB, refused with `413` before authentication
-runs. The cap is deliberately not configurable — every legitimate request is
+runs. The cap is deliberately not configurable: every legitimate request is
 orders of magnitude below it.
 
 **What it does not solve.** The config UI's own credential is untouched by
-any of this — a scrypt-hashed password and a session cookie, not a scope, and
+any of this: a scrypt-hashed password and a session cookie, not a scope, and
 OAuth mode does not extend to it. There is no revocation beyond expiry: this
 server does not introspect tokens, so one revoked at the issuer but not yet
 expired is still accepted here until it runs out. TLS is the reverse proxy's
@@ -421,7 +421,7 @@ only thing between the internet and every credential in your stack. Do not do th
   refusals. There is no path from arguments to a mutation that skips the trail.
 - The row is written as `attempted` **before** the service is called, and
   replaced when the call resolves. A row still reading `attempted` therefore
-  means arr-mcp died mid-write — precisely the case an after-the-fact-only log
+  means arr-mcp died mid-write, precisely the case an after-the-fact-only log
   cannot show.
 - Outcomes are a closed set: `attempted`, `applied`, `dry_run`, `denied`,
   `unconfirmed`, `failed`. A refusal is as much a recorded event as a write.
@@ -444,8 +444,7 @@ point if you want one. Read-only calls are not audited, only logged.
 ## MCP09 Shadow MCP Servers
 
 **The risk.** Unapproved servers running outside anyone's governance. This is
-mostly an organisational problem rather than a property of a server, and
-pretending otherwise would be dishonest.
+mostly an organisational problem rather than a property of a server.
 
 What is relevant here: arr-mcp is deliberately **one server for the whole stack**
 rather than one per service, which is one fewer thing to lose track of, and the
@@ -466,7 +465,7 @@ single answer dumping far more than was asked for.
 - A fresh MCP server instance is built per request, and configuration is read
   from the runtime per request rather than captured at startup. There is no
   per-caller session state to leak between calls; what does outlive a request is
-  deliberate and impersonal — the response caches, the spent-token set and the
+  deliberate and impersonal: the response caches, the spent-token set and the
   audit database.
 - The identity gate covers the user-scoped case: Jellyfin and Seerr keys are
   admin-scoped, so `allow_other_users` defaults to false, and a refused request
