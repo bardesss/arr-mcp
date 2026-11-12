@@ -2024,7 +2024,13 @@ preview and the confirm is refused rather than written.
 
 A series id with `season` marks that season. The preview reports the **number
 of episodes**. It counts only the episodes that would actually
-change, so re-running it on a mostly-watched season says so.
+change, so re-running it on a mostly-watched season says so. A season the
+series does not have is refused with the seasons it does have.
+
+A folder item (a Season's own id, a collection or a library) is refused:
+Jellyfin marks every item inside a folder, more than one preview line can
+show. For a Season id the refusal names the series id and `season` to pass
+instead.
 
 Safe tier, with one caveat stated in every preview: unmarking and re-marking
 restores the watched flag but **not** the original play date or resume
