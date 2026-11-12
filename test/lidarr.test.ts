@@ -115,7 +115,7 @@ describe('LidarrAdapter', () => {
      * Listing the prototype covers every guard; sampling a few of them stays
      * green when someone adds the one that was not sampled.
      */
-    it('claims library reads, search, monitoring, queue, history and blocklist reads and removals, trigger_scan, the get_stack_health reads, the wanted list and calendar, indexer search and grab, adding, updating, deleting, retagging, import exclusions, download traces, indexer seed criteria, and nothing else', () => {
+    it('claims library reads, search, monitoring, queue, history and blocklist reads and removals, trigger_scan, the get_stack_health reads, the wanted list and calendar, indexer search and grab, adding, updating, deleting, retagging, import exclusions, download traces, indexer seed criteria, quality profile checks and fixes, and nothing else', () => {
         const a = adapter({});
         // The shared reads live on `ArrAdapterBase`, so walk up to it; `numericId` is its protected helper.
         const own = [LidarrAdapter.prototype, Object.getPrototypeOf(LidarrAdapter.prototype) as object].flatMap(proto =>
@@ -155,6 +155,8 @@ describe('LidarrAdapter', () => {
             'readBlocklist',
             'readForUpdate',
             'readHistory',
+            'readProfileDiagnostics',
+            'readQualityProfile',
             'readTagSettings',
             'readWanted',
             'refreshItem',
@@ -172,7 +174,8 @@ describe('LidarrAdapter', () => {
             'testConnection',
             'traceDownload',
             'triggerSearch',
-            'updateMedia'
+            'updateMedia',
+            'updateQualityProfile'
         ]);
         expect(hasLibrary(a)).toBe(true);
         expect(hasSearch(a)).toBe(true);

@@ -2356,14 +2356,16 @@ The music repair needs no media server and is not gated by
 
 ## `get_profile_issues`
 
-Faults in Radarr, Sonarr and Whisparr quality profiles and custom formats:
+Faults in Radarr, Sonarr, Whisparr and Lidarr quality profiles and custom formats:
 the configuration mistakes that make a profile unable to do what it looks
 like it does. Read-only, since Profilarr may own and re-sync the profiles.
 Every `remedy` is a change to make **in Profilarr** when it syncs the profile,
 or in the arr itself when it does not; this tool performs none of them, and
 [`fix_profile`](#fix_profile) applies the two floor findings.
 Profilarr's API says how many profiles it syncs to each arr but not which, so
-the remedy names both places.
+the remedy names both places. Profilarr syncs no Lidarr, so a Lidarr remedy
+names Lidarr alone. Lidarr's custom formats have no language condition, so only
+the floor findings can fire on it.
 
 Six finding kinds, each carrying a `confidence`:
 
@@ -2384,7 +2386,7 @@ it is unaffected by the `profile` filter and carries no `profile` field.
 `drift: null` on the Profilarr side means "not checked yet"; it is never
 folded into a finding, and `note` says so instead.
 
-Needs at least one of Radarr, Sonarr or Whisparr configured to find anything.
+Needs at least one of Radarr, Sonarr, Whisparr or Lidarr configured to find anything.
 Drift findings additionally need a `profilarr` service: without one, `note`
 says so and the rest of the findings still run.
 
@@ -2394,7 +2396,7 @@ Applies the one fix `get_profile_issues` can prove: a profile's minimum custom
 format score that nothing can reach (`unreachable_floor`) or that sits exactly
 on the total of its positive formats (`knife_edge_floor`). Takes `service`,
 `instance`, `profile` (the name `get_profile_issues` printed; an id also works)
-and `finding` (`unreachable_floor` or `knife_edge_floor`). Radarr, Sonarr and Whisparr.
+and `finding` (`unreachable_floor` or `knife_edge_floor`). Radarr, Sonarr, Whisparr and Lidarr.
 
 The new minimum is the total of the profile's positive custom formats less the
 cheapest one, so a release that lacks only the cheapest format still passes,
@@ -2432,6 +2434,9 @@ putting the old minimum back is a manual edit.
 
 **Unverified live** (Whisparr): the profile read and write. It shares the code
 and path with Radarr.
+
+**Unverified live** (Lidarr): the write. The read is proven on 3.1.6, whose
+profiles have the same `minFormatScore` and `formatItems` fields.
 
 ## `sync_database`
 

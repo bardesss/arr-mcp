@@ -406,6 +406,7 @@ exercise. Where the tool has its own section, the same path carries an
 | `delete_media` | `seerr` | Blocklisting with `seerr_blocklist` | The blocklist call is confirmed live through `blocklist_media`; the delete-then-blocklist path was not run, since it deletes a film |
 | `fix_profile` | `sonarr` | The profile write | Sonarr's profile list is recorded read-only; the `PUT` was captured only on Radarr, so on Sonarr it is unproven live |
 | `fix_profile` | `whisparr` | The profile read and write | No Whisparr on the maintainer's stack; shares the code and path with Radarr, whose exchange was captured, but was not captured itself |
+| `fix_profile` | `lidarr` | The profile write | The profile read is proven on Lidarr 3.1.6; the `PUT` shares Radarr's code and path but was not sent, and the live instance has no custom formats to give a floor finding |
 | `blocklist_media` | `sonarr` | Adding and removing an import exclusion | The list read is checked against a live Sonarr 4.0; the writes were not run |
 | `blocklist_media` | `lidarr` | Import exclusions | No Lidarr on the maintainer's stack; written from Lidarr's spec |
 | `set_watched` | `grimmory` | Marking a book read or unread | The test response is a hand-made mock; no live book has been changed |
