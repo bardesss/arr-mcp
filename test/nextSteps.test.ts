@@ -442,8 +442,9 @@ describe('next steps in a diagnosis', () => {
     });
 
     it('does not import a download another *arr grabbed, matched to this item by title', () => {
-        // The row is Whisparr's own, so Radarr cannot import it.
-        const d = buildChain(QUERY, healthy(withRows(row({ service: 'whisparr', mediaId: '9' }))));
+        // The row is Whisparr's own, so Sonarr cannot import it.
+        const series = item({ kind: 'series', acquisition: { service: 'sonarr', id: '5', monitored: true, hasFile: false } });
+        const d = buildChain(QUERY, healthy({ item: series, ...withRows(row({ service: 'whisparr', mediaId: '9' })) }));
         expect(d.verdict.stage).toBe('queue');
         expect(d.verdict.next_steps).toBeUndefined();
     });
@@ -508,7 +509,7 @@ describe('next steps in a diagnosis', () => {
         const d = buildChain(
             QUERY,
             healthy({
-                item: item({ acquisition: { service: 'whisparr', id: '5', monitored: true, hasFile: false } }),
+                item: item({ kind: 'series', acquisition: { service: 'whisparr', id: '5', monitored: true, hasFile: false } }),
                 ...withRows(row({ service: 'whisparr' }))
             })
         );

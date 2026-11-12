@@ -2338,6 +2338,54 @@ describe('queueRowsFor', () => {
         const orphan = row({ orphaned: true });
         expect(queueRowsFor([orphan], film)).toEqual([orphan]);
     });
+
+    describe('an *arr that holds another kind', () => {
+        const series = item({ kind: 'series', title: fence('Fargo', 'sonarr'), year: 2014, acquisition: { service: 'sonarr', id: '7', monitored: true, hasFile: false } });
+        const fargoFilm = item({ title: fence('Fargo'), year: 1996, acquisition: { service: 'radarr', id: '5', monitored: true, hasFile: false } });
+        const radarrRow = row({ mediaId: '77', downloadId: 'abc', title: queueTitle('radarr', 'Fargo.1996.1080p.BluRay') });
+        const sonarrRow = row({ service: 'sonarr', mediaId: '7', downloadId: 'def', status: 'failed', title: queueTitle('sonarr', 'Fargo.S05E01.1080p.WEB.h264') });
+
+        it('never gives a series a Radarr row, or the client row tied to it', () => {
+            const client = row({ service: 'qbittorrent', id: 'abc', downloadId: 'ABC', status: 'stalled', title: queueTitle('qbittorrent', 'Fargo.1996.1080p.BluRay') });
+            expect(queueRowsFor([radarrRow, client], series)).toEqual([]);
+        });
+        it('never gives a film a Sonarr row, orphaned or not, or the client row tied to it', () => {
+            const orphan = row({ service: 'sonarr/anime', id: '2', orphaned: true, downloadId: 'ghi', title: queueTitle('sonarr', 'Fargo.S04E01.1080p') });
+            const client = row({ service: 'sabnzbd', id: '9', downloadId: 'GHI', title: queueTitle('sabnzbd', 'Fargo.S04E01.1080p') });
+            expect(queueRowsFor([sonarrRow, orphan, client], fargoFilm)).toEqual([]);
+        });
+        it('keeps an unclaimed client row and a same-kind instance to the title', () => {
+            const client = row({ service: 'sabnzbd', id: '9', title: queueTitle('sabnzbd', 'Fargo.S05E02.1080p') });
+            const second = row({ service: 'sonarr/4k', mediaId: '3', title: queueTitle('sonarr', 'Fargo.S05E03.2160p') });
+            expect(queueRowsFor([radarrRow, client, second], series)).toEqual([client, second]);
+        });
+    });
+});
+
+describe('buildChain — a queue row from an *arr of another kind', () => {
+    it('does not blame a stalled film download for a series with nothing grabbed', () => {
+        const series = item({ kind: 'series', title: fence('Fargo', 'sonarr'), year: 2014, presence: 'arr_only', acquisition: { service: 'sonarr', id: '7', monitored: true, hasFile: false } });
+        const queue = {
+            items: [
+                { service: 'radarr', id: '1', mediaId: '77', downloadId: 'abc', title: queueTitle('radarr', 'Fargo.1996.1080p.BluRay'), status: 'stalled' },
+                { service: 'qbittorrent', id: 'abc', downloadId: 'ABC', title: queueTitle('qbittorrent', 'Fargo.1996.1080p.BluRay'), status: 'stalled' }
+            ],
+            partial: []
+        };
+        const d = buildChain('fargo', healthy({ item: series, queue }));
+        expect(d.verdict.stage).not.toBe('queue');
+        expect(JSON.stringify(d.verdict)).not.toContain('remove_queue_item');
+    });
+    it('does not blame a failed episode download for a film of the same name', () => {
+        const film = item({ title: fence('Fargo'), year: 1996, presence: 'arr_only', acquisition: { service: 'radarr', id: '5', monitored: true, hasFile: false } });
+        const queue = {
+            items: [{ service: 'sonarr', id: '1', mediaId: '7', title: queueTitle('sonarr', 'Fargo.S05E01.1080p.WEB.h264'), status: 'failed' }],
+            partial: []
+        };
+        const d = buildChain('fargo', healthy({ item: film, queue }));
+        expect(d.verdict.stage).not.toBe('queue');
+        expect(JSON.stringify(d.verdict)).not.toContain('remove_queue_item');
+    });
 });
 
 describe('buildChain — missing subtitles', () => {

@@ -277,6 +277,14 @@ describe('cross-checks — delete', () => {
         expect(advice.warnings).toEqual([]);
     });
 
+    it('does not warn about a film of the same name downloading in Radarr when the subject is a series', async () => {
+        const fargo: CrossCheckSubject = { kind: 'series', label: 'Fargo', ids: { tvdb: 269613 }, acquisition: { service: 'sonarr', id: '7' } };
+        const film = row({ mediaId: '77', title: 'Fargo.1996.1080p.BluRay', downloadId: 'abc' });
+        const client = { service: 'qbittorrent', id: 'abc', title: 'Fargo.1996.1080p.BluRay', status: 'downloading', downloadId: 'ABC' };
+        const advice = await check(fargo, 'delete', { queues: { radarr: [film], qbittorrent: [client] } });
+        expect(advice.warnings).toEqual([]);
+    });
+
     it('warns when the default user has not watched it', async () => {
         const advice = await check(subject, 'delete', {
             library: item({ playback: { user: 'default', watched: false } })

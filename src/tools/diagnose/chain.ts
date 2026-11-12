@@ -645,15 +645,27 @@ export function queueRowsFor(rows: readonly QueueItem[], item: MergedItem): Queu
             ? row.mediaId === acquisition.id
             : undefined;
     const keyOf = downloadKey;
+    // An *arr that holds another kind never grabbed this item, so its rows go
+    // before the title match ("Fargo.1996.1080p" is not the series), and so does
+    // a client row tied to one. A second instance of the same kind keeps the title.
+    const foreign = (row: QueueItem): boolean => {
+        const holds = ARR_KIND[row.service.split('/')[0] ?? ''];
+        return holds !== undefined && holds !== item.kind;
+    };
     const claimed = new Map<string, QueueItem>();
+    const foreignKeys = new Set<string>();
     for (const row of rows) {
         const key = keyOf(row);
-        if (row.mediaId !== undefined && key !== undefined && !claimed.has(key)) claimed.set(key, row);
+        if (key === undefined) continue;
+        if (foreign(row)) foreignKeys.add(key);
+        else if (row.mediaId !== undefined && !claimed.has(key)) claimed.set(key, row);
     }
     return rows.filter(row => {
+        if (foreign(row)) return false;
         const direct = byId(row);
         if (direct !== undefined) return direct;
         const key = row.mediaId === undefined ? keyOf(row) : undefined;
+        if (key !== undefined && foreignKeys.has(key) && !claimed.has(key)) return false;
         const linked = key === undefined ? undefined : claimed.get(key);
         const verdict = linked === undefined ? undefined : byId(linked);
         // Only Lidarr's queue is read for an artist, so a client row that no
