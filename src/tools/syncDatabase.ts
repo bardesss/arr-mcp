@@ -110,7 +110,7 @@ export function registerSyncDatabase(
         name: 'sync_database',
         title: 'Sync a Profilarr database',
         description:
-            "Asks Profilarr to pull one of its databases — custom formats, quality profiles, delay profiles — " +
+            "Asks Profilarr to pull one of its databases (custom formats, quality profiles, delay profiles) " +
             'from its configured git source. Safe tier: it only changes Profilarr\'s own store, never Radarr or ' +
             'Sonarr directly. `database` names one by name or id; required only when Profilarr has more than one. ' +
             'Profilarr answers the request with a queued job, and this tool polls it to a terminal status before ' +

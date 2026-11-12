@@ -17,7 +17,7 @@ export async function buildDiagnose(deps: DiagnoseDeps, target: DiagnoseTarget):
 }
 
 const DiagnoseInput = toolInput({
-    query: z.string().min(1).optional().describe('A title — how a person actually asks.'),
+    query: z.string().min(1).optional().describe('A title: how a person actually asks.'),
     service: ServiceIdSchema.optional().describe('With `id`: an exact item, when one is already in hand.'),
     id: z.string().min(1).optional(),
     instance: z.string().min(1).optional().describe(INSTANCE_PARAM_DESCRIPTION),

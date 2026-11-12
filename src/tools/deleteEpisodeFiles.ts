@@ -48,7 +48,7 @@ export function registerDeleteEpisodeFiles(
         name: 'delete_episode_files',
         title: 'Delete episode files',
         description:
-            'Deletes the files for one Sonarr season, or for specific episodes, from disk. Destructive and not undoable. Give `season` or `episodes`, never both; there is no whole-series form — that is delete_media. **Unmonitor first with set_monitoring**, or Sonarr treats the episodes as missing and re-downloads exactly what you just deleted; the preview says so when the target is still monitored. Leaves the series, its monitoring and its history in Sonarr — only the files go. Previews first; confirm to delete.',
+            'Deletes the files for one Sonarr season, or for specific episodes, from disk. Destructive and not undoable. Give `season` or `episodes`, never both; there is no whole-series form; that is delete_media. **Unmonitor first with set_monitoring**, or Sonarr treats the episodes as missing and re-downloads exactly what you just deleted; the preview says so when the target is still monitored. Leaves the series, its monitoring and its history in Sonarr; only the files go. Previews first; confirm to delete.',
         inputSchema: DeleteEpisodeFilesInput,
         target: { adapters, to: TARGET },
         operation: 'delete_episode_files',
@@ -59,7 +59,7 @@ export function registerDeleteEpisodeFiles(
             refuseBoth(season, episodes);
             if (season === undefined && episodes === undefined) {
                 throw new Error(
-                    'Give either `season` or `episodes`. There is no whole-series form here — use delete_media with `delete_files: true` for that.'
+                    'Give either `season` or `episodes`. There is no whole-series form here; use delete_media with `delete_files: true` for that.'
                 );
             }
 

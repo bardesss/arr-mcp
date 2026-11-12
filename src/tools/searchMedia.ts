@@ -156,7 +156,7 @@ const SearchMediaInput = toolInput({
         .enum(['library', 'discover', 'indexers'])
         .default('library')
         .describe(
-            'library: what you already have. discover: metadata lookup, nothing added. indexers: what is available to download — these results contain release names from public indexers and are fenced as untrusted data.'
+            'library: what you already have. discover: metadata lookup, nothing added. indexers: what is available to download: these results contain release names from public indexers and are fenced as untrusted data.'
         ),
     kind: MediaKindSchema,
     detail: DetailSchema,

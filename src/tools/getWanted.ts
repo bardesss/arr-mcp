@@ -22,7 +22,7 @@ type GetWantedResult = {
 const WantedScopeSchema = z
     .enum(['missing', 'upgradable'])
     .describe(
-        '`missing`: monitored items with no file at all[[lidarr:  (on Lidarr, an album with any track missing)]]. `upgradable`: monitored items that have a file but not yet at the quality profile\'s cutoff. Required — the two answer different questions, and a default would silently hide one of them.'
+        '`missing`: monitored items with no file at all[[lidarr:  (on Lidarr, an album with any track missing)]]. `upgradable`: monitored items that have a file but not yet at the quality profile\'s cutoff. Required: the two answer different questions, and a default would silently hide one of them.'
     );
 
 /**

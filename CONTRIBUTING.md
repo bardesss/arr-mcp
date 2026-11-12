@@ -11,7 +11,7 @@ npm test
 ```
 
 Maintainers with a real stack refresh the recorded fixtures with
-`npm run capture` — see below. `npm run integration` goes the other way: it
+`npm run capture`; see below. `npm run integration` goes the other way: it
 *exercises* a live stack, calling every tool and reporting pass or fail per
 tool, without recording anything.
 
@@ -57,7 +57,7 @@ npm test           # vitest
 
 ## If you are working with a coding agent
 
-Welcome, and held to the same bar — not a lower one, and not a higher one.
+Welcome, and held to the same bar, not a lower one, and not a higher one.
 arr-mcp is itself built with one. A patch is judged by whether it holds up, so
 there is no separate review track and nothing to disclose beyond being straight
 about what was actually verified.
@@ -67,7 +67,7 @@ rules matter more than the rest, because breaking them produces a pull request
 that *looks* finished:
 
 - **Never write a fixture by hand.** Asked for one, an agent will produce
-  something plausible — and a plausible fixture is worse than no fixture at all,
+  something plausible, and a plausible fixture is worse than no fixture at all,
   because the test passes, the adapter ships, and the shape was never the
   service's. Capture with `npm run capture` against a live instance, or say in
   the PR that the fixture is missing.
@@ -86,10 +86,10 @@ that *looks* finished:
 ## Dependencies
 
 Dependabot runs monthly, plus immediate PRs for security advisories. Three
-ecosystems are watched — `npm`, `github-actions` and the Docker base image —
+ecosystems are watched (`npm`, `github-actions` and the Docker base image)
 and the last two are pinned by digest, which Dependabot rewrites in place
-rather than unpinning. Only one rule groups updates — non-major bumps land as
-a single PR per ecosystem — so a **major** bump of any dependency other than
+rather than unpinning. Only one rule groups updates: non-major bumps land as
+a single PR per ecosystem, so a **major** bump of any dependency other than
 TypeScript or Node arrives as its own PR, same monthly schedule, up to three
 open at a time per ecosystem. The cadence is monthly; it is the "one PR" part
 that stops being true once a major is involved. Two things Dependabot
@@ -97,7 +97,7 @@ deliberately will not do on its own:
 
 - **TypeScript** is pinned with `~` because `typescript-eslint` declares a peer
   range it has to stay inside, and `.github/dependabot.yml` ignores that
-  package outright — not only for majors. A TypeScript patch will never be
+  package outright, not only for majors. A TypeScript patch will never be
   proposed either; bumping it, of any kind, is a human decision.
 - **Node majors** touch the Dockerfile, the CI workflow and `engines` together,
   so they are ignored in both the `npm` and `docker` ecosystems. Nothing will
@@ -111,7 +111,7 @@ accept 11, and drop it as a `chore(deps)` commit.
 
 ## Commit messages
 
-[Conventional Commits](https://www.conventionalcommits.org/) — release-please
+[Conventional Commits](https://www.conventionalcommits.org/): release-please
 reads them to decide the next version and to write `CHANGELOG.md`.
 
 | Prefix | Effect on version |
@@ -133,7 +133,7 @@ code change looks like a refactor.
 - A parameter renamed or removed
 - A field removed from a response
 
-Adding a tool, an optional parameter or a response field is a **minor** — those
+Adding a tool, an optional parameter or a response field is a **minor**: those
 are additive and nothing that reads the old shape stops working.
 
 The pre-1.0 scheme is gone. Minors used to be reserved for roadmap phases, so a
@@ -146,7 +146,7 @@ number by forgetting it.
 ## The tool surface is the public API
 
 Renaming a tool or removing a parameter breaks every user's saved prompts and
-agent configuration, and it breaks **silently** — the model stops finding the
+agent configuration, and it breaks **silently**: the model stops finding the
 tool rather than raising an error. Changes to tool names or parameters therefore
 get stricter review than ordinary refactors. Since 1.0, a renamed tool keeps its
 old name as an alias for one full minor, with the deprecation stated in the
@@ -167,12 +167,12 @@ test as a visible part of the change.
 `whats_wrong` as a slash command breaks when it is renamed, exactly as a saved
 prompt breaks when a tool is. They are frozen at 1.0 on the same terms, and
 `test/mcpPrompts.test.ts` asserts that no prompt names a tool that does not
-exist — so a rename fails there rather than silently in someone's client.
+exist, so a rename fails there rather than silently in someone's client.
 
 **A resource must mirror a tool, never originate.** Client support for
 resources is uneven and arr-mcp has to work on all of them, so anything only a
 resource could answer would be unreachable wherever they are not surfaced. When
-a resource needs a fact no tool reports, the fix is to extend the tool — that is
+a resource needs a fact no tool reports, the fix is to extend the tool: that is
 why `get_stack_health` reports per-instance permissions.
 
 ## Adding a service adapter
@@ -184,7 +184,7 @@ each with a worked example already in the tree.
 
 An adapter is not a patch that lands and is finished. It is a standing
 commitment to track someone else's release schedule, for a service the
-maintainer very likely does not run and therefore cannot exercise in review —
+maintainer very likely does not run and therefore cannot exercise in review,
 only read. When it breaks, it breaks here, and the bug report arrives here.
 
 That cost is worth paying for a service people actually run, that actually
@@ -194,12 +194,12 @@ to tell at the moment of the pull request, because the enthusiasm is identical.
 So the bar is written down in advance rather than decided case by case. Four
 things it is trying to establish, and the checks that stand in for them:
 
-**Survival — will this still be here?**
+**Survival: will this still be here?**
 
 - The service's first public release is **at least a year old**, and it has
   **commits within the last sixty days**. Both halves, because neither implies
   the other: self-hosted projects die overwhelmingly between months two and six
-  — after the launch thread, before the first real maintenance burden — and a
+  (after the launch thread, before the first real maintenance burden), and a
   project can clear that cliff and then be abandoned with its version number
   intact.
 
@@ -210,7 +210,7 @@ things it is trying to establish, and the checks that stand in for them:
   author's spare time went somewhere else. It is also roughly the horizon the
   adapter has to keep working over, so it is the horizon worth asking about.
 
-**Stability — will the adapter still work?**
+**Stability: will the adapter still work?**
 
 - **1.0 or later**, or a documented, versioned API with a stated compatibility
   policy. A pre-1.0 API is free to move, and an adapter pinned to one breaks on
@@ -219,9 +219,9 @@ things it is trying to establish, and the checks that stand in for them:
   generation for free, but several adapters here are hand-written against a
   plain written reference, and that is enough.
 
-**Demand — does anyone want it?**
+**Demand: does anyone want it?**
 
-- **Packaged where people deploy** — Unraid Community Applications, TrueNAS
+- **Packaged where people deploy**: Unraid Community Applications, TrueNAS
   apps, linuxserver.io, or an official image with meaningful pull counts. Stars
   can be manufactured; a place in a distribution channel is harder to.
 - **Someone other than the service's own author has asked for it.** Not a
@@ -229,9 +229,9 @@ things it is trying to establish, and the checks that stand in for them:
   person able to tell whether anyone *else* wants the integration, and their own
   enthusiasm is not evidence that they do.
 
-**Fit — does it belong in this server?**
+**Fit: does it belong in this server?**
 
-- **It sits on the chain `diagnose_media` walks** — requested, managed, monitored,
+- **It sits on the chain `diagnose_media` walks**: requested, managed, monitored,
   downloaded, indexed, imported, scanned. arr-mcp exists because the interesting
   questions live between services. A service that cannot make `diagnose_media` smarter
   is a second product, not a seventeenth adapter.
@@ -244,8 +244,8 @@ things it is trying to establish, and the checks that stand in for them:
   of adding an adapter.
 
 This is a floor for what will be considered, not a ceiling on what can be
-accepted. Any of it can be waived — on the pull request, in writing, with the
-reason — and a rewrite shipping from a fresh repository is exactly what that is
+accepted. Any of it can be waived (on the pull request, in writing, with the
+reason) and a rewrite shipping from a fresh repository is exactly what that is
 for. An adapter that misses on age alone is worth an issue rather than a
 weekend: the answer to that one is a date, not a no.
 
@@ -256,9 +256,9 @@ The bar above is abstract, so here is the concrete answer, current as of
 that is the real question: a second service in a slot that already exists is a
 small, shaped change, and a service in no slot at all is a different product.
 
-**Managed — what decides something should exist**
+**Managed: what decides something should exist**
 
-- **Lidarr — the rest of it.** The adapter has shipped, with twenty-eight capabilities. `LibraryCapable` and `SearchCapable`, so
+- **Lidarr: the rest of it.** The adapter has shipped, with twenty-eight capabilities. `LibraryCapable` and `SearchCapable`, so
   `get_library` lists artists, `search_media` finds them, and its discover
   source (`search_media` with `source: "discover"`) finds artists to add. `MediaAddCapable` and
   `MetadataProfileCapable`, so `add_media` adds one by its MusicBrainz id, with
@@ -309,7 +309,7 @@ small, shaped change, and a service in no slot at all is a different product.
   `artist`, and joins because its identity is a MusicBrainz MBID: a GUID, where
   films and series key on integer TMDB, TVDB and IMDb ids. Jellyfin publishes the
   same GUID on an album artist and Plex on an artist in a music section, so the
-  join works — and it is namespaced by kind, so an MBID can never collide with
+  join works, and it is namespaced by kind, so an MBID can never collide with
   the integer spaces. `get_media_details` answers for an artist by Lidarr id,
   and refuses one asked for by title, naming `get_media_details` with
   `detail: "full"` for the albums and `get_library`'s `kind: "artist"` for the
@@ -332,7 +332,7 @@ small, shaped change, and a service in no slot at all is a different product.
   and no per-album quality, which is why the library rows on artists and albums
   live under `get_media_details`.
 
-**Downloaded — where a grab actually lands**
+**Downloaded: where a grab actually lands**
 
 - **Deluge** ([#499](../../issues/499)). The last mainstream client this server cannot talk to. Same slot
   as SABnzbd, NZBGet, Transmission and qBittorrent, documented JSON-RPC, no new
@@ -341,32 +341,32 @@ small, shaped change, and a service in no slot at all is a different product.
   Web UI with a disconnected daemon is a failure mode `testConnection` has to
   report as itself rather than as a generic upstream error.
 
-**Imported and played — the library a person opens**
+**Imported and played: the library a person opens**
 
 - **Emby** ([#500](../../issues/500)). Jellyfin's ancestor, near-identical API, and therefore the cheapest
-  adapter on this list — plausibly a variant of the Jellyfin one rather than a
+  adapter on this list, plausibly a variant of the Jellyfin one rather than a
   new file.
-- **Plex — more testers.** The adapter has shipped and has been verified against a live Plex Media
+- **Plex: more testers.** The adapter has shipped and has been verified against a live Plex Media
   Server 1.43.3.10896 by a volunteer tester (issue #180): all nine endpoints
   it reads were captured from that server and are contracted in
   `test/contract.test.ts`. It reads, and writes with `trigger_scan`, verified
   against 1.43.1.10611 (issue #268), and `fix_metadata`, which has repaired films
   and series on a live server (issue #312) and so is on by default, behind
   `permissions.destructive`. The maintainer still does not
-  run Plex, so coverage is two servers' worth, not a range — further testers
+  run Plex, so coverage is two servers' worth, not a range; further testers
   on a different version or library shape would still be useful, particularly
   for the managed-user-token case `docs/tools.md` flags as unconfirmed.
 
-  **The design still governs.** Plex's usual auth brokers through plex.tv —
+  **The design still governs.** Plex's usual auth brokers through plex.tv:
   credential brokering *and* an outbound request to a host the operator never
   configured, which is the risk class above and a no on its own terms. This
   adapter takes an operator-supplied `X-Plex-Token` and talks only to the
   configured local server, never plex.tv. That constraint holds for any future
   change here, not just this one.
 
-**Beside the chain — the live TV the same media servers play**
+**Beside the chain: the live TV the same media servers play**
 
-- **Dispatcharr — writes.** The adapter has shipped, read-only, by maintainer
+- **Dispatcharr: writes.** The adapter has shipped, read-only, by maintainer
   waiver on 2026-11-03. It missed three checks above: it is pre-1.0, only the
   maintainer asked for it, and live TV never passes through the chain `diagnose_media`
   walks. The waiver rests on one thing: Dispatcharr is where the Plex and
@@ -378,9 +378,9 @@ small, shaped change, and a service in no slot at all is a different product.
   one new tool against the ceiling, and its writes change what every client of
   that playlist sees.
 
-**Beside the chain — the books the same stack downloads**
+**Beside the chain: the books the same stack downloads**
 
-- **Shelfmark — audiobooks.** The adapter has shipped by maintainer
+- **Shelfmark: audiobooks.** The adapter has shipped by maintainer
   waiver on 2026-11-05. It missed two checks above: only the maintainer asked for
   it, and a book never passes through the chain `diagnose_media` walks, so `diagnose_media`
   leaves its queue out. It also comes close to the risk-class check:
@@ -415,11 +415,11 @@ Named and **not** accepted, so nobody spends a weekend finding out:
 - **Chaptarr.** Public since June 2026, so it misses on age alone. This is the
   date-not-a-no case, and it is on this list so the date is visible rather than
   discovered in review.
-- **Tautulli.** Plex watch analytics. Real and well-run, and off the chain — it
+- **Tautulli.** Plex watch analytics. Real and well-run, and off the chain; it
   cannot make `diagnose_media` smarter, which makes it a second product.
 - **Recyclarr.** A config sync tool rather than a service with state worth
   asking about. There is no question `diagnose_media` would put to it.
-- **autobrr.** Sits beside the chain rather than on it — it filters releases
+- **autobrr.** Sits beside the chain rather than on it; it filters releases
   into a client this server already reads. It would spend new tools to answer
   questions the queue mostly already answers.
 
@@ -465,7 +465,7 @@ preview reports a version like `preview-plex-a1b2c3d` on `/healthz`, which is
 what a useful bug report quotes. It is not a release and never moves `latest`.
 
 And write down whatever surprised you. Every adapter here carries a note about
-something its API does that the documentation does not mention — SABnzbd
+something its API does that the documentation does not mention: SABnzbd
 reporting gigabytes as a string, Sonarr's rating arriving unlabelled, Jellyfin
 localising its task names. Those notes have prevented more bugs than the code
 around them.
@@ -493,24 +493,24 @@ around them.
 5. **Write the adapter** in `src/services/<id>.ts`, implementing `ServiceAdapter`
    plus whichever capability interfaces the service actually supports. A
    capability no existing service has gets its interface and type guard in
-   `src/services/types.ts`, and the tools that should use it — usually
-   `get_stack_health` and `diagnose_media`'s `chain.ts` and `evidence.ts` — read it
+   `src/services/types.ts`, and the tools that should use it (usually
+   `get_stack_health` and `diagnose_media`'s `chain.ts` and `evidence.ts`) read it
    through that guard.
    `src/services/sonarr.ts` is the simplest example; `src/services/transmission.ts`
    and `src/services/qbittorrent.ts` are the most unusual.
    A media server implements `PlaybackCapable`, `UserLibraryCapable` and
-   `UserDirectoryCapable` — together `MediaServerAdapter` — and exactly one may
+   `UserDirectoryCapable` (together `MediaServerAdapter`) and exactly one may
    be configured, because `get_library`'s `presence` join needs a single
    counterparty.
 6. **Decide whether it can be configured twice**, and say so in the adapter.
    Nine of the nineteen services can be, so this is the common case rather than the
-   exotic one — but copying `jellyfin.ts` gets you `readonly id: string =
+   exotic one, but copying `jellyfin.ts` gets you `readonly id: string =
    '<type>'`, which is the *single*-instance shape. That is the safe default
    (a service that simply cannot be configured twice, rather than two adapters
    with colliding ids), so getting it wrong fails closed. Making it
    multi-instance is four moves:
 
-   - accept its entry from `ConfigByService` in `src/config/schema.ts` — that
+   - accept its entry from `ConfigByService` in `src/config/schema.ts`: that
      entry carries a phantom `__service` tag, so taking the bare config type
      instead silently gives up the check that stops your adapter being handed
      another service's config,
@@ -520,16 +520,16 @@ around them.
 
    That last one is the trap. `ServiceHttp` puts the id it was given into every
    error it raises, so a hardcoded literal there produces errors blaming
-   `qbittorrent` when the failure was `qbittorrent/vpn` — and a service that
+   `qbittorrent` when the failure was `qbittorrent/vpn`, and a service that
    authenticates *outside* `ServiceHttp` needs the same care in its own login
    path. qBittorrent does exactly that, and its login errors had to be fixed
    separately from the rest of the adapter for precisely this reason.
 
-7. **Declare its contract** in `test/contract.test.ts` — the response fields your
+7. **Declare its contract** in `test/contract.test.ts`: the response fields your
    adapter reads. Omit the `spec` when the service publishes no OpenAPI document.
 8. **Register it** in `src/services/registry.ts`, and add cases for what it
    serves to `scripts/integration.ts` so a live run exercises it.
-9. **Draw it an icon** in `src/web/icons.ts` — stroke-only, `currentColor`, on
+9. **Draw it an icon** in `src/web/icons.ts`: stroke-only, `currentColor`, on
    the same 24×24 grid as the rest, saying what kind of thing the service is
    rather than which one. The UI uses one drawn set rather than per-service
    artwork, so a new icon is drawn to match the others instead of sourced. A
@@ -541,21 +541,21 @@ around them.
 An adapter must:
 
 - return a `ConnectionDiagnosis` from `testConnection`, **never a boolean** and
-  **never a thrown error** — use `diagnoseConnection`, which every adapter shares
+  **never a thrown error**: use `diagnoseConnection`, which every adapter shares
 - accept an injectable `fetch` so it is testable without the service
 - **not implement a capability it has no fixture for.** Prowlarr is not
   `DiskSpaceCapable` because its diskspace endpoint 404s. A method nothing has
   tested is a method `get_stack_health` will call in production
 
-Transport concerns — timeouts, retries, the circuit breaker, error
-classification — belong to `ServiceHttp` and must not be reimplemented in an
+Transport concerns (timeouts, retries, the circuit breaker, error
+classification) belong to `ServiceHttp` and must not be reimplemented in an
 adapter. If a service needs behaviour `ServiceHttp` does not have, that is a
 change to `ServiceHttp`, so every service gets it.
 
 ### If your service returns free text
 
 Release names, overviews, file paths and user notes must be passed through
-`fenceText` **in the adapter**, at the point the value enters our types — not in
+`fenceText` **in the adapter**, at the point the value enters our types, not in
 a tool, where one forgotten field is a silent hole. `test/injection.test.ts`
 asserts the fence holds; add a case there if your service can return something
 the existing ones do not cover.
@@ -563,7 +563,7 @@ the existing ones do not cover.
 **Match on stable identifiers, not on display strings.** Both scan-state
 implementations learned this the hard way: Radarr runs three tasks whose names
 contain "Refresh", only one of which is the library scan, and Jellyfin's task
-names are localised — a Dutch server returns "Mediabibliotheek scannen".
+names are localised: a Dutch server returns "Mediabibliotheek scannen".
 
 Eight of the nineteen services publish no usable OpenAPI spec, and two more
 have hand-written adapters anyway, so the adapter
@@ -584,17 +584,17 @@ instance.
 Write tools are **not** registered like read tools. Use `registerWriteTool`
 (`src/tools/write.ts`) and supply only two callbacks:
 
-- `plan(args)` — resolves the arguments into a `WritePlan`: the concrete
+- `plan(args)`: resolves the arguments into a `WritePlan`: the concrete
   `target` id, a one-sentence `summary`, and an itemised `effects` list. It must
   not mutate anything. Set `noop: true` when there is nothing to do, and the
   harness skips the confirmation rather than asking the user to approve a
   no-op.
-- `apply(plan, args)` — performs the write. It is reached only after the
+- `apply(plan, args)`: performs the write. It is reached only after the
   permission tier passed, a valid single-use confirmation token was presented,
   and an audit row was opened.
 
-The four §10 guarantees — the tier check, `dry_run`, the audit trail, the
-confirmation handshake — are properties of the harness, not of your tool. Do not
+The four §10 guarantees (the tier check, `dry_run`, the audit trail, the
+confirmation handshake) are properties of the harness, not of your tool. Do not
 reimplement any of them, and do not call an adapter's write method from `plan`:
 the preview phase must be incapable of mutating, and it is, because the harness
 simply does not invoke `apply`.
@@ -609,8 +609,8 @@ yours should:
   when a wrong match costs a wrong answer; it is not fine when it costs an
   action against the wrong item.
 
-Pick the tier by what an undo costs. `safe` is anything the service can reverse
-— monitor, unmonitor, trigger a search. `destructive` is anything that loses
+Pick the tier by what an undo costs. `safe` is anything the service can reverse:
+monitor, unmonitor, trigger a search. `destructive` is anything that loses
 data: files on disk, a request's history, a blocklist entry. When unsure, it is
 `destructive`; the cost of over-classifying is one config flag, and the cost of
 under-classifying is someone's library.
@@ -619,7 +619,7 @@ under-classifying is someone's library.
 
 Server rendered from `src/web/`, no build step and no framework. `tsc` does not
 emit non-TypeScript files, so **assets live in modules, not in a `public/`
-directory** — a static file would work in development and be silently missing
+directory**: a static file would work in development and be silently missing
 from the Docker image.
 
 Three rules, each of which exists because breaking it is quiet rather than
@@ -631,14 +631,14 @@ loud:
   hatch and has to be written on purpose.
 - **The live log stream is JSON, and the client builds rows with
   `textContent`.** Not `innerHTML`. Everything else on the page is
-  server-rendered through the escaping template, which is sound — but that one
+  server-rendered through the escaping template, which is sound, but that one
   surface carries indexer text on a timer, and building nodes makes an XSS
   impossible rather than merely unlikely. The default-user suggestions work the
   same way: they arrive from `/ui/config/users.json` as JSON and are built with
   `option.value` and `textContent`, and the field works unscripted.
 - **A secret is never rendered back.** API keys, the NZBGet and torrent-client
   passwords and the UI password all render as empty fields meaning *unchanged*. That is also
-  why an empty field can never mean "clear this" — clearing is expressed by
+  why an empty field can never mean "clear this": clearing is expressed by
   switching the service off.
 
 Anything a config change can invalidate belongs in `core/runtime.ts`, behind
@@ -656,10 +656,10 @@ fields included, and fails on one it has not placed.
 
 `specs/*.json` are upstream OpenAPI documents, refreshed by `npm run specs:fetch`
 and regenerated into `src/services/generated/` by `npm run codegen`. Both are
-committed, and they move together — a spec refreshed without a regeneration
+committed, and they move together: a spec refreshed without a regeneration
 leaves the types describing an API that no longer exists. A nightly workflow
 does both and opens a PR when either changes, so **review `specs/` in that
-diff** — the generated files are output, not source, and are not meant to be
+diff**: the generated files are output, not source, and are not meant to be
 read by hand.
 
 Radarr, Sonarr, Whisparr, Lidarr, Prowlarr, Jellyfin, Seerr, Profilarr and Grimmory are generated.
@@ -684,7 +684,7 @@ mapper. A red run means either; the PR body names the failing entries.
 
 The PR is opened with the default `GITHUB_TOKEN`, which GitHub refuses to let
 trigger other workflows, so it arrives with no status checks. Close and reopen
-it to run CI. The eight hand-written services are invisible to this check — only a
+it to run CI. The eight hand-written services are invisible to this check: only a
 live call catches their drift.
 
 Two things worth knowing before you touch this:
@@ -693,7 +693,7 @@ Two things worth knowing before you touch this:
   devDependency.** `openapi-typescript` requires `typescript@^5.x` and this
   project is pinned to TypeScript 6, so a local install cannot resolve. Running
   it in npx's isolated tree keeps the conflict out of ours, and the tool is not
-  part of the shipped artefact — its reviewed output is.
+  part of the shipped artefact: its reviewed output is.
 - **The generated types are nullable where the spec says nullable.** If a mapper
   fails to typecheck against them, fix the mapper. Do not widen it with a cast:
   that failure is the codegen doing the job it was added for.
@@ -724,7 +724,7 @@ npx playwright install chromium   # once; the npm package ships no browser
 npm run screenshots
 ```
 
-Every page in `docs/` and the README comes from `scripts/lib/uiFixture.ts` —
+Every page in `docs/` and the README comes from `scripts/lib/uiFixture.ts`:
 invented services, frozen timestamps, no config read and no service contacted.
 That is deliberate rather than convenient: these pages render token names,
 the MCP endpoint host and every service URL, and `screenshots/` is public.
@@ -799,11 +799,11 @@ leave that option off if you don't want them.
 
 The script scrubs two different things, and the distinction matters:
 
-- **Credentials** — every configured API key and password, plus any
+- **Credentials**: every configured API key and password, plus any
   secret-named field. It then **refuses to write the file** if one survived. A
   reviewer spotting a leaked key in a large diff is not a control worth relying
   on.
-- **Identity** — account names, email addresses, avatar URLs (a gravatar URL
+- **Identity**: account names, email addresses, avatar URLs (a gravatar URL
   embeds a hash of the email), indexer names and URLs, every configured host,
   and private IPv4 literals. None of these is a secret; all of them are
   permanent once committed to a public repository.
@@ -813,7 +813,7 @@ deliberate: `Name` is an account on Jellyfin's `/Users` and a scheduled task on
 `/ScheduledTasks`. A blanket rule on the key would destroy the fixture that
 tells us which task scans the library.
 
-Real film and series titles are kept — they are not sensitive and they keep the
+Real film and series titles are kept: they are not sensitive and they keep the
 fixtures realistic, which is most of the value of recording them.
 
 `test/fixtures.test.ts` re-checks every committed fixture on every PR, so a

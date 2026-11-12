@@ -137,7 +137,7 @@ export function registerAllResources(server: McpServer, context: ToolContext, su
         {
             title: 'Stack health (snapshot)',
             description:
-                'A point-in-time verdict per service. **`get_stack_health` is the live answer** — this is a snapshot and says in `as_of` when it was taken. Read it again rather than trusting a pinned copy: a service that was reachable an hour ago may not be now.',
+                'A point-in-time verdict per service. **`get_stack_health` is the live answer**; this is a snapshot and says in `as_of` when it was taken. Read it again rather than trusting a pinned copy: a service that was reachable an hour ago may not be now.',
             mimeType: 'application/json',
             cacheHint: { ttlMs: HEALTH_TTL_MS, cacheScope: 'private' }
         },
@@ -171,7 +171,7 @@ export function registerAllResources(server: McpServer, context: ToolContext, su
         {
             title: 'Library summary',
             description:
-                'Counts across the joined library — total, on disk, and still wanted. Mirrors what get_library reports; call that for anything beyond the totals.',
+                'Counts across the joined library: total, on disk, and still wanted. Mirrors what get_library reports; call that for anything beyond the totals.',
             mimeType: 'application/json',
             cacheHint: { ttlMs: SUMMARY_TTL_MS, cacheScope: 'private' }
         },
@@ -264,7 +264,7 @@ export function registerAllResources(server: McpServer, context: ToolContext, su
         {
             title: 'Lidarr monitoring policy',
             description:
-                "Every Lidarr artist's monitoring policy in one read: how many will monitor albums they discover later, and how many carry the artist-level monitor flag. `update_media` with no `id` (and `instance` when there is more than one Lidarr) is the live answer and the way to change it. The artist flag is not the album flag — an artist can read unmonitored while an album under it stays monitored — so read arr://library/summary for what is actually pending. With more than one Lidarr, `instances` reports each one that answered (one that did not is listed in `degraded`), since `update_media` writes one instance at a time, and the totals add those instances up: an artist two Lidarrs hold counts once in each.",
+                "Every Lidarr artist's monitoring policy in one read: how many will monitor albums they discover later, and how many carry the artist-level monitor flag. `update_media` with no `id` (and `instance` when there is more than one Lidarr) is the live answer and the way to change it. The artist flag is not the album flag: an artist can read unmonitored while an album under it stays monitored, so read arr://library/summary for what is actually pending. With more than one Lidarr, `instances` reports each one that answered (one that did not is listed in `degraded`), since `update_media` writes one instance at a time, and the totals add those instances up: an artist two Lidarrs hold counts once in each.",
             mimeType: 'application/json',
             cacheHint: { ttlMs: MONITORING_TTL_MS, cacheScope: 'private' }
         },

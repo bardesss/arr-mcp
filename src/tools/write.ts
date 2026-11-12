@@ -195,10 +195,10 @@ const WriteOutputSchema = z.looseObject({
     service: z.string(),
     operation: z.string(),
     tier: z.enum(['safe', 'destructive']),
-    target: z.string().describe('The resolved id the write acts on — what the confirmation token is bound to.'),
+    target: z.string().describe('The resolved id the write acts on: what the confirmation token is bound to.'),
     summary: z.string().describe('One sentence, safe to show a human.'),
     effects: z.array(z.string()).describe('Itemised consequences, most severe first. Empty is legitimate for a no-op.'),
-    noop: z.boolean().describe('True when the request resolved but there was nothing to do — already monitored, already approved.'),
+    noop: z.boolean().describe('True when the request resolved but there was nothing to do: already monitored, already approved.'),
     permission: z.looseObject({
         allowed: z.boolean(),
         reason: z.string().optional(),

@@ -274,7 +274,7 @@ const GetHistoryInput = toolInput({
         .describe('`services` asks each service for its own history.[[radarr|sonarr:  `webhooks` reads the events {{and: radarr=Radarr; sonarr=Sonarr}} reported to arr-mcp, which survive deleting a title.]]'),
     service: ServiceIdSchema.optional().describe('Scope to one service. Required alongside `id`.'),
     instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
-    id: z.string().min(1).optional().describe('One {{or: radarr=movie; sonarr|whisparr=series; lidarr=Lidarr artist}} id — `acquisition.id` on a get_library or get_media_details record. Requires `service`.'),
+    id: z.string().min(1).optional().describe('One {{or: radarr=movie; sonarr|whisparr=series; lidarr=Lidarr artist}} id: `acquisition.id` on a get_library or get_media_details record. Requires `service`.'),
     event_type: EventTypeSchema,
     since: SinceSchema,
     detail: DetailSchema,

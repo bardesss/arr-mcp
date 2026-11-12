@@ -471,12 +471,12 @@ const stackHealthOutput = memoBy((withPrimary: boolean) => z.looseObject({
     services: z.array(z.unknown()).describe('One row per configured instance: reachable, version, latency.'),
     failures: TruncationSchema.describe('Health checks the services themselves are reporting.'),
     disks: TruncationSchema.describe('Free space per root folder.'),
-    scans: z.array(z.unknown()).describe('When each library was last scanned. Never truncated — bounded by the number of services.'),
+    scans: z.array(z.unknown()).describe('When each library was last scanned. Never truncated; bounded by the number of services.'),
     commands: z
         .array(z.unknown())
         .optional()
         .describe('Queued or running tasks, plus anything finished in the last fifteen minutes. Absent at `minimal`.'),
-    permissions: z.array(z.unknown()).optional().describe('What each instance may do. Absent at `minimal` — a permission is not a fault.'),
+    permissions: z.array(z.unknown()).optional().describe('What each instance may do. Absent at `minimal`: a permission is not a fault.'),
     endpoints: z.array(z.unknown()).optional().describe('Where each instance lives. Never a credential.'),
     options: z
         .array(z.unknown())

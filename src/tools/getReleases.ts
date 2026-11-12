@@ -125,7 +125,7 @@ const GetReleasesInput = toolInput({
         .min(1)
         .optional()
         .describe(
-            'The movie, series or artist id — `acquisition.id` on a get_library or get_media_details record. On shelfmark, the id of a search_media `source: "discover"` row whose kind is book.'
+            'The movie, series or artist id: `acquisition.id` on a get_library or get_media_details record. On shelfmark, the id of a search_media `source: "discover"` row whose kind is book.'
         ),
     season: z
         .number()
@@ -133,21 +133,21 @@ const GetReleasesInput = toolInput({
         .nonnegative()
         .optional()
         .describe(
-            '[[sonarr|whisparr: {{and: sonarr=Sonarr; whisparr=Whisparr}} only — search one season rather than the whole series.]] [[whisparr: On Whisparr a season is a release year.]] [[radarr: Refused against Radarr.]]'
+            '[[sonarr|whisparr: {{and: sonarr=Sonarr; whisparr=Whisparr}} only: search one season rather than the whole series.]] [[whisparr: On Whisparr a season is a release year.]] [[radarr: Refused against Radarr.]]'
         ),
     episode: z
         .string()
         .min(1)
         .optional()
         .describe(
-            '[[sonarr: Sonarr only — one episode id, as an integer string (from get_media_details with episodes). Searches that episode alone, far faster than a season. Mutually exclusive with `season`.]]'
+            '[[sonarr: Sonarr only: one episode id, as an integer string (from get_media_details with episodes). Searches that episode alone, far faster than a season. Mutually exclusive with `season`.]]'
         ),
     album: z
         .string()
         .min(1)
         .optional()
         .describe(
-            '[[lidarr: Lidarr only — one album id of the artist `id`, as an integer string (from get_media_details at `detail: "full"`). Searches that album alone. Refused elsewhere.]]'
+            '[[lidarr: Lidarr only: one album id of the artist `id`, as an integer string (from get_media_details at `detail: "full"`). Searches that album alone. Refused elsewhere.]]'
         ),
     detail: DetailSchema,
     limit: LimitSchema,

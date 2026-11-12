@@ -185,7 +185,7 @@ const TriggerScanInput = z.object({
         .min(1)
         .optional()
         .describe(
-            'One {{or: radarr=movie; sonarr|whisparr=series; lidarr=Lidarr artist; grimmory=book}} id — `acquisition.id` on a get_library record. Omit with action: "scan" to scan the whole library.'
+            'One {{or: radarr=movie; sonarr|whisparr=series; lidarr=Lidarr artist; grimmory=book}} id: `acquisition.id` on a get_library record. Omit with action: "scan" to scan the whole library.'
         ),
     library: z
         .string()

@@ -115,7 +115,7 @@ const setWatchedInput = byMediaServers(ids => z.object({
         .min(1)
         .optional()
         .describe(
-            '[[jellyfin: The Jellyfin item id — 32 hex characters. `playback.itemId` on a get_library or get_media_details record, or the `itemId` get_playback reports.]]' +
+            '[[jellyfin: The Jellyfin item id: 32 hex characters. `playback.itemId` on a get_library or get_media_details record, or the `itemId` get_playback reports.]]' +
                 withBoth(ids, 'Or `media_servers.jellyfin.itemId` when Plex is the primary media server.') +
                 ' [[grimmory: A book is `grimmory:<book id>`.]] [[radarr|sonarr: Not a {{or: radarr=Radarr; sonarr=Sonarr}} id.]]'
         ),

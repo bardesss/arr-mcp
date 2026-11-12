@@ -145,7 +145,7 @@ const UpdateMediaInput = z.object({
         .min(1)
         .optional()
         .describe(
-            "The item's id within that service — `acquisition.id` on a get_library or get_media_details record. [[lidarr: Omit it with `monitored` or `monitor_new_items` alone to reach every artist.]]"
+            "The item's id within that service: `acquisition.id` on a get_library or get_media_details record. [[lidarr: Omit it with `monitored` or `monitor_new_items` alone to reach every artist.]]"
         ),
     quality_profile: z.string().optional().describe('Profile name or id to switch to.'),
     root_folder: z
@@ -179,7 +179,7 @@ const UpdateMediaInput = z.object({
     tags: z
         .array(z.string())
         .optional()
-        .describe('Tag labels or ids that already exist. Replaces the whole set — pass [] to clear it.'),
+        .describe('Tag labels or ids that already exist. Replaces the whole set: pass [] to clear it.'),
     title: z.string().min(1).optional().describe('[[grimmory: Deprecated: use update_book.]]'),
     authors: z.array(z.string().min(1)).min(1).optional().describe('[[grimmory: Deprecated: use update_book.]]'),
     series: z.string().optional().describe('[[grimmory: Deprecated: use update_book.]]'),

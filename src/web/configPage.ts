@@ -33,14 +33,14 @@ import { layout, tabBar } from './pages.ts';
  *
  * **A secret is never rendered back.** Credentials render as empty fields
  * meaning "unchanged", so a saved page or a screenshot cannot carry them. Blank
- * therefore never means "clear this" — removing the instance does.
+ * therefore never means "clear this"; removing the instance does.
  *
  * **Each card is its own form**, so a save touches exactly the instance it came
  * from rather than rewriting every other service on screen. That holds for the
  * three access cards at the bottom too, and did not always: they shared one
  * button, which by sitting last on the page read as a global save while every
- * card above saved itself. One rule now — the card you edited is the card you
- * save — and one route per card in `routes.ts` to enforce it, each carrying
+ * card above saved itself. One rule now (the card you edited is the card you
+ * save) and one route per card in `routes.ts` to enforce it, each carrying
  * forward the config it does not own.
  *
  * **Nothing here is `type="password"`.** That attribute is what makes browsers
@@ -60,13 +60,13 @@ const THEMES: readonly { key: Theme; label: string }[] = [
     { key: 'light', label: 'Light' }
 ];
 
-/** Alphabetical, unlike `ServiceIdSchema.options` — which is declaration order
+/** Alphabetical, unlike `ServiceIdSchema.options`, which is declaration order
  *  and reads as arbitrary to anyone looking for their service in the list. */
 const SERVICE_IDS_ALPHABETICAL: readonly ServiceId[] = [...SERVICE_IDS].sort();
 
 /**
  * The types the add dialog offers. A service that cannot have a second
- * instance and already has one is not a choice — offering it only to answer
+ * instance and already has one is not a choice: offering it only to answer
  * "already configured" wastes the click. The multi-instance types are always
  * here, so this list is never empty.
  */
@@ -92,7 +92,7 @@ type AnyService = {
 /**
  * Every way of saying "do not fill this in" that anything actually reads.
  *
- * `autocomplete="off"` is the standard one and does nothing on its own — Chrome
+ * `autocomplete="off"` is the standard one and does nothing on its own: Chrome
  * and every major extension ignore it for fields they consider credentials. The
  * rest are per-vendor opt-outs, which they do honour. Dashlane reads
  * `data-form-type` off the form, so that one is on the `<form>` tags.
@@ -164,7 +164,7 @@ export function defaultUserNote(type: string, users: readonly string[] | undefin
         return `${purpose} Type the name. With scripting on, the users ${type} reports are offered as you type.`;
     }
     if (users === undefined) {
-        return `${purpose} ${type} did not answer when asked who its users are, so there is nothing to pick from — type the name.`;
+        return `${purpose} ${type} did not answer when asked who its users are, so there is nothing to pick from. Type the name.`;
     }
     if (users.length === 0) return `${purpose} ${type} reports no users yet.`;
     return `${purpose} Pick one of the ${users.length} users ${type} reported, or type another.`;
@@ -216,13 +216,13 @@ function serviceFields(instance: ServiceInstance, prefix: string): SafeHtml {
  * The result of a **Test**, in the card that asked for it.
  *
  * `testConnection` already returns kind, detail and remedy, which is why the
- * dashboard shows a diagnosis rather than a tick — the same reasoning applies
+ * dashboard shows a diagnosis rather than a tick; the same reasoning applies
  * here, and more so: this is the page you are on *because* something is wrong.
  */
 function testResult(d: ConnectionDiagnosis): SafeHtml {
     if (d.ok) {
         return html`<div class="msg ok" style="margin:.75rem 0 0">
-            Reachable in ${d.latency_ms} ms${d.version === undefined ? raw('') : html` — version ${d.version}`}. Not
+            Reachable in ${d.latency_ms} ms${d.version === undefined ? raw('') : html`, version ${d.version}`}. Not
             saved yet: this tested the fields as they are on screen.
         </div>`;
     }
@@ -268,19 +268,19 @@ function instanceCard(
 
         ${serviceTraits(instance.type).readOnly
             ? html`<p class="note" style="margin-top:.75rem">Read-only: arr-mcp never writes to ${instance.type}, so there is nothing to grant.</p>`
-            : html`<p class="note" style="margin-top:.75rem">Writes — both off by default, and granted per instance.</p>
-                  ${checkbox(`${p}.safe_write`, 'safe_write', 'safe_write — searches, monitoring, request verdicts', service.permissions.safe_write)}
+            : html`<p class="note" style="margin-top:.75rem">Writes: both off by default, and granted per instance.</p>
+                  ${checkbox(`${p}.safe_write`, 'safe_write', 'safe_write: searches, monitoring, request verdicts', service.permissions.safe_write)}
                   ${checkbox(
                       `${p}.destructive`,
                       'destructive',
-                      'destructive — deletes files, queue items and requests (implies safe_write)',
+                      'destructive: deletes files, queue items and requests (implies safe_write)',
                       service.permissions.destructive
                   )}`}
         ${serviceTraits(instance.type).fields.has('allow_metadata_repair')
             ? html`${checkbox(
                   `${p}.allow_metadata_repair`,
                   'allow_metadata_repair',
-                  'allow_metadata_repair — let fix_metadata repair Plex metadata',
+                  'allow_metadata_repair: let fix_metadata repair Plex metadata',
                   (service as { allow_metadata_repair?: boolean }).allow_metadata_repair ?? true
               )}
               <p class="note">On by default. The repair also needs destructive.</p>`
@@ -376,9 +376,9 @@ const revealPanel = (r: Revealed): SafeHtml => html`<div class="panel">
 </div>`;
 
 const TIERS: readonly { key: string; label: string }[] = [
-    { key: 'read', label: 'read — no writes' },
-    { key: 'write', label: 'write — searches, monitoring, request verdicts' },
-    { key: 'destructive', label: 'destructive — deletes files, queue items and requests (implies write)' }
+    { key: 'read', label: 'read: no writes' },
+    { key: 'write', label: 'write: searches, monitoring, request verdicts' },
+    { key: 'destructive', label: 'destructive: deletes files, queue items and requests (implies write)' }
 ];
 
 const EXPIRIES: readonly { key: string; label: string }[] = [
@@ -492,12 +492,12 @@ function managementKeyCard(opts: {
  *
  * It used to sit under the cards with every field showing at once, because
  * following the service picker needs scripting and this page keeps its
- * JavaScript to what genuinely needs it. That is still the rule — it is just no
+ * JavaScript to what genuinely needs it. That is still the rule; it is just no
  * longer a reason to make everyone read four fields that do not apply to them.
  * Both behaviours here are enhancements: `data-only` says which types a field
  * belongs to and the picker hides the rest, and the dialog is opened by
  * `showModal()`. With scripting off, a `<noscript>` rule in `layout` styles the
- * dialog back into the page and every field shows — exactly the form as it was.
+ * dialog back into the page and every field shows, exactly the form as it was.
  *
  * The server still validates either way, and answers with the specific thing to
  * do; those messages are written for a reader who saw everything at once.
@@ -606,7 +606,7 @@ function addDialog(
                      before anything is written to config.yaml.
 
                      Scripted, this posts through fetch and fills #add-test-result
-                     below without leaving the page — because a re-render would
+                     below without leaving the page, because a re-render would
                      have to either clear the key you just typed or echo it back
                      into the HTML, and this file does not echo secrets. With
                      scripting off it is an ordinary submit: the server renders
@@ -984,7 +984,7 @@ export function configPage(opts: {
      *  the result of what you did. */
     openInstance?: string | undefined;
     /** The add dialog's own Test, which has no instance id to key on because
-     *  the instance does not exist yet. Only the unscripted path reaches this —
+     *  the instance does not exist yet. Only the unscripted path reaches this:
      *  with scripting the result is fetched and filled in client-side. */
     testedAdd?: ConnectionDiagnosis | undefined;
     message?: { kind: 'ok' | 'err'; text: string } | undefined;
@@ -1032,8 +1032,8 @@ export function configPage(opts: {
             <button type="submit" form="discover-form" class="ghost">Find services</button>
             <span class="note" style="margin:0">
                 ${instances.length === 0
-                    ? raw('Nothing is configured yet — anything you leave out is simply absent, not broken.')
-                    : raw('Saving applies immediately — no restart. Each instance is saved on its own.')}
+                    ? raw('Nothing is configured yet. Anything you leave out is simply absent, not broken.')
+                    : raw('Saving applies immediately, with no restart. Each instance is saved on its own.')}
             </span>
         </div>
 
@@ -1046,7 +1046,7 @@ export function configPage(opts: {
                 keys,
                 opts.confirmingRemoval,
                 opts.tested?.instance === i.id ? opts.tested.diagnosis : undefined,
-                // Collapsed by default — the page is a stack inventory first.
+                // Collapsed by default: the page is a stack inventory first.
                 // Three things reopen a card: a Test whose result is inside it,
                 // a removal waiting on a second click, and whatever you last
                 // submitted.
@@ -1067,7 +1067,7 @@ export function configPage(opts: {
                 label: 'New password',
                 secret: true,
                 placeholder: 'unchanged',
-                note: 'Leave blank to keep the current password. Only a hash is stored — it cannot be read back.'
+                note: 'Leave blank to keep the current password. Only a hash is stored, so it cannot be read back.'
             })}
             <div class="row" style="margin-top:1rem">
                 <button type="submit">Save sign-in</button>
@@ -1121,16 +1121,16 @@ export function configPage(opts: {
             )}
             <!-- The required-for-series line comes first and is unhedged. It
                  used to be the second half of the second paragraph, under a
-                 heading that said "most stacks do not need this" — so someone
+                 heading that said "most stacks do not need this", so someone
                  looking for a series' IMDb score read the discouragement and
                  stopped. That is not a hypothetical: it is how this page was
                  found to be wrong. -->
             <p class="note">
                 <strong>Required for IMDb ratings on TV series.</strong> Leave this off and
-                <span class="mono">rating_source: imdb</span> on a series matches nothing at all — not
+                <span class="mono">rating_source: imdb</span> on a series matches nothing at all, not
                 because your shows are unrated, but because nothing else in the stack has that number.
                 Sonarr reports one flat TVDB rating, and Seerr’s <span class="mono">/tv</span> ratings are
-                Rotten Tomatoes only; there is no combined endpoint for TV upstream. Films are unaffected —
+                Rotten Tomatoes only; there is no combined endpoint for TV upstream. Films are unaffected:
                 Radarr and Seerr both supply IMDb for those.
             </p>
             <p class="note">
@@ -1173,7 +1173,7 @@ export function configPage(opts: {
                 name: 'auth.allowed_hosts',
                 label: 'Allowed hosts (comma separated)',
                 value: opts.config.auth.allowed_hosts.join(', '),
-                note: 'Leave empty to accept any Host — right for a LAN container reached by IP. Applies immediately; pin the wrong name and you will lock yourself out until you edit config.yaml by hand.'
+                note: 'Leave empty to accept any Host, which is right for a LAN container reached by IP. Applies immediately; pin the wrong name and you will lock yourself out until you edit config.yaml by hand.'
             })}
             ${checkbox(
                 'auth.allow_token_in_url',
@@ -1192,7 +1192,7 @@ export function configPage(opts: {
             <p class="note">
                 For clients that can only be given a URL and no headers. The token then travels in the
                 address, so a reverse proxy's access log or the client's own logs will hold a working
-                credential — revoke it above and create a new one if that happens. This does not make Home Assistant work on
+                credential; revoke it above and create a new one if that happens. This does not make Home Assistant work on
                 its own: its MCP client also needs the older SSE transport, which this server does not
                 serve.
             </p>

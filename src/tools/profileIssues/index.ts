@@ -343,7 +343,7 @@ const GetProfileIssuesOutput = PagedOutputSchema.extend({
         .string()
         .optional()
         .describe(
-            "Present when a fact about the stack's config, not this call, needs stating — no arr " +
+            "Present when a fact about the stack's config, not this call, needs stating: no arr " +
                 'service configured at all, or no `profilarr` to check drift against.'
         )
 });
@@ -366,7 +366,7 @@ export function registerGetProfileIssues(
                 'profiles and what an instance actually holds]]. Each profile is checked on its own, so a finding ' +
                 'on some profiles says nothing about which others score the same format. Drift findings are ' +
                 'instance-scoped, not tied to any one profile, and are unaffected by the `profile` filter. ' +
-                'Read-only — every `remedy` is a change to make in [[profilarr: Profilarr when it syncs that profile, or in ]]' +
+                'Read-only: every `remedy` is a change to make in [[profilarr: Profilarr when it syncs that profile, or in ]]' +
                 'the arr itself[[profilarr:  when it does not]]; a floor fix_profile can fix comes back as a step in `next_steps`. Use it when a profile grabs the wrong release or ' +
                 'never upgrades; why one title is missing is diagnose_media.',
             outputSchema: GetProfileIssuesOutput,

@@ -589,7 +589,7 @@ const getLibraryOutput = byMediaServers(ids => PagedOutputSchema.extend({
         .string()
         .optional()
         .describe(
-            'Present when a fact about the stack\'s config, not this call, needs stating — no media server configured at all, or one configured with no default_user.' +
+            'Present when a fact about the stack\'s config, not this call, needs stating: no media server configured at all, or one configured with no default_user.' +
                 withBoth(ids, 'Also when the secondary media server is not read because its default_user is missing (Jellyfin) or matches no user.')
         )
 }));

@@ -134,7 +134,7 @@ export function registerRespondToRequest(
         name: 'respond_to_request',
         title: 'Approve or decline a request',
         description:
-            'Approves or declines a pending Seerr request. Approving hands it to Radarr or Sonarr, which will search for it and download it — so it costs disk space and bandwidth even though the decision itself is reversible. Take `id` from get_requests. Previews first; confirm to apply the verdict.',
+            'Approves or declines a pending Seerr request. Approving hands it to Radarr or Sonarr, which will search for it and download it, so it costs disk space and bandwidth even though the decision itself is reversible. Take `id` from get_requests. Previews first; confirm to apply the verdict.',
         inputSchema: RespondToRequestInput,
         service: 'seerr',
         operation: 'respond_to_request',
@@ -199,7 +199,7 @@ export function registerDeleteRequest(
         name: 'delete_request',
         title: 'Delete a request',
         description:
-            'Deletes a Seerr request record entirely. This removes the request, not the media — anything already downloaded stays on disk and in Radarr or Sonarr. Use respond_to_request with `decline` to refuse a request while keeping the record. Take `id` from get_requests. Previews first; confirm to delete it.',
+            'Deletes a Seerr request record entirely. This removes the request, not the media; anything already downloaded stays on disk and in Radarr or Sonarr. Use respond_to_request with `decline` to refuse a request while keeping the record. Take `id` from get_requests. Previews first; confirm to delete it.',
         inputSchema: DeleteRequestInput,
         service: 'seerr',
         operation: 'delete_request',

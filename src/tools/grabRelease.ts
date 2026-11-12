@@ -108,7 +108,7 @@ const GrabReleaseInput = z.object({
         .string()
         .min(1)
         .optional()
-        .describe('The {{or: radarr=movie; sonarr|whisparr=series; lidarr=artist}} id the release is for, as an integer string[[shelfmark: , or a Shelfmark book id]] — the same id get_releases was called with. Required for the guid form.'),
+        .describe('The {{or: radarr=movie; sonarr|whisparr=series; lidarr=artist}} id the release is for, as an integer string[[shelfmark: , or a Shelfmark book id]]: the same id get_releases was called with. Required for the guid form.'),
     season: z
         .number()
         .int()
@@ -143,7 +143,7 @@ const GrabReleaseInput = z.object({
         .min(1)
         .optional()
         .describe(
-            'A magnet link, sent straight to transmission or qbittorrent. Mutually exclusive with `guid` — nothing about it goes through an *arr, so nothing imports it into your library either.'
+            'A magnet link, sent straight to transmission or qbittorrent. Mutually exclusive with `guid`: nothing about it goes through an *arr, so nothing imports it into your library either.'
         )
 });
 

@@ -59,7 +59,7 @@ const wrongId = (err: ServiceError, mediaType: 'movie' | 'tv', tmdbId: number): 
 
 const RequestMediaInput = z.object({
     media_type: z.enum(['movie', 'tv']).describe('movie or tv.'),
-    media_id: z.number().int().describe('The TMDB id. Not a Radarr, Sonarr or Jellyfin id — those will not resolve.'),
+    media_id: z.number().int().describe('The TMDB id. Not a Radarr, Sonarr or Jellyfin id; those will not resolve.'),
     seasons: z
         .array(z.number().int().min(0))
         .optional()
@@ -84,7 +84,7 @@ export function registerRequestMedia(
         name: 'request_media',
         title: 'Request a film or series',
         description:
-            'Asks Seerr for a film or series, the way a household member would through its web UI — it enters the approval queue and counts against that user\'s quota. This is the tool for "request X". It is not add_media: add_media writes straight into Radarr or Sonarr, skipping approval and quota entirely, and needs that service\'s own write permission. `media_id` is a TMDB id — take one from search_media or discover_media (an IMDb tt… id is not one: look it up as imdb:tt… to get its TMDB id); Seerr resolves the TVDB id itself. For a series, `seasons` defaults to every season. `user` names whose quota and approval trail it lands in, and requesting as anyone but the configured default user needs services.seerr.allow_other_users. Previews first; confirm to create the request.',
+            'Asks Seerr for a film or series, the way a household member would through its web UI: it enters the approval queue and counts against that user\'s quota. This is the tool for "request X". It is not add_media: add_media writes straight into Radarr or Sonarr, skipping approval and quota entirely, and needs that service\'s own write permission. `media_id` is a TMDB id: take one from search_media or discover_media (an IMDb tt… id is not one: look it up as imdb:tt… to get its TMDB id); Seerr resolves the TVDB id itself. For a series, `seasons` defaults to every season. `user` names whose quota and approval trail it lands in, and requesting as anyone but the configured default user needs services.seerr.allow_other_users. Previews first; confirm to create the request.',
         inputSchema: RequestMediaInput,
         service: 'seerr',
         operation: 'request_media',

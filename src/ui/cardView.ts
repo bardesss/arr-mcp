@@ -281,7 +281,7 @@ html, body { margin: 0; background: transparent; color: var(--fg); font: 14px/1.
     var status = statusOf(card);
     var node = el("div", "tile");
     node.style.setProperty("--status", status.color);
-    node.title = title + (card.year ? " (" + card.year + ")" : "") + " — " + status.label;
+    node.title = title + (card.year ? " (" + card.year + ")" : "") + ": " + status.label;
     var art = artwork(card, title);
     art.appendChild(el("span", "state", status.label));
     node.appendChild(art);

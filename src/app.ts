@@ -107,10 +107,10 @@ const ROLES: readonly (readonly [ServiceId, string])[] = [
 ];
 
 const INSTRUCTIONS = `Reading:
-- \`get_library\` is the join across your library services and media server — the only tool that can say a file one service believes in is missing from the other.
+- \`get_library\` is the join across your library services and media server: the only tool that can say a file one service believes in is missing from the other.
 - \`diagnose_media\` answers "why can I not play this" in one call. Prefer it over assembling that answer from several reads.
 - Call the tool that answers the question directly. A tool's \`service\` field lists the services it takes on this stack, so there is no need to call \`get_stack_health\` first to find one.
-- Every list is a window: \`items\`, \`total\`, \`returned\`, \`offset\`, \`truncated\`. \`total\` counts the whole list, never the window — it is the number to report when someone asks how many. \`offset + returned < total\` means there is another page; page two of 50 is \`offset: 50\`.
+- Every list is a window: \`items\`, \`total\`, \`returned\`, \`offset\`, \`truncated\`. \`total\` counts the whole list, never the window; it is the number to report when someone asks how many. \`offset + returned < total\` means there is another page; page two of 50 is \`offset: 50\`.
 - \`degraded\` names services that did not answer. A short list may be an outage rather than an answer, so say which it was.
 
 Writing:

@@ -227,7 +227,7 @@ const DiscoverMediaInput = toolInput({
         .string()
         .optional()
         .describe(
-            '[[seerr: A TMDB numeric id — find something like it. Seerr only, and mutually exclusive with genre/year/min_rating: it answers a different question.]]'
+            '[[seerr: A TMDB numeric id: find something like it. Seerr only, and mutually exclusive with genre/year/min_rating: it answers a different question.]]'
         ),
     detail: DetailSchema,
     limit: LimitSchema,
@@ -239,7 +239,7 @@ const DiscoverMediaOutput = PagedOutputSchema.extend({
         .string()
         .optional()
         .describe(
-            'Present when an empty list needs defending — for example when nothing configured could answer. Report the reason rather than saying nothing matched.'
+            'Present when an empty list needs defending, for example when nothing configured could answer. Report the reason rather than saying nothing matched.'
         )
 });
 

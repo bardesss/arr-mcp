@@ -299,13 +299,13 @@ const AddMediaInput = z.object({
         .enum(['all', 'future', 'missing', 'existing', 'firstSeason', 'lastSeason', 'pilot', 'first', 'latest', 'none'])
         .optional()
         .describe(
-            '[[sonarr|whisparr: {{or: sonarr=Sonarr; whisparr=Whisparr}}: which seasons to monitor. `future` is "only what has not aired yet", `all` is everything, `none` monitors the series but no season.]] [[whisparr: `pilot` is Sonarr only — a site has no pilot scene.]] [[lidarr: Lidarr: which albums — `first` or `latest` album, or `all`, `future`, `missing`, `existing` or `none`; `firstSeason`, `lastSeason` and `pilot` are refused there, and `first` and `latest` everywhere else.]] Omit for the service\'s own default. [[radarr: Radarr has no seasons — use `monitored` there.]]'
+            '[[sonarr|whisparr: {{or: sonarr=Sonarr; whisparr=Whisparr}}: which seasons to monitor. `future` is "only what has not aired yet", `all` is everything, `none` monitors the series but no season.]] [[whisparr: `pilot` is Sonarr only: a site has no pilot scene.]] [[lidarr: Lidarr: which albums, `first` or `latest` album, or `all`, `future`, `missing`, `existing` or `none`; `firstSeason`, `lastSeason` and `pilot` are refused there, and `first` and `latest` everywhere else.]] Omit for the service\'s own default. [[radarr: Radarr has no seasons: use `monitored` there.]]'
         ),
     monitor_new_items: z
         .enum(['all', 'none', 'new'])
         .optional()
         .describe(
-            '[[lidarr: Lidarr only: the rule for albums Lidarr discovers later — `all`, `new` (only ones released on or after the newest album it already has) or `none`, as on set_monitoring. With no `monitor`, it also sets the albums the artist is added with. Omitted, the artist gets `all`: the root folder\'s own default applies only to an artist Lidarr adds on import.]]'
+            '[[lidarr: Lidarr only: the rule for albums Lidarr discovers later: `all`, `new` (only ones released on or after the newest album it already has) or `none`, as on set_monitoring. With no `monitor`, it also sets the albums the artist is added with. Omitted, the artist gets `all`: the root folder\'s own default applies only to an artist Lidarr adds on import.]]'
         ),
     metadata_profile: z
         .string()
@@ -327,7 +327,7 @@ const AddMediaInput = z.object({
         .array(z.string().min(1))
         .optional()
         .describe(
-            'Tag labels or ids the service already has. An unknown label is refused, listing the ones that exist — nothing here ever creates a tag.'
+            'Tag labels or ids the service already has. An unknown label is refused, listing the ones that exist; nothing here ever creates a tag.'
         ),
     search_now: z
         .boolean()

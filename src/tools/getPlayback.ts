@@ -33,8 +33,8 @@ const ScopeSchema = z
     .default('active')
     .describe(
         '`active` (default): now playing and what can be resumed. `next_up`: the next unwatched episode of every ' +
-            "series this user has in progress — your media server's own answer to what to watch next. `history`: " +
-            'recently watched movies and episodes, newest first — on Jellyfin including plays its activity log holds ' +
+            "series this user has in progress, your media server's own answer to what to watch next. `history`: " +
+            'recently watched movies and episodes, newest first, on Jellyfin including plays its activity log holds ' +
             'that never got marked played, such as an offline client syncing back.'
     );
 
@@ -157,7 +157,7 @@ const GetPlaybackOutput = PagedOutputSchema.extend({
         .string()
         .optional()
         .describe(
-            "Present when a fact about the stack's config, not this call, needs stating — for example no media server configured at all."
+            "Present when a fact about the stack's config, not this call, needs stating: for example no media server configured at all."
         )
 });
 

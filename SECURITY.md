@@ -8,7 +8,7 @@ That opens a channel only you and I can read, which is what you want before
 anything is fixed.
 
 If that page is unavailable to you for any reason, open a normal issue saying
-you have found something and want a private channel — **without the details** —
+you have found something and want a private channel, **without the details**,
 and I will open one.
 
 Please include, as far as you have it: the arr-mcp version, how it is deployed
@@ -49,7 +49,7 @@ Things that are known and documented rather than vulnerabilities:
 
 - **OAuth tokens are not revocable before they expire.** `/mcp` verifies an
   `auth.oauth` token's signature, issuer, audience, scope and expiry, but
-  does not introspect it — a token revoked at the issuer is still accepted
+  does not introspect it. A token revoked at the issuer is still accepted
   here until it runs out on its own. The config UI's own credential is
   separate and unaffected. See
   [MCP07](docs/security.md#mcp07-insufficient-authentication-and-authorization).

@@ -20,14 +20,14 @@ issue templates builds no `main` image, so `main` can sit behind the branch by
 docs commits. A release always builds. Nothing else from this pipeline: the
 separate **Preview image** workflow pushes `preview-<name>` for a branch someone
 is testing, and never touches the release tags. The release workflow fails the job when a release
-computes no version tag — a release that publishes only `latest` is a silent
+computes no version tag: a release that publishes only `latest` is a silent
 policy violation, and it has happened once.
 
 ## The MCP Registry entry
 
 `server.json` is the listing at `registry.modelcontextprotocol.io`, which is how
 MCP clients discover this server. The `registry` job publishes it after the
-image, on releases only, using the workflow's own OIDC identity — there is no
+image, on releases only, using the workflow's own OIDC identity. There is no
 token to store or rotate.
 
 Two things it depends on, both of which fail late:
@@ -35,14 +35,14 @@ Two things it depends on, both of which fail late:
 - **The published image must carry `LABEL io.modelcontextprotocol.server.name`
   matching the `name` in `server.json`.** That label is the registry's only
   proof we own `ghcr.io/bardesss/arr-mcp`, and it is read from the image at
-  publish time — so the tag must already be pushed, which is why `registry`
+  publish time, so the tag must already be pushed, which is why `registry`
   needs `image`.
 - **The tag in `packages[0].identifier` must be the one the release pushed.**
   release-please bumps `version`, but cannot rewrite a tag embedded in a string,
   so the job derives both from the release version with `jq`.
 
 The `mcp-publisher` binary is pinned to a release **and** its SHA-256, because
-that step runs with `id-token: write` — the upstream `releases/latest` one-liner
+that step runs with `id-token: write`; the upstream `releases/latest` one-liner
 would let a swapped asset mint an OIDC token in this repository's name. Nothing
 bumps the pin automatically; move the version and the digest together:
 
@@ -58,14 +58,14 @@ mcp-publisher validate server.json
 ```
 
 It checks the schema and the registry's rules. It does **not** check the image
-label — that only fails during a real publish.
+label. That only fails during a real publish.
 
 ## Forcing a version, and the three ways it has gone wrong
 
 Since 1.0 the bump follows the commit type and nothing needs forcing
 day to day. A `Release-As:` footer is for the rare release whose number
 release-please would get wrong. When one is used, **it goes on the last commit,
-in the PR itself** — not in a follow-up, and not conditional on anything.
+in the PR itself**, not in a follow-up, and not conditional on anything.
 
 Before 1.0, `CONTRIBUTING.md` reserved minors for roadmap phases, so every
 phase needed this footer. That scheme is gone, but how it failed still applies
@@ -83,7 +83,7 @@ It went wrong three times, in three different ways:
 
 The third is the subtle one. **Squashing concatenates every commit body into one
 message**, so a footer that was the last line of the last commit ends up in the
-*middle* of the squashed body — and release-please only honours `Release-As:` as
+*middle* of the squashed body, and release-please only honours `Release-As:` as
 a trailing footer. Having it four times over made no difference.
 
 So when a version is being forced, either merge **without** squashing, or set
@@ -118,7 +118,7 @@ is far cheaper to notice there than after the tag exists.
 ## If the release PR is BLOCKED with nothing failing
 
 `main` requires the `check` and `docker` status checks, with `enforce_admins:
-true` — so nobody merges without them, including you. If the release PR shows
+true`, so nobody merges without them, including you. If the release PR shows
 `mergeable: MERGEABLE` but `mergeStateStatus: BLOCKED`, and its checks section
 is **empty rather than red**, the runs are waiting for approval:
 
@@ -126,7 +126,7 @@ is **empty rather than red**, the runs are waiting for approval:
 gh run list --branch release-please--branches--main--components--arr-mcp
 ```
 
-A column of `action_required` runs at `0s` confirms it — queued, never started.
+A column of `action_required` runs at `0s` confirms it: queued, never started.
 Approve the newest one in the Actions tab, or:
 
 ```bash
@@ -136,7 +136,7 @@ gh api repos/bardesss/arr-mcp/actions/runs/<id>/approve --method POST
 Approve it **after** the last feature PR merges. Every merge makes
 release-please push again, which supersedes the run you just approved.
 
-This gated 0.4.0 and 0.5.0 — fourteen zero-second runs between them, and both
+This gated 0.4.0 and 0.5.0: fourteen zero-second runs between them, and both
 releases only merged because one run was approved by hand.
 
 ### What is actually known, and what is not
@@ -154,7 +154,7 @@ What is **not** explained is why the gate came and went:
 0.5.1          success 50s          no gated run, nothing approved
 ```
 
-0.5.1's CI ran unassisted at 12:11 on 2026-08-06 — **before** the
+0.5.1's CI ran unassisted at 12:11 on 2026-08-06, **before** the
 `RELEASE_PLEASE_TOKEN` secret existed (12:29) and before the `token:` line
 merged (12:31). So the approval state had already cleared on its own, most
 likely because approving a run stops GitHub gating that actor. Neither the
@@ -168,27 +168,27 @@ when the secret is absent, because an unset secret is the empty string. It has
 never been observed fixing a gated release, because no release has been gated
 since it landed.
 
-The `gh run list` check above is the part that has actually earned its place —
+The `gh run list` check above is the part that has actually earned its place:
 it turns "the release PR is mysteriously stuck" into a one-command answer.
 
 ### Maintaining the secret
 
 It is a fine-grained PAT scoped to this repository, with **Contents:
 read/write** and **Pull requests: read/write**. Fine-grained PATs expire, and
-when this one does the `||` fallback quietly reverts to `GITHUB_TOKEN` — no
+when this one does the `||` fallback quietly reverts to `GITHUB_TOKEN`: no
 error, just the old symptom possibly returning. To replace it:
 
 ```bash
 gh secret set RELEASE_PLEASE_TOKEN --repo bardesss/arr-mcp   # paste at the prompt
 ```
 
-Set it interactively, never as a shell argument — an argument lands in shell
+Set it interactively, never as a shell argument: an argument lands in shell
 history.
 
 ## Check `main` contains what you think it does
 
 **Before merging the release PR.** A release PR describes the commits on `main`
-right now — not the branch you were working on, and not a fix pushed to that
+right now: not the branch you were working on, and not a fix pushed to that
 branch after its PR merged.
 
 ```bash
@@ -199,7 +199,7 @@ git log --oneline origin/main -10
 Read the list against what you believe the release contains. Anything missing
 is missing from the release.
 
-This is not hypothetical. **0.3.0 shipped without seven adapter fixes** — a
+This is not hypothetical. **0.3.0 shipped without seven adapter fixes**: a
 crash in `get_subtitles`, ratings reporting a source called `votes` worth
 164018, Jellyfin search returning no external ids at all. The fixes existed,
 were tested, and were pushed to the feature branch about a minute after its PR
@@ -222,13 +222,13 @@ was no published image for two releases after there was.
 Before merging the release PR, check every one of these and fix what has
 drifted:
 
-- [ ] **Service line, requirements and thanks** — every service the release
+- [ ] **Service line, requirements and thanks**: every service the release
       supports, with the minimum version `src/services/versions.ts` enforces
-- [ ] **Quick start** — the pinned image tag in the example exists, and the
+- [ ] **Quick start**: the pinned image tag in the example exists, and the
       instructions work start to finish for someone who has never run it
-- [ ] **Tool count and example questions** — match the tools the release
+- [ ] **Tool count and example questions**: match the tools the release
       exposes, and nothing it does not
-- [ ] **Contributing** — the testing status of each adapter is still true
+- [ ] **Contributing**: the testing status of each adapter is still true
 
 A release that ships without its README change is not finished.
 
@@ -236,22 +236,22 @@ A release that ships without its README change is not finished.
 
 - [ ] `git log --oneline origin/main` contains everything you think the release does
 - [ ] `docker run` the published tag against a real stack, not just the build
-- [ ] `npm run integration` — calls every tool against a real stack and fails
+- [ ] `npm run integration`: calls every tool against a real stack and fails
       if any tool has no case at all
-- [ ] `npm run multi-instance` — the same stack with Radarr and Sonarr
+- [ ] `npm run multi-instance`: the same stack with Radarr and Sonarr
       configured twice, when the release touched instance resolution
-- [ ] `/healthz` responds, and an unauthenticated `/mcp` request is rejected —
+- [ ] `/healthz` responds, and an unauthenticated `/mcp` request is rejected,
       including `/mcp?token=…` against a config with `allow_token_in_url` off
 
 Calling every tool matters more than it sounds. Adapters are tested against
 recorded fixtures, which prove the mapping and nothing else. Every defect that
-reached 0.3.0 — a null field crashing a tool, a query parameter that has to be
-asked for, an endpoint that answers 400 — was invisible to 396 passing tests
+reached 0.3.0 (a null field crashing a tool, a query parameter that has to be
+asked for, an endpoint that answers 400) was invisible to 396 passing tests
 and obvious within seconds of a real call.
 
 `npm run integration` is the mechanical form of "call every tool". It fails
 when `TOOL_NAMES` gains a tool no case covers, so a new tool cannot ship
-uncalled — which is exactly how 0.3.0 shipped a `get_subtitles` that crashed
+uncalled, which is exactly how 0.3.0 shipped a `get_subtitles` that crashed
 on the first real request.
 
 `npm run multi-instance` covers what `integration.ts` structurally cannot: it
@@ -262,7 +262,7 @@ would pass unchanged on a build where instance resolution was broken.
 It also renders every config UI page against the live stack, signs in, and
 asserts that no API key reaches the configuration form. Those cases are
 read-only and never save, so running the script cannot change your
-configuration — and since 0.6 it never writes to `config.yaml` at all
+configuration, and since 0.6 it never writes to `config.yaml` at all
 (`loadConfig(dir, { persist: false })`). Before that it silently backfilled a
 generated password into a real config, one that nothing ever printed.
 
@@ -279,22 +279,22 @@ reported a 23-hour-stale library as scanned a minute ago.
 
 ## Distribution
 
-- [x] [MCP registry](https://github.com/modelcontextprotocol/registry) listing —
+- [x] [MCP registry](https://github.com/modelcontextprotocol/registry) listing:
       `io.github.bardesss/arr-mcp`, published from `server.json` by the release
       workflow
-- [x] Unraid Community Applications **template** — `unraid/arr-mcp.xml`, guarded
+- [x] Unraid Community Applications **template**: `unraid/arr-mcp.xml`, guarded
       against drifting from the Dockerfile by `test/unraidTemplate.test.ts`
-- [ ] Unraid Community Applications **submission** — the template is ready; what
+- [ ] Unraid Community Applications **submission**: the template is ready; what
       is left is filing it, which happens under a personal CA account and so is
       not something the repo can do for you. See below.
-- [ ] r/selfhosted post — lead with the differentiator, not the feature list:
+- [ ] r/selfhosted post: lead with the differentiator, not the feature list:
       one server for the whole stack, a config page that diagnoses instead of
       printing pass/fail, and tool output treated as untrusted data
 - [ ] Link the release in the README's status callout
 
 Lead every listing with what no comparable project does. Fourteen of them
 exist; none ships a config UI and none addresses untrusted tool content.
-Discovery, not capability, is the binding constraint here — the unmaintained
+Discovery, not capability, is the binding constraint here: the unmaintained
 project this one succeeds still leads the field on stars.
 
 Umbrel, CasaOS, TrueNAS SCALE, Proxmox LXC and Helm were each considered and
@@ -306,7 +306,7 @@ the question is not reopened every release.
 
 The template is in the repo and tested; submitting it is a separate, manual act.
 The flow has changed more than once, so check it against Unraid's own docs
-before following this from memory — as of 2026-08 it is a submission portal at
+before following this from memory; as of 2026-08 it is a submission portal at
 [ca.unraid.net/submit](https://ca.unraid.net/submit) rather than a pull request
 to a templates repository.
 
@@ -316,7 +316,7 @@ What it wants beyond the XML:
   the template. This repo does not have one yet; the portal validates it as part
   of the submission and is the authority on its current shape.
 - **A support URL.** `unraid/arr-mcp.xml` points at GitHub issues. If a forum
-  thread is ever opened for arr-mcp, change it there — the drift test does not
+  thread is ever opened for arr-mcp, change it there; the drift test does not
   check where it points, only that it is set.
 - **A clean install on a real Unraid box** before submitting. The drift test
   proves the template agrees with the Dockerfile; it cannot prove CA renders it,

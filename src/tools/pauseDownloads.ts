@@ -52,7 +52,7 @@ const PauseDownloadsInput = z.object({
         .min(0)
         .optional()
         .describe(
-            'With action: "limit", the download cap in KiB/s — 0 removes the cap. Client-wide, never per item. Required for "limit" and ignored otherwise.'
+            'With action: "limit", the download cap in KiB/s; 0 removes the cap. Client-wide, never per item. Required for "limit" and ignored otherwise.'
         ),
     id: z
         .string()

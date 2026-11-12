@@ -143,12 +143,12 @@ export const TruncationSchema = z.looseObject({
     total: z
         .number()
         .int()
-        .describe('How many matched in total — the whole list, never the window. Compare against `returned` before reporting a count to anyone.'),
+        .describe('How many matched in total: the whole list, never the window. Compare against `returned` before reporting a count to anyone.'),
     returned: z.number().int().describe('How many are in `items`.'),
     offset: z.number().int().describe('How many were skipped. `offset + returned < total` means there is another page.'),
     truncated: z
         .boolean()
-        .describe('True when this is not the whole list — including on the last page of a paged walk, where the rest is behind you rather than ahead.')
+        .describe('True when this is not the whole list, including on the last page of a paged walk, where the rest is behind you rather than ahead.')
 });
 
 /**

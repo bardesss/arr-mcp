@@ -32,12 +32,12 @@ const TriggerSubtitleSearchInput = z.object({
     language: z
         .string()
         .min(2)
-        .describe('The two-letter code from the item\'s `missing` list — "nl", "en".'),
+        .describe('The two-letter code from the item\'s `missing` list: "nl", "en".'),
     search_anyway: z
         .boolean()
         .default(false)
         .describe(
-            'Search even when Bazarr does not list this item — or this language — as missing. The "I have Dutch subs and they are wrong" case; it may replace a subtitle you already have.'
+            'Search even when Bazarr does not list this item (or this language) as missing. The "I have Dutch subs and they are wrong" case; it may replace a subtitle you already have.'
         ),
     series_id: z
         .number()
@@ -59,7 +59,7 @@ export function registerTriggerSubtitleSearch(
         name: 'trigger_subtitle_search',
         title: 'Search for a subtitle',
         description:
-            'Asks Bazarr to go looking for one language of subtitles for one item it already tracks — the "it is missing Dutch subs and I do not want to wait for the next round" action. Takes `kind`, `id` and `language` exactly as get_subtitles reports them. By default it only searches for something Bazarr lists as missing; `search_anyway: true` searches regardless, which is how you replace a subtitle you already have but do not want (for an episode outside that list, pass `series_id` too). This queues a search and returns immediately; it does not wait, and finding a subtitle is not guaranteed. Previews first; confirm to run it.',
+            'Asks Bazarr to go looking for one language of subtitles for one item it already tracks, the "it is missing Dutch subs and I do not want to wait for the next round" action. Takes `kind`, `id` and `language` exactly as get_subtitles reports them. By default it only searches for something Bazarr lists as missing; `search_anyway: true` searches regardless, which is how you replace a subtitle you already have but do not want (for an episode outside that list, pass `series_id` too). This queues a search and returns immediately; it does not wait, and finding a subtitle is not guaranteed. Previews first; confirm to run it.',
         inputSchema: TriggerSubtitleSearchInput,
         target: { adapters, to: TARGET },
         operation: 'trigger_subtitle_search',
