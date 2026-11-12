@@ -450,7 +450,9 @@ is named or is the root folder's default, and the preview then says so. Lidarr
 adds by the artist's MusicBrainz id, from `search_media` with `source: "discover"`, and `external_id` is
 checked for that shape, as it is checked to be a plain integer on Radarr, Sonarr
 and Whisparr. `monitor` takes Lidarr's `first` and `latest` there, and
-`monitor_new_items` the rule for albums found later. `monitor: "none"` makes
+`monitor_new_items` the rule for albums found later. Sonarr takes
+`monitor_new_items` too, as `all` or `none`, for the seasons it finds later.
+`monitor: "none"` makes
 Lidarr add the artist itself unmonitored too, so it is refused unless
 `monitored: false` is given with it.
 

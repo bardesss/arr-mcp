@@ -157,7 +157,7 @@ const UpdateMediaInput = z.object({
         .enum(['all', 'none', 'new'])
         .optional()
         .describe(
-            '[[lidarr: Lidarr only: the standing rule for albums Lidarr discovers later. `none` is what a finished, stable library wants. Alone or with `monitored`, no other setting.]]'
+            '[[lidarr: Lidarr: the standing rule for albums Lidarr discovers later. `none` is what a finished, stable library wants. Alone or with `monitored`, no other setting.]][[sonarr:  Sonarr: `all` or `none`, whether seasons it finds later are monitored.]]'
         ),
     minimum_availability: z
         .enum(['announced', 'inCinemas', 'released'])
@@ -194,7 +194,7 @@ export function registerUpdateMedia(
         name: 'update_media',
         title: 'Change what a library item is set to',
         description:
-            '[[radarr|sonarr|lidarr: Changes settings on an item already in {{or: radarr=Radarr; sonarr=Sonarr; lidarr=Lidarr}}: quality profile, root folder, monitoring, tags]][[radarr: , Radarr\'s minimum availability]][[sonarr: , Sonarr\'s series type]][[lidarr: , Lidarr\'s metadata profile]][[radarr|sonarr|lidarr: .]] [[radarr: The only way to change a Radarr item\'s monitoring.]] [[grimmory: A Grimmory book is update_book.]] [[lidarr: On Lidarr, `id` is an artist; omit it with `monitored` or `monitor_new_items` to set every artist (`none` stops the wanted list growing by itself). The artist flag is not the album flag: albums keep their own, so stop wanting one with set_monitoring `level: "album"`. A new metadata profile applies at the artist\'s next refresh, which can remove albums.]] Takes `service` and `id`. Changing `root_folder` **moves the files on disk** unless `move_files: false`. `tags` replaces the whole set and an unknown tag is refused; get_instance_options lists profiles, folders and tags. Previews first; confirm to apply. Field reference: arr://docs/update_media.',
+            '[[radarr|sonarr|lidarr: Changes settings on an item already in {{or: radarr=Radarr; sonarr=Sonarr; lidarr=Lidarr}}: quality profile, root folder, monitoring, tags]][[radarr: , Radarr\'s minimum availability]][[sonarr: , Sonarr\'s series type and rule for new seasons]][[lidarr: , Lidarr\'s metadata profile]][[radarr|sonarr|lidarr: .]] [[radarr: The only way to change a Radarr item\'s monitoring.]] [[grimmory: A Grimmory book is update_book.]] [[lidarr: On Lidarr, `id` is an artist; omit it with `monitored` or `monitor_new_items` to set every artist (`none` stops the wanted list growing by itself). The artist flag is not the album flag: albums keep their own, so stop wanting one with set_monitoring `level: "album"`. A new metadata profile applies at the artist\'s next refresh, which can remove albums.]] Takes `service` and `id`. Changing `root_folder` **moves the files on disk** unless `move_files: false`. `tags` replaces the whole set and an unknown tag is refused; get_instance_options lists profiles, folders and tags. Previews first; confirm to apply. Field reference: arr://docs/update_media.',
         inputSchema: UpdateMediaInput,
         target: { adapters, to: TARGET },
         operation: 'update_media',
@@ -218,10 +218,16 @@ export function registerUpdateMedia(
             adapter
         ): Promise<WritePlan> {
             const lidarr = adapter.type === 'lidarr';
+            const sonarr = adapter.type === 'sonarr';
 
-            if (monitor_new_items !== undefined && !lidarr) {
-                throw new ServiceError('NotFound', service, 'monitor_new_items is a Lidarr option', {
-                    remedy: 'Only an artist has a rule for new albums. Drop it.'
+            if (monitor_new_items !== undefined && !lidarr && !sonarr) {
+                throw new ServiceError('NotFound', service, 'monitor_new_items is a Lidarr and Sonarr option', {
+                    remedy: 'Only an artist or a series has a rule for what it finds later. Drop it.'
+                });
+            }
+            if (sonarr && monitor_new_items === 'new') {
+                throw new ServiceError('NotFound', service, '`new` is a Lidarr rule', {
+                    remedy: 'Sonarr takes `all` or `none` for the seasons it finds later.'
                 });
             }
 
@@ -275,10 +281,11 @@ export function registerUpdateMedia(
                 minimum_availability === undefined &&
                 series_type === undefined &&
                 tags === undefined &&
-                metadata_profile === undefined
+                metadata_profile === undefined &&
+                monitor_new_items === undefined
             ) {
                 throw new Error(
-                    'Nothing to change. Name at least one of quality_profile, root_folder, monitored, tags, minimum_availability, series_type or metadata_profile.'
+                    'Nothing to change. Name at least one of quality_profile, root_folder, monitored, tags, minimum_availability, series_type, monitor_new_items or metadata_profile.'
                 );
             }
 
@@ -313,6 +320,12 @@ export function registerUpdateMedia(
             ]);
 
             const label = titled(current.title, current.year);
+            // Sonarr 3 has no such field, and its editor would drop it silently.
+            if (monitor_new_items !== undefined && current.monitorNewItems === undefined) {
+                throw new ServiceError('NotFound', service, `${service} reports no rule for new seasons`, {
+                    remedy: 'Sonarr has it from 4.0. Drop `monitor_new_items`, or set the seasons with set_monitoring.'
+                });
+            }
             const profile =
                 quality_profile === undefined
                     ? undefined
@@ -394,6 +407,16 @@ export function registerUpdateMedia(
                 changes.push('series type');
             }
 
+            const newItemsChanged = monitor_new_items !== undefined && monitor_new_items !== current.monitorNewItems;
+            if (newItemsChanged) {
+                effects.push(
+                    monitor_new_items === 'all'
+                        ? `Seasons ${service} finds later for ${label} are monitored, so their episodes are grabbed while the series is monitored.`
+                        : `Seasons ${service} finds later for ${label} start unmonitored. New episodes of a season that is already monitored are still monitored.`
+                );
+                changes.push('rule for new seasons');
+            }
+
             const tagIds = resolvedTags?.map(t => t.id);
             const tagsChanged =
                 tagIds !== undefined &&
@@ -436,6 +459,7 @@ export function registerUpdateMedia(
                     ...(monitored === undefined ? {} : { monitored }),
                     ...(minimum_availability === undefined ? {} : { minimumAvailability: minimum_availability }),
                     ...(series_type === undefined ? {} : { seriesType: series_type }),
+                    ...(newItemsChanged ? { monitorNewItems: monitor_new_items } : {}),
                     ...(tagIds === undefined ? {} : { tagIds }),
                     ...(metadataProfile === undefined || metadataProfile.id === current.metadataProfileId
                         ? {}
@@ -476,6 +500,7 @@ export function registerUpdateMedia(
                 monitored?: boolean;
                 minimumAvailability?: string;
                 seriesType?: string;
+                monitorNewItems?: ArtistMonitorNewItems;
                 tagIds?: number[];
                 metadataProfileId?: number;
             };
@@ -489,6 +514,7 @@ export function registerUpdateMedia(
                 ...(a.monitored === undefined ? {} : { monitored: a.monitored }),
                 ...(a.minimumAvailability === undefined ? {} : { minimumAvailability: a.minimumAvailability }),
                 ...(a.seriesType === undefined ? {} : { seriesType: a.seriesType }),
+                ...(a.monitorNewItems === undefined ? {} : { monitorNewItems: a.monitorNewItems }),
                 ...(a.tagIds === undefined ? {} : { tagIds: a.tagIds }),
                 ...(a.metadataProfileId === undefined ? {} : { metadataProfileId: a.metadataProfileId }),
                 moveFiles: a.moveFiles ?? false

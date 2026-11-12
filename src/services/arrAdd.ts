@@ -276,6 +276,7 @@ export async function addArrMedia(
     if (shape.resource === 'series') {
         body.seasonFolder = true;
         if (opts.seriesType !== undefined) body.seriesType = opts.seriesType;
+        if (opts.monitorNewItems !== undefined) body.monitorNewItems = opts.monitorNewItems;
     }
     // Radarr's own UI defaults to "Released", which is what stops a brand-new
     // film grabbing a cinema recording the day it is announced.

@@ -672,6 +672,15 @@ describe('add_media options', () => {
         });
     });
 
+    it('sends the Sonarr rule for new seasons on the series', async () => {
+        expect(await confirmSonarr({ monitor_new_items: 'none' })).toMatchObject({ monitorNewItems: 'none' });
+    });
+
+    it('refuses `new` on Sonarr and the rule on Whisparr', async () => {
+        await expect(confirmSonarr({ monitor_new_items: 'new' })).rejects.toMatchObject({ detail: '`new` is a Lidarr rule' });
+        await expect(confirmWhisparr({ monitor_new_items: 'none' })).rejects.toThrow(/monitor_new_items is a Lidarr and Sonarr option/);
+    });
+
     it('leaves addOptions.monitor out when none was asked for', async () => {
         const body = (await confirmSonarr({})) as { addOptions: Record<string, unknown> };
         expect(body.addOptions.monitor).toBeUndefined();

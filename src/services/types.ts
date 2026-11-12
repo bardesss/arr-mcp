@@ -1975,7 +1975,8 @@ export type AddMediaOptions = {
     /** Lidarr only, and required there: its second profile, which decides
      *  which album types and release statuses an artist gets at all. */
     metadataProfileId?: number;
-    /** Lidarr only: the standing rule for albums it discovers later. */
+    /** Lidarr's standing rule for albums it discovers later, or Sonarr's for
+     *  seasons (`all` or `none`). */
     monitorNewItems?: ArtistMonitorNewItems;
     /** An existing folder under `rootFolderPath` to adopt instead of creating one (#535). Not on Lidarr. */
     path?: string;
@@ -2040,6 +2041,9 @@ export type MediaUpdateOptions = {
     tagIds?: number[];
     /** Lidarr only: its second profile, beside the quality profile. */
     metadataProfileId?: number;
+    /** Sonarr only: whether seasons it finds later are monitored (`all` or
+     *  `none`). Lidarr's rule goes through `ArtistMonitorCapable`. */
+    monitorNewItems?: ArtistMonitorNewItems;
     /** Whether the service moves the files to the new root folder. Read only
      *  when `rootFolderPath` is set. */
     moveFiles: boolean;
@@ -2058,7 +2062,8 @@ export type MediaUpdateState = {
     seriesType?: string;
     /** Lidarr only. */
     metadataProfileId?: number;
-    /** Lidarr only: the artist's rule for albums a refresh adds. */
+    /** Lidarr: the artist's rule for albums a refresh adds. Sonarr 4: the
+     *  series' rule for seasons a refresh adds. */
     monitorNewItems?: ArtistMonitorNewItems;
 };
 
