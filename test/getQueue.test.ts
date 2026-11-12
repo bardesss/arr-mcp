@@ -612,6 +612,30 @@ describe('next_steps', () => {
         expect(result).not.toHaveProperty('next_steps');
     });
 
+    // An orphan may be a release Radarr never matched, which only a mapping can import.
+    it('offers import_download for an orphaned row stuck at importBlocked, asking for a mapping', async () => {
+        const orphan = row({ service: 'radarr/4k', id: '1', downloadId: 'ABC', orphaned: true, importState: 'importBlocked' });
+        const result = await buildGetQueue([queueOf('radarr/4k', [orphan])], { detail: 'standard', limit: 50 });
+        expect(result.next_steps).toEqual([
+            {
+                tool: 'import_download',
+                arguments: { service: 'radarr', instance: '4k', action: 'import', download_id: 'ABC' },
+                why: 'radarr/4k matched this download to nothing in its library: deleted, or never matched. To import it, add `mapping` with what each file is.'
+            }
+        ]);
+    });
+
+    it('offers nothing for an orphan still downloading, or one on Lidarr, whose import takes no mapping', async () => {
+        const result = await buildGetQueue(
+            [
+                queueOf('radarr', [row({ service: 'radarr', id: '1', downloadId: 'ABC', orphaned: true, status: 'downloading', importState: 'downloading' })]),
+                queueOf('lidarr', [row({ service: 'lidarr', id: '2', downloadId: 'DEF', orphaned: true, importState: 'importBlocked' })])
+            ],
+            { detail: 'standard', limit: 50 }
+        );
+        expect(result).not.toHaveProperty('next_steps');
+    });
+
     it('offers nothing on Whisparr, which has no manual import', async () => {
         const result = await buildGetQueue([queueOf('whisparr', [blocked('whisparr', '1', 'ABC')])], { detail: 'standard', limit: 50 });
         expect(result).not.toHaveProperty('next_steps');

@@ -6,7 +6,7 @@ import { annotateCleanuparr, dueWithin, type CleanuparrDue } from './cleanuparrQ
 import type { LibraryKind } from '../core/resolver.ts';
 import { hasQueue, type QueueItem, type ServiceAdapter } from '../services/types.ts';
 import { MediaKindSchema, holds } from './mediaKind.ts';
-import { importStepFor } from './importStep.ts';
+import { importStepFor, orphanImportStepFor } from './importStep.ts';
 import { nextStepLine, stepsField, type NextStep } from '../core/nextStep.ts';
 
 type GetQueueResult = {
@@ -230,11 +230,16 @@ export async function buildGetQueue(
 /**
  * The imports to offer: a download the *arr finished and then would not
  * import (`importBlocked`). A completed row it is still importing on its own
- * (`importPending`) gets none, and neither does an orphan, whose film, series
- * or artist is gone.
+ * (`importPending`) gets none. An orphan, matched to nothing in the library,
+ * may be a release the *arr never matched rather than deleted media, so it
+ * gets one that asks for a `mapping`.
  */
 const importSteps = (rows: readonly QueueItem[]): NextStep[] =>
-    rows.flatMap(row => (row.importState === 'importBlocked' && row.orphaned !== true ? [importStepFor(row)].filter(s => s !== undefined) : []));
+    rows.flatMap(row => {
+        if (row.importState !== 'importBlocked') return [];
+        const step = row.orphaned === true ? orphanImportStepFor(row) : importStepFor(row);
+        return step === undefined ? [] : [step];
+    });
 
 const GetQueueInput = toolInput({
     kind: MediaKindSchema.describe(
