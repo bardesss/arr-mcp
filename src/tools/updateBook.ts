@@ -20,7 +20,7 @@ const TARGET = serviceTarget({
 });
 
 /** The book fields `update_book` can lock or unlock, by the name a caller uses. */
-export const LOCKABLE = ['title', 'authors', 'series', 'series_number', 'tags'] as const;
+const LOCKABLE = ['title', 'authors', 'series', 'series_number', 'tags'] as const;
 type Lockable = (typeof LOCKABLE)[number];
 const BOOK_FIELD_OF: Record<Lockable, BookField> = {
     title: 'title',
@@ -153,7 +153,7 @@ export async function planBook(book: ServiceAdapter & BookMetadataCapable, rawId
  * verified against: the `id` as given may still carry its `grimmory:` prefix.
  * Unlocks first so the write can land, locks last so the new values are kept.
  */
-export async function applyBook(book: ServiceAdapter & BookMetadataCapable, plan: WritePlan): Promise<{ changed: string[] }> {
+async function applyBook(book: ServiceAdapter & BookMetadataCapable, plan: WritePlan): Promise<{ changed: string[] }> {
     const bound = plan.args as { id: string; fields: BookFields; clear: BookField[]; lock: BookField[]; unlock: BookField[] };
     if (bound.unlock.length > 0) await book.setBookFieldLocks(bound.id, bound.unlock, false);
     if (Object.keys(bound.fields).length > 0 || bound.clear.length > 0) await book.writeBookMetadata(bound.id, bound.fields, bound.clear);

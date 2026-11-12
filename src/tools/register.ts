@@ -19,9 +19,7 @@ import { bothIds, selectMediaServers, type MediaServers } from './mediaServers.t
 import { buildCrossChecker } from './crossChecks.ts';
 import { registerAddMedia } from './addMedia.ts';
 import { registerDeleteEpisodeFiles } from './deleteEpisodeFiles.ts';
-import { registerCleanQueue } from './cleanQueue.ts';
 import { registerDeleteMedia } from './deleteMedia.ts';
-import { ALIAS_DESCRIPTION } from './deprecations.ts';
 import { registerDiagnose } from './diagnose/index.ts';
 import { registerDiscoverMedia } from './discoverMedia.ts';
 import { registerFixMetadata } from './fixMetadata.ts';
@@ -43,7 +41,6 @@ import { registerGetSubtitles } from './getSubtitles.ts';
 import { registerGetWanted } from './getWanted.ts';
 import { registerGrabRelease } from './grabRelease.ts';
 import { LibraryLoader } from './library.ts';
-import { registerLookupMedia } from './lookupMedia.ts';
 import { registerDeleteRequest, registerRespondToRequest } from './manageRequests.ts';
 import { registerDeleteIndexer, registerManageIndexer } from './manageIndexer.ts';
 import { registerUpdateBook } from './updateBook.ts';
@@ -189,9 +186,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
         ...(context.eventLog === undefined ? {} : { events: context.eventLog.store })
     };
     registerDiagnose(server, diagnoseDeps);
-    registerDiagnose(server, diagnoseDeps, { name: 'diagnose', description: ALIAS_DESCRIPTION('diagnose_media') });
     registerStackHealth(server, adapters, instances, primary);
-    registerStackHealth(server, adapters, instances, primary, { name: 'stack_health', description: ALIAS_DESCRIPTION('get_stack_health') });
     registerGetInstanceOptions(server, adapters);
     registerGetIndexers(server, adapters.filter(hasIndexers));
     registerGetSubtitles(server, adapters.filter(hasSubtitles));
@@ -208,7 +203,6 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerGetLibrary(server, library, bothIds(context.mediaServers), adapters, context.mediaCards);
     registerGetProfileIssues(server, adapters, instances);
     registerSearchMedia(server, adapters, dataset, context.mediaCards);
-    registerLookupMedia(server, adapters, dataset, context.mediaCards);
     registerDiscoverMedia(server, seerr, dataset);
 
     // A stack with no write permission still *has* trigger_search: it refuses,
@@ -218,7 +212,6 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerTriggerScan(server, write, adapters);
     registerTriggerSubtitleSearch(server, write, adapters);
     registerRemoveQueueItem(server, write, adapters);
-    registerCleanQueue(server, write, adapters);
     registerDeleteMedia(server, write, adapters);
     registerDeleteEpisodeFiles(server, write, adapters);
     registerSetMonitoring(server, write, adapters, library);
@@ -253,7 +246,6 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
 export const WRITE_TOOLS: ReadonlySet<string> = new Set([
     'add_media',
     'blocklist_media',
-    'clean_queue',
     'delete_episode_files',
     'delete_indexer',
     'delete_media',
@@ -291,9 +283,7 @@ export const toolListed = (name: string, surface: SurfaceOptions): boolean => to
  */
 export const TOOL_NAMES = [
     'diagnose_media',
-    'diagnose',
     'get_stack_health',
-    'stack_health',
     'get_instance_options',
     'get_indexers',
     'get_subtitles',
@@ -310,13 +300,11 @@ export const TOOL_NAMES = [
     'get_library',
     'get_profile_issues',
     'search_media',
-    'lookup_media',
     'discover_media',
     'trigger_search',
     'trigger_scan',
     'trigger_subtitle_search',
     'remove_queue_item',
-    'clean_queue',
     'delete_media',
     'delete_episode_files',
     'set_monitoring',

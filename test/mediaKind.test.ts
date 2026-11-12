@@ -62,7 +62,7 @@ describe('splitYear', () => {
     });
 });
 
-describe('kind on lookup_media and search_media', () => {
+describe('kind on search_media', () => {
     const film = { kind: 'movie' as const, id: '1', title: 'Paranormal Activity', year: 2027, ids: { tmdb: 1 } };
 
     function stack() {

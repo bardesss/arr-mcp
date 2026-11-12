@@ -49,7 +49,7 @@ part it could not check rather than guessing across the hole.
 | 🛡️ **Indexer text is data, never instruction** | Release names from public indexers are attacker-controllable and flow straight into model context. arr-mcp fences every one of them. |
 | ✋ **Writes are opt-in, previewed, recorded** | Off until you turn them on, per service. Every write shows you exactly what it would do and waits for confirmation, and lands in an audit trail either way. |
 | 🖥️ **A config page that diagnoses** | Add services from a browser, see what is broken *and what to do about it*, read the logs and the write audit. No YAML required. |
-| 📚 **Forty-six tools, one vocabulary** | Every list pages the same way and answers readably whether or not your client reads `structuredContent`, every error names the config key that would fix it, every write takes ids rather than titles. |
+| 📚 **Forty-four tools, one vocabulary** | Every list pages the same way and answers readably whether or not your client reads `structuredContent`, every error names the config key that would fix it, every write takes ids rather than titles. |
 
 ## Quick start: about two minutes
 
@@ -142,13 +142,13 @@ back with a `Content-Length`, rather than a refusal for not also naming
 refusal is JSON. So a plain `curl` works as-is, and so does a full MCP client.
 
 Image tags are `X.Y.Z`, `X.Y`, `X` and `latest`, plus `main` for bleeding edge.
-Pin a minor, `:1.51`, if you would rather approve each new tool surface
-yourself. Images are published for **amd64 and arm64**, so a Raspberry Pi or an
+Pin a major (`:2`) and no tool or parameter you rely on goes away; pin a minor
+(`:2.0`) if you would rather approve each new tool surface yourself. Images are published for **amd64 and arm64**, so a Raspberry Pi or an
 ARM NAS runs the same build as everything else.
 
 ## What you can ask it
 
-Forty-six tools, but you never name them: you ask, and the model picks:
+Forty-four tools, but you never name them: you ask, and the model picks:
 
 > *"What's downloading right now, and is anything stuck?"*
 > *"What aired this week that I haven't watched?"*
@@ -198,7 +198,7 @@ them off. The cards are read-only for now.
 
 | | |
 | --- | --- |
-| **[Tools](docs/tools.md)** | All forty-six (`stack_health` and `diagnose` stay as aliases for one more minor), what each answers, and the fields whose meaning is not obvious |
+| **[Tools](docs/tools.md)** | All forty-four, what each answers, and the fields whose meaning is not obvious |
 | **[Writes](docs/writes.md)** | Turning them on, the two tiers, and the preview-and-confirm handshake |
 | **[Configuration](docs/configuration.md)** | `config.yaml`, the nine services that take a list, Jellyfin's `default_user`, running Plex and Jellyfin side by side |
 | **[Config UI](docs/config-ui.md)** | The four pages, and what each does that is not obvious |
@@ -231,9 +231,11 @@ them off. The cards are read-only for now.
 - An MCP client. Protocol revision `2026-07-28` is the native one; clients on a
   2025-era revision are still served
 
-Since 1.0 the tool surface is the public API: renaming or removing a tool, a
-parameter or a response field is a **major**, because that break is silent: a
-model stops finding a renamed tool rather than raising an error.
+The tool surface is the public API: renaming or removing a tool, a parameter or
+a response field is a **major**, because that break is silent: a model stops
+finding a renamed tool rather than raising an error. 2.0.0 removed what 1.x
+had deprecated; the [changelog](CHANGELOG.md) lists each name with its
+replacement.
 
 ## Contributing
 

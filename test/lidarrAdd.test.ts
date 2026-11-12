@@ -14,7 +14,7 @@ import { hasMediaAdd, hasMetadataProfiles, type ServiceAdapter } from '../src/se
 import { registerAddMedia } from '../src/tools/addMedia.ts';
 import type { LibraryLoader } from '../src/tools/library.ts';
 import { buildSearchMedia } from '../src/tools/searchMedia.ts';
-import { buildStackHealth } from '../src/tools/stackHealth.ts';
+import { buildInstanceOptions } from '../src/tools/instanceOptions.ts';
 import type { WriteToolResult } from '../src/tools/write.ts';
 import { instancesOf } from './helpers/instances.ts';
 
@@ -192,7 +192,7 @@ describe('LidarrAdapter adding an artist', () => {
         expect(folder).not.toHaveProperty('defaultMetadataProfileId');
     });
 
-    // `lookup_media` advertises `imdb:tt…` for films. Lidarr would run it as
+    // `search_media` discover advertises `imdb:tt…` for films. Lidarr would run it as
     // text and answer an artist called "imdb".
     it('answers nothing, without asking, for another service\'s id', async () => {
         const { adapter, sent } = lidarr();
@@ -202,17 +202,16 @@ describe('LidarrAdapter adding an artist', () => {
         expect(sent).toHaveLength(0);
     });
 
-    // `get_stack_health` lists every instance that can add, which now takes in
+    // `get_instance_options` lists every instance that can add, which takes in
     // Lidarr: these are the names `add_media` insists on.
-    it('shows up in get_stack_health\'s add options at detail full', async () => {
+    it('shows up in get_instance_options', async () => {
         const { adapter } = lidarr({ '/api/v1/system/status': { version: '3.1.6.5079' } });
-        const result = await buildStackHealth([adapter], { detail: 'full', limit: 50 });
+        const result = await buildInstanceOptions([adapter], {}, () => {});
 
-        expect(result.options?.map(o => [o.instance, o.qualityProfiles.map(p => p.id), o.rootFolders.length])).toEqual([['lidarr', [1, 2], 1]]);
+        expect(result.map(o => [o.instance, o.qualityProfiles.map(p => p.id), o.rootFolders.length])).toEqual([['lidarr', [1, 2], 1]]);
     });
 
-    // `lookup_media` is `search_media` with `source: "discover"`.
-    it('answers lookup_media with artists to add, keyed by MusicBrainz id', async () => {
+    it('answers search_media discover with artists to add, keyed by MusicBrainz id', async () => {
         // As Lidarr 2.1.3 sends an artist already in the library: all-zero statistics.
         const inLibrary = { ...LOOKUP[0], id: 102, foreignArtistId: '00000000-0000-4000-8000-000000000102', monitored: true, statistics: { trackFileCount: 0 } };
         const { adapter, sent } = lidarr({ '/api/v1/artist/lookup': [LOOKUP[0], inLibrary] });

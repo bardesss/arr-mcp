@@ -21,8 +21,8 @@ import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts
  * the word: its route deletes the title's media record with the blocklist row,
  * and that record cascades to every request and issue for the title
  * (`server/routes/blocklist.ts`, `entity/Media.ts`). One tool with the tier
- * derived from `action`, as `manage_indexer` did for its delete, because the
- * two directions of one list are one thing to look for.
+ * derived from `action`, because the two directions of one list are one
+ * thing to look for.
  */
 
 const seerrOf = (adapters: readonly ServiceAdapter[]): SeerrAdapter | undefined =>
@@ -75,31 +75,13 @@ const BlocklistMediaInput = z.object({
     action: z.enum(['add', 'remove']).describe('add, or remove[[seerr:  (on Seerr destructive: it also deletes its record of the title)]].'),
     id: z
         .union([z.number().int().positive(), z.string().min(1)])
-        .optional()
         .describe(
             "The title's {{or: seerr|radarr=TMDB id (seerr, radarr); sonarr=TVDB id (sonarr); lidarr=MusicBrainz artist id (lidarr)}}, from `ids` on a search_media or get_media_details record."
         ),
-    kind: z.enum(['movie', 'series']).optional().describe('[[seerr: Seerr only, where it is required.]]'),
-    // 1.81.0 shipped this, Seerr-only, before `id` covered the *arrs (DEPRECATIONS).
-    tmdb_id: z.number().int().positive().optional().describe('[[seerr: Deprecated: use id. Seerr only.]]')
+    kind: z.enum(['movie', 'series']).optional().describe('[[seerr: Seerr only, where it is required.]]')
 });
 
 type Input = z.infer<typeof BlocklistMediaInput>;
-
-/** `id`, or the deprecated `tmdb_id` on Seerr; never both, never neither. */
-function idOf({ service, id, tmdb_id }: Input): number | string {
-    if (tmdb_id !== undefined) {
-        if (service !== 'seerr') {
-            throw new ServiceError('NotFound', service, 'tmdb_id is for seerr', { remedy: 'Pass the id as `id`.' });
-        }
-        if (id !== undefined && String(id) !== String(tmdb_id)) {
-            throw new ServiceError('NotFound', service, 'id and tmdb_id name different titles', { remedy: 'Pass `id` alone.' });
-        }
-        return tmdb_id;
-    }
-    if (id === undefined) throw new ServiceError('NotFound', service, 'no id given', { remedy: "Pass the title's id as `id`." });
-    return id;
-}
 
 export function registerBlocklistMedia(server: McpServer, context: WriteContext, adapters: readonly ServiceAdapter[]): void {
     registerWriteTool(server, context, {
@@ -144,8 +126,7 @@ export function registerBlocklistMedia(server: McpServer, context: WriteContext,
 }
 
 async function planSeerr(seerr: SeerrAdapter, input: Input): Promise<WritePlan> {
-    const { action, kind } = input;
-    const id = idOf(input);
+    const { action, kind, id } = input;
     if (kind === undefined) {
         throw new ServiceError('NotFound', seerr.id, 'Seerr keys its blocklist on a TMDB id and a kind', {
             remedy: 'Pass kind: "movie" or kind: "series" with the TMDB id.'
@@ -196,8 +177,7 @@ async function planSeerr(seerr: SeerrAdapter, input: Input): Promise<WritePlan> 
  * that is malformed or that the *arr's metadata provider does not know.
  */
 async function planExclusion(adapter: ServiceAdapter & ImportExclusionCapable & MediaAddCapable, input: Input): Promise<WritePlan> {
-    const { action, kind } = input;
-    const id = idOf(input);
+    const { action, kind, id } = input;
     const implied = adapter.type === 'radarr' ? 'movie' : adapter.type === 'sonarr' ? 'series' : undefined;
     if (kind !== undefined && kind !== implied) {
         throw new ServiceError('NotFound', adapter.id, `${adapter.type} has no ${kind} exclusions`, {

@@ -51,16 +51,13 @@ type ArtistPolicyArgs = {
 };
 
 /**
- * Preview of a monitoring policy over Lidarr artists: the named ones, or every
- * artist when `artists` is absent. Shared by update_media and the deprecated
- * artist level of set_monitoring. `ids` is the parameter the caller omits to
- * reach every artist, named in the refusal for an id Lidarr does not hold.
+ * Preview of a monitoring policy over Lidarr artists, for update_media: the
+ * named ones, or every artist when `artists` is absent.
  */
 export async function planArtistPolicy(
     adapters: readonly ServiceAdapter[],
     adapter: ServiceAdapter & ArtistMonitorCapable,
-    { instance, artists, monitored, monitor_new_items }: ArtistPolicyArgs,
-    ids: 'artists' | 'id' = 'artists'
+    { instance, artists, monitored, monitor_new_items }: ArtistPolicyArgs
 ): Promise<WritePlan> {
     if (monitored === undefined && monitor_new_items === undefined) {
         throw new Error('Give `monitored`, `monitor_new_items`, or both. With neither there is nothing to change.');
@@ -82,7 +79,7 @@ export async function planArtistPolicy(
             const row =
                 instancesOfType(adapters, 'lidarr').length < 2
                     ? 'a get_library artist row'
-                    : `a get_library artist row whose acquisition.service is ${adapter.id}. Ids are per instance, and a row for an artist two Lidarrs hold may carry another instance's id, so take this one's from ${adapter.id} itself${ids === 'artists' ? ', or omit `artists` to apply to every artist there' : ''}`;
+                    : `a get_library artist row whose acquisition.service is ${adapter.id}. Ids are per instance, and a row for an artist two Lidarrs hold may carry another instance's id, so take this one's from ${adapter.id} itself`;
             throw new ServiceError('NotFound', adapter.id, `Lidarr has no artist with id ${missing.join(', ')}`, {
                 remedy: `Lidarr holds ${all.length} artists. Take an id from acquisition.id on ${row}.`
             });

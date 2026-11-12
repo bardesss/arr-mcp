@@ -303,25 +303,17 @@ describe('delete_media with seerr_blocklist on Sonarr', () => {
     });
 });
 
-describe('blocklist_media tmdb_id, deprecated since id replaced it', () => {
+describe('blocklist_media without tmdb_id', () => {
     const setup = (seerr: ReturnType<typeof fakeSeerr>) =>
         harness(registerBlocklistMedia as typeof registerDeleteMedia, {
             adapters: [new SeerrAdapter(seerrConfig(true, false), seerr.impl)],
             permissions: { seerr: seerrConfig(true, false) }
         });
 
-    it('still blocklists in Seerr, as 1.81.0 did', async () => {
+    it('refuses tmdb_id, which id replaced, and a call with no id', () => {
         const seerr = fakeSeerr();
-        const done = await setup(seerr).confirmed({ action: 'add', tmdb_id: 348, kind: 'movie' });
-        expect(done.structuredContent.applied).toBe(true);
-        expect(seerr.sent.find(s => s.method === 'POST')?.body).toMatchObject({ tmdbId: 348, mediaType: 'movie' });
-    });
-
-    it('refuses an id and a tmdb_id that disagree', async () => {
-        await expect(setup(fakeSeerr()).call({ action: 'add', id: 1, tmdb_id: 348, kind: 'movie' })).rejects.toThrow(/different titles/);
-    });
-
-    it('refuses a call with neither', async () => {
-        await expect(setup(fakeSeerr()).call({ action: 'add', kind: 'movie' })).rejects.toThrow(/no id given/);
+        expect(() => setup(seerr).call({ action: 'add', tmdb_id: 348, kind: 'movie' })).toThrow(/tmdb_id/);
+        expect(() => setup(seerr).call({ action: 'add', kind: 'movie' })).toThrow(/id/);
+        expect(seerr.sent).toHaveLength(0);
     });
 });

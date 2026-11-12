@@ -51,10 +51,9 @@ write, and says which permission to enable.
 | `set_watched` | safe | `safe_write` |
 | `sync_database` | safe | `safe_write` |
 | `remove_blocklist_item` | safe | `safe_write` |
-| `manage_indexer` | safe (destructive only through its deprecated `delete`) | `safe_write`, or `destructive` for `delete` |
+| `manage_indexer` | safe | `safe_write` |
 | `delete_indexer` | destructive | `destructive` |
 | `remove_queue_item` | destructive | `destructive` |
-| `clean_queue` | destructive | `destructive` (deprecated: `remove_queue_item` with `orphaned: true`) |
 | `delete_media` | destructive | `destructive`, plus `safe_write` on Seerr with `seerr_blocklist` |
 | `delete_episode_files` | destructive | `destructive` |
 | `delete_request` | destructive | `destructive` |
@@ -151,7 +150,6 @@ categories, and Grimmory may write the change into the book file and move it to
 match its naming pattern. It stays safe for the same reason as a root folder
 move. The preview shows the old values, and setting them back with the same
 tool makes Grimmory write them into the file and rename it again.
-`update_media` still takes the same fields on a book, deprecated.
 
 `trigger_scan`'s `rename` action is safe on the same reading: it renames files
 within the library to the service's own scheme, and renaming again puts them
@@ -159,8 +157,7 @@ back. `import_download` is safe too. Its `import` action only ever imports what
 the service is already willing to take: a file the service rejects is excluded
 and named, never forced. Its `remap` action changes which episode Sonarr says a
 file is, and renames that file to match; a second remap puts both back. Nothing
-moves between folders and nothing is deleted. `trigger_scan` still takes these
-actions, deprecated, with the same preview and the same tier. Renaming a rotated season additionally changes Sonarr's
+moves between folders and nothing is deleted. Renaming a rotated season additionally changes Sonarr's
 episode naming format for the length of two commands and puts it back: the
 preview says so, and [tools.md](tools.md#putting-a-mislabeled-file-on-the-right-episode)
 describes what bounds it.
@@ -187,10 +184,7 @@ root folder, tags, `path`) are refused there.
 
 Disabling an indexer is undone by enabling it, so `manage_indexer` needs only
 `safe_write`; deleting it throws away the indexer's settings and credentials, so
-`delete_indexer` needs `destructive`. `manage_indexer` still accepts `delete`,
-deprecated, and then asks for `destructive` too; that is why it keeps its
-`destructiveHint` for now. A confirmation token issued for one will not apply
-the other.
+`delete_indexer` needs `destructive`.
 
 Adding and editing an indexer are safe for the same reason disabling is: each
 is undone by the tool itself, a delete or an edit back. Neither ever carries a
@@ -243,7 +237,7 @@ process.
 A token that is refused for any reason but having been used already comes back
 as a fresh preview with a new token, and its text carries that preview's summary
 and effects as a first preview does. Some writes also bind what they act on, not
-only the arguments: `remove_queue_item` with `orphaned: true` (and `clean_queue`) the queue items it listed,
+only the arguments: `remove_queue_item` with `orphaned: true` the queue items it listed,
 `delete_episode_files` the file ids, `grab_release` the release, and a
 `fix_metadata` retag the files, their albums and Lidarr's Scrub Existing Tags
 setting. For those, the same call is refused when that has moved since the old
@@ -392,9 +386,7 @@ are different namespaces and Lidarr cannot tell them apart.
 a `get_media_details` read on the artist. The artist's policy is `update_media`:
 `id` is an artist row's `acquisition.id`, or omitted for every artist, and
 `monitored`, `monitor_new_items` or both are written. That needed no new tool,
-since `update_media` already sets one artist. `set_monitoring` with
-`level: "artist"`, `artists` and `monitor_new_items` is deprecated and still
-works, through the same preview and write.
+since `update_media` already sets one artist.
 
 Three things the preview says, because each one was found rather than assumed:
 

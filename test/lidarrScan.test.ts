@@ -13,15 +13,16 @@ import {
     hasManualImport,
     type ServiceAdapter
 } from '../src/services/types.ts';
+import { registerImportDownload } from '../src/tools/importDownload.ts';
 import { registerTriggerScan } from '../src/tools/triggerScan.ts';
 import type { WriteToolResult } from '../src/tools/write.ts';
 import { instancesOf } from './helpers/instances.ts';
 
 /**
  * `trigger_scan` on Lidarr: rescan the library or one artist, rename an
- * artist's files, import a finished download by its id, and follow the
- * command in `get_stack_health`. All through the shared helpers with
- * `resource: 'artist'`. The import rows follow `ManualImportResource`
+ * artist's files, and follow the command in `get_stack_health`; and
+ * `import_download`, which imports a finished download by its id. All
+ * through the shared helpers with `resource: 'artist'`. The import rows follow `ManualImportResource`
  * (Lidarr 3.1.0) and are invented.
  */
 
@@ -310,14 +311,14 @@ describe('Lidarr import by download id', () => {
 describe('trigger_scan on lidarr', () => {
     type Call = (args: Record<string, unknown>) => Promise<{ structuredContent: WriteToolResult }>;
 
-    function harness(adapter: ServiceAdapter) {
+    function harness(adapter: ServiceAdapter, register: typeof registerTriggerScan = registerTriggerScan) {
         let call: Call = () => Promise.reject(new Error('not registered'));
         const server = {
             registerTool(_n: string, cfg: { inputSchema: z.ZodObject }, handler: Call) {
                 call = args => handler(cfg.inputSchema.parse(args) as Record<string, unknown>);
             }
         };
-        registerTriggerScan(
+        register(
             server as never,
             {
                 permissions: permissionSourceFrom(instancesOf({ lidarr: { ...config } as AnyServiceConfig })),
@@ -358,11 +359,11 @@ describe('trigger_scan on lidarr', () => {
         expect(sent.map(s => `${s.method} ${s.path}`)).toEqual(['GET /api/v1/artist/3']);
     });
 
-    it('previews an import by artist and album, and skips what Lidarr rejects', async () => {
+    it('previews an import by artist and album through import_download, and skips what Lidarr rejects', async () => {
         const { adapter } = importing();
-        const call = harness(adapter);
+        const call = harness(adapter, registerImportDownload);
 
-        const { structuredContent } = await call({ service: 'lidarr', action: 'import', download_id: 'nzo-1', dry_run: true });
+        const { structuredContent } = await call({ service: 'lidarr', download_id: 'nzo-1', dry_run: true });
         const effects = structuredContent.effects.map(e => e.replace(/<<untrusted:[^>]*>>|<<\/>>/g, ''));
 
         expect(structuredContent.summary).toContain('Import 1 file(s) from download nzo-1 into lidarr');
@@ -370,13 +371,21 @@ describe('trigger_scan on lidarr', () => {
         expect(effects.slice(1).join(' ')).toContain('no track matched');
     });
 
-    it('refuses a mapping on lidarr through the tool, before any request', async () => {
+    it('refuses a mapping on lidarr through import_download, before any request', async () => {
+        const { adapter, sent } = importing();
+        const call = harness(adapter, registerImportDownload);
+
+        await expect(
+            call({ service: 'lidarr', download_id: 'nzo-1', mapping: [{ path: '01.flac', movie_id: '42' }], dry_run: true })
+        ).rejects.toThrow(/does not take a `mapping`/);
+        expect(sent).toEqual([]);
+    });
+
+    it('refuses an import on trigger_scan: download_id is no longer one of its arguments', async () => {
         const { adapter, sent } = importing();
         const call = harness(adapter);
 
-        await expect(
-            call({ service: 'lidarr', action: 'import', download_id: 'nzo-1', mapping: [{ path: '01.flac', movie_id: '42' }], dry_run: true })
-        ).rejects.toThrow(/does not take a `mapping`/);
+        expect(() => call({ service: 'lidarr', download_id: 'nzo-1', dry_run: true })).toThrow(/Unknown argument\(s\): download_id/);
         expect(sent).toEqual([]);
     });
 });

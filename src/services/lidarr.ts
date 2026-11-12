@@ -817,7 +817,7 @@ export class LidarrAdapter
     }
 
     /**
-     * Through Lidarr's Artist Editor, `PUT /artist/editor`, as `set_monitoring`
+     * Through Lidarr's Artist Editor, `PUT /artist/editor`, as `update_media`
      * writes an artist's policy, not `PUT /artist/{id}`: that one replaces the
      * whole artist and queues a `MoveArtist` on every call, even with
      * `moveFiles=false` and the path unchanged, where the editor moves only

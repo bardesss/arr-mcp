@@ -7,7 +7,6 @@ import { permissionSourceFrom } from '../src/core/permissions.ts';
 import { LidarrAdapter } from '../src/services/lidarr.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
-import { registerCleanQueue } from '../src/tools/cleanQueue.ts';
 import { registerRemoveQueueItem } from '../src/tools/removeQueueItem.ts';
 import type { LibraryLoader } from '../src/tools/library.ts';
 import type { WriteToolResult } from '../src/tools/write.ts';
@@ -81,19 +80,15 @@ function baseHarness(records: unknown[] = [BLOCKED_A, BLOCKED_B, ORPHAN_DOWNLOAD
         audit: WriteAudit.ephemeral(),
         library: { invalidate: vi.fn() } as unknown as LibraryLoader
     };
-    registerCleanQueue(server as never, context, adapters);
     registerRemoveQueueItem(server as never, context, adapters);
 
-    const tool = opts.tool ?? 'clean_queue';
+    const tool = opts.tool ?? 'remove_queue_item';
     const callTool = (name: string, args: Record<string, unknown>) => (calls.get(name) ?? (() => Promise.reject(new Error('not registered'))))(args);
     return { call: (args: Record<string, unknown>) => callTool(tool, args), callTool, fetch };
 }
 
-/** The same cleaning through both tools: `clean_queue` is the alias of `remove_queue_item` with `orphaned: true`. */
-const TOOLS = [
-    ['remove_queue_item', { service: 'radarr', orphaned: true }, { service: 'lidarr', orphaned: true }],
-    ['clean_queue', { service: 'radarr' }, { service: 'lidarr' }]
-] as const;
+/** `remove_queue_item` with `orphaned: true`. */
+const TOOLS = [['remove_queue_item', { service: 'radarr', orphaned: true }, { service: 'lidarr', orphaned: true }]] as const;
 
 describe.each(TOOLS)('%s cleaning orphans', (tool, args) => {
     const harness = (records?: unknown[], opts: Parameters<typeof baseHarness>[1] = {}) => baseHarness(records, { ...opts, tool });
@@ -304,13 +299,9 @@ describe.each(TOOLS)('%s on lidarr', (tool, _args, lidarrArgs) => {
 describe('remove_queue_item orphaned', () => {
     const remove = (records?: unknown[], opts: Parameters<typeof baseHarness>[1] = {}) => baseHarness(records, { ...opts, tool: 'remove_queue_item' });
 
-    it('still cleans through clean_queue, with the same preview', async () => {
-        const viaClean = await baseHarness(undefined, { tool: 'clean_queue' }).call({ service: 'radarr', dry_run: true });
+    it('binds the preview to the orphaned target', async () => {
         const viaRemove = await remove().call({ service: 'radarr', orphaned: true, dry_run: true });
-
-        expect(viaClean.structuredContent.target).toBe('radarr:orphaned');
-        expect(viaRemove.structuredContent.summary).toBe(viaClean.structuredContent.summary);
-        expect(viaRemove.structuredContent.effects).toEqual(viaClean.structuredContent.effects);
+        expect(viaRemove.structuredContent.target).toBe('radarr:orphaned');
     });
 
     it('refuses remove_from_client: false with orphaned, before any read', async () => {
@@ -369,13 +360,6 @@ describe('remove_queue_item orphaned', () => {
             const h = remove();
             const first = await h.call({ service: 'radarr', orphaned: true });
             refused(await h.call({ service: 'radarr', id: '5', confirm: first.structuredContent.confirm_token }));
-            expect(h.fetch.deletes()).toHaveLength(0);
-        });
-
-        it('a clean_queue token sent to remove_queue_item', async () => {
-            const h = remove();
-            const first = await h.callTool('clean_queue', { service: 'radarr' });
-            refused(await h.call({ service: 'radarr', orphaned: true, confirm: first.structuredContent.confirm_token }));
             expect(h.fetch.deletes()).toHaveLength(0);
         });
     });

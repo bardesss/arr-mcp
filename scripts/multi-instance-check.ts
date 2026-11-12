@@ -276,23 +276,22 @@ await expectRefusal(
 
 if (Array.isArray(multiConfig.services.lidarr)) {
     await expectRefusal(
-        'set_monitoring refuses to guess between two lidarrs',
-        'set_monitoring',
-        { service: 'lidarr', level: 'artist', monitor_new_items: 'none', dry_run: true },
+        'update_media refuses to guess between two lidarrs',
+        'update_media',
+        { service: 'lidarr', monitor_new_items: 'none', dry_run: true },
         /instances configured|does not say which/
     );
 
     await expectRefusal(
-        'set_monitoring names the configured lidarr instances when given a bad one',
-        'set_monitoring',
-        { service: 'lidarr', instance: 'nope', level: 'artist', monitor_new_items: 'none', dry_run: true },
+        'update_media names the configured lidarr instances when given a bad one',
+        'update_media',
+        { service: 'lidarr', instance: 'nope', monitor_new_items: 'none', dry_run: true },
         /no instance named/
     );
 
-    await run('set_monitoring dry run against lidarr/hd', 'set_monitoring', {
+    await run('update_media dry run against lidarr/hd', 'update_media', {
         service: 'lidarr',
         instance: 'hd',
-        level: 'artist',
         monitor_new_items: 'none',
         dry_run: true
     });

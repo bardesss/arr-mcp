@@ -48,7 +48,7 @@ export function renderToolMap(): string {
     });
     const kinds = Object.entries(KIND_SERVICES).map(([kind, services]) => `| \`${kind}\` | ${named(services)} |`);
     return [
-        'A write is listed only when one of these is configured, and a read too with `tools.hide_unusable`; with nothing configured, everything is. ✎ marks a write. Deprecated aliases are left out.',
+        'A write is listed only when one of these is configured, and a read too with `tools.hide_unusable`; with nothing configured, everything is. ✎ marks a write.',
         '',
         '| Tool | Needs one of |',
         '| --- | --- |',

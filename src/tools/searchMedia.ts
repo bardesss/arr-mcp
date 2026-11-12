@@ -14,9 +14,9 @@ import { mediaCardsToolMeta, wantsCards, withCards } from '../mcp/apps.ts';
 import { cardsFromHits, type MediaCards } from '../ui/mediaCards.ts';
 
 /**
- * One search hit as a line, shared by `search_media` (and its alias `lookup_media`) and
- * `discover_media`; all three answer in `SearchHit`, and three formatters
- * would be three chances for the same result to read differently depending on
+ * One search hit as a line, shared by `search_media` and
+ * `discover_media`: both answer in `SearchHit`, and two formatters
+ * would be two chances for the same result to read differently depending on
  * which tool asked.
  *
  * Titles keep their fence: an `indexers` search returns release names chosen
@@ -94,7 +94,7 @@ export async function buildSearchMedia(
  * before projection: `display` is gone after it, and `minimal` would leave a
  * card without its status.
  */
-export async function buildSearchMediaWithCards(
+async function buildSearchMediaWithCards(
     adapters: readonly ServiceAdapter[],
     opts: SearchOpts,
     dataset: ImdbDataset | undefined,

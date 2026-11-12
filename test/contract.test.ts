@@ -535,7 +535,7 @@ const CONTRACTS: Record<string, ServiceContract> = {
                 fields: ['id', 'artistId']
             },
             {
-                // `lookup_media` and `add_media`. An artist not yet added carries
+                // search_media discover and `add_media`. An artist not yet added carries
                 // no `id`, which is how "already there" is told apart.
                 path: '/api/v1/artist/lookup',
                 method: 'get',

@@ -5,12 +5,10 @@ import { ServiceError } from '../core/errors.ts';
 import type { NextStep } from '../core/nextStep.ts';
 import {
     hasArtistMonitor,
-    hasBookMetadata,
     hasMediaAdd,
     hasMediaUpdate,
     hasMetadataProfiles,
     type ArtistMonitorNewItems,
-    type BookMetadataCapable,
     type MediaAddCapable,
     type MediaUpdateCapable,
     type QualityProfile,
@@ -19,7 +17,6 @@ import {
 import { applyArtistPolicy, planArtistPolicy } from './artistPolicy.ts';
 import { chooseOne, freeSpace, FOLDER_MATCH, PROFILE_MATCH, TAG_MATCH } from './chooseOne.ts';
 import { NO_ALBUMS_PROFILE, SEARCH_AFTER_REFRESH } from './lidarrProfiles.ts';
-import { applyBook, LOCKABLE, planBook } from './updateBook.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 import { titled } from '../core/labels.ts';
 import { targetInput, serviceTarget } from './serviceTarget.ts';
@@ -129,17 +126,17 @@ function artistMonitoredEffect(service: string, label: string, monitored: boolea
     return `${service} stops grabbing automatically for ${label}: RSS sync and its own searches skip it. The albums keep their own flags, trigger_search can still grab the monitored ones, and files already on disk are untouched.`;
 }
 
-type Updatable = ServiceAdapter & ((MediaUpdateCapable & MediaAddCapable) | BookMetadataCapable);
+type Updatable = ServiceAdapter & MediaUpdateCapable & MediaAddCapable;
 
 const TARGET = serviceTarget({
-    services: ['radarr', 'sonarr', 'lidarr', 'grimmory'],
-    can: (a): a is Updatable => hasBookMetadata(a) || (hasMediaUpdate(a) && hasMediaAdd(a)),
+    services: ['radarr', 'sonarr', 'lidarr'],
+    can: (a): a is Updatable => hasMediaUpdate(a) && hasMediaAdd(a),
     cannot: 'cannot update media',
-    hint: 'Radarr manages films, Sonarr series, Lidarr artists and Grimmory books.'
+    hint: 'Radarr manages films, Sonarr series and Lidarr artists.'
 });
 
 const UpdateMediaInput = z.object({
-    ...targetInput(TARGET, 'radarr for a film, sonarr for a series, lidarr for an artist. [[grimmory: Deprecated: use update_book for a book.]]'),
+    ...targetInput(TARGET, 'radarr for a film, sonarr for a series, lidarr for an artist.'),
     id: z
         .string()
         .min(1)
@@ -180,20 +177,6 @@ const UpdateMediaInput = z.object({
         .array(z.string())
         .optional()
         .describe('Tag labels or ids that already exist. Replaces the whole set: pass [] to clear it.'),
-    title: z.string().min(1).optional().describe('[[grimmory: Deprecated: use update_book.]]'),
-    authors: z.array(z.string().min(1)).min(1).optional().describe('[[grimmory: Deprecated: use update_book.]]'),
-    series: z.string().optional().describe('[[grimmory: Deprecated: use update_book.]]'),
-    series_number: z.number().positive().optional().describe('[[grimmory: Deprecated: use update_book.]]'),
-    lock_fields: z
-        .array(z.enum(LOCKABLE))
-        .min(1)
-        .optional()
-        .describe('[[grimmory: Deprecated: use update_book.]]'),
-    unlock_fields: z
-        .array(z.enum(LOCKABLE))
-        .min(1)
-        .optional()
-        .describe('[[grimmory: Deprecated: use update_book.]]'),
     move_files: z
         .boolean()
         .default(true)
@@ -230,12 +213,6 @@ export function registerUpdateMedia(
             series_type,
             tags,
             move_files,
-            title,
-            authors,
-            series,
-            series_number,
-            lock_fields,
-            unlock_fields,
             metadata_profile
             },
             adapter
@@ -253,21 +230,8 @@ export function registerUpdateMedia(
             // signed. Anything that needs the one artist's own record stays on
             // the path below.
             if (lidarr && (id === undefined || monitor_new_items !== undefined)) {
-                // Refused rather than dropped, as on the single-item path below:
-                // this branch can reach every artist, so an option it ignores
-                // (a `title` meant to name one) must not turn into a bulk preview.
-                if (
-                    title !== undefined ||
-                    authors !== undefined ||
-                    series !== undefined ||
-                    series_number !== undefined ||
-                    lock_fields !== undefined ||
-                    unlock_fields !== undefined
-                ) {
-                    throw new ServiceError('NotFound', service, 'title, authors, series, series_number and the field locks are Grimmory options', {
-                        remedy: 'An artist is named by `id`, never a title. Drop them, or edit a Grimmory book with update_book.'
-                    });
-                }
+                // Refused rather than dropped: this branch can reach every
+                // artist, so an option it ignores must not turn into a bulk preview.
                 if (series_type !== undefined) {
                     throw new ServiceError('NotFound', service, 'series_type is a Sonarr option', {
                         remedy: 'An artist has no numbering scheme. Drop it.'
@@ -295,7 +259,7 @@ export function registerUpdateMedia(
                 if (!hasArtistMonitor(adapter)) {
                     throw new ServiceError('NotFound', adapter.id, `${adapter.id} cannot read or set an artist monitoring policy`);
                 }
-                return planArtistPolicy(adapters, adapter, { instance, artists: id === undefined ? undefined : [id], monitored, monitor_new_items }, 'id');
+                return planArtistPolicy(adapters, adapter, { instance, artists: id === undefined ? undefined : [id], monitored, monitor_new_items });
             }
 
             if (id === undefined) {
@@ -304,34 +268,6 @@ export function registerUpdateMedia(
                 );
             }
 
-            if (hasBookMetadata(adapter)) {
-                const books = adapter;
-                if (
-                    quality_profile !== undefined ||
-                    root_folder !== undefined ||
-                    monitored !== undefined ||
-                    minimum_availability !== undefined ||
-                    series_type !== undefined ||
-                    metadata_profile !== undefined
-                ) {
-                    throw new ServiceError('NotFound', service, 'a book has no film, series or artist settings', {
-                        remedy: 'Drop quality_profile, root_folder, monitored, minimum_availability, series_type and metadata_profile. Edit a book with update_book.'
-                    });
-                }
-                return planBook(books, id, { title, authors, series, series_number, tags, lock_fields, unlock_fields });
-            }
-            if (
-                title !== undefined ||
-                authors !== undefined ||
-                series !== undefined ||
-                series_number !== undefined ||
-                lock_fields !== undefined ||
-                unlock_fields !== undefined
-            ) {
-                throw new ServiceError('NotFound', service, 'title, authors, series, series_number and the field locks are Grimmory options', {
-                    remedy: 'Films, series and artists are not edited by hand here. Drop them, or edit a Grimmory book with update_book.'
-                });
-            }
             if (
                 quality_profile === undefined &&
                 root_folder === undefined &&
@@ -533,9 +469,6 @@ export function registerUpdateMedia(
                 return applyArtistPolicy(adapter, plan, { monitored, monitor_new_items });
             }
             if (id === undefined) throw new Error('This write needs `id`. Check the arguments before confirming it.');
-            if (hasBookMetadata(adapter)) {
-                return applyBook(adapter, plan);
-            }
             const a = plan.args as {
                 qualityProfileId?: number;
                 rootFolderPath?: string;

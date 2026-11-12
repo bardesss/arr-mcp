@@ -1,9 +1,7 @@
-import { applyArtistPolicy, planArtistPolicy } from './artistPolicy.ts';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { ServiceError } from '../core/errors.ts';
 import {
-    hasArtistMonitor,
     hasMediaDetails,
     hasMonitorState,
     hasMonitoring,
@@ -20,7 +18,7 @@ const TARGET = serviceTarget({
     services: ['sonarr', 'whisparr', 'lidarr'],
     can: hasMonitoring,
     cannot: 'has no monitoring to set',
-    hint: 'Sonarr and Whisparr monitor per season or episode, and Lidarr per album or artist. Films have no seasons.'
+    hint: 'Sonarr and Whisparr monitor per season or episode, and Lidarr per album. Films have no seasons.'
 });
 
 const SetMonitoringInput = z.object({
@@ -37,31 +35,11 @@ const SetMonitoringInput = z.object({
         .describe(
             'The series id within that service, or the album id when service is lidarr, as an integer string.'
         ),
-    monitored: z
-        .boolean()
-        .optional()
-        .describe(
-            'true to monitor, false to stop. Required except on the deprecated lidarr artist level.'
-        ),
+    monitored: z.boolean().describe('true to monitor, false to stop.'),
     level: z
-        .enum(['album', 'artist'])
+        .enum(['album'])
         .optional()
-        .describe(
-            '[[lidarr: lidarr only, and required there: `album` when `id` names an album. Deprecated: use update_media for `artist`, with no `id` for every artist. Refused on every other service.]]'
-        ),
-    artists: z
-        .array(z.string().min(1))
-        .min(1)
-        .optional()
-        .describe(
-            '[[lidarr: Deprecated: use update_media, one `id` per call.]]'
-        ),
-    monitor_new_items: z
-        .enum(['all', 'none', 'new'])
-        .optional()
-        .describe(
-            '[[lidarr: Deprecated: use update_media.]]'
-        ),
+        .describe('[[lidarr: lidarr only, and required there: `album`, since `id` names an album. Refused on every other service.]]'),
     season: z
         .number()
         .int()
@@ -89,7 +67,7 @@ export function registerSetMonitoring(
     const idOf = async (adapterId: string, id: string | undefined, title: string | undefined, service: string): Promise<string | undefined> => {
         if (title === undefined) return id;
         if (id !== undefined) throw new Error('Pass either `id` or `title`, not both.');
-        if (service === 'lidarr') throw new Error('`title` names a series; on lidarr pass the album `id`, or `level: "artist"` with `artists`.');
+        if (service === 'lidarr') throw new Error('`title` names a series; on lidarr pass the album `id`.');
         if (loader === undefined) throw new Error('`title` cannot be resolved here; pass `id`.');
         return managedIdByTitle(adapters, loader, title, adapterId);
     };
@@ -98,53 +76,23 @@ export function registerSetMonitoring(
         name: 'set_monitoring',
         title: 'Start or stop monitoring',
         description:
-            'Turns monitoring on or off. [[sonarr|whisparr: {{and: sonarr=Sonarr; whisparr=Whisparr}}: a series (by `id` or `title`), one `season`, or `episodes` (not both).]] [[lidarr: Lidarr takes `level: "album"` for one album\'s flag (ids from get_media_details on the artist, or a get_wanted `albumId`); its artist level is deprecated; use update_media.]] [[radarr: Radarr monitoring is update_media.]] [[sonarr|whisparr: Unmonitor **before** delete_episode_files, or the *arr downloads the files again.]] Safe tier. The preview shows the current state; a season or episode that does not exist is refused rather than silently written. Previews first; confirm to apply. Field reference: arr://docs/set_monitoring.',
+            'Turns monitoring on or off. [[sonarr|whisparr: {{and: sonarr=Sonarr; whisparr=Whisparr}}: a series (by `id` or `title`), one `season`, or `episodes` (not both).]] [[lidarr: Lidarr takes `level: "album"` for one album\'s flag (ids from get_media_details on the artist, or a get_wanted `albumId`); an artist\'s own flag is update_media.]] [[radarr: Radarr monitoring is update_media.]] [[sonarr|whisparr: Unmonitor **before** delete_episode_files, or the *arr downloads the files again.]] Safe tier. The preview shows the current state; a season or episode that does not exist is refused rather than silently written. Previews first; confirm to apply. Field reference: arr://docs/set_monitoring.',
         inputSchema: SetMonitoringInput,
         target: { adapters, to: TARGET },
         operation: 'set_monitoring',
         tier: 'safe',
 
-        async plan({ service, instance, id: given, title, monitored, season, episodes, level, artists, monitor_new_items }, adapter): Promise<WritePlan> {
+        async plan({ service, id: given, title, monitored, season, episodes, level }, adapter): Promise<WritePlan> {
             const id = await idOf(adapter.id, given, title, service);
 
-            // ---- Lidarr's artist level: a policy over a set, not a flag on one item.
-            //
             // Every refusal below is about the arguments, not about the service.
             // A ServiceError here would read as "sonarr has no such item" and send
             // the caller looking for a missing series when the gap was a missing
             // parameter.
-            if (level === 'artist') {
-                if (service !== 'lidarr') {
-                    throw new Error(
-                        '`level` is a lidarr parameter, and only Lidarr has an artist policy. ' +
-                            'Drop it: a series is monitored whole, per season, or per episode.'
-                    );
-                }
-                if (id !== undefined || season !== undefined || episodes !== undefined) {
-                    throw new Error(
-                        'The artist level is deprecated and takes `artists`, not `id`, `season` or `episodes`. ' +
-                            'Use update_media instead: it takes an artist `id`, or no `id` for every artist.'
-                    );
-                }
-                if (!hasArtistMonitor(adapter)) {
-                    throw new ServiceError('NotFound', adapter.id, `${adapter.id} cannot read or set an artist monitoring policy`);
-                }
-                return planArtistPolicy(adapters, adapter, { instance, artists, monitored, monitor_new_items });
-            }
-
-            // The artist-only parameters have no meaning on any other level, and
-            // Lidarr would ignore them while doing something else entirely.
-            if (artists !== undefined || monitor_new_items !== undefined) {
-                throw new Error(
-                    '`artists` and `monitor_new_items` need `level: "artist"`. ' +
-                        'Give `level: "artist"`, or drop them: an album has no new-item policy of its own.'
-                );
-            }
             if (service === 'lidarr' && level !== 'album') {
                 throw new Error(
-                    'lidarr needs `level`: "album" or "artist". ' +
-                        'An album id and an artist id are two different namespaces and Lidarr cannot tell them apart. ' +
-                        'Say which one `id` is.'
+                    'lidarr needs `level: "album"`: an album id and an artist id are two different namespaces, and Lidarr cannot tell them apart. ' +
+                        "An artist's own flag is update_media."
                 );
             }
             if (level !== undefined && service !== 'lidarr') {
@@ -152,9 +100,6 @@ export function registerSetMonitoring(
             }
             if (id === undefined) {
                 throw new Error('`id` is required. Take it from `acquisition.id` on a get_library or get_media_details record.');
-            }
-            if (monitored === undefined) {
-                throw new Error('`monitored` is required. Say which way: true to monitor, false to stop.');
             }
             refuseBoth(season, episodes, 'Omit both to monitor the whole series.');
 
@@ -259,13 +204,11 @@ export function registerSetMonitoring(
             };
         },
 
-        async apply(plan, { service, id: given, title, monitored, season, episodes, level, monitor_new_items }, adapter) {
+        async apply(_plan, { service, id: given, title, monitored, season, episodes }, adapter) {
             const id = await idOf(adapter.id, given, title, service);
 
-            if (level === 'artist' && hasArtistMonitor(adapter)) return applyArtistPolicy(adapter, plan, { monitored, monitor_new_items });
-
-            if (id === undefined || monitored === undefined) {
-                throw new Error('This write needs `id` and `monitored`. Check the arguments before confirming it.');
+            if (id === undefined) {
+                throw new Error('This write needs `id`. Check the arguments before confirming it.');
             }
 
             await adapter.setMonitoring(id, {

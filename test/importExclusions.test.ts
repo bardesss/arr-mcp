@@ -176,8 +176,10 @@ describe('blocklist_media on an *arr', () => {
 });
 
 describe('blocklist_media tmdb_id on an *arr', () => {
-    it('is refused: it only ever meant Seerr', async () => {
-        const h = harness([new RadarrAdapter(keyed(7878), radarr().impl)], { radarr: keyed(7878) });
-        await expect(h.call({ service: 'radarr', action: 'add', tmdb_id: 348 })).rejects.toThrow(/tmdb_id is for seerr/);
+    it('is refused: the id goes in id', () => {
+        const r = radarr();
+        const h = harness([new RadarrAdapter(keyed(7878), r.impl)], { radarr: keyed(7878) });
+        expect(() => h.call({ service: 'radarr', action: 'add', tmdb_id: 348 })).toThrow(/tmdb_id/);
+        expect(r.sent).toHaveLength(0);
     });
 });

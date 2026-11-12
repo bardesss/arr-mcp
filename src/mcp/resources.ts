@@ -7,7 +7,7 @@ import type { ToolContext } from '../tools/register.ts';
 import { buildGetLibrary } from '../tools/getLibrary.ts';
 import { buildStackHealth } from '../tools/stackHealth.ts';
 import { toolListed } from '../tools/register.ts';
-import { TOOL_DOC_ALIASES, TOOL_DOCS } from './toolDocs.ts';
+import { TOOL_DOCS } from './toolDocs.ts';
 import type { SurfaceOptions } from './toolSurface.ts';
 
 /**
@@ -363,18 +363,14 @@ export function registerAllResources(server: McpServer, context: ToolContext, su
     // The field-by-field detail the tool descriptions point at (#518). Static
     // text, so it is listed once and costs nothing until a client reads it.
     // Not for a tool `tools/list` leaves out: a docs resource never outlives its tool.
-    const docs: [name: string, tool: string, text: string][] = [
-        ...Object.entries(TOOL_DOCS).map(([tool, text]): [string, string, string] => [tool, tool, text]),
-        ...Object.entries(TOOL_DOC_ALIASES).map(([old, current]): [string, string, string] => [old, current, TOOL_DOCS[current]!])
-    ];
-    for (const [name, tool, text] of docs) {
+    for (const [name, text] of Object.entries(TOOL_DOCS)) {
         if (surface !== undefined && !toolListed(name, surface)) continue;
         server.registerResource(
             `docs-${name}`,
             `arr://docs/${name}`,
             {
                 title: `${name} reference`,
-                description: name === tool ? `The full field reference for ${name}: every output field and its caveats.` : `Deprecated: use arr://docs/${tool}.`,
+                description: `The full field reference for ${name}: every output field and its caveats.`,
                 mimeType: 'text/markdown'
             },
             uri => ({ contents: [{ uri: uri.href, mimeType: 'text/markdown', text }] })

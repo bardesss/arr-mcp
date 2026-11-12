@@ -3,7 +3,7 @@ import * as z from 'zod/v4';
 import { ServiceError } from '../core/errors.ts';
 import { PENDING_STATUSES } from '../services/arrRecord.ts';
 import { hasQueue, hasQueueRemove, type QueueItem, type QueueRemoveCapable, type ServiceAdapter } from '../services/types.ts';
-import { applyOrphaned, canClearOrphans, planOrphaned } from './cleanQueue.ts';
+import { applyOrphaned, canClearOrphans, planOrphaned } from './orphanedQueue.ts';
 import { outcomeText, registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 import { targetInput, serviceTarget } from './serviceTarget.ts';
 
