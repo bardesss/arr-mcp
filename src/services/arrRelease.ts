@@ -9,7 +9,7 @@ import type { ReleaseCandidate, ReleaseScope } from './types.ts';
  * `/release` (`/api/v3` on Radarr and Sonarr, `/api/v1` on Lidarr) polls every
  * configured indexer synchronously. A live capture measured a Radarr movie
  * search at 0.5s but a Sonarr season search at 14.3s, and a cold search across
- * more indexers, or a whole-series search, runs longer still. The adapter-wide
+ * more indexers, or a longer season, runs longer still. The adapter-wide
  * HTTP timeout (10s default) would cut that off, so this call gets its own,
  * generous one: bounded so a dead indexer does not hang forever, but not so
  * tight that a real search gets mistaken for one.
@@ -63,16 +63,23 @@ export async function findArrReleases(
     const episodeId =
         opts.episode === undefined ? undefined : arrItemId(service, kind === 'site' ? 'scene' : 'episode', opts.episode);
 
-    // Sonarr runs one indexer search per episode, so a season or series
-    // search costs that many sweeps; `episodeId` alone is a single one.
+    // Sonarr 4 and Whisparr V2 answer a bare `seriesId` with their RSS feed,
+    // releases for any series, and Sonarr 5 with a 400: neither has a
+    // whole-series search. Fanning out per season would cost a sweep each.
+    if (kind !== 'movie' && opts.season === undefined && episodeId === undefined) {
+        throw new ServiceError('NotFound', service, `${service} cannot search a whole ${kind} for releases`, {
+            remedy: 'Pass `season` to search one season, or `episode` to search one episode (a single indexer search).'
+        });
+    }
+
+    // Sonarr runs one indexer search per episode, so a season search costs
+    // that many sweeps; `episodeId` alone is a single one.
     const query =
         kind === 'movie'
             ? `movieId=${itemId}`
             : episodeId !== undefined
               ? `episodeId=${episodeId}`
-              : `seriesId=${itemId}${
-                    opts.season === undefined ? '' : `&seasonNumber=${opts.season}`
-                }`;
+              : `seriesId=${itemId}&seasonNumber=${opts.season}`;
 
     return readReleases(http, service, query);
 }

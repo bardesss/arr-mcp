@@ -51,19 +51,22 @@ describe('findArrReleases', () => {
         expect(seen[0]).toContain('seasonNumber=1');
     });
 
-    it('searches a whole series when no season is given', async () => {
-        const seen: string[] = [];
-        await findArrReleases(
-            http(async (input: string) => {
-                seen.push(String(input));
-                return json([]);
-            }),
-            'sonarr',
-            'series',
-            { id: '15' }
-        );
-        expect(seen[0]).toContain('seriesId=15');
-        expect(seen[0]).not.toContain('seasonNumber');
+    // Sonarr 4 and Whisparr V2 ignore a bare `seriesId` and answer their RSS
+    // feed, releases for any series, which a grab could then take.
+    it('refuses a Sonarr or Whisparr search with neither season nor episode, before any fetch', async () => {
+        const fetchImpl = vi.fn(async () => json([]));
+        const client = http(fetchImpl);
+        for (const [service, kind] of [
+            ['sonarr', 'series'],
+            ['whisparr', 'site']
+        ] as const) {
+            const err = await findArrReleases(client, service, kind, { id: '15' }).catch((e: unknown) => e);
+            expect(err).toBeInstanceOf(ServiceError);
+            expect((err as ServiceError).kind).toBe('NotFound');
+            expect((err as ServiceError).remedy).toMatch(/`season`/);
+            expect((err as ServiceError).remedy).toMatch(/`episode`/);
+        }
+        expect(fetchImpl).not.toHaveBeenCalled();
     });
 
     it('refuses a season passed to a Radarr search rather than silently ignoring it', async () => {

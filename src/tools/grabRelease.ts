@@ -114,12 +114,12 @@ const GrabReleaseInput = z.object({
         .int()
         .nonnegative()
         .optional()
-        .describe('[[sonarr|whisparr: {{or: sonarr=Sonarr; whisparr=Whisparr}} only. The `season` get_releases was called with, so the preview searches that season rather than the whole series.]]'),
+        .describe('[[sonarr|whisparr: {{or: sonarr=Sonarr; whisparr=Whisparr}} only. The `season` get_releases was called with; the preview re-searches it.]]'),
     episode: z
         .string()
         .min(1)
         .optional()
-        .describe('[[sonarr: Sonarr only. The `episode` get_releases was called with, so the preview searches that one episode rather than the whole series. Mutually exclusive with `season`.]]'),
+        .describe('[[sonarr: Sonarr only. The `episode` get_releases was called with; the preview re-searches it. Mutually exclusive with `season`.]]'),
     album: z
         .string()
         .min(1)
@@ -280,8 +280,8 @@ export function registerGrabRelease(
             // path, and it puts a real release name in the preview. "Grab
             // release abc" is not something anyone can approve.
             //
-            // Pass whatever scope the caller searched with: with none, this
-            // is a whole-series search, which on a long series cannot finish.
+            // Pass whatever scope the caller searched with: a Sonarr or
+            // Whisparr search with none is refused, as it has no whole-series form.
             const candidates = await adapter.findReleases({
                 id,
                 ...(season === undefined ? {} : { season }),
