@@ -22,7 +22,7 @@ import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts
  */
 
 const TARGET = serviceTarget({
-    services: ['radarr', 'sonarr', 'whisparr'],
+    services: ['radarr', 'sonarr', 'whisparr', 'lidarr'],
     can: (a): a is ServiceAdapter & ProfileFixCapable & ProfileDiagnosticsCapable => hasProfileFix(a) && hasProfileDiagnostics(a),
     cannot: 'has no quality profiles arr-mcp can change',
     hint: 'Take `service` and `profile` from get_profile_issues.'

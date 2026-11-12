@@ -18,6 +18,7 @@ import { findLidarrReleases, grabLidarrRelease } from './arrRelease.ts';
 import { arrRecentLogs, arrStartLibraryScan } from './arrSystem.ts';
 import { readArrWanted } from './arrWanted.ts';
 import { readSeedCriteria } from './arrSeedCriteria.ts';
+import { readArrProfileDiagnostics, readArrQualityProfile, updateArrQualityProfile } from './arrProfiles.ts';
 import {
     type AddCandidate,
     type AddMediaOptions,
@@ -37,6 +38,10 @@ import {
     type DownloadTraceCapable,
     type IndexerSeedCriteria,
     type SeedCriteriaCapable,
+    type ArrQualityProfileRecord,
+    type ProfileDiagnosticsCapable,
+    type ProfileDiagnosticsData,
+    type ProfileFixCapable,
     type HealthCheckCapable,
     type HistoryCapable,
     type HistoryEntry,
@@ -290,6 +295,8 @@ export class LidarrAdapter
         QueueRemoveCapable,
         DownloadTraceCapable,
         SeedCriteriaCapable,
+        ProfileDiagnosticsCapable,
+        ProfileFixCapable,
         HistoryCapable,
         BlocklistCapable,
         LibraryScanCapable,
@@ -627,6 +634,21 @@ export class LidarrAdapter
 
     async getSeedCriteria(): Promise<IndexerSeedCriteria[]> {
         return readSeedCriteria(this.http, this.id, 'lidarr');
+    }
+
+    // Lidarr 3.1.6 answers /qualityprofile, /customformat and /language like
+    // Radarr; its custom formats have no language condition, so the language
+    // rules never fire on it.
+    async readProfileDiagnostics(): Promise<ProfileDiagnosticsData> {
+        return readArrProfileDiagnostics(this.http);
+    }
+
+    async readQualityProfile(id: number): Promise<ArrQualityProfileRecord> {
+        return readArrQualityProfile(this.http, id);
+    }
+
+    async updateQualityProfile(profile: ArrQualityProfileRecord): Promise<void> {
+        return updateArrQualityProfile(this.http, profile);
     }
 
     /**

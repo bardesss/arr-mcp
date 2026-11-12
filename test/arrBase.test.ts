@@ -47,7 +47,7 @@ describe('*arr adapter capabilities', () => {
             'hasArtistMonitor', 'hasBlocklist', 'hasCalendar', 'hasCommandStatus', 'hasDiskSpace', 'hasDownloadTrace',
             'hasHealthChecks', 'hasHistory', 'hasImportExclusions', 'hasLibrary', 'hasLibraryMaintenance', 'hasLibraryScan',
             'hasLogs', 'hasManualImport', 'hasMediaAdd', 'hasMediaDelete', 'hasMediaDetails', 'hasMediaUpdate', 'hasMetadataProfiles',
-            'hasMonitorState', 'hasMonitoring', 'hasQueue', 'hasQueueRemove', 'hasReleaseGrab',
+            'hasMonitorState', 'hasMonitoring', 'hasProfileDiagnostics', 'hasProfileFix', 'hasQueue', 'hasQueueRemove', 'hasReleaseGrab',
             'hasReleaseSearch', 'hasScanState', 'hasSearch', 'hasSearchTrigger', 'hasSeedCriteria', 'hasTagRepair', 'hasWanted'
         ]]
     ])('%s exposes exactly its capabilities', (_name, make, expected) => {
