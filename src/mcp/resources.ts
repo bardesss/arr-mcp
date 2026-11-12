@@ -16,7 +16,7 @@ import type { SurfaceOptions } from './toolSurface.ts';
  * **Every one mirrors a tool.** That is the rule the whole phase rests on:
  * client support for resources is uneven, and arr-mcp has to work on all of
  * them, so a resource exposing something no tool returns would be unreachable
- * wherever they are not surfaced. Nothing here originates — `arr://instances`
+ * wherever they are not surfaced. Nothing here originates. `arr://instances`
  * is `get_stack_health`'s services and permissions, `arr://health` is
  * `get_stack_health`, the summary is `get_library` aggregates, and the Lidarr
  * policy is the distribution `update_media` reports in its preview.
@@ -35,7 +35,7 @@ const INSTANCES_TTL_MS = 60 * 60 * 1000;
  * Zero, meaning never cache.
  *
  * A pinned health resource saying "sonarr: reachable" five hours after Sonarr
- * fell over is worse than the tool call it replaced — it is confidently wrong
+ * fell over is worse than the tool call it replaced; it is confidently wrong
  * rather than merely absent. The dashboard refuses to cache health for exactly
  * this reason, and this is the same decision in the protocol's own vocabulary.
  */
@@ -137,7 +137,7 @@ export function registerAllResources(server: McpServer, context: ToolContext, su
         {
             title: 'Stack health (snapshot)',
             description:
-                'A point-in-time verdict per service. **`get_stack_health` is the live answer** — this is a snapshot and says in `as_of` when it was taken. Read it again rather than trusting a pinned copy: a service that was reachable an hour ago may not be now.',
+                'A point-in-time verdict per service. **`get_stack_health` is the live answer**; this is a snapshot and says in `as_of` when it was taken. Read it again rather than trusting a pinned copy: a service that was reachable an hour ago may not be now.',
             mimeType: 'application/json',
             cacheHint: { ttlMs: HEALTH_TTL_MS, cacheScope: 'private' }
         },
@@ -171,7 +171,7 @@ export function registerAllResources(server: McpServer, context: ToolContext, su
         {
             title: 'Library summary',
             description:
-                'Counts across the joined library — total, on disk, and still wanted. Mirrors what get_library reports; call that for anything beyond the totals.',
+                'Counts across the joined library: total, on disk, and still wanted. Mirrors what get_library reports; call that for anything beyond the totals.',
             mimeType: 'application/json',
             cacheHint: { ttlMs: SUMMARY_TTL_MS, cacheScope: 'private' }
         },
@@ -220,7 +220,7 @@ export function registerAllResources(server: McpServer, context: ToolContext, su
                                   `total counts every row the services hold, and ${unmonitored} of them are unmonitored: ` +
                                   'nothing is pending on those and nothing will be. ' +
                                   (lidarrConfigured
-                                      ? 'Lidarr is the usual source — it imports '
+                                      ? 'Lidarr is the usual source: it imports '
                                           + "an artist's whole discography as catalog and monitors only part of it. "
                                       : '') +
                                   '`monitored` is what the services are actually watching.'
@@ -247,14 +247,14 @@ export function registerAllResources(server: McpServer, context: ToolContext, su
      * Lidarr's monitoring policy, readable without a write.
      *
      * This mirrors `update_media`, which reports the same distribution in its
-     * preview, so it originates nothing — the rule every resource here rests on.
+     * preview, so it originates nothing; the rule every resource here rests on.
      * It exists because before it the only way to ask "is my music library
      * stable" was to invoke a write tool in dry run: an odd thing to have to do
      * to read a number, and impossible for a read-only credential.
      *
      * The album level is deliberately not folded in. An album's flag and its
-     * artist's flag are independent — a live library was found with an artist
-     * unmonitored while an album under it stayed monitored — so no single view
+     * artist's flag are independent (a live library was found with an artist
+     * unmonitored while an album under it stayed monitored) so no single view
      * settles both, and pretending otherwise here would repeat the mistake this
      * resource exists to make visible.
      */
@@ -264,7 +264,7 @@ export function registerAllResources(server: McpServer, context: ToolContext, su
         {
             title: 'Lidarr monitoring policy',
             description:
-                "Every Lidarr artist's monitoring policy in one read: how many will monitor albums they discover later, and how many carry the artist-level monitor flag. `update_media` with no `id` (and `instance` when there is more than one Lidarr) is the live answer and the way to change it. The artist flag is not the album flag — an artist can read unmonitored while an album under it stays monitored — so read arr://library/summary for what is actually pending. With more than one Lidarr, `instances` reports each one that answered (one that did not is listed in `degraded`), since `update_media` writes one instance at a time, and the totals add those instances up: an artist two Lidarrs hold counts once in each.",
+                "Every Lidarr artist's monitoring policy in one read: how many will monitor albums they discover later, and how many carry the artist-level monitor flag. `update_media` with no `id` (and `instance` when there is more than one Lidarr) is the live answer and the way to change it. The artist flag is not the album flag: an artist can read unmonitored while an album under it stays monitored, so read arr://library/summary for what is actually pending. With more than one Lidarr, `instances` reports each one that answered (one that did not is listed in `degraded`), since `update_media` writes one instance at a time, and the totals add those instances up: an artist two Lidarrs hold counts once in each.",
             mimeType: 'application/json',
             cacheHint: { ttlMs: MONITORING_TTL_MS, cacheScope: 'private' }
         },
@@ -315,7 +315,7 @@ export function registerAllResources(server: McpServer, context: ToolContext, su
             const treadmill =
                 `${autoMonitoring} artist(s)${counted} will keep monitoring albums they discover later, or report no ` +
                 'readable policy. Unmonitoring albums under those artists is a treadmill until the policy ' +
-                `changes — ${change} does it.`;
+                `changes; ${change} does it.`;
             let note: string;
             if (degraded.length > 0) {
                 // Nothing here may claim the wanted list cannot grow: the

@@ -17,7 +17,7 @@ export async function buildDiagnose(deps: DiagnoseDeps, target: DiagnoseTarget):
 }
 
 const DiagnoseInput = toolInput({
-    query: z.string().min(1).optional().describe('A title — how a person actually asks.'),
+    query: z.string().min(1).optional().describe('A title: how a person actually asks.'),
     service: ServiceIdSchema.optional().describe('With `id`: an exact item, when one is already in hand.'),
     id: z.string().min(1).optional(),
     instance: z.string().min(1).optional().describe(INSTANCE_PARAM_DESCRIPTION),
@@ -67,7 +67,7 @@ export function registerDiagnose(
             title: 'Diagnose a missing or unplayable item',
             annotations: READ_ONLY,
             description,
-            // A verdict, not a list — so no paged envelope. `certain` is the
+            // A verdict, not a list, so no paged envelope. `certain` is the
             // field that matters most and the one a client must not have to
             // read prose to find: a diagnosis reached across a service that
             // could not be checked is a guess, and reporting it as an answer is

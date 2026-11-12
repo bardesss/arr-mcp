@@ -12,13 +12,13 @@ body:
 
         This matters because the answer is often a new parameter or a new field
         on a tool that already exists. Forty tools is the ceiling
-        — model accuracy degrades measurably past roughly forty — so new
+        (model accuracy degrades measurably past roughly forty), so new
         capability extends an existing tool before it adds one. A request framed
         as a question can be answered that way. One framed as a tool name
         usually cannot.
 
         Requests you never intend to write the code for are welcome. So are
-        ones you do — see
+        ones you do; see
         [CONTRIBUTING.md](https://github.com/bardesss/arr-mcp/blob/main/CONTRIBUTING.md).
 
   - type: textarea
@@ -27,9 +27,9 @@ body:
       label: What did you ask, and what came back?
       description: >-
         The actual question you put to your MCP client, and what arr-mcp
-        answered — a refusal, an empty list, the wrong thing, or nothing at all.
+        answered: a refusal, an empty list, the wrong thing, or nothing at all.
       placeholder: >-
-        "Which of my films are on a drive that is nearly full?" — get_library
+        "Which of my films are on a drive that is nearly full?": get_library
         returned the films but nothing about which disk they are on.
     validations:
       required: true
@@ -49,7 +49,7 @@ body:
     attributes:
       label: Which services would this have to read?
       description: >-
-        Tick what you think it needs. Guessing is fine — tick nothing if you
+        Tick what you think it needs. Guessing is fine; tick nothing if you
         are not sure.
       options:
         - label: Radarr
@@ -78,7 +78,7 @@ body:
       label: A service arr-mcp does not support at all?
       description: >-
         Name it and its version. Adapters are the most self-contained thing in
-        the codebase and the highest-value contribution — but a service the
+        the codebase and the highest-value contribution, but a service the
         maintainer does not run cannot be tested in review, so one you are
         willing to test yourself against a live instance goes much further than
         one nobody can exercise.
@@ -88,7 +88,7 @@ body:
         [which services qualify](https://github.com/bardesss/arr-mcp/blob/main/CONTRIBUTING.md#which-services-qualify),
         with
         [the ones that would be accepted today](https://github.com/bardesss/arr-mcp/blob/main/CONTRIBUTING.md#what-would-be-accepted-today)
-        named in advance. Asking here first is the cheap way to find out — a
+        named in advance. Asking here first is the cheap way to find out: a
         service that misses on age alone gets a date back, not a no.
       placeholder: 'Service name and version'
 
@@ -98,10 +98,10 @@ body:
       label: Would this change anything in your stack?
       description: >-
         Reads ship freely. Writes are gated per service and per tier, and a
-        write that loses data — files, history, a blocklist entry — is a
+        write that loses data (files, history, a blocklist entry) is a
         different conversation from one the service can undo.
       options:
-        - 'No — it only reads'
+        - 'No, it only reads'
         - 'Yes, but reversibly (monitor, search, approve)'
         - 'Yes, destructively (delete files, remove a record)'
         - 'Not sure'
@@ -122,7 +122,7 @@ body:
     attributes:
       label: How are you working around it today?
       description: >-
-        Optional, and more useful than it sounds — a workaround that almost
+        Optional, and more useful than it sounds: a workaround that almost
         works usually points at the field that is missing.
 
   - type: checkboxes

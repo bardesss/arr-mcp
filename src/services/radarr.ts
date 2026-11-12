@@ -123,7 +123,7 @@ type RawMovie = {
  * but `RefreshMonitoredDownloads` polls the download queue every minute and
  * `RefreshCollections` syncs collections. Taking the most recent match
  * reported the library as scanned a minute ago when it had in fact been
- * scanned 23 hours earlier — scan staleness that can never look stale is worse
+ * scanned 23 hours earlier: scan staleness that can never look stale is worse
  * than not reporting it at all.
  */
 const LIBRARY_SCAN_TASK = 'RefreshMovie';
@@ -355,7 +355,7 @@ export class RadarrAdapter
     }
 
     /** The `/api/v3/movie` read behind both `search(_, 'library')` and
-     *  `listLibrary` — Radarr has no server-side filter, so both need the
+     *  `listLibrary`: Radarr has no server-side filter, so both need the
      *  whole list, and this is where they share one fetch for it. */
     #allMovies(): Promise<RawMovie[]> {
         return this.libraryCache.get('movies', LIBRARY_TTL_MS, () => this.http.get<RawMovie[]>('/api/v3/movie'));
@@ -405,7 +405,7 @@ export class RadarrAdapter
     }
 
     /**
-     * The whole film library in one call — Radarr has no server-side filter, so
+     * The whole film library in one call: Radarr has no server-side filter, so
      * this is the same `/api/v3/movie` read `search` already does, via `#allMovies`.
      */
     async listLibrary(): Promise<IndexInput[]> {

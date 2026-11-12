@@ -8,7 +8,7 @@ import type { ImdbDataset } from './imdbDataset.ts';
  *
  * **Never overwrites.** A service is the authority on its own data; the
  * dataset fills gaps. An item with no IMDb id, or one the dataset does not
- * know, comes back untouched and is counted as unrated downstream — a miss
+ * know, comes back untouched and is counted as unrated downstream; a miss
  * must never become a zero, which would rank an unknown title below one
  * genuinely rated 1.0.
  *
@@ -23,8 +23,8 @@ import type { ImdbDataset } from './imdbDataset.ts';
  * genuinely differ elsewhere: `MergedItem.ratings` is `MergedRatings`, while
  * `SearchHit.ratings` and `MediaDetails.ratings` are `Record<string, number>`,
  * and `IndexInput` is a `MergedItem` without `presence`. All four agree on the
- * only part that matters here — an optional imdb id and an optional imdb
- * rating — so one constraint covers them without asserting anything false
+ * only part that matters here, an optional imdb id and an optional imdb
+ * rating, so one constraint covers them without asserting anything false
  * about any of them.
  */
 type Rateable = {
@@ -37,7 +37,7 @@ type Rateable = {
  *
  * For a series this is the only path that can populate it at all. Radarr
  * returns a per-source ratings map, but Sonarr returns one flat value that
- * `flattenSeriesRating` can only honestly record as `tvdb` — so before this,
+ * `flattenSeriesRating` can only honestly record as `tvdb`, so before this,
  * `MergedRatings.imdb` was unreachable for half the library.
  *
  * Returns the array it was given, unchanged and by identity, when there is

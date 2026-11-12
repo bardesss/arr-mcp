@@ -10,8 +10,8 @@ import { constantTimeEquals } from './secrets.ts';
  * Password storage and browser sessions for the config UI.
  *
  * The UI is a bigger target than the MCP endpoint: it shows every service's API
- * key and can change them. So the password is never stored — only a scrypt
- * hash — and the session cookie is a signed, expiring token rather than an
+ * key and can change them. So the password is never stored, only a scrypt
+ * hash, and the session cookie is a signed, expiring token rather than an
  * identifier looked up in a table, which keeps the transport stateless while
  * still expiring properly.
  */
@@ -27,7 +27,7 @@ const KEY_LENGTH = 64;
  * MCP endpoint runs on, so a burst of logins stalls every tool call.
  *
  * `SCRYPT_N` equals `crypto.scrypt`'s own default cost, so the cast's
- * `options` field is currently belt-and-braces — it stops being redundant the
+ * `options` field is currently belt-and-braces; it stops being redundant the
  * day `SCRYPT_N` changes.
  */
 const scrypt = promisify(scryptCallback) as (
@@ -97,7 +97,7 @@ type SessionVerdict =
 /**
  * Signed cookies over a server-side session table, deliberately.
  *
- * A table would have to live somewhere — memory, which loses every session on
+ * A table would have to live somewhere; memory, which loses every session on
  * the restart a config change already causes, or SQLite, which is a third
  * database for something with no audit value. A signed token needs neither,
  * and `open` keeps the key in a file, so a restart or an update does not sign
@@ -172,13 +172,13 @@ export class Sessions {
     }
 
     /**
-     * `<expiresAt base36>.<nonce>.<hmac>` — the expiry is in the clear because
+     * `<expiresAt base36>.<nonce>.<hmac>`; the expiry is in the clear because
      * it is signed, so editing it invalidates the token rather than extending
      * it.
      *
      * The nonce is what makes each session distinct. Without it the token is a
      * pure function of its expiry, so every sign-in within the same
-     * millisecond produces the *same* token — which a test caught. That is not
+     * millisecond produces the *same* token, which a test caught. That is not
      * an authentication hole on its own (any valid token grants access, and
      * there are no per-user identities here), but it makes the CSRF binding
      * below meaningless between colliding sessions, and it means signing out
@@ -335,7 +335,7 @@ function readStored(path: string): { key: Buffer; revoked: [string, number][] } 
     }
 }
 
-/** Minimal cookie parser — the UI sets one cookie and reads one cookie, and a
+/** Minimal cookie parser; the UI sets one cookie and reads one cookie, and a
  *  dependency for that would be a dependency to audit. */
 export function readCookie(header: string | undefined, name: string): string | undefined {
     if (header === undefined) return undefined;

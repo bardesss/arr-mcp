@@ -26,10 +26,10 @@ import { targetInput, serviceTarget } from './serviceTarget.ts';
 
 /**
  * `add_media`'s counterpart, and the only way to change a **Radarr** item's
- * monitoring at all — `set_monitoring` covers series and artists, never films.
+ * monitoring at all; `set_monitoring` covers series and artists, never films.
  *
  * Safe tier. Every field here is one the same tool can set back, and the one
- * that touches disk — a root folder change — asks the service to *move* the
+ * that touches disk (a root folder change) asks the service to *move* the
  * files, which loses nothing and is undone by moving them back. `add_media`,
  * which starts multi-gigabyte downloads, is safe on the same reasoning. The
  * preview still spells the move out, because "change the root folder" reads
@@ -145,7 +145,7 @@ const UpdateMediaInput = z.object({
         .min(1)
         .optional()
         .describe(
-            "The item's id within that service — `acquisition.id` on a get_library or get_media_details record. [[lidarr: Omit it with `monitored` or `monitor_new_items` alone to reach every artist.]]"
+            "The item's id within that service: `acquisition.id` on a get_library or get_media_details record. [[lidarr: Omit it with `monitored` or `monitor_new_items` alone to reach every artist.]]"
         ),
     quality_profile: z.string().optional().describe('Profile name or id to switch to.'),
     root_folder: z
@@ -179,7 +179,7 @@ const UpdateMediaInput = z.object({
     tags: z
         .array(z.string())
         .optional()
-        .describe('Tag labels or ids that already exist. Replaces the whole set — pass [] to clear it.'),
+        .describe('Tag labels or ids that already exist. Replaces the whole set: pass [] to clear it.'),
     title: z.string().min(1).optional().describe('[[grimmory: Deprecated: use update_book.]]'),
     authors: z.array(z.string().min(1)).min(1).optional().describe('[[grimmory: Deprecated: use update_book.]]'),
     series: z.string().optional().describe('[[grimmory: Deprecated: use update_book.]]'),
@@ -347,7 +347,7 @@ export function registerUpdateMedia(
             }
 
             // Refused rather than dropped, and named for the service that does
-            // have the option — same rule as add_media.
+            // have the option; same rule as add_media.
             if (series_type !== undefined && adapter.type !== 'sonarr') {
                 throw new ServiceError('NotFound', service, 'series_type is a Sonarr option', {
                     remedy: lidarr ? 'An artist has no numbering scheme. Drop it.' : 'Films have no numbering scheme. Drop it.'

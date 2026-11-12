@@ -3,14 +3,14 @@
  * `diagnose_media`. Extracted from searchMedia when the third caller appeared: two
  * copies is a coincidence, three is a module.
  *
- * Ranking contract: four tiers, lower is better — RANK_EXACT, RANK_PREFIX,
+ * Ranking contract: four tiers, lower is better. RANK_EXACT, RANK_PREFIX,
  * RANK_SUBSTRING, RANK_NONE. A title that does not contain the query at all
  * is a strictly worse match than one that does, so it gets its own bottom
  * tier instead of sharing RANK_SUBSTRING by default. That distinction is not
  * theoretical: `search_media`'s library sources pre-filter to substring
  * matches before this ever sees them, but its discover and indexer sources
  * (Radarr/Sonarr `/lookup`, Prowlarr's indexer search) return whatever the
- * far end sent back, unfiltered — RANK_NONE is the tier that keeps an
+ * far end sent back, unfiltered. RANK_NONE is the tier that keeps an
  * unrelated result from outranking a real one there. Both sides of the
  * comparison go through `normaliseTitle`, so a leading article on either the
  * title or the query is stripped before ranking: "matrix" against "The
@@ -74,8 +74,8 @@ export function rankTitle(title: string, query: string): number {
     const t = normaliseTitle(title);
     const q = normaliseTitle(query);
 
-    // An empty query — whether the caller sent '' or something that
-    // normalises down to it, like '???' — matches nothing. Without this,
+    // An empty query (whether the caller sent '' or something that
+    // normalises down to it, like '???') matches nothing. Without this,
     // `t === q` and `t.startsWith(q)` are both true for every title (the
     // empty string is a prefix of everything), so an empty query would rank
     // as an exact match against a title that is itself empty, and as a

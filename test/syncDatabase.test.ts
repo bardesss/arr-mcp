@@ -293,7 +293,7 @@ describe('sync_database', () => {
         const applied = await h.call({ confirm: preview.structuredContent.confirm_token });
 
         expect(applied.content[0]?.text).toBe(
-            'Nothing to pull — Profilarr\'s "Dictionarry" database was already up to date with its git source, ' +
+            'Nothing to pull: Profilarr\'s "Dictionarry" database was already up to date with its git source, ' +
                 'so no sync happened. Profilarr said: No updates available'
         );
         expect(applied.content[0]?.text).not.toMatch(/^Applied\./);

@@ -54,7 +54,7 @@ describe('get_media_details on a title the library lacks', () => {
         const s = stack(async () => [hit('The Matrix', 'movie', { tmdb: 603 }, 1999)]);
         const message = await ask(s, 'The Matrix');
         expect(message).toMatch(/^Nothing in your library matches "The Matrix"\. Not in your library, but known as: /);
-        expect(message).toContain('(1999) — movie, radarr:603, tmdb:603');
+        expect(message).toContain('(1999): movie, radarr:603, tmdb:603');
         expect(message).toContain('add_media');
         expect(message).not.toContain('search_media');
         expect(s.seen).toEqual([{ query: 'The Matrix', source: 'discover' }]);

@@ -8,8 +8,8 @@ import { resolveInstance } from './resolveInstance.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 
 /**
- * The only write in this plan. It reaches Profilarr alone — never Radarr or
- * Sonarr — and is `safe` tier because a `pcd.sync` only pulls Profilarr's own
+ * The only write in this plan. It reaches Profilarr alone, never Radarr or
+ * Sonarr, and is `safe` tier because a `pcd.sync` only pulls Profilarr's own
  * git-tracked store; the arrs pick up any change later, on Profilarr's own
  * schedule.
  *
@@ -41,7 +41,7 @@ const findAdapter = (adapters: readonly ServiceAdapter[]): ServiceAdapter & Sync
     return adapter;
 };
 
-/** A request made entirely of digits is an id, never a name substring — the
+/** A request made entirely of digits is an id, never a name substring; the
  *  same rule chooseOne.ts applies to profiles, tags and folders. */
 const isNumeric = (value: string) => /^\d+$/.test(value);
 
@@ -54,9 +54,9 @@ const DATABASE_MATCH = {
 
 const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
 
-/** What every read of a job's status says on failure — a mid-poll read that
+/** What every read of a job's status says on failure; a mid-poll read that
  *  errors is not evidence the sync failed, only that this one check did. */
-const STILL_RUNNING_REMEDY = 'The sync may still be running — check Profilarr directly.';
+const STILL_RUNNING_REMEDY = 'The sync may still be running. Check Profilarr directly.';
 
 /** The one place a 202 stops being trusted: this waits for a real outcome. */
 async function awaitJob(
@@ -78,7 +78,7 @@ async function awaitJob(
             );
         }
         if (TERMINAL.has(outcome.status)) return outcome;
-        // Never after the last attempt — nothing is waiting on the throw below.
+        // Never after the last attempt; nothing is waiting on the throw below.
         if (attempt < maxPolls - 1) await sleep(pollIntervalMs);
     }
     throw new ServiceError('UpstreamError', 'profilarr', `sync job ${jobId} did not finish after ${maxPolls} polls`, {
@@ -97,7 +97,7 @@ export function registerSyncDatabase(
     server: McpServer,
     context: WriteContext,
     adapters: readonly ServiceAdapter[],
-    /** Test-only knobs — production keeps the defaults. */
+    /** Test-only knobs; production keeps the defaults. */
     opts: { pollIntervalMs?: number; maxPolls?: number } = {}
 ): void {
     // 24 polls at 1s apart, minus the skipped final sleep (see `awaitJob`):
@@ -110,7 +110,7 @@ export function registerSyncDatabase(
         name: 'sync_database',
         title: 'Sync a Profilarr database',
         description:
-            "Asks Profilarr to pull one of its databases — custom formats, quality profiles, delay profiles — " +
+            "Asks Profilarr to pull one of its databases (custom formats, quality profiles, delay profiles) " +
             'from its configured git source. Safe tier: it only changes Profilarr\'s own store, never Radarr or ' +
             'Sonarr directly. `database` names one by name or id; required only when Profilarr has more than one. ' +
             'Profilarr answers the request with a queued job, and this tool polls it to a terminal status before ' +
@@ -133,7 +133,7 @@ export function registerSyncDatabase(
                 effects: [
                     `Profilarr re-reads "${db.name}" from git; the custom formats, quality profiles and delay ` +
                         'profiles it manages may change as a result.',
-                    'Does not write anything to Radarr or Sonarr directly — they pick up the change only when ' +
+                    'Does not write anything to Radarr or Sonarr directly. They pick up the change only when ' +
                         'Profilarr syncs them on its own schedule.',
                     'Not reversible through arr-mcp: revert in Profilarr or git if the pulled change is unwanted.'
                 ],
@@ -157,7 +157,7 @@ export function registerSyncDatabase(
             }
 
             // `status` is the queue outcome; `result` is the handler's own,
-            // and can disagree — `failure`/`cancelled` here mean the handler
+            // and can disagree, `failure`/`cancelled` here mean the handler
             // didn't do what was asked, so treat them like a failed queue.
             if (result === 'failure' || result === 'cancelled') {
                 throw new ServiceError(
@@ -168,7 +168,7 @@ export function registerSyncDatabase(
                 );
             }
 
-            // `skipped` means Profilarr found nothing to pull — a real,
+            // `skipped` means Profilarr found nothing to pull; a real,
             // non-error outcome, not a sync that happened.
             if (result === 'skipped') {
                 return { jobId, status, outcome: 'skipped', ...(detail === undefined ? {} : { detail }) };
@@ -177,7 +177,7 @@ export function registerSyncDatabase(
             return { jobId, status };
         },
 
-        // Only the skipped case needs a different sentence — a real sync
+        // Only the skipped case needs a different sentence; a real sync
         // keeps the default `Applied. ${plan.summary}`. Without this, a
         // sync that pulled nothing would still read as a completed sync,
         // which is the same bug the structured `outcome` field exists to
@@ -187,7 +187,7 @@ export function registerSyncDatabase(
             if (o?.outcome !== 'skipped') return undefined;
             const name = /"([^"]+)"/.exec(plan.summary)?.[1] ?? plan.target;
             return (
-                `Nothing to pull — Profilarr's "${name}" database was already up to date with its git source, ` +
+                `Nothing to pull: Profilarr's "${name}" database was already up to date with its git source, ` +
                 `so no sync happened.${o.detail === undefined ? '' : ` Profilarr said: ${o.detail}`}`
             );
         }

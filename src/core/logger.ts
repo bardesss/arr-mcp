@@ -7,7 +7,7 @@ import type { LogStore } from './logs.ts';
  * `logger` is imported at module load by nearly every file, but the store
  * needs the config directory, which only `index.ts` knows. So the destination
  * is a stable object that forwards to a store once one exists and drops
- * otherwise — rather than a second logger built later, which would silently
+ * otherwise, rather than a second logger built later, which would silently
  * lose every line emitted during startup.
  */
 let sink: LogStore | undefined;
@@ -60,14 +60,14 @@ export const logger = pino(
         //
         // This file used to promise "three log streams" from a design spec
         // that is not in this repository, so nothing could check the claim.
-        // The three that exist are defined in `web/pages.ts` as LOG_STREAMS —
-        // all activity, problems, and one service — chosen from what this
+        // The three that exist are defined in `web/pages.ts` as LOG_STREAMS,
+        // all activity, problems, and one service, chosen from what this
         // logger actually binds rather than from the unavailable spec.
         base: { app: 'arr-mcp' },
         serializers: {
             // pino's default `err` serializer spreads every own enumerable
             // property, and `ServiceError.message` embeds `.remedy` (see
-            // core/errors.ts) — without this, `remedy` would appear twice in
+            // core/errors.ts), without this, `remedy` would appear twice in
             // every logged error: once inline in `message`, once as its own
             // field. `kind`/`service`/`detail` stay, since those are structured
             // fields the config UI's log streams can filter on and are not

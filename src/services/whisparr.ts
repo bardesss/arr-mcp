@@ -122,7 +122,7 @@ type RawEpisode = {
     releaseDate?: string;
     hasFile?: boolean;
     monitored?: boolean;
-    /** 0 when the scene has no file — zero, not absence, as in Sonarr. */
+    /** 0 when the scene has no file: zero, not absence, as in Sonarr. */
     episodeFileId?: number;
 };
 
@@ -132,7 +132,7 @@ type RawEpisodeFile = { id?: number; seasonNumber?: number; size?: number };
 const LIBRARY_SCAN_TASK = 'RefreshSeries';
 
 /**
- * Whisparr V2 — a Sonarr fork on `/api/v3`, keeping Sonarr's nouns. A site is a
+ * Whisparr V2: a Sonarr fork on `/api/v3`, keeping Sonarr's nouns. A site is a
  * series and a scene is an episode, so the shared `arr*` helpers apply with the
  * `'series'` noun and `sizeOnDisk` nests under `statistics` exactly as Sonarr's
  * does.
@@ -143,7 +143,7 @@ const LIBRARY_SCAN_TASK = 'RefreshSeries';
  * **A season here is a release year.** Sites have no seasons, so V2 groups
  * scenes by year and puts that in `seasonNumber`: a live instance reports 2006
  * through 2025, two to seven per site. Everything that merges or sorts on
- * season works unchanged, because the field is a populated integer either way —
+ * season works unchanged, because the field is a populated integer either way,
  * but a caller passing `season: 1` matches nothing. The season-scoped writes
  * (set_monitoring, trigger_search, delete_episode_files) therefore refuse a
  * season the site does not have and list the years it does, rather than
@@ -198,7 +198,7 @@ export class WhisparrAdapter
     /**
      * Rejects Eros by name rather than letting it through.
      *
-     * `assertVersionSupported` only has a floor, and Eros is 3.x — above it. So
+     * `assertVersionSupported` only has a floor, and Eros is 3.x: above it. So
      * an Eros instance configured here would connect cleanly and then fail on
      * the first `/series` read, which Eros does not serve. There is nothing in
      * the URL or the credential to tell the two apart, so the version is the
@@ -253,7 +253,7 @@ export class WhisparrAdapter
         return arrGrabRecorded(this.http, this.id, downloadId);
     }
 
-    /** Deletes the whole site. Sonarr's `series` resource — Whisparr keeps the noun. */
+    /** Deletes the whole site. Sonarr's `series` resource: Whisparr keeps the noun. */
     async deleteMedia(id: string, opts: DeleteMediaOptions): Promise<void> {
         return deleteArrMedia(this.http, this.id, 'series', id, opts);
     }
@@ -282,7 +282,7 @@ export class WhisparrAdapter
         return updateArrQualityProfile(this.http, profile);
     }
 
-    /** Sonarr resolves by TVDB id — Whisparr reuses the same field for its own
+    /** Sonarr resolves by TVDB id: Whisparr reuses the same field for its own
      *  scene-database id, per WHISPARR_ADD. */
     async lookupForAdd(externalId: string): Promise<AddCandidate> {
         return lookupArrForAdd(this.http, this.id, WHISPARR_ADD, externalId);
@@ -449,7 +449,7 @@ export class WhisparrAdapter
                     // Always 0: Whisparr sends no `episodeNumber`, because scenes
                     // are not numbered within their year. Zero is what Sonarr's
                     // absent-episode case already produces, so consumers need no
-                    // second shape — but it means episode number cannot identify a
+                    // second shape, but it means episode number cannot identify a
                     // scene here, and only `id` can.
                     episode: 0,
                     title: fenceText(e.title ?? '', { service: this.id, field: 'episode.title' }),
@@ -484,7 +484,7 @@ export class WhisparrAdapter
     }
 
     /** The `/api/v3/series` read behind both `search(_, 'library')` and
-     *  `listLibrary` — Whisparr has no server-side filter, so both need the
+     *  `listLibrary`: Whisparr has no server-side filter, so both need the
      *  whole list, and this is where they share one fetch for it. */
     #allSeries(): Promise<RawSeries[]> {
         return this.libraryCache.get('series', LIBRARY_TTL_MS, () => this.http.get<RawSeries[]>('/api/v3/series'));
@@ -512,7 +512,7 @@ export class WhisparrAdapter
                     ...(s.status === undefined ? {} : { status: s.status }),
                     monitored: s.monitored ?? false,
                     // A site has no single file, so "has a file" means "has any
-                    // scene on disk" — the same stand-in Sonarr makes for a
+                    // scene on disk": the same stand-in Sonarr makes for a
                     // series, and the same reason there is no quality here.
                     hasFile: (s.statistics?.episodeFileCount ?? 0) > 0,
                     ...(s.qualityProfileId === undefined ? {} : { qualityProfileId: s.qualityProfileId }),

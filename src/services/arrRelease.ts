@@ -11,7 +11,7 @@ import type { ReleaseCandidate, ReleaseScope } from './types.ts';
  * search at 0.5s but a Sonarr season search at 14.3s, and a cold search across
  * more indexers, or a whole-series search, runs longer still. The adapter-wide
  * HTTP timeout (10s default) would cut that off, so this call gets its own,
- * generous one — bounded so a dead indexer does not hang forever, but not so
+ * generous one: bounded so a dead indexer does not hang forever, but not so
  * tight that a real search gets mistaken for one.
  */
 export const RELEASE_SEARCH_TIMEOUT_MS = 120_000;
@@ -47,13 +47,13 @@ export async function findArrReleases(
         });
     }
     if (kind === 'movie' && (opts.season !== undefined || opts.episode !== undefined)) {
-        throw new ServiceError('NotFound', service, `${service} has no seasons or episodes — that scope is Sonarr-only`, {
+        throw new ServiceError('NotFound', service, `${service} has no seasons or episodes: that scope is Sonarr-only`, {
             remedy: 'Drop `season` and `episode` for a Radarr search, or point it at a configured Sonarr instance.'
         });
     }
     if (opts.season !== undefined && opts.episode !== undefined) {
         throw new ServiceError('NotFound', service, '`season` and `episode` were both given', {
-            remedy: 'They are different scopes — send one. `episode` searches that episode alone; `season` searches every episode in the season.'
+            remedy: 'They are different scopes: send one. `episode` searches that episode alone; `season` searches every episode in the season.'
         });
     }
 
@@ -97,7 +97,7 @@ export async function findLidarrReleases(
 async function readReleases(http: ServiceHttp, service: string, query: string): Promise<ReleaseCandidate[]> {
     // `retry: false`: the default timeout retry re-issues the whole request,
     // which here means a second full synchronous poll of every configured
-    // indexer stacked on the first — the exact "starts a second sweep" this
+    // indexer stacked on the first: the exact "starts a second sweep" this
     // tool's own description warns a caller against causing by retrying.
     const raw = await http.get<RawRelease[]>(`${http.apiRoot}/release?${query}`, {
         timeoutMs: RELEASE_SEARCH_TIMEOUT_MS,
@@ -121,8 +121,8 @@ async function readReleases(http: ServiceHttp, service: string, query: string): 
         )
         .map(r => ({
             service,
-            // Not fenced — a future grab tool needs this verbatim, and its
-            // own type comment says as much — but still an indexer-chosen
+            // Not fenced: a future grab tool needs this verbatim (its
+            // own type comment says as much), but it is still an indexer-chosen
             // string, stripped of the code points that let one render as
             // something it is not, and length-capped.
             guid: sanitizeGuid(r.guid),
@@ -145,7 +145,7 @@ async function readReleases(http: ServiceHttp, service: string, query: string): 
  *
  * `discardBody`: every *arr answers a successful grab with the release
  * echoed back, and nothing here reads it. A guid the indexer no longer serves
- * answers 404, which is the failure this cannot distinguish from a bad path —
+ * answers 404, which is the failure this cannot distinguish from a bad path:
  * so `grab_release` re-runs the search first and refuses before reaching here.
  */
 export async function grabArrRelease(

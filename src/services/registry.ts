@@ -25,14 +25,14 @@ import type { ServiceAdapter } from './types.ts';
  * The one place that knows which config key builds which adapter.
  *
  * `listInstances` has already flattened one-or-many into a list ordered by id,
- * so this no longer decides ordering — it only decides construction. The order
+ * so this no longer decides ordering: it only decides construction. The order
  * is still alphabetical by id, which keeps get_stack_health's output stable across
  * restarts and diffable in tests, and now keeps `radarr/4k` next to `radarr/hd`.
  *
  * No casts, and no swap that compiles. `ServiceInstance` is discriminated on
  * `type`, so each case narrows its own config, and every entry of
  * `ConfigByService` carries a phantom `__service` naming the service it
- * belongs to — so a config for one service is not assignable to an adapter
+ * belongs to, so a config for one service is not assignable to an adapter
  * for another even when the two shapes are identical.
  *
  * Before this, every case restated its type with an unchecked `as`, and two
@@ -42,7 +42,7 @@ import type { ServiceAdapter } from './types.ts';
  *
  * Verified by swapping bodies and running `tsc` rather than assumed, because
  * the first attempt at this narrowed on `type` alone and left half the swaps
- * compiling — `MultiUserServiceConfig` is a superset of `KeyedServiceConfig`,
+ * compiling: `MultiUserServiceConfig` is a superset of `KeyedServiceConfig`,
  * so a Jellyfin block satisfied a Radarr adapter, and two services sharing a
  * config shape were not separable at all. All seven swaps now fail to
  * compile, including `seerr` for `plex` and `transmission` for `qbittorrent`.

@@ -2,7 +2,7 @@
  * The one place untrusted text becomes HTML.
  *
  * Design spec treats everything a service returns as data, never
- * instruction — and the config UI is where that data stops being JSON in a
+ * instruction, and the config UI is where that data stops being JSON in a
  * model's context and becomes markup in a browser. A release name from a
  * public indexer reaches the log stream; a film title reaches the audit view.
  * Both are attacker-controllable, and neither may become a `<script>`.
@@ -54,7 +54,7 @@ export const raw = (value: string): SafeHtml => new SafeHtml(value);
  * Tagged template that escapes every interpolation except `SafeHtml`.
  *
  * Arrays are joined without separators, so a list of rendered rows can be
- * dropped straight in — the common case, and one that otherwise invites
+ * dropped straight in, the common case, and one that otherwise invites
  * `.join('')` on already-stringified markup, which loses the safety marker.
  */
 export function html(strings: TemplateStringsArray, ...values: unknown[]): SafeHtml {

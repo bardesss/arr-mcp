@@ -8,7 +8,7 @@ import type { CommandHandle, DiskSpace, HealthCheck, RecentLogs, ScanState } fro
 /**
  * Radarr, Sonarr, Whisparr and Lidarr share a framework, so their system
  * endpoints are identical but for the command name and the API root. One
- * implementation for all four — the same reason `arrQueue.ts` exists, and the
+ * implementation for all four: the same reason `arrQueue.ts` exists, and the
  * drift it prevents had already started: the two copies of the health mapper
  * disagreed about coercing `type` to a string.
  */
@@ -28,7 +28,7 @@ export async function arrVersion(http: ServiceHttp, id: string): Promise<string>
 
 export async function arrDiskSpace(http: ServiceHttp, id: string): Promise<DiskSpace[]> {
     const rows = await http.getArray<RawDiskSpace>(`${http.apiRoot}/diskspace`);
-    // The vendored spec marks these nullable, not merely optional — the spec
+    // The vendored spec marks these nullable, not merely optional: the spec
     // really does allow nulls. Narrowing on the value rather than on
     // `!== undefined` is what keeps a null out of a `string` field.
     return rows.map(r => ({
@@ -43,7 +43,7 @@ export async function arrDiskSpace(http: ServiceHttp, id: string): Promise<DiskS
 export async function arrFailedHealthChecks(http: ServiceHttp, id: string): Promise<HealthCheck[]> {
     const all = await http.getArray<RawHealthCheck>(`${http.apiRoot}/health`);
     // These services generally return only entries worth surfacing, but some
-    // versions include `ok` rows — filter rather than trust.
+    // versions include `ok` rows: filter rather than trust.
     return all
         .filter(c => c.type !== 'ok')
         .map(c => ({

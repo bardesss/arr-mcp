@@ -119,7 +119,7 @@ async function resolveItem(
     guessed: { kind: boolean }
 ): Promise<ArrItem | undefined> {
     // the gate lives in the loader's identity resolver, and a refusal
-    // propagates out of diagnose rather than becoming a degraded stage — this
+    // propagates out of diagnose rather than becoming a degraded stage; this
     // call is deliberately not wrapped in `probe`.
     const snapshot = await deps.library.load(target.user);
     // Library-read reachability, in its own array rather than folded into
@@ -153,14 +153,14 @@ async function resolveItem(
         // error and remedy as get_media_details.
         if (!hasMediaDetails(adapter)) {
             throw new ServiceError('NotFound', target.service, `${target.service} cannot look up an item by id`, {
-                remedy: `Pass a service that holds media — radarr, sonarr, whisparr, lidarr, jellyfin or plex — or use diagnose_media by query instead.`
+                remedy: `Pass a service that holds media (radarr, sonarr, whisparr, lidarr, jellyfin or plex), or use diagnose_media by query instead.`
             });
         }
 
         // Not wrapped in `probe` wholesale: `probe` catches everything, so the
         // NotFound a nonexistent id produces pushed the adapter into `degraded`
         // and answered "radarr could not be checked" when Radarr had answered
-        // definitively — steering the caller toward reporting an outage instead
+        // definitively, steering the caller toward reporting an outage instead
         // of fixing the id. Degradation is for reachability, not for a service
         // saying no. get_media_details throws legibly in the same situation.
         let details;
@@ -176,7 +176,7 @@ async function resolveItem(
             return undefined;
         }
 
-        // Jellyfin's MediaDetails never says 'movie' or 'series' — it is the
+        // Jellyfin's MediaDetails never says 'movie' or 'series'; it is the
         // one adapter that reports `kind: 'item'` for everything. Passing a
         // *wrong* kind to `find` is worse than passing none: it restricts the
         // lookup to one keyspace and can silently miss a real hit sitting in
@@ -189,7 +189,7 @@ async function resolveItem(
         // server's `item` was asked about; a known `artist` only finds artists.
         if (joined !== undefined && isArrItem(joined) && (searchKind === 'artist' || isFilmOrSeries(joined))) return joined;
 
-        // The id was valid and the index does not contain it — a real state,
+        // The id was valid and the index does not contain it; a real state,
         // not an error: the service holding it may be the one that failed to
         // load. Diagnosing the half we have beats reporting the item unknown
         // when the caller just handed us its id.
@@ -202,7 +202,7 @@ async function resolveItem(
         // not Radarr's.
         //
         // A media server contributes watch state and never acquisition, so it
-        // is the capability that decides the shape, not the service's name —
+        // is the capability that decides the shape, not the service's name;
         // a second one must not need editing here.
         const isMediaServer = hasUserLibrary(adapter);
         // The secondary's items are not in the primary's library, so naming
@@ -332,7 +332,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
     // `string[]`, not `ServiceId[]`: what arrives here is `LibrarySnapshot`'s
     // own `degraded`, which is keyed by **source**, so it can hold
     // `jellyfin:seasons` as well as a plain service id. The declaration was
-    // never enforced — the ids come in through a `string[]` parameter — so it
+    // never enforced (the ids come in through a `string[]` parameter) so it
     // only claimed something untrue about what the array holds.
     const libraryDegraded: string[] = [];
     const guessed = { kind: false };
@@ -388,8 +388,8 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
                   );
 
         // Multi-service: `gather` already distinguishes "some clients answered,
-        // some didn't" from "all of them did" — exactly the queue shape asks
-        // for, folded into `queue`/`queueConfigured` below rather than collapsed
+        // some didn't" from "all of them did" (exactly the queue shape asks
+        // for), folded into `queue`/`queueConfigured` below rather than collapsed
         // to a single undefined the way one failing client used to erase the
         // whole stage.
         const queueP: Promise<Gathered<QueueItem> | undefined> = resolved && queueConfigured
@@ -494,7 +494,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
          * strong, structured ids already used for the whole join.
          *
          * tmdbId is tried first because it is the id both movies and series can
-         * carry; tvdbId is the fallback that closes Task 7's Finding B —
+         * carry; tvdbId is the fallback that closes Task 7's Finding B;
          * `SonarrAdapter.listLibrary` never emits `tmdb`, only `tvdb`, so without
          * this fallback a Sonarr+Seerr stack with no Jellyfin could never match a
          * series request at all.
@@ -511,11 +511,11 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
         } else if (item === undefined || item.kind === 'artist') {
             request = null; // nothing resolved to match against, or music, which Seerr does not hold
         } else if (item.ids.tmdb === undefined && item.ids.tvdb === undefined) {
-            // Seerr answered, but this item carries neither id to match on — e.g.
+            // Seerr answered, but this item carries neither id to match on, e.g.
             // a Sonarr series whose Jellyfin counterpart is absent, unreachable,
             // or was never mapped, and whose own record from Sonarr carries no
             // tvdb id either. `undefined` means "could not determine", not
-            // "looked and found nothing" — a real pending request must not be
+            // "looked and found nothing"; a real pending request must not be
             // reported as no request at all just because the join has a gap.
             request = undefined;
         } else {

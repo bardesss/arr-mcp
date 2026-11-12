@@ -17,8 +17,8 @@ const VERSION = process.env.ARR_MCP_VERSION ?? '0.0.0-dev';
 // Also read by core/logger.ts, which sends log lines to stderr when it is set.
 const STDIO = process.argv.includes('--stdio');
 
-// Attached before anything else runs, so startup lines — including the
-// token-hashing warnings and any config error — are in the ring buffer the
+// Attached before anything else runs, so startup lines (including the
+// token-hashing warnings and any config error) are in the ring buffer the
 // config UI reads, not only on stdout.
 const logs = LogStore.open(CONFIG_DIR);
 attachLogStore(logs);
@@ -68,7 +68,7 @@ if (STDIO) {
     try {
         handle = await serveOverStdio({ configDir: CONFIG_DIR, audit, events, sessions });
     } catch (err) {
-        if (err instanceof ConfigInvalidError) logger.fatal({ detail: err.detail }, 'config.yaml is invalid — fix it, then start again');
+        if (err instanceof ConfigInvalidError) logger.fatal({ detail: err.detail }, 'config.yaml is invalid. Fix it, then start again');
         else logger.fatal({ err }, 'could not start over stdio');
         process.exit(1);
     }
@@ -81,7 +81,7 @@ if (STDIO) {
     const app = await bootstrap({ configDir: CONFIG_DIR, audit, logs, events, sessions, version: VERSION, port: PORT });
 
     const server = serve({ fetch: app.fetch, port: PORT, hostname: '0.0.0.0' }, info => {
-        logger.info({ port: info.port }, `arr-mcp listening — open the config UI at http://<host>:${info.port}`);
+        logger.info({ port: info.port }, `arr-mcp listening. Open the config UI at http://<host>:${info.port}`);
     });
     const shutdown = createShutdown([
         { name: 'http', run: () => closeServer(server as Server) },

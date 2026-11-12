@@ -268,12 +268,12 @@ describe('get_playback', () => {
 
     it('says on the row when a play comes from the activity log rather than the played flag', () => {
         const line = playbackLine({ service: 'jellyfin', kind: 'watched', source: 'activity_log', itemId: 'x', title: 'Revolutie', user: 'Someone' });
-        expect(line).toBe('Revolutie — watched, Someone, from activity log, not marked played');
+        expect(line).toBe('Revolutie: watched, Someone, from activity log, not marked played');
     });
 
     it('does not claim a removed item was never marked played', () => {
         const line = playbackLine({ service: 'jellyfin', kind: 'watched', source: 'activity_log', removedFromLibrary: true, itemId: 'x', title: 'Gone', user: 'Someone' });
-        expect(line).toBe('Gone — watched, Someone, from activity log, since removed from library');
+        expect(line).toBe('Gone: watched, Someone, from activity log, since removed from library');
     });
 
     it('reads playback from a media server that is not Jellyfin', async () => {

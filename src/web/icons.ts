@@ -17,13 +17,13 @@ const draw = (paths: string): string =>
     `<svg class="svc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" ` +
     `stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
 
-/** Category first, identity second — the id is already next to the mark, so
+/** Category first, identity second: the id is already next to the mark, so
  *  the drawing's job is to say "indexer" or "downloader" at a glance. */
 export const ICONS: Record<ServiceId, string> = {
     sonarr: draw('<rect x="2" y="7" width="20" height="14" rx="2"/><path d="m17 2.5-5 4.5-5-4.5"/>'),
     radarr: draw('<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7.5 3v18M16.5 3v18M3 12h18"/>'),
     // A clapperboard: the category is scenes, and the two rectangles already
-    // taken — Sonarr's screen and Radarr's film frame — are both whole works.
+    // taken, Sonarr's screen and Radarr's film frame, are both whole works.
     // The hinged bar is drawn open at the bottom so it does not double the
     // body's top edge at this stroke weight.
     whisparr: draw(
@@ -46,7 +46,7 @@ export const ICONS: Record<ServiceId, string> = {
             '<path d="M6.5 11.5h4M13.5 11.5h4"/>'
     ),
     jellyfin: draw('<rect x="3" y="3" width="18" height="18" rx="3"/><path d="m10 8.5 6 3.5-6 3.5z"/>'),
-    // Jellyfin is a screen mid-playback; this one is the server behind it — a
+    // Jellyfin is a screen mid-playback; this one is the server behind it, a
     // library you browse (the two lines) over a title you play (the triangle),
     // split by one shelf. Not Plex's arc-and-triangle mark, which this avoids.
     plex: draw(
@@ -94,7 +94,7 @@ export const ICONS: Record<ServiceId, string> = {
  * The project's own mark: layers gathered into one node.
  *
  * Drawn on the same grid and weight as the eight above, because it sits next to
- * them. The filled node is the only solid shape in the set — it is the "one
+ * them. The filled node is the only solid shape in the set; it is the "one
  * endpoint" the three layers converge on.
  */
 export const LOGO =
@@ -124,7 +124,7 @@ export const MARK_SVG =
     '<circle cx="5" cy="12" r="2.6" fill="#4c8dff" stroke="none"/>' +
     '</svg>\n';
 
-/** For an id the schema does not know — a service removed from config while its
+/** For an id the schema does not know: a service removed from config while its
  *  card is still on screen, or one added before this file catches up. */
 const FALLBACK = draw(
     '<path d="M9 3v6M15 3v6"/><path d="M6 9h12v2.5a6 6 0 0 1-12 0z"/><path d="M12 17.5V21"/>'

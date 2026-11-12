@@ -23,10 +23,10 @@ type GetReleasesResult = {
 
 /**
  * `guid` and `indexerId` are grab-plumbing, same as get_history's fields of
- * the same name — useful only to grab_release, not to reading. `516 of
+ * the same name, useful only to grab_release, not to reading. `516 of
  * 516 rejected` (a real capture) can also mean 516 rejection strings, which
  * is most of this response's weight, so `rejections` is trimmed alongside
- * them below `full` — `rejected` alone survives. `minimal` keeps only what a
+ * them below `full`; `rejected` alone survives. `minimal` keeps only what a
  * quick scan needs: what it is, where it came from, and whether it was
  * rejected.
  */
@@ -74,7 +74,7 @@ export function releaseLine(release: ReleaseCandidate): string {
         facts.push(release.rejections.join('; '));
     }
 
-    return `${release.title} — ${facts.join(', ')}`;
+    return `${release.title}: ${facts.join(', ')}`;
 }
 
 export async function buildGetReleases(
@@ -93,7 +93,7 @@ export async function buildGetReleases(
 ): Promise<GetReleasesResult> {
     const adapter = resolveInstance(adapters, opts.service, opts.instance);
     // A valid, configured service with no release search (everything but the
-    // *arrs) must refuse rather than answer empty — an empty list reads as
+    // *arrs) must refuse rather than answer empty; an empty list reads as
     // "nothing is out there", a different and more misleading claim than
     // "this service cannot answer that".
     if (!hasReleaseSearch(adapter)) {
@@ -125,7 +125,7 @@ const GetReleasesInput = toolInput({
         .min(1)
         .optional()
         .describe(
-            'The movie, series or artist id — `acquisition.id` on a get_library or get_media_details record. On shelfmark, the id of a search_media `source: "discover"` row whose kind is book.'
+            'The movie, series or artist id: `acquisition.id` on a get_library or get_media_details record. On shelfmark, the id of a search_media `source: "discover"` row whose kind is book.'
         ),
     season: z
         .number()
@@ -133,21 +133,21 @@ const GetReleasesInput = toolInput({
         .nonnegative()
         .optional()
         .describe(
-            '[[sonarr|whisparr: {{and: sonarr=Sonarr; whisparr=Whisparr}} only — search one season rather than the whole series.]] [[whisparr: On Whisparr a season is a release year.]] [[radarr: Refused against Radarr.]]'
+            '[[sonarr|whisparr: {{and: sonarr=Sonarr; whisparr=Whisparr}} only: search one season rather than the whole series.]] [[whisparr: On Whisparr a season is a release year.]] [[radarr: Refused against Radarr.]]'
         ),
     episode: z
         .string()
         .min(1)
         .optional()
         .describe(
-            '[[sonarr: Sonarr only — one episode id, as an integer string (from get_media_details with episodes). Searches that episode alone, far faster than a season. Mutually exclusive with `season`.]]'
+            '[[sonarr: Sonarr only: one episode id, as an integer string (from get_media_details with episodes). Searches that episode alone, far faster than a season. Mutually exclusive with `season`.]]'
         ),
     album: z
         .string()
         .min(1)
         .optional()
         .describe(
-            '[[lidarr: Lidarr only — one album id of the artist `id`, as an integer string (from get_media_details at `detail: "full"`). Searches that album alone. Refused elsewhere.]]'
+            '[[lidarr: Lidarr only: one album id of the artist `id`, as an integer string (from get_media_details at `detail: "full"`). Searches that album alone. Refused elsewhere.]]'
         ),
     detail: DetailSchema,
     limit: LimitSchema,

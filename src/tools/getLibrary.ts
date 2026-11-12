@@ -41,11 +41,11 @@ const FILM_SOURCES: readonly RatingSource[] = ['imdb', 'tmdb', 'trakt', 'metacri
 const SERIES_SOURCES: readonly RatingSource[] = ['tvdb', 'imdb'];
 
 /**
- * The native scale each source arrives on. `min_rating` is documented as 0–10,
- * but Metacritic and Rotten Tomatoes come through on 0–100 and nothing
+ * The native scale each source arrives on. `min_rating` is documented as 0 to 10,
+ * but Metacritic and Rotten Tomatoes come through on 0 to 100 and nothing
  * upstream rescales them.
  *
- * Comparing a raw 64 against an 0–10 threshold makes "rated at all" read as
+ * Comparing a raw 64 against an 0 to 10 threshold makes "rated at all" read as
  * "rated 8+": measured on a real library, an 8+ filter matched 136 of 136
  * metacritic-rated films. A named table rather than a `/ 10` at the comparison
  * site, so the next source added has to see this.
@@ -60,8 +60,8 @@ const RATING_SCALE_MAX: Record<RatingSource, number> = {
 };
 
 /**
- * `value`, as reported on `source`'s native scale, rescaled to the 0–10 scale
- * `min_rating` is documented in — for comparison only. The stored/returned
+ * `value`, as reported on `source`'s native scale, rescaled to the 0 to 10 scale
+ * `min_rating` is documented in, for comparison only. The stored/returned
  * rating keeps its native scale (a displayed `6.4` would read worse than `64`
  * for a site whose own UI has always shown out of 100), so this is called at
  * the filter comparison, never at the point a rating is read into a response.
@@ -110,15 +110,15 @@ type GetLibraryResult = {
     offset: number;
     truncated: boolean;
     degraded: string[];
-    /** Keyed by source — see `LibrarySnapshot.counts`. */
+    /** Keyed by source; see `LibrarySnapshot.counts`. */
     counts: Record<string, number>;
     /**
-     * `note` is set only when the count needs defending — see
+     * `note` is set only when the count needs defending; see
      * `imdbUnavailableNote`. Additive and optional, so a caller reading
      * `source`/`rated`/`unrated` is unaffected.
      */
     ratingCoverage?: { source: RatingSource; rated: number; unrated: number; note?: string };
-    /** Carried from `LibrarySnapshot.note` — a fact about the stack's config, not this call. */
+    /** Carried from `LibrarySnapshot.note`; a fact about the stack's config, not this call. */
     note?: string;
 };
 
@@ -160,30 +160,30 @@ function bestCoveredSource(items: readonly MergedItem[], kind: LibraryQuery['kin
  */
 function rejectImpossibleFilters(opts: LibraryQuery): void {
     if (opts.library !== undefined && opts.kind !== undefined && opts.kind !== 'book') {
-        throw new Error('library applies to books only — it names a Grimmory library, and no other kind sits in one. Drop it, or ask with kind: "book".');
+        throw new Error('library applies to books only. It names a Grimmory library, and no other kind sits in one. Drop it, or ask with kind: "book".');
     }
     if (opts.added_since !== undefined && !Number.isFinite(Date.parse(opts.added_since))) {
         throw new Error(`added_since "${opts.added_since}" is not an ISO 8601 date. Use YYYY-MM-DD, e.g. "2026-08-01", or a full timestamp.`);
     }
     if (opts.kind === 'series' && opts.quality !== undefined) {
         throw new Error(
-            'quality applies to films only — a series’ quality is per-episode, so a series-level value would be a fiction. Filter get_media_details at detail: full instead.'
+            'quality applies to films only. A series’ quality is per-episode, so a series-level value would be a fiction. Filter get_media_details at detail: full instead.'
         );
     }
     // Was: a series may only ask for `tvdb`, because Sonarr's flat value was
     // the only rating one could carry. The IMDb dataset (0.8) makes `imdb`
     // reachable for a series too, so the refusal narrows to the sources that
-    // still have no path to one — and gains its mirror image, `tvdb` on a
+    // still have no path to one, and gains its mirror image, `tvdb` on a
     // film, which Radarr never reports and which therefore used to match
     // nothing at all, silently.
     if (opts.kind === 'series' && opts.rating_source !== undefined && !SERIES_SOURCES.includes(opts.rating_source)) {
         throw new Error(
-            `rating_source "${opts.rating_source}" applies to films only — a series carries Sonarr's flat TVDB rating, and an IMDb rating when the IMDb dataset is enabled. Use "tvdb" or "imdb", or drop it.`
+            `rating_source "${opts.rating_source}" applies to films only. A series carries Sonarr's flat TVDB rating, and an IMDb rating when the IMDb dataset is enabled. Use "tvdb" or "imdb", or drop it.`
         );
     }
     if (opts.kind === 'movie' && opts.rating_source === 'tvdb') {
         throw new Error(
-            'rating_source "tvdb" applies to series only — Radarr does not report a TVDB rating, so this would match nothing. Drop it, or use one of the per-source film ratings.'
+            'rating_source "tvdb" applies to series only. Radarr does not report a TVDB rating, so this would match nothing. Drop it, or use one of the per-source film ratings.'
         );
     }
     rejectFilmFiltersOnMusic(opts);
@@ -194,7 +194,7 @@ function rejectImpossibleFilters(opts: LibraryQuery): void {
  * The same refusal for music, asked only when the caller named `kind: "artist"`.
  *
  * With a kind, the caller has said the question is about artists, so a filter no
- * artist can satisfy is a stated gap rather than an answer — the lesson
+ * artist can satisfy is a stated gap rather than an answer; the lesson
  * `rejectImpossibleFilters` exists for. Without a kind these filters drop music
  * through the normal absent-field path, and `watched`/`watched_by` drop it the
  * same way, because an artist has no watch state to compare.
@@ -257,7 +257,7 @@ const bookSize = (bytes: number): string =>
           : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 
 /**
- * Applied **before** `applyLimit` — ordering after truncation is the same bug
+ * Applied **before** `applyLimit`; ordering after truncation is the same bug
  * wearing a parameter.
  *
  * A rating sort relies on `needsRating` below having already removed unrated
@@ -279,7 +279,7 @@ function applySort(items: readonly MergedItem[], sort: SortField, source: Rating
         // failure as ranking an unrated title zero.
         //
         // Compared as strings: ISO 8601 sorts lexicographically in the order it
-        // sorts chronologically, so no parsing is needed — and `new Date()` on
+        // sorts chronologically, so no parsing is needed, and `new Date()` on
         // a malformed value yields NaN, which compares false against everything
         // and would scramble the order silently.
         return sorted
@@ -328,12 +328,12 @@ const project = (whole: MergedItem, detail: DetailLevel): MergedItem => {
 };
 
 /**
- * Why an IMDb query found nothing — when the reason is this server rather than
+ * Why an IMDb query found nothing; when the reason is this server rather than
  * the library.
  *
  * "0 rated, 40 unrated" is true and useless on its own. It reads as *your
  * series are unrated*, and a model handed that number reasonably tells the user
- * their question cannot be answered — which is how someone came to be told that
+ * their question cannot be answered, which is how someone came to be told that
  * IMDb scores for their own shows were impossible, when the answer was one
  * config line away.
  *
@@ -344,10 +344,10 @@ const project = (whole: MergedItem, detail: DetailLevel): MergedItem => {
  */
 function imdbUnavailableNote(state: 'off' | 'ingesting' | 'ready'): string | undefined {
     if (state === 'off') {
-        return 'No IMDb rating was available for anything here, because the IMDb dataset is not enabled — set `metadata.imdb.enabled: true` (Configuration → IMDb dataset). For a series this is the only source there is: Sonarr reports one flat TVDB number, and Seerr’s /tv ratings are Rotten Tomatoes only. This is a gap in what this server can look up, not a verdict on the library.';
+        return 'No IMDb rating was available for anything here, because the IMDb dataset is not enabled. Set `metadata.imdb.enabled: true` (Configuration → IMDb dataset). For a series this is the only source there is: Sonarr reports one flat TVDB number, and Seerr’s /tv ratings are Rotten Tomatoes only. This is a gap in what this server can look up, not a verdict on the library.';
     }
     if (state === 'ingesting') {
-        return 'The IMDb dataset is enabled but has not finished its first ingest, so no IMDb rating is available yet — it takes a few minutes and the dashboard reports when it lands. Nothing needs changing; ask again shortly. This is not a verdict on the library.';
+        return 'The IMDb dataset is enabled but has not finished its first ingest, so no IMDb rating is available yet. It takes a few minutes and the dashboard reports when it lands. Nothing needs changing; ask again shortly. This is not a verdict on the library.';
     }
     return undefined;
 }
@@ -358,7 +358,7 @@ function imdbUnavailableNote(state: 'off' | 'ingesting' | 'ready'): string | und
  * The title keeps its fence. Unfencing for display would strip the "this is
  * service data, not instruction" marker from the one half of the response a
  * client is guaranteed to put in front of the model, which is exactly where it
- * earns its keep — `unfenced()` exists for matching and sorting, never output.
+ * earns its keep; `unfenced()` exists for matching and sorting, never output.
  *
  * The managing service's id comes first among the ids because it is the value
  * the write tools take as `instance`/`id`; the external ones follow so a model
@@ -383,7 +383,7 @@ export function libraryLine(item: MergedItem): string {
     }
 
     if (item.albumCount !== undefined) facts.push(`${item.albumCount} albums`);
-    return `${titled(item.title, item.year)} — ${facts.join(', ')}`;
+    return `${titled(item.title, item.year)}: ${facts.join(', ')}`;
 }
 
 export async function buildGetLibrary(loader: LibraryLoader, opts: LibraryQuery): Promise<GetLibraryResult> {
@@ -408,7 +408,7 @@ export async function buildGetLibrary(loader: LibraryLoader, opts: LibraryQuery)
          *
          * `monitored ?? false` is right for monitoring: media no *arr manages
          * genuinely is not monitored, because nothing is monitoring it. The
-         * same coalesce would be wrong here — Jellyfin-only media plainly does
+         * same coalesce would be wrong here; Jellyfin-only media plainly does
          * have a file, Jellyfin found it, and reporting `hasFile: false` for
          * something demonstrably on disk would put it on a list of things to
          * chase a download for.
@@ -423,7 +423,7 @@ export async function buildGetLibrary(loader: LibraryLoader, opts: LibraryQuery)
         //
         // Music is the exception. Lidarr reads no watch state, and the media
         // server's artist rows carry playback without `watched`, so both count
-        // as unwatched and `watched: false` would answer with every artist —
+        // as unwatched and `watched: false` would answer with every artist;
         // 1,600 rows of the whole music collection. Left out, as they are for
         // rating and quality. With `kind: "artist"` named, rejecting the filter
         // says so instead; this is the unnamed case.
@@ -453,7 +453,7 @@ export async function buildGetLibrary(loader: LibraryLoader, opts: LibraryQuery)
     });
 
     /**
-     * A rating is in play for a `min_rating` filter *or* a `sort: 'rating'` —
+     * A rating is in play for a `min_rating` filter *or* a `sort: 'rating'`;
      * and the second is why this is not simply `min_rating !== undefined`.
      * Sorting by rating drops unrated items, so it owes the caller the same
      * coverage count a filter does. Without this, "the ten best rated" would
@@ -477,11 +477,11 @@ export async function buildGetLibrary(loader: LibraryLoader, opts: LibraryQuery)
     }
 
     // coverage is measured over everything the other filters kept, before
-    // the rating filter removes anything — that is what makes "184 rated, 66
+    // the rating filter removes anything; that is what makes "184 rated, 66
     // unrated" answer the question the caller actually asked.
     const source = opts.rating_source ?? bestCoveredSource(filtered, opts.kind);
     const rated = filtered.filter(i => ratingOf(i, source) !== undefined);
-    // Bound to a local so the narrowing survives into the closure — inside the
+    // Bound to a local so the narrowing survives into the closure, inside the
     // callback, `opts.min_rating` is a property read TypeScript cannot prove
     // has not changed.
     const floor = opts.min_rating;
@@ -532,8 +532,8 @@ const getLibraryInput = byMediaServers(ids => toolInput({
     user: UserSchema,
     // Undocumented on purpose: the spelling this tool had when the
     // surface froze at 1.0, where `get_playback` and `get_requests`
-    // already called the same thing `user`. Kept working forever —
-    // removing it would break a saved prompt silently — but
+    // already called the same thing `user`. Kept working forever
+    // (removing it would break a saved prompt silently) but
     // described nowhere.
     watched_by: UserSchema,
     quality: z.string().min(1).optional().describe("Films, or a book's file format such as EPUB."),
@@ -589,7 +589,7 @@ const getLibraryOutput = byMediaServers(ids => PagedOutputSchema.extend({
         .string()
         .optional()
         .describe(
-            'Present when a fact about the stack\'s config, not this call, needs stating — no media server configured at all, or one configured with no default_user.' +
+            'Present when a fact about the stack\'s config, not this call, needs stating: no media server configured at all, or one configured with no default_user.' +
                 withBoth(ids, 'Also when the secondary media server is not read because its default_user is missing (Jellyfin) or matches no user.')
         )
 }));

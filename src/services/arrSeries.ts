@@ -41,7 +41,7 @@ export function seriesHit(service: string, s: SeriesLike, source: SearchSource):
 /**
  * The season half that Sonarr and Whisparr share: the three denominators and
  * the monitoring flag, no watch state. Sorted by season number so responses are
- * stable across calls and diffable in tests — the service's own order is not
+ * stable across calls and diffable in tests: the service's own order is not
  * guaranteed.
  *
  * `monitored` is carried here as well as on `get_media_details` so that
@@ -49,7 +49,7 @@ export function seriesHit(service: string, s: SeriesLike, source: SearchSource):
  * return.
  *
  * `monitored` is omitted when the service did not report it, never defaulted
- * to `false` — see `SeasonSummary`.
+ * to `false`: see `SeasonSummary`.
  */
 export function seasonsOf(raw: { seasons?: SeasonLike[] }): SeasonSummary[] | undefined {
     if (raw.seasons === undefined) return undefined;

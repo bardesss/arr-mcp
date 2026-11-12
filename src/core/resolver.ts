@@ -52,7 +52,7 @@ export type FilmOrSeries = MergedItem & { kind: 'movie' | 'series' };
  *
  * A film populates some subset of the first five; a series populates `tvdb`,
  * plus `imdb` from the IMDb dataset. Sonarr's own rating is one flat value,
- * unrelated to Radarr's per-source map — the two never mix.
+ * unrelated to Radarr's per-source map; the two never mix.
  */
 export type MergedRatings = {
     imdb?: number;
@@ -76,17 +76,17 @@ export type SeasonSummary = {
     watched?: number;
     /** Jellyfin: the newest `LastPlayedDate` across the season. */
     lastPlayed?: string;
-    /** Sonarr `episodeFileCount` — what is on disk. */
+    /** Sonarr `episodeFileCount`; what is on disk. */
     onDisk?: number;
-    /** Sonarr `episodeCount` — what has aired. */
+    /** Sonarr `episodeCount`; what has aired. */
     aired?: number;
-    /** Sonarr `totalEpisodeCount` — TVDB's count, including unaired. */
+    /** Sonarr `totalEpisodeCount`. TVDB's count, including unaired. */
     total?: number;
     /** Computed in `LibraryIndex.build`, never by a service. */
     complete?: boolean;
     /**
      * Sonarr's per-season monitoring flag, so `seasons[].monitored` means the
-     * same thing here as on `MediaDetails.seasons` — `get_media_details`
+     * same thing here as on `MediaDetails.seasons`. `get_media_details`
      * returns either shape depending on how it was asked, and a key that
      * carried monitoring on one form and nothing on the other is how a caller
      * reads "no `monitored`" as "not monitored", unmonitors nothing, and
@@ -106,8 +106,8 @@ export type MergedItem = {
     /**
      * Artists only: how many albums Lidarr holds for it.
      *
-     * An artist row cannot carry its albums — that is what makes the library
-     * 1,600 rows rather than 36,000 — so this one count is what a caller gets
+     * An artist row cannot carry its albums (that is what makes the library
+     * 1,600 rows rather than 36,000) so this one count is what a caller gets
      * instead, and `get_media_details` is where the albums themselves are.
      */
     albumCount?: number;
@@ -123,7 +123,7 @@ export type MergedItem = {
     acquisition?: {
         service: string;
         /**
-         * The managing service's own id, as an integer string — the value
+         * The managing service's own id, as an integer string; the value
          * `delete_media`, `trigger_search`, `set_monitoring`, `get_releases`
          * and `update_media` all take as `id`. Absent when the service
          * reported none, which is what a lookup for something not in the
@@ -131,7 +131,7 @@ export type MergedItem = {
          */
         id?: string;
         /**
-         * The managing service's own status word — `continuing`, `ended` or
+         * The managing service's own status word. `continuing`, `ended` or
          * `upcoming` from Sonarr, `announced`, `inCinemas` or `released` from
          * Radarr, and the album type (`Album`, `EP`, `Single`) from Lidarr,
          * which has no run status to report. Passed through rather than
@@ -164,7 +164,7 @@ export type MergedItem = {
         addedAt?: string;
     };
     /**
-     * `itemId` is the media server's own id for this title — what `set_watched`
+     * `itemId` is the media server's own id for this title; what `set_watched`
      * takes. Named for the media server, not for Jellyfin.
      *
      * `watched` is optional in its own right, not merely because the object is:
@@ -181,14 +181,14 @@ export type MergedItem = {
      * broken import; `jellyfin_only` means media nothing is managing.
      *
      * A degraded or unconfigured media server gets `unknown`, never
-     * `arr_only` — that claim asserts the server looked and did not find it.
+     * `arr_only`; that claim asserts the server looked and did not find it.
      *
      * An artist reads like a film or a series: Jellyfin and Plex both publish
      * the MusicBrainz artist id, so music joins on it. An artist found on both
      * sides is `both`, and one the server never saw is `arr_only`.
      *
      * Named for Jellyfin from when it was the only media server. Now that
-     * Plex is a second one, the literal stays `jellyfin_only` regardless —
+     * Plex is a second one, the literal stays `jellyfin_only` regardless;
      * it is a frozen output contract, and a rename would break every saved
      * prompt that matches on it.
      *
@@ -227,7 +227,7 @@ type RankedHit = { item: MergedItem; rank: number };
 
 export type BuildOptions = {
     /**
-     * Whether the media server's half of this build was gathered — configured
+     * Whether the media server's half of this build was gathered; configured
      * *and* read without error. Defaults to `true`.
      *
      * "Looked and found nothing" and "was never asked" both arrive with
@@ -240,7 +240,7 @@ export type BuildOptions = {
      *
      * Separate from `playbackGathered` because the two reads fail separately. A
      * music read that failed while films succeeded would otherwise let every
-     * artist read `arr_only` — a claim that the server looked and found nothing,
+     * artist read `arr_only`; a claim that the server looked and found nothing,
      * which nobody made. Absent means the same as `playbackGathered`: assume the
      * half was read.
      */
@@ -249,7 +249,7 @@ export type BuildOptions = {
 
 /**
  * Namespaced so a film with tmdb 550 never merges with a series carrying
- * tvdb 550 — unrelated id spaces that happen to collide numerically.
+ * tvdb 550; unrelated id spaces that happen to collide numerically.
  */
 const keysOf = (kind: LibraryKind, ids: ExternalIds): string[] => {
     const out: string[] = [];
@@ -270,7 +270,7 @@ const keysOf = (kind: LibraryKind, ids: ExternalIds): string[] => {
  *
  * `absorb` replaces `playback` wholesale, which is right for a field one service
  * owns end to end. Doing the same here would let whichever source merged last
- * erase the other's half of every row — and which one merges last depends on
+ * erase the other's half of every row, and which one merges last depends on
  * adapter order, so the bug would be intermittent rather than obvious.
  *
  * Both mappers omit absent fields rather than setting them undefined, so the
@@ -381,7 +381,7 @@ const bookRefusal = (name: string, id: string | undefined): Error =>
  * An artist must not shadow a film that happens to share its title, which the
  * ranking alone cannot prevent. And when an artist is the only thing that
  * matched, this throws rather than letting the caller answer "nothing in your
- * library matches" — that sentence would be false about a library this server
+ * library matches"; that sentence would be false about a library this server
  * has just read the artist from.
  */
 export function filmOrSeriesMatch(hits: readonly MergedItem[], query: string): FilmOrSeries | undefined {
@@ -417,7 +417,7 @@ const presenceVerdict = (
     // Played but unmanaged is media the servers hold and no *arr does.
     if (played) return 'jellyfin_only';
     if (!managed) return 'unknown';
-    // `arr_only` claims the media server looked and found nothing — not a claim
+    // `arr_only` claims the media server looked and found nothing, not a claim
     // to make when it was never read.
     return serverGathered ? 'arr_only' : 'unknown';
 };
@@ -475,7 +475,7 @@ export class LibraryIndex {
         for (const input of inputs) {
             const keys = keysOf(input.kind, input.ids);
             // A record can carry ids that already belong to *two* separate
-            // groups — e.g. a second Jellyfin copy holding both the tmdb id
+            // groups; e.g. a second Jellyfin copy holding both the tmdb id
             // one group formed around and the imdb id another group formed
             // around. Collecting every distinct match (not just the first)
             // is what lets them be fused instead of orphaning all but one:
@@ -488,7 +488,7 @@ export class LibraryIndex {
             // a stale key were allowed to win here, `matches[0]` would be that
             // ghost: `mergeInto` below would write this input's evidence into
             // an object outside `items`, no new item would be created because
-            // `matches.length` is not zero, and the evidence would be gone —
+            // `matches.length` is not zero, and the evidence would be gone;
             // present nowhere in the final `all()`. Filtering to objects still
             // in `items` is what keeps a spliced-out group from ever winning a
             // later merge.
@@ -527,8 +527,8 @@ export class LibraryIndex {
             }
             mergeInto(survivor, input, aliases, displays);
 
-            // Re-index under every id the survivor now knows — from fused
-            // losers and from this input — so a later record carrying any of
+            // Re-index under every id the survivor now knows, from fused
+            // losers and from this input, so a later record carrying any of
             // them still finds this one group *during the build*. This is
             // still an incremental patch, not a removal: it only ever adds or
             // overwrites keys, so a key that used to point at a group later
@@ -538,14 +538,14 @@ export class LibraryIndex {
         }
 
         // `byKey`, patched incrementally above, can still hold stale entries
-        // from groups that were fused away partway through the loop — a key
+        // from groups that were fused away partway through the loop; a key
         // set while a loser was still its own group, never revisited once
         // that group merged into someone else's survivor. Rebuilding from
         // `items` (the authoritative final set) is what guarantees `find`
         // can never return an object `all()` does not contain, and it is
         // also the natural place to compute `presence`: every item here has
         // reached its final, fully-merged shape.
-        // Compacted once rather than spliced per fusion — same order, same
+        // Compacted once rather than spliced per fusion; same order, same
         // contents, linear instead of quadratic.
         const merged = items.filter(i => live.has(i));
 
@@ -575,8 +575,8 @@ export class LibraryIndex {
      *
      * `kind` is optional so today's callers, which do not have one to hand,
      * keep scanning movie keys before series keys unchanged. A caller that
-     * *does* know which it wants — `diagnose_media` will, since it already holds
-     * the kind of the thing it is chasing — should pass it: a film and a
+     * *does* know which it wants (`diagnose_media` will, since it already holds
+     * the kind of the thing it is chasing) should pass it: a film and a
      * series can share the same numeric tmdb/tvdb id (unrelated id spaces
      * colliding), and without `kind` the first one indexed wins, silently
      * hiding the other.
@@ -654,8 +654,8 @@ export class LibraryIndex {
             .filter(({ rank }) => rank !== RANK_NONE)
             // Every production title is fenced (`<<untrusted:service.field>>…`),
             // and the fence prefix carries the *service* name. Comparing the
-            // raw strings would tie-break alphabetically by service first —
-            // "all Jellyfin-sourced items, then all *arr-sourced items" — and
+            // raw strings would tie-break alphabetically by service first,
+            // "all Jellyfin-sourced items, then all *arr-sourced items", and
             // only alphabetically by title within each group. unfenced() is
             // what makes the tiebreak compare the title a person reads.
             .sort(

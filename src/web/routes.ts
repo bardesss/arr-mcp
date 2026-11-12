@@ -122,7 +122,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     const entry = (): string => (unclaimed() ? '/ui/setup' : '/ui/login');
 
     // Read per render rather than captured: `runtime.config` is replaced on
-    // reload, and saving the theme is itself a reload — so a captured value
+    // reload, and saving the theme is itself a reload, so a captured value
     // would leave the page that just saved showing the previous theme.
     const theme = (): Theme => runtime.config.ui?.theme ?? 'system';
 
@@ -225,7 +225,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         const auth = runtime.config.auth;
 
         // One message for both wrong username and wrong password, and the hash
-        // check runs either way — a form that answers faster for an unknown
+        // check runs either way, a form that answers faster for an unknown
         // user tells an attacker which names exist. A missing hash must never
         // read as a valid login.
         const nameOk = username === auth.username;
@@ -348,7 +348,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         );
     });
 
-    /** JSON, not HTML — the client builds rows with textContent, because log
+    /** JSON, not HTML: the client builds rows with textContent, because log
      *  lines carry release names from public indexers. See web/assets.ts. */
     app.get('/ui/logs.json', c => {
         if (guard(c) === undefined) return c.json({ error: 'unauthorized' }, 401);
@@ -385,7 +385,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
      * Capped well below the services' own timeouts: this is the page you open
      * *because* something is unreachable, so a dead Jellyfin must cost a
      * moment, not ten seconds. A service that misses the cap is absent from the
-     * result and the card says so — never an empty dropdown, which reads as
+     * result and the card says so, never an empty dropdown, which reads as
      * "this service has no users".
      */
     const USER_LOOKUP_MS = 2500;
@@ -412,7 +412,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
      * The page no longer waits on this: it is fetched after the page loads, and
      * a scan's two-second reloads would otherwise ask again each time. So the
      * answer is kept for a short while, and for as long as the config is the one
-     * it was asked about — a save swaps `runtime.config`, which is the refresh.
+     * it was asked about; a save swaps `runtime.config`, which is the refresh.
      */
     const USERS_TTL_MS = 30_000;
     let usersCache: { config: Config; at: number; users: Promise<Record<string, readonly string[]>> } | undefined;
@@ -576,7 +576,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
             what: string,
             next: (form: Record<string, unknown>) => MutationResult | Promise<MutationResult>,
             opts: {
-                /** The add form is a dialog, so a refusal has to bring it back —
+                /** The add form is a dialog, so a refusal has to bring it back:
                  *  a message about a form nobody can see explains nothing. */
                 reopensAdd?: boolean;
                 /** Whether this save changed the credentials, and so has to end
@@ -605,7 +605,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
 
             // Cards collapse by default, so the one you just submitted has to be
             // named or the page swallows the outcome of what you did. Absent on
-            // an add, whose form carries no instance id — there is no card yet.
+            // an add, whose form carries no instance id; there is no card yet.
             const touched = str(form.instance) === '' ? undefined : str(form.instance);
 
             const render = async (
@@ -764,7 +764,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     app.post(
         '/ui/config/account',
         configMutation('Config UI sign-in saved.', form => buildAccountConfig(runtime.config, form), {
-            // Only when the password field was actually filled in — a username
+            // Only when the password field was actually filled in: a username
             // edit is not a credential change.
             endsSessions: form => str(form['auth.password']) !== ''
         })
@@ -924,13 +924,13 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
 
     /**
      * Test one instance against the fields as they stand, not as they are
-     * saved — replacing "save it and see if the dashboard goes green", which
+     * saved, replacing "save it and see if the dashboard goes green", which
      * writes a URL you already suspect is wrong and answers on another page.
      * The candidate is built exactly as a save would build it and thrown away.
      *
      * The add dialog posts here too, with no `instance`. That candidate comes
      * from `addInstance`, the same call Add makes, so a passing test is one Add
-     * will accept — and it inherits Add's validation, so an unnamed second
+     * will accept, and it inherits Add's validation, so an unnamed second
      * radarr answers "name it" rather than a latency.
      *
      * Not a `configMutation`, despite the shape: that helper ends in
@@ -948,7 +948,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         // The dialog's Test is fetched, not posted, so the result lands in a
         // dialog that still holds what you typed. A re-render could not:
         // `addDialog` renders its fields blank, and refilling them would mean
-        // writing the API key into the HTML — the one thing `configPage` never
+        // writing the API key into the HTML, the one thing `configPage` never
         // does. Unscripted falls through to the ordinary render.
         const wantsJson = c.req.header('accept')?.includes('application/json') === true;
 
@@ -1005,7 +1005,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
             }
             return render(200, isAdd ? { testedAdd: diagnosis } : { tested: { instance: target, diagnosis } });
         } catch (err) {
-            // A config that will not even build — a URL that is not a URL, a
+            // A config that will not even build, a URL that is not a URL, a
             // timeout that is not a number. testConnection never gets to run,
             // so the message is the validation one, which names the field.
             warnIfCredentialMove(c, err);
@@ -1056,7 +1056,7 @@ function addPrefillFrom(
 const str = (value: unknown): string => (typeof value === 'string' ? value : '');
 const on = (value: unknown): boolean => value === 'on' || value === 'true';
 /**
- * Who connected, for a log line — the peer address, plus what they claimed.
+ * Who connected, for a log line: the peer address, plus what they claimed.
  *
  * `ip` used to be `X-Forwarded-For` alone, which recorded a literal "unknown"
  * for every request on a direct LAN deployment: no proxy sets the header, and
@@ -1065,7 +1065,7 @@ const on = (value: unknown): boolean => value === 'on' || value === 'true';
  *
  * The peer address is the socket fact and cannot be forged; the header is
  * caller-supplied and can. So the header is recorded *beside* the peer under
- * its own name rather than in place of it — behind a real proxy both are
+ * its own name rather than in place of it: behind a real proxy both are
  * wanted anyway, and a client inventing a header can no longer overwrite the
  * only identifying field on the line.
  */
@@ -1102,7 +1102,7 @@ const peerAddress = (c: Context): string => {
         // IPv4 client; the prefix is noise to a reader chasing a LAN address.
         return (getConnInfo(c).remote.address ?? 'unknown').replace(/^::ffff:/, '');
     } catch {
-        // No node socket behind the context — a Request built in a test.
+        // No node socket behind the context: a Request built in a test.
         return 'unknown';
     }
 };
@@ -1130,7 +1130,7 @@ function logQuery(
     // Validated against what has actually been logged, not against the
     // eight-name service enum. The column holds instance ids (`radarr/4k`) and
     // source ids (`jellyfin:seasons`), and `services()` builds the dropdown
-    // from those same values — so parsing the choice as a bare ServiceId threw
+    // from those same values, so parsing the choice as a bare ServiceId threw
     // away every selection the dropdown offered on a multi-instance install,
     // returned every line from every service, and looked like "nothing logged".
     const known = logs.services();
@@ -1146,7 +1146,7 @@ function logQuery(
 }
 
 /**
- * The instance fields a card's form carries, under bare names — each card is
+ * The instance fields a card's form carries, under bare names: each card is
  * its own form, and an id containing a `/` has no sensible prefix anyway.
  *
  * A blank credential means "unchanged", never "clear". The page never renders a
@@ -1206,7 +1206,7 @@ function addCandidateFrom(
  * The three cards below the services, one builder each.
  *
  * They were a single `buildAuthConfig` behind a single button, which is what
- * made the page have two save models at once — every service card saved
+ * made the page have two save models at once: every service card saved
  * itself, and then one button at the bottom of the page saved three unrelated
  * things together while looking, by position, like it saved everything.
  *
@@ -1227,7 +1227,7 @@ async function buildAccountConfig(current: Config, form: Record<string, unknown>
     // Refused rather than carried forward as `undefined`. Since `password_hash`
     // became optional this assignment type-checks either way, so nothing but
     // this guard stops a blank password field on a config save from writing a
-    // config with no hash — silently un-claiming a live instance and handing it
+    // config with no hash, silently un-claiming a live instance and handing it
     // to whoever loads /ui/setup next.
     const carriedHash = password === '' ? current.auth.password_hash : await hashPassword(password);
     if (carriedHash === undefined) {
@@ -1248,7 +1248,7 @@ async function buildAccountConfig(current: Config, form: Record<string, unknown>
  * The IMDb dataset. Owns `metadata` and nothing else.
  *
  * Its checkbox is authoritative because an unchecked box submits nothing, and
- * this is the only form that carries it — so absent genuinely means off here,
+ * this is the only form that carries it, so absent genuinely means off here,
  * where on any other card it would mean "not mine to touch".
  */
 function buildImdbConfig(current: Config, form: Record<string, unknown>): Config {
@@ -1283,7 +1283,7 @@ function buildWebhooksConfig(current: Config, form: Record<string, unknown>): Co
  * The theme. Owns `ui` and nothing else.
  *
  * `system` drops the block rather than writing `theme: system`, so choosing the
- * default leaves the file as clean as it was — the same rule the IMDb card
+ * default leaves the file as clean as it was, the same rule the IMDb card
  * follows. An unparseable value falls back to `system` instead of being written
  * through: this comes from a form, and the schema would refuse the file on the
  * next load, which turns a bad select into a server that will not start.

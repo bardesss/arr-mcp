@@ -26,14 +26,14 @@ That difference is the whole point, because the interesting questions live
 > *"Why isn't the film I requested on Tuesday showing up in Jellyfin?"*
 
 No single service can answer that. It spans Seerr, Radarr, Prowlarr, SABnzbd and
-Jellyfin — five APIs, five sets of ids, five half-answers. arr-mcp correlates
+Jellyfin. Five APIs, five sets of ids, five half-answers. arr-mcp correlates
 them and hands back the causal chain:
 
 ```
 diagnose_media { query: "Blade" }
 ```
 
-> No file on disk yet. Trigger a search in Radarr or Sonarr — nothing is
+> No file on disk yet. Trigger a search in Radarr or Sonarr. Nothing is
 > downloading and no indexer reported a failure.
 
 One call. One answer. It even answers with a service down, and tells you which
@@ -43,33 +43,31 @@ part it could not check rather than guessing across the hole.
 
 |  | |
 | --- | --- |
-| 🔍 **`diagnose_media` answers what no single service can** | Walks the whole chain — requested, managed, monitored, downloaded, indexed, imported, scanned — and names the *first* thing that explains the absence. |
+| 🔍 **`diagnose_media` answers what no single service can** | Walks the whole chain (requested, managed, monitored, downloaded, indexed, imported, scanned) and names the *first* thing that explains the absence. |
 | 🗂️ **A record that outlives the title** | Deleting a title deletes its history. Turn on the [library event log](docs/configuration.md#the-library-event-log) and arr-mcp keeps what Radarr and Sonarr report, so `get_history` and `diagnose_media` can still tell you what happened to it. |
 | 🧮 **Quality profiles that cannot do what they say** | A minimum score nothing can reach, a language preferred but never required, a format scored where its wider twin sits at zero. Hand-built or synced from TRaSH Guides through Profilarr, the same checks apply. The arithmetic ones are proved rather than guessed, and every fix names a change to make in Profilarr, which owns them. |
 | 🛡️ **Indexer text is data, never instruction** | Release names from public indexers are attacker-controllable and flow straight into model context. arr-mcp fences every one of them. |
-| ✋ **Writes are opt-in, previewed, recorded** | Off until you turn them on, per service. Every write shows you exactly what it would do and waits for confirmation — and lands in an audit trail either way. |
+| ✋ **Writes are opt-in, previewed, recorded** | Off until you turn them on, per service. Every write shows you exactly what it would do and waits for confirmation, and lands in an audit trail either way. |
 | 🖥️ **A config page that diagnoses** | Add services from a browser, see what is broken *and what to do about it*, read the logs and the write audit. No YAML required. |
 | 📚 **Forty-six tools, one vocabulary** | Every list pages the same way and answers readably whether or not your client reads `structuredContent`, every error names the config key that would fix it, every write takes ids rather than titles. |
 
-Nothing else in this space does the last five at all.
-
-## Quick start — about two minutes
+## Quick start: about two minutes
 
 Also in the repo as [`docker-compose.example.yml`](docker-compose.example.yml).
-**On Unraid**, use [`unraid/arr-mcp.xml`](unraid/arr-mcp.xml) instead — a
+**On Unraid**, use [`unraid/arr-mcp.xml`](unraid/arr-mcp.xml) instead: a
 Community Applications template with the appdata path and `99:100` ownership
 already set. It is not listed in CA yet, so for now drop it into
 `/boot/config/plugins/dockerMan/templates-user/` and pick it from the template
 list under **Add Container**. Steps 1 to 3 below are the same once it starts.
 
 **On Proxmox VE**, [`proxmox/`](proxmox/) builds an unprivileged Debian LXC
-from source instead — no Docker anywhere. Run it on the host, not in a guest:
+from source instead, no Docker anywhere. Run it on the host, not in a guest:
 
 ```bash
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/bardesss/arr-mcp/main/proxmox/ct/arr-mcp.sh)"
 ```
 
-It defaults to 2 cores, 2 GB and 8 GB of disk — the memory is sized for the
+It defaults to 2 cores, 2 GB and 8 GB of disk. The memory is sized for the
 optional [IMDb ingest](docs/imdb.md), not for serving. `config.yaml`, the MCP
 tokens (hashed) and the databases live in `/config`, which an update does not touch; run
 `update` inside the container to rebuild it from the latest release. Re-running
@@ -100,7 +98,7 @@ services:
     restart: unless-stopped
 ```
 
-**1. Open `http://<host>:6060`** — the bare host, no path. Nothing to read out
+**1. Open `http://<host>:6060`**: the bare host, no path. Nothing to read out
 of the container log.
 
 **2. Claim it.** The first page is a setup form rather than a sign-in: choose a
@@ -108,9 +106,9 @@ username and a password of at least 12 characters.
 
 > [!IMPORTANT]
 > Do this **before** exposing the port. Until it is claimed, whoever loads that
-> page first owns the instance — and it holds every service's API key.
+> page first owns the instance, and it holds every service's API key.
 
-**3. Add your services** — **Add a service**, paste its URL and API key (for Plex,
+**3. Add your services**: **Add a service**, paste its URL and API key (for Plex,
 its `X-Plex-Token`; for NZBGet, Transmission, qBittorrent and Grimmory, its username and password; a Shelfmark with no authentication needs no key), save. It applies immediately; there is
 no restart. Configure only what you run. A config file that will not parse no
 longer takes the container down: arr-mcp serves a repair page with the error and
@@ -120,60 +118,60 @@ Your MCP client goes to `http://<host>:6060/mcp` with an MCP token. Create one o
 the config page; it is shown once, so copy it into your client straight away.
 Each token has its own tier and expiry, see
 [MCP tokens](docs/configuration.md#mcp-tokens). A client that can only be given a
-URL, not a header, can carry the token as `?token=` instead — see
+URL, not a header, can carry the token as `?token=` instead; see
 [`allow_token_in_url`](docs/configuration.md#allow_token_in_url). If you already
 run an identity provider, `/mcp` also accepts short-lived OAuth 2.1 access
 tokens, so each client gets its own credential and a scope that caps what it may
-do — read-only for one, writes for another, never more than `config.yaml`
+do: read-only for one, writes for another, never more than `config.yaml`
 already permits. See [`auth.oauth`](docs/configuration.md#authoauth). Everything
 the UI does is still just `config.yaml`, and editing that by hand remains
 supported. Clients that read the
 [MCP Registry](https://registry.modelcontextprotocol.io) find it there as
 `io.github.bardesss/arr-mcp`. It is also listed on Glama:
 
-[![arr-mcp MCP server – quality and maintenance score on Glama](https://glama.ai/mcp/servers/bardesss/arr-mcp/badges/card.svg)](https://glama.ai/mcp/servers/bardesss/arr-mcp)
+[![arr-mcp MCP server: quality and maintenance score on Glama](https://glama.ai/mcp/servers/bardesss/arr-mcp/badges/card.svg)](https://glama.ai/mcp/servers/bardesss/arr-mcp)
 
 A client that launches its servers as child processes can run arr-mcp
 [over stdio](docs/configuration.md#over-stdio) instead, with `--stdio`. That
 connection is read-only; writes need `/mcp` and a token.
 
 **Works with whatever you point at it.** A client asking for
-`Accept: application/json` — or sending no `Accept` at all — gets one JSON object
+`Accept: application/json`, or sending no `Accept` at all, gets one JSON object
 back with a `Content-Length`, rather than a refusal for not also naming
 `text/event-stream`. A client that does accept a stream still gets one. Even a
 refusal is JSON. So a plain `curl` works as-is, and so does a full MCP client.
 
 Image tags are `X.Y.Z`, `X.Y`, `X` and `latest`, plus `main` for bleeding edge.
-Pin a minor — `:1.51` — if you would rather approve each new tool surface
+Pin a minor, `:1.51`, if you would rather approve each new tool surface
 yourself. Images are published for **amd64 and arm64**, so a Raspberry Pi or an
 ARM NAS runs the same build as everything else.
 
 ## What you can ask it
 
-Forty-six tools, but you never name them — you ask, and the model picks:
+Forty-six tools, but you never name them: you ask, and the model picks:
 
 > *"What's downloading right now, and is anything stuck?"*
 > *"What aired this week that I haven't watched?"*
 > *"Which of my indexers are failing, and what did they say?"*
 > *"Find me something highly rated from 1994 I don't already have."*
 > *"Go and find Dutch subtitles for the film that just landed."*
-> *"Not that release — grab the 1080p remux instead."*
+> *"Not that release, grab the 1080p remux instead."*
 > *"Why does this episode keep failing and never downloading?"*
 > *"Pause SABnzbd, I need the bandwidth for an hour."*
 > *"What are my seeding rules, and is anything still seeding past them?"*
-> *"That download finished days ago and never got imported — sort it out."*
+> *"That download finished days ago and never got imported. Sort it out."*
 > *"Put this series on the 4K profile and only monitor future seasons."*
-> *"This profile says it wants Dutch but keeps grabbing English — why?"*
+> *"This profile says it wants Dutch but keeps grabbing English, why?"*
 > *"Has anything in Radarr drifted from what Profilarr set?"*
 > *"Why is the TV guide empty, and is my IPTV subscription about to run out?"*
 > *"Which of my shows have metadata that does not match the files?"*
-> *"These episode titles are wrong for the files — fix them."*
-> *"Unmonitor season 5 and delete its files."* — previewed first, always.
+> *"These episode titles are wrong for the files. Fix them."*
+> *"Unmonitor season 5 and delete its files."* Previewed first, always.
 
 ## Poster cards in Claude
 
 In a client that renders [MCP Apps](https://github.com/modelcontextprotocol/ext-apps)
-— Claude Desktop and claude.ai — a film or series comes back as a card rather
+(Claude Desktop and claude.ai), a film or series comes back as a card rather
 than a line of text. `get_media_details` shows one card: poster, blurred
 backdrop, synopsis, genres, runtime or seasons, episode progress, a status badge
 (available, monitored, downloading, unmonitored, not in library) with the
@@ -234,24 +232,23 @@ them off. The cards are read-only for now.
   2025-era revision are still served
 
 Since 1.0 the tool surface is the public API: renaming or removing a tool, a
-parameter or a response field is a **major**, because that break is silent — a
+parameter or a response field is a **major**, because that break is silent: a
 model stops finding a renamed tool rather than raising an error.
 
 ## Contributing
 
-**Contributions are welcome, and new service adapters most of all** — Emby and
+**Contributions are welcome, and new service adapters most of all**: Emby and
 Deluge would both be accepted today, and
 [the list says so in advance](CONTRIBUTING.md#what-would-be-accepted-today),
 along with the ones that would not be. An adapter is deliberately the most
-self-contained thing in the codebase. Two things to know first: not every
-service qualifies, and the bar is written down rather than decided per pull
-request — [which services qualify](CONTRIBUTING.md#which-services-qualify). And
+self-contained thing in the codebase. Not every service qualifies, and the bar is written down rather than decided per
+pull request: [which services qualify](CONTRIBUTING.md#which-services-qualify).
 **I cannot test a service I do not run**, so the second bar is that you tested
 it against your own live instance and the PR says what you tested and against
 which version.
 
 **One adapter remains unverified: qBittorrent.** The maintainer runs neither
-Plex nor qBittorrent — testing means running a build against your own server
+Plex nor qBittorrent. Testing means running a build against your own server
 and reporting what worked. [Plex](../../issues/180) has since been verified
 against two live Plex Media Servers by two volunteer testers, its first write
 included, and its metadata repair has since repaired both films and series on a
@@ -269,14 +266,14 @@ arr-mcp is itself built with a coding agent. Point yours at
 
 **Missing a tool?** [Open an issue](../../issues/new/choose) describing the
 question you could not get answered rather than the tool you think should
-exist. Often the answer is a new parameter on one that already exists — and
-when it genuinely needs a new tool, the question is what tells us so.
+exist. Often the answer is a new parameter on one that already exists, and
+when it needs a new tool, the unanswered question is the case for it.
 
 ## Security
 
 arr-mcp is **not designed to be exposed to the internet.** The `/mcp` endpoint
 requires a bearer token because "LAN-only" is a network assumption rather than a
-security control — it fronts every service credential you configure and, once enabled, file
+security control. It fronts every service credential you configure and, once enabled, file
 deletion, and a home network contains guest phones and IoT devices. Put it
 behind a reverse proxy with TLS if it needs to leave the LAN, and pin
 `allowed_hosts` if you do.
@@ -284,7 +281,7 @@ behind a reverse proxy with TLS if it needs to leave the LAN, and pin
 Beyond the network: writes are off until you enable them, every write is
 previewed and confirmed before it acts, and everything a service returns is
 fenced as data rather than instruction. [Security](docs/security.md) walks all
-of it against the OWASP MCP Top 10 — and is equally explicit about what it does
+of it against the OWASP MCP Top 10, and is equally explicit about what it does
 not solve. Found something? [SECURITY.md](SECURITY.md).
 
 ## Contributors
@@ -302,13 +299,13 @@ run. Plex is verified because of [@Svnow132](https://github.com/Svnow132)
 ## Thanks
 
 arr-mcp is glue; the hard parts belong to other people. Nearly every service it
-speaks to is free software maintained largely by volunteers — [Radarr](https://radarr.video),
+speaks to is free software maintained largely by volunteers: [Radarr](https://radarr.video),
 [Sonarr](https://sonarr.tv), [Whisparr](https://github.com/Whisparr/Whisparr), [Lidarr](https://lidarr.audio),
 [Prowlarr](https://prowlarr.com),
 [Bazarr](https://www.bazarr.media), [Jellyfin](https://jellyfin.org),
 [Seerr](https://github.com/seerr-team/seerr), [SABnzbd](https://sabnzbd.org),
 [NZBGet](https://nzbget.com), [Transmission](https://transmissionbt.com), [qBittorrent](https://www.qbittorrent.org),
-[Profilarr](https://github.com/Dictionarry-Hub/profilarr), [Cleanuparr](https://github.com/Cleanuparr/Cleanuparr), [Reclaimerr](https://github.com/jessielw/Reclaimerr), [Dispatcharr](https://github.com/Dispatcharr/Dispatcharr), [Shelfmark](https://github.com/calibrain/shelfmark), [Grimmory](https://github.com/grimmory-tools/grimmory) — as are the libraries it is built
+[Profilarr](https://github.com/Dictionarry-Hub/profilarr), [Cleanuparr](https://github.com/Cleanuparr/Cleanuparr), [Reclaimerr](https://github.com/jessielw/Reclaimerr), [Dispatcharr](https://github.com/Dispatcharr/Dispatcharr), [Shelfmark](https://github.com/calibrain/shelfmark), [Grimmory](https://github.com/grimmory-tools/grimmory), as are the libraries it is built
 on: [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk),
 [Hono](https://hono.dev), [Zod](https://zod.dev), [Pino](https://getpino.io),
 [Vitest](https://vitest.dev), [yaml](https://eemeli.org/yaml/) and

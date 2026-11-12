@@ -19,8 +19,8 @@ type GetQueueResult = {
     /**
      * Keyed by **adapter id**, not by service type: a named instance reports
      * under `radarr/4k`. Widened from `ServiceId` for the reason
-     * `library.ts` already was — `gather` has always keyed this by the id it
-     * fanned out over, so the narrower type described something this never
+     * `library.ts` already was (`gather` has always keyed this by the id it
+     * fanned out over), so the narrower type described something this never
      * held. Every existing key is unchanged.
      */
     counts: Record<string, number>;
@@ -126,7 +126,7 @@ const project = (q: QueueItem, detail: DetailLevel): QueueItem => {
 /**
  * One queue row as a line. `service:id` leads the facts because it is what
  * `remove_queue_item` takes, and a stuck download is the
- * usual reason anyone reads this list at all — so the blocking state and the
+ * usual reason anyone reads this list at all, so the blocking state and the
  * error come before the size and the ETA, which say only how long to wait.
  */
 export function queueLine(item: QueueItem): string {
@@ -153,7 +153,7 @@ export function queueLine(item: QueueItem): string {
     }
     if (c?.dueAt !== undefined) facts.push(`Cleanuparr ${c.action} due ${c.dueAt}${c.dryRun === true ? ' (dry run)' : ''}`);
 
-    return `${item.title} — ${facts.join(', ')}`;
+    return `${item.title}: ${facts.join(', ')}`;
 }
 
 /** Server-side filters (#530), all optional and combined with AND. */
@@ -204,7 +204,7 @@ export async function buildGetQueue(
     }
 
     // Sorted before limiting. Concatenation order is adapter order, which is
-    // alphabetical — so an unsorted limit would drop Transmission first, every
+    // alphabetical, so an unsorted limit would drop Transmission first, every
     // time, and a 60-item Radarr queue would report an empty Transmission.
     // Soonest-finishing first is also the order someone asking "what is
     // downloading" wants; unknown ETAs sort last rather than first.

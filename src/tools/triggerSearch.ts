@@ -15,7 +15,7 @@ import { checkScope, describable, EPISODE_LIMIT, refuseBoth } from './itemScope.
  * fuzzy title because the cost of resolving one wrongly is a wrong answer the
  * user can see; for a write the cost is an action against the wrong item. The
  * model is expected to establish identity through `get_media_details` or
- * `get_library` first — which also means the id in the audit trail is one the
+ * `get_library` first, which also means the id in the audit trail is one the
  * user could have seen before the write, not one this tool invented.
  */
 
@@ -125,13 +125,13 @@ export function registerTriggerSearch(
         name: 'trigger_search',
         title: 'Search indexers for a release',
         description:
-            'Asks {{or: radarr=Radarr; sonarr=Sonarr; whisparr=Whisparr; lidarr=Lidarr}} to go looking for releases for one item it already tracks — the "it never downloaded, try again" action. Takes `service` and `id`, deliberately not a title: take `id` from `acquisition.id` on a get_library or get_media_details record. [[sonarr|whisparr: On {{or: sonarr=Sonarr; whisparr=Whisparr}}, give `season` to search one season or `episodes` for specific episode ids; giving both is refused rather than resolved.]] [[radarr: Radarr has no seasons.]] [[lidarr: On Lidarr, `id` is the artist: give `albums` for specific album ids of that artist (from get_media_details at `detail: "full"`), or omit it to search the artist\'s monitored albums.]] This queues a search and returns immediately; it does not wait for a release to be found, and finding one is not guaranteed. Previews first; confirm to run it.',
+            'Asks {{or: radarr=Radarr; sonarr=Sonarr; whisparr=Whisparr; lidarr=Lidarr}} to go looking for releases for one item it already tracks, the "it never downloaded, try again" action. Takes `service` and `id`, deliberately not a title: take `id` from `acquisition.id` on a get_library or get_media_details record. [[sonarr|whisparr: On {{or: sonarr=Sonarr; whisparr=Whisparr}}, give `season` to search one season or `episodes` for specific episode ids; giving both is refused rather than resolved.]] [[radarr: Radarr has no seasons.]] [[lidarr: On Lidarr, `id` is the artist: give `albums` for specific album ids of that artist (from get_media_details at `detail: "full"`), or omit it to search the artist\'s monitored albums.]] This queues a search and returns immediately; it does not wait for a release to be found, and finding one is not guaranteed. Previews first; confirm to run it.',
         inputSchema: TriggerSearchInput,
         // The permission check follows the argument, so enabling `safe_write`
         // on Radarr does not quietly enable it on Sonarr.
         // The resolved instance id, not the bare type: permissions are granted per
         // instance, so checking `radarr` against a config that only grants
-        // `radarr/hd` would deny a permitted write — or worse, the reverse.
+        // `radarr/hd` would deny a permitted write, or worse, the reverse.
         target: { adapters, to: TARGET },
         operation: 'trigger_search',
         tier: 'safe',
@@ -146,7 +146,7 @@ export function registerTriggerSearch(
             }
             if ((season !== undefined || episodes !== undefined) && service !== 'sonarr' && service !== 'whisparr') {
                 throw new ServiceError('NotFound', service, `${service} has no seasons`, {
-                    remedy: 'Season and episode scope apply to sonarr and whisparr only. Films have no seasons — omit season and episodes for radarr.'
+                    remedy: 'Season and episode scope apply to sonarr and whisparr only. Films have no seasons. Omit season and episodes for radarr.'
                 });
             }
             if (albums !== undefined && service !== 'lidarr') {
@@ -158,7 +158,7 @@ export function registerTriggerSearch(
             // A read before the write, for two reasons: it fails early and
             // legibly if the id does not exist ("Radarr has no movie 9999"
             // rather than a 404 from a command endpoint), and it puts a real
-            // title in the preview — a confirmation prompt that says "search
+            // title in the preview; a confirmation prompt that says "search
             // for item 5" is one nobody can meaningfully approve.
             // A Lidarr artist's albums are read every time: they are what an
             // `albums` list is checked against, and what tells the preview how
@@ -182,7 +182,7 @@ export function registerTriggerSearch(
                         service,
                         `Could not find album(s) ${unresolved.join(', ')} on ${label}` +
                             (details.albumsTruncated === true
-                                ? ' — the album list was truncated at 500, so they may simply not have been fetched.'
+                                ? '. The album list was truncated at 500, so they may simply not have been fetched.'
                                 : '.'),
                         { remedy: 'Check the album ids from get_media_details on this artist, at detail: "full".' }
                     );
@@ -218,8 +218,8 @@ export function registerTriggerSearch(
             if (service === 'lidarr') {
                 effects.push(...lidarrEffects(label, details, named, albums !== undefined));
             } else {
-                // Not a no-op — an unmonitored item can still be searched, and
-                // upstream will happily run the command — but the model should
+                // Not a no-op; an unmonitored item can still be searched, and
+                // upstream will happily run the command, but the model should
                 // say so rather than let the user wonder why nothing arrives.
                 if (details.monitored === false) {
                     effects.push(

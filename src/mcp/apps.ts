@@ -14,7 +14,7 @@ import type { MediaCards } from '../ui/mediaCards.ts';
  *
  * A host without MCP Apps ignores both halves. The tools answer exactly as
  * they did, which `test/mcpApps.test.ts` holds them to, and the resource is
- * one more entry in `resources/list` — a view of a tool's answer, never a
+ * one more entry in `resources/list`; a view of a tool's answer, never a
  * source of facts of its own.
  */
 
@@ -42,8 +42,8 @@ type Capabilities = { extensions?: Record<string, unknown> } | undefined;
  *
  * A 2026-07-28 request carries the client's capabilities in its own `_meta`
  * envelope; a 2025-era connection declared them at `initialize`, which stdio
- * keeps. Stateless HTTP on the 2025 era has neither — each request gets a
- * fresh server that never saw `initialize` — so the answer is `undefined`
+ * keeps. Stateless HTTP on the 2025 era has neither (each request gets a
+ * fresh server that never saw `initialize`) so the answer is `undefined`
  * there, not `false`, and `tools.media_cards` is the switch for that case.
  */
 function clientRendersApps(server: McpServer, ctx: unknown): boolean | undefined {

@@ -10,7 +10,7 @@ export const isUnknownUser = (err: unknown): boolean => err instanceof ServiceEr
 
 /**
  * Two of the nine services have their own user concepts, and
- * both issue admin-scoped keys — so one key plus a user parameter can query as
+ * both issue admin-scoped keys, so one key plus a user parameter can query as
  * anybody. `allow_other_users` exists to make that deliberate rather than
  * incidental.
  *
@@ -27,12 +27,12 @@ export class IdentityResolver {
         this.#config = config;
     }
 
-    /** Whether `default_user` is set at all — distinct from whether it names a real user. */
+    /** Whether `default_user` is set at all; distinct from whether it names a real user. */
     get hasDefaultUser(): boolean {
         return this.#config.default_user !== undefined;
     }
 
-    /** The underlying adapter's id — `jellyfin` or `plex` — for remedies and
+    /** The underlying adapter's id, `jellyfin` or `plex`, for remedies and
      *  log tags built outside this class, which must not hardcode either. */
     get serviceId(): string {
         return this.#adapter.id;
@@ -65,7 +65,7 @@ export class IdentityResolver {
             throw new ServiceError('NotFound', this.#adapter.id, `no user named "${wanted}"`, {
                 remedy: available
                     ? `Known users: ${available}. Fix default_user in config.yaml.`
-                    : 'The service reported no users at all — check the API key has admin scope.',
+                    : 'The service reported no users at all. Check the API key has admin scope.',
                 reason: 'unknown_user'
             });
         }
@@ -78,7 +78,7 @@ export class IdentityResolver {
     }
 
     /**
-     * Configuration only. Returns the username to look up, or throws — and
+     * Configuration only. Returns the username to look up, or throws, and
      * throws *before* the directory is fetched, so a refused request costs no
      * network call and cannot be influenced by what the service would say.
      * Undefined means the token's own account, which only an adapter that
@@ -103,7 +103,7 @@ export class IdentityResolver {
             throw new ServiceError('AuthFailed', this.#adapter.id, `not permitted to query as "${requested}"`, {
                 remedy:
                     `Only ${fallback ?? 'the configured default user'} may be queried. ` +
-                    `Set services.${this.#adapter.id}.allow_other_users: true to permit others — ` +
+                    `Set services.${this.#adapter.id}.allow_other_users: true to permit others. ` +
                     "this exposes every user's history."
             });
         }

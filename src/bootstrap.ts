@@ -38,7 +38,7 @@ type Booted = {
 };
 
 /**
- * Starts normally, or — when the only thing wrong is the config's content —
+ * Starts normally, or, when the only thing wrong is the config's content,
  * serves the repair page until a save fixes it.
  *
  * Extracted from the entry point so the swap can be tested. The returned
@@ -63,12 +63,12 @@ export async function bootstrap(deps: BootstrapDeps): Promise<Booted> {
             if (runtime.config.auth.password_hash === undefined) {
                 logger.warn(
                     { port },
-                    `arr-mcp is not set up yet — open http://<host>:${port} to choose a username and password`
+                    `arr-mcp is not set up yet. Open http://<host>:${port} to choose a username and password`
                 );
             } else if (runtime.current.adapters.length === 0) {
                 logger.warn(
                     { config: configPath(configDir) },
-                    'no services configured — add them in the config UI, or edit config.yaml'
+                    'no services configured. Add them in the config UI, or edit config.yaml'
                 );
             }
 
@@ -76,7 +76,7 @@ export async function bootstrap(deps: BootstrapDeps): Promise<Booted> {
             // week, and startRefresh says so itself.
             if (runtime.dataset !== undefined && datasetIsEmpty(runtime.dataset)) {
                 logger.info(
-                    'IMDb dataset enabled — refreshing in the background; ratings appear once the first ingest finishes'
+                    'IMDb dataset enabled, refreshing in the background; ratings appear once the first ingest finishes'
                 );
             }
 
@@ -106,8 +106,8 @@ export async function bootstrap(deps: BootstrapDeps): Promise<Booted> {
         }
     };
 
-    // A latch, not a lock: two overlapping saves — a double-clicked Save is
-    // enough — would otherwise each run `Runtime.start`, and the loser is
+    // A latch, not a lock: two overlapping saves (a double-clicked Save is
+    // enough) would otherwise each run `Runtime.start`, and the loser is
     // unreachable but still holds a handle on imdb.db and its own weekly
     // refresh downloading into the same file.
     let promoting: Promise<PromoteResult> | undefined;
@@ -122,7 +122,7 @@ export async function bootstrap(deps: BootstrapDeps): Promise<Booted> {
         if (!(err instanceof ConfigInvalidError)) throw err;
         logger.error(
             { config: configPath(configDir) },
-            `config.yaml is invalid — serving the repair page only:\n${err.detail}`
+            `config.yaml is invalid, serving the repair page only:\n${err.detail}`
         );
         app = buildRepairApp({ configDir, sessions, version, failure: err, onPromote: promote });
     }

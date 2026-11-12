@@ -18,7 +18,7 @@ import { titled } from '../core/labels.ts';
  * of three values.
  *
  * The split is the permission tier. Approving and declining move a request
- * between states it can be moved back out of — including by this same tool —
+ * between states it can be moved back out of (including by this same tool),
  * so they are `safe`. Deleting destroys the record, so it is `destructive`.
  * A single tool spanning both would have to derive its tier from an argument,
  * which means the tier stops being a statically reviewable property of the
@@ -77,7 +77,7 @@ async function findRequest(
 
     // The same gate get_requests applies, applied here too. Without it the
     // read side refused to list another user's requests while this one would
-    // act on them *and* name the film and the person in the preview — and
+    // act on them *and* name the film and the person in the preview, and
     // request ids are small integers, so everything the read gate refused was
     // one guess away. `PermissionDenied` rather than the identity resolver's
     // own `AuthFailed`: nothing is wrong with the API key, and a model told
@@ -85,7 +85,7 @@ async function findRequest(
     // a display name is the requester's own choice.
     if (!(await mayManageRequest(found, identity))) {
         throw new ServiceError('PermissionDenied', 'seerr', `request ${id} belongs to another user`, {
-            remedy: 'Set services.seerr.allow_other_users: true to manage requests other people made — this also exposes their request history to get_requests.'
+            remedy: 'Set services.seerr.allow_other_users: true to manage requests other people made. This also exposes their request history to get_requests.'
         });
     }
 
@@ -134,7 +134,7 @@ export function registerRespondToRequest(
         name: 'respond_to_request',
         title: 'Approve or decline a request',
         description:
-            'Approves or declines a pending Seerr request. Approving hands it to Radarr or Sonarr, which will search for it and download it — so it costs disk space and bandwidth even though the decision itself is reversible. Take `id` from get_requests. Previews first; confirm to apply the verdict.',
+            'Approves or declines a pending Seerr request. Approving hands it to Radarr or Sonarr, which will search for it and download it, so it costs disk space and bandwidth even though the decision itself is reversible. Take `id` from get_requests. Previews first; confirm to apply the verdict.',
         inputSchema: RespondToRequestInput,
         service: 'seerr',
         operation: 'respond_to_request',
@@ -146,7 +146,7 @@ export function registerRespondToRequest(
             const target = verdict === 'approve' ? 'approved' : 'declined';
 
             // Re-approving an approved request is not an error, but it is not
-            // an action either — and asking someone to confirm a no-op teaches
+            // an action either, and asking someone to confirm a no-op teaches
             // them to confirm without reading.
             if (request.status === target) {
                 return {
@@ -160,7 +160,7 @@ export function registerRespondToRequest(
             const effects =
                 verdict === 'approve'
                     ? [
-                          'Hands the request to Radarr or Sonarr, which will search for it and start downloading — this uses disk space and bandwidth.',
+                          'Hands the request to Radarr or Sonarr, which will search for it and start downloading. This uses disk space and bandwidth.',
                           `Marks the request approved. ${requester(request)} will see it as accepted.`
                       ]
                     : [
@@ -199,7 +199,7 @@ export function registerDeleteRequest(
         name: 'delete_request',
         title: 'Delete a request',
         description:
-            'Deletes a Seerr request record entirely. This removes the request, not the media — anything already downloaded stays on disk and in Radarr or Sonarr. Use respond_to_request with `decline` to refuse a request while keeping the record. Take `id` from get_requests. Previews first; confirm to delete it.',
+            'Deletes a Seerr request record entirely. This removes the request, not the media; anything already downloaded stays on disk and in Radarr or Sonarr. Use respond_to_request with `decline` to refuse a request while keeping the record. Take `id` from get_requests. Previews first; confirm to delete it.',
         inputSchema: DeleteRequestInput,
         service: 'seerr',
         operation: 'delete_request',
@@ -213,10 +213,10 @@ export function registerDeleteRequest(
                 target: `seerr:${request.id}`,
                 summary: `Delete the Seerr request for ${label} (currently ${request.status}).`,
                 effects: [
-                    'Removes the request record from Seerr. This cannot be undone — the request would have to be made again.',
+                    'Removes the request record from Seerr. This cannot be undone. The request would have to be made again.',
                     // The distinction people get wrong, stated before they act
                     // rather than discovered after: this is not delete_media.
-                    'Does NOT delete any media. Anything already downloaded stays on disk and in Radarr or Sonarr — use delete_media for that.',
+                    'Does NOT delete any media. Anything already downloaded stays on disk and in Radarr or Sonarr. Use delete_media for that.',
                     `${requester(request)} will no longer see this request at all.`
                 ],
                 args: { id }

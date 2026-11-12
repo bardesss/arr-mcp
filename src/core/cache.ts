@@ -2,7 +2,7 @@
  * A TTL map, **not an LRU**.
  *
  * Eviction solves unbounded key growth, and the key space here is about a dozen
- * entries — one library per service, one health per service. An LRU would be
+ * entries; one library per service, one health per service. An LRU would be
  * machinery for a problem this project cannot have, and every line of it would
  * be untested by any scenario a user can reach.
  */
@@ -12,7 +12,7 @@ export type Clock = () => number;
  * Library reads, ~5 minutes.
  *
  * There was a `HEALTH_TTL_MS = 30_000` beside this for a health cache that was
- * never built — nothing constructed a second `TtlCache`, and `mcp/resources.ts`
+ * never built; nothing constructed a second `TtlCache`, and `mcp/resources.ts`
  * declares its own `HEALTH_TTL_MS = 0` meaning the opposite. One name, two
  * values, neither caching anything.
  */
@@ -34,7 +34,7 @@ export class TtlCache {
      * promise and share one fetch rather than both hitting the service.
      *
      * `ttlFor`, when given, runs on the resolved value and decides how long to
-     * keep it: `false` not at all, or a shorter window than `ttlMs` — a
+     * keep it: `false` not at all, or a shorter window than `ttlMs`; a
      * degraded library snapshot is worth twenty seconds, not five minutes, and
      * worth more than nothing, which is what refusing to cache it meant while
      * a service was down.
@@ -78,7 +78,7 @@ export class TtlCache {
             return resolved;
         } catch (err) {
             // Never cache a failure. A service restarting during the first call
-            // would otherwise poison every later call until arr-mcp restarts —
+            // would otherwise poison every later call until arr-mcp restarts;
             // the same lesson the identity directory taught earlier.
             //
             // Guarded on identity: a later successful load may already have
@@ -95,7 +95,7 @@ export class TtlCache {
      * implemented it via `get`'s `ttlFor` predicate instead of a
      * follow-up call here, specifically to reuse the identity check that
      * guards against deleting a fresher entry out from under a concurrent
-     * caller — a plain `invalidate()` call has no way to make that check.
+     * caller; a plain `invalidate()` call has no way to make that check.
      * Write-invalidation ended up going through `LibraryLoader.invalidate`,
      * which clears the whole cache, so nothing in production calls this.
      */

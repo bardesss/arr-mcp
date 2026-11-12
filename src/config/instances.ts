@@ -63,7 +63,7 @@ export function listInstances(config: Config): ServiceInstance[] {
         const type = key as ServiceId;
 
         // Only a multi-instance type can be a list, and the schema has
-        // already refused one anywhere else — so this is a shape check, not a
+        // already refused one anywhere else, so this is a shape check, not a
         // policy decision being made twice.
         const entries: readonly unknown[] = Array.isArray(value) ? value : [value];
 

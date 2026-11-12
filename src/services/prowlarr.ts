@@ -74,7 +74,7 @@ type RawHistoryRecord = {
     /**
      * Confirmed against a live Prowlarr 2.0.5: this carries `limit`, `offset`,
      * `elapsedTime`, `query`, `queryType`, `categories`, `source`, `host`,
-     * `queryResults`, `url` and `cached` — and **no `reason` field**. The
+     * `queryResults`, `url` and `cached`, and **no `reason` field**. The
      * adapter read `data.reason` first and would have reported every rejection
      * as "no reason given".
      */
@@ -90,12 +90,12 @@ type RawRelease = {
 };
 
 /**
- * Prowlarr manages indexers, not files, and exposes no diskspace endpoint —
+ * Prowlarr manages indexers, not files, and exposes no diskspace endpoint:
  * `/api/v1/diskspace` returns 404, confirmed against a live instance. It is
  * therefore deliberately not `DiskSpaceCapable`: a method with no fixture is
  * one get_stack_health would call and nothing would have tested.
  *
- * It is also API v1, not v3 — Prowlarr never had a v3 like its siblings.
+ * It is also API v1, not v3: Prowlarr never had a v3 like its siblings.
  */
 export class ProwlarrAdapter
     implements
@@ -136,8 +136,8 @@ export class ProwlarrAdapter
 
     /**
      * Prowlarr's answer to "reconcile yourself with the world": it pushes the
-     * indexer list to every application it manages. Not a library scan — it
-     * has no library — but the same shape of action, which is why
+     * indexer list to every application it manages. Not a library scan: it
+     * has no library, but the same shape of action, which is why
      * `trigger_scan` owns it rather than a tool of its own.
      *
      * v1, like everything else here.
@@ -373,24 +373,24 @@ export class ProwlarrAdapter
     }
 
     /**
-     * The failed half of Prowlarr's history — the "recent rejections", which
+     * The failed half of Prowlarr's history: the "recent rejections", which
      * is a different thing from the rejection *counts* above.
      *
      * **Prowlarr does not record why a query failed.** The history payload has
      * no reason field, so the best available answer is what kind of request it
      * was and which application asked. The *indexer's* own explanation lives on
-     * `indexerstatus.mostRecentFailure`, which `getIndexers` already surfaces —
+     * `indexerstatus.mostRecentFailure`, which `getIndexers` already surfaces:
      * between the two, "which queries failed" and "what the indexer said" are
      * both answerable, just not from one endpoint.
      *
-     * The query text is indexer-adjacent — it echoes back what reached the
-     * indexer — so it is fenced along with the reason.
+     * The query text is indexer-adjacent: it echoes back what reached the
+     * indexer, so it is fenced along with the reason.
      */
     async getRecentRejections(limit: number): Promise<IndexerRejection[]> {
         // `successful=false` is pushed down to Prowlarr, which supports it.
         //
         // Without it `pageSize` bounded the *history* window and the failures
-        // were picked out of it afterwards — so "the last 25 events" on a busy
+        // were picked out of it afterwards, so "the last 25 events" on a busy
         // indexer is mostly successes, and an indexer that failed forty queries
         // yesterday answered with an empty list today. "No recent rejections"
         // for a visibly failing indexer is the worst possible answer to the

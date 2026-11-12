@@ -19,8 +19,8 @@ import {
 /**
  * A degraded snapshot is worth caching, briefly.
  *
- * Declining outright meant that while any one source was down — a Jellyfin
- * restarting for an hour — every read did the full fan-out with no cache at
+ * Declining outright meant that while any one source was down (a Jellyfin
+ * restarting for an hour), every read did the full fan-out with no cache at
  * all, hammering the healthy services hardest exactly when the stack was
  * fragile. Short enough that recovery is noticed almost immediately.
  */
@@ -42,8 +42,8 @@ export type LibrarySnapshot = {
      *  an external id, so a caller that must see every server item (the
      *  metadata sweep) reads these. Set together with `playbackFrom`. */
     playbackRows?: readonly IndexInput[];
-    /** Set when the media server half is missing — no server configured, or one
-     *  configured with no `default_user` — or when a secondary is not read
+    /** Set when the media server half is missing (no server configured, or one
+     *  configured with no `default_user`) or when a secondary is not read
      *  because its `default_user` is missing (Jellyfin; Plex falls back to the
      *  token owner) or matches nobody. */
     note?: string;
@@ -122,7 +122,7 @@ export class LibraryLoader {
      * ingest, or it is loaded and genuinely does not cover these titles. Only
      * the last is an answer about the library; the other two are answers about
      * this server, and a caller told "0 rated" without them reasonably
-     * concludes the library is the problem — which is exactly what happened.
+     * concludes the library is the problem, which is exactly what happened.
      *
      * A getter rather than a field on the snapshot: the state changes when the
      * ingest lands, which is not a library read and must not wait for the cache
@@ -137,7 +137,7 @@ export class LibraryLoader {
         const resolved = await this.#resolveUser(user);
 
         // Keyed by user, or one household member's watch history appears in
-        // another's answer — a correctness bug that reads as a privacy one.
+        // another's answer; a correctness bug that reads as a privacy one.
         const key = `library:${resolved.user?.id ?? 'none'}`;
 
         // A degraded snapshot gets a short TTL rather than none, via `ttlFor`
@@ -169,14 +169,14 @@ export class LibraryLoader {
      * `user` is undefined when there is no Jellyfin half to fetch.
      *
      * Propagate or degrade turns on the error's **kind**, never on whether a
-     * user was named — naming someone must not turn a plain Jellyfin outage
+     * user was named; naming someone must not turn a plain Jellyfin outage
      * into a hard failure of the whole read, since the *arr half is still
      * worth returning.
      *
-     * - `AuthFailed` — the named user was refused. Propagates: a model must
+     * - `AuthFailed`; the named user was refused. Propagates: a model must
      *   not retry a refusal.
      * - `NotFound` with a name, or with none but a (wrong) `default_user`
-     *   configured, propagates too — both are actionable config errors, not
+     *   configured, propagates too; both are actionable config errors, not
      *   outages. Only "no name, no `default_user`" degrades
      *   (`unconfigured: true`), so the remedy names the missing key.
      * - Everything else degrades: a reachability problem, not a config one.
@@ -263,12 +263,12 @@ export class LibraryLoader {
         }
 
         // Its own source, so `gather` degrades it by name. A try/catch inside
-        // the adapter could not tell the snapshot *why* seasons were missing —
+        // the adapter could not tell the snapshot *why* seasons were missing;
         // the same ambiguity `BuildOptions.playbackGathered` exists to prevent.
         const seasons = this.#adapters.filter(hasUserSeasons).find(isPrimary);
         if (seasons !== undefined) {
             sources.push({
-                // Not `:episodes` — `listUserSeasons` returns one row per
+                // Not `:episodes`; `listUserSeasons` returns one row per
                 // *series*, and the old name reported a series count as an
                 // episode count (362 vs. a real 23,492 on one tester's
                 // library). See F5.
@@ -325,13 +325,13 @@ export class LibraryLoader {
         const rated = enrichWithImdb(items, this.#dataset);
 
         // The actual configured media server's id (`jellyfin` or `plex`), not
-        // a hardcoded name — falls back to the identity's own adapter id for
+        // a hardcoded name, falling back to the identity's own adapter id for
         // the pathological case where the two disagree.
         const mediaServerId = mediaServer?.id ?? this.#identity?.serviceId;
 
         // Ordered most specific first: a media server that is configured but
         // unusable is a different remedy from none at all, and only one of the
-        // two can be true — `resolved.unconfigured` needs an identity, which
+        // two can be true; `resolved.unconfigured` needs an identity, which
         // needs an adapter.
         const primaryNote = resolved.unconfigured
             ? `${mediaServerId} is configured without a default_user, so watch state is not included. Set \`services.${mediaServerId}.default_user\` in config.yaml, or pass \`user\` explicitly.`

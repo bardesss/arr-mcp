@@ -2,13 +2,13 @@
  * CSS and JS as exported strings, served from memory.
  *
  * Not files on disk: the Dockerfile copies `src` and runs `tsc`, and tsc does
- * not emit non-TypeScript files — so a `public/` directory would be silently
+ * not emit non-TypeScript files, so a `public/` directory would be silently
  * absent from the image while working perfectly in development. Keeping the
  * assets in modules means the thing that is tested is the thing that ships.
  *
  * There is no build step and no framework, by design. The page is server
  * rendered; this is the small amount of behaviour that genuinely needs a
- * client — polling the log stream, copying the token, and filling the
+ * client, polling the log stream, copying the token, and filling the
  * default-user suggestions in after the page has rendered.
  */
 
@@ -19,7 +19,7 @@
  * cannot combine those into one rule. Writing it out twice is how `--ok`,
  * `--warn` and `--bad` came to be missing from the light theme for as long as
  * they were: the status colours were tuned against a near-black panel, and on
- * white the warn amber landed near 1.8:1 — illegible on the one row of the log
+ * white the warn amber landed near 1.8:1, illegible on the one row of the log
  * table anyone urgently needs to read. Interpolating a single constant means
  * the next token added cannot be added to only one of them.
  */
@@ -165,7 +165,7 @@ legend { padding: 0 .4rem; color: var(--dim); font-size: .85rem; }
 /* What type=password used to do, minus the part that made every password
    manager fill the card as a login form. Chrome, Edge and Safari have had the
    prefixed property for years; Firefox since 116. Where it is unsupported the
-   field is a plain text input, which is the honest failure — the server renders
+   field is a plain text input, which is the honest failure: the server renders
    only one secret into it, the event log's password, which you open that card
    to read, and everything else on screen was just typed. */
 .secret { -webkit-text-security: disc; }
@@ -188,7 +188,7 @@ dialog .panel { margin: 0; border: 0; border-radius: 10px; max-height: 82vh; ove
 
 /* --- the write audit ---------------------------------------------------
    Seven columns, one of them a JSON blob of arguments, was unreadable before
-   it was unresponsive — no width makes that table scannable. An entry per
+   it was unresponsive: no width makes that table scannable. An entry per
    attempt puts the answer on the first line (what happened, which tool, when)
    and moves the arguments underneath, where their length costs nothing. */
 .trail { display: grid; gap: .6rem; }
@@ -235,7 +235,7 @@ dialog .panel { margin: 0; border: 0; border-radius: 10px; max-height: 82vh; ove
   main { padding: 1.25rem .9rem 1.5rem; }
   footer { padding: 1rem .9rem 2.5rem; }
   .panel, .card, .entry { padding: .8rem .85rem; }
-  /* 16px is the threshold under which iOS Safari zooms the page in on focus —
+  /* 16px is the threshold under which iOS Safari zooms the page in on focus,
      and it does not zoom back out, so one tap on a field leaves you scrolled
      sideways across a form you were only trying to type in. */
   input, select, textarea, .token input, #mcp-config { font-size: 16px; }
@@ -243,7 +243,7 @@ dialog .panel { margin: 0; border: 0; border-radius: 10px; max-height: 82vh; ove
   /* Tables with too many columns for a phone: the logs, the dashboard's problems,
      library events, and the token and key lists, whose last column is the Revoke
      button. Four columns split about 340px on a phone, so
-     the three narrow headings wrap letter by letter — "Le/ve/l" — and the
+     the three narrow headings wrap letter by letter, "Le/ve/l", and the
      message keeps what is left. The write audit reached this first and
      answered it by leaving the table for cards; this is that answer applied
      without a second set of markup, because the log table is rendered twice
@@ -322,9 +322,9 @@ document.addEventListener('click', async (e) => {
     flash(btn, 'Copied');
   } catch {
     // Clipboard API needs a secure context, and this is deliberately served
-    // over http on a LAN — so fall back to selecting the text for the user.
+    // over http on a LAN, so fall back to selecting the text for the user.
     selectIn(input);
-    flash(btn, 'Selected — copy it');
+    flash(btn, 'Selected: copy it');
   }
 });
 
@@ -352,11 +352,11 @@ document.addEventListener('click', async (e) => {
     await navigator.clipboard.writeText(config);
     flash(btn, 'Copied');
   } catch {
-    // No clipboard on http, and nothing on screen to select — so fill the
+    // No clipboard on http, and nothing on screen to select, so fill the
     // textarea and reveal it. The token is already on screen in the reveal panel.
     box.value = config;
     selectIn(box);
-    flash(btn, 'Selected — copy it');
+    flash(btn, 'Selected: copy it');
   }
 });
 
@@ -376,7 +376,7 @@ document.addEventListener('click', async (e) => {
   } catch {
     box.value = value;
     selectIn(box);
-    flash(btn, 'Selected — copy it');
+    flash(btn, 'Selected: copy it');
   }
 });
 
@@ -396,7 +396,7 @@ document.addEventListener('click', (e) => {
 });
 
 // The add form: a dialog opened by a button, with fields that follow the
-// picker. Both are enhancements — with scripting off, a <noscript> rule styles
+// picker. Both are enhancements: with scripting off, a <noscript> rule styles
 // the dialog back into the page and every field shows.
 const addService = document.getElementById('add-service');
 if (addService) {
@@ -429,7 +429,7 @@ if (addService) {
   // Test, without leaving the dialog.
   //
   // The unscripted fallback posts this form and gets the page back with the
-  // dialog reopened and the fields blank — survivable for a refused Add, which
+  // dialog reopened and the fields blank, survivable for a refused Add, which
   // you do once, but not for a test you repeat while fixing a URL. So the
   // scripted path posts the same form to the same route and fills the result in
   // place, which is also what keeps the typed API key off the wire twice and
@@ -466,7 +466,7 @@ if (addService) {
 
         if (d.ok) {
           say('ok', 'Reachable in ' + d.latency_ms + ' ms' +
-            (d.version ? ' — version ' + d.version : '') +
+            (d.version ? ', version ' + d.version : '') +
             '. Not added yet: this tested the fields as they are on screen.');
         } else {
           const err = d.error || d;
@@ -503,7 +503,7 @@ if (reloading) {
   setTimeout(later, wait);
 }
 
-// The log stream polls JSON and builds rows with textContent — never
+// The log stream polls JSON and builds rows with textContent, never
 // innerHTML.
 //
 // Every other part of this page is server-rendered through an escaping
@@ -526,7 +526,7 @@ if (stream) {
 
   const render = (rows) => {
     const table = document.createElement('table');
-    // Must match logTable's own class — see the .stacked rules in the CSS.
+    // Must match logTable's own class; see the .stacked rules in the CSS.
     table.className = 'stacked';
     const head = document.createElement('thead');
     const hr = document.createElement('tr');
@@ -544,10 +544,10 @@ if (stream) {
       tr.className = 'lvl-' + row.level;
       tr.appendChild(cell(row.time, 'mono'));
       tr.appendChild(cell(row.levelName));
-      tr.appendChild(cell(row.service || '—'));
+      tr.appendChild(cell(row.service || ''));
 
       // The server flattened these; this only has to place them, still with
-      // textContent — err.message carries whatever the upstream service said.
+      // textContent: err.message carries whatever the upstream service said.
       const message = cell(row.msg);
       const detail = Array.isArray(row.detail) ? row.detail : [];
       if (detail.length) {
@@ -587,7 +587,7 @@ if (stream) {
       if (!res.ok) return;
       const data = await res.json();
       // Scroll position is restored because the container scrolls, not the
-      // body — otherwise every poll would jump to the top while reading.
+      // body; otherwise every poll would jump to the top while reading.
       const top = stream.scrollTop;
       render(Array.isArray(data.rows) ? data.rows : []);
       stream.scrollTop = top;

@@ -4,8 +4,8 @@ export type RawRating = { value?: number; votes?: number };
 
 /**
  * Design spec resolved this against a live Radarr: the shape is
- * `{ <source>: { votes, value, type } }` with five sources — tmdb, trakt,
- * imdb, metacritic, rottenTomatoes — and **partial coverage**. Only 73% of
+ * `{ <source>: { votes, value, type } }` with five sources (tmdb, trakt,
+ * imdb, metacritic, rottenTomatoes) and **partial coverage**. Only 73% of
  * films carry an IMDb rating.
  *
  * Flattened to `source → value`. A missing source is absent rather than zero,
@@ -24,10 +24,10 @@ export function flattenRatings(raw: Record<string, RawRating> | undefined): Reco
 
 /**
  * **Sonarr's shape is not Radarr's**, resolved against a live Sonarr 4.0.19
- * during a live capture — which is what had been waiting for.
+ * during a live capture, which is what had been waiting for.
  *
- * Radarr: `{ tmdb: { votes, value, type }, imdb: {...}, … }` — per source.
- * Sonarr: `{ votes: 164018, value: 8.3 }` — one flat rating, no source key.
+ * Radarr: `{ tmdb: { votes, value, type }, imdb: {...}, … }`, per source.
+ * Sonarr: `{ votes: 164018, value: 8.3 }`, one flat rating, no source key.
  *
  * Passing Sonarr's through `flattenRatings` treats `votes` and `value` as
  * *source names*, reporting a rating source called "votes" worth 164018. The
@@ -43,13 +43,13 @@ export function flattenSeriesRating(raw: RawRating | undefined): Record<string, 
  * The sources names. Anything else an *arr invents is dropped rather than
  * carried.
  *
- * `tvdb` is deliberately absent. Sonarr's rating is flat — `{ votes, value }`,
- * no source key — and is read via `flattenSeriesRating`, never through this
+ * `tvdb` is deliberately absent. Sonarr's rating is flat (`{ votes, value }`,
+ * no source key) and is read via `flattenSeriesRating`, never through this
  * function; `Sonarr.listLibrary` builds `{ tvdb: raw.tvdb }` by hand instead of
  * calling `toMergedRatings`. Adding `tvdb` here would look like the fix that
  * lets Sonarr's mapping "simplify" to reuse this function, but Radarr's
  * per-source `Record<string, number>` and Sonarr's single flat value are not
- * the same shape — routing the latter through `KNOWN`'s allowlist would look
+ * the same shape: routing the latter through `KNOWN`'s allowlist would look
  * up a `tvdb` key that was never in the flattened record, and return
  * `undefined` for every series rating, silently.
  */

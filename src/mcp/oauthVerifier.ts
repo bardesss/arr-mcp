@@ -32,7 +32,7 @@ export type KeyResolver = JWTVerifyGetKey;
 /**
  * A scope claim is a space-delimited string per RFC 8693, but enough issuers
  * mint the array form that refusing it would be a support burden rather than
- * a security property — the values are compared exactly either way.
+ * a security property; the values are compared exactly either way.
  */
 function scopesOf(claim: unknown): string[] {
     if (Array.isArray(claim)) return claim.filter((s): s is string => typeof s === 'string');
@@ -79,7 +79,7 @@ function outageAware(resolve: JWTVerifyGetKey): JWTVerifyGetKey {
  * `createRemoteJWKSet` is the reason `jose` is here rather than a hand-rolled
  * verifier: it caches the key set, shares the in-flight fetch across a burst,
  * re-fetches on an unknown `kid` under a cooldown, and does not poison the
- * cache on a failed fetch. Built once per config load, not per request —
+ * cache on a failed fetch. Built once per config load, not per request.
  * `Runtime` rebuilds it on reload.
  */
 export function oauthVerifier(oauth: OAuthConfig, keys?: KeyResolver): OAuthTokenVerifier {
@@ -108,7 +108,7 @@ export function oauthVerifier(oauth: OAuthConfig, keys?: KeyResolver): OAuthToke
                 // Wrapped rather than rethrown: `verifyAccessToken`'s own
                 // contract says to throw `OAuthError(InvalidToken)` for a bad
                 // token, and `bearerAuthChallengeResponse` only recognises
-                // that type — anything else, jose's own `JOSEError` included,
+                // that type; anything else, jose's own `JOSEError` included,
                 // falls through to a bare 500 instead of the 401 the token
                 // actually earned.
                 throw new OAuthError(OAuthErrorCode.InvalidToken, err instanceof Error ? err.message : 'invalid token');

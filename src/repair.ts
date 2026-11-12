@@ -79,7 +79,7 @@ export function buildRepairApp(deps: RepairDeps): Hono {
      *
      * The YAML branch already carries a position rather than the offending
      * line, but zod's `prettifyError` renders `Unrecognized key: "…"` with the
-     * key verbatim — and a mis-indentation that puts a value where a key
+     * key verbatim, and a mis-indentation that puts a value where a key
      * belongs makes that key a secret. Paths survive, because
      * `prettifyError` writes them unquoted after `→ at`.
      *
@@ -92,7 +92,7 @@ export function buildRepairApp(deps: RepairDeps): Hono {
     const publicReason = (): string => detail.replace(/"[^"]*"/g, '"…"');
 
     // 200, because the Dockerfile healthcheck is `wget || exit 1` and a
-    // non-2xx restart-loops the container — which is what this mode exists to
+    // non-2xx restart-loops the container, which is what this mode exists to
     // stop. The honesty is in the body.
     app.get('/healthz', c =>
         c.json({ status: 'degraded', name: NAME, version, reason: publicReason() })
@@ -213,7 +213,7 @@ export function buildRepairApp(deps: RepairDeps): Hono {
                     return c.redirect('/ui/login', 302);
                 }
                 if (hash !== undefined) {
-                    // Present but unusable — an empty `password_hash:`, or one
+                    // Present but unusable; an empty `password_hash:`, or one
                     // holding a number or a mapping. Redirecting instead left
                     // the operator bouncing between setup and login forever,
                     // because `unclaimed()` stayed true.
@@ -291,7 +291,7 @@ export function buildRepairApp(deps: RepairDeps): Hono {
         if (session === undefined) return c.redirect(entry(), 302);
 
         const body = await c.req.parseBody();
-        if (!sessions.csrfValid(session, str(body.csrf))) return c.text('stale form — reload and try again', 403);
+        if (!sessions.csrfValid(session, str(body.csrf))) return c.text('stale form, reload and try again', 403);
 
         const text = str(body.config);
         // The text as typed, not what is on disk: a save that failed must not
@@ -310,7 +310,7 @@ export function buildRepairApp(deps: RepairDeps): Hono {
          * Write and promote as one turn, never interleaved with another save.
          *
          * Promotion re-reads config.yaml, and a second save renaming its own
-         * copy into place while that read is open fails outright on Windows —
+         * copy into place while that read is open fails outright on Windows;
          * the queue inside `writeFileAtomic` orders writes against each other
          * but not against a reader. Ordering the whole sequence also means the
          * runtime and the file can never disagree about which save won.
@@ -337,7 +337,7 @@ export function buildRepairApp(deps: RepairDeps): Hono {
             }
 
             started = true;
-            logger.info('configuration repaired — starting normally');
+            logger.info('configuration repaired, starting normally');
             return c.redirect('/ui', 302);
         };
 

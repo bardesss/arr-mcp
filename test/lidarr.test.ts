@@ -190,7 +190,7 @@ describe('LidarrAdapter', () => {
             const state = await adapter({ '/api/v1/album/7': ALBUM }, seen).getMonitorState('7');
 
             expect(state).toEqual({
-                label: '<<untrusted:lidarr.title>>House of Sugar<</>> — <<untrusted:lidarr.artist>>Alex G<</>> (2019)',
+                label: '<<untrusted:lidarr.title>>House of Sugar<</>> by <<untrusted:lidarr.artist>>Alex G<</>> (2019)',
                 monitored: true
             });
             expect(seen).toEqual(['/api/v1/album/7']);
@@ -200,7 +200,7 @@ describe('LidarrAdapter', () => {
         // with no date (`lidarrDate`): it is not the year one.
         it('gives an album with no release date no year in its label', async () => {
             const state = await adapter({ '/api/v1/album/7': { ...ALBUM, releaseDate: '0001-01-01T00:00:00Z' } }).getMonitorState('7');
-            expect(state.label).toBe('<<untrusted:lidarr.title>>House of Sugar<</>> — <<untrusted:lidarr.artist>>Alex G<</>>');
+            expect(state.label).toBe('<<untrusted:lidarr.title>>House of Sugar<</>> by <<untrusted:lidarr.artist>>Alex G<</>>');
         });
 
         it('refuses a non-integer album id rather than sending it on', async () => {

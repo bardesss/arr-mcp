@@ -721,7 +721,7 @@ describe('diagnose', () => {
 
         expect(d.steps.find(s => s.stage === 'request')).toMatchObject({
             status: 'skipped',
-            detail: 'No request recorded — not everything arrives through Seerr.'
+            detail: 'No request recorded. Not everything arrives through Seerr.'
         });
         expect(d.verdict.certain).toBe(true);
     });

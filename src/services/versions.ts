@@ -6,9 +6,9 @@ import { ServiceError } from '../core/errors.ts';
  *
  * **These are judgement calls about which releases this project supports**, not
  * facts any capture can settle. They are set conservatively below the versions
- * on the stack this was developed against — Radarr 6.3.0, Sonarr 4.0.19,
+ * on the stack this was developed against (Radarr 6.3.0, Sonarr 4.0.19,
  * Prowlarr 2.5.2, Bazarr 1.6.0, Jellyfin 10.11.11, Seerr 3.4.1, SABnzbd 5.0.4,
- * Transmission 4.1.3 — at the point where the API surface we use stabilised.
+ * Transmission 4.1.3) at the point where the API surface we use stabilised.
  * NZBGet was added later. Its fixtures come from NZBGet 26.3, and its floor
  * was checked against the source at the floor tag and then run live on 21.0.
  *
@@ -38,7 +38,7 @@ export const MINIMUM_VERSIONS: Record<ServiceId, string> = {
     // 10.9.0 moved the per-user reads to their modern forms, and three calls
     // here need them: `/Items/{itemId}`, `/UserPlayedItems/{itemId}` and
     // `/UserItems/Resume`. 10.8 answers none of the three, so it never fully
-    // worked — this floor only stops it failing halfway through.
+    // worked: this floor only stops it failing halfway through.
     jellyfin: '10.9.0',
     // Seerr forked from Overseerr in February 2026; 1.0 is its first release.
     seerr: '1.0.0',
@@ -53,7 +53,7 @@ export const MINIMUM_VERSIONS: Record<ServiceId, string> = {
     // The v2 WebUI API, which 4.1.0 introduced and nothing before it has.
     qbittorrent: '4.1.0',
     // Plex has not pinned a minimum; 1.0.0 is a placeholder. The one version
-    // this has actually been verified against is 1.43.3.10896 (issue #180) —
+    // this has actually been verified against is 1.43.3.10896 (issue #180):
     // a single data point, not enough to raise the floor from.
     plex: '1.0.0',
     // 2.2.0 is the release this adapter's /api/v1 contract is written against,
@@ -84,7 +84,7 @@ export function parseVersion(raw: string): number[] | undefined {
     return match[1].split('.').map(Number);
 }
 
-/** Numeric per part — a string compare would put "10" below "9". */
+/** Numeric per part: a string compare would put "10" below "9". */
 export function compareVersions(a: number[], b: number[]): number {
     const length = Math.max(a.length, b.length);
     for (let i = 0; i < length; i += 1) {

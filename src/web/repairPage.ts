@@ -10,7 +10,7 @@ export function repairPage(opts: { version: string; raw: string; detail: string;
     const body = html`<div class="repair">
         <h2>config.yaml could not be loaded</h2>
         <p class="note">
-            arr-mcp is running with this page only — no MCP endpoint, no services — until the file
+            arr-mcp is running with this page only (no MCP endpoint, no services) until the file
             below is valid. Fix it and save; the server starts without a restart.
         </p>
         <form method="post" action="/ui/repair">
@@ -20,7 +20,7 @@ export function repairPage(opts: { version: string; raw: string; detail: string;
             <button type="submit">Validate and save</button>
         </form>
         <p class="note">
-            This shows the file's contents, credentials included — it is the only way to edit a
+            This shows the file's contents, credentials included: it is the only way to edit a
             file that could not be parsed.
         </p>
     </div>`;
@@ -43,7 +43,7 @@ export function unreadableAuthPage(opts: { version: string; detail: string }): s
         <h2>config.yaml could not be loaded</h2>
         <p class="note">
             The <code>auth</code> block could not be read either, so there is no password this page
-            could check — editing has to happen in <code>config.yaml</code> directly. Fix the error
+            could check, so editing has to happen in <code>config.yaml</code> directly. Fix the error
             below and restart, and this page will let you do the rest in the browser.
         </p>
     </div>`;

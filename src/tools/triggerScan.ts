@@ -24,7 +24,7 @@ import { titled } from '../core/labels.ts';
  * The other half of the answer `diagnose_media` gives most often.
  *
  * `diagnose_media` names a stale library scan as the usual reason something that
- * finished downloading is still not playable — and until 1.0 nothing here could
+ * finished downloading is still not playable, and until 1.0 nothing here could
  * act on it, so its best answer ended "now go and start one yourself". The tool
  * that identifies a problem should be able to fix it.
  *
@@ -46,7 +46,7 @@ const findAdapter = (
         // has no library to scan, and reporting success for an action that
         // could never happen is how a model concludes the scan is done.
         throw new ServiceError('NotFound', service, `${service} has no library to scan`, {
-            remedy: 'Only radarr, sonarr, whisparr, lidarr, jellyfin, plex and grimmory manage a library, and prowlarr syncs its indexers to them. For "it downloaded but will not play", the media server — jellyfin or plex — is almost always the one you want.'
+            remedy: 'Only radarr, sonarr, whisparr, lidarr, jellyfin, plex and grimmory manage a library, and prowlarr syncs its indexers to them. For "it downloaded but will not play", the media server, jellyfin or plex, is almost always the one you want.'
         });
     }
 
@@ -64,7 +64,7 @@ const findItemAdapter = (
 
     if (!hasLibraryMaintenance(adapter)) {
         throw new ServiceError('NotFound', service, `${service} cannot refresh or rename one item`, {
-            remedy: 'Only radarr, sonarr, whisparr and lidarr manage individual items. For a media server, scan the whole library — omit `id`.'
+            remedy: 'Only radarr, sonarr, whisparr and lidarr manage individual items. For a media server, scan the whole library: omit `id`.'
         });
     }
 
@@ -185,7 +185,7 @@ const TriggerScanInput = z.object({
         .min(1)
         .optional()
         .describe(
-            'One {{or: radarr=movie; sonarr|whisparr=series; lidarr=Lidarr artist; grimmory=book}} id — `acquisition.id` on a get_library record. Omit with action: "scan" to scan the whole library.'
+            'One {{or: radarr=movie; sonarr|whisparr=series; lidarr=Lidarr artist; grimmory=book}} id: `acquisition.id` on a get_library record. Omit with action: "scan" to scan the whole library.'
         ),
     library: z
         .string()
@@ -213,7 +213,7 @@ export function registerTriggerScan(
         inputSchema: TriggerScanInput,
         // Resolved from the arguments, so the permission checked, the audit row
         // written and the token issued all name the same instance. Only the
-        // instance is resolved here — which capability the call needs depends
+        // instance is resolved here. Which capability the call needs depends
         // on `action` and `id`, and `plan` is where that is decided.
         service: ({ service, instance }) => resolveInstance(adapters, service, instance).id,
         operation: 'trigger_scan',
@@ -337,7 +337,7 @@ export function registerTriggerScan(
                 const item = findItemAdapter(adapters, service, instance);
                 const queued = action === 'rename' ? await item.renameItem(id) : await item.refreshItem(id);
                 return hasCommandStatus(item)
-                    ? `${item.id} queued ${queued.name} for item ${id}. It runs in the background — get_stack_health's \`commands\` list says whether it has finished.`
+                    ? `${item.id} queued ${queued.name} for item ${id}. It runs in the background; get_stack_health's \`commands\` list says whether it has finished.`
                     : `${item.id} queued ${queued.name} for item ${id}. It runs in the background, and get_stack_health's \`commands\` list does not report ${item.id}, so its absence there says nothing.`;
             }
 
@@ -345,12 +345,12 @@ export function registerTriggerScan(
             const handle = await adapter.startLibraryScan();
 
             if (adapter.type === 'prowlarr') {
-                return `${adapter.id} is syncing its indexers to the apps connected to it. It runs in the background — get_stack_health's \`commands\` list says whether it has finished.${
+                return `${adapter.id} is syncing its indexers to the apps connected to it. It runs in the background; get_stack_health's \`commands\` list says whether it has finished.${
                     handle.commandId === 0 ? '' : ` Command id ${handle.commandId}.`
                 }`;
             }
 
-            return `${adapter.id} is ${hasLibraryMaintenance(adapter) ? 'refreshing and rescanning' : 'rescanning'} its library. It runs in the background — check get_media_details or get_stack_health in a few minutes rather than expecting it to be finished now.${
+            return `${adapter.id} is ${hasLibraryMaintenance(adapter) ? 'refreshing and rescanning' : 'rescanning'} its library. It runs in the background. Check get_media_details or get_stack_health in a few minutes rather than expecting it to be finished now.${
                 handle.commandId === 0 ? '' : ` Command id ${handle.commandId}.`
             }${handle.detail === undefined ? '' : ` ${handle.detail}`}`;
         }

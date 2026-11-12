@@ -12,7 +12,7 @@ const MAX_LENGTH = 200;
 
 /**
  * Not fenced, unlike the free text beside it. This value exists to be matched
- * — "does it have an `eng` track" — and a boundary marker wrapped around it
+ * ("does it have an `eng` track") and a boundary marker wrapped around it
  * would make its one job harder than reading the release name it replaces. It
  * still comes off a file nobody vetted, so the code points `fenceText` strips
  * come out of here too.

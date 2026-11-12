@@ -98,7 +98,7 @@ export function registerSetMonitoring(
         name: 'set_monitoring',
         title: 'Start or stop monitoring',
         description:
-            'Turns monitoring on or off. [[sonarr|whisparr: {{and: sonarr=Sonarr; whisparr=Whisparr}}: a series (by `id` or `title`), one `season`, or `episodes` (not both).]] [[lidarr: Lidarr takes `level: "album"` for one album\'s flag (ids from get_media_details on the artist, or a get_wanted `albumId`); its artist level is deprecated, use update_media.]] [[radarr: Radarr monitoring is update_media.]] [[sonarr|whisparr: Unmonitor **before** delete_episode_files, or the *arr downloads the files again.]] Safe tier. The preview shows the current state; a season or episode that does not exist is refused rather than silently written. Previews first; confirm to apply. Field reference: arr://docs/set_monitoring.',
+            'Turns monitoring on or off. [[sonarr|whisparr: {{and: sonarr=Sonarr; whisparr=Whisparr}}: a series (by `id` or `title`), one `season`, or `episodes` (not both).]] [[lidarr: Lidarr takes `level: "album"` for one album\'s flag (ids from get_media_details on the artist, or a get_wanted `albumId`); its artist level is deprecated; use update_media.]] [[radarr: Radarr monitoring is update_media.]] [[sonarr|whisparr: Unmonitor **before** delete_episode_files, or the *arr downloads the files again.]] Safe tier. The preview shows the current state; a season or episode that does not exist is refused rather than silently written. Previews first; confirm to apply. Field reference: arr://docs/set_monitoring.',
         inputSchema: SetMonitoringInput,
         target: { adapters, to: TARGET },
         operation: 'set_monitoring',
@@ -198,7 +198,7 @@ export function registerSetMonitoring(
 
                 // A season this series does not have is not a no-op: `sonarr.ts`
                 // maps every season, matches none, and PUTs the series back
-                // unchanged — so the tool would report `applied: true` for a write
+                // unchanged, so the tool would report `applied: true` for a write
                 // that provably did nothing, and the caller, believing the season
                 // is now unmonitored, would go on to delete its files. Refused
                 // instead, exactly as delete_episode_files refuses an episode id it
@@ -216,8 +216,8 @@ export function registerSetMonitoring(
                 // `noop` only for the whole-series form, where the current state is
                 // a single value Sonarr actually holds.
                 //
-                // The episode form targets a set that can disagree with itself —
-                // some monitored, some not — so no claim is made there. The season
+                // The episode form targets a set that can disagree with itself;
+                // some monitored, some not, so no claim is made there. The season
                 // form *looks* like it has an answer in `seasons[].monitored`, but
                 // that is a UI aggregate over the episode flags, and this tool's
                 // own episode form writes those flags without touching it. A

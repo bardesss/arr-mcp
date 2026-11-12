@@ -1,7 +1,7 @@
 # Writes
 
 Nothing writes to your stack until you say so, per service. Every write is
-previewed before it acts and recorded either way — this is how each of those
+previewed before it acts and recorded either way: this is how each of those
 guarantees actually behaves.
 
 ## Permissions
@@ -12,8 +12,8 @@ services:
     url: http://192.168.1.20:7878
     api_key: "…"
     permissions:
-      safe_write: true       # monitor, trigger a search — reversible
-      destructive: false     # delete files, remove requests — not
+      safe_write: true       # monitor, trigger a search (reversible)
+      destructive: false     # delete files, remove requests (not reversible)
 ```
 
 Both default to **false**. A service you add by hand-editing YAML acquires no
@@ -24,7 +24,7 @@ have to reason about a config that permits deleting a film but refuses to
 re-monitor it.
 
 **Permissions are per instance.** `safe_write` on `radarr/hd` and nothing on
-`radarr/4k` is a configuration you can express — each entry carries its own
+`radarr/4k` is a configuration you can express: each entry carries its own
 `permissions` block.
 
 A write the tier forbids is refused before anything is read for it. The refusal
@@ -66,7 +66,7 @@ write, and says which permission to enable.
 
 Approving and declining a request are one tool and deleting one is another,
 because that is where the boundary is: a verdict can be reversed, a deleted
-record cannot. `delete_request` removes the *request*, never the media —
+record cannot. `delete_request` removes the *request*, never the media:
 anything already downloaded stays on disk, and the preview says so before you
 confirm rather than after.
 
@@ -78,7 +78,7 @@ so both directions there need only `safe_write`.
 
 `remove_queue_item` is destructive rather than safe because it deletes partial
 data, and because `blocklist: true` durably teaches Radarr, Sonarr, Whisparr or
-Lidarr to refuse a release — which is hard to notice and hard to undo months
+Lidarr to refuse a release, which is hard to notice and hard to undo months
 later, when the same film mysteriously never grabs. SABnzbd, NZBGet, the torrent
 clients and Shelfmark have no blocklist of their own; ask for one there and the
 preview tells you it is being ignored rather than silently accepting a flag that
@@ -129,7 +129,7 @@ gone, and Jellyfin has no way to put them back. The preview says so before you
 confirm. On a Grimmory book the equivalent is the finish date: marking it read
 sets it to now, marking it unread clears it, and an earlier one is not restored.
 
-`update_media` is safe, including when it changes the root folder — which asks
+`update_media` is safe, including when it changes the root folder, which asks
 the service to **move the files on disk**. Nothing is lost by a move: the undo
 is moving them back, and the service does the moving itself. That puts it
 alongside `add_media`, which starts multi-gigabyte downloads and is safe for
@@ -156,12 +156,12 @@ tool makes Grimmory write them into the file and rename it again.
 `trigger_scan`'s `rename` action is safe on the same reading: it renames files
 within the library to the service's own scheme, and renaming again puts them
 back. `import_download` is safe too. Its `import` action only ever imports what
-the service is already willing to take — a file the service rejects is excluded
+the service is already willing to take: a file the service rejects is excluded
 and named, never forced. Its `remap` action changes which episode Sonarr says a
 file is, and renames that file to match; a second remap puts both back. Nothing
 moves between folders and nothing is deleted. `trigger_scan` still takes these
 actions, deprecated, with the same preview and the same tier. Renaming a rotated season additionally changes Sonarr's
-episode naming format for the length of two commands and puts it back — the
+episode naming format for the length of two commands and puts it back: the
 preview says so, and [tools.md](tools.md#putting-a-mislabeled-file-on-the-right-episode)
 describes what bounds it.
 
@@ -201,7 +201,7 @@ API key, password or cookie passes through arr-mcp or lands in the audit trail.
 `pause_downloads` names one client rather than defaulting to all of them, and
 that is a permission property rather than a missing convenience: every write's
 tier is checked against exactly one resolved service id, so a tool spanning
-three clients would have to nominate one of them for that check — and enabling
+three clients would have to nominate one of them for that check, and enabling
 `safe_write` on SABnzbd would then quietly enable it on Transmission.
 
 `retry_download` is safe because it re-downloads at most what is missing and
@@ -233,7 +233,7 @@ the model, and a preview that only points at a field the model cannot see is a
 handshake it can never complete.
 
 Tokens are single-use, expire after five minutes, and are cryptographically
-bound to the exact operation and arguments previewed — a token issued for one
+bound to the exact operation and arguments previewed: a token issued for one
 film cannot be replayed against another, and a token from a `delete_media`
 preview that left files on disk cannot be used to wipe them. A token only works
 in the arr-mcp process that issued it, so restarting invalidates any outstanding
@@ -310,7 +310,7 @@ That is how you answer *"what would this do?"* without granting anything first.
 
 ## Below the level of a whole item
 
-`set_monitoring` (safe — nothing is deleted and Sonarr can undo it) turns
+`set_monitoring` (safe: nothing is deleted and Sonarr can undo it) turns
 monitoring on or off for a whole series, one season, or specific episodes: give
 `season` or `episodes`, never both, and giving neither targets the whole series.
 
@@ -319,7 +319,7 @@ together for the same reason: on Sonarr they select a different command
 entirely (`SeasonSearch` or `EpisodeSearch` instead of `SeriesSearch`), and
 conflating the two is how a request for one episode ends up re-grabbing a
 whole season. A season the series does not have, or an episode id that does
-not resolve, is refused — naming the seasons that do exist — rather than
+not resolve, is refused (naming the seasons that do exist) rather than
 posted, because Sonarr accepts a command matching nothing and reports success.
 Radarr has no seasons, so `season` and `episodes` are refused there outright.
 
@@ -363,12 +363,12 @@ per-season summary of them, which `set_monitoring`'s episode form can leave
 behind.
 
 On a series long enough that the episode list is truncated, the preview says the
-monitoring state could not be established rather than staying quiet — silence
+monitoring state could not be established rather than staying quiet: silence
 there would read as "nothing is monitored".
 
 ### Both tools refuse rather than write into the dark
 
-Given an episode id it cannot resolve — wrong, or past the 500-episode cap —
+Given an episode id it cannot resolve (wrong, or past the 500-episode cap)
 either tool refuses outright rather than silently dropping it. `set_monitoring`
 refuses a season the series does not have, naming the seasons it does.
 
@@ -380,7 +380,7 @@ double episode, `delete_episode_files` names every episode the delete would take
 with it, not just the one you asked for.
 
 Episode ids for both tools come from `get_media_details`, whose `episodes` also
-carry `episodeFileId` — the file each episode is on, when it has one — which is
+carry `episodeFileId` (the file each episode is on, when it has one), which is
 how `delete_episode_files` resolves a target without a second read.
 
 ### Lidarr: the artist flag is not the album flag
@@ -475,7 +475,7 @@ the run.
 
 ## The audit trail
 
-Every attempt — applied, previewed, refused, dry run, or failed mid-flight — is
+Every attempt (applied, previewed, refused, dry run, or failed mid-flight) is
 recorded in `config/audit.db` beside your `config.yaml`, with the resolved
 target and the arguments.
 
@@ -488,7 +488,7 @@ The config UI's **Write audit** page reads the same trail.
 
 Write tools take `service` and `id`. Titles are resolved fuzzily, which is fine
 when the cost of being wrong is a wrong answer and not fine when it is an action
-against the wrong film — use `get_media_details` or `get_library` to get an id
+against the wrong film. Use `get_media_details` or `get_library` to get an id
 first.
 
 `add_media` takes an external id instead: TMDB for Radarr, TVDB for Sonarr and
@@ -499,9 +499,9 @@ Whisparr, all returned by `search_media` with `source: "discover"` under `ids`.
 If your service has exactly one of each, it uses them without asking. If it has
 several and you name none, **it refuses and lists them** rather than picking:
 
-> radarr has several quality profiles and none was named — Name one —
-> available: Any (id 1); HD-1080p (id 4); HD-2160p (id 5); … Not guessing,
-> because the wrong one is not obvious until the download finishes.
+> radarr has several quality profiles and none was named. Name one. Available:
+> Any (id 1); HD-1080p (id 4); HD-2160p (id 5); … The wrong one is not obvious
+> until the download finishes.
 
 Lidarr needs a third choice, the metadata profile, which decides the album types
 and release statuses an artist gets. `metadata_profile` names it; left out, the
@@ -549,15 +549,16 @@ adds on import. The preview says each of these.
 ### With more than one instance, writes name one
 
 Adding a film with two Radarrs configured and no `instance` is refused, and the
-refusal lists the names rather than guessing — a 4K release landing in the HD
+refusal lists the names rather than guessing: a 4K release landing in the HD
 instance is only discovered once the download has finished.
 
 ```
 add_media { service: "radarr", external_id: "550" }
 ```
 
-> radarr has 2 instances configured, so "radarr" alone does not say which —
-> pass `instance` with one of: "4k", "hd".
+> radarr has 2 instances configured, so "radarr" alone does not say which.
+> Pass instance with one of: "4k", "hd". Guessing risks acting on the wrong
+> library.
 
 That means **adding a second instance changes how existing prompts behave**:
 requests that used to be unambiguous start asking which instance you meant. That
@@ -569,8 +570,9 @@ is deliberate, and it only affects writes.
 somebody. If that somebody is not the configured `default_user`, the write is
 refused unless `services.seerr.allow_other_users` is `true`:
 
-> request 31 belongs to another user — set `services.seerr.allow_other_users:
-> true` to manage requests other people made.
+> request 31 belongs to another user. Set services.seerr.allow_other_users:
+> true to manage requests other people made. This also exposes their request
+> history to get_requests.
 
 Whose request it is goes by Seerr user id, never by display name. Users choose
 their own display names, so another account could take the configured one. For
@@ -579,7 +581,7 @@ refused rather than guessed between.
 
 This is the same gate `get_requests` applies to reading them. Without it, the
 read side would refuse to so much as list a request that the write side would
-approve — and name the title and requester while previewing it. Request ids are
+approve, and name the title and requester while previewing it. Request ids are
 small integers, so anything the read gate refused would have been one guess
 away.
 
@@ -590,7 +592,7 @@ write, even one that looks like it would change nothing. Only the whole-series
 form reports "no change was made" without asking.
 
 Sonarr's per-season `monitored` flag is an aggregate over the episode flags, and
-this tool's own episode form writes those flags without touching the aggregate —
+this tool's own episode form writes those flags without touching the aggregate:
 so a season can report itself unmonitored while its episodes are still
 monitored. Treating that as "nothing to do" wrote nothing and left Sonarr
 searching for exactly the episodes you were about to delete.

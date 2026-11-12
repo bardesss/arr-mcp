@@ -10,7 +10,7 @@ import { esc, html, raw, shortTime, type SafeHtml } from './html.ts';
 import { LOGO, serviceIcon } from './icons.ts';
 
 /**
- * Every page, server rendered. No client framework and no build step — the
+ * Every page, server rendered. No client framework and no build step: the
  * only JavaScript is `assets.ts`, and every page here works without it except
  * the log auto-refresh.
  */
@@ -18,7 +18,7 @@ import { LOGO, serviceIcon } from './icons.ts';
 type Nav = 'dashboard' | 'config' | 'logs' | 'audit';
 
 /** Where this came from, and where a missing tool or a bug goes. On every
- *  page, including the sign-in one — the person who cannot get in is exactly
+ *  page, including the sign-in one: the person who cannot get in is exactly
  *  the person who needs the issue tracker. */
 const REPO = 'https://github.com/bardesss/arr-mcp';
 
@@ -113,7 +113,7 @@ dialog { display: block; position: static; max-width: none; width: auto; margin:
  * there is nothing a login form could accept. No `nav`, since there is nowhere
  * to go and no session to sign out of.
  *
- * The warning is not decoration — until this form is submitted, the instance
+ * The warning is not decoration: until this form is submitted, the instance
  * belongs to whoever reaches it first.
  */
 export function setupPage(opts: { version: string; error?: string | undefined; theme?: Theme | undefined }): string {
@@ -121,7 +121,7 @@ export function setupPage(opts: { version: string; error?: string | undefined; t
         <div class="panel">
             <h2>Set up arr-mcp</h2>
             <p class="note">
-                Nobody has claimed this instance yet. Choose a username and password — until you
+                Nobody has claimed this instance yet. Choose a username and password. Until you
                 do, anyone who reaches this page can claim it instead.
             </p>
             <form method="post" action="/ui/setup">
@@ -159,7 +159,7 @@ export function loginPage(opts: { version: string; error?: string | undefined; t
             <h2>Sign in</h2>
             <p class="note">
                 Lost the password? Delete the <span class="mono">password_hash</span> line from
-                <span class="mono">config.yaml</span> and restart — you will be offered the setup
+                <span class="mono">config.yaml</span> and restart: you will be offered the setup
                 page again, the same as a fresh install.
             </p>
             <form method="post" action="/ui/login">
@@ -191,7 +191,7 @@ export function loginPage(opts: { version: string; error?: string | undefined; t
  * The IMDb dataset's state, when one is configured.
  *
  * A background download with no visible state is one nobody can tell has
- * failed — and the state that matters most is the middle one: enabled, but the
+ * failed, and the state that matters most is the middle one: enabled, but the
  * first ingest has not finished. Saying nothing there is indistinguishable
  * from a broken download, and the user would reasonably conclude the feature
  * does not work.
@@ -201,14 +201,14 @@ const imdbPanel = (status: DatasetStatus): SafeHtml => html`<h2>IMDb dataset</h2
         ${status.ingestedAt === undefined
             ? html`<p class="note">
                   Enabled, still downloading. Every tool answers exactly as it did before until the first
-                  ingest finishes — nothing is broken while this says so, but <strong>IMDb ratings for
+                  ingest finishes. Nothing is broken while this says so, but <strong>IMDb ratings for
                   series are not available yet</strong>, because this is the only thing that supplies them.
                   It runs again weekly.
               </p>`
             : html`<p class="note">
-                      A fallback for ratings when Seerr is not configured or not answering — and the only
+                      A fallback for ratings when Seerr is not configured or not answering, and the only
                       source of an <strong>IMDb rating for a series</strong>, which no service in this stack
-                      reports. Refreshed weekly — about 223 MB down, roughly 81 MB on disk. Nothing here is
+                      reports. Refreshed weekly, about 223 MB down, roughly 81 MB on disk. Nothing here is
                       sent anywhere.
                   </p>
                   <table>
@@ -230,7 +230,7 @@ const statusDot = (d: ConnectionDiagnosis): SafeHtml =>
  * A card per service, showing the *diagnosis* rather than a tick or a cross.
  *
  * A connection test that returns true/false tells you nothing about what to
- * fix. `testConnection` already returns kind, detail and remedy — this is the
+ * fix. `testConnection` already returns kind, detail and remedy; this is the
  * first surface that shows all three to a human.
  */
 export function dashboardPage(opts: {
@@ -242,10 +242,10 @@ export function dashboardPage(opts: {
     /** Names of tokens config.yaml still holds in plaintext. */
     plaintextOnDisk: readonly string[];
     now: Date;
-    /** Absent when the request carried no usable `Host` — see `origin.ts`. */
+    /** Absent when the request carried no usable `Host`; see `origin.ts`. */
     mcpUrl?: string | undefined;
     writeCounts: { applied: number; denied: number; total: number };
-    /** Absent when the IMDb dataset is not configured — in which case the
+    /** Absent when the IMDb dataset is not configured, in which case the
      *  panel is not rendered at all rather than rendered as "off". */
     imdb?: DatasetStatus | undefined;
     disks: DiskSpace[];
@@ -284,7 +284,7 @@ export function dashboardPage(opts: {
      * The four things `get_stack_health` answers, on the page rather than only
      * through a tool. Reachability alone is a dashboard that calls a service
      * healthy while its disk is full and its library has not been scanned for
-     * a day — which is exactly the gap `diagnose_media` exists to explain after the
+     * a day, which is exactly the gap `diagnose_media` exists to explain after the
      * fact.
      */
     const problems =
@@ -314,7 +314,7 @@ export function dashboardPage(opts: {
                       ${grouped.map(
                           d => html`<tr>
                               <td>${humanBytes(d.freeSpace)}</td>
-                              <td>${d.totalSpace === undefined ? '—' : humanBytes(d.totalSpace)}</td>
+                              <td>${d.totalSpace === undefined ? '' : humanBytes(d.totalSpace)}</td>
                               <td>${d.services.join(', ')}</td>
                           </tr>`
                       )}
@@ -351,7 +351,7 @@ export function dashboardPage(opts: {
         <h2>Disk space</h2>
         <div class="panel">
             <p class="note">
-                One row per filesystem, not per mount — services in one stack share the same disks, and
+                One row per filesystem, not per mount: services in one stack share the same disks, and
                 listing every path they see them through says the same thing several times over.
             </p>
             ${disks}
@@ -374,8 +374,8 @@ export function dashboardPage(opts: {
             </p>
             ${opts.mcpUrl === undefined
                 ? html`<p class="note">
-                      Use <span class="mono">/mcp</span> on this host — the address you reached this
-                      page on.
+                      Use <span class="mono">/mcp</span> on this host (the address you reached this
+                      page on).
                   </p>`
                 : html`<div class="token">
                       <input id="mcp-url" type="text" value="${opts.mcpUrl}" readonly>
@@ -416,7 +416,7 @@ export function dashboardPage(opts: {
  * The three streams.
  *
  * `logger.ts` has promised "the config UI's three log streams",
- * and the design spec that named them is not in this repository — so these are
+ * and the design spec that named them is not in this repository, so these are
  * the three the code can actually support, chosen from what the logger already
  * binds: everything, only what is wrong, and one service at a time. They are
  * named tabs rather than a level dropdown because "show me what is broken" is
@@ -429,7 +429,7 @@ export const LOG_STREAMS = [
         key: 'problems',
         label: 'Problems',
         minLevel: 40,
-        hint: 'Warnings and errors only — what to read first when something is wrong.'
+        hint: 'Warnings and errors only: what to read first when something is wrong.'
     },
     {
         key: 'service',
@@ -589,7 +589,7 @@ export function logsPage(opts: {
 }
 
 /** The no-JavaScript rendering. The live one is rebuilt client-side from JSON
- *  with textContent — see assets.ts for why that one is not HTML. */
+ *  with textContent; see assets.ts for why that one is not HTML. */
 /**
  * A log row as the page shows it. The first render and the polled refresh both
  * go through this, so a row cannot change its wording or its time format when
@@ -615,13 +615,13 @@ export function logTable(rows: LogRow[]): SafeHtml {
             ${rows.map(logRowView).map(r => {
                 // Under the message rather than in a fifth column: these are
                 // the fields that answer "which client, which endpoint, what
-                // did the service say" — useless if the column holding them is
+                // did the service say", useless if the column holding them is
                 // squeezed to nothing, and there is no fixed set of them.
                 const detail = r.detail;
                 return html`<tr class="lvl-${r.level}">
                     <td class="mono">${r.time}</td>
                     <td>${r.levelName}</td>
-                    <td>${r.service ?? '—'}</td>
+                    <td>${r.service ?? ''}</td>
                     <td>
                         ${r.msg}
                         ${detail.length === 0
@@ -663,7 +663,7 @@ function argValue(value: unknown): string {
  * The recorded arguments, as fields rather than as the blob they are stored as.
  *
  * `args` is JSON in one database column, and printing it into a cell put a
- * whole object on one line beside six other columns — the single thing that
+ * whole object on one line beside six other columns, the single thing that
  * made this page unreadable at any width.
  *
  * A row that does not parse is shown verbatim rather than dropped. This is a
@@ -701,7 +701,7 @@ function argFields(args: string): SafeHtml {
  * with the prefix dropped since the label already says whose it is.
  */
 function callerField(caller: string | null): SafeHtml {
-    if (caller === null) return html`<dd class="dim">not recorded — written before callers were logged</dd>`;
+    if (caller === null) return html`<dd class="dim">not recorded (written before callers were logged)</dd>`;
     if (caller === BEARER_CALLER) return html`<dd class="dim">the static bearer token (before named tokens)</dd>`;
     if (caller.startsWith(BEARER_CALLER_PREFIX)) {
         const [name, fp] = caller.slice(BEARER_CALLER_PREFIX.length).split('#');
@@ -716,7 +716,7 @@ function callerField(caller: string | null): SafeHtml {
  * One entry per attempt, rather than one row of seven columns.
  *
  * The order is the order the questions get asked: what happened, to what, with
- * which arguments, and — only when there is one — what the service said back.
+ * which arguments, and, only when there is one, what the service said back.
  */
 function auditEntry(r: AuditRow): SafeHtml {
     return html`<article class="entry">

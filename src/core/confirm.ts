@@ -8,13 +8,13 @@ import { constantTimeEquals } from './secrets.ts';
  *
  * A write tool called without `confirm` performs nothing and hands back a
  * preview plus a token; calling again with that token performs the write. The
- * point is not to stop a determined model — it holds the token and can call
- * twice — it is that the *first* call cannot mutate anything, so a mis-parsed
+ * point is not to stop a determined model (it holds the token and can call
+ * twice). It is that the *first* call cannot mutate anything, so a mis-parsed
  * instruction ("delete the Alien films") surfaces as a preview a human sees.
  *
  * Two properties do the work. The token is an **HMAC over the exact
  * operation**, so one issued for "delete movie 5" cannot be replayed as
- * "delete movie 9" — without that binding a model could preview something
+ * "delete movie 9". Without that binding a model could preview something
  * harmless and confirm something else, which is worse than no confirmation
  * because it looks like protection. And it is **single-use**, so "add movie"
  * cannot be confirmed twice into a duplicate.
@@ -32,7 +32,7 @@ const MAX_CONSUMED = 10_000;
 
 /**
  * Everything a token commits to. Any field that changes the effect of the
- * write belongs here — that is what makes "the token matches this call" mean
+ * write belongs here; that is what makes "the token matches this call" mean
  * "this is the call you previewed".
  */
 export type WriteIntent = {
@@ -42,7 +42,7 @@ export type WriteIntent = {
     /** The adapter-level verb, e.g. `delete_movie`. Distinct from `tool` because
      *  one tool may reach more than one operation. */
     operation: string;
-    /** The resolved target — an id, not the phrase the user typed. Binding to a
+    /** The resolved target; an id, not the phrase the user typed. Binding to a
      *  title would let the same token hit a different film after a re-resolve. */
     target: string;
     /** Remaining arguments that alter the effect (e.g. `{ deleteFiles: true }`). */
@@ -67,7 +67,7 @@ export const CONFIRM_REASON: Record<ConfirmFailure, string> = {
 
 const REMEDY: Record<ConfirmFailure, string> = {
     expired: `${CONFIRM_REASON.expired} Call this tool again without \`confirm\` to preview the operation and get a fresh token.`,
-    mismatch: `${CONFIRM_REASON.mismatch} Call this tool again without \`confirm\` to preview *this* operation and use the token it returns — do not reuse a token from an earlier preview.`,
+    mismatch: `${CONFIRM_REASON.mismatch} Call this tool again without \`confirm\` to preview *this* operation and use the token it returns. Do not reuse a token from an earlier preview.`,
     foreign: `${CONFIRM_REASON.foreign} Call this tool again without \`confirm\` to preview the operation here and use the token it returns.`,
     used: `${CONFIRM_REASON.used} Tokens are single-use so a write cannot be applied twice; call this tool again without \`confirm\` if you genuinely intend to repeat the operation.`,
     malformed: `${CONFIRM_REASON.malformed} Call this tool again without \`confirm\` to preview the operation and use the token it returns verbatim.`
@@ -76,7 +76,7 @@ const REMEDY: Record<ConfirmFailure, string> = {
 /**
  * Stable serialisation, so `{a:1,b:2}` and `{b:2,a:1}` produce one signature.
  * Plain `JSON.stringify` preserves insertion order, which would make an
- * otherwise-identical confirm call fail purely on key order — a failure mode
+ * otherwise-identical confirm call fail purely on key order; a failure mode
  * that would be maddening to diagnose and would train callers to distrust the
  * handshake.
  */
@@ -105,8 +105,8 @@ const intentPayload = (intent: WriteIntent): string =>
  *
  * The preview names the token inside backticks and ends the sentence with a
  * period, so what returns is frequently the token with one or both still
- * attached. None of it can belong to a token — `v2.<keyId>.<base36>.<base64url>` holds
- * no whitespace, quotes or punctuation — so removing it concedes nothing: the
+ * attached. None of it can belong to a token (`v2.<keyId>.<base36>.<base64url>` holds
+ * no whitespace, quotes or punctuation) so removing it concedes nothing: the
  * HMAC still decides, and a wrong token fails exactly as it did before.
  * Refusing these is the expensive option, because the refusal reissues a token
  * presented the same way, so a caller that mis-clips once mis-clips forever.
@@ -151,7 +151,7 @@ export class ConfirmTokens {
     /**
      * Verifies **and consumes**. Deliberately one operation: a separate
      * `verify` then `consume` invites a caller to verify, perform the write,
-     * and forget to consume — leaving the token replayable. The consume
+     * and forget to consume; leaving the token replayable. The consume
      * happens before the write is attempted, so a write that fails still burns
      * the token; re-previewing after a failure is the correct flow, because the
      * failure may well have changed what the preview would say.
@@ -197,7 +197,7 @@ export class ConfirmTokens {
     }
 
     /**
-     * A consumed token only needs remembering until it would expire anyway —
+     * A consumed token only needs remembering until it would expire anyway;
      * after that the expiry check rejects it regardless, so the entry is dead
      * weight. That bounds the map by (writes per TTL window) rather than by
      * uptime.

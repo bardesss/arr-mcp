@@ -51,8 +51,8 @@ describe('a title in place of an id', () => {
         const err = await itemByTitle(adapters, loader, 'Dune').catch((e: unknown) => e as Error);
         expect(err).toBeInstanceOf(Error);
         expect((err as Error).message).toMatch(/matches more than one title equally well/);
-        expect((err as Error).message).toContain('(2021) — radarr id 1');
-        expect((err as Error).message).toContain('(1984) — radarr id 2');
+        expect((err as Error).message).toContain('(2021) (radarr id 1)');
+        expect((err as Error).message).toContain('(1984) (radarr id 2)');
     });
 
     it('keeps titles fenced in a refusal', async () => {

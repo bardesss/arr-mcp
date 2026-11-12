@@ -12,7 +12,7 @@ type RawWantedMovie = {
 };
 
 type RawWantedEpisode = {
-    id?: number; // the episode, not the series — see below
+    id?: number; // the episode, not the series: see below
     seriesId?: number;
     seasonNumber?: number;
     episodeNumber?: number;
@@ -24,7 +24,7 @@ type RawWantedEpisode = {
 };
 
 type RawWantedAlbum = {
-    id?: number; // the album, not the artist — the same trap as Sonarr's episode
+    id?: number; // the album, not the artist: the same trap as Sonarr's episode
     artistId?: number;
     title?: string; // the album's own title
     releaseDate?: string | null;
@@ -36,8 +36,8 @@ type RawWantedAlbum = {
 /**
  * Radarr's `/api/v3/wanted/*` rows are full movie objects and `id` already
  * names the movie. Sonarr's are episode objects: `id` is the *episode*, and
- * the series id — the one `trigger_search` and `get_media_details` actually
- * take — is only in `seriesId`. Handing back the episode id would be a write
+ * the series id (the one `trigger_search` and `get_media_details` actually
+ * take) is only in `seriesId`. Handing back the episode id would be a write
  * against the wrong thing.
  *
  * `includeSeries=true` is required to get the show's own name at all:
@@ -46,8 +46,8 @@ type RawWantedAlbum = {
  * an invented query param all produce a distinguishable response, so this is
  * not a parameter Sonarr silently ignores.
  *
- * Sonarr's `missing` list defaults to monitored-only — an unmonitored
- * episode is not "wanted" — so no `monitored` parameter is added here; that
+ * Sonarr's `missing` list defaults to monitored-only: an unmonitored
+ * episode is not "wanted", so no `monitored` parameter is added here; that
  * default is called out in the tool description instead.
  *
  * With `want`, it stops once it has that many rows and takes `total` from the

@@ -119,7 +119,7 @@ export function embyToken(key: string): AuthStrategy {
 }
 
 /**
- * Plex. The token is an operator-supplied `X-Plex-Token` for their own server —
+ * Plex. The token is an operator-supplied `X-Plex-Token` for their own server,
  * never a plex.tv credential, and never a query parameter, which is where
  * SABnzbd's key has to live and why `ServiceHttp` keeps full URLs out of error
  * messages.
@@ -136,7 +136,7 @@ export function plexToken(token: string): AuthStrategy {
 
 /**
  * SABnzbd, whose API is entirely query-parameter driven. The key therefore
- * appears in the URL — which is why ServiceHttp never puts a full URL into an
+ * appears in the URL, which is why ServiceHttp never puts a full URL into an
  * error message. It uses the origin and path only.
  */
 export function queryParamKey(param: string, key: string): AuthStrategy {
@@ -154,7 +154,7 @@ export function queryParamKey(param: string, key: string): AuthStrategy {
  * fresh `X-Transmission-Session-Id`; the client stores it and repeats the call.
  *
  * A cold start therefore always costs one 409, which is exactly why `recover`
- * exists rather than letting the breaker count it as a failure — a working
+ * exists rather than letting the breaker count it as a failure; a working
  * Transmission would otherwise trip its own breaker on startup.
  */
 export function transmissionRpc(creds: { username?: string; password?: string }): AuthStrategy {
@@ -189,11 +189,11 @@ const QB_LOGIN_PATH = '/api/v2/auth/login';
  * session cookie, send it back on every call.
  *
  * The cookie is `SID` up to 5.1 and `QBT_SID_<webui-port>` from 5.2, where the
- * port is the one qBittorrent itself is configured with — a container port
- * mapping or a reverse proxy detaches that from the port we dialled, so the
+ * port is the one qBittorrent itself is configured with (a container port
+ * mapping or a reverse proxy detaches that from the port we dialled), so the
  * name is stored as offered rather than rebuilt.
  *
- * Nothing logs in ahead of time — there is no cheap way to ask whether a
+ * Nothing logs in ahead of time. There is no cheap way to ask whether a
  * session is still valid, so this lets the 403 happen and recovers from it, the
  * same shape as Transmission's 409. An instance with "bypass authentication for
  * clients on localhost" enabled therefore never logs in at all.
@@ -213,8 +213,8 @@ export function qbittorrentSession(creds: {
      *
      * N concurrent requests that all hit 403 each started their own login.
      * Beyond the wasted round trips, qBittorrent's WebUI bans a client after
-     * repeated auth attempts — the very remedy text this strategy's failure
-     * points at — so a burst against briefly-wrong credentials accelerated the
+     * repeated auth attempts (the very remedy text this strategy's failure
+     * points at) so a burst against briefly-wrong credentials accelerated the
      * ban it warns about. Same single-flight shape as IdentityResolver's list.
      */
     let inFlight: Promise<SessionCookie> | undefined;
@@ -329,7 +329,7 @@ async function qbittorrentLogin(
     }
 
     // Two shapes of success: 5.2 answers 204 with an empty body, earlier
-    // versions 200 "Ok.". Neither status line is enough on its own — up to 5.1
+    // versions 200 "Ok.". Neither status line is enough on its own; up to 5.1
     // a wrong password is also a 200, with the body "Fails." (5.2 uses 401).
     const accepted = response.status === 204 ? body === '' : response.status === 200 && body === 'Ok.';
     if (!accepted) {
