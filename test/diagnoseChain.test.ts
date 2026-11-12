@@ -22,7 +22,7 @@ const buildChain = (query: string, ev: Evidence): Diagnosis => chain(query, ev, 
 
 type EvidenceOverride = { [K in keyof Evidence]?: Evidence[K] | undefined };
 
-const fence = (title: string): string => fenceText(title, { service: 'radarr', field: 'title' });
+const fence = (title: string, service = 'radarr'): string => fenceText(title, { service: service as Parameters<typeof fenceText>[1]['service'], field: 'title' });
 
 /**
  * Every queue fixture used to pass an unfenced release title, while all
@@ -1254,14 +1254,14 @@ describe('buildChain — each queue state is worded for what it is', () => {
         return row;
     };
     const FINISHED_REMEDY =
-        'The download is complete, but the client reports a problem, and Radarr/Sonarr imports nothing while it stands. Fix it in the client (free disk space and retry the download, for one); Radarr/Sonarr imports it once the client no longer reports the problem.';
+        'The download is complete, but the client reports a problem, and Radarr imports nothing while it stands. Fix it in the client (free disk space and retry the download, for one); Radarr imports it once the client no longer reports the problem.';
     const UNCONFIRMED_REMEDY =
-        'If the message says the files are missing, remove the download with remove_queue_item and let Radarr/Sonarr search again; otherwise fix what it reports, and it is imported once the warning clears.';
+        'If the message says the files are missing, remove the download from radarr’s queue with remove_queue_item and `id` "q1", and let Radarr search again; otherwise fix what it reports, and it is imported once the warning clears.';
     // Radarr's words when a finished torrent sits at qBittorrent's base download directory (`QBittorrent`).
     const PATH_ERROR =
         "Unable to Import. Path matches client base download directory, it's possible 'Keep top-level folder' is disabled for this torrent or 'Torrent Content Layout' is NOT set to 'Original' or 'Create Subfolder'?";
     const IMPORT_REMEDY =
-        'The download finished but has not been imported yet — check Radarr/Sonarr’s activity/history for why, then trigger the import manually if it did not run on its own.';
+        'The download finished but has not been imported yet — check Radarr’s activity/history for why, then trigger the import manually if it did not run on its own.';
     // The qBittorrent adapter's own shape: no `errorMessage`, `seeding` meaning nothing is left to download.
     const torrent = (status: string, seeding: boolean, sizeBytes = 1000): QueueItem => ({
         service: 'qbittorrent',
@@ -1308,7 +1308,7 @@ describe('buildChain — each queue state is worded for what it is', () => {
         const d = run(radarrRow({ status: 'warning', errorMessage: stalled }));
         expect(stepFor(d, 'queue')).toMatchObject({ status: 'blocked', detail: `Download warning: ${stalled}.` });
         expect(d.verdict.remedy).toBe(
-            'A stalled torrent often finishes later, so waiting may be enough; otherwise fix what the client reports, or remove the download and let Radarr/Sonarr search again.'
+            'A stalled torrent often finishes later, so waiting may be enough; otherwise fix what the client reports, or remove the download and let Radarr search again.'
         );
         expect(d.verdict.next_steps).toEqual([
             {
@@ -1326,14 +1326,14 @@ describe('buildChain — each queue state is worded for what it is', () => {
         const d = run(row, radarrRow({ downloadId: 'BBBB2222' }));
         expect(stepFor(d, 'queue')?.service).toBe('transmission');
         expect(d.verdict.remedy).toBe(
-            'Fix what the client reports, or remove the download and let Radarr/Sonarr search again. To blocklist a bad release, remove it from Radarr/Sonarr’s queue with `blocklist: true`.'
+            'Fix what the client reports, or remove the download and let Radarr search again. To blocklist a bad release, remove it from radarr’s queue with remove_queue_item, `id` "q1" and `blocklist: true`.'
         );
         expect(d.verdict.next_steps?.[0]?.why).toBe('Removes the download from transmission and deletes its partial data. It is not blocklisted.');
     });
 
     it("says nothing about blocklisting for a client's warning that no *arr row lists", () => {
         const d = run(torrent('stalled', false));
-        expect(d.verdict.remedy).toBe('A stalled torrent often finishes later, so waiting may be enough; otherwise fix what the client reports, or remove the download and let Radarr/Sonarr search again.');
+        expect(d.verdict.remedy).toBe('A stalled torrent often finishes later, so waiting may be enough; otherwise fix what the client reports, or remove the download and let Radarr search again.');
         expect(d.verdict.next_steps?.[0]?.why).toBe('Removes the download from qbittorrent and deletes its partial data. It is not blocklisted.');
     });
 
@@ -1357,7 +1357,7 @@ describe('buildChain — each queue state is worded for what it is', () => {
     it("does not call the *arr's warning a possible stall when the client's own row says what it is", () => {
         const d = run(torrent('error', false), radarrRow({ status: 'warning', errorMessage: message('radarr', 'qBittorrent is reporting an error') }));
         expect(stepFor(d, 'queue')?.service).toBe('radarr');
-        expect(d.verdict.remedy).toBe('Fix what the client reports, or remove the download and let Radarr/Sonarr search again.');
+        expect(d.verdict.remedy).toBe('Fix what the client reports, or remove the download and let Radarr search again.');
     });
 
     it("names and removes the *arr's row when the client's is in the same state, so a bad release can be blocklisted", () => {
@@ -1371,7 +1371,7 @@ describe('buildChain — each queue state is worded for what it is', () => {
         const row = transmission('downloading', 'Tracker gave HTTP response code 404', false);
         const d = run(row);
         expect(stepFor(d, 'queue')?.detail).toBe(`transmission reports a problem with the download: ${row.errorMessage}.`);
-        expect(d.verdict.remedy).toBe('Fix what the client reports, or remove the download and let Radarr/Sonarr search again.');
+        expect(d.verdict.remedy).toBe('Fix what the client reports, or remove the download and let Radarr search again.');
     });
 
     // TransmissionBase reads the error string first, so the *arrs import none of it while it stands.
@@ -1404,11 +1404,11 @@ describe('buildChain — each queue state is worded for what it is', () => {
     // failed unpack and a failed move hold every byte; a duplicate NZBGet deleted
     // for a good copy holds none, and only the *arr's message says which.
     const SAB_FINISHED_REMEDY =
-        'The client reports a problem, and radarr imports nothing while it stands. SABnzbd could not unpack it (a write error or a full disk): fix that, then retry it in SABnzbd, or with retry_download on SABnzbd and `id` "SABnzbd_nzo_1".';
+        'The client reports a problem, and Radarr imports nothing while it stands. SABnzbd could not unpack it (a write error or a full disk): fix that, then retry it in SABnzbd, or with retry_download and `id` "SABnzbd_nzo_1" on the SABnzbd that holds it.';
     // The *arrs give an NZB they send NZBGet a GUID without its dashes as its `drone` id (`NzbgetProxy`).
     const DRONE = 'aaaabbbbccccddddeeeeffff00001111';
     const NZBGET_FINISHED_REMEDY =
-        `The client reports a problem, and radarr imports nothing while it stands. On NZBGet, fix the cause (free disk space, for one), then run its post-processing again there, or with import_download on NZBGet, \`action: "postprocess"\` and \`download_id\` "${DRONE}". If NZBGet deleted it as a duplicate, remove it from radarr’s queue with remove_queue_item and \`id\` "q1". The message says which.`;
+        `The client reports a problem, and Radarr imports nothing while it stands. On NZBGet, fix the cause (free disk space, for one), then run its post-processing again there, or with import_download, \`action: "postprocess"\` and \`download_id\` "${DRONE}", on the NZBGet that holds it. If NZBGet deleted it as a duplicate, remove it from radarr’s queue with remove_queue_item and \`id\` "q1". The message says which.`;
     const nzbgetMessage = (unpack: string, move: string, del: string): string =>
         `PAR Status: SUCCESS - Unpack Status: ${unpack} - Move Status: ${move} - Script Status: NONE - Delete Status: ${del} - Mark Status: NONE`;
     it.each([
@@ -1432,10 +1432,107 @@ describe('buildChain — each queue state is worded for what it is', () => {
             const full = message('radarr', 'Download contains multiple files and is not in a job folder');
             const d = run(radarrRow({ status: 'warning', protocol: 'usenet', downloadId, errorMessage: full, remainingBytes: 0 }));
             expect(d.verdict.remedy).toBe(
-                'The client reports a problem, and radarr imports nothing while it stands. Fix what the client reports, or, if the client deleted the download, remove it from radarr’s queue with remove_queue_item and `id` "q1".'
+                'The client reports a problem, and Radarr imports nothing while it stands. Fix what the client reports, or, if the client deleted the download, remove it from radarr’s queue with remove_queue_item and `id` "q1".'
             );
         }
     );
+
+    // The opening names the *arr as the remedies beside it do; the removal
+    // names the row's own instance, since this state offers no next step.
+    it('names the *arr in the opening and the named instance in the removal', () => {
+        const hd = item({ acquisition: { service: 'radarr/hd', id: '5', monitored: true, hasFile: false } });
+        const row = radarrRow({ service: 'radarr/hd', status: 'warning', protocol: 'usenet', downloadId: DRONE, errorMessage: message('radarr', nzbgetMessage('NONE', 'NONE', 'GOOD')), remainingBytes: 0 });
+        const d = buildChain('some film', { ...healthy(), item: hd, queue: { items: [row], partial: [] } });
+        expect(d.verdict.remedy).toBe(
+            `The client reports a problem, and Radarr imports nothing while it stands. On NZBGet, fix the cause (free disk space, for one), then run its post-processing again there, or with import_download, \`action: "postprocess"\` and \`download_id\` "${DRONE}", on the NZBGet that holds it. If NZBGet deleted it as a duplicate, remove it from radarr/hd’s queue with remove_queue_item and \`id\` "q1". The message says which.`
+        );
+    });
+
+    // The other remedies that name a removal no step carries name the *arr's
+    // row and its instance too.
+    describe("names the *arr's row and instance in a removal no step carries", () => {
+        const hd = item({ acquisition: { service: 'radarr/hd', id: '5', monitored: true, hasFile: false } });
+        const runHd = (...rows: QueueItem[]) => buildChain('some film', { ...healthy(), item: hd, queue: { items: rows, partial: [] } });
+
+        it("in the blocklist sentence of a client's warning, where the step removes the client's row", () => {
+            const d = runHd(transmission('downloading', 'Tracker gave HTTP response code 404', false), radarrRow({ service: 'radarr/hd', downloadId: 'BBBB2222' }));
+            expect(d.verdict.remedy).toBe(
+                'Fix what the client reports, or remove the download and let Radarr search again. To blocklist a bad release, remove it from radarr/hd’s queue with remove_queue_item, `id` "q1" and `blocklist: true`.'
+            );
+            expect(d.verdict.next_steps?.[0]?.tool).toBe('remove_queue_item');
+            expect(d.verdict.next_steps?.[0]?.arguments).toEqual({ service: 'transmission', id: '7' });
+        });
+
+        // A shared client category can put the grab in another instance's queue too.
+        it("in the blocklist sentence, the managing instance's row when another instance lists the grab first", () => {
+            const other = radarrRow({ id: 'q2', mediaId: '9', downloadId: 'BBBB2222' });
+            const d = runHd(transmission('downloading', 'Tracker gave HTTP response code 404', false), other, radarrRow({ service: 'radarr/hd', downloadId: 'BBBB2222' }));
+            expect(d.verdict.remedy).toMatch(/remove it from radarr\/hd’s queue with remove_queue_item, `id` "q1" and `blocklist: true`\.$/);
+        });
+
+        it('in the removal of a torrent with nothing left that only the *arr speaks for', () => {
+            const d = runHd(radarrRow({ service: 'radarr/hd', status: 'warning', errorMessage: message('radarr', 'qBittorrent is reporting missing files'), remainingBytes: 0 }));
+            expect(d.verdict.remedy).toBe(
+                'If the message says the files are missing, remove the download from radarr/hd’s queue with remove_queue_item and `id` "q1", and let Radarr search again; otherwise fix what it reports, and it is imported once the warning clears.'
+            );
+            expect(d.verdict.next_steps).toBeUndefined();
+        });
+    });
+
+    // A queue remedy names the *arr that manages the item: a stack running only
+    // Radarr is not told about a Sonarr, nor a Whisparr-only one about either.
+    describe('names the *arr that manages the item', () => {
+        const SHAPES = {
+            radarr: { kind: 'movie', title: 'Some Film', year: 2026, ids: { tmdb: 550 }, release: 'Some.Film.2026', query: 'some film' },
+            sonarr: { kind: 'series', title: 'Some Show', year: undefined, ids: { tvdb: 1 }, release: 'Some.Show.S01E01', query: 'some show' },
+            // Whisparr names a scene's release by its date.
+            whisparr: { kind: 'series', title: 'Some Site', year: undefined, ids: { tvdb: 1 }, release: 'Some.Site.24.01.01.Example.Title', query: 'some site' }
+        } as const;
+        type Arr = keyof typeof SHAPES;
+        const runOn = (service: string, type: Arr, over: Partial<QueueItem>): Diagnosis => {
+            const shape = SHAPES[type];
+            const managed = item({
+                kind: shape.kind,
+                title: fence(shape.title, type),
+                year: shape.year,
+                ids: shape.ids,
+                acquisition: { service, id: '5', monitored: true, hasFile: false }
+            });
+            const row = radarrRow({ service, title: queueTitle(type, shape.release), ...over });
+            return buildChain(shape.query, { ...healthy(), item: managed, queue: { items: [row], partial: [] } });
+        };
+
+        it.each<[string, Arr, string]>([
+            ['radarr', 'radarr', 'Radarr'],
+            ['radarr/hd', 'radarr', 'Radarr'],
+            ['sonarr', 'sonarr', 'Sonarr'],
+            ['sonarr/4k', 'sonarr', 'Sonarr'],
+            ['whisparr', 'whisparr', 'Whisparr'],
+            ['whisparr/main', 'whisparr', 'Whisparr']
+        ])('in the remedy for a failed grab on %s', (service, type, name) => {
+            const d = runOn(service, type, { status: 'failed', errorMessage: message(type, 'news server refused') });
+            expect(d.verdict.remedy).toMatch(/^Check the download client for the failed grab\b/);
+            expect(d.verdict.remedy).toMatch(new RegExp(`, then let ${name} search again\\.$`));
+        });
+
+        it('in the opening of the usenet remedy, with the named instance in the removal', () => {
+            const text = message('whisparr', 'Download contains multiple files and is not in a job folder');
+            const d = runOn('whisparr/main', 'whisparr', { status: 'warning', protocol: 'usenet', downloadId: 'drone-1', errorMessage: text, remainingBytes: 0 });
+            expect(d.verdict.remedy).toBe(
+                'The client reports a problem, and Whisparr imports nothing while it stands. Fix what the client reports, or, if the client deleted the download, remove it from whisparr/main’s queue with remove_queue_item and `id` "q1".'
+            );
+        });
+
+        // A row can still match an item nothing manages by title, but the
+        // verdict is then `request` or `managed`, and no queue remedy is shown.
+        it('leaves an item nothing manages to the managed verdict, whatever row matches it', () => {
+            const unmanaged = item({ kind: 'series', title: fence('Some Site', 'whisparr'), year: undefined, ids: { tvdb: 1 }, acquisition: undefined, presence: 'jellyfin_only' });
+            const row = radarrRow({ service: 'whisparr', title: queueTitle('whisparr', SHAPES.whisparr.release), status: 'failed', errorMessage: message('whisparr', 'news server refused') });
+            const d = buildChain('some site', { ...healthy(), item: unmanaged, queue: { items: [row], partial: [] }, libraryDegraded: ['whisparr'] });
+            expect(stepFor(d, 'queue')?.status).toBe('blocked');
+            expect(d.verdict).toMatchObject({ stage: 'managed', certain: false, remedy: 'Check that whisparr is reachable, then diagnose_media again: it may be managing it.' });
+        });
+    });
 
     it("does not offer another download's import for a finished warning", () => {
         const full = message('radarr', 'Unpacking failed, write error or disk is full?');
@@ -1608,7 +1705,7 @@ describe('buildChain — each queue state is worded for what it is', () => {
     it('blocks on a state it does not know, without calling the download failed', () => {
         const d = run(radarrRow({ status: 'somethingNew' }));
         expect(stepFor(d, 'queue')).toMatchObject({ status: 'blocked', detail: 'Download somethingNew.' });
-        expect(d.verdict.remedy).toBe('Check the download in the download client and fix what it reports, or remove it and let Radarr/Sonarr search again.');
+        expect(d.verdict.remedy).toBe('Check the download in the download client and fix what it reports, or remove it and let Radarr search again.');
         expect(d.verdict.next_steps?.[0]?.why).toMatch(/^Removes the download from radarr/);
     });
 
@@ -2504,7 +2601,7 @@ describe('buildChain — a Lidarr artist', () => {
         const row = lidarrRow({ status: 'warning', protocol: 'usenet', downloadId: 'aaaabbbbccccddddeeeeffff00001111', errorMessage: bad, sizeBytes: 1000, remainingBytes: 0 });
         const d = buildChain('daft punk', healthy({ item: noTracks(), queue: { items: [row], partial: [] } }));
         expect(d.verdict.remedy).toBe(
-            'The client reports a problem, and lidarr imports nothing while it stands. On NZBGet, fix the cause (free disk space, for one), then run its post-processing again there, or with import_download on NZBGet, `action: "postprocess"` and `download_id` "aaaabbbbccccddddeeeeffff00001111". If NZBGet deleted it as a duplicate or as bad, remove it from lidarr’s queue with remove_queue_item and `id` "103", with `blocklist: true` if it was bad. The message says which.'
+            'The client reports a problem, and Lidarr imports nothing while it stands. On NZBGet, fix the cause (free disk space, for one), then run its post-processing again there, or with import_download, `action: "postprocess"` and `download_id` "aaaabbbbccccddddeeeeffff00001111", on the NZBGet that holds it. If NZBGet deleted it as a duplicate or as bad, remove it from lidarr’s queue with remove_queue_item and `id` "103", with `blocklist: true` if it was bad. The message says which.'
         );
         expect(d.verdict.next_steps).toBeUndefined();
     });
@@ -2575,7 +2672,7 @@ describe('buildChain — a Lidarr artist', () => {
         const d = buildChain('daft punk', healthy({ item: noTracks(), queue: { items: [row], partial: [] } }));
         expect(stepFor(d, 'queue')).toMatchObject({ service: 'lidarr', detail: `Download warning: ${missing}.` });
         expect(d.verdict.remedy).toBe(
-            'If the message says the files are missing, remove the download with remove_queue_item and let Lidarr search again; otherwise fix what it reports, and it is imported once the warning clears.'
+            'If the message says the files are missing, remove the download from lidarr’s queue with remove_queue_item and `id` "103", and let Lidarr search again; otherwise fix what it reports, and it is imported once the warning clears.'
         );
         expect(d.verdict.next_steps).toBeUndefined();
     });

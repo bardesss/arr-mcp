@@ -273,7 +273,7 @@ describe('Lidarr import by download id', () => {
 
         await expect(adapter.listImportCandidates('aaaabbbbccccddddeeeeffff00001111')).rejects.toMatchObject({
             remedy: expect.stringContaining(
-                'On NZBGet, fix the cause (free disk space, for one), then run its post-processing again there, or with import_download on NZBGet, `action: "postprocess"` and `download_id` "aaaabbbbccccddddeeeeffff00001111". If NZBGet deleted it as a duplicate or as bad, remove it from lidarr’s queue with remove_queue_item and `id` "7", with `blocklist: true` if it was bad. Its `errorMessage`, which get_queue shows at `detail: "full"`, says which.'
+                'On NZBGet, fix the cause (free disk space, for one), then run its post-processing again there, or with import_download, `action: "postprocess"` and `download_id` "aaaabbbbccccddddeeeeffff00001111", on the NZBGet that holds it. If NZBGet deleted it as a duplicate or as bad, remove it from lidarr’s queue with remove_queue_item and `id` "7", with `blocklist: true` if it was bad. Its `errorMessage`, which get_queue shows at `detail: "full"`, says which.'
             )
         });
         expect(sent.map(s => s.path)).toEqual(['/api/v1/queue']);
