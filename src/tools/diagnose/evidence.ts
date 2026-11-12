@@ -291,16 +291,22 @@ export async function readTitleRequests(
 
 /**
  * The one request that describes the title. A pending one wins over an approved
- * one for the same series, since that is the one waiting on somebody; then a
- * TMDB match before a TVDB one. The write cross-checks read every match instead.
+ * one for the same series, since that is the one waiting on somebody; then the
+ * newest, so a request declined years ago does not speak for one approved since.
+ * Seerr's own order is not by date. A TMDB match breaks a tie over a TVDB one.
+ * The write cross-checks read every match instead.
  */
 export function findRequest(requests: readonly MediaRequest[], ids: ExternalIds, kind: 'movie' | 'series'): MediaRequest | undefined {
     const matching = requestsFor(requests, ids, kind);
-    return (
-        matching.find(r => r.status === 'pending') ??
-        (ids.tmdb === undefined ? undefined : matching.find(r => r.tmdbId === ids.tmdb)) ??
-        matching[0]
-    );
+    const pending = matching.filter(r => r.status === 'pending');
+    const pool = pending.length > 0 ? pending : matching;
+    // An undated request sorts last: it cannot claim to be the newest.
+    const at = (r: MediaRequest): number => {
+        const t = r.requestedAt === undefined ? NaN : Date.parse(r.requestedAt);
+        return Number.isNaN(t) ? -Infinity : t;
+    };
+    const tmdb = (r: MediaRequest): number => (ids.tmdb !== undefined && r.tmdbId === ids.tmdb ? 1 : 0);
+    return [...pool].sort((a, b) => at(b) - at(a) || tmdb(b) - tmdb(a))[0];
 }
 
 export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget): Promise<Evidence> {

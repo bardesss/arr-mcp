@@ -7,12 +7,12 @@ import { fenceText } from '../src/core/fence.ts';
 import { IdentityResolver } from '../src/core/identity.ts';
 import type { IndexInput } from '../src/core/resolver.ts';
 import { buildChain as chain, type Diagnosis, type Evidence } from '../src/tools/diagnose/chain.ts';
-import { collectEvidence, DIAGNOSE_BUDGET_MS } from '../src/tools/diagnose/evidence.ts';
+import { collectEvidence, DIAGNOSE_BUDGET_MS, findRequest } from '../src/tools/diagnose/evidence.ts';
 import { buildDiagnose, type DiagnoseDeps } from '../src/tools/diagnose/index.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
 import { GrimmoryAdapter } from '../src/services/grimmory.ts';
 import { LidarrAdapter } from '../src/services/lidarr.ts';
-import type { ServiceAdapter, UserDirectoryCapable } from '../src/services/types.ts';
+import type { MediaRequest, ServiceAdapter, UserDirectoryCapable } from '../src/services/types.ts';
 
 /** These tests diagnose by title, the form that takes a query. */
 const buildChain = (query: string, ev: Evidence): Diagnosis => chain(query, ev, true);
@@ -1597,5 +1597,35 @@ describe('the diagnose budget', () => {
         vi.useFakeTimers();
         await buildDiagnose(deps(), { query: 'some film' });
         expect(vi.getTimerCount()).toBe(0);
+    });
+});
+
+describe('findRequest', () => {
+    const req = (id: number, status: MediaRequest['status'], requestedAt?: string, over: Partial<MediaRequest> = {}): MediaRequest => ({
+        service: 'seerr',
+        id,
+        status,
+        mediaType: 'movie',
+        tmdbId: 550,
+        requestedBy: 'someone',
+        ...(requestedAt === undefined ? {} : { requestedAt }),
+        ...over
+    });
+
+    it('takes the newest request, whatever order Seerr lists them in', () => {
+        const found = findRequest([req(1, 'declined', '2026-01-10T00:00:00Z'), req(2, 'approved', '2026-03-10T00:00:00Z')], { tmdb: 550 }, 'movie');
+        expect(found?.id).toBe(2);
+    });
+
+    it('still prefers a pending request over a newer one', () => {
+        const found = findRequest([req(1, 'pending', '2026-01-10T00:00:00Z'), req(2, 'approved', '2026-03-10T00:00:00Z')], { tmdb: 550 }, 'movie');
+        expect(found?.id).toBe(1);
+    });
+
+    it('puts an undated request last, and breaks a tie on the TMDB match', () => {
+        expect(findRequest([req(1, 'declined'), req(2, 'approved', '2026-03-10T00:00:00Z')], { tmdb: 550 }, 'movie')?.id).toBe(2);
+        const byTvdb = req(3, 'declined', '2026-03-10T00:00:00Z', { mediaType: 'tv', tmdbId: 9, tvdbId: 1 });
+        const byTmdb = req(4, 'approved', '2026-03-10T00:00:00Z', { mediaType: 'tv' });
+        expect(findRequest([byTvdb, byTmdb], { tmdb: 550, tvdb: 1 }, 'series')?.id).toBe(4);
     });
 });

@@ -358,6 +358,14 @@ comes first. A Jellyfin id gives no kind, nor does a Plex item that is not a
 film or a show, so there any *arr that could not be read counts, Lidarr aside
 when the item carries a tmdb, tvdb or imdb id, as a film or a show does.
 
+A title the media server shows and nothing manages is `playable`: the summary
+says nothing will upgrade or replace it, and there is no step to add it, which
+would only download a second copy. For a film, that copy also outranks a
+request. When a title has several Seerr requests, a pending one speaks for it,
+or else the newest. A declined request, or one in a state Seerr does not name,
+does not stop a title an *arr monitors: the verdict goes on to the file and the
+queue, and the summary mentions the request.
+
 Remedies name the *arr that manages the item. For one nothing manages, the
 `managed` remedy names the *arrs configured here that could manage it (of its
 kind, or, when its kind is not known, by the same rule), or says that none is;
