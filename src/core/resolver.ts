@@ -28,6 +28,14 @@ export const ARR_KIND: Readonly<Record<string, ArrKind>> = {
     lidarr: 'artist'
 };
 
+/** What each *arr is called in text written for the user. */
+export const ARR_NAMES: Readonly<Record<string, string>> = {
+    radarr: 'Radarr',
+    sonarr: 'Sonarr',
+    whisparr: 'Whisparr',
+    lidarr: 'Lidarr'
+};
+
 /** A merged row the *arr chain can read. See `isArrItem`. */
 export type ArrItem = MergedItem & { kind: ArrKind };
 

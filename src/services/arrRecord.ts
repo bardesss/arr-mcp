@@ -37,21 +37,22 @@ const NZBGET_DRONE_ID = /^[0-9a-f]{32}$/;
  * bad (`Nzbget`). Only the *arr's message tells those apart, and `message` says
  * where it is. NZBGet's retry_download wants its own history id, which the
  * *arr's row does not carry, so this names import_download's `postprocess`,
- * which takes the *arr's. Another client, or an id of neither shape (an NZB
- * added to NZBGet by hand has its own number), is only told to fix what it
- * reports or remove the row, so a download id goes into the text only once its
- * whole shape is known.
+ * which takes the *arr's. The id says which client, not which instance, so the
+ * text says to make the call on the one that holds it rather than guessing one.
+ * Another client, or an id of neither shape (an NZB added to NZBGet by hand has
+ * its own number), is only told to fix what it reports or remove the row, so a
+ * download id goes into the text only once its whole shape is known.
  */
 export function usenetRerun(row: QueueItem, message: string): string {
     const id = row.downloadId ?? '';
     if (SABNZBD_ID.test(id)) {
-        return `SABnzbd could not unpack it (a write error or a full disk): fix that, then retry it in SABnzbd, or with retry_download on SABnzbd and \`id\` "${id}".`;
+        return `SABnzbd could not unpack it (a write error or a full disk): fix that, then retry it in SABnzbd, or with retry_download and \`id\` "${id}" on the SABnzbd that holds it.`;
     }
     if (!NZBGET_DRONE_ID.test(id)) {
         return `Fix what the client reports, or, if the client deleted the download, remove it from ${row.service}’s queue with remove_queue_item and \`id\` "${row.id}".`;
     }
     const lidarr = isLidarrRow(row);
-    return `On NZBGet, fix the cause (free disk space, for one), then run its post-processing again there, or with import_download on NZBGet, \`action: "postprocess"\` and \`download_id\` "${id}". If NZBGet deleted it as a duplicate${lidarr ? ' or as bad' : ''}, remove it from ${row.service}’s queue with remove_queue_item and \`id\` "${row.id}"${lidarr ? ', with `blocklist: true` if it was bad' : ''}. ${message} says which.`;
+    return `On NZBGet, fix the cause (free disk space, for one), then run its post-processing again there, or with import_download, \`action: "postprocess"\` and \`download_id\` "${id}", on the NZBGet that holds it. If NZBGet deleted it as a duplicate${lidarr ? ' or as bad' : ''}, remove it from ${row.service}’s queue with remove_queue_item and \`id\` "${row.id}"${lidarr ? ', with `blocklist: true` if it was bad' : ''}. ${message} says which.`;
 }
 
 /** The field naming a row's media, one per kind of library. */

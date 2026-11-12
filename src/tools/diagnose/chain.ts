@@ -2,7 +2,7 @@ import { DOWNLOAD_CLIENTS, type ServiceId } from '../../config/schema.ts';
 import { servicesOnly } from '../../core/gather.ts';
 import type { NextStep } from '../../core/nextStep.ts';
 import { unfenced } from '../../core/titleMatch.ts';
-import { ARR_KIND, type MergedItem } from '../../core/resolver.ts';
+import { ARR_KIND, ARR_NAMES, type MergedItem } from '../../core/resolver.ts';
 import { fenceText } from '../../core/fence.ts';
 import { isLidarrRow, PENDING_STATUSES, usenetRerun } from '../../services/arrRecord.ts';
 import type {
@@ -477,8 +477,17 @@ function pickQueueRow(mine: readonly QueueItem[]): { row: QueueItem; cls: QueueC
     return { row, cls: classifyQueueStatus(row) };
 }
 
-/** What the item's own *arr is called in a remedy: an artist's is Lidarr, which a film's grab never goes through. */
-const arrOf = (item: MergedItem): string => (item.kind === 'artist' ? 'Lidarr' : 'Radarr/Sonarr');
+/**
+ * What the item's own *arr is called in a remedy: the one that manages it, so a
+ * stack running only Radarr is not told about a Sonarr. A queue remedy is the
+ * verdict only when something manages the item (otherwise `buildChain` stops at
+ * `request` or `managed`), so the other names are a fallback.
+ */
+function arrOf(item: MergedItem): string {
+    const managing = item.acquisition === undefined ? undefined : ARR_NAMES[instanceArgs(item.acquisition.service).service];
+    if (managing !== undefined) return managing;
+    return item.kind === 'artist' ? 'Lidarr' : 'Radarr/Sonarr';
+}
 
 const queueFaultRemedy = (item: MergedItem): string =>
     `Check the download client for the failed grab: retry it, remove it, or fix what it reports (e.g. connectivity to the indexer or news server), then let ${arrOf(item)} search again.`;
@@ -492,9 +501,13 @@ const queueWarningRemedy = (item: MergedItem, said: QueueItem): string =>
     MAY_STALL.has(said.status.toLowerCase())
         ? `A stalled torrent often finishes later, so waiting may be enough; otherwise fix what the client reports, or remove the download and let ${arrOf(item)} search again.`
         : `Fix what the client reports, or remove the download and let ${arrOf(item)} search again.`;
-/** A client's row cannot be blocklisted; when the *arr lists the grab too, its own queue row can. */
-const queueClientWarningRemedy = (item: MergedItem, said: QueueItem): string =>
-    `${queueWarningRemedy(item, said)} To blocklist a bad release, remove it from ${arrOf(item)}’s queue with \`blocklist: true\`.`;
+/**
+ * A client's row cannot be blocklisted; when the *arr lists the grab too, its
+ * own queue row can. The step offered removes the client's row, so the text
+ * names the *arr's row and its instance.
+ */
+const queueClientWarningRemedy = (item: MergedItem, said: QueueItem, arrRow: QueueItem): string =>
+    `${queueWarningRemedy(item, said)} To blocklist a bad release, remove it from ${arrRow.service}’s queue with remove_queue_item, \`id\` "${arrRow.id}" and \`blocklist: true\`.`;
 const queueUnrecognisedRemedy = (item: MergedItem): string =>
     `Check the download in the download client and fix what it reports, or remove it and let ${arrOf(item)} search again.`;
 /** For a state this module does not know, whose finished files keep the removal back. */
@@ -519,12 +532,22 @@ function pausedRemedy(client: QueueItem | undefined): string {
 }
 const queueFinishedRemedy = (item: MergedItem): string =>
     `The download is complete, but the client reports a problem, and ${arrOf(item)} imports nothing while it stands. Fix it in the client (free disk space and retry the download, for one); ${arrOf(item)} imports it once the client no longer reports the problem.`;
-/** A usenet download the *arr marks with a warning after the client filed it in its history (`usenetRerun`); the step's detail shows the message. */
-const queueUsenetFinishedRemedy = (row: QueueItem): string =>
-    `The client reports a problem, and ${row.service} imports nothing while it stands. ${usenetRerun(row, 'The message')}`;
-/** Only the *arr's row speaks for the torrent, and only its message tells missing files from a finished download with a problem. */
-const queueUnconfirmedRemedy = (item: MergedItem): string =>
-    `If the message says the files are missing, remove the download with remove_queue_item and let ${arrOf(item)} search again; otherwise fix what it reports, and it is imported once the warning clears.`;
+/**
+ * A usenet download the *arr marks with a warning after the client filed it in
+ * its history (`usenetRerun`); the step's detail shows the message. It opens
+ * with the *arr as the remedies beside it name it, and the removal names the
+ * row's own instance, as `pausedRemedy` does, since this state offers no next
+ * step that would carry it.
+ */
+const queueUsenetFinishedRemedy = (item: MergedItem, row: QueueItem): string =>
+    `The client reports a problem, and ${arrOf(item)} imports nothing while it stands. ${usenetRerun(row, 'The message')}`;
+/**
+ * Only the *arr's row speaks for the torrent, and only its message tells
+ * missing files from a finished download with a problem. The removal names the
+ * row and its instance, since no next step in this state carries them.
+ */
+const queueUnconfirmedRemedy = (item: MergedItem, row: QueueItem): string =>
+    `If the message says the files are missing, remove the download from ${row.service}’s queue with remove_queue_item and \`id\` "${row.id}", and let ${arrOf(item)} search again; otherwise fix what it reports, and it is imported once the warning clears.`;
 
 /** The states that block with a remedy and offer the removal. */
 type Trouble = 'failed' | 'warning' | 'unrecognised';
@@ -657,10 +680,13 @@ function troubleRemedy(cls: Trouble, kept: Kept | undefined, row: QueueItem, gra
     if (cls === 'unrecognised') return kept === undefined ? queueUnrecognisedRemedy(item) : QUEUE_UNRECOGNISED_KEPT_REMEDY;
     if (kept === undefined) {
         const said = grab.find(isClientRow) ?? row;
-        return isClientRow(row) && grab.some(q => !isClientRow(q)) ? queueClientWarningRemedy(item, said) : queueWarningRemedy(item, said);
+        // The managing instance's row, when another instance lists the grab too.
+        const arrRows = isClientRow(row) ? grab.filter(q => !isClientRow(q)) : [];
+        const arrRow = arrRows.find(q => q.service === item.acquisition?.service) ?? arrRows[0];
+        return arrRow === undefined ? queueWarningRemedy(item, said) : queueClientWarningRemedy(item, said, arrRow);
     }
-    if (kept === 'usenet') return queueUsenetFinishedRemedy(row);
-    return kept === 'complete' ? queueFinishedRemedy(item) : queueUnconfirmedRemedy(item);
+    if (kept === 'usenet') return queueUsenetFinishedRemedy(item, row);
+    return kept === 'complete' ? queueFinishedRemedy(item) : queueUnconfirmedRemedy(item, row);
 }
 
 function queueStep(ev: Evidence, item: MergedItem): QueueResult {

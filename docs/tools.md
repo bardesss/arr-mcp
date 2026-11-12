@@ -407,11 +407,12 @@ client's row with its own error message, which Transmission sends); and a state
 to say otherwise) is told that a stalled torrent often finishes later. On the
 *arr's own row, the removal step says to add `blocklist: true` if the release
 itself is bad; on a client's row whose grab the *arr's queue lists too, the
-remedy says a bad release is blocklisted from there, since a download client
-keeps no blocklist. Where an *arr's row and a client's are in the same state,
-the *arr's is the one named and removed. Short of a failure, a finished download
-is never offered for removal: a torrent seeding or stopped with nothing left, or
-a row with nothing left to download, such as one whose disk filled while
+remedy says a bad release is blocklisted from there and names the *arr's row and
+its instance, since a download client keeps no blocklist and the step removes
+the client's row. Where an *arr's row and a client's are in the same state, the
+*arr's is the one named and removed. Short of a failure, a finished download is
+never offered for removal: a torrent seeding or stopped with nothing left, or a
+row with nothing left to download, such as one whose disk filled while
 unpacking, may hold the only copy of the files, and its remedy says to fix what
 the client reports, after which the *arr imports it (a usenet one's remedy names
 the call, below); one whose import is pending on another row of the same grab
@@ -451,9 +452,14 @@ as a warning rather than a failure, a download a script marked bad. Only the
 again with `import_download`'s `postprocess` and that id, or to remove a deleted
 one from the *arr's queue, with `blocklist: true` on Lidarr if it was bad.
 `retry_download` on NZBGet wants its own history id, which the *arr's row does
-not carry. Any other id is only told to fix what the client reports.
+not carry. The *arr's id names the client, not the instance, so the remedy says
+to make the call on the SABnzbd or NZBGet that holds it, rather than guessing
+one where there are two. Any other id is told to fix what the client reports, or
+to remove the *arr's queue row if the client deleted the download.
 `import_download` says the same when it meets such a download. A state
-`diagnose_media` does not know, with nothing left, is only to be checked.
+`diagnose_media` does not know, with nothing left, is only to be checked. Where
+these remedies name a removal that no step offers, they name the *arr's queue
+row and its instance.
 
 When Cleanuparr removed or stopped the download and nothing is in the queue, the
 queue stage says so, with the date, its reason and its strike count, and
