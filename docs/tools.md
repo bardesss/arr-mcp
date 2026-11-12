@@ -1699,10 +1699,12 @@ This call is slow: the service polls every configured indexer before
 answering. Its per-call timeout is 120 seconds rather than the usual 10. A long
 wait here is not a hang; retrying it starts a second full indexer sweep.
 
-Sonarr runs one indexer search per episode, so a season search scales with the
-season's episode count and a whole-series search with every episode the series
-has. To replace one bad episode, pass `episode`; a whole season may not fit in
-the timeout. Retry is off for this call, so a timeout means one sweep ran out of
+On **Sonarr** and **Whisparr**, pass `season` or `episode`. Their release
+endpoint has no whole-series search: given only a series id it answers with the
+indexers' RSS feed, releases for any series, so that call is refused. Sonarr
+runs one indexer search per episode, so a season search scales with the
+season's episode count. To replace one bad episode, pass `episode`; a whole
+season may not fit in the timeout. Retry is off for this call, so a timeout means one sweep ran out of
 time, not two.
 
 On **Lidarr**, `id` is the artist and `album` narrows the search to one of its
@@ -1737,8 +1739,8 @@ a token, which can take tens of seconds. That way an expired release is
 reported as no longer on offer, and the preview names the release.
 
 Pass the same `season` or `episode` `get_releases` was called with, so that
-re-search covers the scope you actually searched rather than the whole series,
-and on Lidarr the same `album`. All three are refused alongside `magnet`, which
+re-search covers the scope you actually searched (a Sonarr or Whisparr one with
+neither is refused), and on Lidarr the same `album`. All three are refused alongside `magnet`, which
 never goes through an *arr and so has no scope to narrow.
 
 A Lidarr grab answers only once Lidarr has handed the release to the download
