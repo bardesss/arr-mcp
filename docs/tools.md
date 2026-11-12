@@ -32,7 +32,7 @@ off until you turn them on; see [writes](writes.md).
 | `set_monitoring` | Turn monitoring on or off: a whole series (by id or title), one season, specific episodes; on Lidarr, `level: "album"` for one album |
 | `retry_download` | Try this failed usenet download again, with its password if it needs one, or a failed or cancelled Shelfmark book |
 | `pause_downloads` | Pause, resume or throttle a download client, or one item in its queue |
-| `remove_queue_item` | Get rid of this stuck or wrong download, or with `orphaned: true` every completed download whose film, series or artist no longer exists; on Grimmory, discard a file waiting in the Bookdrop |
+| `remove_queue_item` | Get rid of this stuck or wrong download, or with `orphaned: true` every import-blocked download the *arr matched to nothing in its library; on Grimmory, discard a file waiting in the Bookdrop |
 | `remove_blocklist_item` | Let this blocklisted release be grabbed again |
 | `delete_media` | Remove this film, series or artist, optionally from disk; on Grimmory, delete a book and its files |
 | `delete_episode_files` | Free disk from one season or a handful of episodes, without touching the series |
@@ -1358,8 +1358,14 @@ movie, series or artist the grab is for, and an orphaned row has none. `diagnose
 matches a row to a title by that id first, and falls back to the release name
 only when a row has none or comes from another instance.
 
-Lidarr rows carry `statusMessages` the same way, and `orphaned` when the
-artist they were grabbed for has been deleted.
+Lidarr rows carry `statusMessages` the same way, and `orphaned` when Lidarr
+matched the download to no artist: the artist was deleted, or the release was
+never matched.
+
+A row stuck at `importBlocked` gets an `import_download` step in `next_steps`.
+On Radarr and Sonarr an `orphaned` one does too, since it may be a release the
+service never matched: its `why` asks for a `mapping` naming what each file is.
+Lidarr's import takes no mapping, so an orphaned Lidarr row gets none.
 
 `errorMessage` is the download's message, from the client or the *arr: why it is
 in trouble, or a note on it (NZBGet's PAR status on a finished download,
@@ -1877,19 +1883,30 @@ both or neither is refused). It always removes the download from the client, so
 `remove_from_client: false` is refused, and so is `blocklist: true`. A download
 client is refused before anything is read.
 
-Radarr and Sonarr leave a completed download in the queue forever when the film
-or series it belongs to has been deleted: there is nothing to import it into,
-so it sits at `importBlocked`. Both hide these from the queue by default;
-`get_queue` asks for them and marks each one `orphaned`.
+`orphaned` means only that the queue row names no film, series or artist.
+Radarr and Sonarr leave a completed download at `importBlocked` with no media
+when they matched it to nothing in the library, and two different things end
+there: a download whose film or series was deleted, and one they never matched
+at all (a title mismatch, a name they could not parse, a download added to
+their category by hand). Both hide these from the queue by default; `get_queue`
+asks for them and marks each one `orphaned`.
 
 The tool removes exactly the items that are **both** `orphaned` and
-`importState: "importBlocked"`, from the queue and from the download client.
-That pairing is not configurable: an item can be unlinked and still
-transferring, and deleting one of those destroys a download in progress.
+`importState: "importBlocked"`, from the queue and from the download client,
+which deletes the data. That pairing is not configurable: an item can be
+unlinked and still transferring, and deleting one of those destroys a download
+in progress.
+
+It cannot tell the two kinds apart, so the preview says of each row that it
+matched nothing in the library, "deleted, or never matched", and does not claim
+the media is gone. Read the names before confirming. On Radarr and Sonarr,
+`import_download` with a `mapping` naming what each file is imports one that
+was never matched, and `get_queue` offers that step in `next_steps` for an
+orphaned `importBlocked` row. On Lidarr and Whisparr, import it by hand in the service.
 
 It never blocklists, so any of these can be grabbed again later.
 
-Lidarr does the same for an album whose artist was deleted, and `orphaned: true`
+Lidarr does the same for an album whose artist was deleted or never matched, and `orphaned: true`
 takes `service: "lidarr"` with the same rule, **from Lidarr 2.10.1**. Before
 it, the download stays `status: "completed"` with
 `importState: "downloading"` and a warning ("Artist name mismatch, automatic

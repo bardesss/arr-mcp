@@ -15,7 +15,7 @@ type OrphanBound = { ids: string[] };
 // that are still transferring, and deleting one destroys a download in progress.
 const isLitter = (item: QueueItem): boolean => item.orphaned === true && item.importState === 'importBlocked';
 
-/** `remove_queue_item` with `orphaned: true`: every orphaned, import-blocked item in one instance's queue, removed from it and from the download client. */
+/** `remove_queue_item` with `orphaned: true`: every orphaned (matched to no library item), import-blocked item in one instance's queue, removed from it and from the download client. */
 export async function planOrphaned(adapter: OrphanCapable): Promise<WritePlan<OrphanBound>> {
     const litter = (await adapter.getQueue()).filter(isLitter);
     const target = `${adapter.id}:orphaned`;
@@ -35,12 +35,20 @@ export async function planOrphaned(adapter: OrphanCapable): Promise<WritePlan<Or
         };
     }
 
+    // `orphaned` says only that the row has no media id. The *arr leaves a
+    // download it never matched (a title mismatch, an unparseable name, one
+    // added by hand) in the same state as one whose media was deleted, so the
+    // preview cannot say which, and names the rescue for the first kind.
+    const rescue =
+        adapter.type === 'radarr' || adapter.type === 'sonarr'
+            ? 'import_download with a `mapping` can still import one that was never matched.'
+            : `one that was never matched can still be imported by hand in ${adapter.id}.`;
     return {
         target,
         summary: `Remove ${litter.length} orphaned item(s) from ${adapter.id}'s queue, and from the download client.`,
         effects: [
-            ...litter.map(i => `${i.title}: ${i.status}/${i.importState ?? 'unknown'}, no media behind it.`),
-            'Deletes the downloaded data too. Nothing is blocklisted, so any of these can be grabbed again.'
+            ...litter.map(i => `${i.title}: ${i.status}/${i.importState ?? 'unknown'}, matched to nothing in the library: deleted, or never matched.`),
+            `Deletes the downloaded data too. Check the names first: ${rescue} Nothing is blocklisted, so any of these can be grabbed again.`
         ],
         // Bound to the ids, so a token cannot apply to a queue that has
         // changed since the preview.
