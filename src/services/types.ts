@@ -790,7 +790,7 @@ export type HistoryEntry = {
     /** The movie, series or artist id: hand it to get_media_details or trigger_search. */
     mediaId?: string;
     /** Webhook rows only. A re-added title gets a new `mediaId`, and these stay. */
-    externalIds?: { tmdb?: number; tvdb?: number; imdb?: string };
+    externalIds?: { tmdb?: number; tvdb?: number; imdb?: string; mbid?: string };
     /** Sonarr only. Kept separate from `mediaId`, which always names the series. */
     episodeId?: string;
     indexer?: string; // fenced
