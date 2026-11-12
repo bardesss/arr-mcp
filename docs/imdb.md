@@ -14,10 +14,9 @@ Radarr returns a per-source map, so a film can carry IMDb, TMDB, Rotten Tomatoes
 and Metacritic scores at once. Sonarr returns a single unlabelled number, which
 arr-mcp can only honestly record as TVDB's. Seerr's `/tv/{id}/ratings` is Rotten
 Tomatoes only; the combined endpoint that carries the IMDb half exists for
-films alone, upstream.
+films alone.
 
-So **no service here can tell you a series' IMDb rating**, and asking
-`get_library` for one used to be refused outright.
+So **no service here can tell you a series' IMDb rating**.
 
 ## Switching it on
 
@@ -37,10 +36,9 @@ IMDb's published files and keeps them in a local SQLite database beside the
 audit log. The first ingest takes a few minutes; every tool answers exactly as
 it did before until it lands, and the dashboard says when it has finished.
 
-The ingest runs in its own thread and writes to its own connection, so the
-server keeps answering throughout: reads see the previous dataset until the
-new one is committed, whole. That holds for the weekly refresh as much as the
-first one.
+The ingest runs in its own thread, so the server keeps answering throughout:
+reads see the previous dataset until the new one is committed whole, on the
+first ingest and every weekly refresh.
 
 ## What it costs
 
@@ -55,39 +53,20 @@ Measured against the live dumps on 2026-08-23:
 | First ingest | ~2 minutes |
 | Titles stored / rated | 811K / 811K |
 
-Only rated titles of a kind something can actually reach are stored: the other
-12 million rows are episodes and video games no query can touch. IMDb's
-`title.ratings.tsv` carries ~1.7M rows, all of it read into memory during
-ingest and none of it kept as a table: only a title's average and vote count
-survive, denormalised onto the title row itself, so a title with no rating is
-never stored in the first place. The ~1.7M ratings held transiently in memory,
-each as a single packed number rather than an object, are also where the peak
-ingest memory above comes from; it happens in the ingest worker thread and is
-released as soon as the ingest finishes.
-
-The dataset stores each title's rating alongside the title itself and indexes
-the browse order, so `discover_media` answers from an index walk rather than
-sorting every candidate, and it costs no extra disk, because the separate
-ratings table and its index went away in exchange.
-
-The on-disk figure is what a running server actually leaves behind, and it has
-not moved. It used to be ~125 MB, and the same reasons still explain the drop:
-`title` is `WITHOUT ROWID` (keyed on `tconst` alone, so the old layout stored
-every id twice), titles with no rating are never stored, and the database is
-vacuumed after each replace so freed pages go back to the OS rather than
-leaving the file at its high-water mark for ever. That last one is also why the
-number is honest: the old ~125 MB was measured post-`VACUUM` by the script, and
-no live install ever reached it.
+Only rated titles of a kind a query can reach are stored; the other 12 million
+rows are episodes and video games. The peak memory comes from holding IMDb's
+~1.7M ratings during ingest, in the worker thread, and is released when the
+ingest finishes. The database is vacuumed after each replace, so the on-disk
+figure is what a running server leaves behind.
 
 Re-measure with `node --experimental-strip-types scripts/measure-imdb.ts`; the
-dumps grow, and a figure in a README is only as good as the day it was taken.
+dumps grow.
 
 ## Weekly, though IMDb publishes daily
 
 What this holds is average ratings for titles that already exist, and an average
 over millions of votes moves by hundredths across a year: a nightly
-re-download spent 6.5 GB a month to answer every question exactly as it did the
-night before.
+download would cost 6.5 GB a month for no change in answers.
 
 The cost is that a title published in the last week may not be there yet, so a
 brand-new release can be missing from `discover_media` and a series added the
@@ -118,9 +97,7 @@ So switch it on if:
   your library or out of it; or
 - **you do not run Seerr**, or want ratings to survive Seerr being down.
 
-The second is a footnote, not a feature. If TMDB and Rotten Tomatoes are enough
-for your series, you do not need this, but if you came here for IMDb scores on
-TV, the first reason is the whole answer.
+If TMDB and Rotten Tomatoes are enough for your series, you do not need this.
 
 ```
 get_library({ kind: "series", watched: false, rating_source: "imdb",
@@ -134,13 +111,10 @@ get_library({ kind: "series", watched: false, rating_source: "imdb",
 The dataset keys on IMDb ids, and Radarr leads with TMDB ids, so titles carrying
 no IMDb id are never matched: they come back unrated, and counted.
 
-And the first ingest takes a while on a NAS. Everything answers exactly as it
-did before until it lands, and the dashboard says when it has finished.
+And the first ingest takes a while on a NAS (see above).
 
-`discover_media` also falls back to the dataset when Seerr is not configured,
-where it previously returned nothing. Seerr still answers whenever it is
-present: it knows what is trending and requestable, which a static catalogue
-does not.
+`discover_media` also falls back to the dataset when Seerr is not configured.
+Seerr still answers whenever it is present, since it knows what is trending and requestable.
 
 ## Licence
 

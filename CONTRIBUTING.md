@@ -57,31 +57,26 @@ npm test           # vitest
 
 ## If you are working with a coding agent
 
-Welcome, and held to the same bar, not a lower one, and not a higher one.
-arr-mcp is itself built with one. A patch is judged by whether it holds up, so
-there is no separate review track and nothing to disclose beyond being straight
-about what was actually verified.
+Welcome, and held to the same bar. arr-mcp is itself built with one. There is
+no separate review track and nothing to disclose beyond being straight about
+what was actually verified.
 
 This file is written to be read by an agent, and everything in it applies. Four
 rules matter more than the rest, because breaking them produces a pull request
 that *looks* finished:
 
-- **Never write a fixture by hand.** Asked for one, an agent will produce
-  something plausible, and a plausible fixture is worse than no fixture at all,
-  because the test passes, the adapter ships, and the shape was never the
-  service's. Capture with `npm run capture` against a live instance, or say in
-  the PR that the fixture is missing.
+- **Never write a fixture by hand.** A plausible fixture is worse than none: the
+  test passes, the adapter ships, and the shape was never the service's.
+  Capture with `npm run capture` against a live instance, or say in the PR that
+  the fixture is missing.
 - **Run the three gates and paste what they printed.** "Should pass" is not a
-  result, and CI runs exactly what you can run locally, so there is nothing to
-  guess about.
+  result.
 - **Say what a *human* exercised.** An agent cannot run your Lidarr. An adapter
   that has never touched a live service is still worth opening; one described as
   tested when nobody tested it is not, because the maintainer cannot check that
   claim for a service they do not run.
 - **A typecheck failure against `src/services/generated/` is the codegen doing
-  its job.** Fix the mapper; do not widen it with a cast. This is the one
-  failure most likely to get papered over, and the cast survives long after the
-  reason for it is forgotten.
+  its job.** Fix the mapper; do not widen it with a cast.
 
 ## Writing
 
@@ -109,23 +104,20 @@ The test checks only the dashes; reviewers check the rest.
 Dependabot runs monthly, plus immediate PRs for security advisories. Three
 ecosystems are watched (`npm`, `github-actions` and the Docker base image)
 and the last two are pinned by digest, which Dependabot rewrites in place
-rather than unpinning. Only one rule groups updates: non-major bumps land as
-a single PR per ecosystem, so a **major** bump of any dependency other than
-TypeScript or Node arrives as its own PR, same monthly schedule, up to three
-open at a time per ecosystem. The cadence is monthly; it is the "one PR" part
-that stops being true once a major is involved. Two things Dependabot
+rather than unpinning. Non-major bumps land as a single PR per ecosystem; a
+**major** bump of any dependency other than TypeScript or Node arrives as its
+own PR, up to three open at a time per ecosystem. Two things Dependabot
 deliberately will not do on its own:
 
 - **TypeScript** is pinned with `~` because `typescript-eslint` declares a peer
   range it has to stay inside, and `.github/dependabot.yml` ignores that
-  package outright, not only for majors. A TypeScript patch will never be
-  proposed either; bumping it, of any kind, is a human decision.
+  package outright, patches included. Bumping it is a human decision.
 - **Node majors** touch the Dockerfile, the CI workflow and `engines` together,
-  so they are ignored in both the `npm` and `docker` ecosystems. Nothing will
-  remind you; bumping Node is a deliberate, hand-written change.
+  so they are ignored in both the `npm` and `docker` ecosystems. Bumping Node
+  is a deliberate, hand-written change.
 
-`package.json` carries one npm override. `minimatch` is forced to `^11` (#434)
-to clear GHSA-g3hv-75wg-m249 while eslint, `@eslint/config-array` and
+`package.json` carries one npm override. `minimatch` is forced to `^11` to
+clear GHSA-g3hv-75wg-m249 while eslint, `@eslint/config-array` and
 typescript-eslint still asked for `^10`. Remove the override once
 `npm view eslint dependencies.minimatch` and the same for the other two all
 accept 11, and drop it as a `chore(deps)` commit.
@@ -148,21 +140,14 @@ follow this format. If only no-bump types land, no release PR opens and nothing
 ships, so a change a user or model can see is `fix:` or `feat:` even when the
 code change looks like a refactor.
 
-**What counts as breaking**, which is the part worth writing down:
+**What counts as breaking:**
 
 - A tool renamed or removed
 - A parameter renamed or removed
 - A field removed from a response
 
-Adding a tool, an optional parameter or a response field is a **minor**: those
-are additive and nothing that reads the old shape stops working.
-
-The pre-1.0 scheme is gone. Minors used to be reserved for roadmap phases, so a
-`feat:` landed as a patch and the minor was cut deliberately with a
-`Release-As:` footer; `bump-patch-for-minor-pre-major` in
-`release-please-config.json` is what enforced it and is now inert. `RELEASING.md`
-records how that worked, because two releases were nearly cut under the wrong
-number by forgetting it.
+Adding a tool, an optional parameter or a response field is a **minor**: nothing
+that reads the old shape stops working.
 
 ## The tool surface is the public API
 
@@ -209,28 +194,20 @@ commitment to track someone else's release schedule, for a service the
 maintainer very likely does not run and therefore cannot exercise in review,
 only read. When it breaks, it breaks here, and the bug report arrives here.
 
-That cost is worth paying for a service people actually run, that actually
-makes arr-mcp better at its one job. It is not worth paying for a service that
-will not exist in a year. Which of the two you are looking at is genuinely hard
-to tell at the moment of the pull request, because the enthusiasm is identical.
-So the bar is written down in advance rather than decided case by case. Four
-things it is trying to establish, and the checks that stand in for them:
+That cost is worth paying for a service people actually run, that makes
+arr-mcp better at its one job, and not for one that will not exist in a year.
+The two are hard to tell apart at the moment of the pull request, so the bar is
+written down in advance. Four things it is trying to establish, and the checks
+that stand in for them:
 
 **Survival: will this still be here?**
 
 - The service's first public release is **at least a year old**, and it has
   **commits within the last sixty days**. Both halves, because neither implies
-  the other: self-hosted projects die overwhelmingly between months two and six
-  (after the launch thread, before the first real maintenance burden), and a
-  project can clear that cliff and then be abandoned with its version number
-  intact.
-
-  A year rather than six months, because surviving the cliff is not the same as
-  being maintained. Six months buys a project that outlived its launch thread. A
-  year buys one that has been through a dependency bump nobody enjoyed, a
-  breaking change in something upstream, and the point where the original
-  author's spare time went somewhere else. It is also roughly the horizon the
-  adapter has to keep working over, so it is the horizon worth asking about.
+  the other: most self-hosted projects that die do so in their first months,
+  and a project can clear that and then be abandoned with its version number
+  intact. A year is also roughly the horizon the adapter has to keep working
+  over.
 
 **Stability: will the adapter still work?**
 
@@ -246,10 +223,8 @@ things it is trying to establish, and the checks that stand in for them:
 - **Packaged where people deploy**: Unraid Community Applications, TrueNAS
   apps, linuxserver.io, or an official image with meaningful pull counts. Stars
   can be manufactured; a place in a distribution channel is harder to.
-- **Someone other than the service's own author has asked for it.** Not a
-  judgement about anyone's motives. The author of a service is simply the last
-  person able to tell whether anyone *else* wants the integration, and their own
-  enthusiasm is not evidence that they do.
+- **Someone other than the service's own author has asked for it.** The author
+  is the last person able to tell whether anyone *else* wants the integration.
 
 **Fit: does it belong in this server?**
 
@@ -273,59 +248,21 @@ weekend: the answer to that one is a date, not a no.
 
 ### What would be accepted today
 
-The bar above is abstract, so here is the concrete answer, current as of
-2026-11-02. Grouped by slot on the chain rather than alphabetically, because
-a second service in a slot that already exists is a
-small, shaped change, and a service in no slot at all is a different product.
+The concrete answer, current as of 2026-11-02, grouped by slot on the chain: a
+second service in a slot that already exists is a small, shaped change, and a
+service in no slot at all is a different product.
 
 **Managed: what decides something should exist**
 
-- **Lidarr: the rest of it.** The adapter has shipped, with twenty-eight capabilities. `LibraryCapable` and `SearchCapable`, so
-  `get_library` lists artists, `search_media` finds them, and its discover
-  source (`search_media` with `source: "discover"`) finds artists to add. `MediaAddCapable` and
-  `MetadataProfileCapable`, so `add_media` adds one by its MusicBrainz id, with
-  the metadata profile beside the quality profile. `MediaUpdateCapable`, so
-  `update_media` changes an artist's profiles, root folder, monitoring and tags
-  later, through the Artist Editor. The lookup, add and editor fixtures were
-  captured on a 3.1.6.5079 test instance. `MediaDeleteCapable`, so
-  `delete_media` deletes an artist. `TagRepairCapable`, so `fix_metadata`
-  rewrites the tags in an artist's files from Lidarr's metadata.
-  `MediaDetailCapable`, so `get_media_details` lists an artist's albums and the
-  album ids a write needs. `MonitoringCapable`, so `set_monitoring` writes an
-  album's flag. `MonitorStateCapable`, so that flag is read before it is changed
-  and a no-op is reported as one. `ArtistMonitorCapable`, so an artist's standing
-  policy is read and written as a set. `QueueCapable`, `HistoryCapable` and
-  `BlocklistCapable` are the shared `arr*` helpers with `kind: 'artist'`, so
-  `get_queue`, `get_history` and `get_blocklist` include Lidarr; their fixtures
-  were captured from Lidarr 3.1.0.4875 with download activity, and the reads
-  were exercised against 2.1.3.3927 and 3.1.6.5079. `QueueRemoveCapable` is the
-  shared `removeArrQueueItem`, so `remove_queue_item`, with or without `orphaned`, takes
-  Lidarr. `LibraryScanCapable`, `LibraryMaintenanceCapable`,
-  `ManualImportCapable` and `CommandStatusCapable` are the shared helpers, with
-  `resource: 'artist'` where they take one, so `trigger_scan` rescans, renames
-  and imports a finished download for Lidarr, and `get_stack_health` follows the
-  commands it queues. `DiskSpaceCapable`, `HealthCheckCapable` and
-  `ScanStateCapable` are the shared `arr*` system reads, so `get_stack_health` also
-  reports Lidarr's disks, failing health checks and last `RescanFolders` (its
-  disk scan). `LogCapable` is the shared `arrRecentLogs`, so `get_stack_health` at
-  `detail: "full"` lists Lidarr's recent warnings and errors; the log fixture
-  was captured from 3.1.6.5079.
-  `WantedCapable` and `CalendarCapable`, so `get_wanted` and
-  `get_calendar` list albums: a wanted row names its artist as `id` and the
-  album as `albumId`, and the wanted cutoff fixture was captured from Lidarr
-  3.1.0.4875. `SearchTriggerCapable`, `ReleaseSearchCapable` and
-  `ReleaseGrabCapable`, so `trigger_search` searches the indexers for an artist
-  or some of its albums, and `get_releases` and `grab_release` list and grab the
-  releases for the artist or one album; the release fixture was captured from
-  an album search on Lidarr 3.1.6.5079.
-  All 22 capture endpoints were exercised against a live Lidarr 3.1.6.5079 and
-  the fixtures are committed, but two still have no rows: tag and indexer are
-  empty on a fresh instance. Tags are read anyway, with the shared `readTags`
-  and the spec's `id` and `label`: `add_media` matches a tag it is given, and
-  `get_instance_options` lists them. The indexer row shape still
-  needs a capture against a library with real activity before a read adapter can
-  claim it. The two monitoring write responses were captured separately, on a
-  throwaway 2.1.3.3927 instance.
+- **Lidarr: the rest of it.** The adapter has shipped, with twenty-eight
+  capabilities; [docs/tools.md](docs/tools.md) says what each tool does with
+  it. Most of them are the shared `arr*` helpers with `kind: 'artist'` or
+  `resource: 'artist'`. All 22 capture endpoints were exercised against a live
+  Lidarr 3.1.6.5079 and the fixtures are committed, but two have no rows: tag
+  and indexer are empty on a fresh instance. Tags are read anyway, with the
+  shared `readTags` and the spec's `id` and `label`. The indexer row shape
+  still needs a capture against a library with real activity before a read
+  adapter can claim it.
 
   **The design constraint.** Music sits in the merged index as its own `kind`,
   `artist`, and joins because its identity is a MusicBrainz MBID: a GUID, where
@@ -368,23 +305,18 @@ small, shaped change, and a service in no slot at all is a different product.
 - **Emby** ([#500](../../issues/500)). Jellyfin's ancestor, near-identical API, and therefore the cheapest
   adapter on this list, plausibly a variant of the Jellyfin one rather than a
   new file.
-- **Plex: more testers.** The adapter has shipped and has been verified against a live Plex Media
-  Server 1.43.3.10896 by a volunteer tester (issue #180): all nine endpoints
-  it reads were captured from that server and are contracted in
-  `test/contract.test.ts`. It reads, and writes with `trigger_scan`, verified
-  against 1.43.1.10611 (issue #268), and `fix_metadata`, which has repaired films
-  and series on a live server (issue #312) and so is on by default, behind
-  `permissions.destructive`. The maintainer still does not
-  run Plex, so coverage is two servers' worth, not a range; further testers
-  on a different version or library shape would still be useful, particularly
+- **Plex: more testers.** The adapter has shipped. Its nine read endpoints
+  were captured from a volunteer's live 1.43.3.10896 and are contracted in
+  `test/contract.test.ts`; `trigger_scan` and `fix_metadata` have run on live
+  servers. The maintainer does not run Plex, so coverage is two servers' worth.
+  Testers on a different version or library shape are welcome, particularly
   for the managed-user-token case `docs/tools.md` flags as unconfirmed.
 
   **The design still governs.** Plex's usual auth brokers through plex.tv:
   credential brokering *and* an outbound request to a host the operator never
-  configured, which is the risk class above and a no on its own terms. This
-  adapter takes an operator-supplied `X-Plex-Token` and talks only to the
-  configured local server, never plex.tv. That constraint holds for any future
-  change here, not just this one.
+  configured, which is the risk class above. This adapter takes an
+  operator-supplied `X-Plex-Token` and talks only to the configured local
+  server, never plex.tv. That constraint holds for any future change here.
 
 **Beside the chain: the live TV the same media servers play**
 
@@ -394,8 +326,8 @@ small, shaped change, and a service in no slot at all is a different product.
   walks. The waiver rests on one thing: Dispatcharr is where the Plex and
   Jellyfin servers arr-mcp already watches get their live TV, so a failing
   playlist or guide is a fault in the stack `get_stack_health` is asked about. That
-  is the whole precedent. It does not extend to analytics or other services that
-  merely sit near a media server, which is why Tautulli stays below. Building
+  precedent does not extend to analytics or other services that merely sit
+  near a media server, which is why Tautulli stays below. Building
   playlists, that is channel profiles, needs its own case: it spends at least
   one new tool against the ceiling, and its writes change what every client of
   that playlist sees.
@@ -418,13 +350,10 @@ small, shaped change, and a service in no slot at all is a different product.
   2026-11-07. The writes cover rescans, deletes, the Bookdrop, read status and
   metadata. It missed three checks above: the project is eight months old
   (first release 2026-03-20), only the maintainer asked for it, and a book never
-  passes through the chain `diagnose_media` walks, so `diagnose_media` refuses one. The age
-  miss is the one Chaptarr was turned down on, so the reason is written down.
-  Grimmory is the one book library with a management API to build on: Calibre's
-  content server has an undocumented JSON interface with no version policy, and
-  BookOrbit has no management API to speak of. It carries BookLore's older
-  codebase and release numbering, and the maintainer runs it, so every change gets
-  tested against a live v3.5.0. The rest of the waiver is Shelfmark's: the books
+  passes through the chain `diagnose_media` walks, so `diagnose_media` refuses one.
+  Grimmory is the one book library with a management API to build on, and the
+  maintainer runs it, so every change gets tested against a live v3.5.0. The
+  rest of the waiver is Shelfmark's: the books
   the stack downloads have to land somewhere, and without the library half
   `get_stack_health` can see a download finish and never see where it went. The risk
   class holds, since it stores a username and password as Transmission and
@@ -434,9 +363,8 @@ small, shaped change, and a service in no slot at all is a different product.
 Named and **not** accepted, so nobody spends a weekend finding out:
 
 - **Readarr.** Archived upstream. Nothing to track.
-- **Chaptarr.** Public since June 2026, so it misses on age alone. This is the
-  date-not-a-no case, and it is on this list so the date is visible rather than
-  discovered in review.
+- **Chaptarr.** Public since June 2026, so it misses on age alone: a date, not
+  a no.
 - **Tautulli.** Plex watch analytics. Real and well-run, and off the chain; it
   cannot make `diagnose_media` smarter, which makes it a second product.
 - **Recyclarr.** A config sync tool rather than a service with state worth
@@ -450,29 +378,10 @@ gets held against the four checks above, which is cheaper for everyone than
 finding out afterwards.
 
 **You will have to test it yourself, properly.** The maintainer runs neither
-Lidarr, Plex, qBittorrent nor Cleanuparr. Lidarr's read fixtures came from a live 3.1.6
-library with 1,578 artists and no download activity, and its two monitoring write fixtures
-from a temporary 2.1.3.3927 instance. Its queue, history, blocklist and wanted
-cutoff fixtures came later, from a 3.1.0.4875 library with real download activity.
-Plex has an adapter
-and, as of a volunteer tester's report on [issue #180](../../issues/180), has
-been exercised against a real instance. [qBittorrent](../../issues/147) has an
-adapter too, exercised against a real 5.2.3 server in [#195](../../issues/195)
-for login and health only. Cleanuparr was tested by its requester on a live
-2.10.12 with qBittorrent 5.3.0 in [#308](../../issues/308), and those captures
-are its fixtures; its Transmission path has not met a real instance. Reclaimerr
-was tested by its requester on a live 0.6.5 in [#402](../../issues/402), and
-those captures are its fixtures; it has not yet deleted anything there, so its
-deletion events are tested on a captured candidate inside a constructed event.
-Dispatcharr is the exception: the maintainer runs it, and its fixtures were
-captured from a live 0.33.0. So is Shelfmark, captured from a live v1.6.1 with no
-authentication, including a real grab; it has had no failed download there, and
-its key handling and its stopped and failed paths are tested on captured bodies
-with those answers constructed. So is Grimmory, captured from a live v3.5.0 as
-the admin account; its Bookdrop was empty, so a pending file is tested on a
-constructed one, and so are its 403 answers.
-Whichever you take on, your testing is the only
-testing it gets before it ships.
+Lidarr, Plex, qBittorrent nor Cleanuparr; their fixtures came from contributors'
+and volunteers' live instances, and what is still unproven live is listed in
+[docs/writes.md](docs/writes.md#not-yet-run-against-a-live-service). Whichever
+service you take on, your testing is the only testing it gets before it ships.
 
 Concretely: run it against your own live instance, say in the pull request what
 you tested and against which version, and capture fixtures from the real service
@@ -525,12 +434,9 @@ around them.
    be configured, because `get_library`'s `presence` join needs a single
    counterparty.
 6. **Decide whether it can be configured twice**, and say so in the adapter.
-   Nine of the nineteen services can be, so this is the common case rather than the
-   exotic one, but copying `jellyfin.ts` gets you `readonly id: string =
-   '<type>'`, which is the *single*-instance shape. That is the safe default
-   (a service that simply cannot be configured twice, rather than two adapters
-   with colliding ids), so getting it wrong fails closed. Making it
-   multi-instance is four moves:
+   Nine of the nineteen services can be. Copying `jellyfin.ts` gets you
+   `readonly id: string = '<type>'`, the *single*-instance shape, which fails
+   closed if wrong. Making it multi-instance is four moves:
 
    - accept its entry from `ConfigByService` in `src/config/schema.ts`: that
      entry carries a phantom `__service` tag, so taking the bare config type
@@ -542,10 +448,9 @@ around them.
 
    That last one is the trap. `ServiceHttp` puts the id it was given into every
    error it raises, so a hardcoded literal there produces errors blaming
-   `qbittorrent` when the failure was `qbittorrent/vpn`, and a service that
-   authenticates *outside* `ServiceHttp` needs the same care in its own login
-   path. qBittorrent does exactly that, and its login errors had to be fixed
-   separately from the rest of the adapter for precisely this reason.
+   `qbittorrent` when the failure was `qbittorrent/vpn`. A service that
+   authenticates *outside* `ServiceHttp`, as qBittorrent does, needs the same
+   care in its own login path.
 
 7. **Declare its contract** in `test/contract.test.ts`: the response fields your
    adapter reads. Omit the `spec` when the service publishes no OpenAPI document.
@@ -582,24 +487,21 @@ a tool, where one forgotten field is a silent hole. `test/injection.test.ts`
 asserts the fence holds; add a case there if your service can return something
 the existing ones do not cover.
 
-**Match on stable identifiers, not on display strings.** Both scan-state
-implementations learned this the hard way: Radarr runs three tasks whose names
-contain "Refresh", only one of which is the library scan, and Jellyfin's task
-names are localised: a Dutch server returns "Mediabibliotheek scannen".
+**Match on stable identifiers, not on display strings.** Radarr runs three
+tasks whose names contain "Refresh", only one of which is the library scan, and
+Jellyfin's task names are localised (a Dutch server returns "Mediabibliotheek
+scannen").
 
 Eight of the nineteen services publish no usable OpenAPI spec, and two more
 have hand-written adapters anyway, so the adapter
 interface is defined by us and must stay hand-writable. Code generation is an
 implementation detail inside an adapter, never the shape of the contract.
 
-That also decides what the nightly drift job can watch. `openapi-drift.yml`
-re-fetches the nine published specs and regenerates types from them, so it
-catches an upstream change before a user does. A spec-less service has nothing
-to fetch: its contract is the fields declared in `test/contract.test.ts`,
-checked against committed fixtures. That catches us breaking our own adapter,
-and it cannot catch the service changing underneath it. For those eight, the
-only real drift detector is somebody recapturing fixtures against a live
-instance.
+A spec-less service has nothing for the nightly drift job to fetch: its
+contract is the fields declared in `test/contract.test.ts`, checked against
+committed fixtures. That catches us breaking our own adapter, not the service
+changing underneath it; only recapturing fixtures against a live instance does
+that.
 
 ## Adding a write tool
 
@@ -618,8 +520,7 @@ Write tools are **not** registered like read tools. Use `registerWriteTool`
 The four §10 guarantees (the tier check, `dry_run`, the audit trail, the
 confirmation handshake) are properties of the harness, not of your tool. Do not
 reimplement any of them, and do not call an adapter's write method from `plan`:
-the preview phase must be incapable of mutating, and it is, because the harness
-simply does not invoke `apply`.
+the preview phase must be incapable of mutating.
 
 `src/tools/triggerSearch.ts` is the worked example. Note two things it does that
 yours should:
@@ -652,10 +553,8 @@ loud:
   attacker-controllable strings in the system (§11). `raw()` is the only escape
   hatch and has to be written on purpose.
 - **The live log stream is JSON, and the client builds rows with
-  `textContent`.** Not `innerHTML`. Everything else on the page is
-  server-rendered through the escaping template, which is sound, but that one
-  surface carries indexer text on a timer, and building nodes makes an XSS
-  impossible rather than merely unlikely. The default-user suggestions work the
+  `textContent`.** Not `innerHTML`: that surface carries indexer text on a
+  timer, and building nodes makes an XSS impossible. The default-user suggestions work the
   same way: they arrive from `/ui/config/users.json` as JSON and are built with
   `option.value` and `textContent`, and the field works unscripted.
 - **A secret is never rendered back.** API keys, the NZBGet and torrent-client
@@ -665,7 +564,7 @@ loud:
 
 Anything a config change can invalidate belongs in `core/runtime.ts`, behind
 the snapshot swap, and is read **per request** rather than captured when the
-app is built. Capturing it is what made a restart necessary before. Two things
+app is built. Two things
 deliberately live outside the snapshot and survive a reload: confirmation
 tokens, because a write handshake spans two calls, and sessions, because a
 config edit must not log you out of the page you are editing from.
@@ -678,11 +577,9 @@ fields included, and fails on one it has not placed.
 
 `specs/*.json` are upstream OpenAPI documents, refreshed by `npm run specs:fetch`
 and regenerated into `src/services/generated/` by `npm run codegen`. Both are
-committed, and they move together: a spec refreshed without a regeneration
-leaves the types describing an API that no longer exists. A nightly workflow
-does both and opens a PR when either changes, so **review `specs/` in that
-diff**: the generated files are output, not source, and are not meant to be
-read by hand.
+committed, and they move together. A nightly workflow does both and opens a PR
+when either changes, so **review `specs/` in that diff**; the generated files
+are output, not meant to be read by hand.
 
 Radarr, Sonarr, Whisparr, Lidarr, Prowlarr, Jellyfin, Seerr, Profilarr and Grimmory are generated.
 Bazarr, SABnzbd, NZBGet, Transmission, qBittorrent, Plex and Cleanuparr publish no usable spec
@@ -713,12 +610,9 @@ Two things worth knowing before you touch this:
 
 - **The generator runs through `npx` at a pinned version, not as a
   devDependency.** `openapi-typescript` requires `typescript@^5.x` and this
-  project is pinned to TypeScript 6, so a local install cannot resolve. Running
-  it in npx's isolated tree keeps the conflict out of ours, and the tool is not
-  part of the shipped artefact: its reviewed output is.
+  project is pinned to TypeScript 6, so a local install cannot resolve.
 - **The generated types are nullable where the spec says nullable.** If a mapper
-  fails to typecheck against them, fix the mapper. Do not widen it with a cast:
-  that failure is the codegen doing the job it was added for.
+  fails to typecheck against them, fix the mapper; do not widen it with a cast.
 
 ## Testing the Proxmox scripts
 
@@ -747,14 +641,11 @@ npm run screenshots
 ```
 
 Every page in `docs/` and the README comes from `scripts/lib/uiFixture.ts`:
-invented services, frozen timestamps, no config read and no service contacted.
-That is deliberate rather than convenient: these pages render token names,
-the MCP endpoint host and every service URL, and `screenshots/` is public.
-Frozen timestamps also mean a re-run only changes a PNG when the UI changed.
-
-The fixture is typed against the page functions' own parameters, so a page that
-gains a required field fails `npm run typecheck` here rather than quietly
-producing a screenshot of something that is no longer the product.
+invented services, frozen timestamps, no config read and no service contacted,
+because these pages render token names, the MCP endpoint host and every service
+URL, and `screenshots/` is public. The fixture is typed against the page
+functions' own parameters, so a page that gains a required field fails
+`npm run typecheck`.
 
 ## Recorded fixtures
 
@@ -769,20 +660,13 @@ npm run capture -- plex    # only that service, leaving every other fixture alon
 Set `ARR_MCP_CAPTURE_CONFIG` to read credentials from outside the repo.
 
 **Name the service unless you mean to refresh all of them.** The bare command
-captures every service your config holds, which is right for a maintainer
-refresh and wrong for anyone capturing one service as a favour: it produces a
-diff rewriting fixtures for services nobody asked about, carrying your data,
-and leaves you to work out which files to discard. An unknown name is refused
-rather than silently capturing nothing, because the script writes no file for a
-service it never matched and a quiet empty run looks exactly like a server that
-answered nothing.
+captures every service your config holds, rewriting fixtures for services
+nobody asked about with your data. An unknown name is refused rather than
+silently capturing nothing.
 
 **Naming it does not narrow it to one endpoint.** `-- plex` still rewrites every
-Plex fixture, so capturing one new endpoint also replaces the nine already there
-with your own server's data, and the adapter tests fail on the drift. That is the
-discard the filter cannot do for you: keep the file you were asked for and
-`git checkout` the rest. Issue #272 is what it looks like in practice, ten
-captured and nine discarded.
+Plex fixture with your own server's data, and the adapter tests fail on the
+drift. Keep the file you were asked for and `git checkout` the rest.
 
 **A path with no live capture says so.** A read or write whose response was
 never recorded from, or confirmed against, a real service gets a row in the
@@ -822,9 +706,7 @@ leave that option off if you don't want them.
 The script scrubs two different things, and the distinction matters:
 
 - **Credentials**: every configured API key and password, plus any
-  secret-named field. It then **refuses to write the file** if one survived. A
-  reviewer spotting a leaked key in a large diff is not a control worth relying
-  on.
+  secret-named field. It then **refuses to write the file** if one survived.
 - **Identity**: account names, email addresses, avatar URLs (a gravatar URL
   embeds a hash of the email), indexer names and URLs, every configured host,
   and private IPv4 literals. None of these is a secret; all of them are
@@ -836,11 +718,10 @@ deliberate: `Name` is an account on Jellyfin's `/Users` and a scheduled task on
 tells us which task scans the library.
 
 Real film and series titles are kept: they are not sensitive and they keep the
-fixtures realistic, which is most of the value of recording them.
+fixtures realistic.
 
-`test/fixtures.test.ts` re-checks every committed fixture on every PR, so a
-recapture years from now cannot quietly leak either. It works on key names and
-value shape, not on the secrets themselves, because CI does not have them.
+`test/fixtures.test.ts` re-checks every committed fixture on every PR, on key
+names and value shape, since CI does not have the secrets themselves.
 
 Review `git diff test/fixtures/` before committing regardless.
 

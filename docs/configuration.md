@@ -1,9 +1,9 @@
 # Configuration
 
 Everything the [config UI](config-ui.md) does is just `config.yaml`, kept in the
-volume you mounted at `/config`. Editing it by hand remains supported: it needs
-a restart, because nothing is watching the file. The UI applies changes
-immediately, because it knows it just wrote.
+volume you mounted at `/config`. Editing it by hand is supported but needs a
+restart, because nothing is watching the file. The UI applies changes
+immediately.
 
 ```yaml
 services:
@@ -30,8 +30,7 @@ services:
 
 All nineteen service ids: `radarr`, `sonarr`, `whisparr`, `lidarr`, `prowlarr`, `bazarr`,
 `jellyfin`, `seerr`, `sabnzbd`, `nzbget`, `transmission`, `qbittorrent`, `plex`,
-`profilarr`, `cleanuparr`, `reclaimerr`, `dispatcharr`, `shelfmark`, `grimmory`. Configure only what you run:
-anything you leave out is simply absent, not broken. Running both torrent
+`profilarr`, `cleanuparr`, `reclaimerr`, `dispatcharr`, `shelfmark`, `grimmory`. Configure only what you run. Running both torrent
 clients at once is supported; their queues merge, each item labelled with the
 client it came from.
 
@@ -55,9 +54,8 @@ limit and ignore this one.
 
 ## Services behind a URL base
 
-If a service runs under a subpath (the arr apps call it "URL Base", and it is
-the usual arrangement behind one reverse proxy fronting the whole stack), put
-that path in `url` and nothing else is needed:
+If a service runs under a subpath (the arr apps call it "URL Base"), put that
+path in `url` and nothing else is needed:
 
 ```yaml
 services:
@@ -92,12 +90,9 @@ naming `default_user` and how to fix it, rather than silently answering as if
 Jellyfin were not there.
 
 Omitting `default_user` is supported: the service still appears in
-`get_stack_health`. `get_library` then returns the Radarr and Sonarr halves with
-Jellyfin marked degraded and a note naming the key, rather than failing the
-whole read.
-
-Leaving `jellyfin` out of `config.yaml` entirely is still fine: those tools
-just work from Radarr and Sonarr alone.
+`get_stack_health`, and `get_library` returns the Radarr and Sonarr halves with
+Jellyfin marked degraded and a note naming the key. Leaving `jellyfin` out
+entirely is also fine; those tools then work from Radarr and Sonarr alone.
 
 ## Plex
 
@@ -109,17 +104,12 @@ services:
     default_user: "you"    # optional: must match the account name Plex reports
 ```
 
-The `api_key` field carries Plex's own `X-Plex-Token`. The name comes from the
-schema this shares with every other service, not from Plex's vocabulary, worth
-knowing before you go looking for a field called `token` while editing the file
-by hand. [Plex's own support article on finding an authentication
+The `api_key` field carries Plex's own `X-Plex-Token` (there is no field called
+`token`). [Plex's support article on finding an authentication
 token](https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/)
 covers where to get it; it is a token for your own server, not a plex.tv
-sign-in.
-
-arr-mcp only ever talks to the server at `url`. It never contacts plex.tv, and
-the token is presented directly to that server: the same LAN-only reasoning
-every other service here follows.
+sign-in. arr-mcp only ever talks to the server at `url` and never contacts
+plex.tv.
 
 `trigger_scan` refreshes every Plex library, the same `safe` tier as a
 Jellyfin scan. There is no Plex `set_watched`.
@@ -135,15 +125,13 @@ services:
       destructive: true
 ```
 
-Film and series repairs have both been checked against a live Plex server, with
-the after-check reporting each one correctly. Jellyfin needs no such setting, and
-`allow_metadata_repair` on any other service is refused at startup. The Plex card
+Jellyfin needs no such setting, and `allow_metadata_repair` on any other service
+is refused at startup. The Plex card
 on the config page has a checkbox for it. See
 [Repairing on Plex](tools.md#repairing-on-plex).
 
-`default_user` behaves differently here than on Jellyfin, and it is worth
-knowing before you set it. A local `X-Plex-Token` is scoped to one account, so
-arr-mcp asks the server for the owner's name and **matches your `default_user`
+`default_user` behaves differently here than on Jellyfin. A local
+`X-Plex-Token` is scoped to one account, so arr-mcp asks the server for the owner's name and **matches your `default_user`
 against it** rather than taking your value as the user to query. Set it to
 anything else and the per-user tools fail, naming the one user they do know:
 
@@ -152,15 +140,13 @@ plex not found: no user named "you@example.com". Known users: YourPlexAccount.
 Fix default_user in config.yaml.
 ```
 
-That error is the fastest way to learn what to write. The value is used
-verbatim only when the server declines to name the owner at all, which some
-setups do: a reverse proxy in front of `/accounts`, or a token without the
-scope to read it. In that case arr-mcp trusts what you configured, says so once
-in the log, and carries on.
+The value is used verbatim only when the server declines to name the owner (a
+reverse proxy in front of `/accounts`, or a token without the scope to read
+it); arr-mcp then trusts what you configured and says so once in the log.
 
 So on Plex `default_user` is optional. Leave it out and the per-user tools use
-the owner `/accounts` names, since the token cannot mean anyone else. You only
-need it when the server won't name the owner.
+the owner `/accounts` names. You only need it when the server won't name the
+owner.
 
 ## Plex and Jellyfin together
 
@@ -204,8 +190,6 @@ services:
     api_key: "…"
 ```
 
-Lidarr answers on `/api/v1`, where Radarr and Sonarr answer on `/api/v3`.
-
 It can be configured more than once, the way Radarr can (see
 [several instances](#several-instances-of-one-service)), for example for a
 lossless library beside a lossy one:
@@ -223,19 +207,14 @@ services:
 
 Every artist row names the instance it came from in `acquisition.service`, as
 `lidarr/flac`. An artist both of them hold is one row, joined on its MusicBrainz
-id the way a film two Radarrs hold is, and that row carries one instance's
-`acquisition`: the one whose name sorts later, since instances are read in id
-order whatever their order in `config.yaml` (with `flac` and `mp3`, always
-`mp3`). Its `acquisition.id` is that instance's: ids are per instance. The rest
-of that row is that one instance's too: `has_file` and `monitored`, and a
-`diagnose_media` built from it, say nothing about the other copy. In a lossless
-library beside a lossy one, where most artists are in both, `diagnose_media` can call
-an artist playable when only one instance has its files; `get_media_details`
-with `instance` reads each one.
+id, and that row carries the `acquisition` of the instance whose name sorts
+later (with `flac` and `mp3`, always `mp3`). The rest of that row, `acquisition.id`, `has_file`, `monitored` and a
+`diagnose_media` built from it, is that one instance's too and says nothing
+about the other copy, so `diagnose_media` can call an artist playable when only
+one instance has its files. `get_media_details` with `instance` reads each one.
 
-Every tool that acts on one Lidarr, such as `set_monitoring`, `trigger_scan`
-and `remove_queue_item`, takes `instance` and refuses to guess
-between them. `arr://lidarr/monitoring` reports each instance that answered
+A tool that acts on one Lidarr takes `instance`, as with any service.
+`arr://lidarr/monitoring` reports each instance that answered
 beside the totals, and names one that did not in `degraded`; the totals add the
 instances up, so an artist both hold counts in each.
 
@@ -245,42 +224,26 @@ disks, any failing health checks and when its library was last scanned
 the disk when no metadata changed, so it is not the scan time), and lists its
 **artists** in `get_library` as `kind: "artist"`, with the album count, genres,
 monitoring, quality profile, file state and the artist's MusicBrainz id. One row
-per artist, the way Sonarr rows on a series: a library of 1,578 artists is 1,578
-rows rather than 36,170 album rows.
+per artist, the way Sonarr rows on a series, not one per album.
 
 That scan time is when a `RescanFolders` last finished, even one that failed,
 which is not always a full scan of the library. A scan stops at a missing root
 folder and skips an empty one, but either way it counts, so an unmounted music
 share can show a scan from today; Lidarr's root-folder health check, every six
 hours, reports a missing root folder that holds artists in `failures`, but not
-an empty one. Adding an artist runs one for that artist's folder alone, and
-because the daily scan is scheduled from the last run, an import list that adds
-an artist every day keeps putting the scheduled scan off while the time stays
-recent; the whole library is then read only when the daily `RefreshArtist`
-updates some metadata. A new install sets the time when it creates the task, so
-for up to a day it reports a scan that has not run.
+an empty one. Adding an artist runs one for that artist's folder alone, which
+also puts the daily scan off, so an import list that adds an artist every day
+keeps the time recent without a full scan. A new install reports a scan time
+for up to a day before one has run.
 
 At `detail: "full"`, `get_stack_health` also lists its recent warnings and errors,
 read from `/api/v1/log` and folded the way Radarr's and Sonarr's are. From
 2.8.1.4482 Lidarr can turn its log database off (`LogDbEnabled`); its row in
 `logs.lines` then says `logDbEnabled: false`.
 
-`get_media_details` on an artist lists the albums under it, each with its Lidarr
-album id, type, year (when Lidarr has a release date), monitoring and file
-state. That is where the id for
-`set_monitoring` with `level: "album"` comes from.
-
-**An artist joins to a media server.** Lidarr's `foreignArtistId`, Jellyfin's
-`ProviderIds.MusicBrainzArtist` on an album artist, and Plex's `mbid://` guid on
-an artist in a music section are the same value, matched case-insensitively, so
-an artist reports a real `presence`. A music read that failed reports `unknown`,
-never `arr_only`, which would claim the server looked and found nothing. A server
-whose music library is empty, or lacks the artist, was read and reports `arr_only`.
-
-The media server's music read runs only when a Lidarr is configured. With no
-Lidarr there is no artist row to join to, so the read would add every artist the
-server holds as `jellyfin_only` and answer "what does no *arr manage?" with the
-whole music collection.
+An artist joins to a media server on its MusicBrainz id, and
+`get_media_details` on an artist lists its albums with the id `set_monitoring`
+takes; see [Music, from Lidarr](tools.md#music-from-lidarr).
 
 `diagnose_media` walks a Lidarr artist too, by name or by Lidarr artist id; see "Lidarr
 artists" under `diagnose_media` in [tools.md](tools.md). `get_media_details` asked
@@ -295,19 +258,10 @@ for an artist by title refuses it, naming `get_media_details` with
 | `set_monitoring` with `level: "album"` | one album, by `id` from `get_media_details` | that album's own monitor flag |
 | `update_media` | an artist `id`, or no `id` for every artist | `monitored`, `monitor_new_items`, or both, across those artists |
 
-The artist flag is not the album flag. A live library held an artist reading
-`monitored: false` while an album under it stayed `monitored: true`, so the two
-are separate flags. The write side agrees on both supported versions. Four
-editor writes on 2.1.3.3927, of `monitored` and `monitorNewItems` separately
-and together, left the artist's two albums with exactly the flags they had, and
-the same four on 3.1.6.5079 left that artist's four albums as they were.
-`update_media` writes the artist's own flag, and `set_monitoring` with
-`level: "album"` writes the album's. `monitor_new_items` is the standing rule
-Lidarr applies to albums it discovers later, and `none` is the only value that
-stops the wanted list growing by itself. The artist flag and `monitor_new_items`
-go through Lidarr's Artist Editor (`PUT /artist/editor`), which queued no
-`MoveArtist` job in the runs that were captured; the album flag goes through
-`PUT /album/monitor`.
+The artist flag is not the album flag: changing one leaves the other as it was.
+`monitor_new_items` is the standing rule Lidarr applies to albums it discovers
+later, and `none` is the only value that stops the wanted list growing by
+itself. See [writes](writes.md#lidarr-the-artist-flag-is-not-the-album-flag).
 
 `search_media` with `source: "discover"` returns Lidarr's artist lookup, and `add_media` adds an artist by
 its MusicBrainz id, with a quality profile, a metadata profile (the root
@@ -319,8 +273,7 @@ artist's next one. `delete_media` deletes a whole artist, with Lidarr's own
 `deleteFiles` and `addImportListExclusion`. `fix_metadata` with
 `id: "lidarr:<artistId>"` rewrites the tags inside an artist's files from
 Lidarr's metadata, previewing Lidarr's own retag list, and `get_history` reads
-each retagged file as `retagged`. The lookup, add, editor and retag fixtures
-were captured on a 3.1.6.5079 test instance.
+each retagged file as `retagged`.
 
 `trigger_scan` rescans the library or refreshes one artist (the rescan after it
 still reads every root folder), renames an artist's files, and
@@ -328,36 +281,21 @@ still reads every root folder), renames an artist's files, and
 and blocklist read the way Radarr's and Sonarr's do, in `get_queue`,
 `get_history` and `get_blocklist`, and `remove_blocklist_item` takes a Lidarr
 entry, as `remove_queue_item` takes a Lidarr download.
-`get_history` with `service: "lidarr"` and `id` scopes to one artist. Those
-three fixtures were captured from Lidarr 3.1.0.4875 with real download activity
-(the history one merged from the newest rows of each event type), and the reads
-were exercised against 2.1.3.3927 and 3.1.6.5079.
+`get_history` with `service: "lidarr"` and `id` scopes to one artist.
 
 `get_wanted` and `get_calendar` list its albums. A wanted row is
 `kind: "artist"`: `id` and `title` name the artist, and `albumId` and
 `albumTitle` the album, which `set_monitoring` takes with `level: "album"`. A
 calendar row is the album, with its artist beside it, and `hasFile` only once
 every track is on disk. Both leave out every album of an unmonitored artist, as
-Lidarr's own lists do. The wanted cutoff fixture was captured from Lidarr
-3.1.0.4875.
+Lidarr's own lists do.
 
 `trigger_search` searches the indexers for an artist, or for albums of it named
 in `albums`, and `get_releases` and `grab_release` list and grab the releases
-for the artist or one `album`. The release fixture was captured from an album
-search on a 3.1.6.5079 test instance. The `trigger_search` previews, the album
-release search and a grab were exercised against 2.1.3.3927, and the previews
-and the album release search against 3.1.6.5079.
+for the artist or one `album`. `add_media` matches a tag it is given, and
+`get_stack_health` lists tags at `detail: "full"`.
 
-Of the 22 capture endpoints exercised against a live Lidarr 3.1.6.5079, two
-still have no rows behind them (tag and indexer). Nothing reads indexers. Tags
-are read by the spec's `id` and `label`: `add_media` matches a tag it is given,
-and `get_stack_health` lists them at `detail: "full"`.
-
-The version floor is 2.1.3. The two monitoring write endpoints were captured on
-2.1.3.3927, the add on 3.1.6.5079, and the read fixtures come from 3.1.6.5079,
-except the queue, history, blocklist and wanted cutoff ones above, from
-3.1.0.4875. A volunteer exercised the adapter's reads and writes on 2.1.3.3927
-and 3.1.0.4875.
+The version floor is 2.1.3.
 
 `CONTRIBUTING.md` lists the endpoints that still need a capture against a library
 with real activity before their row shapes are proven.
@@ -390,8 +328,8 @@ services:
 The key is under Settings > Account > API Key in Cleanuparr. Single instance
 only, because one Cleanuparr cleans one stack. Read-only: arr-mcp only ever
 sends GET requests to it, and never reads its download client settings, which
-hold client passwords. `permissions` are read as off whatever the file says, so
-`get_stack_health` never reports a write it cannot make. Written against Cleanuparr 2.10.x and checked against 2.11.0.
+hold client passwords. `permissions` are read as off whatever the file says.
+Written against Cleanuparr 2.10.x and checked against 2.11.0.
 A newer minor is untested, and `get_stack_health` flags it.
 
 It covers torrent clients only. Its findings appear in `get_stack_health`, its
@@ -412,8 +350,8 @@ services:
     api_key: "rcl_…"
 ```
 
-`api_key` is an API token from Settings > Integrations in Reclaimerr, created
-with the read scopes `system:read`, `candidates:read`, `rules:read`,
+`api_key` is an API token from Settings > Integrations in Reclaimerr, with the
+read scopes `system:read`, `candidates:read`, `rules:read`,
 `events:read` and `protections:read`. Give it nothing else: arr-mcp only sends
 GET requests to Reclaimerr's versioned `/api/v1`, and `get_stack_health` warns when
 the token also carries `candidates:manage`, `protections:manage` or
@@ -421,7 +359,7 @@ the token also carries `candidates:manage`, `protections:manage` or
 and `get_stack_health` names the scopes it is missing. `permissions` are read as off
 whatever the file says. Single instance only, because one Reclaimerr owns one
 library's cleanup rules. Written against Reclaimerr 0.6.x, with 0.6.0 as the
-floor because that is where `rules:read` arrived. A newer minor is untested,
+floor (the first with `rules:read`). A newer minor is untested,
 and `get_stack_health` flags it.
 
 Its findings and what its rules will delete appear in `get_stack_health`, a title's
@@ -447,9 +385,8 @@ parses them, so none reaches a tool result or a log line. `permissions` are
 read as off whatever the file says. Single instance only, because one
 Dispatcharr serves one set of playlists. If the connection test says the key
 cannot read M3U accounts, check the user's level and Dispatcharr's Settings →
-Network Access. Written against Dispatcharr 0.33.x, which is pre-1.0 and ships a
-minor about every three weeks; a newer minor is untested, and `get_stack_health`
-flags it.
+Network Access. Written against Dispatcharr 0.33.x; a newer minor is untested,
+and `get_stack_health` flags it.
 
 Its findings appear in `get_stack_health`: failing or overdue playlists, provider
 accounts about to expire, and failing EPG sources.
@@ -478,8 +415,8 @@ do depends on the key:
 
 With the read-only key Shelfmark cannot search for books either, so `search_media` shows it as degraded.
 
-Shelfmark's docs treat `SHELFMARK_API_KEY` as a root password, because an admin
-can set a post-download script that the server runs, so storing it here gives
+Shelfmark's docs treat `SHELFMARK_API_KEY` as a root password (an admin can set
+a post-download script that the server runs), so storing it here gives
 arr-mcp's config file that reach. Use the read-only key if `get_stack_health` is all
 you want. arr-mcp writes three things: queueing a release and retrying a download
 with `safe_write` on, and cancelling a download with `destructive` on. Single instance only, because one Shelfmark holds one download
@@ -502,9 +439,9 @@ version needs a user who can see the libraries; the Bookdrop also needs
 `canAccessBookdrop`. A read the account is not allowed shows up in `get_stack_health`
 as a notice naming it, and nothing else is affected.
 
-An admin account works and is the simplest, but an admin token can do everything
-in Grimmory, including creating users and deleting libraries. arr-mcp calls no
-route for those. If you would rather give it less, create a user with access to
+An admin account is the simplest, but an admin token can do everything in
+Grimmory, including creating users and deleting libraries (arr-mcp calls no
+route for those). To give it less, create a user with access to
 your libraries and `canAccessBookdrop`, then add the permissions for the writes you
 turn on. A write is off until you grant its tier in `permissions`:
 
@@ -516,9 +453,8 @@ turn on. A write is off until you grant its tier in `permissions`:
 Read status is set for the account arr-mcp signs in as, and needs no permission
 beyond access to the book. `get_history` reads Grimmory's audit log, which needs
 an admin account. A write the account may not do fails with an error naming the
-permission it lacks. Grimmory requires an email address for a new user, but only
-checks that it is well formed, so `arr-mcp@localhost` passes as long as nothing in
-Grimmory needs to send mail to it.
+permission it lacks. Grimmory requires an email address for a new user, but
+`arr-mcp@localhost` passes.
 
 Grimmory counts failed logins per client IP and allows five in 15 minutes. Behind
 a reverse proxy that IP can be the proxy's, so a wrong password here could lock
@@ -526,10 +462,9 @@ your own browser out too. After a rejected login (401, 403 or 429, or a 200 with
 no token), arr-mcp stops trying for 15 minutes and reports the credentials as
 wrong, so it can never be the one that locks the account out. Fixing the password
 in the config clears it. Other failures, such as a 5xx, fail that request without
-the wait. arr-mcp does not refresh tokens: on v3.5.0 the refresh route answered
-401 to a refresh token straight from a fresh login, and a failed refresh counts
-against the same limit. It logs in again once an access token expires, about
-every two hours of use.
+the wait. arr-mcp does not refresh tokens, since a failed refresh counts against
+the same limit; it logs in again once an access token expires, about every two
+hours of use.
 
 Single instance only, because `get_library` needs one book source. Needs
 Grimmory 3.5.0 or newer, the version the adapter was written against.
@@ -561,33 +496,24 @@ services:
 ```
 
 **Reads span every instance.** `get_stack_health` reports each separately, and a
-library question answers from all of them at once, which is the whole point of
-running a second one. Every row says which instance it came from, as
-`radarr/4k`.
+library question answers from all of them at once. Every row says which
+instance it came from, as `radarr/4k`.
 
-**Writes name one.** Adding a film with two Radarrs configured and no `instance`
-is refused, and the refusal lists the names rather than guessing: a 4K release
-landing in the HD instance is only discovered once the download has finished.
-That means **adding a second instance changes how existing prompts behave**:
-requests that used to be unambiguous start asking which instance you meant. It
-is deliberate, and it only affects writes.
+**Writes name one.** With two Radarrs configured, a write with no `instance` is
+refused and the refusal lists the names. So **adding a second instance changes
+how existing prompts behave**: writes that used to be unambiguous start asking
+which instance you meant. See [writes](writes.md#with-more-than-one-instance-writes-name-one).
 
-**Permissions are per instance**, so `safe_write` on `hd` and nothing on `4k` is
-a configuration you can express: each entry carries its own `permissions`
+**Permissions are per instance**: each entry carries its own `permissions`
 block.
 
-**Ten services stay single.** Jellyfin and Plex because each is one server,
-and [running both](#plex-and-jellyfin-together) is a different thing from
-running two of one. Seerr because a request carries the identity of the person
-who made it, and a second Seerr makes "which one do I ask" a guess with an
-approver on the other end of it. Whisparr because the one deployment that wants
-two is V2 beside V3 (Eros), and Eros is a different API with no adapter.
-Profilarr because it is the one place that owns profile config, so two of them
-would mean two sources of truth. Cleanuparr because one instance cleans one
-stack, Reclaimerr because one instance owns one library's cleanup rules,
-Dispatcharr because one instance serves one set of playlists, and Shelfmark
-because one instance holds one download queue. Grimmory stays single because
-`get_library` reads books from one source.
+**Ten services stay single.** Jellyfin and Plex because each is one server
+([running both](#plex-and-jellyfin-together) is a different thing). Seerr
+because a request carries the identity of the person who made it. Whisparr
+because the one deployment that wants two is V2 beside V3 (Eros), and Eros is a
+different API with no adapter. Profilarr because it owns profile config.
+Cleanuparr, Reclaimerr, Dispatcharr, Shelfmark and Grimmory for the reasons in
+their own sections.
 
 Everything else takes a list: Radarr, Sonarr, Lidarr, Bazarr, Prowlarr, SABnzbd,
 NZBGet, Transmission and qBittorrent.
@@ -606,16 +532,14 @@ services:
 ```
 
 `get_queue` reports both, each row saying which client it came from as
-`qbittorrent/vpn`. `pause_downloads` needs `instance` to say which one to stop:
-with two configured, omitting it is refused rather than guessed.
+`qbittorrent/vpn`. `pause_downloads` needs `instance` to say which one to stop;
+with two configured, omitting it is refused.
 
 **Two Prowlarrs with overlapping indexers return the same release twice.**
 `search_media` fans out across every configured Prowlarr and labels each row
 with the instance it came from, so a release both of them index comes back once
-per instance. That is the intended behaviour rather than a bug (de-duplicating
-would mean deciding which instance's copy to discard, and the two may differ in
-priority or in what they will actually grab), but it is worth knowing before
-you set up a public plus private split and wonder why the list looks doubled.
+per instance. That is intended: the two copies may differ in priority or in
+what they will actually grab.
 
 ## Access
 
@@ -631,20 +555,18 @@ auth:
   allow_token_in_url: false  # accept ?token=… when no Authorization header is sent
 ```
 
-A misspelled or leftover key anywhere in this block (including inside
-`auth.oauth` below) **fails at startup with the offending field named**,
-rather than being silently ignored, so a config that loaded on an earlier
-release can stop loading after an upgrade. The server does not go down over
-it: it drops into repair mode, covered under [When config.yaml will not
-load](#when-configyaml-will-not-load), where the editor is reachable once you
+A misspelled or leftover key anywhere in this block, including inside
+`auth.oauth` below, **fails at startup with the offending field named**, so a
+config that loaded on an earlier release can stop loading after an upgrade. The
+server then drops into repair mode (see [When config.yaml will not
+load](#when-configyaml-will-not-load)), where the editor is reachable once you
 sign in.
 
 Sign-in is a username and password you choose the first time you open the UI.
 Only a scrypt hash is stored, so the password cannot be recovered, but it can
 be replaced: delete the `password_hash` line and restart, and the setup page
-comes back exactly as it does on a fresh install. An instance with no
-`password_hash` is *unclaimed*, and every page redirects to setup until someone
-claims it.
+comes back. An instance with no `password_hash` is *unclaimed*, and every page
+redirects to setup until someone claims it.
 
 `allowed_hosts` applies at once when saved from the UI, so **a wrong hostname
 locks you out of the page you would fix it from.** Recover by editing
@@ -738,29 +660,23 @@ new key.
 
 ### `allow_token_in_url`
 
-Some MCP clients can only be given a URL: no headers, no token field. With this
-on, `/mcp?token=<MCP token>` authenticates the same as the header does.
-
-An `Authorization: Bearer` header still wins whenever one is sent, right or
-wrong, so turning this on cannot rescue a client that is sending the wrong
-token: it fails, which is what you want.
+For MCP clients that can only be given a URL. With this on,
+`/mcp?token=<MCP token>` authenticates the same as the header does. An
+`Authorization: Bearer` header still wins whenever one is sent, right or wrong.
 
 The cost is that the token travels in the address, so a reverse proxy's access
 log, a browser history or a shell history will hold a working credential. Nothing
 in arr-mcp logs a URL, but everything in front of it might. If one leaks, revoke that
 token and create a new one.
 
-**This does not make Home Assistant work on its own.** Its MCP client
-integration also speaks only the older HTTP+SSE transport, and this server
-serves Streamable HTTP, so that setup still needs a proxy to bridge the
-transport.
+**This does not make Home Assistant work on its own.** Its MCP client speaks
+only the older HTTP+SSE transport, so it still needs a proxy to bridge to
+Streamable HTTP.
 
 ### `auth.oauth`
 
 Lets an MCP client authenticate with a short-lived OAuth 2.1 access token
-instead of an MCP token, useful
-once you have more than one client and want to hand out credentials that
-expire and that carry less than full access.
+instead of an MCP token.
 
 **arr-mcp is only the resource server here.** It does not issue tokens, does
 not run an authorization server, and does not discover one: you need an
@@ -792,13 +708,12 @@ auth:
 Absent means off, exactly like a service nobody configured.
 
 To turn it on: give your authorization server an audience (or resource
-identifier) for arr-mcp (any string, it just has to match `audience` below
-exactly) and point `jwks_uri` at wherever that server publishes its signing
-keys. There is no OIDC discovery in this version, so `jwks_uri` has to be
-given directly rather than derived from `issuer`.
+identifier) for arr-mcp, any string that matches `audience` exactly, and point
+`jwks_uri` at wherever that server publishes its signing keys. There is no OIDC
+discovery, so `jwks_uri` has to be given directly.
 
 `audience` is required too. Without it, every token that issuer ever minted
-for any of its clients, not just this server's, would be accepted here.
+for any of its clients would be accepted here.
 
 Each scope your authorization server can grant maps to one access level:
 
@@ -808,45 +723,30 @@ Each scope your authorization server can grant maps to one access level:
 | `arr-mcp:write` | The `safe` tier, where `config.yaml` permits it |
 | `arr-mcp:destructive` | The `destructive` tier, where `config.yaml` permits it |
 
-The defaults above work as-is if your authorization server can mint scopes
-with those exact names. `scopes:` renames the three strings it must grant
-instead; it changes the names, never the mapping to the tiers above; use it
-when your provider already has its own naming convention.
+`scopes:` renames the three strings your provider must grant; it never changes
+the mapping to the tiers.
 
-They are independent and unioned, not a ladder: `arr-mcp:destructive` carries
-the `safe` tier with it, the same as `destructive: true` grants `safe_write`
-below: a credential that may delete a film but not re-monitor it describes
-no coherent policy. A token carrying none of the three is refused with
+The scopes are unioned: `arr-mcp:destructive` carries the `safe` tier with it,
+the same as `destructive: true` grants `safe_write`. Any of the three grants
+the read tools. A token carrying none of them is refused with
 `403 insufficient_scope`, never silently downgraded to read.
 
-Any of the three scopes grants the read tools; there is no separate read
-gate. Every write resolves its target by reading first, so a write-scoped
-token that could not read could not preview anything either.
+`config.yaml` stays the sole authority: a scope only narrows what the file
+already permits. A token carrying `arr-mcp:destructive` against an instance
+with `destructive: false` is still refused.
 
-`config.yaml` stays the sole authority throughout: a scope only narrows what
-the file already permits, never widens it. A token carrying
-`arr-mcp:destructive` against an instance with `destructive: false` is still
-refused, by the same gate that refuses an MCP token.
+`allow_token_in_url` cannot be set while `oauth` is configured: it is refused at
+config load and disabled in the config UI.
 
-Both `auth` and this block are validated strictly, so a misspelled key
-anywhere inside it fails at startup with the offending field named, rather
-than being silently dropped.
-
-`allow_token_in_url` cannot be set while `oauth` is configured: refused at
-config load, and disabled in the config UI with a line explaining why.
-
-Configuring this block also changes what a credential-less client sees on its
-first request: instead of a 401 telling it to go configure a token, it now
-runs the full OAuth discovery-and-authorize flow and still ends up 401,
-without that message.
+With this block configured, a credential-less client's first request runs the
+OAuth discovery-and-authorize flow and ends in a 401 without the message
+telling it to configure a token.
 
 **Checking it worked.** Once the container is back up,
 `curl http://<host>:6060/.well-known/oauth-protected-resource` should return a
 JSON document naming your `issuer` under `authorization_servers`. A client
-that implements RFC 9728 discovery finds this on its own, from the
-`resource_metadata` the 401 challenge on `/mcp` points at; one that does not
-can still be handed a token directly, exactly as it would an MCP
-token, as `Authorization: Bearer <token>`.
+that implements RFC 9728 discovery finds this on its own; one that does not
+can be handed a token directly as `Authorization: Bearer <token>`.
 
 If a client's token is refused, the status code says why:
 
@@ -856,9 +756,8 @@ If a client's token is refused, the status code says why:
 | `403 insufficient_scope` | The token carries none of the three scopes | Grant it at least one of `arr-mcp:read`, `arr-mcp:write` or `arr-mcp:destructive` (or your renamed equivalents) |
 | `503` | arr-mcp could not fetch `jwks_uri` | Check the issuer is reachable from the container, not from your browser |
 
-A `503` is not a rejection of the token itself: it means arr-mcp could not
-check it. Retrying once the issuer is reachable again works with no other
-change. The exception is a token whose own `exp` has already passed: that
+A `503` means arr-mcp could not check the token. Retrying once the issuer is
+reachable again works with no other change. The exception is a token whose own `exp` has already passed: that
 still gets a `401` during an outage, because no retry would help it.
 
 ### `allow_other_users`
@@ -884,9 +783,8 @@ same tools, prompts and resources as `/mcp`, and reads the same
 docker run -i --rm -v ./config:/config ghcr.io/bardesss/arr-mcp:latest node dist/src/index.js --stdio
 ```
 
-A stdio connection is **read-only**, whatever `config.yaml` permits. It presents
-no token, so there is no tier to cap it to, and whoever can start the process is
-the caller. A write is refused with a pointer to `/mcp`, and the audit trail
+A stdio connection is **read-only**, whatever `config.yaml` permits, because it
+presents no token. A write is refused with a pointer to `/mcp`, and the audit trail
 records the caller as `stdio`. For writes, use the HTTP endpoint with a token of
 the write or destructive tier.
 
@@ -900,24 +798,18 @@ stdout is the MCP connection.
 
 ### Editing `config.yaml` by hand
 
-Supported, and the comments you write in it are preserved when the config UI
-saves over it. One caveat: if you edit the file while the config page is open,
-the next save from that page is **refused** rather than applied, because it was
-assembled from a snapshot taken before your edit. Reload the page and make the
-change again.
+Supported, and your comments are preserved when the config UI saves over it. If
+you edit the file while the config page is open, the next save from that page
+is **refused**, because it was built from the file before your edit. Reload the
+page and make the change again.
 
 ## When config.yaml will not load
 
-A typo used to take the container down: the process failed to start, Docker
-restarted it, and the config UI, the thing that could have fixed it, never
-came up.
-
-Now it starts in repair mode instead. The page at `http://<host>:6060` shows the
+A config that fails validation starts arr-mcp in repair mode. The page at `http://<host>:6060` shows the
 validation error and the file in a text box. Fix it, save, and the server starts
 normally without a restart. There is no MCP endpoint and no services until then;
 `/mcp` answers `503` and `/healthz` reports `degraded` with a `200` status, so a
-container healthcheck built on `/healthz` does not restart-loop the very process
-that would fix it.
+container healthcheck built on `/healthz` does not restart-loop it.
 
 Sign-in works as usual. If nobody has claimed the instance yet, you claim it
 first, exactly as on a fresh install.
@@ -927,7 +819,7 @@ YAML that does not parse, a top level or an `auth:` that is not a mapping, or a
 `username`, `password_hash`, `allowed_hosts` or `allow_token_in_url` of the
 wrong type (an empty `username` or `password_hash` counts). There is then no
 password to check, and offering the setup page instead would let anyone who can
-reach the port take the instance over by corrupting its config. The page shows
+reach the port take the instance over. The page shows
 the error and nothing else, and accepts no POST on any path. Edit `config.yaml`
 directly and restart. A mistake in `tokens`, `bearer_token` or `oauth` does not
 count: those go to the repair page like any other invalid config.
@@ -998,10 +890,8 @@ If you've set [`allowed_hosts`](#access), the host name in that URL has to be in
 the list. A container name like `arr-mcp` usually isn't, and the service gets a
 403 until it is.
 
-Only Radarr and Sonarr are accepted. Lidarr's payloads haven't been captured, so
-storing them would be guesswork, and on Whisparr the titles themselves are the
-sensitive part. Rename, manual interaction and health events have no captured
-payload either, so they're kept as `unknown` under their own name.
+Only Radarr and Sonarr are accepted. Rename, manual interaction and health
+events are kept as `unknown` under their own name.
 
 Turning the log off keeps the secret and the stored events, and stops accepting
 new ones. Events past `retention_days` go when the next event arrives, with a
@@ -1016,21 +906,16 @@ ui:
 ```
 
 `system` follows the browser's `prefers-color-scheme` and tracks your OS as it
-changes; the other two override it. Omit the block entirely for `system`:
-choosing it on the Configuration page removes the block rather than writing it
-out, so a config nobody customised stays as clean as it started.
-
-It is stored server-side rather than in the browser because this UI has exactly
-one account: there is no second person for a shared setting to be wrong for, and
-it holds wherever you sign in from.
+changes; the other two override it. Omit the block for `system`; choosing it on
+the Configuration page removes the block. It is stored server-side, so it holds
+wherever you sign in from.
 
 ## The tools a client sees
 
-Every tool's name, description and schema sit in the client's context for the
-whole session, so arr-mcp sends only what applies to your stack:
+arr-mcp sends a client only the tool text that applies to your stack:
 
 - a tool's `service` field lists only the services it takes that you have
-  configured, so the model does not look for a Lidarr you do not run;
+  configured;
 - a sentence about a service you do not run is left out of a description;
 - longer field-by-field references are resources, `arr://docs/<tool>`, read
   only when a client asks for one;
@@ -1060,8 +945,8 @@ In a client that renders [MCP Apps](https://github.com/modelcontextprotocol/ext-
 `get_media_details`, `search_media` and `get_library` show films
 and series as poster cards. Building them reads the Radarr and Sonarr queues for
 the "downloading" badge, so it only happens for a client that declares MCP Apps
-support. Over stateless HTTP a client cannot declare anything the server keeps,
-so the cards are built there unless you turn them off:
+support. Over stateless HTTP the cards are always built unless you turn them
+off:
 
 ```yaml
 tools:

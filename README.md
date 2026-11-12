@@ -36,8 +36,8 @@ diagnose_media { query: "Blade" }
 > No file on disk yet. Trigger a search in Radarr or Sonarr. Nothing is
 > downloading and no indexer reported a failure.
 
-One call. One answer. It even answers with a service down, and tells you which
-part it could not check rather than guessing across the hole.
+It even answers with a service down, and tells you which part it could not
+check rather than guessing across the hole.
 
 ## Why people run it
 
@@ -75,10 +75,8 @@ the command above on the host builds a second container instead. If it installs
 but never answers, `journalctl -u arr-mcp` is the log.
 
 It follows the Community Scripts conventions but is not in their catalogue. One
-tester has reported a clean install so far
-([#265](https://github.com/bardesss/arr-mcp/issues/265)), and arm64 has not been
-tried, so the script asks rather than assuming. An install that worked is as
-useful to hear about as one that did not:
+tester has reported a clean install so far, and arm64 has not been tried, so the
+script asks rather than assuming. Either way,
 [open an issue](https://github.com/bardesss/arr-mcp/issues/new/choose). Steps 1
 to 3 below are the same once it boots.
 
@@ -110,9 +108,9 @@ username and a password of at least 12 characters.
 
 **3. Add your services**: **Add a service**, paste its URL and API key (for Plex,
 its `X-Plex-Token`; for NZBGet, Transmission, qBittorrent and Grimmory, its username and password; a Shelfmark with no authentication needs no key), save. It applies immediately; there is
-no restart. Configure only what you run. A config file that will not parse no
-longer takes the container down: arr-mcp serves a repair page with the error and
-an editor instead.
+no restart. Configure only what you run. A config file that will not parse does
+not take the container down: arr-mcp serves a repair page with the error and an
+editor instead.
 
 Your MCP client goes to `http://<host>:6060/mcp` with an MCP token. Create one on
 the config page; it is shown once, so copy it into your client straight away.
@@ -121,9 +119,8 @@ Each token has its own tier and expiry, see
 URL, not a header, can carry the token as `?token=` instead; see
 [`allow_token_in_url`](docs/configuration.md#allow_token_in_url). If you already
 run an identity provider, `/mcp` also accepts short-lived OAuth 2.1 access
-tokens, so each client gets its own credential and a scope that caps what it may
-do: read-only for one, writes for another, never more than `config.yaml`
-already permits. See [`auth.oauth`](docs/configuration.md#authoauth). Everything
+tokens, each with a scope that caps what that client may do, never more than
+`config.yaml` already permits. See [`auth.oauth`](docs/configuration.md#authoauth). Everything
 the UI does is still just `config.yaml`, and editing that by hand remains
 supported. Clients that read the
 [MCP Registry](https://registry.modelcontextprotocol.io) find it there as
@@ -137,9 +134,9 @@ connection is read-only; writes need `/mcp` and a token.
 
 **Works with whatever you point at it.** A client asking for
 `Accept: application/json`, or sending no `Accept` at all, gets one JSON object
-back with a `Content-Length`, rather than a refusal for not also naming
-`text/event-stream`. A client that does accept a stream still gets one. Even a
-refusal is JSON. So a plain `curl` works as-is, and so does a full MCP client.
+back rather than a refusal for not also naming `text/event-stream`. A client
+that accepts a stream still gets one. Even a refusal is JSON, so a plain `curl`
+works as-is.
 
 Image tags are `X.Y.Z`, `X.Y`, `X` and `latest`, plus `main` for bleeding edge.
 Pin a major (`:2`) and no tool or parameter you rely on goes away; pin a minor
@@ -148,7 +145,7 @@ ARM NAS runs the same build as everything else.
 
 ## What you can ask it
 
-Forty-four tools, but you never name them: you ask, and the model picks:
+Forty-four tools, but you never name them. You ask, and the model picks:
 
 > *"What's downloading right now, and is anything stuck?"*
 > *"What aired this week that I haven't watched?"*
@@ -212,21 +209,11 @@ them off. The cards are read-only for now.
 - At least one supported service, LAN-reachable: Radarr 4.0+, Sonarr 4.0+,
   Whisparr 2.x (V2 only, not Eros), Prowlarr 1.0+, Bazarr 1.4+, Jellyfin 10.9+, Plex Media Server (no minimum enforced; verified on 1.43),
   Seerr 1.0+, SABnzbd 3.0+, NZBGet 21.0+, Transmission 3.0+, qBittorrent 4.1+, Profilarr 2.2.0+, Cleanuparr 2.10.0+, Reclaimerr 0.6.0+, Dispatcharr 0.33.0+, Shelfmark 1.5.0+, Grimmory 3.5.0+
-- Lidarr 2.1.3+ for reading, monitoring, adding, changing and deleting artists, its queue, its wanted list and calendar, release search, `diagnose_media`, `trigger_scan` and `get_stack_health`:
-  `get_library` lists its artists with their album count, monitoring and file
-  state, `get_media_details` lists an artist's albums, and `set_monitoring`
-  writes one album's flag or an artist's policy. `search_media` with `source: "discover"` finds artists to
-  add, `add_media` adds one by its MusicBrainz id, `update_media` changes its
-  profiles, root folder, monitoring and tags, and `delete_media` deletes it.
-  Artists join to Jellyfin and Plex on the MusicBrainz artist id. `get_queue`,
-  `get_history` and `get_blocklist` include Lidarr, `remove_queue_item` takes a
-  Lidarr download (`orphaned: true` clears its orphaned ones), and `trigger_scan` rescans and renames,
-  and `import_download` imports for it. `get_stack_health` reports its disks, failing health checks,
-  last library scan and, at `detail: "full"`, its recent warnings and errors.
-  `get_wanted` and `get_calendar` list its albums.
-  `trigger_search`, `get_releases` and `grab_release` search its indexers for an
-  artist or its albums, and `fix_metadata` rewrites an artist's file tags from
-  Lidarr's metadata.
+- Lidarr 2.1.3+ for reading, monitoring, adding, changing and deleting artists,
+  its queue, its wanted list and calendar, release search, `diagnose_media`,
+  `trigger_scan`, `fix_metadata` and `get_stack_health`. Artists join to
+  Jellyfin and Plex on the MusicBrainz artist id; [Tools](docs/tools.md) says
+  what each tool does with them.
 - Docker, or Node 24+ to run from source
 - An MCP client. Protocol revision `2026-07-28` is the native one; clients on a
   2025-era revision are still served
@@ -243,23 +230,17 @@ replacement.
 Deluge would both be accepted today, and
 [the list says so in advance](CONTRIBUTING.md#what-would-be-accepted-today),
 along with the ones that would not be. An adapter is deliberately the most
-self-contained thing in the codebase. Not every service qualifies, and the bar is written down rather than decided per
-pull request: [which services qualify](CONTRIBUTING.md#which-services-qualify).
-**I cannot test a service I do not run**, so the second bar is that you tested
+self-contained thing in the codebase. Two things to know first: not every
+service qualifies ([which services qualify](CONTRIBUTING.md#which-services-qualify)),
+and **I cannot test a service I do not run**, so the second bar is that you tested
 it against your own live instance and the PR says what you tested and against
 which version.
 
 **One adapter remains unverified: qBittorrent.** The maintainer runs neither
-Plex nor qBittorrent. Testing means running a build against your own server
-and reporting what worked. [Plex](../../issues/180) has since been verified
-against two live Plex Media Servers by two volunteer testers, its first write
-included, and its metadata repair has since repaired both films and series on a
-live server ([#312](../../issues/312)); Lidarr's media-server music reads were
-captured by a volunteer against Jellyfin 12.4.0 and Plex Media Server 1.43.5;
-[qBittorrent](../../issues/147) has shipped but still waits on the same kind of
-report. The maintainer does not run NZBGet either: its adapter was tested by its
-contributor against live NZBGet 21.0 and 26.3 ([#391](../../pull/391)). [The
-design behind Plex, and what else is on the
+Plex, qBittorrent nor NZBGet, so testing means running a build against your own
+server and reporting what worked. Plex and NZBGet have been verified live by
+volunteers and contributors; [qBittorrent](../../issues/147) still waits on
+that kind of report. [The design behind Plex, and what else is on the
 list](CONTRIBUTING.md#what-would-be-accepted-today).
 
 **AI-assisted contributions are welcome**, held to the same bar and no other;
@@ -268,8 +249,7 @@ arr-mcp is itself built with a coding agent. Point yours at
 
 **Missing a tool?** [Open an issue](../../issues/new/choose) describing the
 question you could not get answered rather than the tool you think should
-exist. Often the answer is a new parameter on one that already exists, and
-when it needs a new tool, the unanswered question is the case for it.
+exist. Often the answer is a new parameter on one that already exists.
 
 ## Security
 
@@ -293,8 +273,7 @@ own as new contributors land.
 
 [![Contributors](https://contrib.rocks/image?repo=Bardesss/arr-mcp)](https://github.com/Bardesss/arr-mcp/graphs/contributors)
 
-Testing counts as much as code here, because I cannot test a service I do not
-run. Plex is verified because of [@Svnow132](https://github.com/Svnow132)
+Testing counts as much as code here. Plex is verified because of [@Svnow132](https://github.com/Svnow132)
 ([#180](../../issues/180)) and [@davidgibbons](https://github.com/davidgibbons)
 ([#312](../../issues/312)).
 
