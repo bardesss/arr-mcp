@@ -2492,14 +2492,32 @@ in KiB/s (1024 bytes), and `0` removes it. Always client-wide, never per item, s
 item.
 
 Each client uses a different unit; the tool always takes KiB/s and converts.
-Clearing on Transmission zeroes the number as well as the enable flag.
+Clearing on Transmission zeroes the number as well as the enable flag. While
+Transmission's alternative speed (turtle) mode is on, its cap is the one
+reported, and a new limit is refused: it would not take effect until that mode
+ends.
 
 Safe tier, because the undo is this same tool with the other `action`.
 
 **It does not stop the \*arrs grabbing.** They carry on searching and sending
-releases, which then sit in the paused client until it is resumed. The preview
-of a whole-client pause says so. Pausing or resuming one item leaves the rest
-of the client as it was, and its undo names the same `id`.
+releases. SABnzbd and NZBGet hold them in the paused queue until it is resumed;
+a torrent client starts them at once. The preview of a whole-client pause says
+so. Pausing or resuming one item leaves the rest of the client as it was, and
+its undo names the same `id`.
+
+Transmission and qBittorrent have no client-wide pause. A whole-client pause
+stops only the torrents that are running and marks them with the Transmission
+label or qBittorrent tag `arr-mcp-paused`, which lives in the client and so
+survives a restart of arr-mcp. Resume starts only the marked torrents and
+removes the mark; a torrent stopped any other way, at its ratio limit or by
+hand, stays stopped. The client reads as paused while any torrent carries the
+mark, and a pause is a no-op only when nothing is running, so a torrent an
+\*arr sent after the first pause is stopped by a second. A client without
+labels or tags (Transmission before 3.0, qBittorrent before 4.2) refuses a
+whole-client pause or resume; one torrent at a time with `id` still works.
+Transmission torrent ids are info hashes, as `get_queue` reports them; the
+integer `transmission-remote` shows is accepted too, but Transmission
+renumbers those when it restarts.
 
 `service` is required, and names one client, because permissions are checked
 per service. Pausing everything is one call per client.
@@ -2511,10 +2529,12 @@ for post-processing (see `diagnose_media`), which holds every item and ends by
 itself; or NZBGet's paused post-processing, which this tool does not resume. The
 preview then says when it starts, and an item not paused itself is a no-op that
 says what holds it rather than calling it running. NZBGet answers that with one
-more status read. For the two torrent clients "paused" means every torrent is
-stopped, and a client holding no torrents at all reads as *not* paused.
+more status read. An `id` the client does not have is refused as not found.
 
 **Unverified live** (qBittorrent): pause, resume and the speed limit.
+
+**Unverified live** (Transmission): the whole-client pause and resume by label,
+and the turtle mode read.
 
 ## `retry_download`
 

@@ -1862,7 +1862,22 @@ export const hasQueueRemove = (a: ServiceAdapter): a is ServiceAdapter & QueueRe
  * on a one-item read from SABnzbd or NZBGet, is what else holds that item, so
  * resuming the item alone does not start it.
  */
-export type PauseState = { paused: boolean; scope: string; heldBy?: QueueHold };
+export type PauseState = {
+    paused: boolean;
+    scope: string;
+    heldBy?: QueueHold;
+    /**
+     * A torrent client's whole-client read. Neither has a client-wide pause, so
+     * a pause stops the running torrents and marks them with `PAUSE_MARK`, and
+     * resume starts the marked ones only; `paused` is "some are marked".
+     * `mark` names the marker in the client's own word.
+     */
+    torrents?: { running: number; stopped: number; marked: number; mark: string };
+};
+
+/** The qBittorrent tag or Transmission label a whole-client pause leaves on what
+ *  it stopped. It lives in the client, so it survives an arr-mcp restart. */
+export const PAUSE_MARK = 'arr-mcp-paused';
 
 /**
  * Stopping and restarting a download client.
@@ -1890,8 +1905,11 @@ export const hasPause = (a: ServiceAdapter): a is ServiceAdapter & PauseCapable 
  *
  * An absent `kbps` means no cap is set: not a cap of zero, which on these
  * clients means "unlimited" anyway and would read as "stopped".
+ *
+ * `alternative` says the cap is Transmission's alternative ("turtle") speed,
+ * which overrides the normal limit for as long as it is on.
  */
-export type SpeedLimit = { service: string; kbps?: number };
+export type SpeedLimit = { service: string; kbps?: number; alternative?: true };
 
 export interface SpeedLimitCapable {
     readSpeedLimit(): Promise<SpeedLimit>;

@@ -443,6 +443,17 @@ describe('get_queue', () => {
         expect(result.items[0]).toMatchObject({ service: 'transmission', id: '7', status: 'downloading', etaSeconds: 900 });
     });
 
+    // The RPC's integer id is renumbered when the daemon restarts; the hash is not.
+    it('reports a Transmission torrent by its info hash, not its session id', async () => {
+        const torrents = TRANSMISSION_TORRENTS.arguments.torrents.map(t => ({ ...t, hashString: 'ABCDEF'.padEnd(40, '0') }));
+        const adapter = new TransmissionAdapter(
+            transmissionConfig,
+            (async () => jsonResponse({ ...TRANSMISSION_TORRENTS, arguments: { torrents } })) as unknown as typeof fetch
+        );
+        const result = await buildGetQueue([adapter], opts);
+        expect(result.items[0]?.id).toBe('abcdef'.padEnd(40, '0'));
+    });
+
     it('omits an empty Transmission error string rather than reporting a blank error', async () => {
         const result = await buildGetQueue([transmission()], opts);
         expect(result.items[0]?.errorMessage).toBeUndefined();

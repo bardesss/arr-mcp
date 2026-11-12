@@ -26,7 +26,8 @@ import {
     type ServiceAdapter,
     type SpeedLimit,
     type SpeedLimitCapable,
-    type TorrentEndpoint
+    type TorrentEndpoint,
+    PAUSE_MARK
 } from './types.ts';
 
 const RPC_PATH = '/transmission/rpc';
@@ -39,6 +40,10 @@ type RawSession = {
     /** In the daemon's own speed unit (`units.speed-bytes`), and only applied when the `-enabled` flag is set. */
     'speed-limit-down'?: number;
     'speed-limit-down-enabled'?: boolean;
+    /** Turtle mode: while on, `alt-speed-down` is the cap and the normal limit waits. */
+    'alt-speed-down'?: number;
+    'alt-speed-enabled'?: boolean;
+    'rpc-version'?: number;
     seedRatioLimit?: number;
     seedRatioLimited?: boolean;
     units?: { 'speed-bytes'?: number };
@@ -156,6 +161,18 @@ const TORRENT_STATUS: Record<number, string> = {
 const resultOf = (service: string, result: string | undefined): string =>
     result === undefined ? 'no result field' : fenceText(result, { service, field: 'result' });
 
+const ID_REMEDY = 'Transmission torrent ids are info hashes. Take one from get_queue.';
+
+/** Labels arrived in RPC version 16, Transmission 3.0. */
+const LABELS_RPC = 16;
+
+type PauseRow = { id?: number; hashString?: string; status?: number; labels?: string[] };
+
+/** The hash where there is one: unlike the integer id it survives a daemon restart. */
+const refOf = (t: PauseRow): string | number => t.hashString?.toLowerCase() ?? (t.id as number);
+
+const isMarked = (t: PauseRow): boolean => (t.labels ?? []).includes(PAUSE_MARK);
+
 export class TransmissionAdapter
     implements
         ServiceAdapter,
@@ -230,10 +247,13 @@ export class TransmissionAdapter
         }
 
         return (body.arguments?.torrents ?? [])
-            .filter((t): t is RawTorrent & { id: number } => typeof t.id === 'number')
+            .filter(t => typeof t.hashString === 'string' || typeof t.id === 'number')
             .map(t => ({
                 service: this.id,
-                id: String(t.id),
+                // The hash, not the RPC `id`: Transmission renumbers torrents
+                // when the daemon restarts, so an integer read before one can
+                // name a different torrent after it.
+                id: t.hashString?.toLowerCase() ?? String(t.id),
                 title: fenceText(t.name ?? '', { service: this.id, field: 'name' }),
                 status: TORRENT_STATUS[t.status ?? -1] ?? 'unknown',
                 protocol: 'torrent',
@@ -271,88 +291,83 @@ export class TransmissionAdapter
      * torrent was actually removed.
      */
     async removeQueueItem(id: string, opts: RemoveQueueOptions): Promise<void> {
-        const torrentId = Number(id);
-        if (!Number.isInteger(torrentId)) {
-            throw new ServiceError('NotFound', this.id, `"${id}" is not a Transmission torrent id`, {
-                remedy: 'Transmission torrent ids are integers. Take one from get_queue.'
-            });
-        }
-
         // Not redundant: `torrent-remove` ignores an id it has never seen and
         // still answers "success", so without this a stale id reported a
         // successful removal of nothing. qBittorrent's adapter pre-checks for
         // the same reason, and SABnzbd reads its own status flag.
-        const found = await this.#http.post<RpcResponse<{ torrents?: { id?: number }[] }>>(RPC_PATH, {
-            method: 'torrent-get',
-            arguments: { ids: [torrentId], fields: ['id'] }
-        });
-        if (found.result !== 'success' || (found.arguments?.torrents ?? []).length === 0) {
-            throw new ServiceError('NotFound', this.id, `no torrent with id "${id}"`, {
-                remedy: 'Transmission torrent ids are integers. Take one from get_queue.'
-            });
-        }
+        const [torrent] = await this.#torrents(id);
+        if (torrent === undefined) throw this.#notFound(id);
 
-        const body = await this.#http.post<RpcResponse<unknown>>(RPC_PATH, {
-            method: 'torrent-remove',
-            arguments: { ids: [torrentId], 'delete-local-data': opts.removeFromClient }
-        });
-
-        if (body.result !== 'success') {
-            throw new ServiceError('UpstreamError', this.id, `torrent-remove failed: ${resultOf(this.id, body.result)}`);
-        }
+        await this.#rpc('torrent-remove', { ids: [this.#torrentRef(id)], 'delete-local-data': opts.removeFromClient });
     }
 
     /**
      * "Stopped" is Transmission's word for paused, and it is per-torrent:
-     * there is no client-wide flag. So the whole client counts as paused only
-     * when every torrent is stopped, and an empty client counts as *not*
-     * paused: nothing to pause is not the same state as everything paused, and
-     * reporting it as a no-op would refuse a legitimate call.
+     * there is no client-wide flag. A whole-client pause therefore stops the
+     * running torrents and labels them, and the client reads as paused while
+     * any torrent carries that label. Stopped torrents without it were stopped
+     * by something else (a ratio limit, the user) and resume leaves them be.
      */
     async readPauseState(id?: string): Promise<PauseState> {
-        const torrents = await this.#torrents(id);
-        const stopped = torrents.filter(t => t.status === 0).length;
-
         if (id !== undefined) {
-            return { paused: stopped === torrents.length && torrents.length > 0, scope: `torrent ${id}` };
+            const [torrent] = await this.#torrents(id);
+            if (torrent === undefined) throw this.#notFound(id);
+            return { paused: torrent.status === 0, scope: `torrent ${id}` };
         }
+
+        const torrents = await this.#labelled();
+        const running = torrents.filter(t => t.status !== 0).length;
+        const marked = torrents.filter(isMarked).length;
         return {
-            paused: torrents.length > 0 && stopped === torrents.length,
-            scope: torrents.length === 1 ? '1 torrent' : `${torrents.length} torrents`
+            paused: marked > 0,
+            scope: torrents.length === 1 ? '1 torrent' : `${torrents.length} torrents`,
+            torrents: { running, stopped: torrents.length - running, marked, mark: `label ${PAUSE_MARK}` }
         };
     }
 
     async setPaused(paused: boolean, id?: string): Promise<void> {
-        // The same pre-check `removeQueueItem` makes, for the same reason:
-        // probed live, `torrent-stop` for an id Transmission has never seen
-        // answers `result: "success"` and does nothing.
-        if (id !== undefined && (await this.#torrents(id)).length === 0) {
-            throw new ServiceError('NotFound', this.id, `no torrent with id "${id}"`, {
-                remedy: 'Transmission torrent ids are integers. Take one from get_queue.'
-            });
+        if (id !== undefined) {
+            // The same pre-check `removeQueueItem` makes, for the same reason:
+            // probed live, `torrent-stop` for an id Transmission has never seen
+            // answers `result: "success"` and does nothing.
+            const [torrent] = await this.#torrents(id);
+            if (torrent === undefined) throw this.#notFound(id);
+            await this.#rpc(paused ? 'torrent-stop' : 'torrent-start', { ids: [this.#torrentRef(id)] });
+            // Started by hand, so a later whole-client resume has nothing to do for it.
+            if (!paused && isMarked(torrent)) await this.#relabel([torrent], false);
+            return;
         }
 
-        const body = await this.#http.post<RpcResponse<unknown>>(RPC_PATH, {
-            method: paused ? 'torrent-stop' : 'torrent-start',
-            ...(id === undefined ? {} : { arguments: { ids: [this.#torrentId(id)] } })
-        });
-
-        if (body.result !== 'success') {
-            throw new ServiceError(
-                'UpstreamError',
-                this.id,
-                `${paused ? 'torrent-stop' : 'torrent-start'} failed: ${resultOf(this.id, body.result)}`
-            );
+        const torrents = await this.#labelled();
+        if (paused) {
+            const running = torrents.filter(t => t.status !== 0);
+            if (running.length === 0) return;
+            // Labelled before they stop: a stop that fails half-way then leaves
+            // running torrents labelled, which resume starts harmlessly, rather
+            // than stopped ones resume does not know about.
+            await this.#relabel(running.filter(t => !isMarked(t)), true);
+            await this.#rpc('torrent-stop', { ids: running.map(refOf) });
+            return;
         }
+
+        const held = torrents.filter(isMarked);
+        if (held.length === 0) return;
+        await this.#rpc('torrent-start', { ids: held.map(refOf) });
+        await this.#relabel(held, false);
     }
 
     /**
      * Transmission counts speeds in its own unit (`units.speed-bytes`, 1000
      * by default), so they are converted to the KiB/s this boundary speaks.
-     * The enabled flag is what actually decides whether the number is applied.
+     * The enabled flag is what actually decides whether the number is applied,
+     * unless turtle mode is on: its own cap then applies instead.
      */
     async readSpeedLimit(): Promise<SpeedLimit> {
         const session = await this.#session();
+        const alt = session['alt-speed-down'];
+        if (session['alt-speed-enabled'] === true && typeof alt === 'number') {
+            return { service: this.id, kbps: Math.round((alt * speedBytes(session)) / 1024), alternative: true };
+        }
         const limit = session['speed-limit-down'];
         if (session['speed-limit-down-enabled'] !== true || typeof limit !== 'number' || limit <= 0) {
             return { service: this.id };
@@ -389,8 +404,8 @@ export class TransmissionAdapter
     async addMagnet(uri: string): Promise<MagnetAdded> {
         const body = await this.#http.post<
             RpcResponse<{
-                'torrent-added'?: { id?: number; name?: string };
-                'torrent-duplicate'?: { id?: number; name?: string };
+                'torrent-added'?: { id?: number; name?: string; hashString?: string };
+                'torrent-duplicate'?: { id?: number; name?: string; hashString?: string };
             }>
         >(RPC_PATH, { method: 'torrent-add', arguments: { filename: uri } });
 
@@ -404,8 +419,9 @@ export class TransmissionAdapter
         const duplicate = body.arguments?.['torrent-duplicate'];
         const row = added ?? duplicate;
 
+        const id = row?.hashString?.toLowerCase() ?? (row?.id === undefined ? undefined : String(row.id));
         return {
-            ...(row?.id === undefined ? {} : { id: String(row.id) }),
+            ...(id === undefined ? {} : { id }),
             ...(row?.name === undefined
                 ? {}
                 : { title: fenceText(row.name, { service: this.id, field: 'name' }) }),
@@ -413,30 +429,74 @@ export class TransmissionAdapter
         };
     }
 
-    #torrentId(id: string): number {
-        const torrentId = Number(id);
-        if (!Number.isInteger(torrentId)) {
-            throw new ServiceError('NotFound', this.id, `"${id}" is not a Transmission torrent id`, {
-                remedy: 'Transmission torrent ids are integers. Take one from get_queue.'
-            });
-        }
-        return torrentId;
+    /**
+     * The info hash get_queue reports, or the RPC's integer id that
+     * `transmission-remote -l` shows. Digits only: `Number` alone would take
+     * `""` as 0 and `0x1f` or `1e1` as ids.
+     */
+    #torrentRef(id: string): string | number {
+        const trimmed = id.trim();
+        if (/^[0-9a-f]{40}$/i.test(trimmed)) return trimmed.toLowerCase();
+        if (/^\d{1,9}$/.test(trimmed)) return Number(trimmed);
+        throw new ServiceError('NotFound', this.id, `"${id}" is not a Transmission torrent id`, { remedy: ID_REMEDY });
     }
 
-    /** Id and status only: enough to answer "is it stopped", without the
-     *  whole queue payload `getQueue` needs. */
-    async #torrents(id?: string): Promise<{ id?: number; status?: number }[]> {
-        const body = await this.#http.post<RpcResponse<{ torrents?: { id?: number; status?: number }[] }>>(RPC_PATH, {
-            method: 'torrent-get',
-            arguments: {
-                ...(id === undefined ? {} : { ids: [this.#torrentId(id)] }),
-                fields: ['id', 'status']
-            }
+    #notFound(id: string): ServiceError {
+        return new ServiceError('NotFound', this.id, `no torrent with id "${id}"`, { remedy: ID_REMEDY });
+    }
+
+    /** What "is it stopped" and the pause label need, without the whole
+     *  queue payload `getQueue` reads. */
+    async #torrents(id?: string): Promise<PauseRow[]> {
+        const body = await this.#rpc<{ torrents?: PauseRow[] }>('torrent-get', {
+            ...(id === undefined ? {} : { ids: [this.#torrentRef(id)] }),
+            fields: ['id', 'hashString', 'status', 'labels']
+        });
+        return (body?.torrents ?? []).filter(t => typeof t.hashString === 'string' || typeof t.id === 'number');
+    }
+
+    /** Every torrent, refused on a daemon without labels: a whole-client pause
+     *  with nowhere to record what it stopped could not be undone exactly. */
+    async #labelled(): Promise<PauseRow[]> {
+        const session = await this.#session();
+        const rpc = session['rpc-version'];
+        if (rpc !== undefined && rpc < LABELS_RPC) {
+            throw new ServiceError(
+                'VersionUnsupported',
+                this.id,
+                `Transmission${session.version === undefined ? '' : ` ${session.version}`} (RPC ${rpc}) has no torrent labels, so a whole-client pause could not record which torrents it stopped`,
+                { remedy: 'Pause or resume torrents one at a time with `id`, or upgrade to Transmission 3.0 or later.' }
+            );
+        }
+        return this.#torrents();
+    }
+
+    /** `torrent-set labels` replaces the whole list, so torrents are grouped by
+     *  the list they end up with: one call per distinct set, not per torrent. */
+    async #relabel(torrents: PauseRow[], mark: boolean): Promise<void> {
+        const groups = new Map<string, { labels: string[]; ids: (string | number)[] }>();
+        for (const t of torrents) {
+            const rest = (t.labels ?? []).filter(l => l !== PAUSE_MARK);
+            const labels = mark ? [...rest, PAUSE_MARK] : rest;
+            const key = JSON.stringify(labels);
+            const group = groups.get(key) ?? { labels, ids: [] };
+            group.ids.push(refOf(t));
+            groups.set(key, group);
+        }
+        for (const { labels, ids } of groups.values()) await this.#rpc('torrent-set', { ids, labels });
+    }
+
+    /** One RPC call, failed on a `result` other than "success", which every
+     *  Transmission failure arrives as, with HTTP 200. */
+    async #rpc<T = unknown>(method: string, args?: Record<string, unknown>): Promise<T | undefined> {
+        const body = await this.#http.post<RpcResponse<T>>(RPC_PATH, {
+            method,
+            ...(args === undefined ? {} : { arguments: args })
         });
         if (body.result !== 'success') {
-            throw new ServiceError('UpstreamError', this.id, `torrent-get failed: ${resultOf(this.id, body.result)}`);
+            throw new ServiceError('UpstreamError', this.id, `${method} failed: ${resultOf(this.id, body.result)}`);
         }
-        return body.arguments?.torrents ?? [];
+        return body.arguments;
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {
