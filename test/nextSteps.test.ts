@@ -178,7 +178,7 @@ const CASES: Case[] = [
     },
     {
         name: 'managed, an artist nothing manages',
-        diagnosis: () => buildChain(QUERY, healthy({ item: artist({ acquisition: undefined, presence: 'jellyfin_only' }) })),
+        diagnosis: () => buildChain(QUERY, healthy({ item: artist({ acquisition: undefined, presence: 'unknown' }) })),
         expected: { tool: 'search_media', arguments: { query: QUERY, source: 'discover' } }
     },
     {

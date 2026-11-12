@@ -130,7 +130,7 @@ describe('buildChain — each stage blocking in isolation', () => {
     it('stops at request when it was declined', () => {
         const d = buildChain('some film', {
             ...healthy(),
-            item: item({ acquisition: undefined, presence: 'jellyfin_only' }),
+            item: item({ acquisition: undefined, presence: 'unknown' }),
             request: { status: 'declined' }
         });
         expect(d.verdict.stage).toBe('request');
@@ -140,7 +140,7 @@ describe('buildChain — each stage blocking in isolation', () => {
     it('reports a pending request as the blockage, not the missing file', () => {
         const d = buildChain('some film', {
             ...healthy(),
-            item: item({ acquisition: undefined, presence: 'jellyfin_only' }),
+            item: item({ acquisition: undefined, presence: 'unknown' }),
             request: { status: 'pending' }
         });
         expect(d.verdict.stage).toBe('request');
@@ -153,7 +153,7 @@ describe('buildChain — each stage blocking in isolation', () => {
         // must not fall through to "The request is unknown." reported `ok`.
         const d = buildChain('some film', {
             ...healthy(),
-            item: item({ acquisition: undefined, presence: 'jellyfin_only' }),
+            item: item({ acquisition: undefined, presence: 'unknown' }),
             request: { status: 'unknown' }
         });
         expect(d.verdict.stage).toBe('request');
@@ -163,7 +163,7 @@ describe('buildChain — each stage blocking in isolation', () => {
     it('stops at managed when nothing is managing it', () => {
         const d = buildChain('some film', {
             ...healthy(),
-            item: item({ acquisition: undefined, presence: 'jellyfin_only' })
+            item: item({ acquisition: undefined, presence: 'unknown' })
         });
         expect(d.verdict.stage).toBe('managed');
         // Matched on the claim, not on service names. This branch is reached
@@ -447,7 +447,7 @@ describe('buildChain — certainty', () => {
         // cannot change that, so an unreachable Jellyfin costs no confidence.
         const d = buildChain('some film', {
             ...healthy(),
-            item: item({ acquisition: undefined, presence: 'jellyfin_only' }),
+            item: item({ acquisition: undefined, presence: 'unknown' }),
             scan: undefined,
             degraded: ['jellyfin']
         });
@@ -561,7 +561,7 @@ describe('buildChain — verdict order is pinned, not incidental (I7)', () => {
     it('request outranks managed when both are blocked', () => {
         const d = buildChain('some film', {
             ...healthy(),
-            item: item({ acquisition: undefined, presence: 'jellyfin_only' }),
+            item: item({ acquisition: undefined, presence: 'unknown' }),
             request: { status: 'declined' }
         });
         expect(d.verdict.stage).toBe('request');
@@ -2682,20 +2682,20 @@ describe('buildChain — a Lidarr artist', () => {
     // search_media discover answers with Lidarr's artists, each with the MusicBrainz id
     // add_media takes, so an artist gets the lookup a film or series gets.
     it('offers the lookup for an artist nothing manages, as for a film, and says to add it to Lidarr', () => {
-        const d = buildChain('daft punk', healthy({ item: artist({ acquisition: undefined, presence: 'jellyfin_only' }) }));
+        const d = buildChain('daft punk', healthy({ item: artist({ acquisition: undefined, presence: 'unknown' }) }));
         expect(d.verdict.stage).toBe('managed');
         expect(d.verdict.next_steps?.map(s => [s.tool, s.arguments])).toEqual([['search_media', { query: 'daft punk', source: 'discover' }]]);
         expect(d.verdict.remedy).toMatch(/Lidarr/);
 
         // Asked for by id, there is no query worth looking up, as for a film.
-        const byId = chain('1', healthy({ item: artist({ acquisition: undefined, presence: 'jellyfin_only' }) }), false);
+        const byId = chain('1', healthy({ item: artist({ acquisition: undefined, presence: 'unknown' }) }), false);
         expect(byId.verdict.next_steps).toBeUndefined();
     });
 
     // An *arr of the item's kind whose library read failed may hold it, so
     // "nothing manages it" is unproven, and a lookup would ask the same *arr.
     it('reports managed as unknown, with no lookup, when an *arr of its kind could not be read', () => {
-        const unmanagedArtist = artist({ acquisition: undefined, presence: 'jellyfin_only' });
+        const unmanagedArtist = artist({ acquisition: undefined, presence: 'unknown' });
         const down = buildChain('daft punk', healthy({ item: unmanagedArtist, libraryDegraded: ['lidarr/two'] }));
         expect(stepFor(down, 'managed')).toMatchObject({
             status: 'unknown',
@@ -2899,7 +2899,7 @@ describe('buildChain — the names it points at', () => {
     it('never names an old tool in a next step or remedy', () => {
         const verdicts = [
             buildChain('nonexistent', { ...healthy(), item: undefined }),
-            buildChain('some film', { ...healthy(), item: item({ acquisition: undefined, presence: 'jellyfin_only' }), request: { status: 'declined' } }),
+            buildChain('some film', { ...healthy(), item: item({ acquisition: undefined, presence: 'unknown' }), request: { status: 'declined' } }),
             buildChain('some film', healthy({ item: item({ acquisition: undefined, presence: 'jellyfin_only' }), libraryDegraded: ['radarr', 'radarr/4k'] }))
         ].map(d => d.verdict);
         const text = JSON.stringify(verdicts.map(v => ({ remedy: v.remedy, next_steps: v.next_steps })));
@@ -2919,7 +2919,7 @@ describe('buildChain — the managed remedy names the *arrs this stack runs', ()
         buildChain(
             'some title',
             healthy({
-                item: item({ kind, title: fence(shaped[kind].title, 'jellyfin', 'Name'), ids: shaped[kind].ids, year: undefined, acquisition: undefined, presence: 'jellyfin_only' }),
+                item: item({ kind, title: fence(shaped[kind].title, 'jellyfin', 'Name'), ids: shaped[kind].ids, year: undefined, acquisition: undefined, presence: 'unknown' }),
                 arrs,
                 ...over
             })
@@ -2947,7 +2947,7 @@ describe('buildChain — the managed remedy names the *arrs this stack runs', ()
         [['radarr', 'lidarr'], {}, 'Add it to Radarr or Lidarr.'],
         [[], {}, 'No Radarr, Sonarr, Whisparr or Lidarr is configured here to manage it.']
     ])('names the configured *arrs that could manage it when the kind was only guessed (%j, ids %j)', (arrs, ids, remedy) => {
-        const guessed = item({ title: fence('Some Title', 'jellyfin', 'Name'), ids, year: undefined, acquisition: undefined, presence: 'jellyfin_only' });
+        const guessed = item({ title: fence('Some Title', 'jellyfin', 'Name'), ids, year: undefined, acquisition: undefined, presence: 'unknown' });
         const d = buildChain('some title', healthy({ item: guessed, itemKindGuessed: true, arrs }));
         expect(d.verdict).toMatchObject({ stage: 'managed', certain: true, remedy });
     });
@@ -2979,12 +2979,88 @@ describe('buildChain — the managed remedy names the *arrs this stack runs', ()
         const d = buildChain(
             'some title',
             healthy({
-                item: item({ kind, title: fence(shaped[kind].title, 'jellyfin', 'Name'), ids: shaped[kind].ids, year: undefined, acquisition: undefined, presence: 'jellyfin_only' }),
+                item: item({ kind, title: fence(shaped[kind].title, 'jellyfin', 'Name'), ids: shaped[kind].ids, year: undefined, acquisition: undefined, presence: 'unknown' }),
                 request: { status: 'pending', id: 12, mayRespond: true },
                 arrs: ['whisparr']
             })
         );
         expect(d.verdict.stage).toBe('request');
         expect(d.verdict.next_steps?.[0]).toMatchObject({ tool: 'respond_to_request', why: `Approving hands the request to ${name} to search for it.` });
+    });
+});
+
+describe('buildChain: a request Radarr has moved past', () => {
+    const downloading: QueueItem = {
+        service: 'radarr',
+        id: 'q1',
+        title: queueTitle('radarr', 'Some.Film.2026'),
+        status: 'downloading',
+        protocol: 'torrent',
+        sizeBytes: 1000,
+        remainingBytes: 500,
+        mediaId: '5',
+        downloadId: 'AAAA1111'
+    };
+    const monitoredNoFile = item({ acquisition: { service: 'radarr', id: '5', monitored: true, hasFile: false }, presence: 'arr_only', playback: undefined });
+
+    it.each<['declined' | 'unknown', RegExp]>([
+        ['declined', /the Seerr request was declined, but Radarr monitors it anyway/],
+        ['unknown', /the Seerr request is in an indeterminate state, but Radarr monitors it anyway/]
+    ])('lets the download in progress speak over a %s request', (status, aside) => {
+        const d = buildChain('some film', healthy({ item: monitoredNoFile, request: { status }, queue: { items: [downloading], partial: [] } }));
+        expect(stepFor(d, 'request')?.status).toBe('blocked');
+        expect(d.verdict.stage).toBe('queue');
+        expect(d.verdict.summary).toMatch(/^Still downloading/);
+        expect(d.verdict.summary).toMatch(aside);
+        expect(d.verdict.remedy).toBeUndefined();
+    });
+
+    it('says a declined request does not stop a series Sonarr monitors and has on disk', () => {
+        const show = item({ kind: 'series', title: fence('Some Show', 'sonarr'), ids: { tvdb: 1 }, acquisition: { service: 'sonarr', id: '7', monitored: true, hasFile: true } });
+        const d = buildChain('some show', healthy({ item: show, request: { status: 'declined' } }));
+        expect(d.verdict.stage).toBe('playable');
+        expect(d.verdict.summary).toMatch(/the Seerr request was declined, but Sonarr monitors it anyway/);
+    });
+
+    it('keeps a pending request the verdict, since approving it is still the next step', () => {
+        const d = buildChain('some film', healthy({ item: monitoredNoFile, request: { status: 'pending' }, queue: { items: [downloading], partial: [] } }));
+        expect(d.verdict.stage).toBe('request');
+    });
+
+    it('keeps a declined request the verdict when nothing monitors the item', () => {
+        const unmonitored = item({ acquisition: { service: 'radarr', id: '5', monitored: false, hasFile: false }, presence: 'arr_only', playback: undefined });
+        const d = buildChain('some film', healthy({ item: unmonitored, request: { status: 'declined' } }));
+        expect(d.verdict).toMatchObject({ stage: 'request', summary: 'The request was declined.' });
+    });
+});
+
+describe('buildChain: in the media server with nothing managing it', () => {
+    const onServer = (over: ItemOverride = {}) => item({ title: fence('Some Film', 'jellyfin', 'Name'), acquisition: undefined, presence: 'jellyfin_only', ...over });
+
+    it.each<['movie' | 'series' | 'artist', MergedItem['ids']]>([
+        ['movie', { tmdb: 550 }],
+        ['series', { tvdb: 1 }],
+        ['artist', { mbid: '00000000-0000-4000-8000-000000000001' }]
+    ])('reads a %s as playable, says nothing will upgrade it, and offers no add', (kind, ids) => {
+        const d = buildChain('some film', healthy({ item: onServer({ kind, ids, playback: kind === 'artist' ? undefined : { user: 'Someone', watched: false } }) }));
+        expect(stepFor(d, 'library')?.status).toBe('ok');
+        expect(d.verdict).toMatchObject({
+            stage: 'playable',
+            certain: true,
+            summary: `${fence('Some Film', 'jellyfin', 'Name')} is available in jellyfin and playable. Nothing configured here manages it, so nothing will upgrade or replace it.`
+        });
+        expect(d.verdict.remedy).toBeUndefined();
+        expect(d.verdict.next_steps).toBeUndefined();
+    });
+
+    it('lets a library copy of a film outrank a request for it', () => {
+        const d = buildChain('some film', healthy({ item: onServer(), request: { status: 'pending', id: 12, mayRespond: true } }));
+        expect(d.verdict.stage).toBe('playable');
+    });
+
+    it('still reports a pending request for a series, which may be for episodes it does not have', () => {
+        const d = buildChain('some show', healthy({ item: onServer({ kind: 'series', ids: { tvdb: 1 } }), request: { status: 'pending' } }));
+        expect(d.verdict.stage).toBe('request');
+        expect(d.verdict.summary).toMatch(/visible in jellyfin/);
     });
 });

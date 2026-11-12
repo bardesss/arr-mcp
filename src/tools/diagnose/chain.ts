@@ -1436,10 +1436,15 @@ export function buildChain(query: string, ev: Evidence, byWords: boolean): Diagn
     // visibility of it matters.
     const fileIsOk = byStage.get('file')?.status === 'ok';
     const libStep = byStage.get('library');
+    // In the media server with nothing managing it: that copy plays, and
+    // "add it" would only fetch a second one. The verdict says nothing will
+    // upgrade or replace it instead.
+    const unmanagedOnServer = acquisition === undefined && unreadArrs.length === 0 && libStep?.status === 'ok';
+    const hasCopy = fileIsOk || unmanagedOnServer;
     // The guard for `seriesFileVisibleHedge`, below: a file confirmed on
     // disk *and* confirmed visible in the media server, independent of which
     // verdict stage the file/library steps themselves ended up producing.
-    const libraryConfirmedOk = fileIsOk && libStep?.status === 'ok';
+    const libraryConfirmedOk = hasCopy && libStep?.status === 'ok';
     // `fileIsOk` means something different for a series than for a movie.
     // A movie's `hasFile` is unambiguous: this exact file is or is not on
     // disk. A series' `hasFile` (`sonarr.ts`: `episodeFileCount > 0`) is
@@ -1451,15 +1456,23 @@ export function buildChain(query: string, ev: Evidence, byWords: boolean): Diagn
     // <server> and playable", with no remedy and no mention. So the
     // exclusion applies only where the signal it depends on is actually
     // unambiguous: movies.
-    const excludeRequestManaged = fileIsOk && item.kind === 'movie';
+    const excludeRequestManaged = hasCopy && item.kind === 'movie';
+    // A declined or indeterminate request says nothing about an item an *arr
+    // monitors anyway (added by hand, or requested again since): the file and
+    // the queue decide, and the request is only mentioned.
+    const staleRequest =
+        !excludeRequestManaged && isBlocked('request') && ev.request?.status !== 'pending' && acquisition?.monitored === true;
+    const requestAside = staleRequest
+        ? ` (Also: the Seerr request ${ev.request?.status === 'declined' ? 'was declined' : 'is in an indeterminate state'}, but ${arrOf(item)} monitors it anyway, so the request does not hold it up.)`
+        : '';
 
     let verdictStage: Stage | undefined;
     let certaintyPath: Stage[];
 
-    if (!excludeRequestManaged && isBlocked('request')) {
+    if (!excludeRequestManaged && isBlocked('request') && !staleRequest) {
         verdictStage = 'request';
         certaintyPath = ['request'];
-    } else if (!excludeRequestManaged && isBlocked('managed')) {
+    } else if (!excludeRequestManaged && isBlocked('managed') && !unmanagedOnServer) {
         verdictStage = 'managed';
         certaintyPath = ['request', 'managed'];
     } else if (unreadArrs.length > 0) {
@@ -1519,7 +1532,7 @@ export function buildChain(query: string, ev: Evidence, byWords: boolean): Diagn
     // The cleanup sentence is left out only where the verdict itself quotes it:
     // the file step's detail is not what a `managed` or `request` verdict says.
     const verdictDetail = verdictStage === undefined ? undefined : byStage.get(verdictStage)?.detail;
-    const aside = queueAside(queueResult, fileIsOk) + cleanupAside(ev, verdictDetail);
+    const aside = queueAside(queueResult, hasCopy) + requestAside + cleanupAside(ev, verdictDetail);
 
     if (verdictStage === undefined) {
         // The positive claim "is available in <server> and playable" is only
@@ -1531,12 +1544,14 @@ export function buildChain(query: string, ev: Evidence, byWords: boolean): Diagn
         // have taken a different verdict branch otherwise, so it echoes
         // `libraryStep`'s own wording rather than inventing a second one.
         // `hasFile` on an artist is any track at all, which is nowhere near
-        // "playable": the albums are one read down and may hold none.
+        // "playable": the albums are one read down and may hold none. An
+        // unmanaged artist has no *arr count at all, only the server's copy.
+        const unmanaged = unmanagedOnServer ? ' Nothing configured here manages it, so nothing will upgrade or replace it.' : '';
         const summary =
-            item.kind === 'artist'
+            item.kind === 'artist' && !unmanagedOnServer
                 ? `${item.title} has tracks on disk. That only means at least one track is there: get_media_details lists its albums and which of them have files. ${libStep?.detail ?? ''}${caveat}${aside}`
                 : libStep?.status === 'ok'
-                  ? `${item.title} is available in ${ev.mediaServer} and playable.${caveat}${aside}`
+                  ? `${item.title} is available in ${ev.mediaServer} and playable.${unmanaged}${caveat}${aside}`
                   : libStep?.status === 'unknown'
                     ? `${item.title} has a file, but ${ev.mediaServer} could not be reached to confirm it is visible there.${caveat}${aside}`
                     : `${item.title} is on disk. No media server is configured.${caveat}${aside}`;
@@ -1581,8 +1596,9 @@ export function buildChain(query: string, ev: Evidence, byWords: boolean): Diagn
                 : REMEDIES[blocking.stage];
     // The verdict's own stage is never also the aside (it is already the
     // headline), so `aside` only ever adds information here for a
-    // non-queue verdict; same guard as the playable branch above.
-    const summaryAside = blocking.stage === 'queue' ? '' : aside;
+    // non-queue verdict; same guard as the playable branch above. A request
+    // the queue outranked still gets its mention.
+    const summaryAside = blocking.stage === 'queue' ? requestAside : aside;
     const next = nextStepsFor(blocking.stage, { ev, query, byWords, queueNext: queueResult.next });
     // Item 3's first symptom: a `request`/`managed` verdict outranking a
     // library that is genuinely, confirmedly fine (`libraryConfirmedOk`) used
