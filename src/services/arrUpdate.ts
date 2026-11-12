@@ -25,6 +25,8 @@ type RawResource = {
     tags?: number[];
     minimumAvailability?: string;
     seriesType?: string;
+    /** Sonarr 4 only (`NewItemMonitorTypes`): whether a refresh monitors the seasons it adds. */
+    monitorNewItems?: string;
 };
 
 const toState = (service: string, raw: RawResource): MediaUpdateState => ({
@@ -35,7 +37,8 @@ const toState = (service: string, raw: RawResource): MediaUpdateState => ({
     ...(raw.path === undefined ? {} : { path: fenceText(raw.path, { service, field: 'path' }) }),
     tagIds: raw.tags ?? [],
     ...(raw.minimumAvailability === undefined ? {} : { minimumAvailability: raw.minimumAvailability }),
-    ...(raw.seriesType === undefined ? {} : { seriesType: raw.seriesType })
+    ...(raw.seriesType === undefined ? {} : { seriesType: raw.seriesType }),
+    ...(raw.monitorNewItems === 'all' || raw.monitorNewItems === 'none' ? { monitorNewItems: raw.monitorNewItems } : {})
 });
 
 export async function readArrForUpdate(
@@ -62,6 +65,7 @@ export async function updateArrMedia(
     if (opts.monitored !== undefined) body.monitored = opts.monitored;
     if (opts.minimumAvailability !== undefined) body.minimumAvailability = opts.minimumAvailability;
     if (opts.seriesType !== undefined) body.seriesType = opts.seriesType;
+    if (opts.monitorNewItems !== undefined) body.monitorNewItems = opts.monitorNewItems;
     if (opts.rootFolderPath !== undefined) body.rootFolderPath = opts.rootFolderPath;
     if (opts.tagIds !== undefined) {
         body.tags = opts.tagIds;

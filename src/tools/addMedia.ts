@@ -305,7 +305,7 @@ const AddMediaInput = z.object({
         .enum(['all', 'none', 'new'])
         .optional()
         .describe(
-            '[[lidarr: Lidarr only: the rule for albums Lidarr discovers later: `all`, `new` (only ones released on or after the newest album it already has) or `none`, as on set_monitoring. With no `monitor`, it also sets the albums the artist is added with. Omitted, the artist gets `all`: the root folder\'s own default applies only to an artist Lidarr adds on import.]]'
+            '[[lidarr: Lidarr only: the rule for albums Lidarr discovers later: `all`, `new` (only ones released on or after the newest album it already has) or `none`, as on set_monitoring. With no `monitor`, it also sets the albums the artist is added with. Omitted, the artist gets `all`: the root folder\'s own default applies only to an artist Lidarr adds on import.]][[sonarr:  Sonarr: `all` (the default) or `none`, whether seasons it finds later are monitored.]]'
         ),
     metadata_profile: z
         .string()
@@ -454,13 +454,21 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
             const searchNow = search_now ?? path === undefined;
             refuseMalformedId(service, adapter.type, external_id);
 
-            if (!lidarr && (metadata_profile !== undefined || monitor_new_items !== undefined)) {
-                throw new ServiceError(
-                    'NotFound',
-                    service,
-                    `${metadata_profile !== undefined ? 'metadata_profile' : 'monitor_new_items'} is a Lidarr option`,
-                    { remedy: 'Only an artist has a metadata profile or a rule for new albums. Drop it.' }
-                );
+            const sonarr = adapter.type === 'sonarr';
+            if (!lidarr && metadata_profile !== undefined) {
+                throw new ServiceError('NotFound', service, 'metadata_profile is a Lidarr option', {
+                    remedy: 'Only an artist has a metadata profile. Drop it.'
+                });
+            }
+            if (!lidarr && !sonarr && monitor_new_items !== undefined) {
+                throw new ServiceError('NotFound', service, 'monitor_new_items is a Lidarr and Sonarr option', {
+                    remedy: 'Only an artist or a series has a rule for what it finds later. Drop it.'
+                });
+            }
+            if (sonarr && monitor_new_items === 'new') {
+                throw new ServiceError('NotFound', service, '`new` is a Lidarr rule', {
+                    remedy: 'Sonarr takes `all` or `none` for the seasons it finds later.'
+                });
             }
             if (lidarr && (monitor === 'firstSeason' || monitor === 'lastSeason' || monitor === 'pilot')) {
                 throw new ServiceError('NotFound', service, `${monitor} is not a Lidarr monitor mode`, {
@@ -597,7 +605,15 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
             }
             // Said under `None` too: albums from a later profile change are flagged by this rule.
             if (monitor_new_items !== undefined) {
-                effects.push(noAlbums ? NO_ALBUMS_NEW_ITEMS_EFFECT[monitor_new_items] : NEW_ITEMS_EFFECT[monitor_new_items]);
+                effects.push(
+                    sonarr
+                        ? monitor_new_items === 'none'
+                            ? 'Seasons Sonarr finds later start unmonitored.'
+                            : 'Seasons Sonarr finds later are monitored.'
+                        : noAlbums
+                          ? NO_ALBUMS_NEW_ITEMS_EFFECT[monitor_new_items]
+                          : NEW_ITEMS_EFFECT[monitor_new_items]
+                );
             }
             const initial = lidarr && !noAlbums ? lidarrInitialAlbums(monitor, monitor_new_items) : undefined;
             if (initial !== undefined) effects.push(initial);

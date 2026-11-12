@@ -484,7 +484,7 @@ describe('add_media keeps Lidarr\'s options on Lidarr', () => {
 
     it('refuses metadata_profile and monitor_new_items elsewhere', async () => {
         await expect(addMedia([radarr()])({ ...film, metadata_profile: 'Standard' })).rejects.toThrow(/metadata_profile is a Lidarr option/);
-        await expect(addMedia([radarr()])({ ...film, monitor_new_items: 'none' })).rejects.toThrow(/monitor_new_items is a Lidarr option/);
+        await expect(addMedia([radarr()])({ ...film, monitor_new_items: 'none' })).rejects.toThrow(/monitor_new_items is a Lidarr and Sonarr option/);
     });
 
     it('refuses first and latest elsewhere, with a remedy that fits the service', async () => {

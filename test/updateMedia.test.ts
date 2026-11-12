@@ -120,9 +120,9 @@ describe('update_media without an id', () => {
         await expect(h.call({ service: 'radarr', monitored: false })).rejects.toThrow(/`id`.*(only|lidarr)/i);
     });
 
-    it('refuses monitor_new_items outside lidarr', async () => {
+    it('refuses monitor_new_items on Radarr', async () => {
         const h = harness();
-        await expect(h.call({ service: 'radarr', id: '15', monitor_new_items: 'none' })).rejects.toThrow(/monitor_new_items is a Lidarr option/);
+        await expect(h.call({ service: 'radarr', id: '15', monitor_new_items: 'none' })).rejects.toThrow(/monitor_new_items is a Lidarr and Sonarr option/);
     });
 });
 
@@ -234,6 +234,25 @@ describe('update_media applying', () => {
         await apply(h, { service: 'sonarr', id: '7', series_type: 'anime' });
         expect(s.sent.find(x => x.method === 'PUT')?.body?.seriesType).toBe('anime');
     });
+
+    // Sonarr 4 `RefreshSeriesService.UpdateSeasons`: a season it finds is monitored only under `all`.
+    it('sets the rule for new seasons on Sonarr through the editor', async () => {
+        const s = stack('series', { ...SERIES, monitorNewItems: 'all' });
+        const h = harness({ adapters: [new SonarrAdapter(keyed(8989), s.impl)] });
+        const preview = await h.call({ service: 'sonarr', id: '7', monitor_new_items: 'none' });
+        expect(preview.structuredContent.summary).toContain('rule for new seasons');
+        expect(preview.structuredContent.effects.join(' ')).toMatch(/start unmonitored/);
+
+        await h.call({ service: 'sonarr', id: '7', monitor_new_items: 'none', confirm: preview.structuredContent.confirm_token });
+        expect(s.sent.find(x => x.method === 'PUT')?.body).toMatchObject({ seriesIds: [7], monitorNewItems: 'none' });
+    });
+
+    it('is a no-op when the series already has that rule', async () => {
+        const s = stack('series', { ...SERIES, monitorNewItems: 'none' });
+        const h = harness({ adapters: [new SonarrAdapter(keyed(8989), s.impl)] });
+        const { structuredContent } = await h.call({ service: 'sonarr', id: '7', monitor_new_items: 'none' });
+        expect(structuredContent.summary).toMatch(/already set that way/);
+    });
 });
 
 describe('update_media refusals', () => {
@@ -242,6 +261,26 @@ describe('update_media refusals', () => {
         await expect(
             h.call({ service: 'radarr', id: '15', series_type: 'anime', dry_run: true })
         ).rejects.toThrow(/sonarr option/i);
+    });
+
+    it('refuses `new` on Sonarr, which takes all or none', async () => {
+        const s = stack('series', { ...SERIES, monitorNewItems: 'all' });
+        const h = harness({ adapters: [new SonarrAdapter(keyed(8989), s.impl)] });
+        await expect(h.call({ service: 'sonarr', id: '7', monitor_new_items: 'new' })).rejects.toMatchObject({
+            detail: '`new` is a Lidarr rule',
+            remedy: expect.stringContaining('`all` or `none`')
+        });
+        expect(s.sent).toEqual([]);
+    });
+
+    // Sonarr 3 has no `monitorNewItems`, and its editor would drop the field without a word.
+    it('refuses monitor_new_items on a Sonarr that reports no rule', async () => {
+        const s = stack('series', SERIES);
+        const h = harness({ adapters: [new SonarrAdapter(keyed(8989), s.impl)] });
+        await expect(h.call({ service: 'sonarr', id: '7', monitor_new_items: 'none' })).rejects.toMatchObject({
+            detail: 'sonarr reports no rule for new seasons'
+        });
+        expect(s.sent.some(x => x.method === 'PUT')).toBe(false);
     });
 
     it('refuses minimum_availability on Sonarr, naming what to use instead', async () => {

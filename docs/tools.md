@@ -157,8 +157,8 @@ rather than `1`. A year the site does not have is refused, and the refusal
 lists the years it does. It does not answer `get_wanted`, `update_media` or
 `fix_metadata`, nor `import_download`'s `import` and `remap` actions. `add_media` works as it does on Sonarr,
 by TVDB id (Whisparr reuses that field for its own scene-database id, not
-TheTVDB), except `series_type`, which is Sonarr only, and `monitor: "pilot"`,
-which a site has no equivalent of. Only Whisparr V2 is supported;
+TheTVDB), except `series_type` and `monitor_new_items`, which it does not
+take, and `monitor: "pilot"`, which a site has no equivalent of. Only Whisparr V2 is supported;
 `get_stack_health` reports a V3 (Eros) instance as an unsupported version.
 
 ## Every tool answers the same way
@@ -3387,6 +3387,14 @@ moves the files there unless `move_files` is false.
 
 It is also **the only way to change a Radarr item's monitoring**.
 `set_monitoring` covers series and albums, and has never covered films.
+
+On **Sonarr** 4, `monitor_new_items` is the series' rule for seasons it finds
+later: `all` (Sonarr's default) monitors them, `none` adds them unmonitored. It
+goes through the editor with any other setting. A season already there keeps
+its own flag, and a new episode of a monitored season is still monitored
+(`RefreshSeriesService`, `RefreshEpisodeService`). Lidarr's `new` is refused,
+and so is the field on a Sonarr that reports no rule (Sonarr 3). `add_media`
+takes it too.
 
 On **Lidarr**, `id` is an artist, and `metadata_profile` switches Lidarr's
 second profile, which decides the album types and release statuses the artist
