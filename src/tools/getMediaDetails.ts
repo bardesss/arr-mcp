@@ -1,7 +1,7 @@
 import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
+import { serviceOf, type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { servicesOnly } from '../core/gather.ts';
 import { filmOrSeriesMatch, isFilmOrSeries, type FilmOrSeries } from '../core/resolver.ts';
@@ -32,7 +32,7 @@ export async function buildGetMediaDetails(
     const adapter = resolveInstance(adapters, opts.service, opts.instance);
     if (!hasMediaDetails(adapter)) {
         throw new ServiceError('NotFound', adapter.id, `${adapter.id} has no media details to return`, {
-            remedy: 'Only radarr, sonarr, lidarr and jellyfin can answer get_media_details.'
+            remedy: 'Only radarr, sonarr, whisparr, lidarr, jellyfin, plex and grimmory can answer get_media_details.'
         });
     }
 
@@ -340,7 +340,7 @@ const GetMediaDetailsInput = toolInput({
         .describe(
             'A title, matched against every title the services know (original and alternate titles too). When other items match equally well, the answer carries `ambiguous: true` and their `candidates`. A title not in your library is refused with what a metadata lookup knows of it, so no other search is needed.'
         ),
-    service: ServiceIdSchema.optional().describe('With `id`: one service’s own view.'),
+    service: serviceOf(['radarr', 'sonarr', 'whisparr', 'lidarr', 'jellyfin', 'plex', 'grimmory']).optional().describe('With `id`: one service’s own view.'),
     instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
     id: z.string().min(1).optional().describe("The item's id within that service."),
     detail: DetailSchema,

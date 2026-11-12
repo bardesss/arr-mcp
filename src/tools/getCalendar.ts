@@ -4,7 +4,8 @@ import { gather } from '../core/gather.ts';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel, unreachableTail } from '../core/shape.ts';
 import type { LibraryKind } from '../core/resolver.ts';
 import { hasCalendar, type CalendarEntry, type ServiceAdapter } from '../services/types.ts';
-import { MediaKindSchema, holds } from './mediaKind.ts';
+import { KINDS_KEY } from '../config/schema.ts';
+import { holds } from './mediaKind.ts';
 import { episodeCode } from '../core/labels.ts';
 
 type GetCalendarResult = {
@@ -119,7 +120,12 @@ export async function buildGetCalendar(
 }
 
 const GetCalendarInput = toolInput({
-    kind: MediaKindSchema.describe(
+    // No `book`: neither book service has a calendar, so it could only ever answer empty.
+    kind: z
+        .enum(['movie', 'series', 'artist'])
+        .meta({ [KINDS_KEY]: true })
+        .optional()
+        .describe(
         'Only one service\'s calendar. [[radarr: `movie`: Radarr.]] [[sonarr|whisparr: `series`: {{and: sonarr=Sonarr; whisparr=Whisparr}}.]] [[lidarr: `artist`: Lidarr\'s albums.]] Pass it when the request names one of those services; only they are asked. Omit for all.'
     ),
     detail: DetailSchema,

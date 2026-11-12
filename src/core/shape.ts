@@ -35,7 +35,7 @@ export const OffsetSchema = z
     .min(0)
     .default(0)
     .describe(
-        'Items to skip: page two of 50 is `offset: 50`; pair it with `sort`, or items can move between pages.'
+        'Items to skip: page two of 50 is `offset: 50`.'
     );
 
 /**

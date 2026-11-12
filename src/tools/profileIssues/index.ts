@@ -1,5 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
+import { SERVICES_KEY } from '../../config/schema.ts';
 import type { ServiceInstance } from '../../config/instances.ts';
 import { logger } from '../../core/logger.ts';
 import { nextStepLine, stepsField, type NextStep } from '../../core/nextStep.ts';
@@ -332,7 +333,7 @@ const GetProfileIssuesInput = toolInput({
     detail: DetailSchema,
     limit: LimitSchema,
     offset: OffsetSchema,
-    service: z.enum(['radarr', 'sonarr', 'whisparr']).optional().describe('Only report on this service.'),
+    service: z.enum(['radarr', 'sonarr', 'whisparr']).meta({ [SERVICES_KEY]: ['radarr', 'sonarr', 'whisparr'] }).optional().describe('Only report on this service.'),
     instance: z.string().optional().describe('Only report on this named instance.'),
     profile: z.string().optional().describe('Only report on this quality profile, by name.')
 });

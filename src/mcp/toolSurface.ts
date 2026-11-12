@@ -152,6 +152,22 @@ function whollyScoped(schema: unknown, opts: SurfaceOptions): boolean {
     return text.replace(SCOPED, '').trim() === '' && scopeText(text, opts) === '';
 }
 
+/**
+ * A narrowed enum can lose the field's default (blocklist_media defaults to
+ * seerr on a stack without Seerr). Advertising it would have a client omit the
+ * field and be refused, so the field is asked for instead.
+ */
+function unsetLostDefaults(object: Node): void {
+    const props = object['properties'] as Record<string, unknown>;
+    for (const [name, prop] of Object.entries(props)) {
+        if (!isNode(prop) || !('default' in prop) || !Array.isArray(prop['enum']) || prop['enum'].includes(prop['default'])) continue;
+        const { default: _lost, ...rest } = prop;
+        props[name] = rest;
+        const required = Array.isArray(object['required']) ? (object['required'] as unknown[]) : [];
+        if (!required.includes(name)) object['required'] = [...required, name];
+    }
+}
+
 export function leanJsonSchema(schema: unknown, io: 'input' | 'output', opts: SurfaceOptions, root = true): unknown {
     if (!isNode(schema)) return schema;
     const out: Node = { ...schema };
@@ -206,6 +222,7 @@ export function leanJsonSchema(schema: unknown, io: 'input' | 'output', opts: Su
                 .filter(([k]) => !gone.includes(k))
                 .map(([k, s]) => [k, leanJsonSchema(s, io, opts, false)])
         );
+        if (key === 'properties' && io === 'input') unsetLostDefaults(out);
     }
     return out;
 }

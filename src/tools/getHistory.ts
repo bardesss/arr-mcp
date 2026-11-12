@@ -2,7 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { INSTANCE_PARAM_DESCRIPTION, instancesOfType, resolveInstance } from './resolveInstance.ts';
 import type { ServiceId } from '../config/schema.ts';
-import { ServiceIdSchema } from '../config/schema.ts';
+import { serviceOf } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { gather } from '../core/gather.ts';
 import { logger } from '../core/logger.ts';
@@ -272,7 +272,7 @@ const GetHistoryInput = toolInput({
         .enum(['services', 'webhooks'])
         .default('services')
         .describe('`services` asks each service for its own history.[[radarr|sonarr:  `webhooks` reads the events {{and: radarr=Radarr; sonarr=Sonarr}} reported to arr-mcp, which survive deleting a title.]]'),
-    service: ServiceIdSchema.optional().describe('Scope to one service. Required alongside `id`.'),
+    service: serviceOf(TARGET.services).optional().describe('Scope to one service. Required alongside `id`.'),
     instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
     id: z.string().min(1).optional().describe('One {{or: radarr=movie; sonarr|whisparr=series; lidarr=Lidarr artist}} id: `acquisition.id` on a get_library or get_media_details record. Requires `service`.'),
     event_type: EventTypeSchema,

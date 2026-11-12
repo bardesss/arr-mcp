@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { instructionsFor } from '../src/app.ts';
+import { TOOL_DOCS } from '../src/mcp/toolDocs.ts';
 import { TOOL_SERVICES } from '../src/mcp/toolSurface.ts';
 import type { ServiceId } from '../src/config/schema.ts';
 import { listTools, svc, type Tool } from '../scripts/lib/listTools.ts';
@@ -91,6 +92,68 @@ describe('the tool list on a stack', () => {
             found.push(...strays(stack, configured, texts));
         }
         expect(found).toEqual([]);
+    });
+
+    it('names no service id the stack does not run in a `service` field', async () => {
+        const found: string[] = [];
+        for (const [stack, services] of Object.entries(STACKS)) {
+            const absent = (Object.keys(DISPLAY) as ServiceId[]).filter(id => !(id in services));
+            for (const tool of await listTools(services)) {
+                if (!TOOL_SERVICES[tool.name]?.some(s => s in services)) continue;
+                const text = (tool.inputSchema as { properties?: { service?: { description?: string } } } | undefined)?.properties?.service?.description ?? '';
+                const named = absent.filter(id => new RegExp(`\\b${id}\\b`).test(text));
+                if (named.length > 0) found.push(`${stack} ${tool.name}: ${named.join(', ')}`);
+            }
+        }
+        expect(found).toEqual([]);
+    });
+
+    it('drops the punctuation with a dropped clause', async () => {
+        const tools = await listTools(STACKS['small']!);
+        const text = (name: string) => tools.find(t => t.name === name)?.description ?? '';
+        expect(text('trigger_scan')).toContain('needs `id`). Importing a download');
+        expect(text('grab_release')).toContain('Pass the same `season` or `episode` get_releases used');
+        expect(text('get_stack_health')).toContain('`seedingRules` (client and indexer seed limits) and each');
+    });
+
+    it('mentions `sort` only on a tool that takes it', async () => {
+        type Props = Record<string, { description?: string }>;
+        const tools = await listTools({});
+        const props = (name: string): Props => ((tools.find(t => t.name === name)?.inputSchema as { properties?: Props } | undefined)?.properties ?? {});
+        const told = tools.filter(t => !('sort' in props(t.name)) && /`sort`/.test(JSON.stringify(t.inputSchema))).map(t => t.name);
+        expect(told).toEqual([]);
+        expect(props('get_library')['sort']?.description).toContain('`offset`');
+    });
+
+    it('describes the `user` of get_requests as whose requests, not whose playback', async () => {
+        const tool = (await listTools({})).find(t => t.name === 'get_requests');
+        const user = (tool?.inputSchema as { properties: Record<string, { description?: string }> }).properties['user']?.description ?? '';
+        expect(user).toMatch(/requests/);
+        expect(user).not.toMatch(/playback/);
+    });
+
+    it('offers get_calendar no `book` kind, since no book service has a calendar', async () => {
+        for (const services of [{}, STACKS['books']!]) {
+            const tool = (await listTools(services)).find(t => t.name === 'get_calendar');
+            const kind = (tool?.inputSchema as { properties: Record<string, { enum?: string[] }> }).properties['kind'];
+            expect(kind?.enum).not.toContain('book');
+        }
+    });
+
+    it('points every tool with a field reference at it', async () => {
+        const tools = await listTools({});
+        const missing = Object.keys(TOOL_DOCS).filter(name => !tools.find(t => t.name === name)?.description?.endsWith(`Field reference: arr://docs/${name}.`));
+        expect(missing).toEqual([]);
+    });
+
+    it('lists only configured services in a `service` enum', async () => {
+        const services = STACKS['small']!;
+        const offered = (await listTools(services)).flatMap(t => {
+            const listed = (t.inputSchema as { properties?: { service?: { enum?: string[] } } } | undefined)?.properties?.service?.enum ?? [];
+            return listed.filter(s => !(s in services)).length === 0 ? [] : [t.name];
+        });
+        // A tool none of whose services is here names them all, so a call stays writable.
+        expect(offered.filter(name => TOOL_SERVICES[name]?.some(s => s in services) ?? true)).toEqual([]);
     });
 
     it('keeps the import route on a Radarr-only stack', async () => {
