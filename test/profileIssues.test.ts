@@ -238,6 +238,24 @@ describe('remedy', () => {
         const remedy = result.items.find(i => i.kind === 'language_preferred_not_required')?.remedy;
         expect(remedy).toMatch(/^In Profilarr if it syncs this profile, otherwise in Sonarr, /);
     });
+
+    // Profilarr syncs only Radarr and Sonarr, so a Lidarr profile is Lidarr's own.
+    it('checks Lidarr profiles and names only Lidarr in the remedy', async () => {
+        const lidarr = {
+            id: 'lidarr',
+            type: 'lidarr',
+            testConnection: async () => ({ ok: true, service: 'lidarr', latency_ms: 1 }),
+            getVersion: async () => '3.1.6.5079',
+            readProfileDiagnostics: async () => ({
+                profiles: [{ id: 1, name: 'Lossless', minFormatScore: 200, formatItems: [{ name: 'FLAC', score: 100 }] }],
+                formats: [],
+                languages: []
+            })
+        } as const;
+        const result = await buildGetProfileIssues([lidarr as never], { detail: 'full', limit: 10 }, []);
+        expect(result.items).toMatchObject([{ service: 'lidarr', profile: 'Lossless', kind: 'unreachable_floor' }]);
+        expect(result.items[0]?.remedy).toMatch(/^In Lidarr, /);
+    });
 });
 
 /**
