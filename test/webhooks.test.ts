@@ -73,6 +73,63 @@ describe('parseArrWebhook, against captured payloads', () => {
         expect(entry?.episodeId).toBe('20560');
     });
 
+    // Captured on Lidarr 3.1.6.
+    it.each([
+        ['Grab', 'grabbed'],
+        ['Download', 'imported'],
+        ['DownloadFailure', 'failed'],
+        ['AlbumDelete', 'deleted'],
+        ['ArtistDelete', 'deleted'],
+        ['ArtistAdd', 'added']
+    ] as const)('lidarr %s is %s, and keeps its own spelling', async (event, type) => {
+        const entry = parseArrWebhook('lidarr', 'artist', await fixture('lidarr', event), AT);
+        expect(entry?.event).toBe(type);
+        expect(entry?.rawEvent).toBe(event);
+    });
+
+    it('reads a Lidarr album: artist and album in the title, artist id and MusicBrainz id', async () => {
+        const entry = parseArrWebhook('lidarr', 'artist', await fixture('lidarr', 'Download'), AT);
+        expect(entry?.title).toContain('Portishead - Dummy');
+        expect(entry?.mediaId).toBe('4');
+        expect(entry?.quality).toBe('MP3-VBR-V0');
+        expect(entry?.externalIds).toEqual({ mbid: '8f6bd1e4-fbe1-4f50-aa9b-94c450ec0f11' });
+        expect(entry?.episodeId).toBeUndefined();
+    });
+
+    it('keeps the MusicBrainz id across an artist delete and add', async () => {
+        const gone = parseArrWebhook('lidarr', 'artist', await fixture('lidarr', 'ArtistDelete'), AT);
+        const added = parseArrWebhook('lidarr', 'artist', await fixture('lidarr', 'ArtistAdd'), AT);
+        expect(gone?.externalIds).toEqual(added?.externalIds);
+        expect(gone?.reason).toContain('files deleted');
+        expect(added?.title).toContain('Portishead');
+    });
+
+    // Captured as the AlbumDelete Lidarr sends for each album after an artist
+    // delete with files: it says the files were kept, which was not so.
+    it('does not claim a Lidarr album kept its files', async () => {
+        const entry = parseArrWebhook('lidarr', 'artist', await fixture('lidarr', 'AlbumDelete'), AT);
+        expect(entry?.title).toContain('Portishead - Third');
+        expect(entry?.reason).toBeUndefined();
+    });
+
+    // The payload names only the release, and release names are never kept.
+    it('keeps a Lidarr failure without a title, linked to its grab by download id', async () => {
+        const entry = parseArrWebhook('lidarr', 'artist', await fixture('lidarr', 'DownloadFailure'), AT);
+        expect(entry?.title).not.toContain('Release.Name');
+        expect(entry?.downloadId).toBeDefined();
+        expect(entry?.mediaId).toBeUndefined();
+        expect(entry?.quality).toBe('Unknown');
+        expect(entry?.downloadId).toBe(entry?.downloadId?.toLowerCase());
+    });
+
+    it('does not record a Lidarr Test', async () => {
+        expect(parseArrWebhook('lidarr', 'artist', await fixture('lidarr', 'Test'), AT)).toBeUndefined();
+    });
+
+    it('reads a Lidarr DownloadFailure name as unknown on Radarr, where it was never captured', async () => {
+        expect(parseArrWebhook('radarr', 'movie', { eventType: 'DownloadFailure' }, AT)?.event).toBe('unknown');
+    });
+
     it('lower-cases the download id, so a grab links to its import and to Cleanuparr', async () => {
         const grab = await parse('radarr', 'Grab');
         const imported = await parse('radarr', 'Download');
@@ -206,7 +263,7 @@ describe('the webhook route', () => {
     const seed = async (webhooks: string, authExtra = '') => {
         await writeFile(
             join(dir, 'config.yaml'),
-            `auth:\n  username: admin\n  password_hash: ${PASSWORD_HASH}\n  allowed_hosts: []\n${authExtra}services:\n  radarr:\n    url: http://radarr.test:7878\n    api_key: ${'a'.repeat(32)}\n  sonarr:\n    url: http://sonarr.test:8989\n    api_key: ${'b'.repeat(32)}\n  prowlarr:\n    url: http://prowlarr.test:9696\n    api_key: ${'c'.repeat(32)}\n${webhooks}`,
+            `auth:\n  username: admin\n  password_hash: ${PASSWORD_HASH}\n  allowed_hosts: []\n${authExtra}services:\n  radarr:\n    url: http://radarr.test:7878\n    api_key: ${'a'.repeat(32)}\n  sonarr:\n    url: http://sonarr.test:8989\n    api_key: ${'b'.repeat(32)}\n  prowlarr:\n    url: http://prowlarr.test:9696\n    api_key: ${'c'.repeat(32)}\n  lidarr:\n    url: http://lidarr.test:8686\n    api_key: ${'d'.repeat(32)}\n${webhooks}`,
             'utf8'
         );
         const { config } = await loadConfig(dir);
@@ -249,6 +306,12 @@ describe('the webhook route', () => {
         expect(items[0]?.service).toBe('radarr');
     });
 
+    it('takes a Lidarr event on its own instance', async () => {
+        expect((await post('/webhooks/lidarr', await fixture('lidarr', 'AlbumDelete'))).status).toBe(200);
+        const { items } = events.read({});
+        expect(items[0]).toMatchObject({ service: 'lidarr', event: 'deleted', mediaId: '4' });
+    });
+
     it('takes a Sonarr event on its own instance', async () => {
         expect((await post('/webhooks/sonarr', await fixture('sonarr', 'SeriesDelete'))).status).toBe(200);
         expect(events.read({ service: 'sonarr' }).total).toBe(1);
@@ -263,7 +326,7 @@ describe('the webhook route', () => {
     });
 
     it('answers 404 for an instance that is not configured, or a service with no captured payloads', async () => {
-        for (const path of ['/webhooks/radarr/4k', '/webhooks/lidarr', '/webhooks/whisparr', '/webhooks/prowlarr', '/webhooks/nonsense']) {
+        for (const path of ['/webhooks/radarr/4k', '/webhooks/lidarr/flac', '/webhooks/whisparr', '/webhooks/prowlarr', '/webhooks/nonsense']) {
             expect((await post(path, await fixture('radarr', 'Grab'))).status, path).toBe(404);
         }
         expect(events.read({}).total).toBe(0);

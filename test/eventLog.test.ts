@@ -112,7 +112,7 @@ describe('get_history over the event log', () => {
     });
 
     it('refuses a service that never sends events, rather than answering empty', () => {
-        expect(() => read({ service: 'jellyfin', detail: 'standard', limit: 50 })).toThrow(/radarr and sonarr/i);
+        expect(() => read({ service: 'jellyfin', detail: 'standard', limit: 50 })).toThrow(/radarr, sonarr and lidarr/i);
     });
 
     it('says the log is off, on an empty answer', () => {

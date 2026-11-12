@@ -97,7 +97,7 @@ startup log keeps the key, so it can hold a secret written that way.
 ## The library event log
 
 Off by default. While it's off, `/webhooks/*` answers 404 to everyone. While it's
-on, Radarr and Sonarr post to it, so it takes requests with neither a session nor
+on, Radarr, Sonarr and Lidarr post to it, so it takes requests with neither a session nor
 an MCP token.
 
 **How a request is authenticated.** HTTP Basic, because that's what an *arr can

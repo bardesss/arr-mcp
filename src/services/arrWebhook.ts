@@ -10,13 +10,13 @@ import { episodeCode } from '../core/labels.ts';
  * a 404: a shape nobody has seen would be stored as guesses. Whisparr is also out
  * because titles are stored, and on Whisparr the titles are the sensitive part.
  */
-export const WEBHOOK_SERVICES: Partial<Record<ServiceId, ArrKind>> = { radarr: 'movie', sonarr: 'series' };
+export const WEBHOOK_SERVICES: Partial<Record<ServiceId, ArrKind>> = { radarr: 'movie', sonarr: 'series', lidarr: 'artist' };
 
 /** What the config page tells people to type. Any username is accepted. */
 export const WEBHOOK_USERNAME = 'arr-mcp';
 
 /**
- * Reads a Radarr or Sonarr webhook payload into a history row.
+ * Reads a Radarr, Sonarr or Lidarr webhook payload into a history row.
  *
  * Every field is named here, so a payload's paths, URLs, release names and
  * instance name never reach the store: what is not read is not kept. The shapes
@@ -35,13 +35,25 @@ const EVENT: Record<string, HistoryEventType> = {
     MovieDelete: 'deleted',
     SeriesDelete: 'deleted',
     MovieAdded: 'added',
-    SeriesAdd: 'added'
+    SeriesAdd: 'added',
+    AlbumDelete: 'deleted',
+    ArtistDelete: 'deleted',
+    ArtistAdd: 'added'
 };
+
+/**
+ * Captured on Lidarr 3.1.6 only. Its `DownloadFailure` carries no artist or
+ * album, just the release name (not kept) and download id, so the row has no
+ * title and its download id links it to the grab. Radarr's and Sonarr's have
+ * not been captured.
+ */
+const LIDARR_EVENT: Record<string, HistoryEventType> = { DownloadFailure: 'failed' };
 
 type Row = Record<string, unknown>;
 
 const EVENT_NAME = /^[A-Za-z][A-Za-z0-9]{0,63}$/;
 const IMDB_ID = /^tt\d+$/;
+const MBID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 const rowOf = (value: unknown): Row =>
     typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Row) : {};
@@ -57,33 +69,54 @@ function episodeLabel(episode: Row): string | undefined {
     return episodeCode(season, number);
 }
 
-/** A file delete says why. A title delete only says whether the files went too. */
+/**
+ * A file delete says why. A title delete only says whether the files went too.
+ * Lidarr 3.1.6 follows an artist delete with an `AlbumDelete` per album that
+ * says `deletedFiles: false` even when the artist's files went, so on an
+ * `AlbumDelete` only `true` is believed.
+ */
 function reasonOf(body: Row): string | undefined {
     const reason = text(body.deleteReason);
     if (reason !== undefined) return reason;
-    if (typeof body.deletedFiles === 'boolean') return body.deletedFiles ? 'files deleted' : 'files kept';
+    if (body.deletedFiles === true) return 'files deleted';
+    if (body.deletedFiles === false && body.eventType !== 'AlbumDelete') return 'files kept';
     return undefined;
+}
+
+/** `Artist - Album`: a Grab names `albums`, the others one `album`. */
+function artistTitle(payload: Row, artist: Row): string {
+    const albums = (payload.albums === undefined ? [rowOf(payload.album)] : rowsOf(payload.albums)).flatMap(a => text(a.title) ?? []);
+    return [text(artist.name), albums.join(', ')].filter((part): part is string => part !== undefined && part !== '').join(' - ');
 }
 
 /**
  * Undefined for a `Test`, which is not an event, and for a body with no usable
- * `eventType`. `kind` decides whether the title is under `movie` or `series`,
- * because an instance's type is known and the payload's claim need not be trusted.
+ * `eventType`. `kind` decides whether the title is under `movie`, `series` or
+ * `artist`, because an instance's type is known and the payload's claim need
+ * not be trusted.
+ *
+ * Lidarr 3.1.6 sends an upgrade as a `Download` with `isUpgrade: false` and no
+ * deleted files, so an upgrade reads as an import.
  */
 export function parseArrWebhook(instance: string, kind: ArrKind, body: unknown, receivedAt: string): WebhookEntry | undefined {
     const payload = rowOf(body);
     const eventType = payload.eventType;
     if (typeof eventType !== 'string' || !EVENT_NAME.test(eventType) || eventType === 'Test') return undefined;
 
-    const media = rowOf(kind === 'movie' ? payload.movie : payload.series);
+    const media = rowOf(kind === 'movie' ? payload.movie : kind === 'series' ? payload.series : payload.artist);
     const episodes = kind === 'series' ? rowsOf(payload.episodes) : [];
     const labels = episodes.flatMap(episode => episodeLabel(episode) ?? []);
     const name = text(media.title);
-    const title = name === undefined ? '' : [name, labels.join(', ')].filter(part => part !== '').join(' ');
+    const title =
+        kind === 'artist'
+            ? artistTitle(payload, media)
+            : name === undefined
+              ? ''
+              : [name, labels.join(', ')].filter(part => part !== '').join(' ');
 
     const release = rowOf(payload.release);
-    const file = rowOf(payload.movieFile ?? payload.episodeFile ?? rowsOf(payload.episodeFiles)[0]);
-    const quality = text(release.quality) ?? text(file.quality);
+    const file = rowOf(payload.movieFile ?? payload.episodeFile ?? rowsOf(payload.episodeFiles)[0] ?? rowsOf(payload.trackFiles)[0]);
+    const quality = text(release.quality) ?? text(file.quality) ?? text(payload.quality);
     const indexer = text(release.indexer);
     const downloadId = text(payload.downloadId)?.toLowerCase();
     const reason = reasonOf(payload);
@@ -93,16 +126,18 @@ export function parseArrWebhook(instance: string, kind: ArrKind, body: unknown, 
     const tmdb = positive(media.tmdbId);
     const tvdb = positive(media.tvdbId);
     const imdb = text(media.imdbId);
+    const mbid = text(media.mbId);
     const externalIds = {
         ...(tmdb === undefined ? {} : { tmdb }),
         ...(tvdb === undefined ? {} : { tvdb }),
-        ...(imdb === undefined || !IMDB_ID.test(imdb) ? {} : { imdb })
+        ...(imdb === undefined || !IMDB_ID.test(imdb) ? {} : { imdb }),
+        ...(mbid === undefined || !MBID.test(mbid) ? {} : { mbid })
     };
 
     return {
         service: instance,
         at: receivedAt,
-        event: EVENT[eventType] ?? 'unknown',
+        event: EVENT[eventType] ?? (kind === 'artist' ? LIDARR_EVENT[eventType] : undefined) ?? 'unknown',
         rawEvent: eventType,
         title: fenceText(title, { service: instance, field: 'title' }),
         ...(mediaId === undefined ? {} : { mediaId: String(mediaId) }),

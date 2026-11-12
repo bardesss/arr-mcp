@@ -491,7 +491,7 @@ export function eventLogPage(opts: {
                 </p>`
               : rows.length === 0
                 ? html`<p class="note">
-                      Nothing has arrived yet. Each Radarr and Sonarr instance needs a webhook connection, and
+                      Nothing has arrived yet. Each Radarr, Sonarr and Lidarr instance needs a webhook connection, and
                       <a href="/ui/config?tab=settings#webhooks">the Configuration page</a> has the details.
                   </p>`
                 : raw('');
@@ -521,7 +521,7 @@ export function eventLogPage(opts: {
     const body = html`<h2>Logs</h2>
         ${logTabs('events', '')}
         <p class="note">
-            What Radarr and Sonarr reported${opts.retentionDays === undefined ? raw('') : html`, kept for ${opts.retentionDays} days`}.
+            What Radarr, Sonarr and Lidarr reported${opts.retentionDays === undefined ? raw('') : html`, kept for ${opts.retentionDays} days`}.
             A title's history goes from the service when the title is deleted, and this stays.
             ${(opts.read?.total ?? 0) > rows.length ? html`Showing the latest ${rows.length} of ${opts.read?.total ?? 0}.` : raw('')}
         </p>

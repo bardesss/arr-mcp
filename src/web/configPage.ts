@@ -736,7 +736,7 @@ function webhooksCard(config: Config, keys: SafeHtml, confirmingNewSecret: boole
         <h3 id="webhooks" style="margin:0 0 .75rem">Library event log</h3>
         ${checkbox('webhooks.enabled', 'webhooks.enabled', 'Keep a log of library events', webhooks?.enabled === true)}
         <p class="note">
-            Keeps a log of what Radarr and Sonarr report: grabs, imports, renames and deletes. The services
+            Keeps a log of what Radarr, Sonarr and Lidarr report: grabs, imports, renames and deletes. The services
             lose a title's history when it's deleted, so this is how arr-mcp can still tell you
             what happened to it. Off by default, and it needs a webhook connection in each service.
         </p>
@@ -753,7 +753,7 @@ function webhooksCard(config: Config, keys: SafeHtml, confirmingNewSecret: boole
                       the address arr-mcp has on that service's network followed by the path below.
                   </p>
                   ${targets.length === 0
-                      ? html`<p class="note">Add a Radarr or Sonarr instance first.</p>`
+                      ? html`<p class="note">Add a Radarr, Sonarr or Lidarr instance first.</p>`
                       : html`<ul class="note">
                             ${targets.map(i => html`<li>${i.id}: <span class="mono">/webhooks/${i.id}</span></li>`)}
                         </ul>`}
