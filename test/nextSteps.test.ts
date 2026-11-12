@@ -745,10 +745,10 @@ describe('the real tool accepts every suggested call', () => {
         );
     });
 
-    it('refuses what the artist rows leave out: an id at the artist level', async () => {
-        await expect(
+    it('refuses what the artist rows leave out: the artist level on set_monitoring, which update_media covers', () => {
+        expect(() =>
             tools.get('set_monitoring')?.call({ service: 'lidarr', level: 'artist', id: '7', artists: ['7'], monitored: true, dry_run: true })
-        ).rejects.toThrow(/takes `artists`, not `id`/);
+        ).toThrow(/Unknown argument\(s\): artists/);
     });
 
     // Proves the loop above bites: this is the mistake the table's film row avoids.

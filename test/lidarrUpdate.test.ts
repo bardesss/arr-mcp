@@ -399,17 +399,17 @@ describe('update_media on Lidarr', () => {
         );
     });
 
-    it('names albums in the remedy for minimum_availability, and artists in the book-field and no-update remedies', async () => {
+    it('names albums in the remedy for minimum_availability, refuses a book field as unknown, and names artists in the no-update remedy', async () => {
         const call = updateMedia([lidarr().adapter]);
         await expect(call({ service: 'lidarr', id: '101', minimum_availability: 'released' })).rejects.toThrow(
             'Lidarr has no availability threshold. Use set_monitoring to choose which albums.'
         );
-        await expect(call({ service: 'lidarr', id: '101', title: 'x' })).rejects.toThrow('Films, series and artists are not edited by hand here.');
+        expect(() => call({ service: 'lidarr', id: '101', title: 'x' })).toThrow(/Unknown argument\(s\): title/);
 
         const notFound = (async () => new Response('{}', { status: 404 })) as unknown as typeof fetch;
         const whisparr = updateMedia([new WhisparrAdapter(config(6969), notFound)]);
         await expect(whisparr({ service: 'whisparr', id: '1', monitored: false })).rejects.toThrow(
-            'Radarr manages films, Sonarr series, Lidarr artists and Grimmory books.'
+            'Radarr manages films, Sonarr series and Lidarr artists.'
         );
     });
 

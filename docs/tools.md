@@ -1,9 +1,7 @@
 # Tools
 
-Forty-six of them. The first twenty read; the last twenty-six write, and are
-off until you turn them on — see [writes](writes.md). `stack_health` and
-`diagnose` are still listed as deprecated aliases of `get_stack_health` and
-`diagnose_media`; they take the same arguments and go in the next major.
+Forty-four of them. The first nineteen read; the last twenty-five write, and are
+off until you turn them on: see [writes](writes.md).
 
 | Tool | Answers |
 | --- | --- |
@@ -25,19 +23,17 @@ off until you turn them on — see [writes](writes.md). `stack_health` and
 | `get_playback` | What am I watching, and what can I continue |
 | `get_indexers` | Which indexers are healthy, and what they recently rejected |
 | `get_requests` | What has been requested, and what is still pending |
-| `lookup_media` | Deprecated: `search_media` with `source: "discover"` returns the same rows |
 | `discover_media` | What exists in this genre, year, or rating band |
 | `trigger_search` | Go look for this again — the whole thing, one season, or specific episodes; on Lidarr, an artist or some of its albums |
 | `trigger_scan` | Refresh and rescan a library or one item, rename one item, or rescan a Grimmory library or its Bookdrop |
 | `import_download` | Import a download the *arr never took, put a mislabeled Sonarr file on the right episode, rerun NZBGet's post-processing, or approve a Grimmory Bookdrop file |
 | `trigger_subtitle_search` | Go and find the subtitles this is missing, now |
 | `grab_release` | Not that one — grab this release from `get_releases` instead; on Shelfmark, the most-downloaded file unless you name one |
-| `set_monitoring` | Turn monitoring on or off: a whole series (by id or title), one season, specific episodes; on Lidarr, `level: "album"` for one album (the artist level, `level: "artist"`, is deprecated: use `update_media`) |
+| `set_monitoring` | Turn monitoring on or off: a whole series (by id or title), one season, specific episodes; on Lidarr, `level: "album"` for one album |
 | `retry_download` | Try this failed usenet download again, with its password if it needs one, or a failed or cancelled Shelfmark book |
 | `pause_downloads` | Pause, resume or throttle a download client, or one item in its queue |
 | `remove_queue_item` | Get rid of this stuck or wrong download, or with `orphaned: true` every completed download whose film, series or artist no longer exists; on Grimmory, discard a file waiting in the Bookdrop |
 | `remove_blocklist_item` | Let this blocklisted release be grabbed again |
-| `clean_queue` | Deprecated: use `remove_queue_item` with `orphaned: true` |
 | `delete_media` | Remove this film, series or artist, optionally from disk; on Grimmory, delete a book and its files |
 | `delete_episode_files` | Free disk from one season or a handful of episodes, without touching the series |
 | `respond_to_request` | Approve or decline what someone asked for |
@@ -57,7 +53,7 @@ off until you turn them on — see [writes](writes.md). `stack_health` and
 ## Which services each tool needs
 
 <!-- tool-map:start -->
-A write is listed only when one of these is configured, and a read too with `tools.hide_unusable`; with nothing configured, everything is. ✎ marks a write. Deprecated aliases are left out.
+A write is listed only when one of these is configured, and a read too with `tools.hide_unusable`; with nothing configured, everything is. ✎ marks a write.
 
 | Tool | Needs one of |
 | --- | --- |
@@ -81,7 +77,7 @@ A write is listed only when one of these is configured, and a read too with `too
 | `search_media` | any stack |
 | `discover_media` | any stack |
 | `trigger_search` ✎ | Radarr, Sonarr, Whisparr, Lidarr |
-| `trigger_scan` ✎ | Radarr, Sonarr, Whisparr, Lidarr, Jellyfin, Plex, NZBGet, Grimmory, Prowlarr |
+| `trigger_scan` ✎ | Radarr, Sonarr, Whisparr, Lidarr, Jellyfin, Plex, Grimmory, Prowlarr |
 | `trigger_subtitle_search` ✎ | Bazarr |
 | `remove_queue_item` ✎ | Radarr, Sonarr, Whisparr, Lidarr, SABnzbd, NZBGet, Transmission, qBittorrent, Shelfmark, Grimmory |
 | `delete_media` ✎ | Radarr, Sonarr, Whisparr, Lidarr, Grimmory |
@@ -90,7 +86,7 @@ A write is listed only when one of these is configured, and a read too with `too
 | `respond_to_request` ✎ | Seerr |
 | `delete_request` ✎ | Seerr |
 | `add_media` ✎ | Radarr, Sonarr, Whisparr, Lidarr, Shelfmark |
-| `update_media` ✎ | Radarr, Sonarr, Lidarr, Grimmory |
+| `update_media` ✎ | Radarr, Sonarr, Lidarr |
 | `grab_release` ✎ | Radarr, Sonarr, Whisparr, Lidarr, Transmission, qBittorrent, Shelfmark |
 | `request_media` ✎ | Seerr |
 | `pause_downloads` ✎ | SABnzbd, NZBGet, Transmission, qBittorrent |
@@ -248,11 +244,11 @@ saying a dead service is fine is worse than no snapshot at all. Clients on the
 2025 protocol see none of this and are unaffected.
 
 **A client can tell the reads from the writes without reading prose.** Every
-tool carries a title and an annotation: `readOnlyHint` on the twenty that only
-read, and on the twenty-six writes `destructiveHint`, taken from the same permission
+tool carries a title and an annotation: `readOnlyHint` on the nineteen that only
+read, and on the twenty-five writes `destructiveHint`, taken from the same permission
 tier the write gate itself runs on — so a tool cannot be gated as destructive
 and advertised as safe. A client deciding what to auto-approve, or what to warn
-about, reads those rather than guessing from forty-six similarly-shaped
+about, reads those rather than guessing from forty-four similarly-shaped
 descriptions. `idempotentHint` is deliberately absent: the confirmation token is
 single-use, so repeating a write does not repeat it, and neither answer would be
 true.
@@ -651,10 +647,6 @@ where the names come from. It is three calls per instance and answers "what may
 I choose", not "is anything broken", which is why it is a tool of its own. An
 instance whose profile list cannot be read is named in `degraded` and left out
 of `items`.
-
-`get_stack_health` at `detail: "full"` still returns the same list as `options`, but
-that is deprecated: use `get_instance_options`. `get_stack_health` takes `service`
-and `instance` as well, to check one.
 
 Each root folder also carries `unmappedFolders` when the instance reports any:
 the folder names under that root it associates with no item. It rides along on
@@ -2111,8 +2103,8 @@ a subtitle search did not run.
 ## `manage_indexer`
 
 Adds, edits, disables or re-enables one Prowlarr indexer, then queues
-Prowlarr's Application Indexer Sync. Deleting is [`delete_indexer`](#delete_indexer);
-`delete` here still works, deprecated, and shows the same preview. Every action but `add` takes `id` from
+Prowlarr's Application Indexer Sync. Deleting is [`delete_indexer`](#delete_indexer).
+Every action but `add` takes `id` from
 `get_indexers`: `21` for a row shown as `prowlarr:21`.
 
 What happens to the copies in Radarr and Sonarr depends on each app's sync
@@ -2125,7 +2117,7 @@ From Prowlarr's own source (2.6.5):
 | `edit` | copy keeps its old settings | copy updated | nothing |
 | `disable` | copy stays listed, every search and grab through it fails | copy is disabled too | copy stays listed, every search and grab through it fails |
 | `enable` | works again; the sync re-adds a missing copy | copy is enabled again | works again if the copy still exists |
-| `delete` | copy removed | copy removed | copy stays and fails; remove it by hand |
+| `delete_indexer` | copy removed | copy removed | copy stays and fails; remove it by hand |
 
 An app only gets an indexer when two things line up: its tags are empty or
 share one with the indexer, and the indexer covers at least one category the
@@ -2172,9 +2164,7 @@ it has. The cost is that an app at Add and Remove Only reports the indexer as
 failing until it is enabled again or deleted. An app whose tags exclude the
 indexer never had it, and the preview says so.
 
-`add`, `edit`, `disable` and `enable` are safe tier. The tool is still annotated
-`destructiveHint` while the deprecated `delete` is accepted, and a token from
-any of the safe actions is refused by `delete_indexer`.
+Every action is safe tier.
 
 Adding and deleting the same indexer seconds apart can leave a copy behind in
 an app: the delete's sync joins the add's, which is still running. The next
@@ -2188,12 +2178,10 @@ Prowlarr keeps nothing to restore, so getting it back means adding the indexer
 again, credentials included. To stop grabs and keep the indexer, use
 `manage_indexer` with `disable`.
 
-The preview says per app what happens, as in the `delete` row of the table
+The preview says per app what happens, as in the `delete_indexer` row of the table
 under [`manage_indexer`](#manage_indexer): an app with sync on loses its copy,
 and an app with sync off keeps a copy that fails every search until removed by
-hand. It works on Prowlarr older than 1.8 too. `manage_indexer`'s deprecated
-`delete` runs the same plan and apply, but a confirm token from one tool is
-refused by the other.
+hand. It works on Prowlarr older than 1.8 too.
 
 ## `set_watched`
 
@@ -2893,12 +2881,6 @@ With no Seerr configured there is no fallback — the IMDb dataset has no
 similarity data — and the response carries a `note` instead of a bare empty
 list.
 
-## `clean_queue`
-
-Deprecated: use [`remove_queue_item`](#remove_queue_item) with `orphaned: true`. It
-takes `service` and `instance` as before, shows the same preview and removes the
-same items; it is removed in the next major release.
-
 ## `trigger_subtitle_search`
 
 The write half of `get_subtitles`, and it takes its arguments straight from
@@ -2935,9 +2917,8 @@ rejects the call without it.
 ## `trigger_scan`
 
 Make a service reconcile itself with what is on disk and, on the *arrs, with
-its metadata provider. Importing a download, `remap` and `postprocess` moved to
-[`import_download`](#import_download); they and a `bookdrop` call with an `id`
-still work here, deprecated.
+its metadata provider. Importing a download, `remap` and `postprocess` are
+[`import_download`](#import_download).
 
 | Call | What it does |
 | --- | --- |
@@ -3020,10 +3001,7 @@ Safe tier. A non-admin account needs `canManageLibrary` for a library and
 ## `import_download`
 
 Getting a finished download into the library, or an imported file onto the right
-episode. Three actions, once `trigger_scan`'s: `import` (the default),
-`remap` and `postprocess`. `trigger_scan` still takes them as deprecated values
-of its `action`, and shows the same preview and answer. A confirm token from one
-tool is refused by the other.
+episode. Three actions: `import` (the default), `remap` and `postprocess`.
 
 **Unverified live** (Grimmory): approving one Bookdrop file with `id`.
 
@@ -3337,8 +3315,6 @@ and the blocklist does not, the answer says so and names the
 `radarr`, `sonarr` or `lidarr` for that *arr's import exclusions, with
 `instance` for a named one. `id` is the id that list keys on: TMDB for Seerr
 and Radarr, TVDB for Sonarr, the MusicBrainz artist id for Lidarr.
-`tmdb_id`, which 1.81.0 took for Seerr, still works there and is deprecated:
-use `id`.
 
 ### Seerr
 
@@ -3440,8 +3416,7 @@ listing the instance's metadata profiles.
 preview reports the new-album policy and monitor flag found across them, the
 token is signed over the resolved artist ids, and the write goes through the
 bulk editor once. No other setting goes in the same call as `monitor_new_items`
-or a missing `id`. `set_monitoring` with `level: "artist"`, `artists` and
-`monitor_new_items` still works, deprecated, through the same preview and write.
+or a missing `id`.
 
 Takes `service` and `id`, never a title — `acquisition.id` on a `get_library`
 or `get_media_details` record. `get_instance_options` lists the
@@ -3511,14 +3486,9 @@ Grimmory may write the change into the book file and move it to match its naming
 pattern, when its metadata settings say so, and the preview says that. Safe tier.
 A non-admin account needs `canEditMetadata`.
 
-`update_media` still accepts these fields on a Grimmory book, deprecated, and
-gives the same preview. It refuses `quality_profile`, `root_folder`,
-`monitored`, `minimum_availability`, `series_type` and `metadata_profile` for a
-book, and the book fields for a film, series or artist.
-
 ## Prompts and resources
 
-Forty-six tools do not tell you which one to reach for, and the questions
+Forty-four tools do not tell you which one to reach for, and the questions
 people actually ask are rarely one call.
 
 **Five prompts**, which most clients surface as slash commands:

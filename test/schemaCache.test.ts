@@ -63,8 +63,8 @@ describe('two builds share their schemas', () => {
         try {
             const a = await registered(runtime);
             const b = await registered(runtime);
-            expect(underlying(a['clean_queue']?.inputSchema)).toBeDefined();
-            expect(underlying(a['clean_queue']?.inputSchema)).toBe(underlying(b['clean_queue']?.inputSchema));
+            expect(underlying(a['remove_queue_item']?.inputSchema)).toBeDefined();
+            expect(underlying(a['remove_queue_item']?.inputSchema)).toBe(underlying(b['remove_queue_item']?.inputSchema));
         } finally {
             await runtime.close();
         }

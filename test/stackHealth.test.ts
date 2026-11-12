@@ -161,7 +161,6 @@ describe('get_stack_health primary media server', () => {
             'commands',
             'permissions',
             'endpoints',
-            'options',
             'seedingRules',
             'cleanup',
             'cleanuparrRemovals',
@@ -697,22 +696,10 @@ describe('get_stack_health add options', () => {
             addMedia: async () => ({ id: 1, title: 'x' })
         }) as unknown as ServiceAdapter;
 
-    it('lists profiles, root folders and tags at detail: full', async () => {
-        const result = await buildStackHealth([addable()], { detail: 'full', limit: 50 });
-        expect(result.options).toEqual([
-            {
-                instance: 'radarr',
-                qualityProfiles: [{ id: 4, name: 'HD-1080p' }],
-                rootFolders: [{ path: '/movies', freeSpaceBytes: 100 }],
-                tags: ['4k']
-            }
-        ]);
-    });
-
     describe('get_instance_options', () => {
         const noop = () => {};
 
-        it('lists the same profiles, folders and tags as detail: full', async () => {
+        it('lists profiles, root folders and tags', async () => {
             expect(await buildInstanceOptions([addable()], {}, noop)).toEqual([
                 {
                     instance: 'radarr',
@@ -781,7 +768,7 @@ describe('get_stack_health add options', () => {
      * more than one.
      */
     it('carries the folders a root maps to nothing', async () => {
-        const result = await buildStackHealth(
+        const result = await buildInstanceOptions(
             [
                 addable({
                     folders: async () => [
@@ -794,38 +781,23 @@ describe('get_stack_health add options', () => {
                     ]
                 })
             ],
-            { detail: 'full', limit: 50 }
+            {},
+            () => {}
         );
 
-        expect(result.options?.[0]?.rootFolders).toEqual([
+        expect(result[0]?.rootFolders).toEqual([
             { path: '/movies', freeSpaceBytes: 100, unmappedFolders: ['Back to Black (2024) [tmdbid-998846]'] }
         ]);
     });
 
-    it('leaves them out below full — a profile list is not a fault', async () => {
-        expect((await buildStackHealth([addable()], std)).options).toBeUndefined();
-        expect((await buildStackHealth([addable()], { detail: 'minimal', limit: 50 })).options).toBeUndefined();
-    });
-
-    it('degrades the instance rather than failing the call when the read is down', async () => {
-        const result = await buildStackHealth(
-            [
-                addable({
-                    profiles: async () => {
-                        throw new Error('down');
-                    }
-                })
-            ],
-            { detail: 'full', limit: 50 }
-        );
-        expect(result.services).toHaveLength(1);
-        expect(result.options).toEqual([]);
-        expect(result.degraded).toEqual(['radarr']);
+    it('leaves them out of get_stack_health at every detail: a profile list is not a fault', async () => {
+        for (const detail of ['minimal', 'standard', 'full'] as const) {
+            expect('options' in (await buildStackHealth([addable()], { detail, limit: 50 }))).toBe(false);
+        }
     });
 
     it('says nothing about a service that cannot add', async () => {
-        const result = await buildStackHealth([fakeArr({ diagnosis: healthy })], { detail: 'full', limit: 50 });
-        expect(result.options).toEqual([]);
+        expect(await buildInstanceOptions([fakeArr({ diagnosis: healthy })], {}, () => {})).toEqual([]);
     });
 });
 

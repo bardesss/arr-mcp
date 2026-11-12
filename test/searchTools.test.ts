@@ -13,7 +13,6 @@ import { buildDiscoverMedia } from '../src/tools/discoverMedia.ts';
 import { buildGetMediaDetails, registerGetMediaDetails, resolveMediaDetails } from '../src/tools/getMediaDetails.ts';
 import { GrimmoryAdapter } from '../src/services/grimmory.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
-import { lookupSummary, registerLookupMedia } from '../src/tools/lookupMedia.ts';
 import { buildSearchMedia, registerSearchMedia, searchSummary } from '../src/tools/searchMedia.ts';
 import { repeat } from './helpers/bigFixture.ts';
 import { expectWithinBudget } from './helpers/budget.ts';
@@ -250,16 +249,11 @@ describe('search_media', () => {
     });
 });
 
-describe('lookup_media', () => {
-    it('says which service did not answer, as search_media does', () => {
-        expect(lookupSummary({ total: 0, returned: 0, degraded: ['seerr'] }, 'x')).toBe('Nothing found for "x"; seerr unreachable.');
-        expect(lookupSummary({ total: 1, returned: 1, degraded: ['seerr'] }, 'x')).toBe('1 of 1 match(es) for "x"; seerr unreachable.');
-    });
-
+describe('search_media source discover', () => {
     it('puts the unreachable service in the text the tool returns', async () => {
         const broken = new SeerrAdapter(seerrConfig, refused);
-        const out = await callTool((s, a) => registerLookupMedia(s, a), [broken], { query: 'x', detail: 'standard', limit: 50, offset: 0 });
-        expect(out.content[0]!.text.startsWith('Nothing found for "x"; seerr unreachable.')).toBe(true);
+        const out = await callTool((s, a) => registerSearchMedia(s, a), [broken], { query: 'x', source: 'discover', detail: 'standard', limit: 50, offset: 0 });
+        expect(out.content[0]!.text).toContain('seerr unreachable.');
     });
 
     const lookupRadarr = new RadarrAdapter(
@@ -275,15 +269,6 @@ describe('lookup_media', () => {
         const result = await buildSearchMedia([lookupRadarr], { source: 'discover', query: 'some film', detail: 'full', limit: 50 });
         expect(result.items[0]).toMatchObject({ source: 'discover', ids: { tmdb: 550, imdb: 'tt0137523' } });
         expect(result.items[0]?.monitored).toBe(false);
-    });
-
-    it('returns the same rows as search_media with source discover', async () => {
-        const args = { query: 'some film', detail: 'full' as const, limit: 50, offset: 0 };
-        type Out = { structuredContent: { total: number } };
-        const alias = (await callTool((s, a) => registerLookupMedia(s, a), [lookupRadarr], args)) as unknown as Out;
-        const search = (await callTool((s, a) => registerSearchMedia(s, a), [lookupRadarr], { ...args, source: 'discover' })) as unknown as Out;
-        expect(alias.structuredContent).toEqual(search.structuredContent);
-        expect(alias.structuredContent.total).toBeGreaterThan(0);
     });
 
     it('merges results from every service that can look up', async () => {
@@ -1225,7 +1210,7 @@ describe('seerr genre names', () => {
 
 /**
  * Spec §4.1 calls this the path that matters most: a rating is usually wanted
- * for something you have *not* got, which is `lookup_media` rather than
+ * for something you have *not* got, which is `search_media` discover rather than
  * `get_library`. The *arr lookup endpoints are shaped for adding a title, so
  * nothing in them carries a rating at all.
  */

@@ -14,7 +14,7 @@ import { INSTANCE_PARAM_DESCRIPTION } from './resolveInstance.ts';
  * path is only ever posted back inside the write tools, which resolve it
  * themselves.
  */
-export type InstanceOptions = {
+type InstanceOptions = {
     instance: string;
     qualityProfiles: { id: number; name: string }[];
     /**

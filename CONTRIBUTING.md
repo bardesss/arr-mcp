@@ -148,15 +148,16 @@ number by forgetting it.
 Renaming a tool or removing a parameter breaks every user's saved prompts and
 agent configuration, and it breaks **silently** — the model stops finding the
 tool rather than raising an error. Changes to tool names or parameters therefore
-get stricter review than ordinary refactors. Since 1.0, a renamed tool keeps its
-old name as an alias for one full minor, with the deprecation stated in the
-tool's own description text. A new write tool needs a `TOOL_SERVICES` entry and
-a `WRITE_TOOLS` entry, or it is listed on every stack.
+get stricter review than ordinary refactors. A renamed tool keeps its old name
+as an alias for at least one full minor, with the deprecation stated in the
+tool's own description text and an entry in `DEPRECATIONS`
+(`src/tools/deprecations.ts`); only the next major removes it, as 2.0.0 did.
+A new write tool needs a `TOOL_SERVICES` entry and a `WRITE_TOOLS` entry, or it
+is listed on every stack.
 
 Tool count has a ceiling because model accuracy degrades measurably past roughly
-40 tools. There are 48 now, two of them the old names of renamed tools
-(`stack_health`, `diagnose`) that stay for one minor, so the ceiling is passed and
-`test/app.test.ts` fails on a forty-ninth. New capability extends an existing
+40 tools. There are 44 now, so the ceiling is passed and `test/app.test.ts`
+fails on a forty-fifth. New capability extends an existing
 tool wherever it can.
 Where it can't, a new tool is possible, but raising the ceiling needs a good
 reason: the pull request says why no existing tool can carry the capability and

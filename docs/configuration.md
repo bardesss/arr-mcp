@@ -295,8 +295,6 @@ for an artist by title refuses it, naming `get_media_details` with
 | `set_monitoring` with `level: "album"` | one album, by `id` from `get_media_details` | that album's own monitor flag |
 | `update_media` | an artist `id`, or no `id` for every artist | `monitored`, `monitor_new_items`, or both, across those artists |
 
-`set_monitoring` with `level: "artist"` is the deprecated way to do the second.
-
 The artist flag is not the album flag. A live library held an artist reading
 `monitored: false` while an album under it stayed `monitored: true`, so the two
 are separate flags. The write side agrees on both supported versions. Four

@@ -88,7 +88,7 @@ describe('enriching merged library items', () => {
  */
 describe('enriching search hits', () => {
     /** The path that matters most: a rating is usually wanted for something
-     *  you have not got, which is lookup_media rather than get_library. */
+     *  you have not got, which is search_media discover rather than get_library. */
     it('rates a hit for something not in the library at all', () => {
         const [rated] = enrichWithImdb([hit({ imdb: 'tt0903747' })], dataset());
         expect(rated?.ratings?.imdb).toBe(9.5);

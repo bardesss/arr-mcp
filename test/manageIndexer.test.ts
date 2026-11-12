@@ -248,12 +248,10 @@ describe('manage_indexer disable and enable', () => {
         expect(applied.structuredContent.applied).toBe(true);
     });
 
-    it('refuses before a token on a Prowlarr without the bulk endpoint, but still deletes', async () => {
+    it('refuses before a token on a Prowlarr without the bulk endpoint', async () => {
         const h = harness({ version: '1.7.4.3769' });
         await expect(h.call({ id: 21, action: 'disable' })).rejects.toThrow(/older than 1\.8/);
-
-        const preview = await h.call({ id: 21, action: 'delete' });
-        expect(preview.structuredContent.confirm_token).toBeDefined();
+        expect(h.writes).toEqual([]);
     });
 
     it('reads a v-prefixed 1.8 version as having the bulk endpoint', async () => {
@@ -279,42 +277,9 @@ describe('manage_indexer disable and enable', () => {
 });
 
 describe('manage_indexer delete', () => {
-    it('says which apps lose their copy and which keep it', async () => {
+    it('is gone: deleting is delete_indexer', () => {
         const h = harness();
-        const { structuredContent } = await h.call({ id: 21, action: 'delete' });
-
-        expect(structuredContent.tier).toBe('destructive');
-        expect(h.writes).toEqual([]);
-
-        const effects = structuredContent.effects.join('\n');
-        expect(effects).toContain('Radarr: Prowlarr removes its copy straight away.');
-        expect(effects).toContain('Sonarr: Prowlarr removes its copy straight away.');
-        expect(effects).toContain('Lidarr: sync is off, so any copy it has stays listed');
-    });
-
-    it('deletes, then syncs', async () => {
-        const h = harness();
-        const applied = await h.confirmed({ id: 21, action: 'delete' });
-
-        expect(applied.structuredContent.applied).toBe(true);
-        expect(h.writes.map(w => `${w.method} ${w.path}`)).toEqual(['DELETE /api/v1/indexer/21', 'POST /api/v1/command']);
-    });
-
-    it('is refused when the destructive tier is off', async () => {
-        const h = harness({ destructive: false });
-        const preview = await h.call({ id: 21, action: 'delete', dry_run: true });
-        expect(preview.structuredContent.permission.allowed).toBe(false);
-
-        await expect(h.call({ id: 21, action: 'delete' })).rejects.toThrow(/destructive/);
-        expect(h.writes).toEqual([]);
-    });
-
-    it('will not apply a disable token to a delete', async () => {
-        const h = harness();
-        const disable = await h.call({ id: 21, action: 'disable' });
-        const retried = await h.call({ id: 21, action: 'delete', confirm: disable.structuredContent.confirm_token });
-
-        expect(retried.structuredContent.applied).toBe(false);
+        expect(() => h.call({ id: 21, action: 'delete' })).toThrow(/action/);
         expect(h.writes).toEqual([]);
     });
 });
@@ -347,34 +312,6 @@ describe('delete_indexer', () => {
         expect(preview.structuredContent.permission.allowed).toBe(false);
 
         await expect(h.call({ id: 21 })).rejects.toThrow(/destructive/);
-        expect(h.writes).toEqual([]);
-    });
-
-    it('still deletes through manage_indexer, with the same preview', async () => {
-        const viaNew = await harness({ tool: 'delete_indexer' }).call({ id: 21 });
-        const h = harness();
-        const viaOld = await h.call({ id: 21, action: 'delete' });
-
-        expect(viaOld.structuredContent.summary).toBe(viaNew.structuredContent.summary);
-        expect(viaOld.structuredContent.effects).toEqual(viaNew.structuredContent.effects);
-        expect(viaOld.structuredContent.tier).toBe('destructive');
-
-        const applied = await h.confirmed({ id: 21, action: 'delete' });
-        expect(applied.structuredContent.applied).toBe(true);
-        expect(h.writes.map(w => `${w.method} ${w.path}`)).toEqual(['DELETE /api/v1/indexer/21', 'POST /api/v1/command']);
-    });
-
-    it('will not apply a delete_indexer token to the deprecated manage_indexer delete', async () => {
-        const h = harness({ tool: 'delete_indexer' });
-        const preview = await h.call({ id: 21 });
-        const retried = await h.callTool('manage_indexer', {
-            id: 21,
-            action: 'delete',
-            confirm: preview.structuredContent.confirm_token
-        });
-
-        expect(retried.structuredContent.applied).toBe(false);
-        expect(retried.structuredContent.confirm_error).toBe(CONFIRM_REASON.mismatch);
         expect(h.writes).toEqual([]);
     });
 

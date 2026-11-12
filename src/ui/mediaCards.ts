@@ -212,7 +212,7 @@ function dedupe(inputs: CardInput[]): CardInput[] {
     return out;
 }
 
-/** `search_media` (and its alias `lookup_media`): films and series only, releases and artists left out. */
+/** `search_media`: films and series only, releases and artists left out. */
 export async function cardsFromHits(hits: readonly SearchHit[], adapters: readonly ServiceAdapter[]): Promise<MediaCards> {
     const inputs = hits.flatMap((h): CardInput[] => {
         if (!isFilmOrSeries(h.kind) || h.source === 'indexers') return [];

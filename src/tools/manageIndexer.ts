@@ -350,8 +350,8 @@ async function planAdd(adapter: Adapter, definition: string | undefined, args: S
     };
 }
 
-/** The delete preview. `delete_indexer` and manage_indexer's deprecated `delete` both build it, so the two show the same text. */
-async function planDelete(adapter: Adapter, id: number | undefined): Promise<WritePlan> {
+/** The delete_indexer preview. */
+async function planDelete(adapter: Adapter, id: number): Promise<WritePlan> {
     const { indexer, apps } = await readView(adapter, id);
     return {
         target: `${adapter.id}:${indexer.id}`,
@@ -374,9 +374,9 @@ async function applyDelete(adapter: Adapter, id: number) {
 const ManageIndexerInput = z.object({
     instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
     action: z
-        .enum(['add', 'edit', 'disable', 'enable', 'delete'])
+        .enum(['add', 'edit', 'disable', 'enable'])
         .describe(
-            'add a new public indexer; edit its settings; disable stops grabs and is reversible; enable undoes a disable, all safe tier. delete: Deprecated: use delete_indexer.'
+            'add a new public indexer; edit its settings; disable stops grabs and is reversible; enable undoes a disable, all safe tier.'
         ),
     id: z.coerce
         .number()
@@ -409,12 +409,11 @@ export function registerManageIndexer(
         name: 'manage_indexer',
         title: 'Add, edit, disable or enable an indexer',
         description:
-            'Adds, edits, disables or re-enables one Prowlarr indexer, then syncs Prowlarr to Radarr and Sonarr. `add` takes a `definition` name and only adds public indexers that need no login; anything private or semi-private is refused, because arr-mcp never handles indexer credentials. `edit` changes priority, app profile, tags and torrent seed settings, nothing else. `disable` stops every grab through that indexer in every app, whatever its sync level, and `enable` undoes it. Deleting is delete_indexer; `delete` here still works but is deprecated. Every action but add takes `id` from get_indexers. The preview says what each app will see, since apps at Add and Remove Only do not receive edits. Previews first; confirm to apply it.',
+            'Adds, edits, disables or re-enables one Prowlarr indexer, then syncs Prowlarr to Radarr and Sonarr. `add` takes a `definition` name and only adds public indexers that need no login; anything private or semi-private is refused, because arr-mcp never handles indexer credentials. `edit` changes priority, app profile, tags and torrent seed settings, nothing else. `disable` stops every grab through that indexer in every app, whatever its sync level, and `enable` undoes it. Deleting is delete_indexer. Every action but add takes `id` from get_indexers. The preview says what each app will see, since apps at Add and Remove Only do not receive edits. Previews first; confirm to apply it.',
         inputSchema: ManageIndexerInput,
         service: ({ instance }) => findAdapter(adapters, instance).id,
         operation: 'manage_indexer',
-        // Stays destructive while the deprecated `delete` is accepted; it is safe once that is removed.
-        tier: ({ action }) => (action === 'delete' ? 'destructive' : 'safe'),
+        tier: 'safe',
 
         async plan(args): Promise<WritePlan> {
             const { instance, id, action, definition } = args;
@@ -435,7 +434,6 @@ export function registerManageIndexer(
                     remedy: 'Settings only apply to edit and add.'
                 });
             }
-            if (action === 'delete') return planDelete(adapter, id);
             const view = await readView(adapter, id);
             const { indexer, apps } = view;
             needsBulk(adapter, view, action);
@@ -463,7 +461,6 @@ export function registerManageIndexer(
             // Every other action was refused in plan without an id.
             const target = id ?? 0;
             if (action === 'edit') await adapter.editIndexer(target, planned.settings ?? {});
-            else if (action === 'delete') return applyDelete(adapter, target);
             else await adapter.setIndexerEnabled(target, action === 'enable');
             const done = { edit: 'edited', disable: 'disabled', enable: 'enabled' }[action];
             return { [done]: `${adapter.id}:${target}`, sync: await adapter.syncIndexers() };

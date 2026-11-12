@@ -2394,7 +2394,7 @@ describe('buildChain — a Lidarr artist', () => {
         expect(d.verdict.next_steps?.[0]?.arguments).toEqual({ service: 'lidarr', instance: 'hd', id: '1', monitored: true });
     });
 
-    // lookup_media answers with Lidarr's artists, each with the MusicBrainz id
+    // search_media discover answers with Lidarr's artists, each with the MusicBrainz id
     // add_media takes, so an artist gets the lookup a film or series gets.
     it('offers the lookup for an artist nothing manages, as for a film, and says to add it to Lidarr', () => {
         const d = buildChain('daft punk', healthy({ item: artist({ acquisition: undefined, presence: 'jellyfin_only' }) }));

@@ -37,7 +37,6 @@ describe('the tool map', () => {
 
     it('says when a read is listed, not only a write', () => {
         expect(map).toContain('hide_unusable');
-        expect(map).toContain('Deprecated aliases are left out');
     });
 
     it('is what docs/tools.md carries', () => {

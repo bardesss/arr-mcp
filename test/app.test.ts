@@ -384,7 +384,6 @@ describe('the advertised tool surface', () => {
     const WRITES = [
         'add_media',
         'blocklist_media',
-        'clean_queue',
         'delete_episode_files',
         'delete_indexer',
         'delete_media',
@@ -411,11 +410,10 @@ describe('the advertised tool surface', () => {
     ];
 
     /**
-     * Of those, the eleven whose effect cannot be undone by calling again.
+     * Of those, the nine whose effect cannot be undone by calling again.
      * `fix_profile` is here because the old minimum is put back only by hand.
      * `blocklist_media` is here for its `remove`, which Seerr carries out by
      * deleting the title's requests and issues; its `add` is safe tier.
-     * `manage_indexer` stays here while its deprecated `delete` is accepted; its disable is safe tier.
      * `update_media` is here for a Lidarr `metadata_profile`; every other
      * field is safe tier.
      *
@@ -426,14 +424,12 @@ describe('the advertised tool surface', () => {
      */
     const DESTRUCTIVE = [
         'blocklist_media',
-        'clean_queue',
         'delete_episode_files',
         'delete_indexer',
         'delete_media',
         'delete_request',
         'fix_metadata',
         'fix_profile',
-        'manage_indexer',
         'remove_queue_item',
         'update_media'
     ];
@@ -507,7 +503,7 @@ describe('the advertised tool surface', () => {
      * is a decision, not a fix for a failing test.
      */
     const DESCRIPTION_CAP = 1000;
-    const DESCRIPTIONS_TOTAL_CAP = 29_660;
+    const DESCRIPTIONS_TOTAL_CAP = 29_000;
 
     it(`keeps every tool description under ${DESCRIPTION_CAP} characters`, async () => {
         const long = (await listTools())
@@ -1389,9 +1385,8 @@ describe('prompts and resources, beside the tools rather than instead of them', 
         );
         const { result } = (await rpcPayload(res)) as { result: { tools: unknown[] } };
         expect(result.tools).toHaveLength(TOOL_NAMES.length);
-        // 48: get_stack_health and diagnose_media register beside stack_health and diagnose for one minor; PR 15 drops the old names.
-        // fix_profile is the 48th: the profile checks could only ever say what to change.
-        expect(TOOL_NAMES.length).toBeLessThanOrEqual(48);
+        // 44 since 2.0.0 dropped the deprecated aliases. fix_profile is the 44th: the profile checks could only ever say what to change.
+        expect(TOOL_NAMES.length).toBeLessThanOrEqual(44);
     });
 });
 

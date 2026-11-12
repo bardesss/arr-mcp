@@ -29,9 +29,7 @@ import { outcomeText, registerWriteTool, type WriteContext, type WritePlan } fro
  *
  * **Safe, not destructive.** An import moves or hardlinks a file the service
  * already refused to take on its own, and a remap only reassigns files the
- * service already holds. `trigger_scan` still accepts the old actions and runs
- * them through `planImportAction` and `applyImportAction`, so both tools show
- * the same preview.
+ * service already holds.
  */
 
 /** Importing a finished download is Radarr's, Sonarr's and Lidarr's alone: a
@@ -186,7 +184,7 @@ async function applyBookdropImport(adapter: ServiceAdapter & BookLibraryScanCapa
         : `${adapter.id} imported Bookdrop file ${a.fileId} as book ${bookId} (grimmory:${bookId}).`;
 }
 
-export async function planImportAction(adapters: readonly ServiceAdapter[], args: ImportArgs): Promise<WritePlan> {
+async function planImportAction(adapters: readonly ServiceAdapter[], args: ImportArgs): Promise<WritePlan> {
     const { service, instance, action, id, library, download_id, reassignments, mapping } = args;
     const resolved = resolveInstance(adapters, service, instance);
 
@@ -356,7 +354,7 @@ export async function planImportAction(adapters: readonly ServiceAdapter[], args
     };
 }
 
-export async function applyImportAction(adapters: readonly ServiceAdapter[], plan: WritePlan, args: ImportArgs): Promise<string> {
+async function applyImportAction(adapters: readonly ServiceAdapter[], plan: WritePlan, args: ImportArgs): Promise<string> {
     const { service, instance, action, id, download_id, reassignments, mapping } = args;
     const resolved = resolveInstance(adapters, service, instance);
     if (hasBookLibraryScan(resolved)) return applyBookdropImport(resolved, plan);
@@ -420,7 +418,7 @@ export async function applyImportAction(adapters: readonly ServiceAdapter[], pla
 /** Only a remap leaves a media server reading names that are no longer
  *  right. Offered even when some filenames kept their old names: the
  *  episodes the server shows are still the ones it has to relearn. */
-export function importFollowUps(adapters: readonly ServiceAdapter[], args: Pick<ImportArgs, 'action'>): NextStep[] {
+function importFollowUps(adapters: readonly ServiceAdapter[], args: Pick<ImportArgs, 'action'>): NextStep[] {
     if (args.action !== 'remap') return [];
     return scannableMediaServers(adapters).map(server => ({
         tool: 'trigger_scan',
@@ -429,8 +427,8 @@ export function importFollowUps(adapters: readonly ServiceAdapter[], args: Pick<
     }));
 }
 
-/** The remap and import fields. `trigger_scan` accepts them loosely, as deprecated, and checks them against these. */
-export const reassignmentsField = z
+/** The remap and import fields. */
+const reassignmentsField = z
     .array(
         z.object({
             path: z
@@ -444,7 +442,7 @@ export const reassignmentsField = z
     .min(1)
     .optional();
 
-export const mappingField = z
+const mappingField = z
     .array(
         z.object({
             path: z.string().min(1).describe('A file in the download, as the import preview names it, or absolute.'),

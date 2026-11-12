@@ -128,10 +128,8 @@ describe('set_monitoring on lidarr', () => {
             );
             expect(h.sent).toEqual([]);
         });
-    });
 
-    describe('artist level', () => {
-        it('refuses to guess whether an id is an album or an artist', async () => {
+        it('refuses to guess whether an id is an album or an artist, and names update_media for the artist', async () => {
             const h = harness();
             const err = await h.call({ service: 'lidarr', id: '7', monitored: false }).catch((e: unknown) => e);
 
@@ -140,189 +138,31 @@ describe('set_monitoring on lidarr', () => {
             // detail, so `toThrow(/lidarr needs/)` passes for both.
             expect(err).toBeInstanceOf(Error);
             expect(err).not.toBeInstanceOf(ServiceError);
-            expect((err as Error).message).toMatch(/lidarr needs `level`/);
+            expect((err as Error).message).toMatch(/lidarr needs `level: "album"`/);
+            expect((err as Error).message).toMatch(/update_media/);
+            expect(h.sent).toEqual([]);
         });
+    });
 
-        it('refuses a call that asks for no change', async () => {
-            const h = harness();
-            await expect(h.call({ service: 'lidarr', level: 'artist' })).rejects.toThrow(/nothing to change/);
-        });
+    /**
+     * Why the two captures are here at all. Lidarr answers the monitor write
+     * with the updated rows, and nothing in the adapter parses that body
+     * (`put(..., true)` discards it), so the fixture cannot be checked by a
+     * passing test alone. It is the artifact a person can read to see what
+     * Lidarr said the change did, which is what makes the write "checked
+     * against a real Lidarr" rather than checked against a `{}`.
+     */
+    it('keeps captures that echo the change that was requested', () => {
+        const album = fixture('album-monitor.json') as { monitored?: boolean }[];
+        const artist = fixture('artist-editor.json') as { monitored?: boolean; monitorNewItems?: string }[];
 
-        it('previews every artist and names the policy it found', async () => {
-            const h = harness();
-            const preview = await h.call({ service: 'lidarr', level: 'artist', monitor_new_items: 'none' });
-
-            expect(preview.structuredContent.summary).toMatch(/Set new-album monitoring to "none" for all 2 artists/);
-            expect(String(preview.structuredContent.effects)).toContain('new-album policy 1 all, 1 none; artists 1 monitored, 1 unmonitored');
-            expect(String(preview.structuredContent.effects)).not.toContain('albums 1 monitored');
-        });
-
-        /**
-         * Lidarr's editor answers a write naming nothing with a 200, so a mistyped
-         * id would otherwise come back as a settled library.
-         */
-        it('refuses an artist id Lidarr does not have', async () => {
-            const h = harness();
-            const err = await h.call({ service: 'lidarr', level: 'artist', artists: ['2', '999'], monitored: false }).catch((e: unknown) => e);
-            expect((err as Error).message).toMatch(/no artist with id 999/);
-            // One Lidarr: no per-instance caveat to give.
-            expect((err as ServiceError).remedy).toMatch(/Take an id from acquisition\.id on a get_library artist row\.$/);
-        });
-
-        it('reports a no-op when every targeted artist already matches', async () => {
-            const h = harness();
-            const preview = await h.call({ service: 'lidarr', level: 'artist', artists: ['2'], monitor_new_items: 'none' });
-
-            expect(preview.structuredContent.noop).toBe(true);
-        });
-
-        /**
-         * Checked against a live library, not assumed: an artist was found reading
-         * `monitored: false` while an album under it stayed `monitored: true`.
-         * Lidarr's wanted lists and automatic searches skip that album while the
-         * artist is unmonitored, and want it again once the artist is monitored,
-         * so the preview says both, and names the album level as the lasting way
-         * out.
-         */
-        it('does not claim the artist flag replaces the album flag', async () => {
-            const h = harness();
-            const preview = await h.call({ service: 'lidarr', level: 'artist', monitored: false });
-
-            expect(String(preview.structuredContent.effects)).toContain('keep their own flags, but Lidarr leaves all of them out of its wanted lists');
-            expect(String(preview.structuredContent.effects)).toContain('level "album"');
-        });
-
-        it('says monitoring the artist brings its monitored albums back', async () => {
-            const h = harness();
-            const preview = await h.call({ service: 'lidarr', level: 'artist', monitored: true });
-
-            expect(String(preview.structuredContent.effects)).toContain(
-                "each album keeps its own, and the monitored ones come back into Lidarr's wanted lists"
-            );
-        });
-
-        it('writes the artist editor once, for every artist when none are named', async () => {
-            const h = harness();
-            const preview = await h.call({ service: 'lidarr', level: 'artist', monitor_new_items: 'none', monitored: false });
-            const applied = await h.call({
-                service: 'lidarr',
-                level: 'artist',
-                monitor_new_items: 'none',
-                monitored: false,
-                confirm: tokenOf(preview)
-            });
-
-            expect(applied.structuredContent.applied).toBe(true);
-            expect(h.sent.filter(s => s.path === '/api/v1/artist/editor')).toEqual([
-                { path: '/api/v1/artist/editor', method: 'PUT', body: { artistIds: [1, 2], monitored: false, monitorNewItems: 'none' } }
-            ]);
-        });
-
-        /**
-         * The apply writes the set the preview named, not the word "all".
-         * Re-reading the artist list on apply resolved "all" a second time, so
-         * an artist added between the two calls was written without ever being
-         * shown, and the caller confirmed a number that no longer matched.
-         */
-        it('refuses to apply when an artist joined after the preview', async () => {
-            const artists = [...ARTISTS];
-            const h = harness({ ...DEFAULT_ROUTES, '/api/v1/artist': artists });
-            const preview = await h.call({ service: 'lidarr', level: 'artist', monitor_new_items: 'none' });
-
-            artists.push({ id: 3, artistName: 'Late Arrival', monitored: true, monitorNewItems: 'all' });
-            const applied = await h.call({
-                service: 'lidarr',
-                level: 'artist',
-                monitor_new_items: 'none',
-                confirm: tokenOf(preview)
-            });
-
-            expect(applied.structuredContent.applied).toBe(false);
-            expect(String(applied.structuredContent.confirm_error)).toContain('different arguments');
-            expect(h.sent.filter(s => s.method === 'PUT')).toEqual([]);
-        });
-
-        /**
-         * The defence itself, not the token check. `plan` runs again on the
-         * confirm call, so the token already refuses a library that changed
-         * between the two calls. This asserts the second half: `apply` writes
-         * the ids the plan carried, so a library that grows after that second
-         * read cannot widen the write. Read three is what a re-read would take.
-         */
-        it('writes the previewed ids when the library grows before the write lands', async () => {
-            const LATE = { id: 3, artistName: 'Late Arrival', monitored: true, monitorNewItems: 'all' };
-            let reads = 0;
-            const routes: Record<string, unknown> = { ...DEFAULT_ROUTES };
-            Object.defineProperty(routes, '/api/v1/artist', {
-                get: () => {
-                    reads += 1;
-                    return reads >= 3 ? [...ARTISTS, LATE] : ARTISTS;
-                }
-            });
-            const h = harness(routes);
-
-            const preview = await h.call({ service: 'lidarr', level: 'artist', monitor_new_items: 'none' });
-            const applied = await h.call({
-                service: 'lidarr',
-                level: 'artist',
-                monitor_new_items: 'none',
-                confirm: tokenOf(preview)
-            });
-
-            expect(applied.structuredContent.applied).toBe(true);
-            expect(reads).toBe(2);
-            expect(h.sent.filter(s => s.path === '/api/v1/artist/editor')).toEqual([
-                { path: '/api/v1/artist/editor', method: 'PUT', body: { artistIds: [1, 2], monitorNewItems: 'none' } }
-            ]);
-        });
-
-        /**
-         * Why the two captures are here at all. Lidarr answers the monitor write
-         * with the updated rows, and nothing in the adapter parses that body
-         * (`put(..., true)` discards it), so the fixture cannot be checked by a
-         * passing test alone. It is the artifact a person can read to see what
-         * Lidarr said the change did, which is what makes the write "checked
-         * against a real Lidarr" rather than checked against a `{}`.
-         */
-        it('keeps captures that echo the change that was requested', () => {
-            const album = fixture('album-monitor.json') as { monitored?: boolean }[];
-            const artist = fixture('artist-editor.json') as { monitored?: boolean; monitorNewItems?: string }[];
-
-            expect(album[0]?.monitored).toBe(true);
-            expect(artist[0]).toMatchObject({ monitored: true, monitorNewItems: 'none' });
-        });
-
-        it('writes exactly the artists the preview named', async () => {
-            const h = harness();
-            const preview = await h.call({ service: 'lidarr', level: 'artist', artists: ['1'], monitor_new_items: 'none' });
-            await h.call({
-                service: 'lidarr',
-                level: 'artist',
-                artists: ['1'],
-                monitor_new_items: 'none',
-                confirm: tokenOf(preview)
-            });
-
-            expect(h.sent.filter(s => s.path === '/api/v1/artist/editor')).toEqual([
-                { path: '/api/v1/artist/editor', method: 'PUT', body: { artistIds: [1], monitorNewItems: 'none' } }
-            ]);
-        });
-
-        it('refuses artist-only parameters on any other level', async () => {
-            const h = harness();
-            const err = await h
-                .call({ service: 'lidarr', level: 'album', id: '7', monitored: false, monitor_new_items: 'none' })
-                .catch((e: unknown) => e);
-
-            expect(err).toBeInstanceOf(Error);
-            expect(err).not.toBeInstanceOf(ServiceError);
-            expect((err as Error).message).toMatch(/need `level: "artist"`/);
-        });
+        expect(album[0]?.monitored).toBe(true);
+        expect(artist[0]).toMatchObject({ monitored: true, monitorNewItems: 'none' });
     });
 });
 
-/** The same Lidarr, with update_media and set_monitoring registered side by side. */
-function bothTools(routes: Record<string, unknown> = DEFAULT_ROUTES) {
+/** The same Lidarr, with update_media registered. */
+function updateTool(routes: Record<string, unknown> = DEFAULT_ROUTES) {
     const fetcher = recordingFetch(routes);
     const adapters: ServiceAdapter[] = [new LidarrAdapter(lidarrConfig, fetcher.impl)];
     const calls: Record<string, Call> = {};
@@ -338,44 +178,51 @@ function bothTools(routes: Record<string, unknown> = DEFAULT_ROUTES) {
         audit: WriteAudit.ephemeral(),
         library: { invalidate: vi.fn() } as never
     } as never;
-    registerSetMonitoring(server as never, context, adapters);
     registerUpdateMedia(server as never, context, adapters);
     return {
         update: (a: Record<string, unknown>) => calls.update_media!(a),
-        setMonitoring: (a: Record<string, unknown>) => calls.set_monitoring!(a),
         sent: fetcher.sent
     };
 }
 
 describe('update_media on every lidarr artist', () => {
     it('refuses a call that asks for no change', async () => {
-        const h = bothTools();
+        const h = updateTool();
         await expect(h.update({ service: 'lidarr' })).rejects.toThrow(/nothing to change/i);
     });
 
     it('previews every artist when no id is given, and names the policy it found', async () => {
-        const h = bothTools();
+        const h = updateTool();
         const preview = await h.update({ service: 'lidarr', monitor_new_items: 'none' });
 
         expect(preview.structuredContent.summary).toMatch(/Set new-album monitoring to "none" for all 2 artists/);
         expect(String(preview.structuredContent.effects)).toContain('new-album policy 1 all, 1 none; artists 1 monitored, 1 unmonitored');
+        expect(String(preview.structuredContent.effects)).not.toContain('albums 1 monitored');
     });
 
-    it('refuses an artist id Lidarr does not have, and says to omit id for all', async () => {
-        const h = bothTools();
+    /**
+     * Lidarr's editor answers a write naming nothing with a 200, so a mistyped
+     * id would otherwise come back as a settled library. The refusal stays a
+     * ServiceError: a missing artist is a fact about the service, not the call.
+     */
+    it('refuses an artist id Lidarr does not have', async () => {
+        const h = updateTool();
         const err = await h.update({ service: 'lidarr', id: '999', monitor_new_items: 'none' }).catch((e: unknown) => e);
+        expect(err).toBeInstanceOf(ServiceError);
+        expect((err as ServiceError).kind).toBe('NotFound');
         expect((err as Error).message).toMatch(/no artist with id 999/);
+        // One Lidarr: no per-instance caveat to give.
         expect((err as ServiceError).remedy).toMatch(/Take an id from acquisition\.id on a get_library artist row\.$/);
     });
 
     it('reports a no-op when the artist already matches', async () => {
-        const h = bothTools();
+        const h = updateTool();
         const preview = await h.update({ service: 'lidarr', id: '2', monitor_new_items: 'none' });
         expect(preview.structuredContent.noop).toBe(true);
     });
 
     it('writes the artist editor once for every artist when no id is named', async () => {
-        const h = bothTools();
+        const h = updateTool();
         const args = { service: 'lidarr', monitor_new_items: 'none', monitored: false };
         const preview = await h.update(args);
         const applied = await h.update({ ...args, confirm: tokenOf(preview) });
@@ -386,8 +233,33 @@ describe('update_media on every lidarr artist', () => {
         ]);
     });
 
+    /**
+     * Checked against a live library, not assumed: an artist was found reading
+     * `monitored: false` while an album under it stayed `monitored: true`.
+     * Lidarr's wanted lists and automatic searches skip that album while the
+     * artist is unmonitored, and want it again once the artist is monitored,
+     * so the preview says both, and names the album level as the lasting way
+     * out.
+     */
+    it('does not claim the artist flag replaces the album flag', async () => {
+        const h = updateTool();
+        const preview = await h.update({ service: 'lidarr', monitored: false });
+
+        expect(String(preview.structuredContent.effects)).toContain('keep their own flags, but Lidarr leaves all of them out of its wanted lists');
+        expect(String(preview.structuredContent.effects)).toContain('level "album"');
+    });
+
+    it('says monitoring the artist brings its monitored albums back', async () => {
+        const h = updateTool();
+        const preview = await h.update({ service: 'lidarr', monitored: true });
+
+        expect(String(preview.structuredContent.effects)).toContain(
+            "each album keeps its own, and the monitored ones come back into Lidarr's wanted lists"
+        );
+    });
+
     it('writes exactly the artist an id names', async () => {
-        const h = bothTools();
+        const h = updateTool();
         const args = { service: 'lidarr', id: '1', monitor_new_items: 'none' };
         const preview = await h.update(args);
         await h.update({ ...args, confirm: tokenOf(preview) });
@@ -397,34 +269,69 @@ describe('update_media on every lidarr artist', () => {
         ]);
     });
 
+    /**
+     * The apply writes the set the preview named, not the word "all".
+     * Re-reading the artist list on apply resolved "all" a second time, so
+     * an artist added between the two calls was written without ever being
+     * shown, and the caller confirmed a number that no longer matched.
+     */
     it('refuses to apply when an artist joined after the preview', async () => {
         const artists = [...ARTISTS];
-        const h = bothTools({ ...DEFAULT_ROUTES, '/api/v1/artist': artists });
+        const h = updateTool({ ...DEFAULT_ROUTES, '/api/v1/artist': artists });
         const preview = await h.update({ service: 'lidarr', monitor_new_items: 'none' });
 
         artists.push({ id: 3, artistName: 'Late Arrival', monitored: true, monitorNewItems: 'all' });
         const applied = await h.update({ service: 'lidarr', monitor_new_items: 'none', confirm: tokenOf(preview) });
 
         expect(applied.structuredContent.applied).toBe(false);
+        expect(String(applied.structuredContent.confirm_error)).toContain('different arguments');
         expect(h.sent.filter(s => s.method === 'PUT')).toEqual([]);
     });
 
+    /**
+     * The defence itself, not the token check. `plan` runs again on the
+     * confirm call, so the token already refuses a library that changed
+     * between the two calls. This asserts the second half: `apply` writes
+     * the ids the plan carried, so a library that grows after that second
+     * read cannot widen the write. Read three is what a re-read would take.
+     */
+    it('writes the previewed ids when the library grows before the write lands', async () => {
+        const LATE = { id: 3, artistName: 'Late Arrival', monitored: true, monitorNewItems: 'all' };
+        let reads = 0;
+        const routes: Record<string, unknown> = { ...DEFAULT_ROUTES };
+        Object.defineProperty(routes, '/api/v1/artist', {
+            get: () => {
+                reads += 1;
+                return reads >= 3 ? [...ARTISTS, LATE] : ARTISTS;
+            }
+        });
+        const h = updateTool(routes);
+
+        const preview = await h.update({ service: 'lidarr', monitor_new_items: 'none' });
+        const applied = await h.update({ service: 'lidarr', monitor_new_items: 'none', confirm: tokenOf(preview) });
+
+        expect(applied.structuredContent.applied).toBe(true);
+        expect(reads).toBe(2);
+        expect(h.sent.filter(s => s.path === '/api/v1/artist/editor')).toEqual([
+            { path: '/api/v1/artist/editor', method: 'PUT', body: { artistIds: [1, 2], monitorNewItems: 'none' } }
+        ]);
+    });
+
     it('refuses the settings that need one artist when no id is given', async () => {
-        const h = bothTools();
+        const h = updateTool();
         const err = await h.update({ service: 'lidarr', quality_profile: 'Lossless' }).catch((e: unknown) => e);
         expect((err as Error).message).toMatch(/`id`/);
         expect(h.sent).toEqual([]);
     });
 
-    it('refuses a title instead of previewing every artist', async () => {
-        const h = bothTools();
-        const err = await h.update({ service: 'lidarr', title: 'Alex G', monitored: false }).catch((e: unknown) => e);
-        expect((err as Error).message).toMatch(/Grimmory options/);
+    it('refuses a title instead of previewing every artist', () => {
+        const h = updateTool();
+        expect(() => h.update({ service: 'lidarr', title: 'Alex G', monitored: false })).toThrow(/Unknown argument\(s\): title/);
         expect(h.sent).toEqual([]);
     });
 
     it('refuses minimum_availability and series_type rather than dropping them', async () => {
-        const h = bothTools();
+        const h = updateTool();
         for (const extra of [{ minimum_availability: 'released' }, { series_type: 'anime' }]) {
             const noId = await h.update({ service: 'lidarr', monitored: false, ...extra }).catch((e: unknown) => e);
             const withId = await h.update({ service: 'lidarr', id: '1', monitor_new_items: 'none', ...extra }).catch((e: unknown) => e);
@@ -435,26 +342,9 @@ describe('update_media on every lidarr artist', () => {
     });
 
     it('names set_monitoring for the album flag in the preview', async () => {
-        const h = bothTools();
+        const h = updateTool();
         const preview = await h.update({ service: 'lidarr', monitored: false });
         expect(String(preview.structuredContent.effects)).toContain('use set_monitoring with level "album"');
-    });
-
-    it('points the artist level refusal of id at update_media', async () => {
-        const h = bothTools();
-        const err = await h.setMonitoring({ service: 'lidarr', level: 'artist', id: '1', monitored: false }).catch((e: unknown) => e);
-        expect((err as Error).message).toMatch(/update_media/);
-        expect((err as Error).message).not.toMatch(/omit `artists`/);
-    });
-
-    it('still sets the artist level through set_monitoring', async () => {
-        const h = bothTools();
-        const viaOld = await h.setMonitoring({ service: 'lidarr', level: 'artist', monitored: false });
-        const viaNew = await h.update({ service: 'lidarr', monitored: false });
-
-        expect(viaOld.structuredContent.effects).toEqual(viaNew.structuredContent.effects);
-        expect(viaOld.structuredContent.summary).toEqual(viaNew.structuredContent.summary);
-        expect(viaOld.structuredContent.args).toEqual(viaNew.structuredContent.args);
     });
 });
 
@@ -463,7 +353,7 @@ describe('update_media on every lidarr artist', () => {
  * one: the artist editor would otherwise settle a policy on a library nobody
  * meant, and the two hold different artists under the same ids.
  */
-describe('set_monitoring with two lidarrs', () => {
+describe('update_media with two lidarrs', () => {
     const FLAC_ARTISTS = [{ id: 1, artistName: 'Artist One', monitored: true, monitorNewItems: 'all' }];
     const MP3_ARTISTS = [
         { id: 1, artistName: 'Artist Two', monitored: true, monitorNewItems: 'all' },
@@ -497,15 +387,14 @@ describe('set_monitoring with two lidarrs', () => {
             audit: WriteAudit.ephemeral(),
             library: { invalidate: vi.fn() } as never
         } as never;
-        registerSetMonitoring(server as never, context, adapters);
         registerUpdateMedia(server as never, context, adapters);
 
-        return { call: (a: Record<string, unknown>) => calls.set_monitoring!(a), update: (a: Record<string, unknown>) => calls.update_media!(a), flac: flac.sent, mp3: mp3.sent };
+        return { update: (a: Record<string, unknown>) => calls.update_media!(a), flac: flac.sent, mp3: mp3.sent };
     }
 
     it('refuses to guess which Lidarr, and names both', async () => {
         const h = twoLidarrs();
-        const err = await h.call({ service: 'lidarr', level: 'artist', monitor_new_items: 'none' }).catch((e: unknown) => e);
+        const err = await h.update({ service: 'lidarr', monitor_new_items: 'none' }).catch((e: unknown) => e);
 
         expect(err).toBeInstanceOf(ServiceError);
         expect((err as Error).message).toMatch(/2 instances configured/);
@@ -515,18 +404,12 @@ describe('set_monitoring with two lidarrs', () => {
 
     it('previews and writes only the named instance', async () => {
         const h = twoLidarrs();
-        const preview = await h.call({ service: 'lidarr', instance: 'mp3', level: 'artist', monitor_new_items: 'none' });
+        const preview = await h.update({ service: 'lidarr', instance: 'mp3', monitor_new_items: 'none' });
 
         expect(preview.structuredContent.target).toBe('lidarr/mp3:artists:all');
         expect(preview.structuredContent.summary).toMatch(/all 2 artists in lidarr\/mp3\./);
 
-        await h.call({
-            service: 'lidarr',
-            instance: 'mp3',
-            level: 'artist',
-            monitor_new_items: 'none',
-            confirm: tokenOf(preview)
-        });
+        await h.update({ service: 'lidarr', instance: 'mp3', monitor_new_items: 'none', confirm: tokenOf(preview) });
 
         expect(h.mp3.filter(s => s.path === '/api/v1/artist/editor')).toEqual([
             { path: '/api/v1/artist/editor', method: 'PUT', body: { artistIds: [1, 2], monitorNewItems: 'none' } }
@@ -534,34 +417,25 @@ describe('set_monitoring with two lidarrs', () => {
         expect(h.flac).toEqual([]);
     });
 
-    it('blames the named instance for an artist id it does not hold', async () => {
+    it('blames the named instance for an artist id it does not hold, without telling it to omit id', async () => {
         const h = twoLidarrs();
         const err = await h
-            .call({ service: 'lidarr', instance: 'flac', level: 'artist', artists: ['2'], monitored: false })
+            .update({ service: 'lidarr', instance: 'flac', id: '2', monitored: false, monitor_new_items: 'none' })
             .catch((e: unknown) => e);
 
         expect(err).toBeInstanceOf(ServiceError);
         expect((err as ServiceError).service).toBe('lidarr/flac');
         expect((err as Error).message).toMatch(/no artist with id 2/);
         expect((err as ServiceError).remedy).toMatch(/acquisition\.service is lidarr\/flac\. Ids are per instance/);
-        expect((err as ServiceError).remedy).toMatch(/omit `artists` to apply to every artist there\.$/);
-    });
-
-    it('does not tell update_media to omit id after a mistyped id', async () => {
-        const h = twoLidarrs();
-        const old = await h.call({ service: 'lidarr', instance: 'flac', level: 'artist', artists: ['2'], monitored: false }).catch((e: unknown) => e);
-        expect((old as ServiceError).remedy).toMatch(/omit `artists`/);
-        const err = await h.update({ service: 'lidarr', instance: 'flac', id: '2', monitored: false, monitor_new_items: 'none' }).catch((e: unknown) => e);
-        expect((err as ServiceError).remedy).toMatch(/acquisition\.service is lidarr\/flac\. Ids are per instance/);
         expect((err as ServiceError).remedy).not.toMatch(/omit/);
     });
 
     it('treats a list holding one entry as one Lidarr: no instance needed, no per-instance caveat', async () => {
         const h = twoLidarrs(1);
-        const preview = await h.call({ service: 'lidarr', level: 'artist', monitor_new_items: 'none' });
+        const preview = await h.update({ service: 'lidarr', monitor_new_items: 'none' });
         expect(preview.structuredContent.summary).toMatch(/in lidarr\/flac\.$/);
 
-        const err = await h.call({ service: 'lidarr', level: 'artist', artists: ['2'], monitored: false }).catch((e: unknown) => e);
+        const err = await h.update({ service: 'lidarr', id: '2', monitor_new_items: 'none' }).catch((e: unknown) => e);
         expect((err as ServiceError).service).toBe('lidarr/flac');
         expect((err as ServiceError).remedy).toMatch(/Take an id from acquisition\.id on a get_library artist row\.$/);
     });

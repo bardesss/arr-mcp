@@ -23,7 +23,7 @@ import {
     type ScanState,
     type ServiceAdapter
 } from '../services/types.ts';
-import { buildInstanceOptions, selectAdapters, type InstanceOptions } from './instanceOptions.ts';
+import { selectAdapters } from './instanceOptions.ts';
 import { INSTANCE_PARAM_DESCRIPTION } from './resolveInstance.ts';
 import { buildSeedingRules, type SeedingRules } from './seedingRules.ts';
 import { groupDisks, humanBytes } from '../core/disks.ts';
@@ -68,13 +68,6 @@ type StackHealthResult = {
     /** Absent unless the caller supplied the instances, and absent at
      *  `minimal` — a URL is not a fault. */
     endpoints?: InstanceEndpoint[];
-    /**
-     * What each Radarr, Sonarr, Whisparr or Lidarr instance will accept on an
-     * add, and a Radarr or Sonarr instance on an update.
-     * Only at `detail: "full"`: it is three extra calls per instance, and it
-     * answers "what may I choose", not "is anything broken".
-     */
-    options?: InstanceOptions[];
     /**
      * Torrent client defaults and indexer seed criteria, plus notes where they
      * disagree. Only at `detail: "full"`, and absent when nothing seeds.
@@ -297,10 +290,6 @@ export async function buildStackHealth(
         })
     );
 
-    // Settled per instance inside the builder: an instance whose profile list
-    // is down still has health worth reporting.
-    const options = opts.detail !== 'full' ? undefined : await buildInstanceOptions(adapters, {}, markDegraded);
-
     const cleanupAdapter = opts.detail === 'full' ? adapters.find(hasCleanup) : undefined;
     const removalSource = opts.detail === 'full' ? adapters.find(hasCleanuparrRemovals) : undefined;
     // Independent reads: none waits on another.
@@ -396,11 +385,10 @@ export async function buildStackHealth(
             scans,
             ...(permissions === undefined ? {} : { permissions }),
             ...(endpoints === undefined ? {} : { endpoints }),
-            ...(options === undefined ? {} : { options }),
             ...(hasSeedingRules ? { seedingRules } : {}),
             ...(cleanup === undefined ? {} : { cleanup }),
             ...(cleanuparrRemovals === undefined ? {} : { cleanuparrRemovals }),
-            // Its own `limit` budget, like `options`: a log line is not
+            // Its own `limit` budget: a log line is not
             // competing with a failing health check for the same rows.
             ...(opts.detail === 'full' ? { logs: { ...applyLimit(logs, opts.limit), lines: logLines } } : {}),
             ...(opts.detail === 'minimal' ? {} : { commands }),
@@ -478,10 +466,6 @@ const stackHealthOutput = memoBy((withPrimary: boolean) => z.looseObject({
         .describe('Queued or running tasks, plus anything finished in the last fifteen minutes. Absent at `minimal`.'),
     permissions: z.array(z.unknown()).optional().describe('What each instance may do. Absent at `minimal` — a permission is not a fault.'),
     endpoints: z.array(z.unknown()).optional().describe('Where each instance lives. Never a credential.'),
-    options: z
-        .array(z.unknown())
-        .optional()
-        .describe('Deprecated: use get_instance_options. Quality profiles, root folders and tags, only at `detail: "full"`.'),
     seedingRules: z
         .object({
             clients: z.array(z.unknown()),
@@ -512,7 +496,7 @@ const stackHealthOutput = memoBy((withPrimary: boolean) => z.looseObject({
 }));
 
 const StackHealthInput = toolInput({
-    detail: DetailSchema.describe('How much detail; defaults to standard. `full` also returns `options` (Deprecated: use get_instance_options).'),
+    detail: DetailSchema,
     limit: LimitSchema,
     service: serviceOf(ServiceIdSchema.options).optional(),
     instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION)
@@ -520,23 +504,21 @@ const StackHealthInput = toolInput({
 
 /** The full description of get_stack_health. */
 const STACK_HEALTH_DESCRIPTION =
-    'Health of every configured service: version, disk space, failing health checks, last library scan, and what each instance may do (`permissions`, whose ids are the valid `instance` values). Answers partially, with a `degraded` list, when a service is down. `commands` follows up trigger_search and trigger_scan: queued, running, and finished in the last 15 minutes, so a command not listed has finished. Profiles, root folders and tags: get_instance_options (`options` at `detail: "full"` is deprecated). `service` or `instance` checks one, without `seedingRules`. `detail: "full"` adds `seedingRules` (client, indexer [[cleanuparr: and Cleanuparr ]]seed limits[[cleanuparr:  and removal rules]]), [[reclaimerr: Reclaimerr `cleanup` (what will be deleted or moved, and when), ]]and each service\'s recent warnings and errors in `logs`; check `lastSeen`, since an old line may no longer apply. API keys are never returned. Field reference: arr://docs/get_stack_health.';
+    'Health of every configured service: version, disk space, failing health checks, last library scan, and what each instance may do (`permissions`, whose ids are the valid `instance` values). Answers partially, with a `degraded` list, when a service is down. `commands` follows up trigger_search and trigger_scan: queued, running, and finished in the last 15 minutes, so a command not listed has finished. Profiles, root folders and tags: get_instance_options. `service` or `instance` checks one, without `seedingRules`. `detail: "full"` adds `seedingRules` (client, indexer [[cleanuparr: and Cleanuparr ]]seed limits[[cleanuparr:  and removal rules]]), [[reclaimerr: Reclaimerr `cleanup` (what will be deleted or moved, and when), ]]and each service\'s recent warnings and errors in `logs`; check `lastSeen`, since an old line may no longer apply. API keys are never returned. Field reference: arr://docs/get_stack_health.';
 
-type ToolText = { name: string; description: string };
 
 export function registerStackHealth(
     server: McpServer,
     adapters: readonly ServiceAdapter[],
     instances?: readonly ServiceInstance[],
-    primaryMediaServer?: string,
-    { name, description }: ToolText = { name: 'get_stack_health', description: STACK_HEALTH_DESCRIPTION }
+    primaryMediaServer?: string
 ): void {
     server.registerTool(
-        name,
+        'get_stack_health',
         {
             title: 'Stack health',
             annotations: READ_ONLY,
-            description,
+            description: STACK_HEALTH_DESCRIPTION,
             inputSchema: StackHealthInput,
             outputSchema: stackHealthOutput(primaryMediaServer !== undefined)
         },

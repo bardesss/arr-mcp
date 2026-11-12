@@ -18,7 +18,6 @@ import type { QueueItem, SearchHit, ServiceAdapter } from '../src/services/types
 import { registerGetLibrary } from '../src/tools/getLibrary.ts';
 import { registerGetMediaDetails } from '../src/tools/getMediaDetails.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
-import { registerLookupMedia } from '../src/tools/lookupMedia.ts';
 import { registerSearchMedia } from '../src/tools/searchMedia.ts';
 import { MAX_CARDS, cardStatus, cardsFromHits, externalLinks, type MediaCards } from '../src/ui/mediaCards.ts';
 import { serving } from './helpers/serve.ts';
@@ -266,9 +265,9 @@ describe('the card tools', () => {
         expect(result.content[0]?.text).toMatch(/^\d+ of \d+ library result\(s\) for "Ghostbusters"\./);
     });
 
-    it('lookup_media adds cards for what is not in the library', async () => {
-        const result = await toolsOf(s => registerLookupMedia(s, [radarrLibrary()])).lookup_media!.handler(
-            { query: 'matrix', detail: 'standard', limit: 50, offset: 0 },
+    it('search_media discover adds cards for what is not in the library', async () => {
+        const result = await toolsOf(s => registerSearchMedia(s, [radarrLibrary()])).search_media!.handler(
+            { query: 'matrix', source: 'discover', detail: 'standard', limit: 50, offset: 0 },
             {}
         );
         const items = cardsOf(result)?.items ?? [];

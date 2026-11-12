@@ -90,12 +90,8 @@ const CASES: Case[] = [
     { tool: 'get_media_details', args: { query: 'the' } },
     { tool: 'search_media', args: { query: 'the', source: 'library', detail: 'full', limit: 10 } },
     { tool: 'search_media', args: { query: 'matrix', source: 'discover' } },
-    { tool: 'lookup_media', args: { query: 'matrix' } },
     { tool: 'discover_media', args: { media_type: 'movie', detail: 'full' } },
     { tool: 'diagnose_media', args: { query: 'the' } },
-    // The old names, kept as aliases for one minor.
-    { tool: 'stack_health', args: {} },
-    { tool: 'diagnose', args: { query: 'the' } },
     { tool: 'get_profile_issues', args: { detail: 'full' } }
 ];
 
@@ -173,7 +169,6 @@ const DYNAMIC_TOOLS: ToolName[] = [
     // Dry run off the first queue row that carries a downloadId; skipped when none does.
     'import_download',
     'trigger_subtitle_search',
-    'clean_queue',
     // Dry run off a certain floor finding from get_profile_issues; skipped when there is none.
     'fix_profile',
     // Needs profilarr configured at all, which is optional — skipped rather
@@ -830,7 +825,6 @@ if (typeof gap?.kind === 'string' && gap.id !== undefined && typeof want?.code2 
 
 // Dry run without exception: this one really does delete downloaded data.
 await run('remove_queue_item', { service: 'radarr', orphaned: true, dry_run: true }, 'DRY RUN ONLY — never applied from this script');
-await run('clean_queue', { service: 'radarr', dry_run: true }, 'DRY RUN ONLY — never applied from this script (deprecated alias)');
 
 /**
  * The four remaining writes, all dry runs, each driven off something a

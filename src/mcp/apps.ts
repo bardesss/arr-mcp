@@ -65,7 +65,7 @@ export function withCards<T extends object>(result: T, cards: MediaCards | undef
 }
 
 /** The tools whose answers carry `cards`. */
-export const CARD_TOOLS = ['get_media_details', 'search_media', 'lookup_media', 'get_library'] as const;
+export const CARD_TOOLS = ['get_media_details', 'search_media', 'get_library'] as const;
 
 /** What a card tool adds to its registration. */
 export const mediaCardsToolMeta = (): Record<string, unknown> => ({

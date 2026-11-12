@@ -1,35 +1,21 @@
-import type { McpServer } from '@modelcontextprotocol/server';
-import * as z from 'zod/v4';
 import { ServiceError } from '../core/errors.ts';
 import { logger } from '../core/logger.ts';
 import { hasQueue, hasQueueRemove, type QueueItem, type ServiceAdapter, type QueueRemoveCapable, type QueueCapable } from '../services/types.ts';
-import { outcomeText, registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
-import { targetInput, serviceTarget } from './serviceTarget.ts';
+import type { WritePlan } from './write.ts';
 
 /** The adapters that report orphaned queue items and can remove them. */
 type OrphanCapable = ServiceAdapter & QueueRemoveCapable & QueueCapable;
 const ORPHAN_SERVICES = ['radarr', 'sonarr', 'whisparr', 'lidarr'] as const;
-/** One guard for both tools, plan and apply: the service type and the capability. */
+/** One guard for plan and apply: the service type and the capability. */
 export const canClearOrphans = (a: ServiceAdapter): a is OrphanCapable =>
     (ORPHAN_SERVICES as readonly string[]).includes(a.type) && hasQueueRemove(a) && hasQueue(a);
 type OrphanBound = { ids: string[] };
-
-const TARGET = serviceTarget({
-    services: [...ORPHAN_SERVICES],
-    can: canClearOrphans,
-    cannot: 'has no download queue',
-    hint: 'They report the orphaned items this cleans up.'
-});
 
 // Narrow and not caller-configurable: `orphaned` alone matches unlinked items
 // that are still transferring, and deleting one destroys a download in progress.
 const isLitter = (item: QueueItem): boolean => item.orphaned === true && item.importState === 'importBlocked';
 
-const CleanQueueInput = z.object({
-    ...targetInput(TARGET)
-});
-
-/** Removes every orphaned, import-blocked item from one instance's queue and its download client. Shared by `remove_queue_item` and `clean_queue`. */
+/** `remove_queue_item` with `orphaned: true`: every orphaned, import-blocked item in one instance's queue, removed from it and from the download client. */
 export async function planOrphaned(adapter: OrphanCapable): Promise<WritePlan<OrphanBound>> {
     const litter = (await adapter.getQueue()).filter(isLitter);
     const target = `${adapter.id}:orphaned`;
@@ -101,23 +87,4 @@ export async function applyOrphaned(plan: WritePlan<OrphanBound>, adapter: Orpha
     }
 
     return `Removed ${removed.length} orphaned item(s) from ${adapter.id}'s queue.`;
-}
-
-export function registerCleanQueue(
-    server: McpServer,
-    context: WriteContext,
-    adapters: readonly ServiceAdapter[]
-): void {
-    registerWriteTool(server, context, {
-        name: 'clean_queue',
-        title: 'Clean up orphaned queue items',
-        description: 'Deprecated: use remove_queue_item with `orphaned: true`.',
-        inputSchema: CleanQueueInput,
-        target: { adapters, to: TARGET },
-        operation: 'clean_queue',
-        tier: 'destructive',
-        plan: (_args, adapter) => planOrphaned(adapter),
-        applied: outcomeText,
-        apply: (plan, _args, adapter) => applyOrphaned(plan, adapter)
-    });
 }

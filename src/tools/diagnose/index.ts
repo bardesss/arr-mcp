@@ -58,15 +58,14 @@ const DIAGNOSE_DESCRIPTION =
 
 export function registerDiagnose(
     server: McpServer,
-    deps: DiagnoseDeps,
-    { name, description }: { name: string; description: string } = { name: 'diagnose_media', description: DIAGNOSE_DESCRIPTION }
+    deps: DiagnoseDeps
 ): void {
     server.registerTool(
-        name,
+        'diagnose_media',
         {
             title: 'Diagnose a missing or unplayable item',
             annotations: READ_ONLY,
-            description,
+            description: DIAGNOSE_DESCRIPTION,
             // A verdict, not a list — so no paged envelope. `certain` is the
             // field that matters most and the one a client must not have to
             // read prose to find: a diagnosis reached across a service that

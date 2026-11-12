@@ -2,7 +2,6 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { type ServiceId, serviceOf } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
-import type { NextStep } from '../core/nextStep.ts';
 import {
     hasCommandStatus,
     hasBookLibraryScan,
@@ -15,7 +14,6 @@ import {
     type ServiceAdapter
 } from '../services/types.ts';
 import { resolveBookLibrary } from './bookLibraries.ts';
-import { applyImportAction, importFollowUps, mappingField, planImportAction, reassignmentsField } from './importDownload.ts';
 import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
 import { outcomeText, registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 import { titled } from '../core/labels.ts';
@@ -157,28 +155,16 @@ async function applyBookScan(adapter: ServiceAdapter & BookLibraryScanCapable, p
     return `${adapter.id} is rescanning ${ids.length === 1 ? '1 library' : `${ids.length} libraries`}. It runs in the background: check get_library in a few minutes rather than expecting the books to be there now.`;
 }
 
-/** The deprecated import fields, held to import_download's own schema. */
-const importFields = (reassignments: unknown, mapping: unknown) => {
-    const r = reassignmentsField.safeParse(reassignments);
-    const m = mappingField.safeParse(mapping);
-    if (!r.success || !m.success) {
-        const bad = r.success ? 'mapping' : 'reassignments';
-        const why = (r.success ? m.error : r.error)?.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ');
-        throw new Error(`\`${bad}\` is not valid (${why}). import_download takes the same field and describes its shape.`);
-    }
-    return { reassignments: r.data, mapping: m.data };
-};
-
 const TriggerScanInput = z.object({
-    service: serviceOf(['radarr', 'sonarr', 'whisparr', 'lidarr', 'jellyfin', 'plex', 'grimmory', 'prowlarr', 'nzbget']).describe(
-        'prowlarr syncs its indexers to the apps. nzbget takes only the deprecated postprocess.'
+    service: serviceOf(['radarr', 'sonarr', 'whisparr', 'lidarr', 'jellyfin', 'plex', 'grimmory', 'prowlarr']).describe(
+        'prowlarr syncs its indexers to the apps.'
     ),
     instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
     action: z
-        .enum(['scan', 'rename', 'import', 'remap', 'postprocess', 'bookdrop'])
+        .enum(['scan', 'rename', 'bookdrop'])
         .default('scan')
         .describe(
-            "scan rescans the library, or just one item when `id` is given[[lidarr:  (on Lidarr only the refresh narrows to one artist: the rescan still reads every root folder)]]; on an *arr it refreshes metadata from the provider first. rename renames one item's files to the service's own naming scheme, and requires `id`. [[grimmory: bookdrop rescans Grimmory's Bookdrop folder for new files.]] Deprecated: use import_download for import, remap, postprocess, and bookdrop with `id`."
+            "scan rescans the library, or just one item when `id` is given[[lidarr:  (on Lidarr only the refresh narrows to one artist: the rescan still reads every root folder)]]; on an *arr it refreshes metadata from the provider first. rename renames one item's files to the service's own naming scheme, and requires `id`. [[grimmory: bookdrop rescans Grimmory's Bookdrop folder for new files.]]"
         ),
     id: z
         .string()
@@ -194,10 +180,6 @@ const TriggerScanInput = z.object({
         .describe(
             '[[grimmory: Grimmory only: one library, by name or by id as get_stack_health and get_library show it. Omit to rescan every library.]]'
         ),
-    download_id: z.string().min(1).optional().describe('Deprecated: use import_download.'),
-    // Checked against import_download's own schema when the call is planned: a second copy of it here would cost every client its tokens.
-    reassignments: z.array(z.looseObject({})).min(1).optional().describe('Deprecated: use import_download.'),
-    mapping: z.array(z.looseObject({})).min(1).optional().describe('Deprecated: use import_download.')
 });
 
 export function registerTriggerScan(
@@ -219,20 +201,12 @@ export function registerTriggerScan(
         operation: 'trigger_scan',
         tier: 'safe',
 
-        async plan({ service, instance, action, id, library, download_id, reassignments, mapping }): Promise<WritePlan> {
+        async plan({ service, instance, action, id, library }): Promise<WritePlan> {
             const resolved = resolveInstance(adapters, service, instance);
             if (hasBookLibraryScan(resolved)) {
-                // Approving a Bookdrop file is an import: the same plan import_download shows.
-                if (action === 'bookdrop' && id !== undefined) {
-                    return planImportAction(adapters, { service, instance, action: 'import', id, library });
-                }
                 return planBookScan(resolved, { service, instance, action, id, library });
             }
             refuseGrimmoryOnly(service, library, action);
-
-            if (action === 'import' || action === 'postprocess' || action === 'remap') {
-                return planImportAction(adapters, { service, instance, action, id, download_id, ...importFields(reassignments, mapping) });
-            }
 
             if (action === 'rename' && id === undefined) {
                 throw new Error(
@@ -314,24 +288,11 @@ export function registerTriggerScan(
             };
         },
 
-        followUps(_outcome, { action }): NextStep[] {
-            return action === 'remap' ? importFollowUps(adapters, { action }) : [];
-        },
-
         applied: outcomeText,
 
-        async apply(plan, { service, instance, action, id, download_id, reassignments, mapping }) {
+        async apply(plan, { service, instance, action, id }) {
             const resolved = resolveInstance(adapters, service, instance);
-            if (hasBookLibraryScan(resolved)) {
-                if (typeof plan.args?.fileId === 'string') {
-                    return applyImportAction(adapters, plan, { service, instance, action: 'import' });
-                }
-                return applyBookScan(resolved, plan);
-            }
-
-            if (action === 'import' || action === 'postprocess' || action === 'remap') {
-                return applyImportAction(adapters, plan, { service, instance, action, id, download_id, ...importFields(reassignments, mapping) });
-            }
+            if (hasBookLibraryScan(resolved)) return applyBookScan(resolved, plan);
 
             if (id !== undefined) {
                 const item = findItemAdapter(adapters, service, instance);

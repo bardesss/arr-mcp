@@ -107,7 +107,7 @@ type WriteToolSpec<
     operation: string;
     /**
      * Fixed for most tools. A function for one whose actions differ in kind
-     * (`manage_indexer` disables or deletes), derived from the arguments for
+     * (`blocklist_media` adds or removes), derived from the arguments for
      * the same reason `service` is. Such a tool is advertised as destructive,
      * since it can be.
      */

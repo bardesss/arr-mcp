@@ -44,7 +44,7 @@ const otherSurfaces = async (): Promise<Record<string, string>> => {
         out[`prompt ${p.name}`] = JSON.stringify(await call('prompts/get', { name: p.name, arguments: args }));
     }
     const { resources } = (await call('resources/list')) as { resources: { uri: string; description?: string }[] };
-    // The `arr://docs/` page under an old tool name is the alias itself.
+    // The `arr://docs/` page under an old tool name would be the alias itself.
     out.resources = JSON.stringify(resources.filter(r => !(r.uri.startsWith('arr://docs/') && r.description?.startsWith('Deprecated:'))));
     for (const [tool, doc] of Object.entries(TOOL_DOCS)) out[`TOOL_DOCS ${tool}`] = doc;
     return out;
@@ -62,28 +62,20 @@ describe('DEPRECATIONS', () => {
         }
     });
 
-    it('describes clean_queue in one line that names the call to make', async () => {
-        const tools = await listTools();
-        expect(tools.find(t => t.name === 'clean_queue')?.description).toBe('Deprecated: use remove_queue_item with `orphaned: true`.');
+    it('says Deprecated nowhere while nothing is deprecated', async () => {
+        if (DEPRECATIONS.length > 0) return;
+        const flagged = (await listTools())
+            .filter(t => /Deprecated/.test(JSON.stringify({ description: t.description, inputSchema: t.inputSchema })))
+            .map(t => t.name);
+        expect(flagged).toEqual([]);
     });
 
-    it('answers the old name with the same result', async () => {
-        for (const [oldName, newName, args] of [
-            ['stack_health', 'get_stack_health', {}],
-            ['diagnose', 'diagnose_media', { query: 'nothing in this library' }]
-        ] as const) {
-            const asked = await call('tools/call', { name: newName, arguments: args });
-            const aliased = await call('tools/call', { name: oldName, arguments: args });
-            expect(aliased.isError, oldName).not.toBe(true);
-            expect(aliased.structuredContent, oldName).toEqual(asked.structuredContent);
-            expect(aliased.structuredContent, oldName).toBeDefined();
-        }
-    });
-
-    it('keeps the old arr://docs/ pages as aliases of the new ones', async () => {
-        const read = async (uri: string) => ((await call('resources/read', { uri })) as { contents: { text: string }[] }).contents[0]?.text;
-        expect(await read('arr://docs/stack_health')).toBe(TOOL_DOCS.get_stack_health);
-        expect(await read('arr://docs/diagnose')).toBe(TOOL_DOCS.diagnose_media);
+    it('removed every 1.x alias in 2.0.0', async () => {
+        const tools = (await listTools()).map(t => t.name);
+        for (const gone of ['lookup_media', 'clean_queue', 'stack_health', 'diagnose']) expect(tools, gone).not.toContain(gone);
+        const { resources } = (await call('resources/list')) as { resources: { uri: string }[] };
+        expect(resources.map(r => r.uri)).not.toContain('arr://docs/stack_health');
+        expect(resources.map(r => r.uri)).not.toContain('arr://docs/diagnose');
     });
 
     it('says Deprecated and names the replacement on every deprecated tool or parameter', async () => {

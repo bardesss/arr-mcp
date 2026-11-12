@@ -6,7 +6,6 @@ import type { ServiceAdapter } from '../src/services/types.ts';
 import { buildGetBlocklist } from '../src/tools/getBlocklist.ts';
 import { buildGetHistory } from '../src/tools/getHistory.ts';
 import { buildGetWanted } from '../src/tools/getWanted.ts';
-import { registerLookupMedia } from '../src/tools/lookupMedia.ts';
 import { registerSearchMedia } from '../src/tools/searchMedia.ts';
 import { serving } from './helpers/serve.ts';
 
@@ -38,10 +37,10 @@ describe('a read that could not ask a service says so', () => {
         expect(result.content[0]?.text).toMatch(/^No library results for "Alien"; radarr unreachable\./);
     });
 
-    it('lookup_media names it too', async () => {
-        const tools = toolsOf(s => registerLookupMedia(s, [new RadarrAdapter(keyed(7878), down)]));
-        const result = await tools.lookup_media!.handler({ query: 'Alien', detail: 'minimal', limit: 50, offset: 0 }, {});
-        expect(result.content[0]?.text).toMatch(/^Nothing found for "Alien"; radarr unreachable\./);
+    it('search_media discover names it too', async () => {
+        const tools = toolsOf(s => registerSearchMedia(s, [new RadarrAdapter(keyed(7878), down)]));
+        const result = await tools.search_media!.handler({ query: 'Alien', source: 'discover', detail: 'minimal', limit: 50, offset: 0 }, {});
+        expect(result.content[0]?.text).toMatch(/radarr unreachable\./);
     });
 });
 
