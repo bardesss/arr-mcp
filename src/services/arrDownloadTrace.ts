@@ -12,6 +12,8 @@ type RawTraceRecord = {
     movieId?: number;
     seriesId?: number;
     episodeId?: number;
+    artistId?: number;
+    albumId?: number;
 };
 
 type Page = { records?: RawTraceRecord[] };
@@ -20,12 +22,17 @@ const PAGE = 'page=1&pageSize=50&sortKey=date&sortDirection=descending';
 // The `eventType` filter value for a grab, the same in Radarr, Sonarr, Whisparr and Lidarr.
 const GRABBED_CODE = 1;
 
+// Radarr, Sonarr and Whisparr record a finished import as
+// `downloadFolderImported`; Lidarr as `downloadImported`.
+const IMPORTED = new Set(['downloadFolderImported', 'downloadImported']);
+
 const time = (date: string | undefined): number => (date === undefined ? Number.NaN : Date.parse(date));
 
 /**
- * What a Radarr or Sonarr did with one download id: whether it marked the
+ * What a Radarr, Sonarr, Whisparr or Lidarr did with one download id: whether it marked the
  * download failed, and whether it then grabbed (and imported) a replacement
- * for the same media. Each read is one page of the newest 50 records, except
+ * for the same media: the same episodes of a series, the same albums of an
+ * artist. Each read is one page of the newest 50 records, except
  * Whisparr's replacement read, which takes the whole item history: a
  * replacement worth warning about is recent, and the preview should not wait
  * on paging through years of history for one film or series.
@@ -36,7 +43,7 @@ const time = (date: string | undefined): number => (date === undefined ? Number.
 export async function traceArrDownload(
     http: ServiceHttp,
     service: string,
-    kind: 'movie' | 'series',
+    kind: 'movie' | 'series' | 'artist',
     downloadId: string,
     scope: ArrHistoryScope = 'ids'
 ): Promise<DownloadTrace | undefined> {
@@ -62,12 +69,14 @@ export async function traceArrDownload(
     };
     const failedTime = time(failedAt);
 
-    const mediaOf = (r: RawTraceRecord) => (kind === 'movie' ? r.movieId : r.seriesId);
+    const mediaOf = (r: RawTraceRecord) => (kind === 'movie' ? r.movieId : kind === 'series' ? r.seriesId : r.artistId);
+    // The parts of the media a download is for: episodes, or Lidarr's albums.
+    const partOf = (r: RawTraceRecord) => (kind === 'artist' ? r.albumId : r.episodeId);
     const mediaId = mediaOf(failed) ?? own.map(mediaOf).find(id => id !== undefined);
     if (mediaId === undefined || Number.isNaN(failedTime)) return trace;
 
-    const episodes = new Set(own.map(r => r.episodeId).filter((id): id is number => id !== undefined));
-    const scoped = kind === 'movie' ? 'movieIds' : 'seriesIds';
+    const parts = new Set(own.map(partOf).filter((id): id is number => id !== undefined));
+    const scoped = kind === 'movie' ? 'movieIds' : kind === 'series' ? 'seriesIds' : 'artistIds';
     // Whisparr's `/history` binds no `seriesIds`; its per-series endpoint is a
     // bare, unpaged array, so the grab filter is the local one below.
     const grabs =
@@ -82,16 +91,16 @@ export async function traceArrDownload(
                 r.downloadId !== downloadId &&
                 mediaOf(r) === mediaId &&
                 time(r.date) > failedTime &&
-                (kind === 'movie' || episodes.size === 0 || (r.episodeId !== undefined && episodes.has(r.episodeId)))
+                (kind === 'movie' || parts.size === 0 || parts.has(partOf(r) ?? Number.NaN))
         )
         .sort((a, b) => time(b.date) - time(a.date));
 
-    // Several records can share a download id (a season pack); the newest is enough.
+    // Several records can share a download id (a season pack, a discography); the newest is enough.
     const next = later[0];
     if (next?.downloadId === undefined || next.date === undefined) return trace;
 
     const imported = (await read(`downloadId=${encodeURIComponent(next.downloadId)}`)).some(
-        r => r.eventType === 'downloadFolderImported' && r.downloadId === next.downloadId
+        r => IMPORTED.has(r.eventType ?? '') && r.downloadId === next.downloadId
     );
     return {
         ...trace,

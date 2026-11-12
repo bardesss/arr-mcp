@@ -2515,13 +2515,14 @@ the NZB came from. It is never shown back, and the audit log redacts it. When a
 SABnzbd job was added from a URL, a retry fetches the NZB again and may not keep
 the password; the preview says so.
 
-**Moved on.** The preview checks whether Radarr, Sonarr or Whisparr has already grabbed a
-replacement for the same media and whether it was imported. If so it warns that
-retrying may leave two copies, and does not refuse. Lidarr is not
-checked; when one is configured, the preview says that too. A Radarr, Sonarr or Whisparr that
-cannot be reached is named rather than treated as "no replacement".
+**Moved on.** The preview checks whether Radarr, Sonarr, Whisparr or Lidarr has already
+grabbed a replacement for the same media (the same episodes, or the same albums) and whether
+it was imported. If so it warns that retrying may leave two copies, and does not refuse. An
+*arr that cannot be reached is named rather than treated as "no replacement".
 
 **Unverified live** (Whisparr): the replacement check, inherited from Sonarr's spec, not captured.
+(Lidarr): the download id read is proven on 3.1.6; the replacement check, which needs a
+failed download, is not.
 
 **After the retry.** The result says which *arr is tracking the download (or that
 none recorded it), and repeats the two-copies warning when the preview found a

@@ -9,7 +9,7 @@ import type { IndexInput } from '../core/resolver.ts';
 import { readMetadataProfiles, readProfileNames, readQualityProfiles, readRootFolders, readTags } from './arrAdd.ts';
 import { findArrBlocklistEntry, readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
 import { awaitArrCommand, postArrCommand, readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
-import { arrGrabRecorded } from './arrDownloadTrace.ts';
+import { arrGrabRecorded, traceArrDownload } from './arrDownloadTrace.ts';
 import { readArrHistory } from './arrHistory.ts';
 import { listArrImportCandidates, runArrManualImport } from './arrManualImport.ts';
 import { deleteArrMedia, lidarrCalendarPath, readArrQueue, readLidarrCalendar, removeArrQueueItem } from './arrQueue.ts';
@@ -32,6 +32,8 @@ import {
     type CommandStatusCapable,
     type DeleteMediaOptions,
     type DiskSpaceCapable,
+    type DownloadTrace,
+    type DownloadTraceCapable,
     type HealthCheckCapable,
     type HistoryCapable,
     type HistoryEntry,
@@ -283,6 +285,7 @@ export class LidarrAdapter
         ArtistMonitorCapable,
         QueueCapable,
         QueueRemoveCapable,
+        DownloadTraceCapable,
         HistoryCapable,
         BlocklistCapable,
         LibraryScanCapable,
@@ -612,6 +615,10 @@ export class LidarrAdapter
 
     async grabRecorded(downloadId: string): Promise<boolean> {
         return arrGrabRecorded(this.http, this.id, downloadId);
+    }
+
+    async traceDownload(downloadId: string): Promise<DownloadTrace | undefined> {
+        return traceArrDownload(this.http, this.id, 'artist', downloadId);
     }
 
     /**
