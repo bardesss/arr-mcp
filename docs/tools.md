@@ -147,10 +147,6 @@ flowchart LR
     get_profile_issues -- next_steps --> fix_profile
 ```
 
-The rest of this page is the shape of the answers: the fields whose meaning is
-not obvious, and the places where a value is deliberately absent rather than
-`false`.
-
 **Whisparr** is a Sonarr fork and answers wherever Sonarr does below, with one
 difference: a site has no seasons, so **a season is a release year**, `2019`
 rather than `1`. A year the site does not have is refused, and the refusal
@@ -176,19 +172,12 @@ you. Pair `offset` with `sort` when the order matters: without one the order is
 whatever the services returned, and an item can move between pages.
 
 `get_stack_health` is the exception and takes no `offset`. One `limit` budget spans
-its two lists, spent on failures before disks, so a single number could not say
-which list it meant to skip into, and neither is one you page through. The
+its two lists, spent on failures before disks. The
 Reclaimerr candidates under `cleanup`, at `detail: "full"`, take their own
 `limit` rather than sharing that budget.
 
-Both halves of that contract are enforced against the services themselves, not
-only in this server: `get_queue` asks Radarr and Sonarr for the whole queue
-rather than accepting their ten-row default, and `get_requests` and
-`get_indexers` push a status filter upstream where the service supports one, so
-a filtered answer is not a filtered slice of an arbitrary window.
-
-Tools spanning several services also report which ones they could not reach, so
-a long answer from one service can never silently hide another being down. Most
+Tools spanning several services also report which ones they could not reach
+(`degraded`). Most
 of them carry `counts` as well, saying how many results each contributed;
 `get_indexers` and `get_subtitles` do not, and every row there names its own
 service instead.
@@ -198,8 +187,7 @@ history alongside the indexers themselves, and `get_subtitles` reads provider
 state alongside the gaps; either can fail while the main read succeeds. That is
 **not** `degraded` (the instance did answer), so it is reported separately as
 `rejectionsUnavailable` and `providersUnavailable`, naming the instances whose
-half is missing. Without it, one of two Prowlarrs failing leaves a rejection
-list that is present, plausible and missing half the stack.
+half is missing.
 
 `get_indexers` does the same across instances of one service: it merges every
 configured Prowlarr, each row naming the instance it came from, and one
@@ -225,47 +213,29 @@ naming each item and the id a follow-up call takes:
 <<untrusted:sonarr.title>>Severance<</>> (2022): series, sonarr:31, tvdb:371980
 ```
 
-It was the count alone until 1.26. Not every client forwards
-`structuredContent`, and on those the items were unreachable: a call that
-worked, answering "what is in my library" with a number and nothing to name
-(#234). The lines are bounded by `limit`, exactly as the structured half is,
-and titles keep their untrusted-data fence: the text block is the half that
-goes straight to a model, which is where that marker matters most.
+This matters on clients that do not forward `structuredContent`. The lines are
+bounded by `limit`, exactly as the structured half is, and titles keep their
+untrusted-data fence.
 
 **The tool list is cacheable for an hour.** On the 2026-07-28 protocol
 revision every list result carries a `ttlMs`, and `tools/list`,
-`prompts/list` and `resources/list` say an hour. They can, because the lists
-are static by construction: every tool, prompt and resource is registered
-unconditionally, so nothing a configuration edit does can change what is in
-them. A client that honours the hint stops reloading the whole surface every
-session. The four resources are different, each carries its own hint, and
-`arr://health`'s is deliberately zero, because a pinned health snapshot
-saying a dead service is fine is worse than no snapshot at all. Clients on the
-2025 protocol see none of this and are unaffected.
+`prompts/list` and `resources/list` say an hour, since every tool, prompt and
+resource is registered whatever the configuration. Each of the four resources
+carries its own hint, and `arr://health`'s is zero. Clients on the 2025
+protocol see none of this.
 
 **A client can tell the reads from the writes without reading prose.** Every
 tool carries a title and an annotation: `readOnlyHint` on the nineteen that only
-read, and on the twenty-five writes `destructiveHint`, taken from the same permission
-tier the write gate itself runs on, so a tool cannot be gated as destructive
-and advertised as safe. A client deciding what to auto-approve, or what to warn
-about, reads those rather than guessing from forty-four similarly-shaped
-descriptions. `idempotentHint` is deliberately absent: the confirmation token is
-single-use, so repeating a write does not repeat it, and neither answer would be
-true.
+read, and on the twenty-five writes `destructiveHint`, taken from the same
+permission tier the write gate itself runs on. `idempotentHint` is absent: the
+confirmation token is single-use, so repeating a write does not repeat it.
 
 **The server's `instructions`, returned at `initialize`, carry the rules that
-hold between tools rather than inside one**: what `total` counts, and that a
-write takes two calls. It is the only documentation every client sees; prompts
-and resources are optional and support for them is uneven.
+hold between tools rather than inside one**, such as what `total` counts and
+that a write takes two calls. It is the only documentation every client sees.
 
 **An argument a tool does not have is refused, and the refusal lists the ones it
-does have.** Dropping it silently would be worse than it sounds: the call
-succeeds, the invented argument is gone, and the answer is indistinguishable
-from one where it had been honoured. That is [#103]: an agent sent `offset` and
-`source` to `get_library`, got a clean `200`, and reported the library as
-unpaginable, never having learned that `limit` was the parameter it wanted.
-
-[#103]: https://github.com/bardesss/arr-mcp/issues/103
+does have**, so an answer is never mistaken for one where it had been honoured.
 
 ## Filtering the queue
 
@@ -297,12 +267,9 @@ case. arr-mcp cannot know a tracker's minimum, so it is the caller's number.
 
 `search_media`, `get_queue` and `get_calendar` take an optional
 `kind`: `movie` (Radarr), `series` (Sonarr, Whisparr), `artist` (Lidarr) or `book`
-(Shelfmark, Grimmory), the same values as `get_library`. The parameter names the
-services next to each kind, so a request that only says "add it to Radarr" still
-leads the model to `kind: "movie"`.
-Without it they read every service, as they always have. With it, a service that
-holds a different kind is not asked at all, so a question about Radarr no longer
-waits on Lidarr and Shelfmark or gets their answers mixed in.
+(Shelfmark, Grimmory), the same values as `get_library`. Without it they read
+every service. With it, a service that holds a different kind is not asked at
+all.
 
 - **The search tools** still ask the services that hold more than one kind
   (Seerr, Plex, Jellyfin, Prowlarr), then keep that kind from what they return.
@@ -328,9 +295,8 @@ year, because release names carry it.
 result's own `_meta`, under `arr-mcp/cards`: `{ view, items, total }`, where
 `view` is `detail` for `get_media_details` and `grid` otherwise, `items` holds at
 most twenty films and series, and `total` is how many the answer held. Result
-`_meta` is not model context, so a client that cannot render the view, or that
-forwards `structuredContent` to the model, pays nothing for it. The items, the
-text answer and `structuredContent` are exactly what they are without it.
+`_meta` is not model context, and the text answer and `structuredContent` are
+unchanged by it.
 
 A card's `status` (`downloaded`, `monitored`, `downloading`, `unmonitored`,
 `absent`) comes from `monitored`, the files on disk and the *arr queue. Text in
@@ -373,20 +339,12 @@ It walks the whole chain (requested, managed, monitored, downloaded, indexed,
 imported, scanned) and names the first thing that explains the absence, with
 what to do about it.
 
-No single service can answer this on its own. `get_library`'s
-`presence: arr_only` alone would only suggest the media server hasn't seen a
-file the *arr believes exists; `diagnose_media` checks further, and may find Radarr itself has
-no file yet and that neither the download queue nor an indexer rejection
-explains why, which is the real answer, and the one that tells you what to do
-next.
-
 With two media servers the verdicts are against the primary. The library step
 adds "Also in" or "Not in" the other server's library, as extra detail and
 never as a blocking stage. A secondary that is down does not lower `certain`.
 
 **It also works with services down.** Any step it could not check sets
-`certain: false`, and the summary names what was missed: a confident verdict
-across a hole is worse than no verdict. When the title is found (in the media
+`certain: false`, and the summary names what was missed. When the title is found (in the media
 server, say) but no *arr claims it, and a Radarr, Sonarr, Whisparr or Lidarr
 that holds its kind could not be read, `managed` is `unknown` rather than
 "nothing is managing it": the verdict is `managed`, uncertain, and asks you to
@@ -474,12 +432,9 @@ the verdict.
 **Unverified live** (Whisparr): the item's history behind the Cleanuparr and Reclaimerr checks; inherited from Sonarr's spec, not captured.
 
 When a query matches nothing in the library, `diagnose_media` searches download
-history by release name before answering "Nothing in your stack matches". This
-covers a film removed from Radarr whose torrent Cleanuparr then cleaned: no
-library has it, but Cleanuparr's events do. It reads Cleanuparr's events (the
-last 30 days, at most 500) and the own history of each download client that
-keeps one, which today is SABnzbd and NZBGet; a torrent client keeps nothing
-once a torrent is removed. A release matches when the query's title words lead
+history by release name before answering "Nothing in your stack matches". It
+reads Cleanuparr's events (the last 30 days, at most 500) and the history of
+SABnzbd and NZBGet; a torrent client keeps nothing once a torrent is removed. A release matches when the query's title words lead
 its name, ignoring case, dots, underscores and a leading article. A year or
 episode in the query (`Shogun 2024 S01E03`) must not be contradicted by the
 release, and a season pack matches any episode of its season. The verdict stays
@@ -513,9 +468,8 @@ still `playable`, and `certain` does not depend on it. The summary of a playable
 title carries the sentence. A gap matches by id and by title, because nothing
 says which Radarr or Sonarr a Bazarr is paired with, and a series matches by
 series id. The step is `unknown` when Bazarr cannot be read, and `skipped` when
-there is no file or no Bazarr. Bazarr's wanted list is read whole, with no
-paging, so it is the one read that grows with the size of the library, and it
-adds Bazarr to `degraded` when it fails. Only the first Bazarr is read, as with
+there is no file or no Bazarr. Bazarr's wanted list is read whole, and a failed
+read adds Bazarr to `degraded`. Only the first Bazarr is read, as with
 Cleanuparr. An item with no id to match gaps by is `unknown`, not `ok`.
 
 **Books.** A book never passes through the chain, so `diagnose_media` refuses one,
@@ -614,8 +568,7 @@ key: **no tool in this server returns an API key**, because anything a tool
 returns passes through a model's context. A script that needs credentials runs
 beside `config.yaml` and imports `loadConfig`.
 
-`endpoints` is absent at `detail: "minimal"`, alongside `permissions`: a URL is
-no more a fault than a grant is.
+`endpoints` is absent at `detail: "minimal"`, alongside `permissions`.
 
 ### Which services report health checks
 
@@ -627,12 +580,9 @@ Dispatcharr and Shelfmark their own status (see [Dispatcharr](#dispatcharr) and
 Bookdrop files and a newer release (see [Grimmory](#grimmory) below).
 
 SABnzbd reports the warnings and errors from its log, and only those from the
-last 24 hours. Its warnings list is a log rather than a state: it keeps every
-row until a restart or until someone clears it, so a provider that refused
-connections a week ago would otherwise still read as failing. Rows from the
-same source are collapsed into one, with the newest text and a count of the
-rest, because one flaky provider can log dozens of near-identical lines. The
-text is in SABnzbd's own UI language.
+last 24 hours, since its list keeps every row until a restart or a clear. Rows
+from the same source are collapsed into one, with the newest text and a count of
+the rest. The text is in SABnzbd's own UI language.
 
 qBittorrent, Transmission, Plex, Jellyfin, Seerr and Profilarr have no health
 report this server reads. They appear in `services` with their version and
@@ -648,21 +598,16 @@ It lists, per Radarr, Sonarr, Whisparr or Lidarr instance, the
 `qualityProfiles`, `rootFolders` and `tags` it actually has. Lidarr's metadata
 profiles are not listed here: `add_media` and `update_media` name them when one
 must be chosen. These are the values `add_media` and `update_media` refuse to
-guess at: with more than one profile they insist you name which, and this is
-where the names come from. It is three calls per instance and answers "what may
-I choose", not "is anything broken", which is why it is a tool of its own. An
+guess at: with more than one profile they insist you name which. An
 instance whose profile list cannot be read is named in `degraded` and left out
 of `items`.
 
 Each root folder also carries `unmappedFolders` when the instance reports any:
-the folder names under that root it associates with no item. It rides along on
-a call already being made, and it is the only trace the API gives of a mapping
-the service has lost: an item whose files it no longer knows about is never
-renamed, upgraded or searched for again. Read it as a fact rather than a
-verdict: a folder dropped in by hand and a delete that kept its files look
-exactly the same from here. Absent rather than empty when the root is fully
-mapped, so "nothing unmapped" stays distinguishable from "the service did not
-say".
+the folder names under that root it associates with no item. It is the only
+trace the API gives of a mapping the service has lost: an item whose files it
+no longer knows about is never renamed, upgraded or searched for again. A
+folder dropped in by hand and a delete that kept its files look the same from
+here. Absent rather than empty when the root is fully mapped.
 
 ### Seeding rules, at `detail: "full"`
 
@@ -762,11 +707,9 @@ Paths are fenced. Categories and patterns are not, the same as rule categories.
   and Cleanuparr would move it whole, torrents included, unless its name is
   excluded. That is why cross-seed link directories are listed one per
   tracker. Paths are compared as Cleanuparr compares them: either slash, no
-  trailing slash, ignoring case. Cleanuparr can map a client's paths onto its
-  own mount, but that mapping is stored in its download client settings next
-  to the password, and arr-mcp never reads those. So when none of the save
-  directories lies inside any scan directory, the note says the two cannot be
-  compared and stops there, without flagging each directory.
+  trailing slash, ignoring case. arr-mcp cannot read Cleanuparr's own path
+  mapping, so when none of the save directories lies inside any scan
+  directory, the note says the two cannot be compared and stops there.
 
 The client's torrents are read once and serve both this and the rule coverage above.
 
@@ -814,9 +757,8 @@ client, which ends its seeding. On a private tracker that can count as a
 hit-and-run. It also names a cleaner whose settings could not be read; when
 neither can, Cleanuparr is named in `degraded` instead.
 
-One thing it cannot see: each *arr can override the failed-import strike count
-in Cleanuparr, including turning failed imports on when the global count is 0,
-and that setting is served together with the *arr's API key, so it is not read.
+One thing it cannot see: a per-*arr override of the failed-import strike count
+in Cleanuparr (it is served together with the *arr's API key, so it is not read).
 
 ### Reclaimerr
 
@@ -856,9 +798,8 @@ Jellyfin play from it:
 | Dispatcharr is newer than 0.33.x, the minor this adapter was written against | warning |
 
 Accounts, profiles and sources switched off in Dispatcharr are ignored, and so
-is the locked built-in `custom` account every install has: it has no URL or
-file, so each of its refreshes fails, and Dispatcharr hides it and will not let
-it be changed.
+is the locked built-in `custom` account every install has, whose refreshes
+always fail.
 
 A failed refresh says why in a fixed set of words, such as "no playlist URL or
 file is set", "the provider refused the login (HTTP 884)", "the guide file was
@@ -896,8 +837,7 @@ approved with `import_download`; the *arr options are refused. To choose another
 is on offer, most-downloaded first, with rows from sources that count nothing last,
 and `grab_release` takes a row's `guid` and `indexer_id`. Shelfmark has no indexer
 ids, so `indexer_id` is always 0. Listing searches every source
-Shelfmark has and took 24s to 54s on a live server, so a listing is reused for five
-minutes. Ebooks only.
+Shelfmark has and is slow, so a listing is reused for five minutes. Ebooks only.
 
 `remove_queue_item` cancels a queued or running book, with `destructive` on. It
 refuses a failed one, which has nothing left to cancel, and
@@ -928,8 +868,7 @@ With Grimmory configured, its findings cover the library and the Bookdrop:
 
 The notice for a read names which one failed and, for a 403, says "this account
 may not read" it, so a user without `canAccessBookdrop` loses the Bookdrop
-finding and nothing else. The update notice only appears when the latest release
-is newer than the running one.
+finding and nothing else.
 
 **Unverified live** (Grimmory): the Bookdrop age warning, tested on a constructed file.
 
@@ -937,30 +876,24 @@ is newer than the running one.
 
 `commands` is every **followable** task a service has queued or running, plus
 anything it finished in the last fifteen minutes: `commandId`, `name`, `status`
-(`queued`, `started`, `completed`, `failed`), and the times. It is the
-follow-up `trigger_search` and `trigger_scan` never had: both hand back a
-command id and return immediately, and until now the only way to know whether
-one had finished was to wait and re-read the queue.
+(`queued`, `started`, `completed`, `failed`), and the times. Use it to follow
+the command id `trigger_search` and `trigger_scan` hand back.
 
 Followable means the tasks this server can start: searches, scans, refreshes,
-renames, retags, imports, the Prowlarr sync. A live instance also runs its own
-housekeeping every minute, and it is left out: measured on a quiet stack the
-unfiltered window held 37 rows, every one of them a poller, which is how the
-one row you asked about gets lost. Filtering on the command's `trigger` would
-not have helped: Radarr reports its own per-minute refresh as `manual`.
+renames, retags, imports, the Prowlarr sync. The service's own per-minute
+housekeeping is left out.
 
 A command the service accepts without returning a command id fails rather than
 waiting, since there would be nothing to follow.
 
 Radarr, Sonarr, Whisparr, Lidarr and Prowlarr are read.
 
-**Unverified live** (Whisparr): the `commands` list and the `logs`: read through Sonarr's helpers; its API spec matches Sonarr's for these, so this is inherited, not captured.
+**Unverified live** (Whisparr): the `commands` list and the `logs`, inherited from Sonarr's spec, not captured.
 
-**A command that is not in the list has finished.** The fifteen-minute window
-is what makes that readable rather than merely true: a search you started a
-minute ago is still there with its outcome. Older than that is history, which
-`get_history` answers. Absent at `detail: "minimal"` (a running command is
-not a fault), and bounded like `scans` rather than sharing the `limit` budget.
+**A command that is not in the list has finished.** A search you started a
+minute ago is still there with its outcome; older than fifteen minutes is
+history, which `get_history` answers. Absent at `detail: "minimal"`, and bounded
+like `scans` rather than sharing the `limit` budget.
 
 ### Why is it failing?
 
@@ -973,10 +906,7 @@ unavailable"); the log line says *why* ("Name does not resolve
 The last 50 warning-or-worse lines are read per instance, and lines that differ
 only in a date-time are folded into one row: `level`, `logger`, `message`,
 `exceptionType`, `count`, `firstSeen` and `lastSeen`. `message` is the newest
-line as written. A client test that fails every two seconds writes the same pair
-of lines dozens of times, and an RSS warning quoting the period it missed
-differs only in its times; on Radarr's recorded fixture, 20 lines fold into 3.
-Hosts, ports, IP addresses and other numbers stay in the comparison, so
+line as written. Hosts, ports, IP addresses and other numbers stay in the comparison, so
 `server1:8080` and `server2:8080` stay apart. `logs` is an envelope with its own
 `limit` budget. A log that cannot be read marks the instance `degraded`.
 
@@ -1030,22 +960,13 @@ with album ids in `albums` or `album` to narrow the search, `update_media` takes
 it as `id` to change the artist's profiles, folder, monitoring or tags, and
 `delete_media` takes it as `id` to delete the artist.
 
-Before this, a caller had the external ids and nothing a write would accept,
-so answering "delete this" meant a second `search_media(source: "library")` hop
-to find the id for a title `get_library` had just returned.
-
 **A present `qualityProfileId` with no `qualityProfile` means the profile list
-could not be read**, not that the item has no profile. The profile names are
-one extra call per library build, cached beside it, and a failure there degrades
-to the id rather than taking the library with it.
+could not be read**, not that the item has no profile.
 
 ### What am I still waiting for
 
-`has_file: false` with `monitored: true`.
-
-Media no *arr manages is excluded from that answer rather than counted as
-missing: nothing is going to fetch it, so it does not belong on a list of things
-to chase.
+`has_file: false` with `monitored: true`. Media no *arr manages is excluded
+from that answer rather than counted as missing.
 
 ### Filters that are films only, and why
 
@@ -1082,19 +1003,14 @@ An artist carries **no** rating and no item-level quality, so `min_rating`,
 `rating_source`, `sort: "rating"` and `quality` are refused when `kind:
 "artist"` names the question. Without a kind they drop artists, which is what an
 absent field means everywhere else here. `watched` and `watched_by` drop
-artists the same way, because no music watch state is read: left in, an artist
-counts as unwatched and `watched: false` answers with the whole music
-collection. With `kind: "artist"` named, they are refused instead. `sort:
-"added"` works, because Lidarr reports an added date for an artist.
+artists the same way, because no music watch state is read. With `kind:
+"artist"` named, they are refused instead. `sort: "added"` works.
 
-The media server's music read runs only when a Lidarr is configured. With no
-Lidarr there is no artist row to join to, so the read would only add every
-artist the server holds as `jellyfin_only`.
+The media server's music read runs only when a Lidarr is configured.
 
 **Album ids are one call down.** `get_media_details` on an artist returns its
 `albums`, each with the Lidarr album `id` that `set_monitoring` takes with `level:
-"album"`. Nothing in `get_library` returns an album id, because the library does
-not row on albums.
+"album"`. Nothing in `get_library` returns an album id.
 
 `search_media` with `source: "library"` finds an artist by **name**: "do I have
 any Daft Punk" is a library question, and the artist row answers it.
@@ -1153,14 +1069,11 @@ Asking by title alone does not reach a book, and the refusal points to the
 
 ### Sorting
 
-`sort` exists because a filter alone cannot answer a superlative: with more
-results than `limit`, the best-rated one may simply not be in the window
-returned, and an answer drawn from an arbitrary fifty looks exactly like a right
-one. Ordering happens before the limit is applied.
+Use `sort` for a superlative ("best-rated"): ordering happens before `limit` is
+applied, so the answer is not drawn from an arbitrary window.
 
 Items the chosen source has no rating for are excluded rather than ranked as
-zero, and `ratingCoverage` says how many were set aside: a title nobody has
-rated is not a bad title.
+zero, and `ratingCoverage` says how many were set aside.
 
 ### Seasons, at `detail: "full"`
 
@@ -1170,7 +1083,7 @@ A series carries `seasons`, one entry per season:
 | --- | --- | --- |
 | `season` | Sonarr | 0 is specials, reported like any other season: filter `season > 0` if you don't want it |
 | `watched`, `lastPlayed` | media server | Per-user watch state |
-| `onDisk`, `aired`, `total` | Sonarr | `total` is TVDB's episode count by way of Sonarr, which is why this server needs no TVDB integration of its own |
+| `onDisk`, `aired`, `total` | Sonarr | `total` is TVDB's episode count by way of Sonarr |
 | `complete` | both | `watched` has reached `total` |
 | `monitored` | Sonarr | Its own per-season flag |
 
@@ -1178,11 +1091,8 @@ A series carries `seasons`, one entry per season:
 compared (a series no *arr manages has no `total`, one the media server has
 never seen has no `watched`), and also for a season Sonarr reports with zero total
 episodes, so an unannounced or empty season is never reported as finished.
-Treating an absent `complete` as `false` would put a season you already finished
-on a list of things still to watch.
 
-**`monitored` is absent, never `false`,** for a series no Sonarr manages:
-nothing is monitoring it, which is a different fact from monitoring being off.
+**`monitored` is absent, never `false`,** for a series no Sonarr manages.
 It is the field to check before deleting a season's files, since deleting the
 files of a monitored season makes Sonarr search for exactly what you removed.
 
@@ -1193,15 +1103,11 @@ files of a monitored season makes Sonarr search for exactly what you removed.
 A series at `detail: "full"` carries `episodes` on **either** form. Asked by
 `service` plus `id`, they come from that service's own view; asked by title,
 they are fetched from the Sonarr that manages the series, using
-`acquisition.id`. A series no Sonarr manages therefore has none: there is
-nothing to ask. An episode read that fails leaves the merged record intact and
-simply omits them: the record is the answer, and the episodes are the extra.
+`acquisition.id`. A series no Sonarr manages therefore has none. An episode
+read that fails leaves the merged record intact and omits them.
 
-`get_media_details` carries `seasons` at every detail level, on both of its forms:
-asked by title it returns the merged record unprojected rather than a shaped
-one, and asked by `service` plus `id` Sonarr's own view puts `seasons` in the
-base payload, before the gate that adds episodes. `monitored` means the same
-thing on both forms, so neither answer leaves you guessing about it.
+`get_media_details` carries `seasons` at every detail level, on both of its
+forms, and `monitored` means the same thing on both.
 
 ### `lastPlayed`, and what its absence means
 
@@ -1264,8 +1170,7 @@ a series needs `detail: "full"` and a film does not.
 
 This is the field that answers "is the English dub here". A `MULTi` or `Dual
 Audio` in a `get_history` release name describes how the grab was labelled, not
-what landed on disk, and a later upgrade replaces the file without replacing
-that label.
+what landed on disk.
 
 It is **absent, never empty**, when there is no file, and also when there is
 one the service holds no media info for, such as an import that predates a
@@ -1275,18 +1180,11 @@ rescan or a file whose probe failed. Absent means "not known", not "no audio".
 stream, so a file with six English tracks reaches them as
 `eng/eng/eng/eng/eng/eng`, which reads as six languages. Repeats are collapsed
 and first-seen order kept, so the primary track stays first and `ger/eng` still
-means what it looks like. If you want the number of streams rather than the set
-of languages, that is a different field upstream and this one will not give it
-to you.
+means what it looks like. It does not give the number of streams.
 
-Sonarr and Whisparr answer it from a second read of `/api/v3/episodefile`, since
-`/api/v3/episode` carries no media info. Radarr needs no extra call: the movie
-payload already embeds its file. A failed second read costs the field and
-nothing else: the episodes still come back.
-
-Unlike the free text beside it, the value is not fenced. It exists to be matched
-against, and a boundary marker wrapped around `jpn/eng` would make its one job
-harder; the code points `fenceText` strips are removed from it all the same.
+On Sonarr and Whisparr it needs a second read of episode files; if that read
+fails, only this field is lost. Unlike the free text beside it, the value is not
+fenced, so it can be matched against.
 
 ### What a cleanup service is about to do to it
 
@@ -1319,8 +1217,7 @@ manages. Two kinds of row there need care before anything is added:
 - **An empty folder.** A series the media server holds with no episodes
   carries `playback.empty` and reads `empty folder` in the text. Adding it with
   a search would download the whole series. Only `jellyfin_only` rows carry it;
-  where an *arr manages the series, `has_file` already says the same. Jellyfin
-  counts episodes per user (`RecursiveItemCount`), Plex with `leafCount`.
+  where an *arr manages the series, `has_file` already says the same.
 - **A wrong match.** An old folder with no id in its name can be matched by the
   media server to another title. `add_media` with `path` checks the folder name
   against the lookup (see below).
@@ -1337,14 +1234,10 @@ that differs, or a name that shares nothing with the title.
 
 ## `get_playback`
 
-`scope` picks which of three Jellyfin reads answers the call, and defaults to
-`active`: every existing caller sees the same output it always has.
+`scope` picks which of three reads answers the call, and defaults to `active`.
 
-`scope: "active"` (the default): what can be continued comes from
-`/UserItems/Resume`, Jellyfin's own answer to the question.
-`/Items?IsResumable=true` looks like the right query, but Jellyfin 10.11
-silently ignores it and returns the whole library rather than the resumable
-set. Each entry carries `percentComplete`, `positionSeconds` and
+`scope: "active"` (the default): what can be continued, from Jellyfin's
+`/UserItems/Resume`. Each entry carries `percentComplete`, `positionSeconds` and
 `runtimeSeconds`.
 
 To find films you are partway through: keep only `kind: "resume"`, keep entries
@@ -1353,49 +1246,35 @@ episode), then compare `percentComplete` yourself: arr-mcp does not filter by
 how far in you are.
 
 `scope: "next_up"`: the next unwatched episode of every series a user has in
-progress, from `/Shows/NextUp`: Jellyfin's own answer to "what should we watch
-tonight," one row per series. `kind: "next_up"`; `title` is the episode, and
+progress, from `/Shows/NextUp`, one row per series. `kind: "next_up"`; `title` is the episode, and
 `seriesTitle`, `season` and `episode` say which show and where.
 
 `scope: "history"`: recently watched movies and episodes, newest first, from
 a sort-by-`DatePlayed` read over played items. `kind: "watched"`; `lastPlayed`
-carries the timestamp and survives even at `detail: "standard"`, since it is
-the one field this scope exists to answer.
+carries the timestamp and survives even at `detail: "standard"`.
 
-That read alone misses plays that never set the played flag. An offline client
-such as AFinity syncs its plays back when it reconnects, and Jellyfin logs them
-as `VideoPlaybackStopped` in the activity log without ever marking the item
-played. So history also reads `/System/ActivityLog/Entries?type=VideoPlaybackStopped`
-(newest 500 for the whole household, narrowed to the user by `UserId`), keeps the
-newest stop per item, drops anything already in the played list, and looks the
-rest up with `/Items?ids=…&Fields=UserData`. Every Jellyfin history row says
-where it came from in `source`: `marked_played` or `activity_log`.
+That read alone misses plays that never set the played flag, such as an offline
+client syncing back. So history also reads Jellyfin's activity log
+(`VideoPlaybackStopped`, newest 500 for the whole household, narrowed to the
+user), keeps the newest stop per item and drops anything already in the played
+list. Every Jellyfin history row says where it came from in `source`:
+`marked_played` or `activity_log`.
 
 A logged play counts as `kind: "watched"` unless Jellyfin still holds a resume
 position for it, which means the viewer stopped partway: that row is
 `kind: "partially_watched"` with `percentComplete`. Logged items that are not
 movies or episodes (live TV) are dropped. An item deleted since keeps its row,
 titled with the log entry's own sentence, which Jellyfin localises, and
-`removedFromLibrary: true`: whether it was ever marked played cannot be told
-any more, and a cleanup tool deleting played items is the usual reason it is
-gone.
+`removedFromLibrary: true`.
 
 Two limits. The log reaches back only `ActivityLogRetentionDays` (30 by
 default). And a play that left nothing in the log is invisible here. If the
-log read fails, history answers from the played list alone and logs a warning;
-the played list stays a correct answer to most questions.
+log read fails, history answers from the played list alone and logs a warning.
 
-Every scope sends an explicit `Limit=500` (`next_up` gets whatever Jellyfin
-reports, which does not grow unbounded), so truncation is decided by `limit`
-(default 50, like every other tool) and reported honestly through `truncated`,
-rather than by however many rows an undocumented server page size happens to
-hand back.
+Truncation is decided by `limit` (default 50) and reported through `truncated`.
 
-The tool is not Jellyfin-specific in its plumbing: it reads any adapter that
-implements `PlaybackCapable`, and the summary line names whichever media server
-failed. The endpoint detail above is Jellyfin's; Plex answers the same three
-scopes from `/status/sessions`, `/library/onDeck` and
-`/status/sessions/history/all`. With both configured, the call answers from the
+Plex answers the same three scopes from `/status/sessions`, `/library/onDeck`
+and `/status/sessions/history/all`. With both configured, the call answers from the
 primary; pass `service` (`jellyfin` or `plex`) to ask the other. The answers are
 never merged. `service` exists only when two media servers are configured, and
 `user` is resolved on the server you chose.
@@ -1407,18 +1286,13 @@ reads as resume, zero or absent as next-up.
 **Unverified live** (Plex): that a non-zero `viewOffset` means resume, the basis of the resume and next-up split. The `/library/onDeck` read itself is captured.
 
 **Plex answers for one user only.** A local `X-Plex-Token` is scoped to a
-single Plex account, so every Plex row here is that account's: reading anyone
-else's watch state would mean going through plex.tv, which this adapter's
-design refuses. Jellyfin's `allow_other_users` has no Plex equivalent, for the
-same reason: `services.plex.allow_other_users: true` is refused at config
-load.
+single Plex account, so every Plex row here is that account's; other users would
+need plex.tv, which this adapter does not use. `services.plex.allow_other_users:
+true` is refused at config load.
 
-**Known limitation:** `listUsers` reports whichever account `/accounts` names
-as id `1`, on the assumption that a locally-issued token belongs to the server
-owner. A token that instead belongs to a managed user would be mislabelled and
-filtered as the owner. This has not been verified against a managed-user
-token; if you run one, a config UI issue with what `/accounts` actually
-returns for it would help.
+**Known limitation:** the Plex user list assumes the token belongs to the
+server owner (`/accounts` id `1`). A managed user's token would be mislabelled
+as the owner; this has not been tested.
 
 `set_watched`, below, remains Jellyfin-only, whichever server is primary. The
 Plex adapter writes with `trigger_scan` and `fix_metadata`, and `fix_metadata`
@@ -1426,23 +1300,18 @@ has its own switch there, see [Repairing on Plex](#repairing-on-plex).
 
 ### When no media server is configured
 
-Every scope answers zero, and `degraded` stays empty: an unconfigured service
-is not a degraded one, so there is nothing to name. That pair reads exactly like
-a quiet evening, which is the wrong answer to a question nobody asked. `note`
-carries the difference, and the summary line shows it *instead of* the counts
-rather than after them: a correction printed behind "0 item(s) playing now"
-leaves the claim standing.
+Every scope answers zero and `degraded` stays empty, since an unconfigured
+service is not a degraded one. `note` says no media server is configured, and
+the summary line shows it instead of the counts.
 
-`get_library` sets the same `note` for the same reason: with no media server,
-its `presence` field reports `unknown` for everything, which is a gap in the
-join rather than a finding about the library.
+`get_library` sets the same `note`: with no media server, its `presence` field
+reports `unknown` for everything.
 
 ## `get_queue`
 
 Each Radarr, Sonarr, Whisparr or Lidarr row carries `downloadId`, the download
 client's own id for that grab. On Radarr, Sonarr and Lidarr it is what
-`import_download` takes (Whisparr has no manual import), and it is the link
-between "this is stuck at `importBlocked`" and doing something about it. SABnzbd
+`import_download` takes (Whisparr has no manual import). SABnzbd
 and NZBGet rows carry the same id, so a client's row and the *arr's row of one
 grab match (below).
 
@@ -1466,16 +1335,10 @@ in trouble, or a note on it (NZBGet's PAR status on a finished download,
 "full"`, with `private`, `seeding`, `strikes` and `markedForRemoval`: `standard`
 leaves them out, and `minimal` keeps only `service`, `id`, `title` and `status`.
 
-NZBGet rows come from its own queue (`listgroups`). Sizes arrive in megabytes
-and are converted to bytes. The ETA is worked out from the current download
-rate and everything ahead in the queue, and a paused item gets none. A row's
-`downloadId` is the `drone` post-processing parameter Radarr, Sonarr and Lidarr
-attach to their grabs, so it matches the *arr row for the same download; a grab
-added by hand falls back to NZBGet's own `NZBID`.
-
-SABnzbd rows carry `downloadId` too: the job's `nzo_id`, which Radarr, Sonarr
-and Lidarr take as their download id unchanged, so it matches the *arr row for
-the same download.
+NZBGet's ETA is worked out from the current download rate and everything ahead
+in the queue, and a paused item gets none. A grab added to NZBGet by hand has
+NZBGet's own `NZBID` as its `downloadId`, which matches no *arr row. A SABnzbd
+row's `downloadId` is the job's `nzo_id`.
 
 A blocked row also carries `statusMessages`, the service's own reasons, one per
 line and fenced. A file the service rejected leads with its filename. They
@@ -1562,9 +1425,8 @@ type match one of Cleanuparr's; see
 #### When a rule falls due
 
 A rule that is certain and scheduled (no `uncertain`, no `notEnforced`) also
-carries `dueAt`, to the second, when its `action` falls due. It is named for
-the action rather than for removal because a `stop` rule stops the torrent and
-leaves it in the client.
+carries `dueAt`, to the second, when its `action` falls due (a `stop` rule
+stops the torrent and leaves it in the client).
 
 - Past the rule already: the Download Cleaner's next run, read from its job, or
   now when Cleanuparr gave none or that run is already behind.
@@ -1588,26 +1450,17 @@ the summary line says it in one sentence, such as "Cleanuparr is due to delete
 
 Neither client can express a rule like "public trackers stop now, private ones
 seed to 1.0". `private` is there so that question can still be asked of the
-queue. The qBittorrent side is written against its source at release-5.2.4 and
-was checked live on 5.3.0 beside Cleanuparr 2.10.12; `private` needs 5.0 or
-later.
+queue. On qBittorrent `private` needs 5.0 or later.
 
 ## `get_history`
 
-`get_queue` only ever sees what is still in-flight: once a download fails,
-imports, or its file gets deleted, it leaves the queue and `get_queue` has
-nothing to say about it. `trigger_search` cannot fill that gap either: it hands
-back a command handle, and Radarr and Sonarr do not report a search's outcome
-through it. `get_history` merges Radarr's, Sonarr's, Whisparr's and Lidarr's own history logs with SABnzbd's,
+`get_queue` only sees what is still in flight. `get_history` merges Radarr's, Sonarr's, Whisparr's and Lidarr's own history logs with SABnzbd's,
 NZBGet's, Bazarr's, Cleanuparr's, Reclaimerr's and Shelfmark's, plus Grimmory's
 audit log, and is the only tool that can answer "why did last night's download
 fail".
 
 Radarr's and Sonarr's events are normalised to one vocabulary: `grabbed`,
-`imported`, `failed`, `deleted`, `renamed`, `ignored`, because they mostly
-already agree: both spell a grab `grabbed` and an import
-`downloadFolderImported`. The one place they diverge is deletion,
-`movieFileDeleted` versus `episodeFileDeleted`, and that is normalised too.
+`imported`, `failed`, `deleted`, `renamed`, `ignored`.
 Upstream's own spelling survives as `rawEvent`, and an event this server does
 not yet recognise becomes `unknown` rather than being dropped.
 
@@ -1615,13 +1468,12 @@ not yet recognise becomes `unknown` rather than being dropped.
 the services below add (`subtitle`, `strike`, `protected` and the rest), and
 `since` drops anything older.
 
-**Unverified live** (Whisparr): its history rows: read through Sonarr's helpers; its API spec matches Sonarr's for these, so this is inherited, not captured.
+**Unverified live** (Whisparr): its history rows, inherited from Sonarr's spec, not captured.
 
 On a Radarr that ignores the `eventType` parameter (Radarr 4), the filter is applied here and `total` is an upper bound once the read stops early.
 
-A failure's `reason` comes straight from the download client and is fenced
-like any other untrusted string: it is not translated, and on a non-English
-setup it will not read as English.
+A failure's `reason` comes straight from the download client, fenced and
+untranslated.
 
 **Lidarr** history is merged too, with its own event names mapped onto the
 same vocabulary. It has three imports: `artistFolderImported`,
@@ -1631,8 +1483,7 @@ not all be imported. `trackFileRetagged` reads `retagged`, a file whose tags
 Lidarr rewrote. An `event_type` filter on `imported` or `failed` sends Lidarr
 every code for that type, so one album's `downloadImported` row is not dropped
 behind its tracks' `trackFileImported` rows. `id` with `service: "lidarr"` is an
-artist id, scoped through Lidarr's `artistIds`, which Lidarr 2.1.3 (the version
-floor) applies server-side.
+artist id.
 
 ### Cleanuparr
 
@@ -1684,7 +1535,7 @@ and tasks are never read.
 
 | Audit action | `event` | What a row means |
 | --- | --- | --- |
-| `BOOK_UPLOADED` | `added` | A book was uploaded to Grimmory. `mediaId` is the book id when Grimmory logs one. No live upload row has been captured yet, so this shape follows Grimmory's API description |
+| `BOOK_UPLOADED` | `added` | A book was uploaded to Grimmory. `mediaId` is the book id when Grimmory logs one |
 | `BOOK_DELETED` | `deleted` | A book was deleted. The title is the description Grimmory logged, fenced. On 3.5.0 that is a count such as "Deleted 1 book(s)", which names no book. The row has no book id and no `mediaId`, because Grimmory logs none for a delete |
 | `METADATA_UPDATED` | `metadata` | A book's metadata was changed. `mediaId` is the book id |
 | `LIBRARY_SCANNED` | `scanned` | A library was scanned. The title reads `library <id>` unless Grimmory logged a description |
@@ -1710,11 +1561,8 @@ id.
 ### The services below the *arrs
 
 **SABnzbd** contributes its own history: what happened to a download after it
-left the queue, one layer below the *arr that asked for it. When Radarr says it
-grabbed something and nothing ever arrived, the client's own failure message is
-the answer, and it is here. Its rows map onto the same vocabulary: `Completed`
-becomes `imported`, `Failed` becomes `failed`, and carry the `fail_message`
-as `reason`.
+left the queue. `Completed` becomes `imported`, `Failed` becomes `failed`, and
+the `fail_message` is the `reason`.
 
 **NZBGet** contributes its history in the same role. Its `Status` is
 `<KIND>/<DETAIL>`: `SUCCESS/*` becomes `imported`, `FAILURE/*` becomes
@@ -1730,42 +1578,29 @@ NZBGet's own id for one added by hand, and is left out when it is not shaped
 like an id.
 
 **Bazarr** contributes `subtitle` rows: what it actually downloaded, and from
-which provider (in `quality`, as `language · provider`). It is its own event
-type on purpose: a downloaded subtitle is not an `imported` grab, and calling
-it one would put it in the answer to "what did Radarr import last night".
+which provider (in `quality`, as `language · provider`).
 
-All three refuse a `service` + `id` scope rather than answering an empty list:
-none of them knows what a Radarr movie id or a Sonarr series id means, and an empty
-answer would read as "nothing ever happened to that film". Bazarr's rows are
-also dropped rather than dated when its timestamp cannot be read: it has
-shipped two different shapes and neither is ISO 8601, and this list is sorted
-and `since`-filtered as plain strings, so a guessed date would not merely
-mislabel one row, it would reorder the answer.
+All three refuse a `service` + `id` scope rather than answering an empty list,
+since none of them knows a Radarr movie id or a Sonarr series id. A Bazarr row
+whose timestamp cannot be read is dropped rather than dated.
 
-Pass `service` and `id` together to scope to one movie or series, via a
-`movieIds`/`seriesIds` filter on the same paged endpoint the unscoped read
-uses, not the per-item endpoint (`/api/v3/history/movie`), which answers a
-bare array rather than the paginated envelope this server needs.
-`id` without `service` is refused: Radarr's movie ids and Sonarr's series ids
-are different namespaces, and a shared number would otherwise merge two
-unrelated items' history into one answer.
+Pass `service` and `id` together to scope to one movie or series. `id` without
+`service` is refused, since Radarr's movie ids and Sonarr's series ids are
+different namespaces.
 
-`mediaId` is the movie, series or artist id: hand it straight to
+`mediaId` is the movie, series or artist id; hand it straight to
 `get_media_details` or `trigger_search`. Sonarr also reports `episodeId` separately; it is never
 folded into `mediaId`.
 
 ## `get_wanted`
 
-`get_library` can say a movie is missing (`monitored` with no file) but a
-season's aggregate counts cannot say *which* episodes of a show are missing,
-and neither tool can say what already has a file but not yet the quality a
-profile wants. `get_wanted` answers both, straight from Radarr, Sonarr and
-Lidarr's own wanted lists.
+`get_wanted` says which episodes are missing and what has a file but not yet
+the quality its profile wants, straight from Radarr, Sonarr and Lidarr's own
+wanted lists.
 
 `scope` is required, with no default: `missing` is monitored items with no
 file at all; `upgradable` is monitored items that have a file but sit below
-the quality profile's cutoff. The two answer different questions, and
-defaulting to one would silently hide the other.
+the quality profile's cutoff.
 
 Radarr's wanted rows are movies. Sonarr's are episodes, and the shapes differ
 in what matters most: `id` always names the **series** (the id
@@ -1779,28 +1614,21 @@ on the row is the album, so the row is `kind: "artist"`, `id` names the
 **artist** and `title` its name, and `albumId` and `albumTitle` say which
 album. `albumId` is what `set_monitoring` takes with `level: "album"`, so "stop
 wanting this album" goes straight from a row to a write. `airDate` is the
-album's release date, left out when Lidarr reports its year-one "no date"
-(`0001-01-01`, .NET's `DateTime.MinValue`). On Lidarr, `missing` is a released
+album's release date, left out when Lidarr reports none. On Lidarr, `missing` is a released
 album with any track lacking a file, not only one with none, so a partly
 downloaded album can be in both lists. Both leave out every album of an
 unmonitored artist, as Lidarr's own wanted lists do.
 
-Sonarr's and Lidarr's missing lists are monitored-only, which matches what
-"wanted" means here: an unmonitored gap is not something anyone asked for,
-and it will not appear in this list.
+Sonarr's and Lidarr's missing lists are monitored-only.
 
 `detail: "minimal"` drops `episodeTitle`, `albumTitle` and `airDate`, keeping
-the identity, `season`/`episode`, `albumId` and `monitored`. None of the three
-is grab-plumbing the way `get_history`'s `guid` is: there is nothing to trim
-between `standard` and `full` here, since every field is one a reader wants.
+the identity, `season`/`episode`, `albumId` and `monitored`. `standard` and
+`full` are the same here.
 
 ## `get_releases`
 
-`trigger_search` asks Radarr or Sonarr to look for a release, but hands back
-only a queued command: it cannot show what was found, so nothing can
-actually be picked. `get_releases` runs the same interactive search Radarr
-and Sonarr's own web UI does and returns every candidate, so a model can
-compare them and pick one for `grab_release`.
+`get_releases` runs the same interactive search Radarr and Sonarr's own web UI
+does and returns every candidate, so one can be picked for `grab_release`.
 
 `service` and either `id` or `title` are required: this searches one movie or
 series, or on Shelfmark one book, with `id` from a `search_media` with `source: "discover"` row. It never
@@ -1816,57 +1644,39 @@ is refused rather than silently dropped. They are mutually exclusive. `episode`
 takes one episode id, as `trigger_search`'s `episodes` does, and searches that
 episode alone.
 
-Rejected releases are returned, not filtered out. A live capture found
-*every* candidate rejected on both a Radarr and a Sonarr search (2 of 2 and
-516 of 516), almost always because the library already held a file at an
-equal or higher quality score. That is the ordinary outcome, and a tool that
-hid rejects would have answered empty both times. Each row carries
-`rejected` and the `rejections` upstream gave, fenced like every other
-release-supplied string.
+Rejected releases are returned, not filtered out: often every candidate is
+rejected, usually because the library already holds a file at an equal or
+higher quality score. Each row carries `rejected` and the `rejections` upstream
+gave, fenced.
 
-`guid` and `indexerId` travel together: that pair is what `grab_release`
+`guid` and `indexerId` travel together; that pair is what `grab_release`
 binds a chosen release to. `seeders` is torrent-only and is absent,
-not zero, on a usenet result, which has no seeder count to report.
+not zero, on a usenet result.
 
 `detail: "full"` keeps `guid`, `indexerId` and `rejections`. `standard` (the
-default) trims all three: the largest response on this server's surface can
-carry hundreds of rejected rows, each with its own reasons, so the token
-budget guarantee holds at the default detail level rather than at `full`,
-which is documented as intentionally the biggest a caller can ask for.
+default) trims all three, since a search can return hundreds of rejected rows.
 `minimal` keeps only `service`, `indexer`, `title`, `quality` and `rejected`.
 `guid` is never fenced, since a grab tool needs it verbatim, but it is still
-stripped of the same dangerous code points fenced text is and length-capped:
-an indexer chose it, and it is not trusted any more than a release title is.
-At `full`, each row's text line carries both too, next to the indexer
+stripped of dangerous code points and length-capped. At `full`, each row's text line carries both too, next to the indexer
 (`V3X (Prowlarr) [indexer_id 5, guid …]`), so a client that never forwards
 the structured result can still pass them to `grab_release`. A guid shaped
 like an id (no whitespace, brackets or angle brackets) appears bare; any other
 is fenced like a title, and that row can be grabbed by `release_title` instead.
 
-This call is slow. Radarr and Sonarr poll every configured indexer
-synchronously before answering, and a live capture measured a Sonarr season
-search at 14.3 seconds: a cold search across more indexers can run longer.
-The tool's own per-call timeout is 120 seconds, well past the 10-second
-default every other call uses, specifically so a real search has room to
-finish rather than being cut off. A long wait here is not a hang; retrying
-it starts a second full indexer sweep.
+This call is slow: the service polls every configured indexer before
+answering. Its per-call timeout is 120 seconds rather than the usual 10. A long
+wait here is not a hang; retrying it starts a second full indexer sweep.
 
 Sonarr runs one indexer search per episode, so a season search scales with the
 season's episode count and a whole-series search with every episode the series
-has. To replace one bad episode, pass `episode`: a live search for one episode
-returned 339 releases in 58 seconds, where a season could not fit in the
-timeout. Retry is already off for this call, so a timeout means one sweep ran
-out of time, not two.
+has. To replace one bad episode, pass `episode`; a whole season may not fit in
+the timeout. Retry is off for this call, so a timeout means one sweep ran out of
+time, not two.
 
 On **Lidarr**, `id` is the artist and `album` narrows the search to one of its
-albums, from `get_media_details` at `detail: "full"`. The album is read first
-and must be the artist's: Lidarr searches an album by its id alone, so a
-mismatched pair would list releases for an artist nobody named. A whole-artist
-search returns every release matching the artist's name, and ran past a
-thousand rows live, so pass `album` when you know it. `season` and `episode`
-are refused. Lidarr 3.1.6 names the protocol by its class
-(`UsenetDownloadProtocol`), and rows read `usenet` or `torrent` as Radarr's and
-Sonarr's do.
+albums, from `get_media_details` at `detail: "full"`. The album must be the
+artist's. A whole-artist search can return over a thousand rows, so pass
+`album` when you know it. `season` and `episode` are refused.
 
 ## `grab_release`
 
@@ -1888,16 +1698,11 @@ title to pick one. The token binds to the guid and indexer the title resolved
 to, and the confirmation resolves it again, so a re-search that maps the name
 to a different row voids the token.
 
-Safe tier, not destructive: a grab starts a download, and a download comes
-back off with `remove_queue_item`. Nothing on disk is lost.
+Safe tier: a download comes back off with `remove_queue_item`.
 
-Previewing is slow, and deliberately so. The preview re-runs the interactive
-search before it will issue a token, which polls every indexer again and can
-take tens of seconds. It buys two things. Indexer results expire, and a bare
-grab of an expired guid answers a 404 that is indistinguishable from a wrong
-base path: the re-search turns that into *"that release is no longer on
-offer, call get_releases again"*. And it puts the release's real name in the
-preview: "grab release abc" is not something a person can approve.
+Previewing is slow: the preview re-runs the interactive search before it issues
+a token, which can take tens of seconds. That way an expired release is
+reported as no longer on offer, and the preview names the release.
 
 Pass the same `season` or `episode` `get_releases` was called with, so that
 re-search covers the scope you actually searched rather than the whole series,
@@ -1905,19 +1710,14 @@ and on Lidarr the same `album`. All three are refused alongside `magnet`, which
 never goes through an *arr and so has no scope to narrow.
 
 A Lidarr grab answers only once Lidarr has handed the release to the download
-client, which ran past the 10s default live, so it gets the release-search
-timeout. A grab that still times out says it may have gone through: check
+client, so it gets the release-search timeout. A grab that still times out says it may have gone through: check
 `get_queue` or `get_history` before grabbing again, or it may download twice.
 
-The confirmation token binds to **both** `guid` and `indexer_id`. That pair
-is what identifies a release, and the candidate list is written by indexers,
-so a search running between the preview and the confirmation must not be able
-to swap which release the confirmation applies to. A token issued for one
-guid is refused for another, and the same for the indexer.
+The confirmation token binds to **both** `guid` and `indexer_id`: a token
+issued for one guid is refused for another, and the same for the indexer.
 
-A release the *arr rejected on its own criteria can still be grabbed
-(that is most of what this tool is for), but the preview says which
-rejections are being overridden before you confirm.
+A release the *arr rejected on its own criteria can still be grabbed, and the
+preview says which rejections are being overridden.
 
 ### A magnet, straight to the client
 
@@ -1925,59 +1725,43 @@ Instead of `guid` and `indexer_id`, this tool takes a `magnet` link addressed
 to `transmission` or `qbittorrent`. Sending both is refused rather than
 resolved: they are different ways to start a download.
 
-This is the one place in the server where a URI the caller supplies causes a
-download, so the link is validated here rather than passed on: a magnet must
-start `magnet:?` and carry `xt=urn:btih:<hash>`. The preview names the hash,
-because the rest of a magnet is tracker parameters nobody can weigh.
+A magnet must start `magnet:?` and carry `xt=urn:btih:<hash>`, and the preview
+names the hash.
 
-It skips the *arrs entirely, and the preview says what that means:
-nothing vetted the release (no indexer, no quality profile) and nothing will
-import it into your library afterwards, because no *arr knows it exists. A
-torrent the client already has is reported as a duplicate rather than an error;
-that is the state you asked for.
+It skips the *arrs entirely, and the preview says what that means: nothing
+vetted the release (no indexer, no quality profile) and nothing will import it
+into your library afterwards. A torrent the client already has is reported as a
+duplicate rather than an error.
 
 ## `request_media`
 
 Asks Seerr for something, the way a household member would through its web
 UI: it enters the approval queue and counts against that user's quota.
 
-The line against `add_media` is the whole reason both exist. `add_media`
-writes straight into Radarr or Sonarr: no approval, no quota, and it needs
-*that service's* write permission. `request_media` goes through Seerr and
-needs Seerr's. Asked to "request" something, a model should reach for this
+`add_media` writes straight into Radarr or Sonarr, with no approval or quota,
+and needs *that service's* write permission. `request_media` goes through Seerr
+and needs Seerr's. Asked to "request" something, a model should reach for this
 one.
 
-`media_id` is a TMDB id. Seerr resolves the TVDB id itself, so there is no
-second id to supply. For a series, `seasons` defaults to every season: a
-live Seerr answers HTTP 500 for a tv request carrying no seasons at all, so
-"all" is sent explicitly rather than omitted. Passing `seasons` for a film is
-refused rather than ignored.
+`media_id` is a TMDB id. For a series, `seasons` defaults to every season.
+Passing `seasons` for a film is refused rather than ignored.
 
-Already-requested is a **no-op**, not an error and not a second request. That
-check happens here because Seerr does not do it: requesting the same media
-twice creates two rows on a live 3.4.1.
+Already-requested is a **no-op**, not an error and not a second request.
 
 `user` names whose quota and approval trail the request lands in, and
 requesting as anyone but `default_user` needs
-`services.seerr.allow_other_users`: the same gate `get_requests` and
-`respond_to_request` apply. Without it, one household member's assistant
-could spend another's quota.
+`services.seerr.allow_other_users`, the same gate `get_requests` and
+`respond_to_request` apply.
 
 ## `get_requests`
 
 At `detail: "full"` the answer also carries `issues`: what your users have
 reported as broken, each naming the media it is about (title plus TMDB
-and TVDB ids), and with its newest comments. The issue payload
-itself carries the ids but no title, so the title is resolved from the media
-detail endpoint, once per distinct title and at most four reads in flight. Seerr numbers both the kind
-(`video`, `audio`, `subtitle`, `other`) and the state (`open`, `resolved`);
-both are mapped to words here, because a model handed `issueType: 2` cannot say
-what is wrong with the film.
+and TVDB ids), and with its newest comments. The kind (`video`, `audio`,
+`subtitle`, `other`) and the state (`open`, `resolved`) are given as words.
 
-`issues` is a sibling list rather than a second kind of `items`: the same
-shape `get_indexers` uses for its rejections, so `items` keeps meaning exactly
-what it always has. Comments are the users' own text and are fenced, and capped
-at the newest few per issue. Who reported an issue, and who made a request, is
+`issues` is a sibling list rather than a second kind of `items`. Comments are
+the users' own text and are fenced, and capped at the newest few per issue. Who reported an issue, and who made a request, is
 fenced too: Seerr users choose their own display names. Unlike the requests, issues are not scoped to one
 user: they are what the household has reported.
 
@@ -1987,14 +1771,11 @@ not report itself degraded for it.
 ## `get_blocklist` and `remove_blocklist_item`
 
 The question that sends people here is "it keeps finding the same release and
-never downloading it". `get_history` shows that as a grab followed by a
-failure, over and over, and explains none of it. The blocklist does: Radarr,
-Sonarr, Whisparr and Lidarr record what they will not grab again, and why: usually in
-the download client's own words.
+never downloading it". Radarr, Sonarr, Whisparr and Lidarr record what they
+will not grab again, and why, usually in the download client's own words.
 
 Rows carry `mediaId` for `get_media_details` (on a Lidarr row, the artist id)
-and `id` for `remove_blocklist_item`, and are newest first, because a blocklist
-is read to explain something that has just gone wrong.
+and `id` for `remove_blocklist_item`, and are newest first.
 
 When the service sorts newest first, it reads only the newest rows the window needs; `remove_blocklist_item`'s preview stops reading once it finds the id.
 
@@ -2004,45 +1785,38 @@ again. Safe tier: nothing on disk changes, and the inverse already exists:
 Radarr, Sonarr, Whisparr and Lidarr alike. [`remove_queue_item`](#remove_queue_item)
 says when it does not.
 
-Its preview reads the live blocklist first, and that is not a courtesy. Both
-services answer a `DELETE` of a blocklist id that **does not exist** with
-success (probed against a live Radarr and a live Sonarr), so a stale id
-would otherwise be reported as removed when nothing had happened. It is the
-same trap `remove_queue_item` documents, and it is checked the same way.
+Its preview reads the live blocklist first, because the services answer a
+`DELETE` of a blocklist id that **does not exist** with success; a stale id
+would otherwise be reported as removed when nothing had happened.
 
 ## `remove_queue_item`
 
 On Radarr, Sonarr, Whisparr and Lidarr, `blocklist: true` works in one of two
-ways (Radarr 6.4.4, Sonarr 4.0.20, Whisparr 2.2.0, Lidarr 3.1.6). A release the
-service is only holding back (status `delay`, `downloadClientUnavailable` or
-`fallback`) has not gone to a download client: the service drops it, whatever
-`remove_from_client` says, and blocklists it directly
-(`BlocklistService.Block`), with no search after.
+ways. A release the service is only holding back (status `delay`,
+`downloadClientUnavailable` or `fallback`) has not gone to a download client:
+the service drops it, whatever `remove_from_client` says, and blocklists it
+directly, with no search after.
 
-Any other row is marked failed (`FailedDownloadService.MarkAsFailed`), which
-works only from the service's `grabbed` history for that download. A download
-added to the client by hand has none. `HistoryService` (`EntityHistoryService`
-on Lidarr) deletes it with the film, series or artist, and housekeeping drops it
-when an episode or album is gone though its series or artist is not. Without it
-nothing is blocklisted, and from Sonarr 5.0.0.2569 the request fails, after
-removing the download if `remove_from_client` asked for that. So for
-`blocklist: true` the preview first reads that history, one request. Sonarr's
-and Whisparr's history list also joins the episode, which their own lookup does
-not, so a grab whose episode was deleted reads as none there until housekeeping
-drops it. With no record the preview says the release is not blocklisted, and
-the request sends `blocklist=false`. With one, marking the download failed also
-has the service delete it from the client when that client's Remove Failed
-setting is on (`DownloadEventHub`; on by default), so
-`remove_from_client: false` does not reliably keep a blocklisted download. With
-the service's Redownload Failed setting on (`autoRedownloadFailed`, on by
-default; "Redownload" in Radarr 4.0), it also starts a search for a replacement,
-unless the grab came from an interactive search and Redownload Failed from
-Interactive Search is off (`RedownloadFailedDownloadService`).
+Any other row is marked failed, which works only from the service's `grabbed`
+history for that download. A download added to the client by hand has none,
+and the record is deleted with the film, series or artist, and dropped by
+housekeeping when an episode or album is gone. Without it nothing is
+blocklisted, and from Sonarr 5.0.0.2569 the request fails, after removing the
+download if `remove_from_client` asked for that. So for `blocklist: true` the
+preview first reads that history, one request. On Sonarr and Whisparr a grab
+whose episode was deleted reads as none until housekeeping drops it. With no
+record the preview says the release is not blocklisted, and the request sends
+`blocklist=false`. With one, marking the download failed also has the service
+delete it from the client when that client's Remove Failed setting is on (on by
+default), so `remove_from_client: false` does not reliably keep a blocklisted
+download. With the service's Redownload Failed setting on (on by default;
+"Redownload" in Radarr 4.0), it also starts a search for a replacement, unless
+the grab came from an interactive search and Redownload Failed from Interactive
+Search is off.
 
 Without a blocklist, `remove_from_client: false` keeps a download only if the
 service can ignore it, and it ignores a download only with a film, series or
-artist to record that against, on Lidarr also an album
-(`IgnoredDownloadService`). Otherwise it only stops tracking the download, which
+artist to record that against, on Lidarr also an album. Otherwise it only stops tracking the download, which
 is back in the queue at the next refresh. A blocklisted download is marked
 failed instead, and not tracked again. So `remove_from_client: false` is refused
 for a row `get_queue` marks `orphaned`, and for a Lidarr row with no album,
@@ -2071,24 +1845,19 @@ client is refused before anything is read.
 
 Radarr and Sonarr leave a completed download in the queue forever when the film
 or series it belongs to has been deleted: there is nothing to import it into,
-so it sits at `importBlocked`. Both hide these from the queue by default, which
-is why they accumulate unnoticed: `get_queue` now asks for them and marks each
-one `orphaned`.
+so it sits at `importBlocked`. Both hide these from the queue by default;
+`get_queue` asks for them and marks each one `orphaned`.
 
 The tool removes exactly the items that are **both** `orphaned` and
 `importState: "importBlocked"`, from the queue and from the download client.
-That pairing is not configurable, and the reason is the first half on its own:
-an item can be unlinked and still transferring, and deleting one of those
-destroys a download in progress. `orphaned` describes the missing media, never
-whether the item is finished with.
+That pairing is not configurable: an item can be unlinked and still
+transferring, and deleting one of those destroys a download in progress.
 
-It never blocklists. The release was fine: the film was deleted, so any of
-these can be grabbed again later.
+It never blocklists, so any of these can be grabbed again later.
 
 Lidarr does the same for an album whose artist was deleted, and `orphaned: true`
-takes `service: "lidarr"` with the same rule, **from Lidarr 2.10.1**. That is
-the first release whose `CompletedDownloadService` marks such a download
-`importBlocked`; before it, the download stays `status: "completed"` with
+takes `service: "lidarr"` with the same rule, **from Lidarr 2.10.1**. Before
+it, the download stays `status: "completed"` with
 `importState: "downloading"` and a warning ("Artist name mismatch, automatic
 import is not possible"), so on 2.1.3 to 2.10.0 the rule matches nothing, and a
 Lidarr preview with nothing to clean says so. Remove one of those with
@@ -2098,8 +1867,7 @@ not stuck, and `remove_queue_item` removes one if it is wanted gone.
 
 The preview lists every item by name before anything is removed, and the
 confirmation token is bound to those exact ids, so an item that appears in the
-queue between preview and confirm is not swept up by a token issued before it
-existed.
+queue after the preview is not removed.
 
 The text reports what actually happened, not what was planned: if only some of
 the items go it says so ("1 of 2 removed"), not only in `result`.
@@ -2114,8 +1882,7 @@ Every action but `add` takes `id` from
 `get_indexers`: `21` for a row shown as `prowlarr:21`.
 
 What happens to the copies in Radarr and Sonarr depends on each app's sync
-level in Prowlarr, so the preview reads `/applications` and says it per app.
-From Prowlarr's own source (2.6.5):
+level in Prowlarr, and the preview says it per app:
 
 | Action | Add and Remove Only | Full Sync | Sync disabled |
 | --- | --- | --- | --- |
@@ -2136,9 +1903,7 @@ reaches Sonarr, and the preview says which of the two kept it out.
 (`Nyaa.si`) or its definition name (`nyaasi`), and only adds **public indexers
 that need no login**: no password, cookie or captcha field. Private and
 semi-private ones are refused with a pointer to Prowlarr's UI, because arr-mcp
-never handles indexer credentials. Prowlarr's own field flag misses cookies and
-most Cardigann passwords, so the check is on the field type too. On a current
-Prowlarr that leaves about 88 of its 650 definitions.
+never handles indexer credentials.
 
 The indexer is posted as Prowlarr's own template with only the settings you
 named changed, enabled, on your first app profile unless you name another.
@@ -2151,9 +1916,8 @@ the reason. A definition already configured is a no-op naming its id.
 ### Editing
 
 `edit` changes `priority`, `app_profile`, `tags` and the four torrent seed
-settings, and nothing else. It goes through Prowlarr's bulk endpoint, which
-takes just those fields, so the indexer's credentials never pass through
-arr-mcp. That is also why the name, URL and categories are not editable here.
+settings, and nothing else, so the indexer's credentials never pass through
+arr-mcp.
 
 Profiles and tags are named, not numbered, and must already exist; arr-mcp
 does not create either. `tags` replaces the whole list, and the preview works
@@ -2161,12 +1925,10 @@ out which apps gain or lose the indexer because of it: Full Sync apps drop a
 copy whose tags no longer match, Add and Remove Only apps keep it.
 
 A seed setting that is unset today means the download client's default
-applies. Setting it is fine, but the bulk endpoint cannot unset it again, so
-the preview says so and only Prowlarr's UI can put it back.
+applies. Once set it cannot be unset here, only in Prowlarr's UI, and the
+preview says so.
 
-`disable` stops grabs everywhere because Prowlarr answers a disabled indexer's
-searches and downloads with `410 Indexer is disabled`, whatever the app thinks
-it has. The cost is that an app at Add and Remove Only reports the indexer as
+`disable` stops grabs everywhere, whatever copy the app has. The cost is that an app at Add and Remove Only reports the indexer as
 failing until it is enabled again or deleted. An app whose tags exclude the
 indexer never had it, and the preview says so.
 
@@ -2196,15 +1958,11 @@ watched or unwatched in Jellyfin, or a Grimmory book read or unread.
 
 **Unverified live** (Grimmory): marking a book read or unread.
 
-`item_id` is a **Jellyfin** item id, and that constraint is deliberate rather
-than incidental. Jellyfin's own ids never enter the library index:
-`listUserLibrary` carries TMDB, TVDB and IMDb ids only, so an id here can
-only have come from the `itemId` `get_playback` reports or from a jellyfin
-hit in `search_media`. With Plex as primary, `playback.itemId` is a Plex id;
+`item_id` is a **Jellyfin** item id, from the `itemId` `get_playback` or
+`get_library` reports or from a jellyfin hit in `search_media`. With Plex as
+primary, `playback.itemId` is a Plex id;
 take the Jellyfin one from `media_servers.jellyfin.itemId` on `get_library` or
-`get_media_details`. A Radarr or Sonarr id is a small integer and is
-refused before any network call, rather than becoming a 404 that names
-nothing.
+`get_media_details`. A Radarr or Sonarr id is refused before any network call.
 
 `title` takes the place of `item_id`: a film or series title, resolved as
 `get_media_details` resolves one, to the Jellyfin id on the merged record
@@ -2214,8 +1972,7 @@ the resolved id, so a title that resolves to something else between the
 preview and the confirm is refused rather than written.
 
 A series id with `season` marks that season. The preview reports the **number
-of episodes**, not just the season number: "marks season 2 watched" is not
-something anyone can weigh. It counts only the episodes that would actually
+of episodes**. It counts only the episodes that would actually
 change, so re-running it on a mostly-watched season says so.
 
 Safe tier, with one caveat stated in every preview: unmarking and re-marking
@@ -2245,63 +2002,38 @@ and says to add Jellyfin alongside Plex; it does not suggest replacing Plex.
 
 ## `get_metadata_issues`
 
-The discovery half. `fix_metadata` only ever looks at a series you already
-suspect, and on a real library you mostly do not know which to suspect:
-sweeping 101 series turned up two problems nobody had noticed beside the one
-that prompted the work.
+Finds the series and films whose media-server metadata disagrees with their
+files, for `fix_metadata` to repair. Covers films and series, and Grimmory books
+in a sweep of their own (see [Books that need a repair](#books-that-need-a-repair)
+below). Films cost one request for the whole library; series cost one each,
+which is why this is not folded into `get_library`.
 
-Covers films and series, and Grimmory books in a sweep of their own (see
-[Books that need a repair](#books-that-need-a-repair) below). Films cost one
-request for the whole library, because
-they need no per-title read; series cost one each, which is why this is
-deliberately **not** folded into `get_library` where every caller would pay for
-it. A real library of 101 series and 118 films sweeps in seconds.
-
-It works on Jellyfin and Plex. The detector was tuned on Jellyfin libraries,
-101 real series of them, then on a sweep of a real Plex library of 5,988 items
-in [#312](../../../issues/312). That sweep moved four rules: a film's year may
-drift by two, a matched film whose year agrees is not flagged on its title
-alone (Mad Max 2 shown as The Road Warrior), an episode title is compared
-against every field in the filename including parentheses (`Chapter One - The
-Boy in the Iceberg` shown as "The Boy in the Iceberg"), and accents are folded
-before comparing. A rerun moved three more: a multi-episode file
-(`S04E10-E11`) matches every episode in its range, specials whose file and
-server both say season 0 are never a numbering finding, and an episode whose
-title belongs to the episode next to it is marked as shifted (Cowboy Bebop,
-TNG and 20 more series on that library). The rerun on 1.44.0 widened that to
-any episode in the same season, for shifts of two or more and reordered
-seasons (Goof Troop, Tales from the Crypt). A file that names two segments,
-`Bats in the Basement (Mario and the Beanstalk)`, is checked on both halves.
+It works on Jellyfin and Plex. A film's year may drift by two without a
+finding, and a matched film whose year agrees is not flagged on its title alone.
+An episode title is compared against every field in the filename, including
+parentheses and both halves of a two-segment name, with accents folded. A
+multi-episode file (`S04E10-E11`) matches every episode in its range, and
+specials whose file and server both say season 0 are never a numbering finding.
+An episode whose title belongs to another episode in the same season is marked
+as shifted.
 
 An episode whose filename and server title are in different languages is
 marked too (`El monstruo del mar` shown as "The Monster of the Sea"). The
 language is guessed from function words such as `el`, `the`, `der` or `het`,
-for English, Spanish, French, German, Italian, Portuguese and Dutch. A title
-gets a language only when at least two of its function words point at one
-language, one of them a word no other language on the list uses, and it
-clearly wins. "Wrath as a Lightning" is not Portuguese: `as` and `a` are
-English too. A title too short to place on its own takes the series' language
-when it has a function word of that language, so a Spanish series of
-two-word titles still reads as Spanish. A title with no function words at all
-takes it only when the other side is clearly another language by its own
-words ("One Man's Many Faces" against "Las Muchas Caras de Un Hombre").
+for English, Spanish, French, German, Italian, Portuguese and Dutch, and a
+title too short to place on its own takes the series' language.
 
 Shifted episodes, specials and language differences are real disagreements that
 a rematch does not fix, so they are counted in `shifted`, `specials` and
-`languages`, and never on their own push a series to `refresh_metadata`. A
-rematch was measured not to move a shifted series. Placeholder titles in the
-server are the other finding a repair cannot fix.
+`languages`, and never on their own push a series to `refresh_metadata`.
+Placeholder titles in the server are the other finding a repair cannot fix.
 
 A Plex film matched to a provider id whose year alone disagrees with its file
-gets `inspect`, not `refresh_metadata`. The repair re-matches the id Plex
-already holds and the Plex Movie agent keeps Plex's own year, so on the #312
-library none of those years moved. On Jellyfin the same film still gets
+gets `inspect`, not `refresh_metadata`, because the Plex Movie agent keeps
+Plex's own year on a rematch. On Jellyfin the same film still gets
 `refresh_metadata`, because Jellyfin refreshes a film's year from TMDB.
-Plex episodes are never treated as pinned: their provider ids follow from the
-show's match rather than identifying the episode on its own, so a title-only
-finding on Plex comes back as `refresh_metadata`. If the sweep flags something
-on a Plex library that is actually fine, please open an issue with the filename
-and the title Plex shows.
+Plex episodes are never treated as pinned, so a title-only finding on Plex
+comes back as `refresh_metadata`.
 
 A series item whose files sit in the folders of more than one Sonarr series
 gets `inspect` too, whatever its mismatches say. That is separate shows merged
@@ -2355,27 +2087,17 @@ server ever matched the episode:
 | `inspect` | The server matched it and only the wording disagrees, which a correct title in another language does too. Also a series whose mismatches are all shifted titles, specials or titles in another language. | Look first, against the managing Radarr or Sonarr |
 | `unlock_fields` | The disagreeing field is locked on the item, or on Jellyfin the whole item is, so no rematch or refresh will change it. | Unlock it on the item in the media server if it is wrong, then `fix_metadata` |
 
-Three real series stand behind that rule, which is enough to act on and not
-enough to be certain: treat it as the likely fix rather than a verdict:
-
-- A series whose episodes were titled after the series itself, with no provider
-  ids. `fix_metadata` repaired both episodes.
-- A series where the first three files carried titles belonging to episodes 7,
-  4 and 6. The server *and* Sonarr both had it right; the filenames were wrong.
-- Dragon Ball Kai, where a refresh changed nothing twice.
+Treat `remedy` as the likely fix rather than a verdict.
 
 Rows are worst-first: `numbering` findings outrank title ones, then sheer count.
-`itemsScanned` is the denominator: without it, "0 problems" and "0 series
-looked at" read identically.
+`itemsScanned` is the denominator, so "0 problems" and "0 series looked at"
+read differently.
 
 ## `fix_metadata`
 
-The repair `trigger_scan` was never for. A scan asks whether a file is on
-disk; this asks whether the metadata bolted to that file **describes** it, and
-replaces it when it does not. The case it exists for: a file named
-`Specials/Episode 101 Videl's Crisis…` displayed as S1E1 *Prologue to Battle!*,
-which a scan reports as perfectly fine because the file is exactly where it
-should be.
+A scan asks whether a file is on disk; this asks whether the metadata attached
+to that file **describes** it, and replaces it when it does not (a file named
+`Specials/Episode 101 Videl's Crisis…` displayed as S1E1 *Prologue to Battle!*).
 
 A Grimmory book is repaired too, by its id and through Grimmory's own metadata
 providers; see [A Grimmory book](#a-grimmory-book) below. A title that matches
@@ -2393,90 +2115,56 @@ needs `allow_metadata_repair` on the Plex block, whichever server is primary.
 
 ### The two findings are not equally trustworthy
 
-The preview splits them, because acting on them differently is the point:
+The preview splits them:
 
 - **`numbering`**: the season or episode number the *path itself* states
   disagrees with the server's. A `SxxExx` or a `Specials` folder is an
-  explicit claim, not an inference, so this is the confident half.
-- **`title`**: the filename and the server's title share no meaningful word.
-  Advisory only. A romanised filename against an English title disagrees
-  completely while both are correct, and that is common enough that a title
-  finding alone is a reason to look, not a reason to repair.
+  explicit claim, so this is the confident half.
+- **`title`**: the filename and the server's title share no meaningful word
+  (short words and stopwords excluded). Advisory only: a romanised filename
+  against an English title disagrees completely while both are correct.
 
-Short words and stopwords are excluded from that comparison. Without it "the"
-and "of" satisfy the overlap test and it never fires.
-
-The preview lists the offending filenames themselves, up to five. A count on
-its own is not approvable for a write of this tier: the person confirming has
-to be able to see what the tool believes is wrong.
+The preview lists the offending filenames themselves, up to five.
 
 ### What it actually does on Jellyfin
 
-On confirm, **one** call. `/Items/RemoteSearch/Apply/{id}` with the TVDB id for
-a series or TMDB for a film is not just a pin: checked against the server
-source, it sets the provider ids and then awaits a full refresh itself, with
-`ReplaceAllMetadata` and `RemoveOldMetadata`, before answering. A second
-`/Refresh` would be another full provider fetch of the same item for nothing.
+On confirm, **one** call: Jellyfin's identify (`/Items/RemoteSearch/Apply/{id}`)
+with the TVDB id for a series or TMDB for a film, which sets the provider ids
+and runs a full refresh with `ReplaceAllMetadata` before answering. So when it
+returns, the before/after comparison is final. With no provider id the identify
+step is **skipped rather than guessed**, the preview says so, and the fallback
+is a plain `/Refresh`, which the server *queues*; the result says which of the
+two happened.
 
-That call is **synchronous**, so when it returns the metadata is settled and
-the before/after comparison is a final answer. With no provider id to pin there
-is nothing to identify against, so the fallback is a plain `/Refresh`, which the
-server *queues*: there the comparison is a snapshot mid-flight, and the result
-says which of the two happened rather than hedging over both.
-TVDB is preferred because Sonarr is the source of truth for a series and its
-id is what the file layout was built from. When no provider id is known the
-identify step is **skipped rather than guessed**: applying an empty match
-would unpin whatever identity the item already had, and the preview says so.
+The identify call is **slow**, so its timeout is raised to 120s. A long wait
+here is not a hang; retrying starts a second full rematch.
 
-The identify call is **slow**, and the timeout on it is raised to 120s for
-that reason. Jellyfin holds the request open while it talks to the provider and
-rebuilds the item; the first live run of this tool, against a 69-episode
-series, exceeded the ordinary 10s service timeout and the repair never landed
-at all. A long wait here is not a hang: retrying starts a second full
-rematch.
+**Destructive tier.** `replaceAllMetadata` overwrites every field the server
+held, including anything corrected by hand in Jellyfin, unless it is locked.
+There is no undo on Jellyfin; for Plex see below.
 
-**Destructive tier, and not as a formality.** `replaceAllMetadata` overwrites
-every field the server held, including anything corrected by hand in Jellyfin,
-unless it is locked. There is no undo on Jellyfin; for Plex see below.
-
-**Locks are respected, and read.** Checked against `MetadataService.cs` at
-v12.1: a locked item ("Lock this item to prevent future metadata changes")
-makes a refresh skip every provider, and a field unchecked under Enabled Fields
-is kept. Jellyfin has no lock for the year, so a locked `Name` is the only
-per-field lock a mismatch can be about. Both reads ask for `Fields=Settings`,
-which is what puts `LockData` and `LockedFields` on list rows. When what
-disagrees is locked, the preview says so and issues no token, and
-`get_metadata_issues` gives it the remedy `unlock_fields`.
+**Locks are respected, and read.** A locked item makes a refresh skip every
+provider, and a field unchecked under Enabled Fields is kept. Jellyfin has no
+lock for the year, so a locked `Name` is the only per-field lock a mismatch can
+be about. When what disagrees is locked, the preview says so and issues no
+token, and `get_metadata_issues` gives it the remedy `unlock_fields`.
 
 ### When it will not help, said before you confirm
 
 A full refresh re-fetches each episode **from the provider id stored on that
 episode**, not from the series. So an episode pinned to the *wrong* id is
 re-written with the same wrong metadata, and the repair completes having
-changed nothing.
+changed nothing. Clearing those ids does not help either: an episode's
+numbering and title are stored **on the item** from the original scan, and a
+refresh does not re-derive them from the file, so this tool does not offer to
+clear them.
 
-This is not theoretical: it is what the first live run did. All 68 mismatching
-Dragon Ball Kai episodes carried their own AniDB, IMDb and TVDB ids
-(`Episode 101 Videl's Crisis…` pinned to Tvdb `507731`, which *is* Kai S1E1
-*Prologue to Battle!*). The repair applied cleanly, reported success, and every
-title came back identical.
-
-Clearing those ids does not help either, which was measured rather than
-assumed: one episode had its provider ids cleared and a full refresh run
-against it alone, and its season, number and title all came back unchanged.
-An episode's numbering and title are stored **on the item** from the original
-scan, and a refresh does not re-derive them from the file. That is why this
-tool does not offer to clear them: it would be a large destructive capability
-that provably changes nothing.
-
-The preview therefore reads `ProviderIds` alongside `Path` and leads with
-**EXPECTED TO ACHIEVE NOTHING** when every mismatching episode is pinned, or a
-proportional warning when only some are, and it names the repair that does
-work. That repair is two tools that already exist, not this one:
+The preview therefore leads with **EXPECTED TO ACHIEVE NOTHING** when every
+mismatching episode is pinned, or a proportional warning when only some are,
+and names the repair that does work:
 
 1. `trigger_scan` with `action: "rename"` on the **Sonarr** series, which
-   renames the files to Sonarr's own naming scheme: Sonarr holds the correct
-   mapping, so the files come out with proper `SxxExx` names.
+   renames the files to Sonarr's own naming scheme with proper `SxxExx` names.
 2. `trigger_scan` on the **media server**, so the renamed files are scanned in and
    parsed correctly.
 
@@ -2487,44 +2175,26 @@ refresh that it held across two reads.
 
 ### Films are judged on their year
 
-A film has no episode numbering, so the **year** does that job, and it does it
-well: a film file names its year almost universally, and a year that disagrees
-means the server matched a *different film* rather than the same one worded
-differently. The title check runs too, as the advisory half, exactly as it does
-for an episode.
+A film has no episode numbering, so the **year** does that job: a year that
+disagrees means the server matched a *different film*. The title check runs
+too, as the advisory half, as it does for an episode.
 
-Only the parenthesised `(YYYY)` form counts, and that is a precision guard
-rather than pedantry. A bare four-digit token is not a year, it is a number that
-looks like one: `Blade Runner 2049 (2017)` parsed as year 2049 with the title
-"Blade Runner", which then disagreed with a perfectly correct record. `1917` and
-`2012` are the same trap. No parenthesised year, no claim.
+Only the parenthesised `(YYYY)` form counts, so `Blade Runner 2049 (2017)` is
+read as 2017. No parenthesised year, no claim.
 
-A drift of up to two years is not a finding. Radarr names a file with the year
-it held at import, and festival, limited and regional dates move it afterwards;
-on a real Plex library, nearly every film flagged at a one-year tolerance was
-the right film two years out. Three years or more still is. And a film the
-server matched, whose year agrees, is never flagged on its title alone: that is
-the same film under an alternate or regional title.
-
-Swept across a real library of 118 films, this produced no findings at all,
-which is the answer a healthy film library should give.
+A drift of up to two years is not a finding, since release dates move after
+Radarr names the file; three years or more is. A film the server matched, whose
+year agrees, is never flagged on its title alone.
 
 ### Two things it deliberately will not do
 
-**An episode the server never matched at all reads as clean.** When Jellyfin
-cannot match an episode it falls back to naming it after the file, so the
-filename and the title agree perfectly and both checks pass. Verified on the
-real Dragon Ball Kai series: 68 of its 69 episodes were flagged, and the one
-that was not is the one Jellyfin holds no metadata for: its title is
-literally its filename. The count is therefore a floor, not a total. It costs
-nothing in practice, because the repair is applied to the whole series rather
-than to the episodes named in the preview.
+**An episode the server never matched at all reads as clean.** Jellyfin names
+an unmatched episode after its file, so both checks pass. The count is
+therefore a floor, not a total; the repair is applied to the whole series
+anyway.
 
 **A series whose episodes came back with no file paths is an error, not a
-clean bill of health.** "Nothing was compared" and "nothing is wrong" arrive at
-the same count of zero, and reporting the first as the second is the
-reassuring lie the preview exists to prevent. Jellyfin returns `Path` only to
-a read that asks for it and only for a user who may see it.
+clean bill of health**, since "nothing was compared" is not "nothing is wrong".
 
 ### A Grimmory book
 
@@ -2558,12 +2228,7 @@ fresh preview and the token is refused.
 ### Waiting on a queued refresh
 
 Plex always refreshes in the background, and so does Jellyfin's plain refresh,
-and neither says when it is done. A single read straight afterwards was wrong in
-three of four live Plex applies: twice it caught a show mid-rebuild with almost
-nothing to compare and called that repaired, and once it read a film before the
-refresh landed and called that a failure.
-
-So apply reads again every 5 seconds for up to 30. It only reports `Repaired`
+and neither says when it is done. So apply reads again every 5 seconds for up to 30. It only reports `Repaired`
 when the count dropped, at least as many items were compared as before, and the
 same count came back on the next read. Otherwise the result is `NOT VERIFIED`,
 and says whether the item was still rebuilding or the count simply did not move.
@@ -2576,8 +2241,7 @@ read fails, the result is `NOT VERIFIED` and says so, rather than an error.
 ### Repairing on Plex
 
 Plex repair is on by default, behind `permissions.destructive: true` as for any
-destructive write. Film and series repairs have both been checked against a live
-Plex server. Switch it off with `services.plex.allow_metadata_repair: false` (the
+destructive write. Switch it off with `services.plex.allow_metadata_repair: false` (the
 checkbox on the Plex card in the config UI). The two are
 separate switches: `get_stack_health` and `arr://instances` report
 `permissions.destructive` as `config.yaml` and your token allow, and know nothing of
@@ -2586,7 +2250,7 @@ off, a `dry_run` preview still lists the real mismatches, but the write is
 refused with `Plex repair is off`, no confirmation token is issued, and the
 audit log records it as denied.
 
-The repair is Plex's own Fix Match, driven the way python-plexapi drives it:
+The repair is Plex's own Fix Match:
 
 1. Read the item's library, and that library's agent and language.
 2. Search for matches with the provider id as the title: `tvdb-N` for a
@@ -2609,9 +2273,7 @@ With no provider id it skips steps 1 to 3 and only refreshes, on any agent.
   settle, as described [above](#waiting-on-a-queued-refresh).
 - **Locked fields are kept.** Plex locks a field when it is edited by hand, and
   fields get locked in other ways too, so a lock is not proof of a hand edit.
-  Neither Fix Match nor a refresh overwrites one. Plex leaves locks out of its
-  list responses (section listings and `allLeaves`), so both tools re-read the
-  mismatching items by id to see them. When the field that disagrees is locked,
+  Neither Fix Match nor a refresh overwrites one. When the field that disagrees is locked,
   the preview says so and issues no token, and `get_metadata_issues` gives it
   the remedy `unlock_fields`. Unlock it on the item in Plex (Edit, then the lock
   icon beside the field) if the locked value is the wrong one.
@@ -2622,13 +2284,8 @@ With no provider id it skips steps 1 to 3 and only refreshes, on any agent.
   it finds one.
 - **Undo** is Fix Match or Unmatch on the item in Plex itself.
 - Every call goes to the server at `url`. Nothing goes near plex.tv.
-
-**What is verified.** The match flow (`/matches`, `match`, `refresh`) ran
-against a real Plex 1.43.4 in [#312](../../../issues/312). A film whose year was
-wrong was repaired once its locked date was unlocked. Two series rematched
-cleanly and kept their wrong episode titles, so a rematch does not fix every
-series finding yet, and the default stays off until it does. Reports on #312
-are still welcome.
+- **A rematch does not fix every series finding**: series can rematch cleanly
+  and keep wrong episode titles.
 
 ### Music, through Lidarr
 
@@ -2640,10 +2297,9 @@ such as `lidarr/hd:<artistId>`. The `lidarr` prefix and the instance name are
 matched in any case. An id that is `lidarr` or starts `lidarr:` or `lidarr/` is
 refused before the permission check when it matches no configured Lidarr or
 names no artist; the refusal names the ids the configured Lidarrs take, or says
-none is configured. An artist asked for by name is not retagged: the permission
-check runs on the arguments before anything is resolved, so a name is checked
-against the media server. A `dry_run` by name answers with the artist's
-`lidarr:` id.
+none is configured. An artist asked for by name is not retagged (the name is
+checked against the media server), but a `dry_run` by name answers with the
+artist's `lidarr:` id.
 
 The preview is Lidarr's own retag preview: each audio file whose embedded tags
 differ from Lidarr's metadata, field by field, with its track file id. Lidarr
@@ -2675,9 +2331,7 @@ The music repair needs no media server and is not gated by
 
 Faults in Radarr, Sonarr and Whisparr quality profiles and custom formats:
 the configuration mistakes that make a profile unable to do what it looks
-like it does. Read-only, and deliberately so: Profilarr owns quality profiles
-and custom formats, re-syncing them from its own git source, so a direct
-write here would be reverted on the next sync or reported back as drift.
+like it does. Read-only, since Profilarr may own and re-sync the profiles.
 Every `remedy` is a change to make **in Profilarr** when it syncs the profile,
 or in the arr itself when it does not; this tool performs none of them, and
 [`fix_profile`](#fix_profile) applies the two floor findings.
@@ -2696,14 +2350,12 @@ Six finding kinds, each carrying a `confidence`:
 | `profilarr_drift` | certain | Profilarr's saved profiles have drifted from what this Radarr/Sonarr instance currently holds. |
 
 `certain` is arithmetic: the three findings above it follow from the scores
-alone, with no false positives possible. `likely` is a heuristic: a narrow
-one, checked against a live stack, but a judgement rather than a proof.
+alone. `likely` is a narrow heuristic, a judgement rather than a proof.
 
 `profilarr_drift` is instance-scoped rather than tied to any one profile, so
 it is unaffected by the `profile` filter and carries no `profile` field.
 `drift: null` on the Profilarr side means "not checked yet"; it is never
-folded into a finding, and its presence is instead surfaced through `note` so
-an absence of drift findings is not misread as a clean bill of health.
+folded into a finding, and `note` says so instead.
 
 Needs at least one of Radarr, Sonarr or Whisparr configured to find anything.
 Drift findings additionally need a `profilarr` service: without one, `note`
@@ -2749,12 +2401,10 @@ can never be satisfied", and that reason is in the error.
 Destructive tier: the profile decides what the instance grabs from then on, and
 putting the old minimum back is a manual edit.
 
-**Unverified live** (Sonarr): the profile write. Sonarr 4.0's profile list is
-recorded, and it carries no `language` where Radarr's does; the `PUT` was
-captured only on Radarr 6.4.4, on a throwaway copy of a profile.
+**Unverified live** (Sonarr): the profile write; only Radarr's was captured.
 
 **Unverified live** (Whisparr): the profile read and write. It shares the code
-and path with Radarr, whose exchange was captured.
+and path with Radarr.
 
 ## `sync_database`
 
@@ -2767,16 +2417,12 @@ Safe tier: it changes only Profilarr's own store. The arrs pick up whatever
 changed only when Profilarr syncs them on its own schedule, same as any other
 Profilarr-triggered sync.
 
-Profilarr answers the trigger with a 202 and a job id, not an outcome, so
-`apply` polls `GET /jobs/{id}` to a terminal status before reporting anything.
-A queued-but-not-finished sync is never reported as done. Not reversible
-through arr-mcp; revert in Profilarr or git if the pulled change is unwanted.
+`apply` waits for Profilarr's job to finish before reporting, so a queued sync
+is never reported as done. Not reversible through arr-mcp; revert in Profilarr
+or git if the pulled change is unwanted.
 
-A finished job can still have done nothing: Profilarr reports the queue
-outcome and the handler's own outcome separately, and the latter can be
-`skipped` (nothing to pull) even though the queue says `success`. That
-shows up as `outcome: "skipped"` in the structured result, and the reply text
-says plainly that nothing was pulled rather than reporting a completed sync.
+A finished job that had nothing to pull shows as `outcome: "skipped"`, and the
+reply says nothing was pulled.
 
 ## `pause_downloads`
 
@@ -2789,40 +2435,24 @@ in KiB/s (1024 bytes), and `0` removes it. Always client-wide, never per item, s
 `action: "limit"` is refused. Drop `id`, or use `action: "pause"` for that one
 item.
 
-Each client speaks a different unit, and the wrong one throttles a stack to
-nothing: SABnzbd reads a bare number as a *percentage* of the configured line
-speed, qBittorrent wants bytes per second, Transmission counts kB/s of 1000 bytes behind an
-enable flag it keeps separately, and NZBGet's `rate` takes KiB/s while its
-`status` reports the limit in bytes per second. The tool boundary is KiB/s and each adapter
-converts at its own edge. Clearing on Transmission zeroes the number as well as
-the flag, so a stale cap cannot come back the next time anything enables it.
+Each client uses a different unit; the tool always takes KiB/s and converts.
+Clearing on Transmission zeroes the number as well as the enable flag.
 
 Safe tier, because the undo is this same tool with the other `action`.
 
 **It does not stop the \*arrs grabbing.** They carry on searching and sending
 releases, which then sit in the paused client until it is resumed. The preview
-of a whole-client pause says so out loud, because a bare "paused" would let
-someone believe nothing is happening at all. Pausing or resuming one item leaves
-the rest of the client as it was, so that preview says nothing about what the
-*arrs grab meanwhile, and its undo names the same `id`.
+of a whole-client pause says so. Pausing or resuming one item leaves the rest
+of the client as it was, and its undo names the same `id`.
 
-`service` is required, and names one client. That is deliberate rather than a
-missing convenience: every write's permissions are checked against exactly
-one resolved service id, so a tool that defaulted to "every configured
-client" would have to nominate one of them for that check, which would mean
-enabling `safe_write` on SABnzbd quietly enabled it on Transmission too.
-Pausing everything is one call per client.
+`service` is required, and names one client, because permissions are checked
+per service. Pausing everything is one call per client.
 
-Already-paused is a no-op, with no token and no confirmation prompt. Only
-SABnzbd and NZBGet publish a client-wide paused flag; for the two torrent clients
-"paused" means every torrent is stopped, and a client holding no torrents at
-all reads as *not* paused: nothing to pause is a different state from
-everything paused, and treating them alike would refuse a legitimate call.
+Already-paused is a no-op, with no token and no confirmation prompt. For the
+two torrent clients "paused" means every torrent is stopped, and a client
+holding no torrents at all reads as *not* paused.
 
 **Unverified live** (qBittorrent): pause, resume and the speed limit.
-
-v5 renamed `pause`/`resume` to `stop`/`start`, so both verbs are attempted on
-qBittorrent: the new one first, the old one only if it 404s.
 
 ## `retry_download`
 
@@ -2859,7 +2489,7 @@ retrying may leave two copies, and does not refuse. Lidarr is not
 checked; when one is configured, the preview says that too. A Radarr, Sonarr or Whisparr that
 cannot be reached is named rather than treated as "no replacement".
 
-**Unverified live** (Whisparr): the replacement check: read through Sonarr's helpers; its API spec matches Sonarr's for these, so this is inherited, not captured.
+**Unverified live** (Whisparr): the replacement check, inherited from Sonarr's spec, not captured.
 
 **After the retry.** The result says which *arr is tracking the download (or that
 none recorded it), and repeats the two-copies warning when the preview found a
@@ -2879,25 +2509,19 @@ tier; see [writes.md](writes.md).
 ## `discover_media`
 
 `similar_to` takes a TMDB numeric id and answers from Seerr's
-`recommendations` endpoint, not `similar`: a live check found `similar`
-close to genre-bucket matching, and empty outright for series. It is
-mutually exclusive with `genre`/`year`/`min_rating`: they are different
-questions, so combining them is refused rather than one winning silently.
-With no Seerr configured there is no fallback (the IMDb dataset has no
-similarity data) and the response carries a `note` instead of a bare empty
-list.
+recommendations. Combining it with `genre`/`year`/`min_rating` is refused.
+With no Seerr configured there is no fallback, and the response carries a
+`note` instead of a bare empty list.
 
 ## `trigger_subtitle_search`
 
 The write half of `get_subtitles`, and it takes its arguments straight from
 that tool's output: `kind`, `id` and one `code2` from the item's `missing`
-list. For an episode, `id` is the episode id: the series id it also needs is
-resolved here rather than being one more thing to pass.
+list. For an episode, `id` is the episode id; the series id is resolved here.
 
-`language` is required. Bazarr searches one language at a time, and asking for
-one the item is not missing is reported as nothing to do rather than sent
-upstream, as is a mismatch on `forced` or `hearing_impaired`, which are part
-of what makes a wanted language distinct.
+`language` is required. Asking for one the item is not missing is reported as
+nothing to do rather than sent upstream, as is a mismatch on `forced` or
+`hearing_impaired`.
 
 It queues the search and returns. Whether a provider actually has the subtitle
 is not known at that point, so call `get_subtitles` again a minute later rather
@@ -2911,14 +2535,11 @@ the "I have Dutch subs and they are wrong" case. The preview says plainly that
 Bazarr does not consider this missing and that an existing subtitle may be
 replaced.
 
-Both refusals it lifts stay the default. An item outside the wanted list is
-still refused without the flag, and a language that is not missing is still
-reported as nothing to do: a write against an item the tool cannot even
-describe is worse than making the caller say they meant it.
+Without the flag, an item outside the wanted list is refused and a language
+that is not missing is reported as nothing to do.
 
-For an episode outside the wanted list, pass `series_id` too: the missing list
-is otherwise the only place an episode's series id comes from, and Bazarr
-rejects the call without it.
+For an episode outside the wanted list, pass `series_id` too; Bazarr rejects
+the call without it.
 
 ## `trigger_scan`
 
@@ -2963,22 +2584,19 @@ what is already there, which is what `fix_metadata` is for.
 A scan is Lidarr's `RefreshArtist`, for the whole library or with `id` for one
 artist. The rescan after it is Lidarr's `RescanFolders`, the scan time
 `get_stack_health` reports under `scans`. With `id` only the refresh narrows: the
-rescan still reads every root folder unless the artist is new
-(`RefreshArtistService.RescanArtists`), so it reads the whole library from disk,
-as a full scan does. `rename` is `RenameArtist`, every file of that artist. Both
+rescan still reads every root folder unless the artist is new, as a full scan
+does. `rename` is `RenameArtist`, every file of that artist. Both
 appear in `get_stack_health`'s `commands`.
 
 ### On Plex
 
 Plex has no scan-the-whole-server call, so a scan refreshes every library in
-turn. If one of them refuses (a library removed between the listing and the
-refresh), the rest still start and the answer names the ones that did not, so
-you know a scan is running and which shelf it missed. All of them refusing is
-an error, because then nothing is.
+turn. If one of them refuses, the rest still start and the answer names the
+ones that did not. All of them refusing is an error.
 
-Plex returns no command id, so there is nothing in `commands` to poll. It
-reports the scan through each library's own `refreshing` flag instead, which is
-what `get_stack_health` and `diagnose_media` already read.
+Plex returns no command id, so there is nothing in `commands` to poll; each
+library's `refreshing` flag, which `get_stack_health` and `diagnose_media`
+read, shows the scan.
 
 ### On Grimmory
 
@@ -3025,15 +2643,10 @@ instead, see below. Safe tier.
 ### Importing on Lidarr
 
 `import` reads Lidarr's queue first and refuses a download that has not
-finished. Lidarr's candidate read for one fails, as Radarr's and Sonarr's does,
-when it comes from NZBGet, but from a torrent client it lists the partial files
-and judges them as they stand. It then reads the candidates with
-`replaceExistingFiles=false`, because Lidarr's own default for that read is
-true: it would judge every file as if it may overwrite the library's copy. Each
+finished, since from a torrent client Lidarr would list the partial files. It
+then reads the candidates without allowing them to replace existing files. Each
 file is named in the preview by artist and album. A file Lidarr matched to no
-album, no release or no tracks is not importable, the way a Sonarr file with no
-episode is not: `ManualImport` looks up the album, the release and the tracks by
-id for every file. `mapping` is refused on Lidarr rather than ignored, since it
+album, no release or no tracks is not importable. `mapping` is refused on Lidarr rather than ignored, since it
 names movies and episodes, and a Lidarr file belongs to an album and its tracks.
 A wrong album match is fixed in Lidarr itself.
 
@@ -3093,14 +2706,10 @@ Outcomes that look alike and are not:
 - **Nothing to import**: the service sees no files for that download id. A
   no-op, with no confirmation asked for.
 - **Everything rejected**: there are files and it will take none of them. A
-  refusal naming the reasons. Reporting that as "nothing to do" would read as
-  "it was already imported", which is the opposite of what happened.
+  refusal naming the reasons.
 - **Still downloading**: the download is `queued`, `paused` or
-  `downloading`, so there is nothing to import yet. Radarr and Sonarr answer
-  this with an HTTP 500 from a null dereference of their own rather than a clean
-  refusal, so the message names the state `get_queue` reports instead of passing
-  that on as a service fault; Lidarr's queue is checked before its read, since
-  it would list a torrent's partial files instead.
+  `downloading`, so there is nothing to import yet. The message names the state
+  `get_queue` reports.
 - **Failed**: the download is `failed` in the client, so it is not going to
   finish. Named as failed, with `remove_queue_item` as the remedy.
 - **Warning**: the download is `warning` in the client, which usually means
@@ -3113,10 +2722,7 @@ Outcomes that look alike and are not:
   client filed with a problem, which waiting does not clear, so its remedy says
   how to run it again, as `diagnose_media`'s does (see there).
 - **Anything else** that is not `completed` is reported only as not completed,
-  with no claim about what the client is doing. The download id names a
-  download the *arr tracks, so the other states it reports never come up: a
-  release it holds back (`delay`, `downloadClientUnavailable`, `fallback`) has
-  been sent to no client and has no download id yet.
+  with no claim about what the client is doing.
 
 The import re-reads the candidates when it runs, and imports exactly the files
 the preview listed. If one of them is no longer importable, because the files
@@ -3125,34 +2731,26 @@ see what is there now.
 
 ### Running NZBGet's post-processing again
 
-When a post-processing script is wrong, every download it touched is stuck: an
-unpack that never happened leaves Radarr or Sonarr with "No files found are
-eligible for import" on each one, and fixing the script does nothing for the
-downloads it already handled. `action: "postprocess"` is NZBGet's "post-process
-again" for one of them.
+`action: "postprocess"` is NZBGet's "post-process again" for one download, for
+example after fixing a post-processing script that left Radarr or Sonarr with
+"No files found are eligible for import".
 
 The flow is `get_queue` → the stuck row's `downloadId` → `import_download` with
 `service: "nzbget"` and `action: "postprocess"`. NZBGet's own rows in
-`get_history` carry the same `downloadId`. The id is the `drone` parameter an
-*arr stamps on the NZB it sends; for an NZB added by hand it is NZBGet's own
-id.
+`get_history` carry the same `downloadId`.
 
-The preview names the download, the folder post-processing runs in (NZBGet's
-`DestDir`, plus where the files were moved afterwards when that differs) and the
-post-processing scripts enabled for it, because those scripts are what runs.
-The confirmation binds to that exact history item: if the same id names a
-different one by the time it is confirmed, for example because the release was
-grabbed again, the token is rejected and nothing runs. A download already in
+The preview names the download, the folder post-processing runs in and the
+post-processing scripts enabled for it. The confirmation binds to that exact
+history item: if the same id names a different one by the time it is confirmed,
+the token is rejected and nothing runs. A download already in
 NZBGet's queue is refused, so a rerun never starts on top of another.
 
 Once confirmed, NZBGet repeats repair and unpack as it is configured, then those
 scripts. Radarr, Sonarr or Lidarr still imports the result: on its next queue
 check, or straight away with `import_download`.
 
-It only works while the download's folder still exists. When the folder has
-been moved or deleted, NZBGet still answers the request with success and logs
-`Could not post-process again <name>: destination directory … doesn't exist`
-instead. So the answer alone proves nothing. This watches, for a few seconds,
+It only works while the download's folder still exists, and NZBGet answers
+success even when it does not. So this watches, for a few seconds,
 for one of four things:
 
 - the download in NZBGet's queue: the rerun is still going, and `get_queue`
@@ -3206,25 +2804,19 @@ Nothing moves on disk. What changes, and what Sonarr does not report itself:
 - Sonarr writes nothing to its history. The audit log here is the only record.
 
 **The rename is part of it.** Once the reassignment lands, the moved files are
-renamed to match the episodes they are now on: only those files, not the rest
-of the series, which is what `action: "rename"` would do. That is the one call
-here that does not return while its work is still queued: the rename needs the
-file ids the reassignment assigns, so it waits.
+renamed to match the episodes they are now on (only those files, not the rest
+of the series). This call waits for its work rather than returning while it is
+queued.
 
 Rescan your media server afterwards, so it reads the corrected library.
 
 **A rotation is renamed in two passes, and that costs a setting for a moment.**
-When files are rotated among episodes that already hold one (the whole-season
-case above), every name a file wants is the name another file in the set is
-still using, so no rename has a free destination. Sonarr reports that as
-`completed` having renamed nothing, which is why the count is read rather than
-the status.
-
-There is no "rename this file to that name" in Sonarr's API: `RenameFiles`
-renames to whatever the naming format produces. So a rotation is renamed by
-**changing the episode naming format for that series type, server-wide, for the
-length of two rename commands**: once into names nothing holds, then back, then
-into the real ones. The preview says so before you confirm.
+When files are rotated among episodes that already hold one, every name a file
+wants is still in use by another file in the set. Sonarr can only rename to its
+naming format, so a rotation is renamed by **changing the episode naming format
+for that series type, server-wide, for the length of two rename commands**:
+once into names nothing holds, then back into the real ones. The preview says
+so before you confirm.
 
 Five things bound it:
 
@@ -3266,10 +2858,8 @@ record. `destructive` tier, and the preview comes first.
 
 `service: "lidarr"` deletes a whole artist, every album with it; `delete_media`
 cannot delete one album. `id` is the artist id, `acquisition.id` on a
-`get_library` artist row, never an album id: the two are separate, so an album
-id would read whichever artist has that number. It is Lidarr's
-`DELETE /artist/{id}` with Lidarr's own `deleteFiles` and
-`addImportListExclusion` (Sonarr's spelling of the exclusion). The preview reads
+`get_library` artist row, never an album id (an album id would read whichever
+artist has that number). The preview reads
 the artist first, so a wrong id fails with a clear error, and names it and its
 size on disk.
 
@@ -3340,13 +2930,7 @@ fails rather than blocklisting something nobody looked at.
 `get_media_details` carries `seerrBlocklisted: true` on a title Seerr has
 blocklisted, and nothing when it has not or could not say.
 
-Seerr credits a blocklist entry to a user: arr-mcp credits it to the API key's
-own user. The old `/blacklist` path is a deprecated alias; arr-mcp uses
-`/blocklist`.
-
-Confirmed live against Seerr 3.5.1: an add stores the title, `movie` and the
-API key's user, and turns the title's status to blocklisted; a remove leaves no
-Seerr record of a title that had none before.
+arr-mcp credits a blocklist entry to the API key's own user.
 
 ### Import exclusions
 
@@ -3357,18 +2941,12 @@ when one of its albums is added. Both `add` and `remove` are `safe`, gated by
 that *arr's own `safe_write`, since an exclusion takes nothing else with it.
 
 The preview names the title through the same lookup `add_media` uses, so an id
-the *arr's metadata provider does not know fails there. The *arrs cannot look
-one exclusion up, so each preview reads the whole list (1,348 rows on a live
-Radarr, one call). The title and, on Radarr, the year are stored with the
-exclusion, as the *arr's own UI stores them.
+the *arr's metadata provider does not know fails there. Each preview reads the
+whole exclusion list in one call. The title and, on Radarr, the year are stored
+with the exclusion, as the *arr's own UI stores them.
 
 `kind` is not needed for an *arr, and one that does not match it (a `series`
-on Radarr) is refused. Whisparr is refused for now: its exclusion field is named
-`tvdbId` while its add flow speaks ThePornDB ids, and which one the field holds
-needs a live capture.
-
-Confirmed live against Radarr 6.4: an add stores `tmdbId`, `movieTitle` and
-`movieYear`, and a remove deletes it by its row id.
+on Radarr) is refused. Whisparr is refused for now.
 
 **Unverified live** (Sonarr): adding and removing an exclusion. The list read is live-checked against 4.0.
 
@@ -3381,8 +2959,7 @@ or Lidarr is set to: `quality_profile`, `root_folder`, `monitored`, `tags`,
 Radarr's `minimum_availability`, Sonarr's `series_type`, Lidarr's
 `metadata_profile`. A Grimmory book is [`update_book`](#update_book).
 
-Radarr and Sonarr are written through their editors (`PUT /movie/editor`,
-`PUT /series/editor`), which change only the fields sent. A new `root_folder`
+Only the fields sent change. A new `root_folder`
 moves the files there unless `move_files` is false.
 
 It is also **the only way to change a Radarr item's monitoring**.
@@ -3398,9 +2975,7 @@ takes it too.
 
 On **Lidarr**, `id` is an artist, and `metadata_profile` switches Lidarr's
 second profile, which decides the album types and release statuses the artist
-gets. It writes through Lidarr's Artist Editor (`PUT /artist/editor`), as
-the artist policy below does, because `PUT /artist/{id}` queues a
-`MoveArtist` on every call. The editor starts no refresh, so a new metadata
+gets. The write starts no refresh, so a new metadata
 profile applies at the artist's next one, which may not come until the artist
 changes upstream. Lidarr's daily refresh takes only the artists its metadata
 server lists as changed since the last run. It goes by age instead (an active
@@ -3440,8 +3015,8 @@ is refused rather than resolved, exactly as in `add_media`.
 **Changing `root_folder` moves the files on disk.** The service does the move
 itself, and the preview names the source and the destination.
 `move_files: false` leaves them where they are and updates only the path, which
-makes the service report them missing until they are moved and rescanned: it is
-for "I already moved them myself", not for avoiding the wait. On Lidarr, when
+makes the service report them missing until they are moved and rescanned; it is
+for "I already moved them myself". On Lidarr, when
 the artist's current folder is still on disk, it also rewrites every track
 file's recorded path to the new root folder, Lidarr goes on counting the files
 as present, and a library scan before they reach that folder can drop their
@@ -3527,17 +3102,10 @@ people actually ask are rarely one call.
 
 **Client support for both is uneven, so nothing is reachable only through
 them.** A prompt is a sequence of tool calls the model could have made anyway,
-and every resource mirrors something a tool already returns; a field reference
-explains fields the tool results already carry. On a client that
-surfaces neither, arr-mcp is exactly as capable as it was: you just have to
-know what to ask.
+and every resource mirrors something a tool already returns.
 
-`arr://health` is never cached (`ttlMs: 0`) and says so. A pinned
-"sonarr: reachable" five hours after Sonarr fell over is worse than the tool
-call it replaced: confidently wrong rather than merely absent.
-
-Every resource also carries its own `as_of`, because a cache hint is advice a
-client may ignore while a timestamp inside the content cannot be dropped.
+`arr://health` is never cached (`ttlMs: 0`). Every resource also carries its
+own `as_of` timestamp.
 
 ## Two parameter spellings that will never be retired
 

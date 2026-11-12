@@ -43,8 +43,8 @@ An admin key can write config, so treat it like an admin credential. It can
 create MCP tokens, and it can send a service's stored credential to a new host
 (see [security](security.md)).
 
-No key can touch sign-in, OAuth, `allowed_hosts`, appearance or the management
-keys. Nothing in this API can change them.
+Nothing in this API can change sign-in, OAuth, `allowed_hosts`, appearance or
+the management keys.
 
 The server log names the key behind each saved change, connection test and
 refused request as `name#fingerprint`.
@@ -70,11 +70,10 @@ refused request as `name#fingerprint`.
 - `/app`, `/app/...`, `/settings/*` and `/token` carry a strong `ETag`
   (`"<16 hex>"`). It is one tag for the whole config, so it changes when any
   part of it does.
-- The API's own answers have `cache-control: no-store`. The 403 above does
-  not, and neither does the `413` for a body over 4 MB, which comes back in
-  JSON-RPC shape from the same guard that protects `/mcp`, before any key is
-  checked. A malformed JSON
-  body is different: on `/api` it gets the `{message}` 400 above.
+- The API's own answers have `cache-control: no-store`. The plain-text 403
+  above does not, and neither does the `413` for a body over 4 MB, which comes
+  back in JSON-RPC shape from the guard that protects `/mcp`, before any key is
+  checked.
 - Secrets never come back. A service's API key or password appears only as
   `apiKeySet` or `passwordSet`, and the key hashes are not returned at all.
 - An instance id such as `radarr/hd` is `id` on `/app` but `app` on `/health`,
@@ -86,13 +85,10 @@ refused request as `name#fingerprint`.
 Every config read returns an `ETag`. Send it back as `If-Match` on a write. If
 the config moved since, the write gets a 412 and changes nothing. Without
 `If-Match` the write is still checked: if config.yaml changed on disk since the
-server last loaded it, that is a 412 too, so nothing is silently overwritten.
-The server reloads the file when that happens, so a GET picks up the change and
-a retry works. If the hand edit left the file invalid, writes get the 409 above
-until the file is fixed.
-
-The ETag also changes when the server restarts, so a tag from before a restart
-gets a normal 412. GET again and retry.
+server last loaded it, that is a 412 too. The server reloads the file when that
+happens, so a GET and a retry work. If the hand edit left the file invalid,
+writes get the 409 above until the file is fixed. The ETag also changes on a
+restart, which gives a normal 412.
 
 ```bash
 curl -i -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/settings/imdb
@@ -135,15 +131,13 @@ GET the app, change what you want, PUT the whole object back.
 ## Endpoints
 
 The examples use dummy names. `arr-mcp:6060` stands for wherever yours runs.
+A `GET` is called like the example under [Authentication](#authentication),
+with its own path.
 
 ### `GET /system/status`
 
 The app, its version, and the MCP endpoint, built from the address you reached
 it on.
-
-```bash
-curl -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/system/status
-```
 
 ```json
 {
@@ -159,10 +153,6 @@ A live connection test of every configured app, sorted by id. Same diagnosis the
 dashboard and `get_stack_health` give: `version` when the app is up, and
 `error` with `kind` and `detail` when it is not, and `remedy` when there is
 one.
-
-```bash
-curl -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/health
-```
 
 ```json
 [
@@ -201,7 +191,7 @@ Recent log records, newest first.
 To poll for new lines, pass the highest `id` you have seen as `afterId`.
 
 ```bash
-curl -H "X-Api-Key: $ARR_MCP_API_KEY" "http://arr-mcp:6060/api/v1/log?level=warn&limit=2"
+curl -H "X-Api-Key: $ARR_MCP_API_KEY" "http://arr-mcp:6060/api/v1/log?level=warn&limit=1"
 ```
 
 ```json
@@ -214,29 +204,17 @@ curl -H "X-Api-Key: $ARR_MCP_API_KEY" "http://arr-mcp:6060/api/v1/log?level=warn
       "app": null,
       "message": "rejected a management API request with a missing or wrong key",
       "fields": { "ip": "192.168.1.20", "path": "/api/v1/system/status" }
-    },
-    {
-      "id": 97,
-      "at": "2026-09-29T08:12:40.870Z",
-      "level": "warn",
-      "app": "radarr/hd",
-      "message": "slow response",
-      "fields": { "ms": "4200" }
     }
   ]
 }
 ```
 
-`app` is `null` for records that belong to no instance. `fields` values are
-always strings.
+`app` is the record's instance (see [Conventions](#conventions)), or `null` for
+records that belong to no instance. `fields` values are always strings.
 
 ### `GET /app`
 
 Every configured instance, in alphabetical order.
-
-```bash
-curl -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/app
-```
 
 ```json
 [
@@ -273,25 +251,8 @@ whatever was sent. Shelfmark alone can be added with no `apiKey`, for an install
 ### `GET /app/{type}` and `GET /app/{type}/{name}`
 
 One instance, by its id: `/app/radarr` for an unnamed instance, and
-`/app/radarr/hd` for a named one, even when it is the only one. An unknown app
-is a 404.
-
-```bash
-curl -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/app/radarr/hd
-```
-
-```json
-{
-  "id": "radarr/hd",
-  "type": "radarr",
-  "name": "hd",
-  "url": "http://radarr:7878",
-  "timeoutMs": 10000,
-  "safeWrite": false,
-  "destructive": false,
-  "apiKeySet": true
-}
-```
+`/app/radarr/hd` for a named one, even when it is the only one. Answers one
+object, shaped like an entry of `GET /app`. An unknown app is a 404.
 
 ### `GET /settings/imdb`
 
@@ -299,10 +260,6 @@ The IMDb dataset: whether it is on, and when it was last loaded and how much it
 holds. While it is off, the last three are `null`. Once it is on, `titles` and
 `ratings` are counts, `0` before the first load, and `ingestedAt` stays `null`
 until that load finishes.
-
-```bash
-curl -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/settings/imdb
-```
 
 ```json
 {
@@ -318,10 +275,6 @@ curl -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/settings/imdb
 How the MCP endpoint is set up. `oauthConfigured` says whether an `auth.oauth`
 block exists. Its contents are not returned.
 
-```bash
-curl -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/settings/mcp
-```
-
 ```json
 {
   "allowedHosts": [],
@@ -335,10 +288,6 @@ curl -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/settings/mcp
 Which media servers are configured, and `primary`, the one the tools default
 to. With one server, that one is primary. With none, `primary` is `null`.
 
-```bash
-curl -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/settings/media-servers
-```
-
 ```json
 {
   "primary": "jellyfin",
@@ -351,10 +300,6 @@ curl -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/settings/media-
 The named MCP tokens. Never the tokens themselves: `fingerprint` is the first
 eight hex characters after `sha256:` in the stored hash, so you can tell them
 apart.
-
-```bash
-curl -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/token
-```
 
 ```json
 [
@@ -379,7 +324,7 @@ except Transmission, qBittorrent and NZBGet. The other fields are the ones in th
 
 A second instance of a type that allows several needs a `name`. If the first
 one has no name yet, also send `renameExistingTo` to name it, because its id
-changes. Answers 201 with the new app.
+changes. Answers 201 with the new app, shaped like an entry of `GET /app`.
 
 Adding Plex beside Jellyfin, or the other way round, keeps the one already
 there as primary. Change it with
@@ -389,19 +334,6 @@ there as primary. Change it with
 curl -X POST -H "X-Api-Key: $ARR_MCP_API_KEY" -H 'Content-Type: application/json' \
   -d '{"type": "radarr", "name": "uhd", "renameExistingTo": "hd", "url": "http://radarr-uhd:7878", "apiKey": "abc123"}' \
   http://arr-mcp:6060/api/v1/app
-```
-
-```json
-{
-  "id": "radarr/uhd",
-  "type": "radarr",
-  "name": "uhd",
-  "url": "http://radarr-uhd:7878",
-  "timeoutMs": 10000,
-  "safeWrite": false,
-  "destructive": false,
-  "apiKeySet": true
-}
 ```
 
 ### `PUT /app/{type}` and `PUT /app/{type}/{name}`
@@ -454,12 +386,8 @@ When it fails, `ok` is `false` and `error` has `kind`, `detail` and sometimes
 ### `PUT /settings/imdb`
 
 Turns the IMDb dataset on or off. Send `enabled`. The other fields from GET are
-accepted and ignored. Answers 200 with the same body as GET.
-
-```bash
-curl -X PUT -H "X-Api-Key: $ARR_MCP_API_KEY" -H 'Content-Type: application/json' \
-  -d '{"enabled": true}' http://arr-mcp:6060/api/v1/settings/imdb
-```
+accepted and ignored. Answers 200 with the same body as GET. The
+[Concurrency](#concurrency) example calls it.
 
 ### `PUT /settings/mcp`
 
@@ -475,14 +403,6 @@ Answers 200 with the same body as GET.
 ```bash
 curl -X PUT -H "X-Api-Key: $ARR_MCP_API_KEY" -H 'Content-Type: application/json' \
   -d '{"allowTokenInUrl": true}' http://arr-mcp:6060/api/v1/settings/mcp
-```
-
-```json
-{
-  "allowedHosts": [],
-  "allowTokenInUrl": true,
-  "oauthConfigured": false
-}
 ```
 
 ### `PUT /settings/media-servers`
@@ -529,8 +449,7 @@ curl -X POST -H "X-Api-Key: $ARR_MCP_API_KEY" -H 'Content-Type: application/json
 ### `DELETE /token/{name}`
 
 Revokes a token. It stops working at once. Answers 200 with `{}`. The name
-matches regardless of case, as token names are unique that way. An unknown
-name is a 404.
+matches regardless of case. An unknown name is a 404.
 
 ```bash
 curl -X DELETE -H "X-Api-Key: $ARR_MCP_API_KEY" http://arr-mcp:6060/api/v1/token/companion

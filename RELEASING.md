@@ -19,9 +19,9 @@ bleeding edge. A push that only touches root Markdown files, `docs/` or the
 issue templates builds no `main` image, so `main` can sit behind the branch by
 docs commits. A release always builds. Nothing else from this pipeline: the
 separate **Preview image** workflow pushes `preview-<name>` for a branch someone
-is testing, and never touches the release tags. The release workflow fails the job when a release
-computes no version tag: a release that publishes only `latest` is a silent
-policy violation, and it has happened once.
+is testing, and never touches the release tags. The release workflow fails the
+job when a release computes no version tag, so a release never publishes only
+`latest`.
 
 ## The MCP Registry entry
 
@@ -42,9 +42,8 @@ Two things it depends on, both of which fail late:
   so the job derives both from the release version with `jq`.
 
 The `mcp-publisher` binary is pinned to a release **and** its SHA-256, because
-that step runs with `id-token: write`; the upstream `releases/latest` one-liner
-would let a swapped asset mint an OIDC token in this repository's name. Nothing
-bumps the pin automatically; move the version and the digest together:
+that step runs with `id-token: write`. Nothing bumps the pin automatically; move
+the version and the digest together:
 
 ```bash
 curl -fLO https://github.com/modelcontextprotocol/registry/releases/download/<tag>/mcp-publisher_linux_amd64.tar.gz
@@ -60,31 +59,17 @@ mcp-publisher validate server.json
 It checks the schema and the registry's rules. It does **not** check the image
 label. That only fails during a real publish.
 
-## Forcing a version, and the three ways it has gone wrong
+## Forcing a version
 
-Since 1.0 the bump follows the commit type and nothing needs forcing
-day to day. A `Release-As:` footer is for the rare release whose number
-release-please would get wrong. When one is used, **it goes on the last commit,
-in the PR itself**, not in a follow-up, and not conditional on anything.
+The bump follows the commit type and nothing needs forcing day to day. A
+`Release-As:` footer is for the rare release whose number release-please would
+get wrong. When one is used, **it goes on the last commit, in the PR itself**,
+not in a follow-up and not withheld pending a live-stack check: **cut the
+version, then run the gate**, and anything it finds is a patch.
 
-Before 1.0, `CONTRIBUTING.md` reserved minors for roadmap phases, so every
-phase needed this footer. That scheme is gone, but how it failed still applies
-to any forced version. The lesson then was not to withhold the footer pending a
-live-stack check: **cut the version, then run the gate**, and anything it finds
-is a patch.
-
-It went wrong three times, in three different ways:
-
-| What happened | Result |
-| --- | --- |
-| Footer withheld pending verification (0.8) | Proposed `0.7.4` |
-| Same again (0.9) | Proposed `0.8.1` |
-| Footer present four times, **eaten by the squash** (1.0) | Proposed `0.9.1` |
-
-The third is the subtle one. **Squashing concatenates every commit body into one
-message**, so a footer that was the last line of the last commit ends up in the
-*middle* of the squashed body, and release-please only honours `Release-As:` as
-a trailing footer. Having it four times over made no difference.
+**Squashing concatenates every commit body into one message**, so a footer that
+was the last line of the last commit ends up in the *middle* of the squashed
+body, and release-please only honours `Release-As:` as a trailing footer.
 
 So when a version is being forced, either merge **without** squashing, or set
 the squash message yourself:
@@ -108,12 +93,7 @@ the biggest change in it, or set `--subject` when merging:
 gh pr merge <n> --squash --subject 'feat: what it adds (#83)'
 ```
 
-Both traps are the same shape: **squashing flattens the message, and only the
-flattened message is read.** Footers stop being footers; every other commit's
-subject stops existing.
-
-**Read the version on the release PR title before merging it**, every time. It
-is far cheaper to notice there than after the tag exists.
+**Read the version on the release PR title before merging it**, every time.
 
 ## If the release PR is BLOCKED with nothing failing
 
@@ -136,54 +116,30 @@ gh api repos/bardesss/arr-mcp/actions/runs/<id>/approve --method POST
 Approve it **after** the last feature PR merges. Every merge makes
 release-please push again, which supersedes the run you just approved.
 
-This gated 0.4.0 and 0.5.0: fourteen zero-second runs between them, and both
-releases only merged because one run was approved by hand.
+### Why it happens
 
-### What is actually known, and what is not
+Without a `token:`, release-please falls back to `GITHUB_TOKEN` and opens the PR
+as `app/github-actions`, whose workflow runs can land in `action_required`. Why
+GitHub gates that actor at some times and not others is not visible in any API
+this project can query.
 
-The mechanism is clear: `release.yml` called release-please without a `token:`,
-so it fell back to `GITHUB_TOKEN` and opened the PR as `app/github-actions`,
-whose workflow runs land in `action_required`.
-
-What is **not** explained is why the gate came and went:
-
-```
-0.3.0, 0.3.1   success ~1m          no gate at all
-0.4.0          11 × action_required 0s, then success once approved
-0.5.0           3 × action_required 0s, then success once approved
-0.5.1          success 50s          no gated run, nothing approved
-```
-
-0.5.1's CI ran unassisted at 12:11 on 2026-08-06, **before** the
-`RELEASE_PLEASE_TOKEN` secret existed (12:29) and before the `token:` line
-merged (12:31). So the approval state had already cleared on its own, most
-likely because approving a run stops GitHub gating that actor. Neither the
-switch-on around 2026-08-05 17:47 nor the switch-off is visible in any API this
-project can query.
-
-**Treat the token as insurance, not a proven cure.** It removes the dependency
-on an approval state nobody can see or explain, and it is inert otherwise:
-`${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}` changes nothing
-when the secret is absent, because an unset secret is the empty string. It has
-never been observed fixing a gated release, because no release has been gated
-since it landed.
-
-The `gh run list` check above is the part that has actually earned its place:
-it turns "the release PR is mysteriously stuck" into a one-command answer.
+`release.yml` passes `${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}`.
+**Treat the token as insurance, not a proven cure**: no release has been gated
+since it landed, so it has never been observed fixing one. With the secret
+absent it changes nothing, because an unset secret is the empty string.
 
 ### Maintaining the secret
 
 It is a fine-grained PAT scoped to this repository, with **Contents:
 read/write** and **Pull requests: read/write**. Fine-grained PATs expire, and
-when this one does the `||` fallback quietly reverts to `GITHUB_TOKEN`: no
-error, just the old symptom possibly returning. To replace it:
+when this one does the `||` fallback quietly reverts to `GITHUB_TOKEN`, with no
+error. To replace it:
 
 ```bash
 gh secret set RELEASE_PLEASE_TOKEN --repo bardesss/arr-mcp   # paste at the prompt
 ```
 
-Set it interactively, never as a shell argument: an argument lands in shell
-history.
+Set it interactively, never as a shell argument, which lands in shell history.
 
 ## Check `main` contains what you think it does
 
@@ -197,15 +153,7 @@ git log --oneline origin/main -10
 ```
 
 Read the list against what you believe the release contains. Anything missing
-is missing from the release.
-
-This is not hypothetical. **0.3.0 shipped without seven adapter fixes**: a
-crash in `get_subtitles`, ratings reporting a source called `votes` worth
-164018, Jellyfin search returning no external ids at all. The fixes existed,
-were tested, and were pushed to the feature branch about a minute after its PR
-was merged. The branch had them; `main` did not; the release went out anyway.
-
-Two habits prevent it:
+is missing from the release. Two habits prevent it:
 
 - **A green PR is not a merged PR.** "Pushed and CI is green" and "this is on
   `main`" are different claims. Check the second one.
@@ -216,8 +164,7 @@ Two habits prevent it:
 ## Every release updates the README
 
 **This is not optional and it is not a follow-up.** The README is the only
-thing most people read, and a stale one is worse than none: it told users there
-was no published image for two releases after there was.
+thing most people read.
 
 Before merging the release PR, check every one of these and fix what has
 drifted:
@@ -243,16 +190,10 @@ A release that ships without its README change is not finished.
 - [ ] `/healthz` responds, and an unauthenticated `/mcp` request is rejected,
       including `/mcp?token=…` against a config with `allow_token_in_url` off
 
-Calling every tool matters more than it sounds. Adapters are tested against
-recorded fixtures, which prove the mapping and nothing else. Every defect that
-reached 0.3.0 (a null field crashing a tool, a query parameter that has to be
-asked for, an endpoint that answers 400) was invisible to 396 passing tests
-and obvious within seconds of a real call.
-
-`npm run integration` is the mechanical form of "call every tool". It fails
-when `TOOL_NAMES` gains a tool no case covers, so a new tool cannot ship
-uncalled, which is exactly how 0.3.0 shipped a `get_subtitles` that crashed
-on the first real request.
+Adapters are tested against recorded fixtures, which prove the mapping and
+nothing else; a null field, a parameter that has to be asked for or an endpoint
+that answers 400 shows up only on a real call. `npm run integration` fails when
+`TOOL_NAMES` gains a tool no case covers, so a new tool cannot ship uncalled.
 
 `npm run multi-instance` covers what `integration.ts` structurally cannot: it
 configures the same Radarr and Sonarr twice, so every read fans out across two
@@ -261,10 +202,8 @@ would pass unchanged on a build where instance resolution was broken.
 
 It also renders every config UI page against the live stack, signs in, and
 asserts that no API key reaches the configuration form. Those cases are
-read-only and never save, so running the script cannot change your
-configuration, and since 0.6 it never writes to `config.yaml` at all
-(`loadConfig(dir, { persist: false })`). Before that it silently backfilled a
-generated password into a real config, one that nothing ever printed.
+read-only and never save, and the script never writes to `config.yaml`
+(`loadConfig(dir, { persist: false })`), so it cannot change your configuration.
 
 ## Recapture fixtures when an adapter starts reading a new endpoint
 
@@ -272,10 +211,6 @@ generated password into a real config, one that nothing ever printed.
 no fixture has no guard at all. Add it to `ENDPOINTS` in
 `scripts/capture-fixtures.ts`, run `npm run capture`, and reconcile the adapter
 against what actually comes back.
-
-Skipping this for the ten Phase 2b tools is what put seven defects in a
-release. The same gate, followed properly one phase earlier, caught a bug that
-reported a 23-hour-stale library as scanned a minute ago.
 
 ## Distribution
 
@@ -292,23 +227,19 @@ reported a 23-hour-stale library as scanned a minute ago.
       printing pass/fail, and tool output treated as untrusted data
 - [ ] Link the release in the README's status callout
 
-Lead every listing with what no comparable project does. Fourteen of them
-exist; none ships a config UI and none addresses untrusted tool content.
-Discovery, not capability, is the binding constraint here: the unmaintained
-project this one succeeds still leads the field on stars.
+Lead every listing with what no comparable project does: none ships a config
+UI and none addresses untrusted tool content.
 
-Umbrel, CasaOS, TrueNAS SCALE, Proxmox LXC and Helm were each considered and
-dropped rather than left pending: low yield for an *arr audience, or a
-non-Docker install path that becomes a support surface of its own. Recorded so
-the question is not reopened every release.
+Umbrel, CasaOS, TrueNAS SCALE and Helm were each considered and
+dropped: low yield for an *arr audience, or a non-Docker install path that
+becomes a support surface of its own.
 
 ### Submitting to Community Applications
 
 The template is in the repo and tested; submitting it is a separate, manual act.
-The flow has changed more than once, so check it against Unraid's own docs
-before following this from memory; as of 2026-08 it is a submission portal at
-[ca.unraid.net/submit](https://ca.unraid.net/submit) rather than a pull request
-to a templates repository.
+The flow has changed more than once, so check it against Unraid's own docs. As
+of 2026-08 it is a submission portal at
+[ca.unraid.net/submit](https://ca.unraid.net/submit).
 
 What it wants beyond the XML:
 

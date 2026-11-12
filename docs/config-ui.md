@@ -13,17 +13,13 @@
 | Logs | Three streams: all activity, problems only, or one service |
 | Write audit | Every write attempt: applied, previewed, refused or failed |
 
-The rest of this page is what each one does that is not obvious from looking
-at it.
-
 ## The dashboard
 
 <img src="../screenshots/dashboard-dark.png" alt="The dashboard: a card per service with status, latency and version, above a table of reported problems" width="880">
 
 **Connection tests diagnose rather than pass or fail.** A service that is down
 says what is wrong and what to do about it (the same `kind`, `detail` and
-`remedy` the MCP tools return) instead of showing a red cross you then have to
-investigate.
+`remedy` the MCP tools return).
 
 The dashboard answers the same four questions `get_stack_health` does, from the same
 code: is it reachable, is anything reporting a problem, is a disk filling up,
@@ -31,18 +27,16 @@ and when did each library last finish a scan. A stale scan is the usual reason
 something downloaded is still not playable.
 
 **Disk space is listed per filesystem, not per mount.** Services in one stack
-are containers over the same host disks, so each of them reports the array, its
-own root and its config volume separately: ten rows to tell you about two
-disks. The dashboard groups them back together and names the instances that can
+report the same host disks several times over, so the dashboard groups them
+and names the instances that can
 see each one, emptiest first.
 
 **It gives you the whole MCP connection.** The endpoint is shown as an absolute
 URL, built from the address you reached the page on, so it is already correct
-behind a reverse proxy, and there is nothing to assemble by hand. **Copy client
+behind a reverse proxy. **Copy client
 config** puts a ready-to-paste JSON block on your clipboard with the endpoint
-and token filled in. That block is assembled in your browser at the moment you
-click, never rendered into the page, so the screenshot property below still
-holds.
+and token filled in. The block is built in your browser when you
+click, never rendered into the page.
 
 ## Secrets
 
@@ -54,11 +48,10 @@ screenshot cannot carry them. That is also why an empty field can never mean
 A new MCP token is the deliberate exception: handing it to your MCP client is
 the point. It is shown once, in the response to creating it, and never again.
 
-**Your password manager leaves the Configuration page alone.** None of its
-fields is a `password` input, because that is the one thing that makes a browser
-read a card as a login form and refill the URL and API key on every load. They
-are masked in CSS instead, and carry each manager's own opt-out attribute. The
-sign-in page is untouched: that one *should* be filled.
+**Your password manager leaves the Configuration page alone.** Its secret
+fields are masked in CSS rather than being `password` inputs and carry each
+manager's opt-out attribute, so a browser does not refill the URL and API key
+on every load. The sign-in page is a normal login form.
 
 ## Configuration
 
@@ -77,9 +70,8 @@ Transmission, qBittorrent or Grimmory and it wants a username and password, pick
 it wants the control username and password (left blank when NZBGet has none), pick
 anything else and it wants an API key (left blank for a Shelfmark with no authentication). Cleanuparr's, Reclaimerr's and Dispatcharr's cards have no write
 checkboxes, only a note that arr-mcp never writes to them. Services that can only have one instance drop out of the list
-once you have that one, so the picker never offers a choice that ends in
-"already configured". With scripting off the dialog is the plain form it used to
-be, every field showing, and the server still refuses what does not make sense.
+once you have that one. With scripting off the dialog is a plain form with
+every field showing, and the server still refuses what does not make sense.
 
 **Plex and Jellyfin can both be added.** The dialog offers the second media
 server once you have the first, and adding it keeps the existing one as the
@@ -96,12 +88,10 @@ before it is added at all, and on every card, where a blank key still means
 unchanged, so testing a card you have not touched tests what is already
 configured.
 
-**Jellyfin and Seerr suggest their own users.** The default-user field is backed
-by the real list, which the page fetches from the service just after it loads
-(so a slow or dead service never holds the page up), and the name you save is
-one the service actually knows rather than one you typed from memory. Without
-scripting, or if the service does not answer, the field stays a plain text box
-and says so: you can always configure a service that is currently down.
+**Jellyfin and Seerr suggest their own users.** The default-user field offers
+the service's real user list, fetched just after the page loads. Without scripting,
+or if the service does not answer, the field stays a plain text box and says
+so, so you can still configure a service that is down.
 
 Adding a second instance of a service that takes several asks you to name the
 one you already have, and says why: the name becomes part of the id, and that id
@@ -155,14 +145,10 @@ have more than one instance shows one with a note.
 **Logs are a ring buffer**, kept beside your config and capped, so a chatty
 service cannot fill the disk. Full history stays in `docker logs`.
 
-**A line's fields are shown under its message**, the way the write audit shows
-its arguments: which address a refused request came from, which endpoint a
-service failed on, what kind of failure it was. A warning that says only
-*source failed; degrading rather than failing* tells you an hour later that
-something happened and nothing about what; the `err` beside it says
-`Timeout` or `HTTP 503` and names the path. A serialized error is flattened
-one level so it reads as fields rather than as a blob, and its stack trace is
-left out; that one is in `docker logs`.
+**A line's fields are shown under its message**: which address a refused
+request came from, which endpoint a service failed on, what kind of failure it
+was (`Timeout`, `HTTP 503`). Stack traces are left out; they are in
+`docker logs`.
 
 **The write audit reads as entries, not as a spreadsheet.** Each attempt gives
 its outcome, tool, service and time on one line, and its target, the credential
@@ -170,13 +156,10 @@ that asked, and the recorded arguments underneath, each argument as its own
 field. The caller is an OAuth client id where there is one, or the name of an MCP token
 with a short fingerprint of its hash. The static bearer token from before named
 tokens and a token that named no client are spelled out in words rather than
-printed as if they were a client's name. The arguments are stored
-as a single JSON blob, and a column holding that blob beside six others was
-unreadable on a desktop long before it was unreadable on a phone.
+printed as if they were a client's name.
 
 Nothing is summarised away: an argument that does not parse is printed exactly
-as it was recorded, because a log's whole value is that nothing goes missing
-from it. An entry still reading `attempted` means arr-mcp stopped mid-write.
+as it was recorded. An entry still reading `attempted` means arr-mcp stopped mid-write.
 
 ## Dark and light
 
@@ -185,9 +168,8 @@ from it. An entry still reading `attempted` means arr-mcp stopped mid-write.
 for the display that is not the one the OS was set up for.
 
 The choice is saved to `config.yaml` rather than to the browser, so it holds
-wherever you sign in from, and it is applied server-side when the page is
-rendered: there is no moment where the wrong theme flashes before a script
-corrects it, and it works with scripting off like the rest of the page.
+wherever you sign in from. It is applied server-side, so there is no flash of
+the wrong theme, and it works with scripting off.
 
 ## On a phone
 
@@ -195,16 +177,9 @@ The navigation becomes a full-width row of its own under the title rather than
 wrapping into it, form fields are large enough that iOS does not zoom the page
 in when you tap one, and no table pushes the page sideways.
 
-**The logs and the dashboard's problems stack into cards.** Not pushing the page
-sideways was never the same as being readable: four columns whose last one is
-prose have no width that works on a phone, so the three narrow headings wrapped
-letter by letter and the message took what was left. Below 700px each row
-becomes a card instead (time, level and service on one line, the message and
-its fields underneath), which is the shape the write audit above already had.
-
-The tables that are three short columns, disk space and library scans and the
-IMDb status, stay tables. They read fine at that width, and cards would only
-make them taller.
+**The logs and the dashboard's problems stack into cards** below 700px: time,
+level and service on one line, the message and its fields underneath. The
+three-column tables (disk space, library scans, IMDb status) stay tables.
 
 ## Signing in
 
@@ -218,17 +193,16 @@ setup until someone claims it. Claiming requires a request from the setup page
 itself, so a form posted from anywhere else is refused.
 
 **Signing out ends the session for good.** The token stops working everywhere,
-not only in that browser, so a copied cookie is worth nothing afterwards.
+so a copied cookie is worth nothing afterwards.
 Changing the password does the same to every *other* session, and leaves you
 signed in on the page you changed it on. Changing only the username signs nobody
 out.
 
 ## Applying changes
 
-Changes saved from the config UI take effect immediately: every field,
+Changes saved from the config UI take effect immediately, every field
 including `allowed_hosts`. A change you make by hand-editing the file still
-needs a restart, because nothing is watching the file; the UI reloads because it
-knows it just wrote.
+needs a restart, because nothing is watching the file.
 
 One thing to be careful with: pinning `allowed_hosts` applies at once, so a
 wrong hostname locks you out of the page you would fix it from. Recover by
