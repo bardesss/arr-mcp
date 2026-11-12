@@ -640,8 +640,9 @@ here. Absent rather than empty when the root is fully mapped.
 `seedingRules` answers "what are my seeding rules". `clients` gives each
 torrent client's default `ratioLimit` and `seedingLimitSeconds` (absent means
 none) and the `action` it takes on reaching one. `indexers` gives each torrent
-indexer's `seedRatio` and `seedTimeSeconds` from Radarr, Sonarr, Whisparr and
-Prowlarr, plus Prowlarr's `privacy`. An *arr hands its indexer's criteria to the
+indexer's `seedRatio` and `seedTimeSeconds` from Radarr, Sonarr, Whisparr, Lidarr
+and Prowlarr, `packSeedTimeSeconds` for Sonarr's season packs, Lidarr's
+discographies and Prowlarr's packs, plus Prowlarr's `privacy`. An *arr hands its indexer's criteria to the
 client with every grab, and they override the client default, so the indexer
 row is usually the one that decides.
 

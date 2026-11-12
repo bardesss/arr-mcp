@@ -717,7 +717,7 @@ export type IndexerSeedCriteria = {
     privacy?: string;
     seedRatio?: number;
     seedTimeSeconds?: number;
-    /** Sonarr's season packs, and Prowlarr's packs. */
+    /** Sonarr's season packs, Lidarr's discographies, and Prowlarr's packs. */
     packSeedTimeSeconds?: number;
 };
 

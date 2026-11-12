@@ -1,4 +1,5 @@
 import type { ServiceHttp } from '../core/http.ts';
+import { protocolName } from './arrRecord.ts';
 import type { IndexerSeedCriteria } from './types.ts';
 
 type RawField = { name?: string; value?: unknown };
@@ -6,14 +7,16 @@ type RawIndexer = { name?: string; protocol?: string; privacy?: string; fields?:
 
 /**
  * The *arrs nest seed settings under `seedCriteria.`, Prowlarr under
- * `torrentBaseSettings.`, and name the pack field differently. Unset values
- * come back absent rather than null.
+ * `torrentBaseSettings.`, and name the pack field differently: Sonarr's season
+ * pack, Lidarr's discography. Radarr and Whisparr have none. Unset values come
+ * back absent rather than null.
  *
  * Prowlarr is the one service here that never had a v3, so it keeps its own
  * literal rather than reading `http.apiRoot`.
  */
 const LAYOUT = {
     arr: { path: (apiRoot: string) => `${apiRoot}/indexer`, prefix: 'seedCriteria.', pack: 'seasonPackSeedTime' },
+    lidarr: { path: (apiRoot: string) => `${apiRoot}/indexer`, prefix: 'seedCriteria.', pack: 'discographySeedTime' },
     prowlarr: { path: () => '/api/v1/indexer', prefix: 'torrentBaseSettings.', pack: 'packSeedTime' }
 } as const;
 
@@ -26,7 +29,8 @@ export async function readSeedCriteria(
     const indexers = await http.get<RawIndexer[]>(path(http.apiRoot));
 
     return (Array.isArray(indexers) ? indexers : [])
-        .filter(i => i.protocol === 'torrent')
+        // Lidarr 3.1.6 says `TorrentDownloadProtocol`.
+        .filter(i => i.protocol !== undefined && protocolName(i.protocol) === 'torrent')
         .map(i => {
             const field = (name: string): number | undefined => {
                 const value = i.fields?.find(f => f.name === `${prefix}${name}`)?.value;

@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import type { CredentialServiceConfig, KeyedServiceConfig } from '../src/config/schema.ts';
 import { ProwlarrAdapter } from '../src/services/prowlarr.ts';
 import { QbittorrentAdapter } from '../src/services/qbittorrent.ts';
+import { LidarrAdapter } from '../src/services/lidarr.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import { TransmissionAdapter } from '../src/services/transmission.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
@@ -291,6 +292,30 @@ describe('indexer seed criteria', () => {
     it('reads torrent indexers only, with times in seconds', async () => {
         expect(await radarr(1.5, 60).getSeedCriteria()).toEqual([
             { service: 'radarr', indexer: 'Nyaa.si (Prowlarr)', seedRatio: 1.5, seedTimeSeconds: 3600 }
+        ]);
+    });
+
+    // Field names from Lidarr 3.1.6's /indexer/schema; it names the protocol by its class.
+    it('reads Lidarr torrent indexers, with the discography time as the pack time', async () => {
+        const lidarr = new LidarrAdapter(
+            keyed(8686),
+            serving({
+                '/api/v1/indexer': [
+                    {
+                        name: 'Music Tracker',
+                        protocol: 'TorrentDownloadProtocol',
+                        fields: [
+                            { name: 'seedCriteria.seedRatio', value: 2 },
+                            { name: 'seedCriteria.seedTime', value: 60 },
+                            { name: 'seedCriteria.discographySeedTime', value: 120 }
+                        ]
+                    },
+                    { name: 'Usenet', protocol: 'UsenetDownloadProtocol', fields: [] }
+                ]
+            })
+        );
+        expect(await lidarr.getSeedCriteria()).toEqual([
+            { service: 'lidarr', indexer: 'Music Tracker', seedRatio: 2, seedTimeSeconds: 3600, packSeedTimeSeconds: 7200 }
         ]);
     });
 
