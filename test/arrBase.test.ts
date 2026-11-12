@@ -48,7 +48,7 @@ describe('*arr adapter capabilities', () => {
             'hasHealthChecks', 'hasHistory', 'hasImportExclusions', 'hasLibrary', 'hasLibraryMaintenance', 'hasLibraryScan',
             'hasLogs', 'hasManualImport', 'hasMediaAdd', 'hasMediaDelete', 'hasMediaDetails', 'hasMediaUpdate', 'hasMetadataProfiles',
             'hasMonitorState', 'hasMonitoring', 'hasQueue', 'hasQueueRemove', 'hasReleaseGrab',
-            'hasReleaseSearch', 'hasScanState', 'hasSearch', 'hasSearchTrigger', 'hasTagRepair', 'hasWanted'
+            'hasReleaseSearch', 'hasScanState', 'hasSearch', 'hasSearchTrigger', 'hasSeedCriteria', 'hasTagRepair', 'hasWanted'
         ]]
     ])('%s exposes exactly its capabilities', (_name, make, expected) => {
         expect(capabilities(make())).toEqual(expected);

@@ -17,6 +17,7 @@ import { lidarrDate } from './arrRecord.ts';
 import { findLidarrReleases, grabLidarrRelease } from './arrRelease.ts';
 import { arrRecentLogs, arrStartLibraryScan } from './arrSystem.ts';
 import { readArrWanted } from './arrWanted.ts';
+import { readSeedCriteria } from './arrSeedCriteria.ts';
 import {
     type AddCandidate,
     type AddMediaOptions,
@@ -34,6 +35,8 @@ import {
     type DiskSpaceCapable,
     type DownloadTrace,
     type DownloadTraceCapable,
+    type IndexerSeedCriteria,
+    type SeedCriteriaCapable,
     type HealthCheckCapable,
     type HistoryCapable,
     type HistoryEntry,
@@ -286,6 +289,7 @@ export class LidarrAdapter
         QueueCapable,
         QueueRemoveCapable,
         DownloadTraceCapable,
+        SeedCriteriaCapable,
         HistoryCapable,
         BlocklistCapable,
         LibraryScanCapable,
@@ -619,6 +623,10 @@ export class LidarrAdapter
 
     async traceDownload(downloadId: string): Promise<DownloadTrace | undefined> {
         return traceArrDownload(this.http, this.id, 'artist', downloadId);
+    }
+
+    async getSeedCriteria(): Promise<IndexerSeedCriteria[]> {
+        return readSeedCriteria(this.http, this.id, 'lidarr');
     }
 
     /**
