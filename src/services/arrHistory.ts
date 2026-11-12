@@ -6,8 +6,8 @@ import { mediaIdOf, mediaIdsParam, type ArrHistoryScope } from './arrRecord.ts';
 import type { HistoryEntry, HistoryEventType, HistoryQuery, Window } from './types.ts';
 
 /**
- * Radarr and Sonarr share one history vocabulary almost entirely — both spell
- * a grab `grabbed` and an import `downloadFolderImported` — with one
+ * Radarr and Sonarr share one history vocabulary almost entirely: both spell
+ * a grab `grabbed` and an import `downloadFolderImported`, with one
  * exception: deletion. Radarr says `movieFileDeleted`, Sonarr says
  * `episodeFileDeleted`. One vocabulary here regardless; the upstream string
  * survives as `rawEvent` so nothing is hidden, and an event this map does not
@@ -17,13 +17,13 @@ import type { HistoryEntry, HistoryEventType, HistoryQuery, Window } from './typ
  * `downloadFolderImported`, `movieFileDeleted` and `downloadFailed`; Sonarr
  * showed `grabbed`, `downloadFolderImported` and `episodeFileDeleted`.
  * `episodeFileImported`/`movieFileImported`/renamed/ignored were never
- * observed live but are kept as defensive entries — the generated spec
+ * observed live but are kept as defensive entries: the generated spec
  * types `eventType` as a bare string, so an older or newer build could still
  * send them.
  *
  * Lidarr names its own (`EntityHistoryEventType`, read from Lidarr 3.1.0):
- * three imports — `artistFolderImported`, `trackFileImported` and
- * `downloadImported` — and `albumImportIncomplete` beside `downloadFailed`, a
+ * three imports: `artistFolderImported`, `trackFileImported` and
+ * `downloadImported`, and `albumImportIncomplete` beside `downloadFailed`, a
  * download that arrived but could not all be imported. `trackFileRetagged`,
  * a file whose embedded tags Lidarr rewrote, is `retagged`.
  */
@@ -66,8 +66,8 @@ type RawHistory = {
         guid?: string;
         // Present on `*Deleted` (observed value: "Upgrade"), not on failures.
         reason?: string;
-        // The failure text on `downloadFailed`. Whatever locale the download
-        // client runs in, and may contain a URL — fence it, never parse it.
+        // The failure text on `downloadFailed`. It is in whatever locale the
+        // download client runs in and may contain a URL: fence it, never parse it.
         message?: string;
     };
 };
@@ -239,7 +239,7 @@ function toEntries(records: readonly RawHistory[], service: string, kind: ArrKin
         })
         // Filtered here rather than upstream: neither service takes a date
         // range on this endpoint. `stopWhen` above only ends the *paging*
-        // early — the page holding the boundary still has older records on
+        // early: the page holding the boundary still has older records on
         // it, and this is what drops them.
         .filter(e => since === undefined || e.at >= since);
 }

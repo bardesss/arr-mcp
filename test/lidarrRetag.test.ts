@@ -423,7 +423,7 @@ describe('fix_metadata on a Lidarr artist', () => {
                 await expect(call({ id: 'lidarr:101', dry_run })).rejects.toMatchObject({
                     kind: 'NotFound',
                     service: 'lidarr',
-                    message: 'lidarr not found: no Lidarr is configured as "lidarr" — Give the artist as `lidarr/flac:<artistId>`, from its `acquisition.service` and `acquisition.id`.'
+                    message: 'lidarr not found: no Lidarr is configured as "lidarr". Give the artist as `lidarr/flac:<artistId>`, from its `acquisition.service` and `acquisition.id`.'
                 });
             }
             expect(sent).toEqual([]);
@@ -438,7 +438,7 @@ describe('fix_metadata on a Lidarr artist', () => {
             const flac = lidarr({ name: 'flac' });
             const mp3 = lidarr({ name: 'mp3' });
             await expect(fixMetadata([flac.adapter, mp3.adapter])({ id: 'lidarr/hifi:101' })).rejects.toThrow(
-                'no Lidarr is configured as "lidarr/hifi" — Give the artist as `lidarr/flac:<artistId>` or `lidarr/mp3:<artistId>`,'
+                'no Lidarr is configured as "lidarr/hifi". Give the artist as `lidarr/flac:<artistId>` or `lidarr/mp3:<artistId>`,'
             );
             expect([...flac.sent, ...mp3.sent]).toEqual([]);
         });
@@ -447,10 +447,10 @@ describe('fix_metadata on a Lidarr artist', () => {
             const { adapter, sent } = lidarr({ name: 'flac' });
             const call = fixMetadata(adapter);
             for (const id of ['lidarr/flac', 'lidarr/flac:']) {
-                await expect(call({ id })).rejects.toThrow(`"${id}" names no artist — Give the artist as \`lidarr/flac:<artistId>\`,`);
+                await expect(call({ id })).rejects.toThrow(`"${id}" names no artist. Give the artist as \`lidarr/flac:<artistId>\`,`);
             }
             const unnamed = lidarr();
-            await expect(fixMetadata(unnamed.adapter)({ id: 'lidarr' })).rejects.toThrow('"lidarr" names no artist — Give the artist as `lidarr:<artistId>`,');
+            await expect(fixMetadata(unnamed.adapter)({ id: 'lidarr' })).rejects.toThrow('"lidarr" names no artist. Give the artist as `lidarr:<artistId>`,');
             expect([...sent, ...unnamed.sent]).toEqual([]);
         });
 
@@ -470,9 +470,9 @@ describe('fix_metadata on a Lidarr artist', () => {
             const named = await call({ id: 'LIDARR/FLAC:101' });
             expect(named.structuredContent.service).toBe('lidarr/flac');
             expect(named.structuredContent.target).toBe('lidarr/flac:101');
-            await expect(call({ id: 'Lidarr/Flac' })).rejects.toThrow('"Lidarr/Flac" names no artist — Give the artist as `lidarr/flac:<artistId>`,');
+            await expect(call({ id: 'Lidarr/Flac' })).rejects.toThrow('"Lidarr/Flac" names no artist. Give the artist as `lidarr/flac:<artistId>`,');
             const before = sent.length;
-            await expect(call({ id: 'Lidarr/hifi:101' })).rejects.toThrow('no Lidarr is configured as "Lidarr/hifi" — Give the artist as `lidarr/flac:<artistId>`,');
+            await expect(call({ id: 'Lidarr/hifi:101' })).rejects.toThrow('no Lidarr is configured as "Lidarr/hifi". Give the artist as `lidarr/flac:<artistId>`,');
             expect(sent).toHaveLength(before);
         });
 
@@ -480,7 +480,7 @@ describe('fix_metadata on a Lidarr artist', () => {
             const call = fixMetadata([]);
             await expect(call({ id: 'lidarr:101' })).rejects.toMatchObject({
                 kind: 'NotFound',
-                message: 'lidarr not found: no Lidarr is configured — Add a services.lidarr block to config.yaml and restart.'
+                message: 'lidarr not found: no Lidarr is configured. Add a services.lidarr block to config.yaml and restart.'
             });
             await expect(call({ query: 'Album 1', files: [1001], dry_run: true })).rejects.toThrow('`files` is for music only, and no Lidarr is configured.');
         });

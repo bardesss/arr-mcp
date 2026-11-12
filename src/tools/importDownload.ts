@@ -210,7 +210,7 @@ export async function planImportAction(adapters: readonly ServiceAdapter[], args
     if (action === 'remap') {
         if (id === undefined || reassignments === undefined) {
             throw new Error(
-                'remap needs an `id` — the Sonarr series, from `acquisition.id` on get_library — and `reassignments`, the files and the episodes they really are.'
+                'remap needs an `id` (the Sonarr series, from `acquisition.id` on get_library) and `reassignments` (the files and the episodes they really are).'
             );
         }
 
@@ -231,18 +231,18 @@ export async function planImportAction(adapters: readonly ServiceAdapter[], args
             target,
             summary: `Reassign ${moves.length} file(s) to different episodes of series ${id} in ${adapter.id}.`,
             effects: [
-                ...emptied.map(e => `Leaves ${e} with no file — nothing in reassignments takes its place.`),
+                ...emptied.map(e => `Leaves ${e} with no file. Nothing in reassignments takes its place.`),
                 ...moves.map(m => `${m.display}: ${m.from} → ${m.to}`),
                 // Scoped to the moved files, not the series: `rename`
                 // sends RenameSeries, which would also rename files in
                 // seasons this never touched.
                 rotation
-                    ? `Renames only the files above afterwards — but they rotate, so every new name is another one's current name and no rename has a free destination. Getting through that **changes ${adapter.id}'s episode naming format for this series type, server-wide, for the length of two rename commands**, then puts it back. It is refused rather than started if ${adapter.id} is busy, and anything ${adapter.id} imports during those two commands is named by the temporary format and reported back to you.`
+                    ? `Renames only the files above afterwards, but they rotate, so every new name is another one's current name and no rename has a free destination. Getting through that **changes ${adapter.id}'s episode naming format for this series type, server-wide, for the length of two rename commands**, then puts it back. It is refused rather than started if ${adapter.id} is busy, and anything ${adapter.id} imports during those two commands is named by the temporary format and reported back to you.`
                     : chain
                       ? `Renames only the files above afterwards, but some want a name another moved file still holds, so on this pass they keep their old names. Running trigger_scan with action "rename" on this series afterwards finishes them, once per link in the chain.`
                       : `Renames only the files above afterwards, so the filenames match the episodes they have been moved to. Nothing else in the series is renamed. What ${adapter.id} will name each file is only known once the reassignment is applied, so this cannot promise the naming format stays put: if every name a moved file wants is already taken by some other file in the series, the series type's episode naming format is changed server-wide for two rename commands, then restored.`,
                 'Nothing moves between folders and nothing is deleted. Rescan your media server afterwards so it reads the corrected library.',
-                `${adapter.id} recreates each moved file's record, so episode file ids change — any id read before this is stale — and the file's date added resets to now.`,
+                `${adapter.id} recreates each moved file's record, so episode file ids change (any id read before this is stale) and the file's date added resets to now.`,
                 `${adapter.id} records nothing in its own history for this; the audit log here is the only trace.`
             ],
             args: { service, action, id, reassignments, ...(instance === undefined ? {} : { instance }) }
@@ -328,7 +328,7 @@ export async function planImportAction(adapters: readonly ServiceAdapter[], args
             {
                 remedy: `It rejected: ${rejected
                     .map(c => `${c.display} (${c.rejections.join(', ') || 'matched nothing'})`)
-                    .join('; ')}. Fix that in ${adapter.id} — this does not force a file the service refused.`
+                    .join('; ')}. Fix that in ${adapter.id}. This does not force a file the service refused.`
             }
         );
     }
@@ -341,7 +341,7 @@ export async function planImportAction(adapters: readonly ServiceAdapter[], args
                 c =>
                     `Imports ${c.display}${c.matchedTitle === undefined ? '' : ` as ${c.matchedTitle}`}${
                         c.episodeLabels === undefined ? '' : ` ${c.episodeLabels.join(', ')}`
-                    }${c.mapped === true ? ' (your mapping)' : ''} — the file is moved or hardlinked out of the download folder by ${adapter.id}.`
+                    }${c.mapped === true ? ' (your mapping)' : ''}. The file is moved or hardlinked out of the download folder by ${adapter.id}.`
             ),
             ...rejected.map(c => `Skips ${c.display}: ${c.rejections.join(', ') || 'the service matched it to nothing'}.`)
         ],
@@ -376,14 +376,14 @@ export async function applyImportAction(adapters: readonly ServiceAdapter[], pla
 
         if (blocked.length === 0) {
             // The rescan is a `next_steps` entry when there is a server to name it for.
-            const rescan = scannableMediaServers(adapters).length > 0 ? '' : ' — rescan your media server so it picks the new names up';
+            const rescan = scannableMediaServers(adapters).length > 0 ? '' : '. Rescan your media server so it picks the new names up';
             return `${done} The files and the episodes now agree${rescan}.${caught}`;
         }
 
         return (
             `${done} ${blocked.length} kept the old name, because the name each one wants is still on disk, held by another file: ` +
             `${blocked.map(b => `${b.path} wants ${b.wants}`).join('; ')}. ` +
-            `The reassignment is correct and complete either way — only those filenames are behind, and ${remapper.id} plays by the reassignment, not the name. ` +
+            `The reassignment is correct and complete either way. Only those filenames are behind, and ${remapper.id} plays by the reassignment, not the name. ` +
             `If the holder is a file this remap also moved, running trigger_scan with action "rename" and id ${id} again finishes it, once per link in the chain.${caught}`
         );
     }
@@ -411,7 +411,7 @@ export async function applyImportAction(adapters: readonly ServiceAdapter[], pla
             toImportMapping(mapping),
             plan.args?.paths as string[] | undefined
         );
-        return `${importer.id} queued ${queued.name} for download ${download_id}. Importing runs in the background — check get_queue and get_stack_health's \`commands\` rather than expecting it to be done now.`;
+        return `${importer.id} queued ${queued.name} for download ${download_id}. Importing runs in the background. Check get_queue and get_stack_health's \`commands\` rather than expecting it to be done now.`;
     }
 
     throw new Error(`${action} is missing what it needs: preview it again.`);

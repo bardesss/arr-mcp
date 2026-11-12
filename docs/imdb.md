@@ -129,7 +129,7 @@ get_library({ kind: "series", watched: false, rating_source: "imdb",
 
 > The ten best-rated series you have not watched.
 
-## Two honest limits
+## Two limits
 
 The dataset keys on IMDb ids, and Radarr leads with TMDB ids, so titles carrying
 no IMDb id are never matched: they come back unrated, and counted.

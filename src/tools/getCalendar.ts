@@ -21,8 +21,8 @@ type GetCalendarResult = {
     /**
      * Keyed by **adapter id**, not by service type: a named instance reports
      * under `radarr/4k`. Widened from `ServiceId` for the reason
-     * `library.ts` already was — `gather` has always keyed this by the id it
-     * fanned out over, so the narrower type described something this never
+     * `library.ts` already was (`gather` has always keyed this by the id it
+     * fanned out over), so the narrower type described something this never
      * held. Every existing key is unchanged.
      */
     counts: Record<string, number>;
@@ -54,7 +54,7 @@ const project = (c: CalendarEntry, detail: DetailLevel): CalendarEntry => {
 /** What a calendar row is called: an episode with its series and numbering, an album with its artist. */
 const entryName = (entry: CalendarEntry, numbering: string): string => {
     if (entry.seriesTitle !== undefined) return `${entry.seriesTitle}${numbering} ${entry.title}`;
-    if (entry.artist !== undefined) return `${entry.artist} — ${entry.title}`;
+    if (entry.artist !== undefined) return `${entry.title} by ${entry.artist}`;
     return entry.title;
 };
 
@@ -64,7 +64,7 @@ const entryName = (entry: CalendarEntry, numbering: string): string => {
  *
  * An episode prints its series and SxxEyy, a film just its title, because a
  * film has no numbering to report and an empty `S00E00` would read as one. An
- * album prints its artist first, as an episode prints its series.
+ * album prints its title and then its artist ("Homework by Daft Punk").
  */
 export function calendarLine(entry: CalendarEntry): string {
     const numbering =
@@ -78,7 +78,7 @@ export function calendarLine(entry: CalendarEntry): string {
     if (!entry.hasFile) facts.push(entry.kind === 'album' ? 'incomplete' : 'no file');
     if (!entry.monitored) facts.push('unmonitored');
 
-    return `${entry.date} — ${name} — ${facts.join(', ')}`;
+    return `${entry.date}: ${name} (${facts.join(', ')})`;
 }
 
 export async function buildGetCalendar(

@@ -1261,7 +1261,7 @@ describe('buildChain — each queue state is worded for what it is', () => {
     const PATH_ERROR =
         "Unable to Import. Path matches client base download directory, it's possible 'Keep top-level folder' is disabled for this torrent or 'Torrent Content Layout' is NOT set to 'Original' or 'Create Subfolder'?";
     const IMPORT_REMEDY =
-        'The download finished but has not been imported yet — check Radarr/Sonarr’s activity/history for why, then trigger the import manually if it did not run on its own.';
+        'The download finished but has not been imported yet. Check Radarr/Sonarr’s activity/history for why, then trigger the import manually if it did not run on its own.';
     // The qBittorrent adapter's own shape: no `errorMessage`, `seeding` meaning nothing is left to download.
     const torrent = (status: string, seeding: boolean, sizeBytes = 1000): QueueItem => ({
         service: 'qbittorrent',
@@ -2417,7 +2417,7 @@ describe('buildChain — a Lidarr artist', () => {
             service: 'lidarr/two',
             detail: 'lidarr/two could not be read, so whether anything manages it was not checked.'
         });
-        expect(stepFor(down, 'file')?.detail).toBe('Not reached — whether anything manages it is not known.');
+        expect(stepFor(down, 'file')?.detail).toBe('Not reached. Whether anything manages it is not known.');
         // The open question stays the verdict, uncertain, with no lookup.
         expect(down.verdict.stage).toBe('managed');
         expect(down.verdict.certain).toBe(false);

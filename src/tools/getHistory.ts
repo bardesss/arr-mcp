@@ -37,7 +37,7 @@ const EventTypeSchema = z
 
 /**
  * Both the paging early-exit and the final filter in `readArrHistory` compare
- * `since` against a record's own `date` as plain strings — cheap and correct
+ * `since` against a record's own `date` as plain strings, cheap and correct
  * for ISO 8601, but silently wrong for anything else: `'2026-08-…' < 'last
  * week'` is true, so a value like that ends paging after page one and then
  * filters out everything that made it through, answering a confident empty
@@ -47,7 +47,7 @@ const SinceSchema = z
     .string()
     .regex(
         /^\d{4}-\d{2}-\d{2}/,
-        'must start with an ISO 8601 date (YYYY-MM-DD), e.g. "2026-08-01" or "2026-08-01T00:00:00Z" — it is compared as a plain string against each record\'s own date.'
+        'must start with an ISO 8601 date (YYYY-MM-DD), e.g. "2026-08-01" or "2026-08-01T00:00:00Z". It is compared as a plain string against each record\'s own date.'
     )
     .optional()
     .describe('ISO 8601. Only entries at or after this time.');
@@ -97,7 +97,7 @@ export function historyLine(entry: HistoryEntry): string {
     if (entry.clientRemoved === true) facts.push('on a client since deleted from Cleanuparr');
     if (entry.dryRun === true) facts.push('dry run, nothing was done');
 
-    return `${entry.at} — ${entry.title} — ${facts.join(', ')}`;
+    return `${entry.at}: ${entry.title}: ${facts.join(', ')}`;
 }
 
 const TARGET = serviceTarget({
@@ -122,7 +122,7 @@ export async function buildGetHistory(
 ): Promise<GetHistoryResult> {
     // `id` names one movie, series or artist, and Radarr's movieId, Sonarr's
     // seriesId and Lidarr's artistId are different namespaces that can share a
-    // number — passing it to every adapter unscoped would silently mix two
+    // number, passing it to every adapter unscoped would silently mix two
     // unrelated items' history together.
     if (opts.id !== undefined && opts.service === undefined) {
         throw new Error('`id` scopes to one movie, series or artist; pass `service` (and `instance` if it is named) to say which.');

@@ -258,7 +258,7 @@ export class TransmissionAdapter
         return { service: this.id, ...(ratio === undefined ? {} : { ratioLimit: ratio }), action: 'stop' };
     }
 
-    /** Transmission has no blocklist of grabbed releases — that is an *arr concept. */
+    /** Transmission has no blocklist of grabbed releases: that is an *arr concept. */
     readonly supportsBlocklist = false;
 
     /**
@@ -303,7 +303,7 @@ export class TransmissionAdapter
     }
 
     /**
-     * "Stopped" is Transmission's word for paused, and it is per-torrent —
+     * "Stopped" is Transmission's word for paused, and it is per-torrent:
      * there is no client-wide flag. So the whole client counts as paused only
      * when every torrent is stopped, and an empty client counts as *not*
      * paused: nothing to pause is not the same state as everything paused, and
@@ -382,7 +382,7 @@ export class TransmissionAdapter
 
     /**
      * `torrent-add` answers with `torrent-added` for a new torrent and
-     * `torrent-duplicate` for one the client already has — a 200 either way,
+     * `torrent-duplicate` for one the client already has: a 200 either way,
      * so the arguments are what say which happened. A duplicate is reported,
      * not thrown: it is the state the caller asked for.
      */
@@ -423,7 +423,7 @@ export class TransmissionAdapter
         return torrentId;
     }
 
-    /** Id and status only — enough to answer "is it stopped", without the
+    /** Id and status only: enough to answer "is it stopped", without the
      *  whole queue payload `getQueue` needs. */
     async #torrents(id?: string): Promise<{ id?: number; status?: number }[]> {
         const body = await this.#http.post<RpcResponse<{ torrents?: { id?: number; status?: number }[] }>>(RPC_PATH, {

@@ -13,7 +13,7 @@ import { serial } from './serial.ts';
 import { Sessions } from './session.ts';
 
 /**
- * Everything a config change can invalidate, behind one swap — so editing
+ * Everything a config change can invalidate, behind one swap, so editing
  * config from the web page takes effect without restarting the container.
  *
  * The swap is one assignment of an immutable snapshot, never a mutation of a
@@ -76,7 +76,7 @@ export class Runtime {
      * against the *new* config, so a revoked permission is still enforced.
      *
      * `sessions` is injectable so the repair server and the real one can share
-     * one signing key — otherwise a save promotes the operator into a login
+     * one signing key; otherwise a save promotes the operator into a login
      * screen, having just typed their password.
      */
     readonly confirm: ConfirmTokens;
@@ -95,7 +95,7 @@ export class Runtime {
      * here. Through 1.1 they did not: `startRefresh` was called once at
      * startup from the entry point, so switching the dataset on from the
      * config UI opened an empty database that nothing ever ingested into, and
-     * every rating stayed missing until the container was restarted — a
+     * every rating stayed missing until the container was restarted; a
      * feature that looks broken rather than one that looks off. What the
      * entry point supplies now is the *refresher*, not the timing.
      */
@@ -106,7 +106,7 @@ export class Runtime {
 
     /**
      * Injects a local JWKS in place of a live fetch. `undefined` in every real
-     * deployment — `start()` never sets it, so production always builds a
+     * deployment. `start()` never sets it, so production always builds a
      * `createRemoteJWKSet` against the configured `jwks_uri`. Tests pass a
      * `createLocalJWKSet` here for the same reason `adapters` is injectable:
      * it drives the real verifier against a key it controls, with no network.
@@ -164,8 +164,8 @@ export class Runtime {
     }
 
     /**
-     * The commit half: opens or closes the dataset to match the config — and
-     * starts or stops its refresh with it — doing nothing at all when the
+     * The commit half: opens or closes the dataset to match the config, and
+     * starts or stops its refresh with it, doing nothing at all when the
      * answer has not changed, which is the common case on reload. Nothing here
      * can fail on the config, so it runs only once the snapshot that needs the
      * dataset has been built.
@@ -195,7 +195,7 @@ export class Runtime {
             this.#stopRefresh = undefined;
             this.#dataset.close();
             this.#dataset = undefined;
-            logger.info('IMDb dataset closed — no longer enabled');
+            logger.info('IMDb dataset closed, no longer enabled');
         }
     }
 
@@ -226,7 +226,7 @@ export class Runtime {
      * a permanent replacement.
      *
      * `reload()` works if `configDir` names a real directory; with the default
-     * it will fail, which is correct — a runtime that never read a file has
+     * it will fail, which is correct; a runtime that never read a file has
      * nothing to re-read.
      */
     static fromConfig(

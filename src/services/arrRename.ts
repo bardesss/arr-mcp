@@ -10,8 +10,8 @@ import { awaitArrCommand, postArrCommand, renamedCount } from './arrCommands.ts'
  * After a remap rotates a season, every file's wanted name is the name another
  * file in the same set is still using, so no rename in it has a free
  * destination: Sonarr answers `completed` having renamed nothing. There is no
- * "rename this file to that name" endpoint — `RenameFiles` renames to whatever
- * the *naming format* produces — so the only way through is to change the
+ * "rename this file to that name" endpoint: `RenameFiles` renames to whatever
+ * the *naming format* produces, so the only way through is to change the
  * format, rename once into names nothing holds, change it back, and rename
  * again into the real ones.
  *
@@ -27,8 +27,8 @@ import { awaitArrCommand, postArrCommand, renamedCount } from './arrCommands.ts'
  * Appended to the naming format for the first pass.
  *
  * It ends up in the filename, and from there in Sonarr's own history
- * permanently — `episodeFileRenamed` records `sourceTitle` and nothing prunes
- * it — so it names the tool and the operation rather than reading like a
+ * permanently: `episodeFileRenamed` records `sourceTitle` and nothing prunes
+ * it, so it names the tool and the operation rather than reading like a
  * stray tag someone left behind.
  *
  * A pure suffix, which is what makes the recovery below possible: the original
@@ -52,7 +52,7 @@ type RawCommandRow = { id?: number; name?: string; commandName?: string; status?
  * Sonarr keeps three and uses the one matching the series' own type. Changing
  * `standardEpisodeFormat` for an anime series changes a format nothing in that
  * series is named by, so the first pass renames nothing and the deadlock is
- * still there — with the setting changed for no reason. Measured on the
+ * still there, with the setting changed for no reason. Measured on the
  * tester's library: 1085 standard, 67 anime, 1 daily.
  */
 export function namingFormatKey(seriesType: string | undefined): keyof RawNaming {
@@ -67,7 +67,7 @@ export function namingFormatKey(seriesType: string | undefined): keyof RawNaming
  * minute. Waiting for a genuinely empty queue would mean never starting.
  *
  * They are also exactly what can import a file into the window, which is why
- * that is watched for afterwards rather than prevented — see
+ * that is watched for afterwards rather than prevented: see
  * `importsDuring`. What this list is for is the *other* kind: a command that
  * takes our rename's turn in the queue and holds the temporary format live
  * while it runs. Behind a `RefreshSeries` on a large library that is minutes.
@@ -85,7 +85,7 @@ const HOUSEKEEPING = new Set([
 /**
  * Refuses to open the window behind anything that would hold it open.
  *
- * The window is not a fixed few seconds — it is one command's turn in Sonarr's
+ * The window is not a fixed few seconds: it is one command's turn in Sonarr's
  * queue. Identical rename commands on a live instance took 3.7s each purely on
  * scheduling, and that was a quiet queue.
  */
@@ -102,12 +102,12 @@ export async function assertQueueClear(http: ServiceHttp, service: string): Prom
     throw new ServiceError('UpstreamError', service, `${service} is busy, so the rename was not started`, {
         remedy: `Renaming a rotated season changes ${service}'s episode naming format for the length of two commands, and starting that behind ${busy
             .map(c => c.name ?? c.commandName ?? 'a command')
-            .join(', ')} would leave it changed until that finishes. The reassignment is already applied and correct — wait for ${service} to go quiet and run the remap again to pick up the renames.`
+            .join(', ')} would leave it changed until that finishes. The reassignment is already applied and correct. Wait for ${service} to go quiet and run the remap again to pick up the renames.`
     });
 }
 
 /** The live format for this series type, with a marker stripped if one
- *  survived a kill — see `RENAME_MARKER`. */
+ *  survived a kill: see `RENAME_MARKER`. */
 async function readFormat(
     http: ServiceHttp,
     service: string,
@@ -140,8 +140,8 @@ async function readFormat(
  * Changes one key of the naming config and nothing else. The config is
  * re-read for every write rather than reused from `readFormat`: the PUT takes
  * the whole object, so a snapshot taken before the window would put back
- * whatever else someone changed during it — `renameEpisodes`, the folder
- * formats, the other two episode formats — with no error and no log line.
+ * whatever else someone changed during it (`renameEpisodes`, the folder
+ * formats, the other two episode formats) with no error and no log line.
  */
 const setFormat = async (http: ServiceHttp, key: keyof RawNaming, value: string): Promise<void> => {
     const live = await http.get<RawNaming>(`${http.apiRoot}/config/naming`);
@@ -180,7 +180,7 @@ async function newestImportId(http: ServiceHttp, service: string): Promise<numbe
  *
  * This is the one real cost of the window and it is not preventable: the
  * per-minute `ProcessMonitoredDownloads` is excluded from the queue check
- * above because it is always there. So it is reported instead — a file named
+ * above because it is always there. So it is reported instead: a file named
  * with the marker is obvious once someone knows to look, and invisible
  * otherwise.
  */
@@ -199,14 +199,14 @@ async function importsDuring(http: ServiceHttp, service: string, after: number |
     } catch (err) {
         // The window is closed by the time this runs and the renames are done.
         // Failing to read history is not a reason to report the rename as
-        // failed — it is a reason to say it could not be checked.
+        // failed: it is a reason to say it could not be checked.
         logger.warn({ service, err }, 'could not read history to check what imported during the rename window');
         return [];
     }
 }
 
 /** How many of these files Sonarr still wants to rename. Undefined when it
- *  could not be read — the caller then falls back to the command's own count. */
+ *  could not be read: the caller then falls back to the command's own count. */
 async function stillMisnamed(http: ServiceHttp, seriesId: number, fileIds: number[]): Promise<number | undefined> {
     try {
         const pending = await http.get<{ episodeFileId?: number }[]>(`${http.apiRoot}/rename?seriesId=${seriesId}`);
@@ -237,8 +237,8 @@ type TwoPassResult = {
  * Renames a rotated set, through a temporary naming format.
  *
  * Both passes are sent for the whole set rather than one file at a time. The
- * cheaper-looking alternative — break the cycle at one file and let the rest
- * fall like a chain — was measured and is worse: `RenameFiles` re-reads its
+ * cheaper-looking alternative (break the cycle at one file and let the rest
+ * fall like a chain) was measured and is worse: `RenameFiles` re-reads its
  * ids from the database, so the order they are sent in is ignored and it
  * costs one command per file, with the same format window either way.
  *
@@ -289,7 +289,7 @@ export async function renameThroughTemporaryFormat(
 
     if (short > 0) {
         throw new ServiceError('UpstreamError', service, `${service} left ${short} file(s) under a temporary name`, {
-            remedy: `The naming format is back to what it was, and every file is still on disk — but ${short} of them is not named as it should be, and may still carry "${RENAME_MARKER.trim()}". Run trigger_scan with action "rename" on this series to finish it.`
+            remedy: `The naming format is back to what it was, and every file is still on disk, but ${short} of them is not named as it should be, and may still carry "${RENAME_MARKER.trim()}". Run trigger_scan with action "rename" on this series to finish it.`
         });
     }
 

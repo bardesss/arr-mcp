@@ -147,7 +147,7 @@ const FAILED_DELETIONS = new Set(['HEALTH', 'BAD', 'SCAN']);
 /**
  * `Status` is `<KIND>/<DETAIL>`: SUCCESS/*, FAILURE/*, DELETED/* and
  * WARNING/* (see NzbInfo::MakeTextStatus). A WARNING is neither an import nor
- * a failure — a damaged or password-protected download waiting on a human —
+ * a failure (a damaged or password-protected download waiting on a human),
  * so it stays `unknown` with its raw status kept.
  */
 const historyEvent = (status: string): HistoryEventType => {
@@ -544,7 +544,7 @@ export class NzbgetAdapter
         const ok = await this.#rpc<boolean>('editqueue', [command, 0, '', [numericId]], isBoolean);
         if (!ok) {
             throw new ServiceError('UpstreamError', this.id, `queue ${command} of ${id} was refused`, {
-                remedy: 'Check that the queue item is still present — take a current id from get_queue.'
+                remedy: 'Check that the queue item is still present. Take a current id from get_queue.'
             });
         }
     }
@@ -777,7 +777,7 @@ export class NzbgetAdapter
         const ok = await this.#rpc<boolean>('editqueue', ['HistoryProcess', 0, '', [row.ID]], isBoolean);
         if (!ok) {
             throw new ServiceError('UpstreamError', this.id, `NZBGet refused to post-process download ${downloadId} again`, {
-                remedy: 'Check that the download is still in NZBGet\'s history — take a current id from get_history.'
+                remedy: 'Check that the download is still in NZBGet\'s history. Take a current id from get_history.'
             });
         }
         return this.#watchPostProcess(row, target, { mark, label: `download ${downloadId}` });
@@ -822,7 +822,7 @@ export class NzbgetAdapter
             const refusal = texts.find(m => m.kind === 'ERROR' && refusalPrefix !== undefined && m.text.startsWith(refusalPrefix));
             if (refusal !== undefined) {
                 throw new ServiceError('UpstreamError', this.id, fenceText(refusal.text, { service: this.id, field: 'log' }), {
-                    remedy: "NZBGet only post-processes files still in the download's folder, and that folder has been moved or deleted — usually by an *arr's import or a cleanup. Nothing was changed. If the files are gone, grab the release again instead."
+                    remedy: "NZBGet only post-processes files still in the download's folder, and that folder has been moved or deleted: usually by an *arr's import or a cleanup. Nothing was changed. If the files are gone, grab the release again instead."
                 });
             }
             if (named && texts.some(m => m.text === `${POST_PROCESS_STARTED} ${name}`)) started = true;
@@ -969,7 +969,7 @@ export class NzbgetAdapter
         const ok = await this.#rpc<boolean>('editqueue', ['HistoryProcess', 0, '', [row.ID]], isBoolean);
         if (!ok) {
             throw new ServiceError('UpstreamError', this.id, `NZBGet refused to post-process download ${target.id} again`, {
-                remedy: "Check that the download is still in NZBGet's history — take a current id from get_history."
+                remedy: "Check that the download is still in NZBGet's history. Take a current id from get_history."
             });
         }
         const seen = await this.#watchPostProcess(row, this.#postProcessTarget(row), { mark, label: `download ${target.id}` });
@@ -990,7 +990,7 @@ export class NzbgetAdapter
         const ok = await this.#rpc<boolean>('editqueue', ['HistoryRetryFailed', 0, '', [row.ID]], isBoolean);
         if (!ok) {
             throw new ServiceError('UpstreamError', this.id, `NZBGet refused to retry download ${target.id}`, {
-                remedy: "Check that the download is still in NZBGet's history — take a current id from get_history."
+                remedy: "Check that the download is still in NZBGet's history. Take a current id from get_history."
             });
         }
 

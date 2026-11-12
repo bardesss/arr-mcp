@@ -18,7 +18,7 @@ const PROSE: Record<ServiceErrorKind, string> = {
     VersionUnsupported: 'version unsupported',
     // The only kind that is not a fault of the service. It reads as
     // "radarr permission denied: destructive writes are disabled for radarr",
-    // which is repetitive but keeps every error one shape — and the service
+    // which is repetitive but keeps every error one shape, and the service
     // name is what tells the model *whose* config to change.
     PermissionDenied: 'permission denied',
     UpstreamError: 'upstream error'
@@ -26,7 +26,7 @@ const PROSE: Record<ServiceErrorKind, string> = {
 
 function formatServiceError(kind: ServiceErrorKind, service: string, detail: string, remedy?: string): string {
     const base = `${service} ${PROSE[kind]}: ${detail}`;
-    return remedy ? `${base} — ${remedy}` : base;
+    return remedy ? `${base.replace(/\.$/, '')}. ${remedy}` : base;
 }
 
 /**
@@ -34,7 +34,7 @@ function formatServiceError(kind: ServiceErrorKind, service: string, detail: str
  * error invents an explanation. The remedy therefore lives
  * in `.message` itself: every path that throws
  * this error is caught somewhere as a plain `Error`, and the only field a
- * generic catcher reads is `.message` — including the MCP SDK's own tool
+ * generic catcher reads is `.message`, including the MCP SDK's own tool
  * dispatch loop, which builds its error result from `error.message` alone.
  * `.message` never includes a stack trace, and never the underlying cause,
  * which stays available for logs via `.cause`.
@@ -115,7 +115,7 @@ export function scrubUrls(text: string): string {
 const WORD_SEGMENT = /^([A-Za-z]+|v\d+)$/i;
 
 /**
- * An integer id, or a GUID — hyphenated or not (Jellyfin's are 32 raw hex
+ * An integer id, or a GUID; hyphenated or not (Jellyfin's are 32 raw hex
  * characters, no hyphens). Requiring a digit alongside the hex letters keeps
  * an incidental all-letter word that happens to be hex-shaped (`face`,
  * `cafe`, `dead`) from being misread as an id.
@@ -125,12 +125,12 @@ const ID_SEGMENT = /^(\d+|(?=[0-9a-f-]*\d)[0-9a-f]{4,}(-[0-9a-f]{4,})*)$/i;
 /**
  * The only signal a 404 carries about *why* is the path it was for. Every
  * real by-id endpoint in this codebase (Radarr `/api/v3/movie/{id}`, Sonarr
- * `/api/v3/series/{id}`, and — critically — Jellyfin's
+ * `/api/v3/series/{id}`, and, critically, Jellyfin's
  * `/Users/{userId}/Items/Resume`, where the id sits mid-path, not last) has
  * an id-shaped segment *somewhere*; a collection or status endpoint
  * (`/api/v3/movie`, `/api/v3/system/status`) is made entirely of
- * endpoint-vocabulary words. Position must not matter — classifying only the
- * last segment is exactly what missed the Jellyfin case — so every segment is
+ * endpoint-vocabulary words. Position must not matter (classifying only the
+ * last segment is exactly what missed the Jellyfin case) so every segment is
  * inspected, and an id anywhere outweighs the rest of the path being
  * word-shaped. A segment that is neither a recognisable word nor a
  * recognisable id (a hash, a slug) makes the path genuinely ambiguous, so it
@@ -145,10 +145,10 @@ function classifyNotFoundPath(pathname: string): 'item' | 'collection' | 'ambigu
 }
 
 const NOT_FOUND_REMEDY: Record<ReturnType<typeof classifyNotFoundPath>, string> = {
-    item: 'This id does not exist at that service — verify it (e.g. via search) rather than a guess, before assuming the base URL is wrong.',
-    collection: 'Wrong base path — check the URL does not include a trailing path or reverse-proxy prefix.',
+    item: 'This id does not exist at that service. Verify it (e.g. via search) rather than guessing, before assuming the base URL is wrong.',
+    collection: 'Wrong base path. Check the URL does not include a trailing path or reverse-proxy prefix.',
     ambiguous:
-        'Could not tell from the URL alone whether this is a missing id or a wrong base path — verify the id is correct, and separately that the URL has no trailing path or reverse-proxy prefix.'
+        'Could not tell from the URL alone whether this is a missing id or a wrong base path. Verify the id is correct, and separately that the URL has no trailing path or reverse-proxy prefix.'
 };
 
 export const API_KEY_REMEDY = 'The API key is wrong. Check the service’s Settings → General page.';
@@ -226,7 +226,7 @@ export function classifyFetchError(err: unknown, service: string, url: string): 
     // connect, which reads nothing like a permission problem to the user.
     if (code === 'EACCES' || code === 'EPERM') {
         return new ServiceError('Unreachable', service, `connection blocked at ${host}`, {
-            remedy: 'Something refused to let the connection out — usually a local firewall. Check the host can reach that address and port.',
+            remedy: 'Something refused to let the connection out, usually a local firewall. Check the host can reach that address and port.',
             cause: err
         });
     }

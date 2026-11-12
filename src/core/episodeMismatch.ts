@@ -4,16 +4,16 @@
  * This is the detect half of `fix_metadata` (#199), kept pure and separate
  * from any adapter because the repair it feeds is irreversible: a false
  * positive here ends with correct metadata overwritten. So the bias
- * throughout is precision over recall — every branch that cannot tell
+ * throughout is precision over recall: every branch that cannot tell
  * returns nothing rather than a guess.
  *
  * Two independent signals, reported separately because they are not equally
  * trustworthy:
  *
- * - `numbering` — the season/episode the path states versus the one the
+ * - `numbering`: the season/episode the path states versus the one the
  *   server holds. High confidence. A `SxxExx` or a `Specials` folder is an
  *   explicit claim, not an inference.
- * - `title` — the words in the filename versus the words in the server's
+ * - `title`: the words in the filename versus the words in the server's
  *   title. Advisory. Honest disagreements are common and legitimate: a
  *   romanised filename against an English title shares no words while both
  *   are correct.
@@ -30,7 +30,7 @@ export type EpisodeRecord = {
     season?: number;
     /** The server's episode number. Jellyfin's `IndexNumber`. */
     episode?: number;
-    /** Absent unless the read asked for it — see `Fields=Path`. */
+    /** Absent unless the read asked for it; see `Fields=Path`. */
     path?: string;
     /**
      * The episode's *own* provider ids, where the server holds any.
@@ -38,7 +38,7 @@ export type EpisodeRecord = {
      * Load-bearing rather than informational: an episode pinned to a provider
      * id is re-fetched from that id by a full refresh, so a refresh re-writes
      * the same metadata it already had. An episode pinned to the *wrong* id
-     * therefore cannot be repaired by refreshing it — see `pinnedToProvider`.
+     * therefore cannot be repaired by refreshing it; see `pinnedToProvider`.
      */
     providerIds?: Record<string, string>;
     /** Fields the server will not overwrite on a refresh, as `title` and
@@ -114,14 +114,14 @@ const lockedFor = (item: { lockedFields?: readonly string[] }, reasons: readonly
     item.lockedFields !== undefined && reasons.some(r => LOCKS[r].some(f => item.lockedFields?.includes(f)));
 
 /** Release tags live in brackets and are full of digits that read as
- *  numbering — `2160p`, `x265 10bit`, `FLAC 5.1`. Numbering and title are both
+ *  numbering. `2160p`, `x265 10bit`, `FLAC 5.1`. Numbering and title are both
  *  parsed with these removed. */
 const BRACKETED = /\[[^\]]*\]|\([^)]*\)/g;
 
 /**
  * Four digits for the episode, not three, and a right boundary so the fourth
  * is not silently dropped. Sonarr's default `{episode:00}` emits `E1000` past
- * episode 999, and `\d{1,3}` read that as episode 100 — a *confident* numbering
+ * episode 999, and `\d{1,3}` read that as episode 100; a *confident* numbering
  * finding on every long-running anime, pointing at a rename that would change
  * nothing. `EPISODE_WORD` already allowed four; this did not.
  *
@@ -134,7 +134,7 @@ const SEASON_EPISODE = /(?<![A-Za-z0-9])[Ss](\d{1,3})[Ee](\d{1,4})(?:(?:-[Ee]?|[
 /**
  * The `1x02` form, narrowed to what that convention actually looks like: a
  * two- or three-digit episode, space-delimited. Anything looser reads a series
- * title as numbering — `2x2 Shinobuden` (a real series) parsed as season 2
+ * title as numbering. `2x2 Shinobuden` (a real series) parsed as season 2
  * episode 2, `4x4 Adventures` as season 4 episode 4, and a `640x480` resolution
  * tag as season 640.
  */
@@ -143,7 +143,7 @@ const SEASON_X_EPISODE = /(?:^|\s)(\d{1,2})x(\d{2,3})(?=\s|$)/;
 /**
  * The *last* numbering match in a filename, not the first.
  *
- * A series whose own title contains one — `The S1E1 Podcast - S02E03 - …` —
+ * A series whose own title contains one (`The S1E1 Podcast - S02E03 - …`)
  * puts a decoy to the left of the real thing, and every naming convention in
  * use puts the real numbering after the series name.
  */
@@ -166,7 +166,7 @@ const withoutExtension = (name: string): string => name.replace(/\.[A-Za-z0-9]{2
 
 /**
  * What the path itself claims about season and episode. Either half can be
- * absent — a `Season 03` folder with an unparseable filename genuinely knows
+ * absent; a `Season 03` folder with an unparseable filename genuinely knows
  * the season and not the episode, and saying so is not the same as claiming
  * episode zero.
  */
@@ -267,7 +267,7 @@ function titleFields(path: string, stripped: RegExp): string[] | undefined {
      * [tags]`. A scene release does not: `Show.Name.S03E07.1080p.WEB-DL.x264-
      * GROUP` carries no episode title at all. Trying to read a title out of
      * the second kind is what produced every false positive in a sweep of a
-     * real 101-series library — six series flagged whose server titles were
+     * real 101-series library; six series flagged whose server titles were
      * all correct.
      *
      * So an `SxxExx` name must have a delimited field after the numbering for
@@ -294,12 +294,12 @@ function titleFields(path: string, stripped: RegExp): string[] | undefined {
 
 /**
  * Words too common to mean anything when two titles share them. Without this
- * the overlap test is satisfied by "the" and never fires — most English
+ * the overlap test is satisfied by "the" and never fires; most English
  * episode titles share at least one of these with most others.
  */
 /**
  * Resolution, source, codec and language tags. A scene release often carries
- * no episode title at all — `Rick.and.Morty.S03E07.1080p.BluRay.x264-GROUP` —
+ * no episode title at all (`Rick.and.Morty.S03E07.1080p.BluRay.x264-GROUP`),
  * and without this the extractor treats the tags themselves as the title,
  * finds nothing in common with the real one, and flags a correct episode.
  *
@@ -332,7 +332,7 @@ const STOPWORDS = new Set([
 ]);
 
 /** Short words carry too little signal to count as agreement, so the floor is
- *  three characters — which also drops "to", "of", "in" without listing them. */
+ *  three characters, which also drops "to", "of", "in" without listing them. */
 const contentWords = (value: string): Set<string> =>
     new Set(
         // Accents folded: `Sensō Kōi` and `Sensô Kôi` are the same title.
@@ -342,7 +342,7 @@ const contentWords = (value: string): Set<string> =>
     );
 
 /** Fewer than this many usable words on either side and the comparison is not
- *  worth making — "That Day" reduces to one word, and one word agreeing or
+ *  worth making. "That Day" reduces to one word, and one word agreeing or
  *  disagreeing is noise. */
 const MIN_WORDS = 2;
 
@@ -358,8 +358,8 @@ const MIN_WORDS = 2;
  * A Jellyfin set to a non-English `PreferredMetadataLanguage` holds titles in
  * that language while Sonarr and Radarr name files in English, so every pinned
  * episode in such a library disagrees by word overlap while both sides are
- * correct. Script is only the half of that this can detect cheaply — English
- * against Dutch is invisible here — which is why the remedy for a title-only
+ * correct. Script is only the half of that this can detect cheaply; English
+ * against Dutch is invisible here, which is why the remedy for a title-only
  * finding is `inspect` rather than an instruction.
  */
 const NON_LATIN = /[^\p{Script=Latin}\p{Script=Common}\p{Script=Inherited}]/u;
@@ -437,7 +437,7 @@ function titlesDisagree(serverTitle: string, fileTitle: string): boolean {
  * Which way round the disagreement points, and therefore which tool fixes it.
  *
  * A title mismatch says the file and the server disagree. It does not say
- * which one is wrong — and both directions are real. What separates them is
+ * which one is wrong, and both directions are real. What separates them is
  * whether the server ever matched the episode at all:
  *
  * - **No provider ids.** The server never matched it and holds no episode
@@ -518,7 +518,7 @@ export function managedSeriesOf(items: readonly EpisodeRecord[], folders: readon
  * the honest answer depends on something not in the comparison. An episode the
  * server never matched holds no title of its own, so filling it in is safe. An
  * episode it *did* match could be either a wrong match or a correct title in
- * another language, and this cannot tell those apart — so it says 
+ * another language, and this cannot tell those apart, so it says 
  * rather than sending a destructive write at a coin flip. That is narrower
  * than the rule three series originally suggested, and deliberately so.
  */
@@ -534,7 +534,7 @@ const seriesRemedy = (numbering: number, locked: number, repairable: number, mis
  * A film has no scan-time numbering, so the episode rule does not carry over:
  * its year and title both come from the provider match, and re-identifying it
  * re-derives both. A wrong year therefore means the wrong film was matched and
- *  is exactly the repair — the opposite of what the episode rule
+ *  is exactly the repair; the opposite of what the episode rule
  * would have said, since every matched film carries provider ids.
  */
 export const movieRemedy = (
@@ -608,7 +608,7 @@ const MOVIE_YEAR = /\((19|20)\d{2}\)/;
  *
  * The year is required, and that is the precision guard. A film file names its
  * year almost universally (`Alien (1979) …`, `Alien.1979.1080p…`), and without
- * one there is no reliable boundary between the title and the release tags —
+ * one there is no reliable boundary between the title and the release tags;
  * the same trap that made scene episode names unreadable. No year, no claim.
  */
 export function parseMovieFile(path: string): { title?: string; year?: number } {

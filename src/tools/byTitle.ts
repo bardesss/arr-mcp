@@ -29,7 +29,7 @@ export async function itemByTitle(adapters: readonly ServiceAdapter[], loader: L
         const all = [found, ...(found.candidates ?? [])].map(
             c =>
                 titled(c.title, c.year) +
-                (c.acquisition?.id === undefined ? '' : ` — ${c.acquisition.service} id ${c.acquisition.id}`)
+                (c.acquisition?.id === undefined ? '' : ` (${c.acquisition.service} id ${c.acquisition.id})`)
         );
         throw new Error(`"${title}" matches more than one title equally well: ${all.join('; ')}. Name the one you mean by its id instead.`);
     }

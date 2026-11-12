@@ -33,8 +33,8 @@ import {
 
 /**
  * The identify half of a metadata repair is a *synchronous* remote provider
- * lookup — Jellyfin holds the request open while it talks to TVDB and rebuilds
- * the item — so it does not fit the per-service read timeout. A live run
+ * lookup (Jellyfin holds the request open while it talks to TVDB and rebuilds
+ * the item) so it does not fit the per-service read timeout. A live run
  * against a 69-episode series blew the configured 10s and the repair never
  * landed, which is exactly the shape `RELEASE_SEARCH_TIMEOUT_MS` already
  * documents for the *arrs' indexer sweeps.
@@ -68,7 +68,7 @@ type RawTask = {
  *
  * Keyed on `Key`, never `Name`, for two reasons: a server exposes eight
  * library-ish keys including `TraktSyncLibraryTask`, so a pattern matches the
- * wrong one — and `Name` is localised, returning "Mediabibliotheek scannen" on
+ * wrong one, and `Name` is localised, returning "Mediabibliotheek scannen" on
  * the instance this came from.
  */
 const LIBRARY_SCAN_KEY = 'RefreshLibrary';
@@ -106,7 +106,7 @@ const ticksToSeconds = (ticks: number | undefined): number | undefined =>
     typeof ticks === 'number' ? Math.round(ticks / TICKS_PER_SECOND) : undefined;
 
 /**
- * Every playback stop Jellyfin logged, newest first. `type` is a real filter —
+ * Every playback stop Jellyfin logged, newest first. `type` is a real filter:
  * confirmed against a live 12.x with an invented-parameter control, which
  * returned the unfiltered 46k entries against 10k stops. The log is
  * household-wide; `UserId` narrows it, and comes back in the same undashed
@@ -154,7 +154,7 @@ type RawEpisodeItem = {
     /** Only present when the read asks for it via `Fields=Path`. */
     Path?: string;
     /** Likewise `Fields=ProviderIds`. An episode carrying one is pinned to it
-     *  across refreshes — see `pinnedToProvider`. */
+     *  across refreshes: see `pinnedToProvider`. */
     ProviderIds?: Record<string, string>;
     UserData?: { Played?: boolean; LastPlayedDate?: string };
     LockData?: boolean;
@@ -178,11 +178,11 @@ const withLocks = (item: { LockData?: boolean; LockedFields?: string[] }): { loc
 /**
  * Jellyfin stores external ids as **strings** while Radarr and Sonarr use
  * numbers. The identity resolver joins on tmdbId and tvdbId, so a string
- * here would silently fail every join — convert at the boundary.
+ * here would silently fail every join: convert at the boundary.
  */
 const numericId = (value: string | undefined): number | undefined => {
     // Digits required, not just finiteness: `Number('')` is 0 and passes
-    // `Number.isFinite`, so an empty provider id — which Jellyfin does emit —
+    // `Number.isFinite`, so an empty provider id, which Jellyfin does emit,
     // became `tmdb: 0` and joined against every other item missing one.
     // Same trap `yearOf` documents in seerr.ts.
     if (value === undefined || !/^\d+$/.test(value.trim())) return undefined;
@@ -221,7 +221,7 @@ export class JellyfinAdapter
 
     /**
      * Jellyfin identifies users by GUID while config names them by username, so
-     * every per-user call resolves through this list — and the resolver reports
+     * every per-user call resolves through this list, and the resolver reports
      * the available names on a miss, because a hand-typed username is a
      * guaranteed source of silent mismatches.
      */
@@ -233,7 +233,7 @@ export class JellyfinAdapter
     }
 
     /**
-     * Start the library scan — this adapter's only write.
+     * Start the library scan: this adapter's only write.
      *
      * The task id is looked up rather than hard-coded, by the same
      * `Key === LIBRARY_SCAN_KEY` match `getScanState` uses: Jellyfin's ids are
@@ -243,7 +243,7 @@ export class JellyfinAdapter
      * this is.
      *
      * Jellyfin answers this with 204 and no body, so there is no command id to
-     * report back — unlike the *arrs, which return one. The handle says so
+     * report back, unlike the *arrs, which return one. The handle says so
      * rather than inventing a number that would look like something you could
      * poll.
      */
@@ -274,7 +274,7 @@ export class JellyfinAdapter
     }
 
     /**
-     * Sessions are global — an admin key sees the whole household — so they are
+     * Sessions are global (an admin key sees the whole household), so they are
      * filtered to the resolved user here. The identity gate has already decided
      * that this user may be queried; this is the mechanical narrowing, not the
      * authorization decision.
@@ -312,12 +312,12 @@ export class JellyfinAdapter
             /**
              * `/UserItems/Resume` is the documented way to ask for the resumable
              * set. `/Items?IsResumable=true` looks like the right query but is
-             * silently ignored — it returns the entire library, not just
+             * silently ignored: it returns the entire library, not just
              * resumable items.
              *
              * The older `/Users/{id}/Items/Resume` still answers in Jellyfin 12,
              * but only as `[Obsolete]`, and it is absent from the OpenAPI
-             * document — so nothing here would catch its removal.
+             * document, so nothing here would catch its removal.
              *
              * `Limit=500` ensures truncation is decided by `applyLimit` in the
              * contract layer, which reports it, rather than by an undocumented
@@ -349,7 +349,7 @@ export class JellyfinAdapter
     }
 
     /**
-     * `/Shows/NextUp` is Jellyfin's own per-user answer to "what next" — one
+     * `/Shows/NextUp` is Jellyfin's own per-user answer to "what next": one
      * row per series with an unwatched episode after the last one this user
      * finished. Confirmed against a live 10.11.11: 19 rows for a household
      * with several in-progress shows.
@@ -364,7 +364,7 @@ export class JellyfinAdapter
 
     /**
      * Recently watched movies and episodes, newest first. `Filters=IsPlayed`
-     * plus the DatePlayed sort are both real — confirmed against a live
+     * plus the DatePlayed sort are both real: confirmed against a live
      * 10.11.11 with an invented-parameter control, since Jellyfin silently
      * ignores a query param it does not recognise. `Limit=500` matches
      * `getPlayback`'s resumable read: truncation is decided by `applyLimit`,
@@ -524,7 +524,7 @@ export class JellyfinAdapter
         // `Fields=ProviderIds` is not optional decoration: Jellyfin omits
         // ProviderIds from search results entirely without it, confirmed
         // against a live 10.11.11. Every hit came back with no external ids at
-        // all — which is precisely what the resolver joins on.
+        // all, which is precisely what the resolver joins on.
         const page = await this.#http.get<{ Items?: RawItemDetail[] }>(
             `/Items?searchTerm=${encodeURIComponent(query)}&Recursive=true&IncludeItemTypes=Movie,Series&Fields=ProviderIds`
         );
@@ -553,7 +553,7 @@ export class JellyfinAdapter
     /**
      * Per-user by construction. `EnableUserData` is what makes `Played`
      * come back at all, and `Fields=ProviderIds` is what makes the join
-     * possible — the same parameter whose absence once made every search hit
+     * possible: the same parameter whose absence once made every search hit
      * arrive with no external ids.
      */
     async listUserLibrary(user: ServiceUser): Promise<IndexInput[]> {
@@ -596,7 +596,7 @@ export class JellyfinAdapter
      * MusicBrainz artist id.
      *
      * Its own read, and its own source in a library build, so a Jellyfin whose
-     * music half fails does not take films and series down with it — and so
+     * music half fails does not take films and series down with it, and so
      * `musicGathered` can say which half was missing rather than claiming
      * every artist is `arr_only`.
      *
@@ -604,7 +604,7 @@ export class JellyfinAdapter
      * because an album artist is not a library item type: it is the set
      * Jellyfin derives from the albums it holds, and it is the only read that
      * exposes `ProviderIds.MusicBrainzArtist` for one. `playback` carries the
-     * server's own id and no watch state — music watch state is not read here,
+     * server's own id and no watch state: music watch state is not read here,
      * and a `watched: false` invented from that silence would be a claim
      * nobody made.
      */
@@ -659,7 +659,7 @@ export class JellyfinAdapter
      *
      * Two calls, and the series call is deliberately **not** shared with
      * `listUserLibrary`: sharing it would couple the two sources, and
-     * independent failure is the entire reason they are separate. It is cheap —
+     * independent failure is the entire reason they are separate. It is cheap:
      * ids only, no genres and no user data.
      *
      * Episodes are collapsed here rather than returned, so a 10,000-episode
@@ -670,7 +670,7 @@ export class JellyfinAdapter
     /**
      * Jellyfin item ids are 32 lowercase hex characters. Checked before any
      * network call, because the ids a caller is most likely to reach for by
-     * mistake — a Radarr movie id, a Sonarr series id — are small integers,
+     * mistake (a Radarr movie id, a Sonarr series id) are small integers,
      * and sending one on produces a 404 that names nothing useful.
      */
     #itemId(id: string): string {
@@ -701,7 +701,7 @@ export class JellyfinAdapter
 
     /**
      * `season` is Jellyfin's own parameter name, confirmed by sending an
-     * invented one and getting the unfiltered count back — Jellyfin ignores
+     * invented one and getting the unfiltered count back: Jellyfin ignores
      * query parameters it does not recognise, so a wrong spelling looks
      * exactly like a working filter.
      */
@@ -726,7 +726,7 @@ export class JellyfinAdapter
 
     /**
      * POST marks played, DELETE unmarks. Both answer with the item's user
-     * data, which nothing here reads — the tool re-reads state through
+     * data, which nothing here reads: the tool re-reads state through
      * `readWatchTarget` when it needs it.
      *
      * `userId` is a query parameter, and Jellyfin ignores parameters it does
@@ -747,7 +747,7 @@ export class JellyfinAdapter
      * The same endpoint `listEpisodeItems` reads, asked a different question.
      * `Fields=Path` is the entire reason this is a separate method: Jellyfin
      * omits `Path` unless a read asks for it, and `set_watched` has no use for
-     * a file path — widening its read to carry one would change a verified
+     * a file path: widening its read to carry one would change a verified
      * request for nothing.
      */
     async readEpisodeMetadata(user: ServiceUser, seriesItemId: string): Promise<EpisodeRecord[]> {
@@ -771,8 +771,8 @@ export class JellyfinAdapter
                 // parser unfences before it reads the path, so the fence costs
                 // the comparison nothing and the value stays safe to print.
                 ...(e.Path === undefined ? {} : { path: fenceText(e.Path, { service: this.id, field: 'Path' }) }),
-                // Not fenced: these are read as structure — whether an id
-                // exists at all — and never printed as prose.
+                // Not fenced: these are read as structure (whether an id
+                // exists at all) and never printed as prose.
                 ...(e.ProviderIds === undefined ? {} : { providerIds: e.ProviderIds }),
                 ...withLocks(e)
             }));
@@ -790,7 +790,7 @@ export class JellyfinAdapter
         // One film by id when the caller wants one. `fix_metadata` reads a film
         // four times across a preview and a confirm, and pulling the whole film
         // library each time is a multi-megabyte response under a read timeout
-        // meant for a small one — which `get` then retries once before failing.
+        // meant for a small one, which `get` then retries once before failing.
         const scope =
             itemId === undefined
                 ? '&Recursive=true&IncludeItemTypes=Movie'
@@ -835,7 +835,7 @@ export class JellyfinAdapter
      * The refresh query names are camelCase because that is what the vendored
      * spec says (`RefreshItem`), not the capitalised spelling issue #199 quoted.
      * Jellyfin ignores parameters it does not recognise, so a wrong spelling
-     * here would return 204 and change nothing — the failure this whole tool
+     * here would return 204 and change nothing: the failure this whole tool
      * exists to stop being reported as success.
      */
     async repairMetadata(itemId: string, opts: { tvdbId?: number; tmdbId?: number }): Promise<{ settled: boolean }> {
@@ -849,7 +849,7 @@ export class JellyfinAdapter
 
         // Applying an empty match would unpin whatever identity the item
         // already had, so with no id to pin this falls back to the plain
-        // refresh — which cannot fix a wrong match, only a missing one.
+        // refresh, which cannot fix a wrong match, only a missing one.
         if (Object.keys(providerIds).length > 0) {
             await this.#http.post(
                 `/Items/RemoteSearch/Apply/${id}?replaceAllImages=false`,
@@ -924,7 +924,7 @@ export class JellyfinAdapter
             })
             // A row with no external id can never join. `LibraryIndex.build`
             // keys on tmdb/tvdb/imdb, so a seasons-only row carrying none of
-            // them matches nothing and becomes a **new** library item — the
+            // them matches nothing and becomes a **new** library item: the
             // same id-less series `listUserLibrary` already returned, appearing
             // a second time with no playback, no acquisition and
             // `presence: 'unknown'`, inflating `get_library`'s `total` and

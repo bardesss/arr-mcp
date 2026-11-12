@@ -318,7 +318,7 @@ describe('a download that has not finished', () => {
     it('says only that it is not completed for a status it does not know', async () => {
         const s = stack(500, [{ ...RUNNING_ROW, status: 'unknown' }]);
         await expect(new RadarrAdapter(keyed(7878), s.impl).listImportCandidates('nzo_abc')).rejects.toMatchObject({
-            message: expect.stringMatching(/nzo_abc is not completed —/),
+            message: expect.stringMatching(/nzo_abc is not completed./),
             remedy: expect.stringMatching(/reports it as unknown/)
         });
     });

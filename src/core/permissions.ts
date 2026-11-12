@@ -6,12 +6,12 @@ import type { AnyServiceConfig } from '../config/schema.ts';
  * independent switches.
  *
  * `safe` is a mutation the service itself can undo: monitor a movie, trigger a
- * search, pause a download. `destructive` loses something — files on disk, a
+ * search, pause a download. `destructive` loses something; files on disk, a
  * request's history, a queue item and its blocklist entry.
  *
  * Ordering is the whole point. `destructive: true` grants `safe` as well,
  * because a config that permits deleting a film but refuses to let it be
- * re-monitored describes no coherent policy anyone would choose on purpose —
+ * re-monitored describes no coherent policy anyone would choose on purpose,
  * and a user who set the scarier-sounding flag and then found `add_media`
  * refused would reasonably read that as a bug. Someone who genuinely wants
  * neither leaves both off, which is the default (see PermissionsSchema).
@@ -34,7 +34,7 @@ type PermissionVerdict =
  * permissions by reporting a capability it was never granted.
  */
 export type PermissionSource = {
-    /** Keyed by instance id — `radarr` or `radarr/4k`, never the bare type. */
+    /** Keyed by instance id. `radarr` or `radarr/4k`, never the bare type. */
     get(instance: string): AnyServiceConfig | undefined;
     /**
      * An upper bound on what the *credential* may do, narrowing what the file
@@ -69,8 +69,8 @@ export function permissionSourceFrom(instances: readonly ServiceInstance[]): Per
 /**
  * Where to set a permission, in the reader's actual config file.
  *
- * A named instance lives inside a list, so `services.radarr/4k.permissions` —
- * the obvious string to build from the id — names a key that does not exist and
+ * A named instance lives inside a list, so `services.radarr/4k.permissions`
+ * (the obvious string to build from the id) names a key that does not exist and
  * cannot be created. Someone following it edits nothing and the write stays
  * refused, which is a worse failure than a vague message: it looks like the
  * remedy did not work.
@@ -108,7 +108,7 @@ export function checkPermission(source: PermissionSource, service: string, tier:
     }
 
     // The ordering rule, in the one place it exists. Note this reads
-    // `destructive` for *both* tiers — a safe write is permitted by either
+    // `destructive` for *both* tiers; a safe write is permitted by either
     // flag, a destructive one only by `destructive`.
     const granted = tier === 'safe' ? config.permissions.safe_write || config.permissions.destructive : config.permissions.destructive;
 

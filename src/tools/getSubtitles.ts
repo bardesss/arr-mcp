@@ -28,7 +28,7 @@ type GetSubtitlesResult = {
 };
 
 const project = (gap: SubtitleGap, detail: DetailLevel): SubtitleGap => {
-    // A join key, not a fact about the gap — so it goes at `full` too.
+    // A join key, not a fact about the gap, so it goes at `full` too.
     const { seriesId: _s, ...g } = gap;
     if (detail === 'full') return g;
     if (detail === 'standard') {
@@ -40,7 +40,7 @@ const project = (gap: SubtitleGap, detail: DetailLevel): SubtitleGap => {
     // `missing` stays. It was being replaced with `[]`, so every row in a list
     // of items *with missing subtitles* asserted that nothing was missing,
     // under a summary line that counted them. Omitting a field is an absence a
-    // reader can see; an empty array is a claim — and this is the one field
+    // reader can see; an empty array is a claim, and this is the one field
     // the tool exists to answer.
     const { releaseName: _r, episodeTitle: _e, ...rest } = g;
     return rest;
@@ -51,7 +51,7 @@ const project = (gap: SubtitleGap, detail: DetailLevel): SubtitleGap => {
  *
  * Bazarr connects to a single Radarr and a single Sonarr, so an HD + 4K *arr
  * pair implies one Bazarr per stack. Reading from only the first would hide
- * subtitle state for half the library — the same failure multiple instances
+ * subtitle state for half the library; the same failure multiple instances
  * exist to remove, so this is a read that spans them rather than one that asks
  * which to look in.
  *
@@ -61,7 +61,7 @@ const project = (gap: SubtitleGap, detail: DetailLevel): SubtitleGap => {
  */
 /**
  * One subtitle gap as a line. The missing languages are the answer, so they
- * are never trimmed out of the line even though `detail` trims other fields —
+ * are never trimmed out of the line even though `detail` trims other fields;
  * a gap row without them says only that something is missing.
  */
 export function subtitleLine(gap: SubtitleGap): string {
@@ -75,7 +75,7 @@ export function subtitleLine(gap: SubtitleGap): string {
     const facts = [gap.kind, `${gap.service}:${gap.id}`];
     if (missing.length > 0) facts.push(`missing ${missing.join('/')}`);
 
-    return `${gap.title}${numbering}${episode} — ${facts.join(', ')}`;
+    return `${gap.title}${numbering}${episode}: ${facts.join(', ')}`;
 }
 
 export async function buildGetSubtitles(
@@ -103,7 +103,7 @@ export async function buildGetSubtitles(
             }
 
             // Provider state is fetched alongside and never allowed to fail the
-            // call — an instance that answered its gaps still contributed them.
+            // call; an instance that answered its gaps still contributed them.
             if (opts.detail === 'minimal') return;
             try {
                 providers.push(...(await adapter.getProviders()));

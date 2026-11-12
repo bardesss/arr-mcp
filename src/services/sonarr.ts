@@ -121,7 +121,7 @@ type RawSeries = {
     imdbId?: string;
     genres?: string[];
     qualityProfileId?: number;
-    /** Flat, unlike Radarr's per-source map — see `flattenSeriesRating`. */
+    /** Flat, unlike Radarr's per-source map: see `flattenSeriesRating`. */
     ratings?: RawRating;
     added?: string | null;
     statistics?: { sizeOnDisk?: number; episodeFileCount?: number; episodeCount?: number; seasonCount?: number };
@@ -146,7 +146,7 @@ type RawEpisode = {
     airDateUtc?: string;
     hasFile?: boolean;
     monitored?: boolean;
-    /** 0 when the episode has no file — Sonarr uses zero, not absence. */
+    /** 0 when the episode has no file: Sonarr uses zero, not absence. */
     episodeFileId?: number;
 };
 
@@ -156,7 +156,7 @@ type RawEpisodeFile = { id?: number; seasonNumber?: number; size?: number };
  * The task that rescans the series library, confirmed against a live Sonarr
  * 4.0.19 during a live capture.
  *
- * Matched exactly, never by pattern — for the same reason as Radarr's
+ * Matched exactly, never by pattern: for the same reason as Radarr's
  * `RefreshMovie`. A live instance runs eleven tasks, and
  * `RefreshMonitoredDownloads` polls the download queue every minute. Taking the
  * most recent match reported the library as scanned minutes ago when the real
@@ -328,7 +328,7 @@ export class SonarrAdapter
         return updateArrMedia(this.http, this.id, 'series', id, opts);
     }
 
-    /** Sonarr resolves by TVDB id, not TMDB — Radarr's id will match nothing. */
+    /** Sonarr resolves by TVDB id, not TMDB: Radarr's id will match nothing. */
     async findImportExclusion(externalId: string): Promise<ImportExclusion | undefined> {
         return findExclusion(this.http, SONARR_EXCLUSIONS, externalId);
     }
@@ -411,7 +411,7 @@ export class SonarrAdapter
      * accepted and searches nothing.
      *
      * `target` picks a different command entirely rather than overloading
-     * `id` — conflating whole-series and per-episode scope behind one
+     * `id`: conflating whole-series and per-episode scope behind one
      * argument is how a model asking for one episode triggers a season-wide
      * grab. `SeasonSearch` and `EpisodeSearch` are spec-derived: unlike
      * `SeriesSearch`, no live call has confirmed their payload shape, because
@@ -500,7 +500,7 @@ export class SonarrAdapter
     }
 
     /** The `/api/v3/series` read behind both `search(_, 'library')` and
-     *  `listLibrary` — Sonarr has no server-side filter, so both need the
+     *  `listLibrary`: Sonarr has no server-side filter, so both need the
      *  whole list, and this is where they share one fetch for it. */
     #allSeries(): Promise<RawSeries[]> {
         return this.libraryCache.get('series', LIBRARY_TTL_MS, () => this.http.get<RawSeries[]>('/api/v3/series'));
@@ -532,7 +532,7 @@ export class SonarrAdapter
         return [];
     }
 
-    /** The whole series library in one call, via `#allSeries` — the same read
+    /** The whole series library in one call, via `#allSeries`: the same read
      *  `search(_, 'library')` shares. */
     async listLibrary(): Promise<IndexInput[]> {
         const [series, profileNames] = await Promise.all([this.#allSeries(), readProfileNames(this.http, this.id, this.libraryCache)]);

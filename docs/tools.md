@@ -225,8 +225,8 @@ naming each item and the id a follow-up call takes:
 
 ```
 2 of 1885 item(s).
-<<untrusted:radarr.title>>Inception<</>> (2010) — movie, radarr:412, tmdb:27205
-<<untrusted:sonarr.title>>Severance<</>> (2022) — series, sonarr:31, tvdb:371980
+<<untrusted:radarr.title>>Inception<</>> (2010): movie, radarr:412, tmdb:27205
+<<untrusted:sonarr.title>>Severance<</>> (2022): series, sonarr:31, tvdb:371980
 ```
 
 It was the count alone until 1.26. Not every client forwards
@@ -795,7 +795,7 @@ Each row has `maxStrikes`, `atLimit` (`remove` takes it out of the *arr queue,
 `privateTorrents`: `kept_in_client` or `deleted_from_client`. A metadata stall
 always deletes from the client, whatever the privacy, because Cleanuparr's
 qBittorrent check asks for it. `completion` shows a rule's completion range when
-it is narrower than 0–100%.
+it is narrower than 0 to 100%.
 
 `onRemoval` says what every removal does. The *arr always blocklists the
 release, and `searchesAgain` says whether Seeker search is on, which decides if

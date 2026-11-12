@@ -17,15 +17,15 @@ export type Gathered<T> = {
  * Just the whole-service ids out of a degraded list, dropping the
  * source-scoped ones.
  *
- * A source id names either a whole service — `radarr`, or `radarr/4k` for a
- * second instance of one — or a single source *within* a service, written
+ * A source id names either a whole service (`radarr`, or `radarr/4k` for a
+ * second instance of one) or a single source *within* a service, written
  * `service:source`. `jellyfin:seasons` and `plex:seasons` are the two today:
  * each contributes per-season watch state and nothing else. The colon is the
  * discriminator; a slash deliberately is not, because a second instance is
  * still a whole service whose absence is worth reporting.
  *
  * For the consumers that reason about whether a *service's own view* of the
- * library was missed — diagnose_media's certainty, and get_media_details' hedge on a
+ * library was missed; diagnose_media's certainty, and get_media_details' hedge on a
  * title it could not find. Neither reads `seasons`, and the episode source can
  * only ever add seasons to items another source already returned, so its
  * failure is no reason for either to doubt itself. `get_library`, which does
@@ -36,12 +36,12 @@ export const servicesOnly = (degraded: readonly string[]): string[] => degraded.
 /**
  * cross-service tools degrade, they do not fail. A tool
  * spanning four services with one down returns three services' results plus
- * the name of the fourth — never an exception, and never a silently short list
+ * the name of the fourth, never an exception, and never a silently short list
  * that reads as "there is nothing in your queue".
  *
  * `counts` is measured before the caller truncates. The truncation contract
  * says how many items were dropped but not which service lost them, and merged
- * lists are limited after concatenation — so without this, a long list from one
+ * lists are limited after concatenation, so without this, a long list from one
  * service can push another out of the response entirely and the model has no
  * way to know. Zero and absent mean different things: zero is "asked, nothing
  * there", absent is "could not ask", and that service is also in `degraded`.

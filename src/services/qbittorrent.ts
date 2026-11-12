@@ -292,7 +292,7 @@ export class QbittorrentAdapter
         };
     }
 
-    /** No blocklist of grabbed releases — that is an *arr concept. */
+    /** No blocklist of grabbed releases: that is an *arr concept. */
     readonly supportsBlocklist = false;
 
     /**
@@ -322,7 +322,7 @@ export class QbittorrentAdapter
 
     /**
      * qBittorrent has no client-wide paused flag, so this is the same
-     * every-torrent-is-stopped reading Transmission gets — and it counts both
+     * every-torrent-is-stopped reading Transmission gets, and it counts both
      * spellings, because 5.0 renamed the paused states to stopped and this
      * adapter serves 4.x and 5.x alike, exactly as `TORRENT_STATE` already
      * does.
@@ -343,8 +343,8 @@ export class QbittorrentAdapter
     }
 
     /**
-     * v5 renamed `pause`/`resume` to `stop`/`start`. Both are attempted — the
-     * new verb first, the old one only if that 404s — because this adapter has
+     * v5 renamed `pause`/`resume` to `stop`/`start`. Both are attempted: the
+     * new verb first, the old one only if that 404s, because this adapter has
      * no version gate and guessing wrong would silently do nothing.
      */
     async setPaused(paused: boolean, id?: string): Promise<void> {

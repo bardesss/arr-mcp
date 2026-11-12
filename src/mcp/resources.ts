@@ -16,7 +16,7 @@ import type { SurfaceOptions } from './toolSurface.ts';
  * **Every one mirrors a tool.** That is the rule the whole phase rests on:
  * client support for resources is uneven, and arr-mcp has to work on all of
  * them, so a resource exposing something no tool returns would be unreachable
- * wherever they are not surfaced. Nothing here originates — `arr://instances`
+ * wherever they are not surfaced. Nothing here originates. `arr://instances`
  * is `get_stack_health`'s services and permissions, `arr://health` is
  * `get_stack_health`, the summary is `get_library` aggregates, and the Lidarr
  * policy is the distribution `update_media` reports in its preview.
@@ -35,7 +35,7 @@ const INSTANCES_TTL_MS = 60 * 60 * 1000;
  * Zero, meaning never cache.
  *
  * A pinned health resource saying "sonarr: reachable" five hours after Sonarr
- * fell over is worse than the tool call it replaced — it is confidently wrong
+ * fell over is worse than the tool call it replaced; it is confidently wrong
  * rather than merely absent. The dashboard refuses to cache health for exactly
  * this reason, and this is the same decision in the protocol's own vocabulary.
  */
@@ -220,7 +220,7 @@ export function registerAllResources(server: McpServer, context: ToolContext, su
                                   `total counts every row the services hold, and ${unmonitored} of them are unmonitored: ` +
                                   'nothing is pending on those and nothing will be. ' +
                                   (lidarrConfigured
-                                      ? 'Lidarr is the usual source — it imports '
+                                      ? 'Lidarr is the usual source: it imports '
                                           + "an artist's whole discography as catalog and monitors only part of it. "
                                       : '') +
                                   '`monitored` is what the services are actually watching.'
@@ -247,14 +247,14 @@ export function registerAllResources(server: McpServer, context: ToolContext, su
      * Lidarr's monitoring policy, readable without a write.
      *
      * This mirrors `update_media`, which reports the same distribution in its
-     * preview, so it originates nothing — the rule every resource here rests on.
+     * preview, so it originates nothing; the rule every resource here rests on.
      * It exists because before it the only way to ask "is my music library
      * stable" was to invoke a write tool in dry run: an odd thing to have to do
      * to read a number, and impossible for a read-only credential.
      *
      * The album level is deliberately not folded in. An album's flag and its
-     * artist's flag are independent — a live library was found with an artist
-     * unmonitored while an album under it stayed monitored — so no single view
+     * artist's flag are independent (a live library was found with an artist
+     * unmonitored while an album under it stayed monitored) so no single view
      * settles both, and pretending otherwise here would repeat the mistake this
      * resource exists to make visible.
      */
@@ -315,7 +315,7 @@ export function registerAllResources(server: McpServer, context: ToolContext, su
             const treadmill =
                 `${autoMonitoring} artist(s)${counted} will keep monitoring albums they discover later, or report no ` +
                 'readable policy. Unmonitoring albums under those artists is a treadmill until the policy ' +
-                `changes — ${change} does it.`;
+                `changes; ${change} does it.`;
             let note: string;
             if (degraded.length > 0) {
                 // Nothing here may claim the wanted list cannot grow: the

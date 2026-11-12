@@ -17,7 +17,7 @@ type GetBlocklistResult = {
     counts: Record<string, number>;
 };
 
-/** `minimal` keeps what a scan needs — which release, from where, and when.
+/** `minimal` keeps what a scan needs: which release, from where, and when.
  *  `reason` is the longest field and the one worth reading closely, so it is
  *  the first to go. */
 const project = (b: BlocklistEntry, detail: DetailLevel): BlocklistEntry => {
@@ -33,7 +33,7 @@ const project = (b: BlocklistEntry, detail: DetailLevel): BlocklistEntry => {
 
 /**
  * One blocklist row as a line. `service:id` is what `remove_blocklist_item`
- * takes, and the reason is the whole point of the row — a blocklist without
+ * takes, and the reason is the whole point of the row; a blocklist without
  * reasons is a list of things that failed for no stated cause.
  */
 export function blocklistLine(entry: BlocklistEntry): string {
@@ -41,14 +41,14 @@ export function blocklistLine(entry: BlocklistEntry): string {
     if (entry.indexer !== undefined && entry.indexer !== '') facts.push(entry.indexer);
     if (entry.reason !== undefined && entry.reason !== '') facts.push(entry.reason);
 
-    return `${entry.title} — ${facts.join(', ')}`;
+    return `${entry.title}: ${facts.join(', ')}`;
 }
 
 const TARGET = serviceTarget({
     services: ['radarr', 'sonarr', 'whisparr', 'lidarr'],
     can: hasBlocklist,
     cannot: 'has no blocklist',
-    hint: 'The download clients have none — a release they refused was refused by the *arr that queued it.'
+    hint: 'The download clients have none. A release they refused was refused by the *arr that queued it.'
 });
 
 export async function buildGetBlocklist(

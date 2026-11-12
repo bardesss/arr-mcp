@@ -14,7 +14,7 @@ export const configPath = (configDir: string): string => join(configDir, CONFIG_
 export type SalvagedAuth = Omit<z.infer<typeof AuthSchema>, 'oauth' | 'tokens' | 'bearer_token' | 'management_key' | 'management_keys'>;
 
 /**
- * A config.yaml that was read but could not be understood — as opposed to one
+ * A config.yaml that was read but could not be understood, as opposed to one
  * that could not be read at all, which stays a plain Error. Only this one
  * starts the repair server.
  */
@@ -40,8 +40,8 @@ type ConfigTextResult = { ok: true; config: Config } | { ok: false; detail: stri
 /**
  * Where a YAML syntax error is, without quoting what is there.
  *
- * This detail is served unauthenticated — `/healthz`, `/mcp`, and the
- * read-only page shown when `auth` itself is unparseable — and the line a
+ * This detail is served unauthenticated (`/healthz`, `/mcp`, and the
+ * read-only page shown when `auth` itself is unparseable) and the line a
  * syntax error lands on is disproportionately often a credential, since the
  * usual cause is an API key holding a `:` or starting with `*`. So:
  * `prettyErrors: false` drops the code frame the parser otherwise prepends,
@@ -50,15 +50,15 @@ type ConfigTextResult = { ok: true; config: Config } | { ok: false; detail: stri
  * …`, and the alias `ReferenceError`, which is not even a parse error). The
  * line and column are the actionable part and carry no content.
  *
- * What survives is at most a structural indicator character — `Plain value
- * cannot start with reserved character @` — which the operator needs to read
+ * What survives is at most a structural indicator character (`Plain value
+ * cannot start with reserved character @`) which the operator needs to read
  * the message at all.
  */
 function yamlErrorDetail(err: unknown, lines: LineCounter, raw: string): string {
     const e = err as { message?: unknown; pos?: [number, number] };
     const message = typeof e.message === 'string' ? e.message : 'the file could not be parsed';
     // Cut only where the tail is actually quoting the file. Cutting at every
-    // `: ` also truncated messages that merely contain one — "The : indicator
+    // `: ` also truncated messages that merely contain one. "The : indicator
     // must be at most 1024 chars…" became the bare word "The", which reads as
     // a rendering bug rather than an error.
     const cut = message.indexOf(': ');
@@ -70,7 +70,7 @@ function yamlErrorDetail(err: unknown, lines: LineCounter, raw: string): string 
 }
 
 /**
- * The whole content pipeline — YAML, shape, schema — in one place, so the
+ * The whole content pipeline (YAML, shape, schema) in one place, so the
  * repair editor cannot accept text that startup then rejects. It writes
  * nothing; the schema normalises tokens in memory.
  */
@@ -79,7 +79,7 @@ export function validateConfigText(raw: string): ConfigTextResult {
     const lines = new LineCounter();
     try {
         // `logLevel: 'error'` because the parser's warnings go to stderr through
-        // `process.emitWarning`, which bypasses pino and the ring buffer — and
+        // `process.emitWarning`, which bypasses pino and the ring buffer, and
         // two of them quote the file (`Unresolved tag: !…`, `Unknown directive
         // %…`), so a file that parses fine could still put its own content into
         // `docker logs`.
@@ -180,12 +180,12 @@ export async function loadConfig(
         if (persist && !create) throw new Error(`config.yaml is missing from ${configDir}; keeping the running config.`);
         if (!persist) {
             throw new Error(
-                `no config.yaml in ${configDir} — start arr-mcp once to create one, or point ARR_MCP_CONFIG_DIR at an existing config directory.`
+                `no config.yaml in ${configDir}. Start arr-mcp once to create one, or point ARR_MCP_CONFIG_DIR at an existing config directory.`
             );
         }
         const seeded = seedConfig();
         await writeFileAtomic(path, stringify(seeded));
-        logger.info({ path }, 'created config.yaml — no password set yet');
+        logger.info({ path }, 'created config.yaml, no password set yet');
         return { config: ConfigSchema.parse(seeded), created: true, plaintextOnDisk: [] };
     }
 

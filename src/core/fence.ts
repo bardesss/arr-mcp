@@ -1,7 +1,7 @@
 
 /**
  * everything a service returns is untrusted data, never
- * instruction. Prowlarr returns release names from public indexers — those
+ * instruction. Prowlarr returns release names from public indexers; those
  * strings are attacker-controllable and flow straight into model context.
  *
  * This does not make injection impossible. It makes injected text visibly
@@ -74,7 +74,7 @@ export const GUID_MAX_LENGTH = 500;
  * For a guid: opaque-id-shaped text a later grab tool needs verbatim, so it
  * is never fenced or escaped like prose. It still reaches model context from
  * an indexer nobody vetted, so the same dangerous code points `fenceText`
- * strips — bidi overrides, C1 controls — come out here too, and the length
+ * strips (bidi overrides, C1 controls) come out here too, and the length
  * is capped so one hostile row cannot blow the token budget on its own.
  */
 export function sanitizeGuid(value: string): string {
@@ -83,8 +83,8 @@ export function sanitizeGuid(value: string): string {
 }
 
 /** Printable ASCII with no space, and none of the characters a fence or a
- *  bracketed list is built from. Every real guid seen so far — a URL, a hash,
- *  a Shelfmark id — fits. */
+ *  bracketed list is built from. Every real guid seen so far (a URL, a hash,
+ *  a Shelfmark id) fits. */
 const OPAQUE_GUID = /^[\x21-\x3b\x3d\x3f-\x5a\x5c\x5e-\x7e]+$/u;
 
 /**
@@ -102,7 +102,7 @@ export function guidForText(guid: string, service: string): string {
 /**
  * Wraps free text in a labelled boundary. The value's own angle brackets are
  * escaped first, so a release name cannot close the fence and continue outside
- * it — a fence a value can escape is worse than no fence, because it looks
+ * it; a fence a value can escape is worse than no fence, because it looks
  * like protection.
  *
  * Escaping, not censoring: the words survive verbatim, so the model can still

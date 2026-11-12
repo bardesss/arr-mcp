@@ -18,8 +18,8 @@ your own instance is not useful to me and should stay yours; redact them.
 
 ## What to expect
 
-This is a one-person project, so the honest version rather than a
-service-level agreement: I will acknowledge a report within a week, tell you
+This is a one-person project, so there is no service-level agreement.
+I will acknowledge a report within a week, tell you
 whether I agree it is a vulnerability and why, and keep you updated while it is
 being fixed. Fixes ship as a normal release with the advisory published
 alongside. There is no bounty. Credit in the advisory if you want it, and none

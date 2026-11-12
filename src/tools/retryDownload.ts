@@ -13,7 +13,7 @@ import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts
 import { targetInput, serviceTarget } from './serviceTarget.ts';
 
 /**
- * "The download failed, try it again" — on the usenet client itself, which is
+ * "The download failed, try it again", on the usenet client itself, which is
  * where the files and the failure are. Safe tier: a retry only downloads or
  * unpacks again, and the worst case is a second copy, which the preview warns
  * about when an *arr has already moved on.
@@ -151,7 +151,7 @@ export function registerRetryDownload(server: McpServer, context: WriteContext, 
         description:
             'Retries {{or: sabnzbd|nzbget=one failed download on the usenet client that holds the files; shelfmark=a failed or cancelled book on Shelfmark, which queues it again if Shelfmark says it can}}. It picks what to send from the job itself[[sabnzbd: : a SABnzbd job paused for a password is unlocked, a failed one is retried]][[nzbget: ; an NZBGet download with missing articles fetches them again, and one that only failed to unpack is post-processed again]]. Give `password` when the failure was an encrypted archive; it comes from the site the NZB came from and is never shown back. Take `id` from the get_history or get_queue row. The preview checks whether an *arr already grabbed a replacement, since retrying then can leave two copies. If no *arr imports the result, import_download does. Safe tier. Previews first; confirm to apply it.',
         inputSchema: RetryDownloadInput,
-        // The resolved instance id, not the bare type — permissions are
+        // The resolved instance id, not the bare type: permissions are
         // granted per instance.
         target: { adapters, to: TARGET },
         operation: 'retry_download',

@@ -51,8 +51,6 @@ part it could not check rather than guessing across the hole.
 | 🖥️ **A config page that diagnoses** | Add services from a browser, see what is broken *and what to do about it*, read the logs and the write audit. No YAML required. |
 | 📚 **Forty-six tools, one vocabulary** | Every list pages the same way and answers readably whether or not your client reads `structuredContent`, every error names the config key that would fix it, every write takes ids rather than titles. |
 
-Nothing else in this space does the last five at all.
-
 ## Quick start: about two minutes
 
 Also in the repo as [`docker-compose.example.yml`](docker-compose.example.yml).
@@ -131,7 +129,7 @@ supported. Clients that read the
 [MCP Registry](https://registry.modelcontextprotocol.io) find it there as
 `io.github.bardesss/arr-mcp`. It is also listed on Glama:
 
-[![arr-mcp MCP server – quality and maintenance score on Glama](https://glama.ai/mcp/servers/bardesss/arr-mcp/badges/card.svg)](https://glama.ai/mcp/servers/bardesss/arr-mcp)
+[![arr-mcp MCP server: quality and maintenance score on Glama](https://glama.ai/mcp/servers/bardesss/arr-mcp/badges/card.svg)](https://glama.ai/mcp/servers/bardesss/arr-mcp)
 
 A client that launches its servers as child processes can run arr-mcp
 [over stdio](docs/configuration.md#over-stdio) instead, with `--stdio`. That
@@ -243,9 +241,8 @@ model stops finding a renamed tool rather than raising an error.
 Deluge would both be accepted today, and
 [the list says so in advance](CONTRIBUTING.md#what-would-be-accepted-today),
 along with the ones that would not be. An adapter is deliberately the most
-self-contained thing in the codebase. Two things to know first: not every
-service qualifies, and the bar is written down rather than decided per pull
-request: [which services qualify](CONTRIBUTING.md#which-services-qualify). And
+self-contained thing in the codebase. Not every service qualifies, and the bar is written down rather than decided per
+pull request: [which services qualify](CONTRIBUTING.md#which-services-qualify).
 **I cannot test a service I do not run**, so the second bar is that you tested
 it against your own live instance and the PR says what you tested and against
 which version.
@@ -270,7 +267,7 @@ arr-mcp is itself built with a coding agent. Point yours at
 **Missing a tool?** [Open an issue](../../issues/new/choose) describing the
 question you could not get answered rather than the tool you think should
 exist. Often the answer is a new parameter on one that already exists, and
-when it genuinely needs a new tool, the question is what tells us so.
+when it needs a new tool, the unanswered question is the case for it.
 
 ## Security
 

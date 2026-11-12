@@ -12,7 +12,7 @@ import { ConfigSchema, type Config } from './schema.ts';
  * `setIn` on a map replaces the whole node, and a replaced node takes every
  * comment inside it. Walking down to the leaves instead means the only nodes
  * rewritten are the ones whose values actually changed, so annotations on
- * everything else survive — including the ones nested inside a service block.
+ * everything else survive, including the ones nested inside a service block.
  *
  * Keys absent from `value` are deleted, so this removes as well as updates: a
  * service switched off still disappears. Lists are replaced outright; a comment
@@ -21,7 +21,7 @@ import { ConfigSchema, type Config } from './schema.ts';
  */
 function mergeInto(doc: Document, path: string[], value: unknown): void {
     // `undefined` is absence, not null. `setIn` would write a null-valued key,
-    // and the schema refuses those on the next load — a save that produced an
+    // and the schema refuses those on the next load; a save that produced an
     // instance which will not start.
     if (value === undefined) {
         doc.deleteIn(path);
@@ -71,8 +71,8 @@ export class ConfigRejectedError extends Error {}
  * Whether the file still says what the page believed.
  *
  * Compared through the schema, not by service name: the name check saw a
- * service added or removed and nothing else, so a hand-edited `api_key` — or
- * anything under `auth` — passed it and was then overwritten. A file that no
+ * service added or removed and nothing else, so a hand-edited `api_key`, or
+ * anything under `auth`, passed it and was then overwritten. A file that no
  * longer parses has certainly changed.
  */
 function driftedFrom(doc: Document, expected: Config): boolean {
@@ -87,16 +87,16 @@ function driftedFrom(doc: Document, expected: Config): boolean {
  * Four properties, each learned the hard way somewhere in this project:
  *
  * 1. **Comments survive.** A plain `stringify` round trip silently deletes
- *    every comment and reflows the file. People hand-edit this file — the
- *    README told them to for five releases — so their annotations are theirs,
+ *    every comment and reflows the file. People hand-edit this file, the
+ *    README told them to for five releases, so their annotations are theirs,
  *    not ours to discard. `parseDocument` keeps them, and `mergeInto` keeps
  *    the ones *inside* the services block, which a wholesale `setIn` ate.
  * 2. **It validates before it writes.** The same schema the loader uses, so a
  *    form post cannot produce a file that will not start the process.
  * 3. **It replaces atomically.** Written to a uniquely-named temp file and
  *    renamed, so a crash mid-write cannot leave a truncated config holding
- *    every API key — which would lock the user out of the UI that could fix
- *    it — and two concurrent saves cannot rename each other's half-written
+ *    every API key (which would lock the user out of the UI that could fix
+ *    it) and two concurrent saves cannot rename each other's half-written
  *    copy into place.
  * 4. **It refuses to overwrite a change it never saw.** Pass `expected` and a
  *    file edited since that snapshot was taken is a refusal, not a silent
@@ -105,7 +105,7 @@ function driftedFrom(doc: Document, expected: Config): boolean {
 /**
  * Serialises saves within the process.
  *
- * Property 4 reads the file, compares, then writes, and every step awaits — so
+ * Property 4 reads the file, compares, then writes, and every step awaits, so
  * two overlapping saves both read the *old* file, both find no drift, and the
  * second silently overwrote the first. Atomic replacement (property 3) does not
  * help: both writes are individually atomic and the last one still wins.
@@ -129,7 +129,7 @@ async function writeConfig(configDir: string, next: Config, opts: { expected?: C
 
     // The caller assembles `next` from the snapshot its page was rendered
     // from. A service hand-added to the file since then is absent from that
-    // snapshot, so writing it back deleted the service — under a "Saved.
+    // snapshot, so writing it back deleted the service, under a "Saved.
     // Applied immediately" message. Refusing is the only honest answer: this
     // cannot tell "the user removed it" from "the user never saw it".
     if (opts.expected !== undefined && driftedFrom(doc, opts.expected)) {
@@ -147,7 +147,7 @@ async function writeConfig(configDir: string, next: Config, opts: { expected?: C
     // Key by key rather than `setIn(['services'], …)`, which is property 1
     // above: the wholesale form replaced each node with plain JS values and
     // took every comment inside it with them. `mergeInto` still removes what is
-    // gone — a service switched off, a field cleared — and leaves the nodes
+    // gone (a service switched off, a field cleared) and leaves the nodes
     // that remain, and their comments, in place.
     //
     // Top-level keys the schema has never heard of are untouched, since nothing

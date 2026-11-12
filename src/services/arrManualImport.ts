@@ -18,14 +18,14 @@ import type {
 import { episodeCode } from '../core/labels.ts';
 
 /**
- * The download that finished and was never imported — `get_queue` shows it
+ * The download that finished and was never imported: `get_queue` shows it
  * stuck at `importBlocked`, and a library scan does not touch it, because the
  * file is still sitting in the download client's folder.
  *
  * Two steps, both driven by the service's own matching: `/manualimport` says
  * what it thinks each file is and why it will not take it, and the
  * `ManualImport` command imports the ones it *would* take. The quality and
- * languages are echoed back exactly as reported — inventing a quality here is
+ * languages are echoed back exactly as reported: inventing a quality here is
  * how a file imports as something it is not.
  */
 
@@ -66,7 +66,7 @@ const trackIdsOf = (raw: RawCandidate): number[] =>
 function musicTitleOf(raw: RawCandidate): string | undefined {
     const artist = raw.artist?.artistName;
     if (artist === undefined) return undefined;
-    return raw.album?.title === undefined ? artist : `${artist} — ${raw.album.title}`;
+    return raw.album?.title === undefined ? artist : `${artist}: ${raw.album.title}`;
 }
 
 /**
@@ -163,7 +163,7 @@ function notFinished(service: string, downloadId: string, row: QueueItem, why: s
     const opts = cause === undefined ? {} : { cause };
     if (IN_PROGRESS.has(status)) {
         return new ServiceError('UpstreamError', service, `download ${downloadId} has not finished downloading`, {
-            remedy: `get_queue reports it as ${state}. There is nothing to import until the download client says the item is complete — ${why}. Wait for it to finish, then try again.`,
+            remedy: `get_queue reports it as ${state}. There is nothing to import until the download client says the item is complete: ${why}. Wait for it to finish, then try again.`,
             ...opts
         });
     }
@@ -194,13 +194,13 @@ function notFinished(service: string, downloadId: string, row: QueueItem, why: s
 /**
  * Radarr and Sonarr read `trackedDownload.ImportItem.OutputPath` with no null
  * check (`ManualImportService.GetMediaFiles`), and `ImportItem` is set only
- * once the download client reports the item complete — so a download that is
+ * once the download client reports the item complete, so a download that is
  * still running answers HTTP 500 where a 4xx belongs. Confirmed against a live
  * Radarr 6.3.0.10514; Sonarr's copy of the method is identical. Lidarr is
  * refused before its read instead (`refuseUnfinishedMusic`).
  *
- * An id the service never tracked is not this case — that answers 200 and an
- * empty list — so the queue is read to confirm the state, and a 500 it cannot
+ * An id the service never tracked is not this case: that answers 200 and an
+ * empty list, so the queue is read to confirm the state, and a 500 it cannot
  * account for is rethrown untouched rather than blamed on an unfinished
  * download.
  */
@@ -474,7 +474,7 @@ export async function runArrManualImport(
         throw new ServiceError('UpstreamError', service, `${service} will not import anything from ${downloadId}`, {
             remedy:
                 reasons === ''
-                    ? `${service} reported no importable files for that download id. Check it is still in get_queue — ids do not survive an item leaving the queue.`
+                    ? `${service} reported no importable files for that download id. Check it is still in get_queue: ids do not survive an item leaving the queue.`
                     : `It rejected every file: ${reasons}. ${fix}`
         });
     }
@@ -580,8 +580,8 @@ async function resolveEpisodeRemap(
     reassignments: EpisodeReassignment[]
 ): Promise<ResolvedRemap> {
     // With a series id and no folder, Sonarr maps the files it already has
-    // rather than parsing names, so `episodes` is the current association —
-    // and after a remap, the corrected one.
+    // rather than parsing names, so `episodes` is the current association
+    // (and after a remap, the corrected one).
     const [files, episodes] = await Promise.all([
         http.get<RawSeriesFile[]>(`${http.apiRoot}/manualimport?seriesId=${seriesId}`),
         http.get<RawEpisodeRow[]>(`${http.apiRoot}/episode?seriesId=${seriesId}`)
@@ -597,7 +597,7 @@ async function resolveEpisodeRemap(
         const file = files.find(f => f.path === r.path || f.relativePath === r.path);
         if (file === undefined || typeof file.path !== 'string') {
             throw new ServiceError('NotFound', service, `series ${seriesId} has no imported file at "${r.path}"`, {
-                remedy: 'Give the path relative to the series folder, as Sonarr names it — "Season 01/Show - S01E01 - Pilot.mkv" — or absolute. Only files Sonarr has already imported can be reassigned; a file it never took needs import_download or a scan first.'
+                remedy: 'Give the path relative to the series folder, (as Sonarr names it, "Season 01/Show - S01E01 - Pilot.mkv") or absolute. Only files Sonarr has already imported can be reassigned; a file it never took needs import_download or a scan first.'
             });
         }
         if (seenPaths.has(file.path)) throw new Error(`"${r.path}" appears more than once in reassignments.`);
@@ -622,12 +622,12 @@ async function resolveEpisodeRemap(
 
     // A one-way remap leaves the file that used to hold the target as a row no
     // episode points at. Nothing is lost on disk, but it reads as a missing
-    // episode plus a dangling file — so the whole rotation has to be in one list.
+    // episode plus a dangling file, so the whole rotation has to be in one list.
     for (const { target } of resolved) {
         const holder = target.episodeFileId ? fileById.get(target.episodeFileId) : undefined;
         if (holder !== undefined && !listed.has(holder.episodeFileId)) {
             throw new Error(
-                `${label(target)} is currently "${holder.relativePath ?? holder.path}", which is not in reassignments. Moving another file onto ${label(target)} would leave it attached to nothing — say where it goes too, so the whole rotation is applied in one call.`
+                `${label(target)} is currently "${holder.relativePath ?? holder.path}", which is not in reassignments. Moving another file onto ${label(target)} would leave it attached to nothing: say where it goes too, so the whole rotation is applied in one call.`
             );
         }
     }
@@ -707,7 +707,7 @@ export async function runArrEpisodeRemap(
 
     // One command for the whole set: applied file by file, a rotation would
     // pass through the orphaned state the check above refuses. `importMode` is
-    // left out — Sonarr never reads it for a file already in the series folder.
+    // left out: Sonarr never reads it for a file already in the series folder.
     const files = moves.map(({ file, episodeId, season }) => ({
         path: file.path,
         seriesId: id,
@@ -723,7 +723,7 @@ export async function runArrEpisodeRemap(
     await awaitArrCommand(http, service, remap.commandId);
 
     // `resolveEpisodeRemap` refuses a file without a path, so the filter drops
-    // nothing — it is how that guarantee reaches the type.
+    // nothing: it is how that guarantee reaches the type.
     const movedPaths = files.map(f => f.path).filter((p): p is string => typeof p === 'string');
     await verifyRemapLanded(http, service, id, moves);
 
@@ -733,15 +733,15 @@ export async function runArrEpisodeRemap(
 /**
  * Checks that the reassignment Sonarr accepted is the one it applied.
  *
- * Not defensive programming for its own sake — caught live. A rotation on a
+ * Not defensive programming for its own sake: caught live. A rotation on a
  * clean series applies exactly as asked, but the same rotation sent seconds
  * after two earlier remaps of the same series left one episode pointing at a
  * second, duplicate row for another file's path, and the file that should have
  * moved there attached to nothing. Sonarr reported the command `completed`
  * and `successful` throughout.
  *
- * Nothing is lost when that happens — every file is still on disk under its
- * own name — but a half-applied rotation reads as a missing episode plus a
+ * Nothing is lost when that happens: every file is still on disk under its
+ * own name, but a half-applied rotation reads as a missing episode plus a
  * duplicate, and reporting it as done is how it goes unnoticed. So the write
  * fails here, after the fact, naming what actually happened.
  */
@@ -771,7 +771,7 @@ async function verifyRemapLanded(
         service,
         `${service} accepted the reassignment but ${wrong.length} of ${moves.length} file(s) did not land on the episode asked for`,
         {
-            remedy: `Every file is still on disk under its own name — nothing is lost, but the library is half-applied: ${wrong
+            remedy: `Every file is still on disk under its own name; nothing is lost, but the library is half-applied: ${wrong
                 .map(m => `${m.to} should hold ${m.display}`)
                 .join('; ')}. Run trigger_scan with action "scan" and \`id\` set to this series so ${service} re-reads the folder, check what it settled on, then send the remap again if it is still wrong.`
         }
@@ -788,7 +788,7 @@ const seriesTypeOf = async (http: ServiceHttp, seriesId: number): Promise<string
  * Makes the filenames match the episodes the remap just moved the files onto.
  *
  * Part of the remap rather than a `rename` call afterwards, for two reasons
- * found live (#264). `RenameSeries` — what `action: "rename"` sends — renames
+ * found live (#264). `RenameSeries`, what `action: "rename"` sends, renames
  * the *whole series*, which on the series this issue came from would have
  * renamed 40 files in seasons the remap never touched. And the ids change:
  * Sonarr recreates each moved file's record, so the ids the caller had before
@@ -796,7 +796,7 @@ const seriesTypeOf = async (http: ServiceHttp, seriesId: number): Promise<string
  *
  * A destination that is still on disk is left alone rather than forced. In a
  * rotation every new name is another moved file's current name, so nothing in
- * the set has a free destination — Sonarr reports that as `completed` with
+ * the set has a free destination: Sonarr reports that as `completed` with
  * "0 selected episode files renamed", which is why the count below is read
  * rather than the status. Breaking that deadlock needs Sonarr's naming format
  * changed and two passes; it is deliberately not done here, and the caller is
@@ -832,7 +832,7 @@ async function renameRemappedFiles(
 
     // Every destination taken: the rotation. `RenameFiles` would answer
     // `completed` having renamed nothing, so the only way through is two
-    // passes under a temporary naming format — see `arrRename.ts` for what
+    // passes under a temporary naming format: see `arrRename.ts` for what
     // that costs and how it is bounded.
     if (mine.length > 0 && free.length === 0) {
         const ids = mine.map(r => r.episodeFileId).filter((id): id is number => typeof id === 'number');
@@ -861,7 +861,7 @@ async function renameRemappedFiles(
     const settled = await awaitArrCommand(http, service, rename.commandId);
     const count = renamedCount(settled.message);
 
-    // `completed` is not the signal — the count is. A build that stops
+    // `completed` is not the signal: the count is. A build that stops
     // sending the message reports undefined, which is not zero: the files it
     // was asked about are reported as renamed rather than silently written
     // off, since Sonarr accepted the command and said nothing was wrong.

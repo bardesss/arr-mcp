@@ -8,7 +8,7 @@ import { outcomeText, registerWriteTool, type WriteContext, type WritePlan } fro
 import { targetInput, serviceTarget } from './serviceTarget.ts';
 
 /**
- * "This has been stuck at 0% for two days, get rid of it" — the other thing
+ * "This has been stuck at 0% for two days, get rid of it"; the other thing
  * people actually want to write.
  *
  * Destructive tier rather than safe, even though a removed download can be
@@ -118,7 +118,7 @@ export function registerRemoveQueueItem(
         inputSchema: RemoveQueueItemInput,
         // The resolved instance id, not the bare type: permissions are granted per
         // instance, so checking `radarr` against a config that only grants
-        // `radarr/hd` would deny a permitted write — or worse, the reverse.
+        // `radarr/hd` would deny a permitted write, or worse, the reverse.
         target: { adapters, to: TARGET },
         operation: 'remove_queue_item',
         tier: 'destructive',
@@ -164,7 +164,7 @@ export function registerRemoveQueueItem(
             if (item === undefined) {
                 throw new ServiceError('NotFound', adapter.id, `nothing in ${adapter.id}'s queue has id "${id}"`, {
                     remedy:
-                        'It may have finished or already been removed. Call get_queue for a current list — queue ids are not stable once an item leaves the queue.'
+                        'It may have finished or already been removed. Call get_queue for a current list; queue ids are not stable once an item leaves the queue.'
                 });
             }
 

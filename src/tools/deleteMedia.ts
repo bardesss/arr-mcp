@@ -191,7 +191,7 @@ export function registerDeleteMedia(
                     effects.push('Deletes every album of the artist.');
                 }
             } else {
-                effects.push(`Leaves the files on disk — only the ${service} entry is removed.`);
+                effects.push(`Leaves the files on disk. Only the ${service} entry is removed.`);
             }
 
             effects.push(`Removes ${label} from ${service}, along with its monitoring and history.`);

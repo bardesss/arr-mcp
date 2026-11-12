@@ -14,7 +14,7 @@ import { join } from 'node:path';
  *
  * **Nothing here touches the network.** Downloading lives in `refresh.ts` and
  * parsing in `ingest.ts`, which is what lets every test of this file run
- * against a real database in memory with no fixture server — the thing worth
+ * against a real database in memory with no fixture server; the thing worth
  * testing here is the SQL, and the SQL does not care where rows came from.
  */
 
@@ -24,7 +24,7 @@ export const IMDB_FILENAME = 'imdb.db';
  * IMDb's title types, mapped onto the vocabulary the tools already speak.
  *
  * `tvMovie` counts as a film and `tvMiniSeries` as a series because that is
- * how the *arrs treat them — a mini-series lives in Sonarr. Everything else
+ * how the *arrs treat them; a mini-series lives in Sonarr. Everything else
  * IMDb publishes (shorts, video games, episodes as standalone rows) is
  * deliberately unreachable: none of it is anything this stack manages, and
  * offering it in discovery would return results nothing could then act on.
@@ -41,7 +41,7 @@ const KIND_TO_IMDB: Record<'movie' | 'series', readonly string[]> = {
  * A direct-to-video film is `video`, a stand-up or holiday special is
  * `tvSpecial`, and a short film Radarr has is `tvShort` or `short`. Nobody
  * browsing "films from 1994" wants these mixed in, so they stay out of
- * `KIND_TO_IMDB` — but somebody who *owns* one still deserves its rating, and
+ * `KIND_TO_IMDB`, but somebody who *owns* one still deserves its rating, and
  * `ratingsFor` reaches titles by id without going through `discover`'s
  * vocabulary at all.
  */
@@ -51,15 +51,15 @@ const ALSO_STORED = ['video', 'tvSpecial', 'tvShort', 'short'] as const;
  * Every title type worth *storing*, which is deliberately more than every type
  * `discover` can *return*.
  *
- * IMDb's 12.7M rows are mostly `tvEpisode`, plus video games and adult titles
- * — none of which anything here can reach. Filtering at ingest rather than at
+ * IMDb's 12.7M rows are mostly `tvEpisode`, plus video games and adult titles,
+ * none of which anything here can reach. Filtering at ingest rather than at
  * query time is the difference between a 1.3 GB database and a small one.
  *
  * This was `KIND_TO_IMDB` flattened, on the reasoning that two lists would
  * drift. They are two questions, though, and conflating them only looked free
  * while the `rating` table was unfiltered: ratings for unstored titles were
- * what kept a direct-to-video film rated. Pruning those orphans — two thirds
- * of the table — takes that prop away, so what a lookup may hit has to be
+ * what kept a direct-to-video film rated. Pruning those orphans, two thirds
+ * of the table, takes that prop away, so what a lookup may hit has to be
  * stated separately from what a browse may return. The pair is covered by
  * tests that a stored-but-not-discoverable kind stays out of `discover`.
  */
@@ -81,7 +81,7 @@ function bucketFor(kind: string): ('movie' | 'series') | null {
  * SQLite's compiled-in default variable limit, minus room to spare.
  *
  * A library larger than this cannot go into one `IN (...)`, and a 900-film
- * library is ordinary — so the naive version fails on exactly the libraries
+ * library is ordinary, so the naive version fails on exactly the libraries
  * this feature is most useful for.
  */
 const VARIABLE_LIMIT = 900;
@@ -117,13 +117,13 @@ export type DatasetStatus = { ingestedAt?: string; titles: number; ratings: numb
  * `WITHOUT ROWID` on `title`.
  *
  * It keys on `tconst` and nothing else, so the default layout stored every id
- * twice — once in the rowid btree holding the row, and again in the implicit
+ * twice; once in the rowid btree holding the row, and again in the implicit
  * unique index enforcing the primary key. `WITHOUT ROWID` puts the row in the
  * key's own btree and drops the second copy.
  *
  * `rating` and `votes` live here rather than in a table of their own because
  * `replaceAll` forces both to hold the same id set anyway, so a second table
- * was a duplicate — and because a rating in a joined table cannot be indexed
+ * was a duplicate, and because a rating in a joined table cannot be indexed
  * together with the browse filter, which is what made `discover` sort its
  * whole candidate set on every call.
  *
@@ -158,7 +158,7 @@ type DiscoverQuery = {
 
 /**
  * An average and a vote count as one number: `votes * 128 + average * 10`.
- * IMDb averages have one decimal, so 0–100 fits the low 7 bits, and even the
+ * IMDb averages have one decimal, so 0 to 100 fits the low 7 bits, and even the
  * largest vote counts stay well inside V8's small-integer range, so the map
  * in `replaceAll` holds a plain number per rating instead of an object.
  */
@@ -203,10 +203,10 @@ export class ImdbDataset {
      * licence for that: this is a cache that is wholly replaced every week and
      * can be deleted at any moment without losing anything a user typed.
      * Losing it costs a download. Writing migration code for it would be
-     * carrying a liability to avoid a cost nobody pays — and `Runtime` starts
-     * a refresh the moment it opens the database, so the refill is immediate.
+     * carrying a liability to avoid a cost nobody pays (and `Runtime` starts
+     * a refresh the moment it opens the database, so the refill is immediate).
      *
-     * - `episode` was written through 1.0 and never read by a single query —
+     * - `episode` was written through 1.0 and never read by a single query:
      *   52 MB a day and millions of rows for a table nothing consulted.
      * - `title` predating `WITHOUT ROWID` or the `bucket` column cannot be
      *   changed in place: `CREATE TABLE IF NOT EXISTS` is a no-op against a
@@ -233,7 +233,7 @@ export class ImdbDataset {
 
         // `meta` goes too, and it matters: it holds `ingested_at`, and leaving
         // it would have `status()` report a date for rows that no longer
-        // exist — the dashboard claiming a fresh dataset over an empty one.
+        // exist, the dashboard claiming a fresh dataset over an empty one.
         this.#db.exec('DROP TABLE IF EXISTS title; DROP TABLE IF EXISTS meta;');
     }
 
@@ -255,7 +255,7 @@ export class ImdbDataset {
      *
      * A miss is an absent key, never a zero. The caller counts misses as
      * unrated, and a zero would rank a title IMDb has never heard of below one
-     * genuinely rated 1.0 — which is the difference between "we could not look
+     * genuinely rated 1.0, which is the difference between "we could not look
      * this up" and "this is terrible".
      */
     ratingsFor(tconsts: readonly string[]): Map<string, number> {
@@ -277,7 +277,7 @@ export class ImdbDataset {
     /**
      * The WHERE clause `discover` and `countDiscover` share.
      *
-     * Split out so the count cannot drift from the page it counts — two
+     * Split out so the count cannot drift from the page it counts; two
      * hand-maintained copies of these filters is how "3 of 40" ends up printed
      * above a list of nine.
      *
@@ -308,7 +308,7 @@ export class ImdbDataset {
     }
 
     /**
-     * The SELECT `discover` runs and `explainDiscover` plans — one source of
+     * The SELECT `discover` runs and `explainDiscover` plans; one source of
      * text, so a change to the `ORDER BY` cannot land in one and not the other.
      * `explainDiscover` existing to catch exactly that kind of silent drift is
      * pointless if it is checking a hand-duplicated copy of the query.
@@ -404,7 +404,7 @@ export class ImdbDataset {
      * Replace the whole dataset in one transaction.
      *
      * A replace rather than a merge because the dumps are full daily
-     * snapshots — merging would accumulate titles IMDb has since withdrawn.
+     * snapshots; merging would accumulate titles IMDb has since withdrawn.
      * One transaction because a half-applied replace is a dataset that answers
      * confidently from a mixture of two days, and because it is what makes a
      * download dying halfway leave yesterday's good data in place rather than
@@ -425,11 +425,11 @@ export class ImdbDataset {
             this.#db.exec('DELETE FROM title;');
 
             // Ratings first and held in memory, because a title row cannot be
-            // written without one. `rating` arrives unfiltered — a row for
-            // every episode, video game and short IMDb has ever rated — so
+            // written without one. `rating` arrives unfiltered (a row for
+            // every episode, video game and short IMDb has ever rated) so
             // this is the larger of the two inputs and the one worth being
             // careful about. Every rated id, not just the ones a title
-            // claims — the titles have not been read yet. Only the average
+            // claims; the titles have not been read yet. Only the average
             // and vote count are kept, packed into one number per rating
             // rather than an object each.
             const ratings = new Map<string, number>();
@@ -465,7 +465,7 @@ export class ImdbDataset {
         // Outside the transaction, because VACUUM cannot run inside one.
         //
         // SQLite does not hand freed pages back to the OS by itself, so a
-        // replace left the file at its high-water mark for ever — and every
+        // replace left the file at its high-water mark for ever, and every
         // replace frees the entire previous dataset. The ~125 MB the README
         // quoted was a number only `measure-imdb.ts` ever saw, because it
         // vacuumed afterwards and the running server never did. Costs a full

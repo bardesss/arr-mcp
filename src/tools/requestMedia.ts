@@ -15,7 +15,7 @@ import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts
 import { titled } from '../core/labels.ts';
 
 /**
- * "Can you request the new season?" — the polite half of adding something.
+ * "Can you request the new season?"; the polite half of adding something.
  *
  * The line against `add_media` is the point of having both. This goes through
  * Seerr, so it lands in whoever's approval queue and quota the household has
@@ -25,8 +25,8 @@ import { titled } from '../core/labels.ts';
  * `safe` tier: a request is a record, and Seerr can delete it again.
  */
 
-/** The identity gate is not optional here — a request always lands in
- *  somebody's name — so an unconfigured resolver is a refusal, not a default. */
+/** The identity gate is not optional here; a request always lands in
+ *  somebody's name, so an unconfigured resolver is a refusal, not a default. */
 const requireIdentity = (identity: IdentityResolver | undefined): IdentityResolver => {
     if (identity === undefined) {
         throw new ServiceError('NotFound', 'seerr', 'seerr is not configured', {
@@ -40,7 +40,7 @@ const seerrAdapter = (adapters: readonly ServiceAdapter[]): ServiceAdapter & Req
     const adapter = adapters.find(a => a.type === 'seerr');
     if (adapter === undefined) {
         throw new ServiceError('NotFound', 'seerr', 'seerr is not configured', {
-            remedy: 'Add a services.seerr block to config.yaml and restart. Requests live in Seerr — to add a title straight to Radarr or Sonarr instead, use add_media.'
+            remedy: 'Add a services.seerr block to config.yaml and restart. Requests live in Seerr. To add a title straight to Radarr or Sonarr instead, use add_media.'
         });
     }
     if (!hasRequestCreate(adapter)) {
@@ -102,19 +102,19 @@ export function registerRequestMedia(
             }
 
             // The gate runs before anything is created, and reads
-            // configuration only — no value Seerr returns can widen it.
+            // configuration only; no value Seerr returns can widen it.
             const requester = await requireIdentity(identity).resolve(user);
 
             // Seerr does not refuse a duplicate: a second request for the same
             // media creates a second row. So "already requested" is answered
-            // here, and answered as a no-op — a confirmation prompt for a
+            // here, and answered as a no-op; a confirmation prompt for a
             // no-op trains a model to confirm reflexively.
             if (!hasRequestLookup(adapter)) {
                 throw new ServiceError('NotFound', 'seerr', 'this seerr adapter cannot look up the requests for a title');
             }
 
             // One call answers both questions: the title's own requests, and
-            // its name — Seerr's request payload carries no title, and
+            // its name. Seerr's request payload carries no title, and
             // "request 438631" is not something anyone can approve.
             let lookup: TitleRequests;
             try {
@@ -171,7 +171,7 @@ export function registerRequestMedia(
                 summary: `Request ${label}${scope} from Seerr as ${requester.name}.`,
                 effects: [
                     `Creates a Seerr request in ${requester.name}'s name, counting against their quota and appearing in their request history.`,
-                    'If Seerr auto-approves it, Radarr or Sonarr starts searching immediately — that uses disk space and bandwidth.',
+                    'If Seerr auto-approves it, Radarr or Sonarr starts searching immediately. That uses disk space and bandwidth.',
                     'The request can be withdrawn again with delete_request.'
                 ],
                 // `seasons` is effect-bearing, so it is bound: a token issued

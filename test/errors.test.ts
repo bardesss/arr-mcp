@@ -12,7 +12,7 @@ describe('ServiceError.message', () => {
             remedy: 'The API key is wrong. Radarr → Settings → General.'
         });
         expect(err.message).toBe(
-            'radarr auth failed: HTTP 401 at /api/v3/system/status — The API key is wrong. Radarr → Settings → General.'
+            'radarr auth failed: HTTP 401 at /api/v3/system/status. The API key is wrong. Radarr → Settings → General.'
         );
     });
 
@@ -37,7 +37,7 @@ describe('ServiceError.message', () => {
             remedy: 'The API key is wrong. Radarr → Settings → General.'
         });
         expect(err.message).toBe(
-            'radarr auth failed: HTTP 401 at /api/v3/system/status — The API key is wrong. Radarr → Settings → General.'
+            'radarr auth failed: HTTP 401 at /api/v3/system/status. The API key is wrong. Radarr → Settings → General.'
         );
     });
 

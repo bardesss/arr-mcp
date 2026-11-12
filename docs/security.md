@@ -444,8 +444,7 @@ point if you want one. Read-only calls are not audited, only logged.
 ## MCP09 Shadow MCP Servers
 
 **The risk.** Unapproved servers running outside anyone's governance. This is
-mostly an organisational problem rather than a property of a server, and
-pretending otherwise would be dishonest.
+mostly an organisational problem rather than a property of a server.
 
 What is relevant here: arr-mcp is deliberately **one server for the whole stack**
 rather than one per service, which is one fewer thing to lose track of, and the

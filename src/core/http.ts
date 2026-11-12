@@ -10,7 +10,7 @@ const CIRCUIT_COOLDOWN_MS = 60_000;
 /** JSON everywhere but qBittorrent, whose WebUI takes form fields. */
 type RequestBody = { readonly json: unknown } | { readonly form: Record<string, string> };
 
-/** `text` for qBittorrent's `/api/v2/app/version`, which answers `v5.0.4` —
+/** `text` for qBittorrent's `/api/v2/app/version`, which answers `v5.0.4`;
  *  a bare string that is not valid JSON. */
 type ReadAs = 'json' | 'text' | 'none';
 
@@ -143,13 +143,13 @@ export class ServiceHttp {
      * Reads retry once on timeout, by default.
      *
      * `timeoutMs`, when given, overrides the configured default for this one
-     * call — for a release search, whose upstream is tens of seconds even on
+     * call; for a release search, whose upstream is tens of seconds even on
      * a healthy stack. It never touches `#timeoutMs`, so every other caller
      * is unaffected by one slow read.
      *
      * `retry: false` opts a read out of that one retry. It exists for a call
      * whose retry cost is not "wait a bit longer" but "do the expensive work
-     * twice" — a release search polls every configured indexer synchronously,
+     * twice"; a release search polls every configured indexer synchronously,
      * so a timed-out first attempt retrying by default turned a 120s budget
      * into two full indexer sweeps stacked on top of each other, against
      * indexers with real rate limits and ban policies.
@@ -189,7 +189,7 @@ export class ServiceHttp {
      * A GET that is not a read, and so must not be retried.
      *
      * The retry policy above is keyed on the verb, which holds for every
-     * service but SABnzbd — whose entire API is GET, queue deletions included.
+     * service but SABnzbd, whose entire API is GET, queue deletions included.
      * That one write inherited the read retry: a delete that timed out *after*
      * SABnzbd had processed it was sent again, and the second attempt answers
      * `{"status": false}` for an nzo_id that is already gone, which the
@@ -197,7 +197,7 @@ export class ServiceHttp {
      * reported as a failure, with the item genuinely gone.
      *
      * `discardBody` for the same reason `post` carries it: Plex answers a
-     * section refresh with a bare 200 — no body, no `Content-Type` — and
+     * section refresh with a bare 200 (no body, no `Content-Type`) and
      * parsing that as JSON reports a scan that did start as a failure,
      * inviting a retry.
      */
@@ -206,11 +206,11 @@ export class ServiceHttp {
     }
 
     /**
-     * Writes never auto-retry — a retried add_media is a double-add.
+     * Writes never auto-retry: a retried add_media is a double-add.
      *
      * `discardBody` for the same reason `put` and `delete` carry it: Jellyfin
      * answers a started library scan with 204 and no body, and parsing that as
-     * JSON turned a scan already underway into "response was not valid JSON" —
+     * JSON turned a scan already underway into "response was not valid JSON",
      * a failure report for work that had succeeded, inviting a retry that
      * would start it a second time.
      */
@@ -237,7 +237,7 @@ export class ServiceHttp {
 
     /**
      * Like every write, never auto-retried. `discardBody` because Sonarr's
-     * `/episode/monitor` answers with an empty 200 — routing that through the
+     * `/episode/monitor` answers with an empty 200; routing that through the
      * JSON parse would turn a successful write into "response was not valid
      * JSON", the same trap `delete` already documents.
      */
@@ -253,8 +253,8 @@ export class ServiceHttp {
     }
 
     /**
-     * Deletes return no body worth reading — Radarr and Sonarr answer 200 with
-     * an empty one — so this discards it rather than parsing it. Typing it
+     * Deletes return no body worth reading (Radarr and Sonarr answer 200 with
+     * an empty one), so this discards it rather than parsing it. Typing it
      * `void` is the honest signature: a `delete<T>` would invite a caller to
      * read fields that are never there, and routing a delete through `post`'s
      * JSON parse turns every successful deletion into "response was not valid
@@ -323,7 +323,7 @@ export class ServiceHttp {
      *
      * A 404 is not. Looking up ids that do not exist is an ordinary
      * per-request outcome, and a service that answers one has plainly
-     * answered — so it counts as a success here, which is what stops five
+     * answered, so it counts as a success here, which is what stops five
      * missing-id lookups in a row making a healthy Radarr unreachable for the
      * whole cooldown, calls that would have worked included.
      */
@@ -334,7 +334,7 @@ export class ServiceHttp {
 
     /**
      * One logical attempt. An auth strategy may consume one transport-level
-     * recovery inside it — Transmission's 409 handshake — which by construction
+     * recovery inside it, Transmission's 409 handshake, which by construction
      * neither consumes the timeout retry above nor reaches the breaker.
      *
      * The one `signal` is the attempt's whole deadline: the request, any
@@ -350,7 +350,7 @@ export class ServiceHttp {
         extraHeaders?: Record<string, string>
     ): Promise<T> {
         // Prefixed, not resolved: every adapter path is absolute, and `new URL`
-        // given an absolute path throws the base's own path away — which is how
+        // given an absolute path throws the base's own path away, which is how
         // a service behind a URL base got its requests sent to the host root.
         const url = new URL(this.#basePath + path, this.#baseUrl);
         const headers = new Headers({ Accept: read === 'text' ? '*/*' : 'application/json' });
@@ -425,7 +425,7 @@ export class ServiceHttp {
         }
 
         if (recovered) {
-            // Nothing will read this one — the retry below supersedes it — and
+            // Nothing will read this one (the retry below supersedes it), and
             // an unread body pins its keep-alive connection until GC. A burst
             // of Transmission 409s or qBittorrent 403s otherwise degraded
             // connection reuse for everything behind the same origin.

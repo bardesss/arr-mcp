@@ -15,7 +15,7 @@ import { cardsFromHits, type MediaCards } from '../ui/mediaCards.ts';
 
 /**
  * One search hit as a line, shared by `search_media` (and its alias `lookup_media`) and
- * `discover_media` — all three answer in `SearchHit`, and three formatters
+ * `discover_media`; all three answer in `SearchHit`, and three formatters
  * would be three chances for the same result to read differently depending on
  * which tool asked.
  *
@@ -33,7 +33,7 @@ export function searchLine(hit: SearchHit): string {
     if (hit.indexer !== undefined) facts.push(hit.indexer);
     if (hit.hasFile === true) facts.push('in library');
 
-    return `${titled(hit.title, hit.year)} — ${facts.join(', ')}`;
+    return `${titled(hit.title, hit.year)}: ${facts.join(', ')}`;
 }
 
 export function searchSummary(result: Pick<GetSearchResult, 'total' | 'returned' | 'degraded'>, query: string, source: string): string {
@@ -53,12 +53,12 @@ export type GetSearchResult = {
     /**
      * Keyed by **adapter id**, not by service type: a named instance reports
      * under `radarr/4k`. Widened from `ServiceId` for the reason
-     * `library.ts` already was — `gather` has always keyed this by the id it
-     * fanned out over, so the narrower type described something this never
+     * `library.ts` already was (`gather` has always keyed this by the id it
+     * fanned out over), so the narrower type described something this never
      * held. Every existing key is unchanged.
      */
     counts: Record<string, number>;
-    /** Set only when the count needs defending — an empty list that is a fact
+    /** Set only when the count needs defending; an empty list that is a fact
      *  about the stack rather than about what exists. */
     note?: string;
 };
@@ -125,7 +125,7 @@ async function searchWindow(
     const items = kinds.length === 0 ? gathered.items : gathered.items.filter(h => KINDLESS.has(h.kind) || kinds.includes(h.kind));
 
     // Sorted before limiting. Concatenation order is adapter order, which is
-    // alphabetical — so limiting an unsorted merge would drop Sonarr's results
+    // alphabetical, so limiting an unsorted merge would drop Sonarr's results
     // whenever Radarr returned enough of its own, regardless of relevance.
     //
     // With a year, a hit ranks by the better of the whole query and the title

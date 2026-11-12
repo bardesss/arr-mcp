@@ -148,8 +148,8 @@ against it** rather than taking your value as the user to query. Set it to
 anything else and the per-user tools fail, naming the one user they do know:
 
 ```
-plex not found: no user named "you@example.com"
-  — Known users: YourPlexAccount. Fix default_user in config.yaml.
+plex not found: no user named "you@example.com". Known users: YourPlexAccount.
+Fix default_user in config.yaml.
 ```
 
 That error is the fastest way to learn what to write. The value is used

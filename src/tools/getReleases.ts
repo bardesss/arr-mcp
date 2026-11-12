@@ -23,10 +23,10 @@ type GetReleasesResult = {
 
 /**
  * `guid` and `indexerId` are grab-plumbing, same as get_history's fields of
- * the same name — useful only to grab_release, not to reading. `516 of
+ * the same name, useful only to grab_release, not to reading. `516 of
  * 516 rejected` (a real capture) can also mean 516 rejection strings, which
  * is most of this response's weight, so `rejections` is trimmed alongside
- * them below `full` — `rejected` alone survives. `minimal` keeps only what a
+ * them below `full`; `rejected` alone survives. `minimal` keeps only what a
  * quick scan needs: what it is, where it came from, and whether it was
  * rejected.
  */
@@ -74,7 +74,7 @@ export function releaseLine(release: ReleaseCandidate): string {
         facts.push(release.rejections.join('; '));
     }
 
-    return `${release.title} — ${facts.join(', ')}`;
+    return `${release.title}: ${facts.join(', ')}`;
 }
 
 export async function buildGetReleases(
@@ -93,7 +93,7 @@ export async function buildGetReleases(
 ): Promise<GetReleasesResult> {
     const adapter = resolveInstance(adapters, opts.service, opts.instance);
     // A valid, configured service with no release search (everything but the
-    // *arrs) must refuse rather than answer empty — an empty list reads as
+    // *arrs) must refuse rather than answer empty; an empty list reads as
     // "nothing is out there", a different and more misleading claim than
     // "this service cannot answer that".
     if (!hasReleaseSearch(adapter)) {

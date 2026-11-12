@@ -499,9 +499,9 @@ Whisparr, all returned by `search_media` with `source: "discover"` under `ids`.
 If your service has exactly one of each, it uses them without asking. If it has
 several and you name none, **it refuses and lists them** rather than picking:
 
-> radarr has several quality profiles and none was named — Name one —
-> available: Any (id 1); HD-1080p (id 4); HD-2160p (id 5); … Not guessing,
-> because the wrong one is not obvious until the download finishes.
+> radarr has several quality profiles and none was named. Name one. Available:
+> Any (id 1); HD-1080p (id 4); HD-2160p (id 5); … The wrong one is not obvious
+> until the download finishes.
 
 Lidarr needs a third choice, the metadata profile, which decides the album types
 and release statuses an artist gets. `metadata_profile` names it; left out, the
@@ -556,8 +556,9 @@ instance is only discovered once the download has finished.
 add_media { service: "radarr", external_id: "550" }
 ```
 
-> radarr has 2 instances configured, so "radarr" alone does not say which —
-> pass `instance` with one of: "4k", "hd".
+> radarr has 2 instances configured, so "radarr" alone does not say which.
+> Pass instance with one of: "4k", "hd". Guessing risks acting on the wrong
+> library.
 
 That means **adding a second instance changes how existing prompts behave**:
 requests that used to be unambiguous start asking which instance you meant. That
@@ -569,8 +570,9 @@ is deliberate, and it only affects writes.
 somebody. If that somebody is not the configured `default_user`, the write is
 refused unless `services.seerr.allow_other_users` is `true`:
 
-> request 31 belongs to another user — set `services.seerr.allow_other_users:
-> true` to manage requests other people made.
+> request 31 belongs to another user. Set services.seerr.allow_other_users:
+> true to manage requests other people made. This also exposes their request
+> history to get_requests.
 
 Whose request it is goes by Seerr user id, never by display name. Users choose
 their own display names, so another account could take the configured one. For

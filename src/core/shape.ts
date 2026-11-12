@@ -20,7 +20,7 @@ export const LimitSchema = z
     .describe(`Maximum items to return; defaults to ${DEFAULT_LIMIT}, hard maximum ${MAX_LIMIT}.`);
 
 /**
- * How many to skip — the other half of `limit`, and the parameter #103 guessed
+ * How many to skip; the other half of `limit`, and the parameter #103 guessed
  * at because a library past `MAX_LIMIT` could not be read in full without it.
  *
  * Unbounded above, unlike `limit`: `limit` caps how much context one answer can
@@ -42,7 +42,7 @@ export const OffsetSchema = z
  * What a read tool tells a client about itself.
  *
  * Without this, all 27 tools are the same kind of thing to a client that
- * decides what to auto-approve, or what to badge, from annotations —
+ * decides what to auto-approve, or what to badge, from annotations.
  * `delete_media` and `get_queue` alike. Each description says which it is, but
  * prose is only readable by the model, and the client makes that call before
  * the model is asked.
@@ -50,7 +50,7 @@ export const OffsetSchema = z
  * `destructiveHint` is deliberately absent rather than false: the spec defines
  * it as meaningful only when `readOnlyHint` is false, so setting it here would
  * be answering a question nobody asked. `openWorldHint` is likewise left at its
- * default of true, which is already right — every one of these reads reaches a
+ * default of true, which is already right; every one of these reads reaches a
  * service over the network.
  */
 export const READ_ONLY = { readOnlyHint: true } as const;
@@ -60,7 +60,7 @@ export const READ_ONLY = { readOnlyHint: true } as const;
  *
  * A plain `z.object` **strips** unknown keys, which is the quietest possible
  * failure: the call succeeds, the invented argument is gone, and the result
- * looks exactly like one where it had been honoured. #103 is what that costs —
+ * looks exactly like one where it had been honoured. #103 is what that costs;
  * an agent sent `offset` and `source` to `get_library`, got a clean 200, and
  * concluded from the unchanged results that this server's pagination and
  * filtering were broken. Neither parameter has ever existed. It never found
@@ -68,7 +68,7 @@ export const READ_ONLY = { readOnlyHint: true } as const;
  * exchange ever suggested it was looking in the wrong place.
  *
  * So the error names both halves: what was refused, and what this tool does
- * accept. The first alone leaves a model exactly as stuck as silence did — the
+ * accept. The first alone leaves a model exactly as stuck as silence did; the
  * list is what lets it correct itself in one turn rather than guess again.
  *
  * `undocumented` keeps a key working while leaving it out of that list. Two
@@ -121,7 +121,7 @@ export function memoBy<K, V>(build: (key: K) => V): (key: K) => V {
  * The truncation envelope, declared so a client can read it *before* it calls.
  *
  * #103 reported `total` as missing from `structuredContent`. It was never
- * missing — but no tool declared an `outputSchema`, and a client that gates
+ * missing, but no tool declared an `outputSchema`, and a client that gates
  * `structuredContent` on a declared schema surfaces nothing without one, which
  * from the far side is indistinguishable from the field not existing. The
  * reporter fell back to parsing "50 of 243 item(s)" out of the summary
@@ -156,7 +156,7 @@ export const TruncationSchema = z.looseObject({
  *
  * Separate from `TruncationSchema` because `get_stack_health` nests two truncated
  * lists inside one answer and reports `degraded` once, at the top, for both.
- * Requiring it on the inner lists asserted something no tool produces — and,
+ * Requiring it on the inner lists asserted something no tool produces, and,
  * being an output schema, that did not read as a wrong description: it failed
  * the call outright. Which is how the split came to exist.
  */
@@ -172,19 +172,19 @@ export const PagedOutputSchema = TruncationSchema.extend({
  * reports that a 900-film library contains 50 films, so every read tool routes
  * its list through here and serialises all five fields.
  *
- * `limit` is clamped defensively even though LimitSchema also caps it — a
+ * `limit` is clamped defensively even though LimitSchema also caps it; a
  * future internal caller that bypasses the schema must not be able to request
  * 5000 items, and must not be able to request zero and get a silently empty
  * list back.
  *
  * `offset` is clamped only at zero, and not at the top: a window past the end
- * is an empty page, which is the honest answer to "give me items 900–950 of
+ * is an empty page, which is the honest answer to "give me items 900 to 950 of
  * 243". A negative one starts at the beginning rather than reaching `slice`,
  * where it would count backwards from the end and hand back the last few items
  * as though they were the first.
  *
- * `truncated` keeps the meaning it had before an offset existed — *this is not
- * the whole list* — rather than becoming "there is more after this window".
+ * `truncated` keeps the meaning it had before an offset existed (*this is not
+ * the whole list*) rather than becoming "there is more after this window".
  * Under the second reading the last page of a paged walk reports `false` with
  * everything the caller never saw sitting in front of it, which is the same
  * false completeness the field was added to prevent. "Is there another page" is
@@ -223,7 +223,7 @@ export const windowEnd = (limit: number, offset = 0): number =>
  * `structuredContent` carries the full envelope and is unchanged. This exists
  * because not every client forwards it. #106 added `outputSchema` so clients
  * that *gate* on a schema could see the structured half, which fixed the
- * clients that read it and nothing for the clients that never look — those got
+ * clients that read it and nothing for the clients that never look; those got
  * `10 of 1885 item(s).` and no way to name a single one of them (#234).
  *
  * Deliberately not the serialised envelope, which the MCP spec offers as the
@@ -239,8 +239,8 @@ export const windowEnd = (limit: number, offset = 0): number =>
 export function listText<T>(summary: string, items: readonly T[], line: (item: T) => string): string {
     const lines = items
         // One item is one line, enforced here rather than trusted to each
-        // formatter. `fenceText` keeps newlines on purpose — an overview
-        // legitimately has them — so a release name carrying one would
+        // formatter. `fenceText` keeps newlines on purpose (an overview
+        // legitimately has them), so a release name carrying one would
         // otherwise split into two lines and read as an extra item that no
         // service ever reported. Indexer-sourced titles are exactly the
         // attacker-controlled strings the fence exists for, and a line-oriented
@@ -259,7 +259,7 @@ export function listText<T>(summary: string, items: readonly T[], line: (item: T
  * frozen: `discover_media` asked for `media_type` in a vocabulary it did not
  * answer in, and `get_library` called a Jellyfin user `watched_by` where two
  * other tools call it `user`. Both old spellings keep working forever and stop
- * being documented — removing one would break a saved prompt silently, which is
+ * being documented; removing one would break a saved prompt silently, which is
  * exactly the failure freezing the surface exists to prevent.
  *
  * Disagreeing values are refused rather than resolved. Preferring one silently
@@ -274,7 +274,7 @@ export function preferred<T>(opts: {
     value: T | undefined;
     alias: string;
     aliasValue: T | undefined;
-    /** Maps the alias's vocabulary onto the documented one, where they differ —
+    /** Maps the alias's vocabulary onto the documented one, where they differ.
      *  `media_type: 'tv'` means the same as `kind: 'series'`. */
     translate?: (value: T) => T;
 }): T | undefined {
@@ -283,7 +283,7 @@ export function preferred<T>(opts: {
 
     if (opts.value !== undefined && fromAlias !== undefined && opts.value !== fromAlias) {
         throw new Error(
-            `\`${opts.name}\` and \`${opts.alias}\` were both given and contradict each other. They are the same setting — \`${opts.alias}\` is the older spelling, kept working but no longer documented. Send one.`
+            `\`${opts.name}\` and \`${opts.alias}\` were both given and contradict each other. They are the same setting. \`${opts.alias}\` is the older spelling, kept working but no longer documented. Send one.`
         );
     }
 

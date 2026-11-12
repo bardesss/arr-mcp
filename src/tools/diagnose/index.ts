@@ -67,7 +67,7 @@ export function registerDiagnose(
             title: 'Diagnose a missing or unplayable item',
             annotations: READ_ONLY,
             description,
-            // A verdict, not a list — so no paged envelope. `certain` is the
+            // A verdict, not a list, so no paged envelope. `certain` is the
             // field that matters most and the one a client must not have to
             // read prose to find: a diagnosis reached across a service that
             // could not be checked is a guess, and reporting it as an answer is

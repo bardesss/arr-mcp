@@ -7,18 +7,18 @@ import type { AddCandidate, AddMediaOptions, QualityProfile, RootFolder, Tag } f
 /**
  * Adding to Radarr, Sonarr and Whisparr, shared for the same reason the queue
  * read is: they differ only in which noun and which external id they use. The
- * differences are the four values in `ArrAddShape`; everything else — the
+ * differences are the four values in `ArrAddShape`; everything else (the
  * profile and root-folder lookups, the "is it already there" check, the
- * argument validation — is identical, and writing it twice is how they drift
+ * argument validation) is identical, and writing it twice is how they drift
  * into disagreeing about what adding means. Lidarr adds an artist by its
  * MusicBrainz id with its own lookup and body (`LidarrAdapter.addMedia`), and
  * reads its profiles, root folders and tags here.
  */
 
 type ArrAddShape = {
-    /** `movie` or `series` — the REST noun. */
+    /** `movie` or `series`: the REST noun. */
     resource: 'movie' | 'series';
-    /** `tmdbId` or `tvdbId` — the field the add posts back. */
+    /** `tmdbId` or `tvdbId`: the field the add posts back. */
     idField: 'tmdbId' | 'tvdbId';
     /** For error prose: which provider's id this service speaks. */
     idLabel: 'tmdb' | 'tvdb';
@@ -31,7 +31,7 @@ type ArrAddShape = {
     lookupPath: (id: number) => string;
     /**
      * Radarr's by-id lookup answers a single object; Sonarr's term search
-     * answers an array. Not cosmetic — reading one as the other yields
+     * answers an array. Not cosmetic: reading one as the other yields
      * undefined and reports a real film as "matched nothing".
      */
     lookupReturnsArray: boolean;
@@ -52,7 +52,7 @@ type ArrAddShape = {
  *   /movie/lookup?term=tmdb:999999999 200, []
  *
  * An unknown id is a **500** on the dedicated endpoint, which `classifyHttpStatus`
- * turns into `UpstreamError` — telling the user Radarr is broken when in fact
+ * turns into `UpstreamError`, telling the user Radarr is broken when in fact
  * their id is wrong. The term form answers an empty array, which becomes a
  * clean `NotFound` naming the id. Symmetry with Sonarr, which has no by-id
  * endpoint at all, is a bonus rather than the reason.
@@ -77,8 +77,8 @@ export const SONARR_ADD: ArrAddShape = {
 
 /**
  * Sonarr's shape, except the lookup term: probed against a live Whisparr V2
- * instance, `term=tvdb:<id>` — Sonarr's own form — answers `[]` every time.
- * Whisparr V2 renamed the prefix rather than dropping the id path —
+ * instance, `term=tvdb:<id>` (Sonarr's own form) answers `[]` every time.
+ * Whisparr V2 renamed the prefix rather than dropping the id path:
  * `SkyHookProxy.SearchForNewSeries` matches on `tpdb:`/`tpdbid:`, not
  * `tvdb:`. That branch is the only one that resolves by exact id: anything
  * else, a bare number included, falls through to a ranked text search
@@ -119,7 +119,7 @@ async function readProfiles(http: ServiceHttp, service: string, resource: string
         .filter((p): p is RawProfile & { id: number } => typeof p.id === 'number')
         .map(p => {
             const name = p.name ?? `profile ${p.id}`;
-            // Raw for matching, fenced for prose — see QualityProfile.
+            // Raw for matching, fenced for prose: see QualityProfile.
             return { id: p.id, name, display: fenceText(name, { service, field: 'name' }) };
         });
 }
@@ -181,7 +181,7 @@ export async function readTags(http: ServiceHttp, service: string): Promise<Tag[
 /**
  * The single lookup both the preview and the write are built from. Returns the
  * service's own raw payload alongside the fenced summary, because the add has
- * to post the former back and the preview has to show the latter — and doing
+ * to post the former back and the preview has to show the latter, and doing
  * the lookup twice to get both would be two chances for them to disagree about
  * what is being added.
  */
@@ -199,12 +199,12 @@ async function lookupRaw(
     }
 
     const notFound = new ServiceError('NotFound', service, `${shape.idLabel} id ${numeric} matched nothing`, {
-        remedy: `Check the id with search_media \`source: "discover"\`. ${service} resolves this against its own metadata provider, so an id that is right for the other service will not match here — Radarr takes TMDB, Sonarr takes TVDB.`
+        remedy: `Check the id with search_media \`source: "discover"\`. ${service} resolves this against its own metadata provider, so an id that is right for the other service will not match here: Radarr takes TMDB, Sonarr takes TVDB.`
     });
 
     const path = shape.lookupPath(numeric);
     const first = shape.lookupReturnsArray ? (await http.getArray<RawLookup>(path))[0] : await http.get<RawLookup>(path);
-    // A term search ranks by title, not by id — the top hit is not
+    // A term search ranks by title, not by id: the top hit is not
     // guaranteed to be the id that was asked for. Trusting it anyway is how
     // Whisparr's ranked-text fallback (see WHISPARR_ADD) could have stored a
     // different site's title, images and folder under the requested id.
@@ -221,7 +221,7 @@ async function lookupRaw(
             },
             // A lookup for something not in the library carries no `id` at all
             // (verified live against Radarr and Sonarr, and matching the
-            // recorded fixtures), so an id here means it is already added — a
+            // recorded fixtures), so an id here means it is already added: a
             // no-op, not an error. The `> 0` also rules out a zero, which some
             // builds are reported to send instead of omitting the field.
             ...(typeof first.id === 'number' && first.id > 0 ? { existingId: first.id } : {})
@@ -288,7 +288,7 @@ export async function addArrMedia(
     const created = await http.post<RawLookup>(`${http.apiRoot}/${shape.resource}`, body);
     if (typeof created.id !== 'number' || created.id <= 0) {
         throw new ServiceError('UpstreamError', service, `${service} returned no id for the added ${shape.resource}`, {
-            remedy: 'It may still have been added — check with get_media_details before trying again.'
+            remedy: 'It may still have been added. Check with get_media_details before trying again.'
         });
     }
 

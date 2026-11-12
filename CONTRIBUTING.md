@@ -83,6 +83,27 @@ that *looks* finished:
   failure most likely to get papered over, and the cast survives long after the
   reason for it is forgotten.
 
+## Writing
+
+Everything a person or a client reads should sound like a person wrote it:
+tool output, remedies and errors, tool and parameter descriptions, the config
+UI, the docs, commit messages and pull requests. Two rules:
+
+- **No em dashes**, and no en dash or `--` standing in for one. Pick the
+  punctuation that says how the two parts relate: a period, comma, colon,
+  semicolon or parentheses. `test/writingStyle.test.ts` fails on an em or en
+  dash anywhere in `src/` or the docs. `CHANGELOG.md` is exempt because
+  release-please writes it.
+- **No other AI writing patterns.** Look for a contrast that only adds weight
+  ("not just X, but Y"), a one-line closer that repeats the paragraph, an
+  opener that announces the point instead of making it, three items where the
+  meaning has two, and stock words like *delve*, *crucial*, *seamless* or
+  *robust* used figuratively. Leave out sales language and chat leftovers.
+  A contrast that tells a model something ("refused, not ignored") is
+  information, so keep it.
+
+The test checks only the dashes; reviewers check the rest.
+
 ## Dependencies
 
 Dependabot runs monthly, plus immediate PRs for security advisories. Three
@@ -253,7 +274,7 @@ weekend: the answer to that one is a date, not a no.
 
 The bar above is abstract, so here is the concrete answer, current as of
 2026-11-02. Grouped by slot on the chain rather than alphabetically, because
-that is the real question: a second service in a slot that already exists is a
+a second service in a slot that already exists is a
 small, shaped change, and a service in no slot at all is a different product.
 
 **Managed: what decides something should exist**

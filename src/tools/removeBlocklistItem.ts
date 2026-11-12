@@ -8,7 +8,7 @@ import { targetInput, serviceTarget } from './serviceTarget.ts';
 /**
  * Un-blocklisting one release, so it can be grabbed again.
  *
- * `safe` tier: nothing is destroyed — the entry is a refusal, and removing it
+ * `safe` tier: nothing is destroyed; the entry is a refusal, and removing it
  * withdraws the refusal. On Radarr, Sonarr, Whisparr and Lidarr the
  * counterpart is already there: `remove_queue_item`'s `blocklist: true` puts
  * a release back on the list. The preview offers that only where
@@ -47,11 +47,11 @@ export function registerRemoveBlocklistItem(
             // Not optional. Probed live against both services: DELETE of a
             // blocklist id that does not exist answers success, so without
             // this a stale id would be reported as removed when nothing
-            // happened — the same trap remove_queue_item documents.
+            // happened; the same trap remove_queue_item documents.
             const entry = await adapter.findBlocklistItem(id);
             if (entry === undefined) {
                 throw new ServiceError('NotFound', service, `nothing in ${service}'s blocklist has id "${id}"`, {
-                    remedy: 'It may already have been removed. Call get_blocklist for a current list — the ids are not stable once an entry is gone.'
+                    remedy: 'It may already have been removed. Call get_blocklist for a current list. The ids are not stable once an entry is gone.'
                 });
             }
 

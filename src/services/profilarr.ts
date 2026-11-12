@@ -35,14 +35,14 @@ export type ProfilarrDatabase = {
 
 export type JobStatus = 'queued' | 'running' | 'success' | 'failed' | 'cancelled';
 
-/** The handler's own outcome for the latest run — a different thing from the
+/** The handler's own outcome for the latest run: a different thing from the
  *  queue `status` above. A queue `success` only means the job ran to
  *  completion; `result.status` says what it actually did, and can be
  *  `skipped` (nothing to pull) even when the queue says success. */
 type ResultStatus = components['schemas']['JobRunResult']['status'];
 
 /** `detail` is Profilarr's own error (or, failing that, output) for a
- *  finished job — absent when it supplied neither. `result` is undefined
+ *  finished job: absent when it supplied neither. `result` is undefined
  *  while the job has not executed yet (Profilarr returns `result: null`). */
 export type JobOutcome = { status: JobStatus; result?: ResultStatus; detail?: string };
 
@@ -50,8 +50,8 @@ const API = '/api/v1';
 
 /**
  * Profilarr owns quality profile config for Radarr/Sonarr; arr-mcp never
- * writes profiles itself. `drift` is reserved-but-live in the spec — always
- * null on 2.2.0 — and null means "not checked yet", never "clean". This
+ * writes profiles itself. `drift` is reserved-but-live in the spec, always
+ * null on 2.2.0, and null means "not checked yet", never "clean". This
  * adapter passes it through unchanged rather than defaulting it.
  */
 export class ProfilarrAdapter implements ServiceAdapter {

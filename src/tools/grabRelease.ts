@@ -23,7 +23,7 @@ import { TIMED_OUT, withTimeout } from '../core/timeout.ts';
 import { titled } from '../core/labels.ts';
 
 /**
- * "Not that one, the 1080p remux" — the write half of `get_releases`.
+ * "Not that one, the 1080p remux"; the write half of `get_releases`.
  *
  * Safe tier rather than destructive: a grab starts a download, and a download
  * is removable again with `remove_queue_item`. Nothing on disk is lost.
@@ -188,7 +188,7 @@ export function registerGrabRelease(
         inputSchema: GrabReleaseInput,
         // The resolved instance id, not the bare type: permissions are granted
         // per instance, so checking `radarr` against a config that only grants
-        // `radarr/hd` would deny a permitted write — or worse, the reverse.
+        // `radarr/hd` would deny a permitted write, or worse, the reverse.
         service: ({ service, instance, magnet }) =>
             magnet === undefined
                 ? findAdapter(adapters, service, instance).id
@@ -201,7 +201,7 @@ export function registerGrabRelease(
             if (magnet !== undefined) {
                 if (guid !== undefined || indexer_id !== undefined || release_title !== undefined) {
                     throw new Error(
-                        '`magnet` and `guid` are different ways to start a download — send one. A guid goes through Radarr, Sonarr, Whisparr or Lidarr; a magnet goes straight to the torrent client.'
+                        '`magnet` and `guid` are different ways to start a download; send one. A guid goes through Radarr, Sonarr, Whisparr or Lidarr; a magnet goes straight to the torrent client.'
                     );
                 }
                 if (season !== undefined || episode !== undefined || album !== undefined) {
@@ -230,7 +230,7 @@ export function registerGrabRelease(
                     summary: `Add torrent ${hash} to ${client.id}.`,
                     effects: [
                         `Starts downloading whatever that link points at, straight into ${client.id}. Nothing vetted it: no indexer, no quality profile, no *arr.`,
-                        'It will not be imported into your library, because no *arr knows about it — move or import it yourself afterwards.',
+                        'It will not be imported into your library, because no *arr knows about it. Move or import it yourself afterwards.',
                         'It appears in get_queue and can be removed again with remove_queue_item.',
                         ...(hosts.length === 0 ? [] : [`The client will also contact: ${hosts.join(', ')}.`])
                     ],
@@ -244,7 +244,7 @@ export function registerGrabRelease(
             // Both of the pair or neither, so half a release is never guessed at.
             if (guid !== undefined && release_title !== undefined) {
                 throw new Error(
-                    '`guid` and `release_title` are two ways to name the same release — send one. A guid with its `indexer_id` is exact; a title is looked up in a fresh search.'
+                    '`guid` and `release_title` are two ways to name the same release; send one. A guid with its `indexer_id` is exact; a title is looked up in a fresh search.'
                 );
             }
 
@@ -270,14 +270,14 @@ export function registerGrabRelease(
 
             if (id === undefined || (release_title === undefined && (guid === undefined || indexer_id === undefined))) {
                 throw new Error(
-                    'Grabbing a release needs `id` plus either `guid` and `indexer_id` or `release_title`, all from the same get_releases result — or `magnet` to send a link straight to a torrent client.'
+                    'Grabbing a release needs `id` plus either `guid` and `indexer_id` or `release_title`, all from the same get_releases result, or `magnet` to send a link straight to a torrent client.'
                 );
             }
 
             // A read before the write, for two reasons: it fails legibly when
-            // the guid is no longer offered — indexer results expire, and the
+            // the guid is no longer offered; indexer results expire, and the
             // bare POST answers 404 for that, indistinguishable from a wrong
-            // path — and it puts a real release name in the preview. "Grab
+            // path, and it puts a real release name in the preview. "Grab
             // release abc" is not something anyone can approve.
             //
             // Pass whatever scope the caller searched with: with none, this
@@ -358,7 +358,7 @@ export function registerGrabRelease(
             // grab the caller named nothing, so its arguments cannot say.
             const chosenGuid = plan.args?.guid ?? guid;
             const chosenIndexer = plan.args?.indexerId ?? indexer_id;
-            // Unreachable without both — `plan` refuses first — but the
+            // Unreachable without both (`plan` refuses first), but the
             // narrowing has to see it, and a cast would be a promise the
             // schema no longer makes.
             if (typeof chosenGuid !== 'string' || typeof chosenIndexer !== 'number') {

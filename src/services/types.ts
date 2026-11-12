@@ -63,7 +63,7 @@ export interface ScanStateCapable {
     getScanState(): Promise<ScanState>;
 }
 
-/** Jellyfin and Seerr only — the two multi-user services. */
+/** Jellyfin and Seerr only: the two multi-user services. */
 export type ServiceUser = { id: string; name: string };
 
 export interface UserDirectoryCapable {
@@ -139,7 +139,7 @@ export type IndexerSummary = {
 };
 
 /** A query an indexer refused, with the reason it gave. `service` is the
- *  Prowlarr that reported it — a merged list cannot be read without it. */
+ *  Prowlarr that reported it: a merged list cannot be read without it. */
 export type IndexerRejection = { service: string; indexer: string; at: string; reason: string; query?: string };
 
 export interface IndexerCapable {
@@ -260,8 +260,8 @@ type ArrFormatSpecification = {
     fields: Array<{ name: string; value: unknown }>;
 };
 type ArrCustomFormat = { name: string; specifications: ArrFormatSpecification[] };
-/** One instance's own language table. Ids are not shared across instances —
- *  a live Radarr and Sonarr disagree on them — so this must be read fresh
+/** One instance's own language table. Ids are not shared across instances:
+ *  a live Radarr and Sonarr disagree on them, so this must be read fresh
  *  from each adapter, never cached across services. */
 type ArrLanguage = { id: number; name: string };
 
@@ -371,7 +371,7 @@ export type QueueItem = {
     noAlbum?: true;
     /** `trackedDownloadState`; `importBlocked` is the stuck one. */
     importState?: string;
-    /** The download client's own id for this grab — what `import_download`'s
+    /** The download client's own id for this grab: what `import_download`'s
      *  `import` action is addressed with. */
     downloadId?: string;
     /** Why Radarr, Sonarr, Whisparr or Lidarr will not import it, one line per reason. */
@@ -539,7 +539,7 @@ export type CleanuparrStrikeLimit = {
     appliesTo: 'public' | 'private' | 'both';
     /** Absent when `appliesTo` is `public`. */
     privateTorrents?: Exclude<PrivateTorrentHandling, 'skipped'>;
-    /** Completion range a rule applies within, when it is narrower than 0–100%. */
+    /** Completion range a rule applies within, when it is narrower than 0 to 100%. */
     completion?: string;
     /** Slow rules: the speed below which a strike is counted. */
     minSpeed?: string;
@@ -757,7 +757,7 @@ export const HISTORY_EVENT_TYPES = [
 export type HistoryEventType = (typeof HISTORY_EVENT_TYPES)[number];
 
 /**
- * What happened to a grab after it left the queue — the answer `get_queue`
+ * What happened to a grab after it left the queue: the answer `get_queue`
  * cannot give once an item has failed, imported or been deleted, and
  * `trigger_search` cannot give at all, since it only hands back a command
  * handle.
@@ -769,11 +769,11 @@ export type HistoryEntry = {
     event: HistoryEventType;
     /** Upstream's own spelling, e.g. `downloadFolderImported`. Always set by
      *  the adapter, so an event this server does not yet recognise is not
-     *  silently hidden — optional here only because get_history trims it
+     *  silently hidden: optional here only because get_history trims it
      *  below `detail: full`. */
     rawEvent?: string;
     title: string; // fenced
-    /** The movie, series or artist id — hand it to get_media_details or trigger_search. */
+    /** The movie, series or artist id: hand it to get_media_details or trigger_search. */
     mediaId?: string;
     /** Webhook rows only. A re-added title gets a new `mediaId`, and these stay. */
     externalIds?: { tmdb?: number; tvdb?: number; imdb?: string };
@@ -841,8 +841,8 @@ export type WantedScope = 'missing' | 'upgradable';
  * file but not yet the quality the profile wants.
  *
  * Radarr's wanted rows are movies, so `season`/`episode`/`episodeTitle` stay
- * unset. Sonarr's are episodes: `id` still names the **series** — the one
- * `trigger_search` and `get_media_details` take — never the episode, and
+ * unset. Sonarr's are episodes: `id` still names the **series** (the one
+ * `trigger_search` and `get_media_details` take), never the episode, and
  * `title` names the show while `episodeTitle` names the episode.
  */
 export type WantedItem = {
@@ -874,28 +874,28 @@ export const hasWanted = (a: ServiceAdapter): a is ServiceAdapter & WantedCapabl
     typeof (a as Partial<WantedCapable>).readWanted === 'function';
 
 /**
- * One row from an interactive release search — what `trigger_search` cannot
+ * One row from an interactive release search: what `trigger_search` cannot
  * show, since it only hands back a queued command.
  *
  * A real capture found *every* release rejected on both a Radarr and a
  * Sonarr search: 2 of 2 and 516 of 516, both times because the library
  * already held an equal-or-better file. That is the ordinary case, not a
- * failure — a tool that dropped rejected rows would have answered empty on
+ * failure: a tool that dropped rejected rows would have answered empty on
  * both, so this returns every release, marked, with the reasons upstream
  * gave.
  */
 export type ReleaseCandidate = {
     service: string;
     /** With `indexerId`, what a future grab tool binds to. Often a URL, not
-     *  an opaque token — never treat it as one. Always set by the adapter;
+     *  an opaque token: never treat it as one. Always set by the adapter;
      *  optional here only so get_releases can trim it below `detail: full`,
      *  the same reason HistoryEntry's `guid` is optional. */
     guid?: string;
     indexerId?: number;
     indexer: string; // fenced
-    title: string; // fenced — uploader-chosen
+    title: string; // fenced: uploader-chosen
     sizeBytes?: number;
-    /** Torrent-only. Absent on a usenet release, which has no seeder count —
+    /** Torrent-only. Absent on a usenet release, which has no seeder count:
      *  never defaulted to 0, which would read as "nobody has this". */
     seeders?: number;
     /** Shelfmark's, where the source counts them. Absent when it does not, never defaulted to 0. */
@@ -906,7 +906,7 @@ export type ReleaseCandidate = {
     protocol?: string;
     rejected: boolean;
     /** Fenced. Always set by the adapter; optional here only so get_releases
-     *  can trim it below `detail: full` — `rejected` alone survives at
+     *  can trim it below `detail: full`: `rejected` alone survives at
      *  `minimal`, without the (often several) reasons attached. */
     rejections?: string[];
 };
@@ -918,7 +918,7 @@ export interface ReleaseSearchCapable {
     /** `season` and `episode` (an episode id) are Sonarr-only and mutually
      *  exclusive; a Radarr adapter refuses rather than ignoring them. `album`
      *  (one album id of the artist `id`) is Lidarr-only: the others refuse it,
-     *  and Lidarr refuses `season` and `episode`. Slow upstream — see
+     *  and Lidarr refuses `season` and `episode`. Slow upstream: see
      *  `RELEASE_SEARCH_TIMEOUT_MS`. */
     findReleases(opts: ReleaseScope): Promise<ReleaseCandidate[]>;
 }
@@ -1047,7 +1047,7 @@ export type BlocklistEntry = {
     at: string; // ISO
     reason?: string; // fenced
     protocol?: string;
-    /** The movie, series or artist it belongs to — hand it to
+    /** The movie, series or artist it belongs to: hand it to
      *  get_media_details. Never the episode, on Sonarr, for the same reason
      *  WantedItem.id is not. */
     mediaId?: string;
@@ -1095,13 +1095,13 @@ export type PlaybackEntry = {
     /**
      * Only on history rows, and only where the server can tell them apart.
      * `marked_played` is the item's played flag; `activity_log` is a play the
-     * server logged without setting that flag — an offline client syncing
+     * server logged without setting that flag: an offline client syncing
      * back, typically. Both answer "did they watch it".
      */
     source?: 'marked_played' | 'activity_log';
     /**
      * An `activity_log` play whose item has since left the library. Whether it
-     * was ever marked played is unknowable then — a cleanup tool deleting
+     * was ever marked played is unknowable then: a cleanup tool deleting
      * played items is the usual reason it is gone.
      */
     removedFromLibrary?: true;
@@ -1154,7 +1154,7 @@ export const hasRequestLookup = (a: ServiceAdapter): a is ServiceAdapter & Reque
     typeof (a as Partial<RequestLookupCapable>).getMediaRequests === 'function';
 
 /**
- * What a household has reported as broken — the other half of Seerr that
+ * What a household has reported as broken: the other half of Seerr that
  * `get_requests` never surfaced. Seerr numbers both the kind and the state,
  * and a model handed `issueType: 2` cannot say what is wrong, so both are
  * mapped to words here.
@@ -1176,7 +1176,7 @@ export type MediaIssue = {
     /** TVDB id from the issue payload; absent for movies (Seerr sends null). */
     tvdbId?: number;
     reportedBy?: string;
-    /** The newest comments, fenced and capped — an issue can carry dozens. */
+    /** The newest comments, fenced and capped: an issue can carry dozens. */
     comments: string[];
 };
 
@@ -1192,7 +1192,7 @@ export type EpisodeSummary = {
     airDate?: string;
     hasFile: boolean;
     monitored: boolean;
-    /** 0 or absent when the episode has no file — Sonarr uses zero, not absence. */
+    /** 0 or absent when the episode has no file: Sonarr uses zero, not absence. */
     episodeFileId?: number;
     /** The audio languages on the file, as the service read them off it, e.g.
      *  `jpn/eng`. Absent when there is no file, or when the service has no
@@ -1218,10 +1218,10 @@ export type MediaDetails = {
     year?: number;
     overview?: string;
     monitored?: boolean;
-    /** The service's own status word — see `MergedItem.acquisition.status`. */
+    /** The service's own status word: see `MergedItem.acquisition.status`. */
     status?: string;
     hasFile?: boolean;
-    /** Movies only — a series has no one file. The series answer is per
+    /** Movies only: a series has no one file. The series answer is per
      *  episode, on `episodes[].audioLanguages`. */
     audioLanguages?: string;
     sizeBytes?: number;
@@ -1291,7 +1291,7 @@ export type SearchHit = {
     year?: number;
     ids: { tmdb?: number; tvdb?: number; imdb?: string; mbid?: string };
     /**
-     * Ratings by source, on each source's native scale — same shape as
+     * Ratings by source, on each source's native scale: same shape as
      * `MediaDetails.ratings`, which this is the not-yet-owned counterpart to.
      *
      * Nothing an *arr's lookup endpoint returns populates this: their search
@@ -1322,7 +1322,7 @@ export const hasSearch = (a: ServiceAdapter): a is ServiceAdapter & SearchCapabl
 /**
  * What the *arrs hand back when told to do something: a queued command, not a
  * result. The search itself runs asynchronously, which is why `trigger_search`
- * reports "asked Radarr to search" rather than "found a release" — claiming the
+ * reports "asked Radarr to search" rather than "found a release": claiming the
  * latter would be a confident lie about work that has not happened yet.
  */
 /**
@@ -1341,12 +1341,12 @@ export type CommandHandle = {
 };
 
 /**
- * `season` and `episodeIds` are mutually exclusive — the tool refuses both
+ * `season` and `episodeIds` are mutually exclusive: the tool refuses both
  * rather than picking one, so this type never has to define a precedence.
  * Films have no seasons, so Radarr's `triggerSearch` never sees one.
  */
 /**
- * A queued task as it stands now — the follow-up `trigger_search` and
+ * A queued task as it stands now: the follow-up `trigger_search` and
  * `trigger_scan` never had. `status` is the service's own word: `queued`,
  * `started`, `completed`, `failed`, `aborted`.
  *
@@ -1395,7 +1395,7 @@ export const hasSearchTrigger = (a: ServiceAdapter): a is ServiceAdapter & Searc
  *
  * The two go together deliberately: `diagnose_media` names a stale scan as the usual
  * reason something downloaded is still not playable, and until 1.0 nothing
- * could act on that — its best answer ended "now go and do it yourself". Every
+ * could act on that: its best answer ended "now go and do it yourself". Every
  * service whose scan state can be read can now also be asked to start one,
  * Plex included; Prowlarr is the odd one out, syncing indexers rather than
  * reading a library.
@@ -1470,7 +1470,7 @@ export const hasLibraryMaintenance = (a: ServiceAdapter): a is ServiceAdapter & 
 /**
  * One file a finished download left behind, and what the service makes of it.
  *
- * `rejections` non-empty means the service will not take this file — it is
+ * `rejections` non-empty means the service will not take this file: it is
  * excluded from the import and named in the preview, rather than sent anyway.
  */
 export type ImportCandidate = {
@@ -1652,7 +1652,7 @@ export type EpisodeRemapOutcome = {
     /**
      * Files imported while the temporary naming format was live, and so named
      * by it. Only a rotation opens that window, and only the service's own
-     * per-minute import can walk into it — reported rather than prevented,
+     * per-minute import can walk into it: reported rather than prevented,
      * because preventing it would mean waiting for a queue that is never
      * empty.
      */
@@ -1672,8 +1672,8 @@ export const hasEpisodeRemap = (a: ServiceAdapter): a is ServiceAdapter & Episod
     typeof (a as Partial<EpisodeRemapCapable>).runEpisodeRemap === 'function';
 
 /**
- * Both flags default to the *least* destructive reading at every layer — the
- * tool schema, the adapter signature and the service call — so a caller that
+ * Both flags default to the *least* destructive reading at every layer: the
+ * tool schema, the adapter signature and the service call, so a caller that
  * forgets one deletes less than they asked for rather than more.
  */
 export type DeleteMediaOptions = {
@@ -1709,7 +1709,7 @@ export const hasMediaDelete = (a: ServiceAdapter): a is ServiceAdapter & MediaDe
  * Monitoring is `safe` tier, not `destructive`: nothing is lost and the service
  * itself can undo it (`permissions.ts:9-10` names this exact case).
  *
- * `season` and `episodeIds` are mutually exclusive — the tool refuses both
+ * `season` and `episodeIds` are mutually exclusive: the tool refuses both
  * rather than picking one, so this type never has to define a precedence.
  */
 export type MonitoringTarget = {
@@ -1776,7 +1776,7 @@ export type ArtistMonitorNewItems = 'all' | 'none' | 'new';
  * under it: a live library held an artist reading `monitored: false` with an
  * album beneath it still `monitored: true`. `monitorNewItems` is the rule Lidarr
  * applies to albums it discovers later, so a library is not stable while any
- * artist carries anything other than `none` — unmonitoring albums under such an
+ * artist carries anything other than `none`: unmonitoring albums under such an
  * artist is a treadmill.
  */
 export type ArtistMonitorPolicy = {
@@ -1801,7 +1801,7 @@ export const hasArtistMonitor = (a: ServiceAdapter): a is ServiceAdapter & Artis
     typeof (a as Partial<ArtistMonitorCapable>).listArtistMonitorPolicies === 'function' &&
     typeof (a as Partial<ArtistMonitorCapable>).setArtistMonitorPolicy === 'function';
 
-/** One file on disk. `sizeBytes` is omitted when Sonarr did not report one —
+/** One file on disk. `sizeBytes` is omitted when Sonarr did not report one:
  *  a preview saying "0 bytes" would read as "nothing to lose". */
 export type EpisodeFile = { id: number; season: number; sizeBytes?: number };
 
@@ -1818,7 +1818,7 @@ export type RemoveQueueOptions = {
     removeFromClient: boolean;
     /**
      * Blocklist the release so the *arr will not grab it again. Meaningless on
-     * SABnzbd and Transmission, which have no blocklist of their own — the
+     * SABnzbd and Transmission, which have no blocklist of their own: the
      * adapters there ignore it, and `remove_queue_item` says so in the preview
      * rather than silently accepting a flag that does nothing.
      */
@@ -1843,14 +1843,14 @@ export const hasQueueRemove = (a: ServiceAdapter): a is ServiceAdapter & QueueRe
     typeof (a as Partial<QueueRemoveCapable>).removeQueueItem === 'function';
 
 /** What a client reports about its own paused state, and what that state is
- *  *of* — "the SABnzbd queue", "2 torrents" — so a preview can say it. */
+ *  *of*, "the SABnzbd queue", "2 torrents", so a preview can say it. */
 export type PauseState = { paused: boolean; scope: string };
 
 /**
  * Stopping and restarting a download client.
  *
  * Only the three download clients have it; the *arrs do not. Pausing SABnzbd
- * does not stop Radarr grabbing — it stops the grabs being *downloaded* — and
+ * does not stop Radarr grabbing; it stops the grabs being *downloaded*, and
  * `pause_downloads` says so rather than letting "paused" read as "nothing is
  * happening".
  */
@@ -1870,7 +1870,7 @@ export const hasPause = (a: ServiceAdapter): a is ServiceAdapter & PauseCapable 
  * `speed-bytes` (1000 by default), qBittorrent wants bytes/s. Converting inside
  * each adapter is what stops one wrong unit throttling a stack to nothing.
  *
- * An absent `kbps` means no cap is set — not a cap of zero, which on these
+ * An absent `kbps` means no cap is set: not a cap of zero, which on these
  * clients means "unlimited" anyway and would read as "stopped".
  */
 export type SpeedLimit = { service: string; kbps?: number };
@@ -1885,7 +1885,7 @@ export const hasSpeedLimit = (a: ServiceAdapter): a is ServiceAdapter & SpeedLim
     typeof (a as Partial<SpeedLimitCapable>).setSpeedLimit === 'function';
 
 /**
- * Adding a torrent straight to the client, bypassing the *arrs — the one
+ * Adding a torrent straight to the client, bypassing the *arrs: the one
  * place a caller-supplied URI causes a download, which is why the tool
  * validates the scheme before anything reaches the client.
  *
@@ -1903,7 +1903,7 @@ export const hasMagnetAdd = (a: ServiceAdapter): a is ServiceAdapter & MagnetAdd
 
 /**
  * `name` raw and `display` fenced, for the same reason `RootFolder` splits its
- * path — and discovered the same way, by a match that could never succeed.
+ * path, and discovered the same way, by a match that could never succeed.
  * `add_media` matches a requested profile against `name`; comparing against
  * the fenced form meant an exact-name match was structurally impossible, so
  * every name request fell through to substring matching, which is ambiguous
@@ -1914,7 +1914,7 @@ export type QualityProfile = { id: number; name: string; display: string };
 /**
  * Two forms of the same string, deliberately.
  *
- * `path` is exactly what the service reported and is what gets posted back —
+ * `path` is exactly what the service reported and is what gets posted back:
  * a fenced string is not a directory, and sending one would create a library
  * folder literally named `<<untrusted:radarr.path>>/movies<</>>`.
  * `display` is the fenced form for prose that reaches model context. Keeping
@@ -1926,7 +1926,7 @@ export type RootFolder = {
     display: string;
     freeSpaceBytes?: number;
     /**
-     * Folder names inside this root that the service maps to no item, fenced —
+     * Folder names inside this root that the service maps to no item, fenced:
      * these are read, never posted back, so unlike `path` there is no raw half.
      *
      * A fact rather than a verdict. It can be a mapping the service lost, a
@@ -1953,7 +1953,7 @@ export type AddCandidate = {
     ids: { tmdb?: number; tvdb?: number };
 };
 
-/** Raw `label` for matching, fenced `display` for prose — the same split
+/** Raw `label` for matching, fenced `display` for prose: the same split
  *  `QualityProfile` makes, for the same reason. */
 export type Tag = { id: number; label: string; display: string };
 
@@ -1963,13 +1963,13 @@ export type AddMediaOptions = {
     rootFolderPath: string;
     monitored: boolean;
     searchNow: boolean;
-    /** Sonarr's `MonitorTypes` — which seasons to monitor on add — or
+    /** Sonarr's `MonitorTypes`, which seasons to monitor on add, or
      *  Lidarr's, which albums. The service computes the flags itself, which
      *  is why this is passed through rather than turned into a list here. */
     monitor?: string;
     /** Radarr's `MovieStatusType` threshold. Defaults to `released`. */
     minimumAvailability?: string;
-    /** Sonarr's `SeriesTypes` — the numbering scheme. */
+    /** Sonarr's `SeriesTypes`: the numbering scheme. */
     seriesType?: string;
     tagIds?: number[];
     /** Lidarr only, and required there: its second profile, which decides
@@ -1984,10 +1984,10 @@ export type AddMediaOptions = {
 export interface MediaAddCapable {
     listQualityProfiles(): Promise<QualityProfile[]>;
     listRootFolders(): Promise<RootFolder[]>;
-    /** The tags the instance already has. Nothing here ever creates one — an
+    /** The tags the instance already has. Nothing here ever creates one: an
      *  unknown label is a refusal listing these. */
     listTags(): Promise<Tag[]>;
-    /** Resolves the external id — TMDB for Radarr, TVDB for Sonarr, the
+    /** Resolves the external id: TMDB for Radarr, TVDB for Sonarr, the
      *  MusicBrainz artist id for Lidarr. */
     lookupForAdd(externalId: string): Promise<AddCandidate>;
     addMedia(opts: AddMediaOptions): Promise<{ id: number; title: string }>;
@@ -2026,7 +2026,7 @@ export const hasMetadataProfiles = (a: ServiceAdapter): a is ServiceAdapter & Me
 
 /**
  * Changing something already in the library. Every field is optional and
- * **absent means leave it alone** — Radarr and Sonarr both replace the whole
+ * **absent means leave it alone**: Radarr and Sonarr both replace the whole
  * resource on PUT, so the adapter merges into what the service currently
  * holds rather than posting these values on their own. Lidarr's Artist Editor
  * sets only the fields it is sent, so its adapter sends just these.
@@ -2045,7 +2045,7 @@ export type MediaUpdateOptions = {
     moveFiles: boolean;
 };
 
-/** What the service holds right now — the preview's "from" half, and what
+/** What the service holds right now: the preview's "from" half, and what
  *  makes a no-op detectable before anything is written. */
 export type MediaUpdateState = {
     title: string;
@@ -2087,7 +2087,7 @@ export interface RequestManageCapable {
     /**
      * A human title for a request.
      *
-     * Seerr's `/api/v1/request` payload carries **no title at all** — ids and
+     * Seerr's `/api/v1/request` payload carries **no title at all**: ids and
      * service metadata only, confirmed against a live 3.4.1. So a preview built
      * from the request alone says "request 19", which nobody can meaningfully
      * approve.
@@ -2107,7 +2107,7 @@ export const hasRequestManage = (a: ServiceAdapter): a is ServiceAdapter & Reque
 
 /**
  * `seasons` is `'all'` rather than omitted for a whole series, because a live
- * Seerr answers HTTP 500 for a tv request carrying no `seasons` at all — the
+ * Seerr answers HTTP 500 for a tv request carrying no `seasons` at all: the
  * absent case is not "every season", it is a malformed request.
  *
  * Separate from `RequestManageCapable` for the same reason approving and
@@ -2259,13 +2259,12 @@ export const hasUserLibrary = (a: ServiceAdapter): a is ServiceAdapter & UserLib
 /**
  * What a tool says when nothing implements `UserLibraryCapable`.
  *
- * An unconfigured service is not a degraded one, so `degraded` stays empty —
- * and an empty `degraded` beside a zero count reads as an answer about the
+ * An unconfigured service is not a degraded one, so `degraded` stays empty, and an empty `degraded` beside a zero count reads as an answer about the
  * library rather than a gap in what was asked. This is the sentence that tells
  * the two apart.
  */
 export const NO_MEDIA_SERVER_NOTE =
-    'No media server is configured, so there is no watch state to read — this is a blind spot, not an empty library. Add `services.jellyfin` or `services.plex` in config.yaml.';
+    'No media server is configured, so there is no watch state to read: this is a blind spot, not an empty library. Add `services.jellyfin` or `services.plex` in config.yaml.';
 
 /**
  * The three per-user reads a media server answers. Jellyfin has had these
@@ -2385,7 +2384,7 @@ export async function diagnoseConnection(
         const version = await probe();
         // a connection test distinguishes version-too-old from every other
         // failure. Checked here rather than in each adapter, so no adapter can
-        // forget — and after the probe, so an unreachable service reports being
+        // forget, and after the probe, so an unreachable service reports being
         // unreachable rather than being the wrong version.
         if (version !== undefined) assertVersionSupported(type, version);
 

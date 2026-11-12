@@ -47,7 +47,7 @@ export async function buildDiscoverMedia(
     if (opts.similarTo !== undefined && (opts.genre !== undefined || opts.year !== undefined || opts.minRating !== undefined)) {
         // Two different questions. Silently picking one is how a model gets
         // a confident answer to a question it did not ask.
-        throw new Error('similar_to cannot be combined with genre, year or min_rating — pass similar_to on its own.');
+        throw new Error('similar_to cannot be combined with genre, year or min_rating. Pass similar_to on its own.');
     }
     if (opts.similarTo !== undefined && !/^\d+$/.test(opts.similarTo)) {
         // Seerr answers an unknown TMDB id with an HTTP 500, which is not
@@ -59,7 +59,7 @@ export async function buildDiscoverMedia(
 
     if (adapter === undefined) {
         if (opts.similarTo !== undefined) {
-            // The IMDb dataset has no similarity data — genre, year and
+            // The IMDb dataset has no similarity data; genre, year and
             // rating are the only join it can do. An empty list here would
             // misreport "nothing is similar" as the answer, when the truth
             // is that nothing could answer at all.
@@ -71,7 +71,7 @@ export async function buildDiscoverMedia(
                 truncated: false,
                 degraded: [],
                 counts: {},
-                note: 'similar_to needs Seerr — the IMDb dataset has no similarity data, only genre, year and rating. Add a Seerr instance to answer this.'
+                note: 'similar_to needs Seerr. The IMDb dataset has no similarity data, only genre, year and rating. Add a Seerr instance to answer this.'
             };
         }
         // Without Seerr this used to return an empty result, which reads as
@@ -103,10 +103,10 @@ export async function buildDiscoverMedia(
         // deserve a real error rather than `degraded`, which reports only
         // services that could NOT be reached: genreId() rejecting a genre
         // name before any request left for Seerr, and an upstream 404 (e.g.
-        // an unknown TMDB id on `similar_to`) — Seerr answered fine in both,
+        // an unknown TMDB id on `similar_to`), Seerr answered fine in both;
         // the input was wrong. The genre case's remedy names the real
         // genres, which a model needs to see rather than lose to a silent
-        // empty list — the exact failure mode this task exists to fix.
+        // empty list; the exact failure mode this task exists to fix.
         if (err instanceof ServiceError && err.kind === 'NotFound') throw err;
         logger.warn({ service: adapter.id, err }, 'discover failed; degrading');
         return { items: [], total: 0, returned: 0, offset: 0, truncated: false, degraded: [adapter.id], counts: {} };
@@ -114,7 +114,7 @@ export async function buildDiscoverMedia(
 
     // Enrichment applies whatever the source. Seerr's discover is
     // TMDB-backed, so a hit carrying an imdb id gains an IMDb rating beside
-    // the TMDB one it already had — source selection and enrichment are
+    // the TMDB one it already had; source selection and enrichment are
     // independent decisions.
     const shaped = applyLimit(hits, opts.limit, opts.offset);
     const rated = enrichWithImdb(shaped.items, dataset);
@@ -135,7 +135,7 @@ export async function buildDiscoverMedia(
  * dataset knows a year column. Merging two orderings that mean different
  * things would produce a ranking that means neither.
  *
- * `genre` is a name on both paths now — Seerr translates it to a TMDB id
+ * `genre` is a name on both paths now; Seerr translates it to a TMDB id
  * internally. This path has no id table to translate against, so a numeric id
  * would match no IMDb genre and is rejected here rather than silently
  * returning nothing.
@@ -155,13 +155,13 @@ function fromDataset(
     if (dataset === undefined) {
         return {
             ...empty,
-            note: 'Discovery is answered by Seerr or the IMDb dataset, and neither is configured — this is not a statement about what exists. Add a Seerr instance, or set metadata.imdb.enabled in config.yaml.'
+            note: 'Discovery is answered by Seerr or the IMDb dataset, and neither is configured. This is not a statement about what exists. Add a Seerr instance, or set metadata.imdb.enabled in config.yaml.'
         };
     }
 
     if (opts.genre !== undefined && /^\d+$/.test(opts.genre)) {
         throw new Error(
-            `genre "${opts.genre}" is a TMDB id, which only Seerr understands. Seerr is not configured, so discovery is answered from the IMDb dataset — pass a genre name such as "Crime" instead.`
+            `genre "${opts.genre}" is a TMDB id, which only Seerr understands. Seerr is not configured, so discovery is answered from the IMDb dataset. Pass a genre name such as "Crime" instead.`
         );
     }
 
@@ -192,8 +192,8 @@ function fromDataset(
     // Not `applyLimit`: `discover` applied both the limit and the offset in
     // SQL, so these rows *are* the requested page and slicing them again would
     // cut page two down to nothing. `total` is a real count rather than "what
-    // came back", which is what makes `offset + returned < total` — the
-    // documented way to ask for another page — mean anything here.
+    // came back", which is what makes `offset + returned < total` (the
+    // documented way to ask for another page) mean anything here.
     const offset = Math.max(Math.trunc(opts.offset ?? 0), 0);
     const total = dataset.countDiscover({
         kind: opts.kind,
@@ -216,8 +216,8 @@ function fromDataset(
 const DiscoverMediaInput = toolInput({
     kind: z.enum(['movie', 'series']).optional().describe('Films or series. Defaults to films.'),
     // Undocumented on purpose: the spelling this tool had when the
-    // surface froze at 1.0. Kept working forever — removing it
-    // would break a saved prompt silently — but described nowhere,
+    // surface froze at 1.0. Kept working forever (removing it
+    // would break a saved prompt silently) but described nowhere,
     // so nothing new is written against it.
     media_type: z.enum(['movie', 'tv']).optional(),
     genre: z.string().optional().describe('Genre name, e.g. "Crime" or "Action". A TMDB numeric id is also accepted.'),

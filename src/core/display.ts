@@ -38,7 +38,7 @@ export type Display = {
  *
  * The *arrs return two URLs per image: `url`, a path on the *arr itself
  * (`/MediaCover/340/poster.jpg`), and `remoteUrl`, the metadata provider's.
- * Only the second may ever reach a card — the first would hand a client the
+ * Only the second may ever reach a card; the first would hand a client the
  * service's internal address, and would not load inside a sandboxed view
  * anyway. Radarr's provider is TMDB and Sonarr's is TheTVDB, so both are
  * allowed, and are the domains the view's CSP declares (`mcp/apps.ts`).
@@ -78,7 +78,7 @@ export function resizeTmdb(url: string, size: string): string {
 }
 
 /**
- * A TMDB `poster_path` or `backdrop_path` (`/abc.jpg`) as a URL — what Seerr,
+ * A TMDB `poster_path` or `backdrop_path` (`/abc.jpg`) as a URL; what Seerr,
  * being TMDB-backed, hands over on every search hit. Anything that is not a
  * bare file name is refused rather than concatenated.
  */

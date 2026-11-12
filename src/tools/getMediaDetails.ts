@@ -52,7 +52,7 @@ export async function buildGetMediaDetails(
  * Rotten Tomatoes, and IMDb for a film, from Seerr.
  *
  * Only here, on both forms, and only for one item. It costs an HTTP call per
- * title, so it has no business on a path that returns a page of them —
+ * title, so it has no business on a path that returns a page of them;
  * `search_media` with `source: "discover"` uses the `voteAverage` Seerr already puts in its search
  * payload instead.
  *
@@ -225,7 +225,7 @@ export async function buildResolvedMediaDetails(
         // this exact claim across a degraded load; this is the third consumer
         // of the same `LibraryLoader` snapshot, and answering confidently
         // across the same hole is not a different situation. Named services,
-        // not just "something failed" — a model deciding whether to retry
+        // not just "something failed"; a model deciding whether to retry
         // needs to know which ones.
         //
         // Source-scoped ids are excluded (`gather.ts`'s `servicesOnly`): a
@@ -259,7 +259,7 @@ export async function buildResolvedMediaDetails(
 
     if (opts === undefined || opts.detail !== 'full' || best.kind !== 'series') return best;
 
-    // The merged record has no episodes of its own — no service contributes
+    // The merged record has no episodes of its own; no service contributes
     // them to the join, because ten thousand episode rows in a library
     // snapshot would cost every caller who never asked. So they are fetched
     // here, from the Sonarr that manages this series, using the id
@@ -374,7 +374,7 @@ export function registerGetMediaDetails(
              * One item, and the only tool answering in two different shapes:
              * asked by title it returns the merged record, asked by `service`
              * plus `id` it returns that one service's own view. Only what both
-             * carry is declared — enumerating either branch would make the
+             * carry is declared; enumerating either branch would make the
              * schema reject the other, and a mismatch fails the whole call.
              *
              * `artist` is the Lidarr raw view. The title form refuses an artist,
@@ -396,7 +396,7 @@ export function registerGetMediaDetails(
                 limit
             }, dataset);
 
-            // `unknown` is not a place something is "present in" — it is the
+            // `unknown` is not a place something is "present in"; it is the
             // absence of a confident answer, so it gets its own phrasing
             // rather than reading as
             // "present in: unknown."
@@ -419,7 +419,7 @@ export function registerGetMediaDetails(
                       (result.episodeCount === undefined
                           ? '.'
                           : result.episodes === undefined
-                            ? `, ${result.episodeCount} episode(s) — ask for detail: full to list them.`
+                            ? `, ${result.episodeCount} episode(s). Ask for detail: full to list them.`
                             : `, ${result.episodes.length} of ${result.episodeCount} episode(s).`);
 
             const cleanup = 'cleanup' in result ? (result.cleanup as CleanupStatus) : undefined;

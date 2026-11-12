@@ -45,7 +45,7 @@ type RawQueue = {
          *  download clients publishes. */
         paused?: boolean;
         /** The cap in bytes/s, as a string. `speedlimit` beside it is a
-         *  percentage — see `setSpeedLimit`. */
+         *  percentage: see `setSpeedLimit`. */
         speedlimit_abs?: string;
         slots?: RawSlot[];
     };
@@ -100,7 +100,7 @@ export function parseSabTimeleft(value: string | undefined): number | undefined 
 const BYTES_PER_GB = 1024 ** 3;
 
 /**
- * SABnzbd reports disk space as gigabytes in a string — confirmed against a
+ * SABnzbd reports disk space as gigabytes in a string: confirmed against a
  * live 5.0.4, which returned `"4711.95"`. A silent NaN here would surface as
  * "0 bytes free" in get_stack_health, which reads as a crisis rather than a bug.
  */
@@ -124,7 +124,7 @@ const ENCRYPTED_PREFIX = 'ENCRYPTED / ';
  * sets `filename` to the plain `final_name` and the flag lives in `labels`;
  * the prefix check covers 2.x.
  *
- * The label is `T("ENCRYPTED")` — translated into SABnzbd's UI language — so
+ * The label is `T("ENCRYPTED")`, translated into SABnzbd's UI language, so
  * on a non-English SABnzbd it is not recognised here. `findRetryTarget`
  * refuses such a paused slot rather than guessing.
  */
@@ -281,11 +281,11 @@ export class SabnzbdAdapter
             });
     }
 
-    /** SABnzbd has no blocklist — that lives in the *arr that queued the grab. */
+    /** SABnzbd has no blocklist: that lives in the *arr that queued the grab. */
     readonly supportsBlocklist = false;
 
     /**
-     * A write over GET, because that is SABnzbd's entire API — every mode,
+     * A write over GET, because that is SABnzbd's entire API: every mode,
      * read or write, is a query parameter on `/api`. It answers
      * `{"status": true}` on success and, notably, **also 200 with
      * `{"status": false}`** for an nzo_id it does not have, so the body has to
@@ -301,7 +301,7 @@ export class SabnzbdAdapter
             throw new ServiceError('UpstreamError', this.id, `queue delete of ${id} was refused`, {
                 remedy:
                     body.error ??
-                    'SABnzbd reported no failure reason. Check the item is still in the queue — take a current id from get_queue.'
+                    'SABnzbd reported no failure reason. Check the item is still in the queue. Take a current id from get_queue.'
             });
         }
     }
@@ -310,7 +310,7 @@ export class SabnzbdAdapter
      * SABnzbd is the one client with a real queue-wide paused flag, so this
      * reads it directly rather than inferring it from the items.
      *
-     * With an id, the answer comes from that slot's own status — and a slot
+     * With an id, the answer comes from that slot's own status, and a slot
      * that is no longer in the queue is refused, not reported as paused.
      */
     async readPauseState(id?: string): Promise<PauseState> {
@@ -323,14 +323,14 @@ export class SabnzbdAdapter
         const slot = (body.queue?.slots ?? []).find(s => s.nzo_id === id);
         if (slot === undefined) {
             throw new ServiceError('NotFound', this.id, `nothing in the queue has id "${id}"`, {
-                remedy: 'Take a current nzo id from get_queue — ids do not survive an item leaving the queue.'
+                remedy: 'Take a current nzo id from get_queue: ids do not survive an item leaving the queue.'
             });
         }
         return { paused: (slot.status ?? '').toLowerCase() === 'paused', scope: `queue item ${id}` };
     }
 
     /**
-     * Like every SABnzbd write, a GET — and like every SABnzbd write, a
+     * Like every SABnzbd write, a GET, and like every SABnzbd write, a
      * failure arrives as HTTP 200 with `status: false`, so the body is what
      * says whether anything happened.
      */
@@ -349,7 +349,7 @@ export class SabnzbdAdapter
                 {
                     remedy:
                         body.error ??
-                        'SABnzbd reported no failure reason. Check the queue is reachable — call get_queue.'
+                        'SABnzbd reported no failure reason. Check the queue is reachable. Call get_queue.'
                 }
             );
         }
@@ -380,13 +380,13 @@ export class SabnzbdAdapter
 
         if (body.status !== true) {
             throw new ServiceError('UpstreamError', this.id, 'the speed limit was refused', {
-                remedy: body.error ?? 'SABnzbd reported no failure reason. Check it is reachable — call get_queue.'
+                remedy: body.error ?? 'SABnzbd reported no failure reason. Check it is reachable. Call get_queue.'
             });
         }
     }
 
     /**
-     * SABnzbd's own history — what happened to a download after it left the
+     * SABnzbd's own history: what happened to a download after it left the
      * queue, one layer below the *arr history `get_history` already merges.
      * When Radarr says "grabbed" and nothing arrived, this is where the reason
      * is.
@@ -492,7 +492,7 @@ export class SabnzbdAdapter
                 // The ENCRYPTED label is translated, so a non-English SABnzbd
                 // can hide it. Without it, a password would be a guess.
                 throw new ServiceError('NotFound', this.id, `download ${id} is paused, but not flagged as encrypted`, {
-                    remedy: "Encryption could not be confirmed — the label may be in another language on a non-English SABnzbd. If it is encrypted, set its password and resume it from SABnzbd's own UI."
+                    remedy: "Encryption could not be confirmed: the label may be in another language on a non-English SABnzbd. If it is encrypted, set its password and resume it from SABnzbd's own UI."
                 });
             }
             throw new ServiceError('NotFound', this.id, `download ${id} has not failed; it is still in the queue`, {
@@ -563,7 +563,7 @@ export class SabnzbdAdapter
         });
 
         if (body.status === false || typeof body.nzo_id !== 'string' || body.nzo_id === '') {
-            const fixed = 'SABnzbd gave no new job. Check it is still in history as Failed — take a current id from get_history.';
+            const fixed = 'SABnzbd gave no new job. Check it is still in history as Failed. Take a current id from get_history.';
             throw new ServiceError('UpstreamError', this.id, `SABnzbd refused to retry ${target.id}`, {
                 remedy: password || !body.error ? fixed : this.#fence(body.error, 'error')
             });
@@ -588,7 +588,7 @@ export class SabnzbdAdapter
      *
      * Then a resume: `NzbObject.resume()` sets `encrypted = 2`, and the
      * assembler only checks for encryption while `encrypted == 0`, so the
-     * job is not paused again — even if the password is wrong, which surfaces
+     * job is not paused again, even if the password is wrong, which surfaces
      * later as an unpack failure in history.
      */
     async #unlock(target: RetryTarget, password: string): Promise<RetryOutcome> {
@@ -607,7 +607,7 @@ export class SabnzbdAdapter
         });
         if (renamed.status !== true) {
             throw new ServiceError('UpstreamError', this.id, `SABnzbd refused to set the password on ${target.id}`, {
-                remedy: 'Nothing was resumed. Check the job is still in the queue — take a current id from get_queue.'
+                remedy: 'Nothing was resumed. Check the job is still in the queue. Take a current id from get_queue.'
             });
         }
 

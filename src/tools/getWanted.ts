@@ -27,7 +27,7 @@ const WantedScopeSchema = z
 
 /**
  * Unlike get_history and get_releases, nothing here is grab-plumbing to hide
- * below `full` — every field is something a reader would want. `minimal`
+ * below `full`; every field is something a reader would want. `minimal`
  * still exists for the same reason every other tool has one: the identity
  * and the one flag ("wanted") a quick scan needs, dropping `episodeTitle`,
  * `albumTitle` and `airDate`, the fields most useful only to a close reading.
@@ -52,10 +52,10 @@ const project = (w: WantedItem, detail: DetailLevel): WantedItem => {
 /**
  * One wanted row as a line.
  *
- * `id` names the **series** on Sonarr's rows, never the episode — the same
- * contract `WantedItem` documents — so the line prints the episode numbering
+ * `id` names the **series** on Sonarr's rows, never the episode; the same
+ * contract `WantedItem` documents. So the line prints the episode numbering
  * for a human to read and the series id for a tool to act on. A Lidarr row
- * prints the album after the artist, and its album id beside the artist id.
+ * prints "Album by Artist", and its album id beside the artist id.
  */
 export function wantedLine(item: WantedItem): string {
     const numbering =
@@ -63,14 +63,14 @@ export function wantedLine(item: WantedItem): string {
             ? ''
             : ` ${episodeCode(item.season, item.episode)}`;
     const episode = item.episodeTitle === undefined ? '' : ` ${item.episodeTitle}`;
-    const album = item.albumTitle === undefined ? '' : ` — ${item.albumTitle}`;
+    const name = item.albumTitle === undefined ? `${item.title}${numbering}${episode}` : `${item.albumTitle} by ${item.title}`;
 
     const facts = [item.kind, `${item.service}:${item.id}`];
     if (item.albumId !== undefined) facts.push(`album ${item.albumId}`);
     if (item.airDate !== undefined && item.airDate !== '') facts.push(item.airDate);
     if (!item.monitored) facts.push('unmonitored');
 
-    return `${item.title}${album}${numbering}${episode} — ${facts.join(', ')}`;
+    return `${name}: ${facts.join(', ')}`;
 }
 
 const TARGET = serviceTarget({ services: ['radarr', 'sonarr', 'lidarr'], can: hasWanted, cannot: 'has no wanted list to return' });

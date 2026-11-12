@@ -8,8 +8,8 @@ import type { RawRating, RawTitle } from './imdbDataset.ts';
  * is usually a NAS. `replaceAll` consumes these lazily inside one transaction,
  * so peak memory is a row rather than a file.
  *
- * **No CSV library.** These are tab separated with no quoting and no escaping —
- * the format guarantees a tab never appears inside a field — so `split` is both
+ * **No CSV library.** These are tab separated with no quoting and no escaping,
+ * the format guarantees a tab never appears inside a field, so `split` is both
  * correct and far faster than a parser that has to consider quotes it will
  * never meet.
  */

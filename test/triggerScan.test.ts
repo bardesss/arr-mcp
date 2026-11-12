@@ -1023,7 +1023,7 @@ describe.each(IMPORT_TOOLS)('%s remapping episodes', (tool, register) => {
             expect(again.structuredContent).toMatchObject({ applied: false, dry_run: true, noop: false });
         }
         // The step replaces the sentence that told a person to do it by hand.
-        expect(String(done.structuredContent.result)).not.toMatch(/rescan your media server/);
+        expect(String(done.structuredContent.result)).not.toMatch(/rescan your media server/i);
     });
 
     it('keeps telling a person to rescan when no media server is configured', async () => {
@@ -1032,7 +1032,7 @@ describe.each(IMPORT_TOOLS)('%s remapping episodes', (tool, register) => {
         const done = await h.call({ ...SWAP, confirm: first.structuredContent.confirm_token });
 
         expect(done.structuredContent.next_steps).toBeUndefined();
-        expect(String(done.structuredContent.result)).toMatch(/rescan your media server/);
+        expect(String(done.structuredContent.result)).toMatch(/rescan your media server/i);
     });
 
     it('is a no-op when every file is already where it was asked to go', async () => {

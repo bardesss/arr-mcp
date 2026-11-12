@@ -168,7 +168,7 @@ describe('Lidarr wanted', () => {
         const line = plain(wantedLine(first!));
 
         const [raw] = missingRows();
-        expect(line).toContain(`${raw?.artist.artistName} — ${raw?.title}`);
+        expect(line).toContain(`${raw?.title} by ${raw?.artist.artistName}`);
         expect(line).toContain('artist, lidarr:1, album 4');
     });
 });
@@ -206,7 +206,7 @@ describe('Lidarr calendar', () => {
         expect(unfenced(rows[0]?.title ?? '')).toBe(raw?.title);
         expect(unfenced(rows[0]?.artist ?? '')).toBe(raw?.artist.artistName);
         expect(plain(calendarLine(rows[0]!))).toBe(
-            `1997-01-20T00:00:00Z — ${raw?.artist.artistName} — ${raw?.title} — lidarr:3, incomplete`
+            `1997-01-20T00:00:00Z: ${raw?.title} by ${raw?.artist.artistName} (lidarr:3, incomplete)`
         );
     });
 
@@ -250,7 +250,7 @@ describe('Lidarr calendar', () => {
         const rows = await adapter.getCalendar(range);
 
         expect(rows.map(r => r.artist)).toEqual([undefined, undefined]);
-        expect(plain(calendarLine(rows[0]!))).toBe(`1997-01-20T00:00:00Z — ${String(bare.title)} — lidarr:3, incomplete`);
+        expect(plain(calendarLine(rows[0]!))).toBe(`1997-01-20T00:00:00Z: ${String(bare.title)} (lidarr:3, incomplete)`);
     });
 
     it('drops an undated album, including Lidarr\'s year-one date', async () => {

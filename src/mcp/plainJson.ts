@@ -12,12 +12,12 @@
  * That is one half of #103. The agent could not load tools, hand-rolled its own
  * HTTP calls, and its first attempt failed on the header. The second half is
  * what it got when it corrected that: an SSE frame inside a chunked body, which
- * it tried to parse as JSON and which produced `Extra data: line 1 column 4` —
- * the hex chunk-size line `2e6` parsing as the number 2×10⁶. Both halves are a
+ * it tried to parse as JSON and which produced `Extra data: line 1 column 4`
+ * (the hex chunk-size line `2e6` parsing as the number 2×10⁶). Both halves are a
  * client that wanted one JSON object and could not get one.
  *
- * So: the request is upgraded to accept both — the tools do not care, and this
- * is the only thing standing between a working call and a 406 — and if the
+ * So: the request is upgraded to accept both (the tools do not care, and this
+ * is the only thing standing between a working call and a 406) and if the
  * client never asked for a stream, the SSE frame is unwrapped again on the way
  * out. The result is `application/json` with a `Content-Length`: no framing, no
  * chunk headers, nothing to misparse. The spec allows exactly this ("the server
@@ -26,7 +26,7 @@
  *
  * What this deliberately does not do is make the server less strict about
  * anything that matters. It relaxes a transport header, not an argument, a
- * permission or a token — #103's actual lesson being that this server had those
+ * permission or a token; #103's actual lesson being that this server had those
  * exactly backwards.
  */
 
@@ -40,7 +40,7 @@ export const acceptsStream = (request: Request): boolean =>
 /**
  * The same request, accepting both media types.
  *
- * Headers only — the body is not touched and not read. `/mcp` always hands the
+ * Headers only; the body is not touched and not read. `/mcp` always hands the
  * handler a `parsedBody` (the Hono adapter parses one from a clone), so the
  * request stream itself is never consumed here or afterwards.
  */
@@ -54,7 +54,7 @@ export function acceptingBoth(request: Request): Request {
  * The JSON-RPC messages carried by an SSE body.
  *
  * One event may spread its payload over several `data:` lines, which the
- * protocol says to rejoin with newlines — the SDK never does, writing one line
+ * protocol says to rejoin with newlines; the SDK never does, writing one line
  * per message, but a parser that only handles the shape it has seen is how the
  * next version breaks quietly.
  */
@@ -78,8 +78,8 @@ const isResponse = (message: unknown): boolean =>
 /**
  * An SSE response rendered as a single JSON body.
  *
- * Anything that is not an SSE frame — a 401, the 405 on GET, an already-JSON
- * error — is returned untouched, so this can sit in front of every response
+ * Anything that is not an SSE frame (a 401, the 405 on GET, an already-JSON
+ * error) is returned untouched, so this can sit in front of every response
  * without knowing which ones it will need to change.
  *
  * Mid-call notifications are dropped rather than concatenated, which is what

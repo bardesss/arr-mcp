@@ -19,7 +19,7 @@ import type { SurfaceOptions } from './toolSurface.ts';
  *
  * **These names are public surface.** A client that has surfaced `whats_wrong`
  * as a slash command breaks if it is renamed, exactly as a saved prompt breaks
- * when a tool is renamed — so they are `snake_case` like the tools, and the
+ * when a tool is renamed, so they are `snake_case` like the tools, and the
  * 1.0 audit freezes them on the same terms.
  */
 
