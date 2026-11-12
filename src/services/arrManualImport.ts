@@ -141,29 +141,50 @@ async function unfinishedRow(
 const IN_PROGRESS = new Set(['queued', 'paused', 'downloading']);
 
 /**
+ * Why the *arrs read a download as paused, and what to do, by protocol. A
+ * torrent pauses only in its client; a usenet download also while its client's
+ * whole queue is paused, and on NZBGet while its paused extra repair files are
+ * all it has left, into post-processing (`Nzbget`). `diagnose_media` reads the
+ * client's own row to tell those apart.
+ */
+const PAUSED = {
+    torrent: { cause: 'the client paused it', action: 'Resume it with pause_downloads' },
+    usenet: {
+        cause: 'the client paused it or its whole queue, or NZBGet is post-processing it, which the *arrs can read as paused, and diagnose_media on it says which',
+        action: 'Resume it with pause_downloads, or wait for the post-processing'
+    }
+} as const;
+
+/**
  * Worded by state: a download that is still on its way "has not finished", and
  * waiting is the remedy, with `why` explaining the service's answer to a read
- * while it runs. One at `failed` is not going to finish, so saying it had not
- * would read as "wait for it"; it is named as failed, and the remedy is to
- * remove it or fix it in the client. `warning` usually means stuck rather than
- * stopped: the clients map a stalled torrent and missing files to it
- * (`QBittorrent`, `TransmissionBase`, Lidarr 3.1.0), and a stalled torrent
- * often finishes later. Not every warning will: a qBittorrent magnet with DHT
- * off waits there for good. So it is named as a warning, and the remedy points
- * at the row's own reason, which the client gives in the queue row's
- * `errorMessage` (`QueueService`) and `get_queue` shows at `detail: "full"`. A
- * usenet warning with nothing left is different: the client filed the download
- * in its history with a problem, which waiting does not clear, so the remedy
- * says how to run it again (`usenetRerun`). Any other status says only what is
- * known: the queue does not report it completed.
+ * while it runs. A `paused` one is resumed rather than waited for, unless it is
+ * waiting on its client's post-processing (`PAUSED`). One at `failed` is not
+ * going to finish, so saying it had not would read as "wait for it"; it is
+ * named as failed, and the remedy is to remove it or fix it in the client.
+ * `warning` usually means stuck rather than stopped: the clients map a stalled
+ * torrent and missing files to it (`QBittorrent`, `TransmissionBase`, Lidarr
+ * 3.1.0), and a stalled torrent often finishes later. Not every warning will: a
+ * qBittorrent magnet with DHT off waits there for good. So it is named as a
+ * warning, and the remedy points at the row's own reason, which the client
+ * gives in the queue row's `errorMessage` (`QueueService`) and `get_queue`
+ * shows at `detail: "full"`. A usenet warning with nothing left is different:
+ * the client filed the download in its history with a problem, which waiting
+ * does not clear, so the remedy says how to run it again (`usenetRerun`). Any
+ * other status says only what is known: the queue does not report it completed.
  */
 function notFinished(service: string, downloadId: string, row: QueueItem, why: string, cause?: unknown): ServiceError {
     const status = row.status.toLowerCase();
     const state = row.importState === undefined ? row.status : `${row.status}/${row.importState}`;
     const opts = cause === undefined ? {} : { cause };
     if (IN_PROGRESS.has(status)) {
+        const nothing = `There is nothing to import until the download client says the item is complete: ${why}.`;
+        const paused = status === 'paused' ? PAUSED[row.protocol === 'torrent' ? 'torrent' : 'usenet'] : undefined;
         return new ServiceError('UpstreamError', service, `download ${downloadId} has not finished downloading`, {
-            remedy: `get_queue reports it as ${state}. There is nothing to import until the download client says the item is complete: ${why}. Wait for it to finish, then try again.`,
+            remedy:
+                paused === undefined
+                    ? `get_queue reports it as ${state}. ${nothing} Wait for it to finish, then try again.`
+                    : `get_queue reports it as ${state}: ${paused.cause}. ${nothing} ${paused.action}, then try again.`,
             ...opts
         });
     }

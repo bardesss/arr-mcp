@@ -6,6 +6,7 @@ import { ServiceHttp } from '../core/http.ts';
 import { fenceText } from '../core/fence.ts';
 import {
     diagnoseConnection,
+    withHold,
     type ConnectionDiagnosis,
     type DiskSpace,
     type DiskSpaceCapable,
@@ -41,8 +42,9 @@ type RawQueue = {
         diskspace2?: string;
         diskspacetotal2?: string;
         status?: string;
-        /** Queue-wide, and the only client-level paused flag any of the three
-         *  download clients publishes. */
+        /** Queue-wide. Also set while SABnzbd waits for post-processing to end,
+         *  with its "Pause Downloading During Post-Processing" switch on, and a
+         *  resume does not end that wait (`Downloader.resume`). */
         paused?: boolean;
         /** The cap in bytes/s, as a string. `speedlimit` beside it is a
          *  percentage: see `setSpeedLimit`. */
@@ -70,9 +72,36 @@ type RawSlot = {
     mb?: string;
     mbleft?: string;
     timeleft?: string;
+    /** `Force` downloads through a manual pause of the queue (`NzbQueue`),
+     *  though not through the wait for post-processing, and the *arrs read it
+     *  as paused only when it is paused itself (`Sabnzbd`). */
+    priority?: string;
     /** 3.0.0 and later list flags such as `ENCRYPTED` here, beside a plain
      *  `filename`; 2.x prefixed the filename instead (`ENCRYPTED / name`). */
     labels?: string[];
+};
+
+/**
+ * What holds the slots while the queue's `paused` flag is set: a manual pause,
+ * which a resume ends, or the wait for post-processing, which a resume does not
+ * (`Downloader`). Under a manual pause a slot shows its job's own status
+ * (`build_queue`): Queued for one waiting its turn, and Downloading for a Force
+ * job, which downloads through the pause (`NzbQueue`), and for one forced
+ * during a pause, which keeps that status after its priority drops
+ * (`set_priority`). During the wait alone no slot reads Queued, every one not
+ * paused, fetching, grabbing or checking reads Downloading or Propagating, and
+ * nothing downloads, Force included (`Downloader.run`). So the wait is read
+ * from such a slot not at Force priority, with none reading Queued, and then
+ * holds every slot; the remedies built on it still say to resume the queue if
+ * it stays paused.
+ */
+const sabHolds = (queue: RawQueue['queue']): ((slot: RawSlot) => PauseState['heldBy']) => {
+    if (queue?.paused !== true) return () => undefined;
+    const slots = queue.slots ?? [];
+    const status = (slot: RawSlot): string => (slot.status ?? '').toLowerCase();
+    const waiting = !slots.some(s => status(s) === 'queued') && slots.some(s => s.priority !== 'Force' && ['downloading', 'propagating'].includes(status(s)));
+    if (waiting) return () => 'postProcessing';
+    return slot => (slot.priority === 'Force' ? undefined : 'queue');
 };
 
 const BYTES_PER_MB = 1024 ** 2;
@@ -258,6 +287,7 @@ export class SabnzbdAdapter
 
     async getQueue(): Promise<QueueItem[]> {
         const body = await this.#http.get<RawQueue>('/api?mode=queue&output=json');
+        const holdOf = sabHolds(body.queue);
         return (body.queue?.slots ?? [])
             .filter((s): s is RawSlot & { nzo_id: string } => typeof s.nzo_id === 'string')
             .map(s => {
@@ -276,7 +306,8 @@ export class SabnzbdAdapter
                     ...(eta === undefined ? {} : { etaSeconds: eta }),
                     // Radarr, Sonarr and Lidarr take the nzo_id as their download
                     // id unchanged (`Sabnzbd`), so this ties the row to theirs.
-                    downloadId: s.nzo_id
+                    downloadId: s.nzo_id,
+                    ...withHold(holdOf(s))
                 };
             });
     }
@@ -307,11 +338,11 @@ export class SabnzbdAdapter
     }
 
     /**
-     * SABnzbd is the one client with a real queue-wide paused flag, so this
-     * reads it directly rather than inferring it from the items.
+     * The queue-wide paused flag is read directly, not inferred from the items.
      *
      * With an id, the answer comes from that slot's own status, and a slot
-     * that is no longer in the queue is refused, not reported as paused.
+     * that is no longer in the queue is refused, not reported as paused. The
+     * same response says what else holds it.
      */
     async readPauseState(id?: string): Promise<PauseState> {
         const body = await this.#http.get<RawQueue>('/api?mode=queue&output=json');
@@ -326,7 +357,11 @@ export class SabnzbdAdapter
                 remedy: 'Take a current nzo id from get_queue: ids do not survive an item leaving the queue.'
             });
         }
-        return { paused: (slot.status ?? '').toLowerCase() === 'paused', scope: `queue item ${id}` };
+        return {
+            paused: (slot.status ?? '').toLowerCase() === 'paused',
+            scope: `queue item ${id}`,
+            ...withHold(sabHolds(body.queue)(slot))
+        };
     }
 
     /**

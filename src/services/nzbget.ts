@@ -6,6 +6,7 @@ import { fenceText, fencer } from '../core/fence.ts';
 import { ServiceHttp } from '../core/http.ts';
 import {
     diagnoseConnection,
+    withHold,
     type ConnectionDiagnosis,
     type DiskSpace,
     type DiskSpaceCapable,
@@ -21,6 +22,7 @@ import {
     type PostProcessTarget,
     type PauseState,
     type QueueCapable,
+    type QueueHold,
     type QueueItem,
     type QueueRemoveCapable,
     type RemoveQueueOptions,
@@ -49,6 +51,7 @@ type RawStatus = {
     ServerPaused?: boolean;
     DownloadPaused?: boolean;
     Download2Paused?: boolean;
+    PostPaused?: boolean;
 };
 type RawParameter = { Name?: unknown; Value?: unknown };
 type RawGroup = {
@@ -67,6 +70,8 @@ type RawGroup = {
     PausedSizeLo?: number;
     PausedSizeHi?: number;
     PostInfoText?: string;
+    /** The group's priority; `Force` is 900 and up (`NzbInfo::FORCE_PRIORITY`). */
+    MaxPriority?: number;
     Parameters?: RawParameter[];
 };
 type RawHistory = {
@@ -127,6 +132,31 @@ const int64 = (hi: number | undefined, lo: number | undefined, mb?: number): num
     }
     if (typeof mb !== 'number' || !Number.isFinite(mb) || mb < 0) return undefined;
     return Math.round(mb * BYTES_PER_MB);
+};
+
+/** The queue's own pause. `ServerPaused` and `Download2Paused` are older names for `DownloadPaused` (`XmlRpc.cpp`). */
+const downloadPaused = (status: RawStatus): boolean => status.ServerPaused === true || status.DownloadPaused === true || status.Download2Paused === true;
+
+/** `NzbInfo::FORCE_PRIORITY`. */
+const FORCE_PRIORITY = 900;
+/** The group statuses before post-processing, the only ones a paused queue holds. */
+const DOWNLOAD_STAGES = new Set(['QUEUED', 'PAUSED', 'DOWNLOADING', 'FETCHING']);
+/**
+ * The group statuses paused post-processing holds: waiting for it
+ * (`PickNextJob`), a par check or repair (`RepairController::CheckPauseState`),
+ * and a script, at its next message (`PostScriptController::AddMessage`).
+ */
+const POST_PAUSE_STAGES = new Set(['PP_QUEUED', 'LOADING_PARS', 'VERIFYING_SOURCES', 'REPAIRING', 'VERIFYING_REPAIRED', 'EXECUTING_SCRIPT']);
+
+/**
+ * What holds a group: a paused queue, before post-processing, or paused
+ * post-processing, in the stages above. A Force priority group goes through
+ * both (`QueueCoordinator`, `PrePostProcessor`).
+ */
+const nzbgetHold = (status: RawStatus, group: RawGroup): QueueHold | undefined => {
+    if ((group.MaxPriority ?? 0) >= FORCE_PRIORITY) return undefined;
+    if (POST_PAUSE_STAGES.has(group.Status ?? '')) return status.PostPaused === true ? 'postPaused' : undefined;
+    return DOWNLOAD_STAGES.has(group.Status ?? '') && downloadPaused(status) ? 'queue' : undefined;
 };
 
 /** The `drone` post-processing parameter is the id an *arr stamps on the NZB
@@ -499,7 +529,7 @@ export class NzbgetAdapter
     async getQueue(): Promise<QueueItem[]> {
         const [status, groups] = await Promise.all([this.#status(), this.#groups()]);
         const rate = int64(status.DownloadRateHi, status.DownloadRateLo) ?? status.DownloadRate ?? 0;
-        const queuePaused = status.ServerPaused === true || status.DownloadPaused === true || status.Download2Paused === true;
+        const queuePaused = downloadPaused(status);
         let ahead = 0;
         return groups
             .filter((group): group is RawGroup & { NZBID: number } => typeof group.NZBID === 'number')
@@ -525,7 +555,8 @@ export class NzbgetAdapter
                     ...(size === undefined ? {} : { sizeBytes: size }),
                     ...(remaining === undefined ? {} : { remainingBytes: remaining }),
                     ...(eta === undefined ? {} : { etaSeconds: eta }),
-                    downloadId: droneParameter(group.Parameters) ?? String(group.NZBID)
+                    downloadId: droneParameter(group.Parameters) ?? String(group.NZBID),
+                    ...withHold(nzbgetHold(status, group))
                 };
             });
     }
@@ -552,7 +583,7 @@ export class NzbgetAdapter
     async readPauseState(id?: string): Promise<PauseState> {
         if (id !== undefined) {
             const numericId = asIntegerId(id, this.id);
-            const groups = await this.#groups();
+            const [status, groups] = await Promise.all([this.#status(), this.#groups()]);
             const group = groups.find(row => row.NZBID === numericId);
             if (group === undefined) {
                 throw new ServiceError('NotFound', this.id, `nothing in the queue has id "${id}"`, {
@@ -568,15 +599,12 @@ export class NzbgetAdapter
                 paused:
                     (group.Status ?? '').toLowerCase().includes('paused') ||
                     (remaining !== undefined && remaining > 0 && pausedBytes >= remaining),
-                scope: `queue item ${id}`
+                scope: `queue item ${id}`,
+                ...withHold(nzbgetHold(status, group))
             };
         }
 
-        const body = await this.#status();
-        return {
-            paused: body.ServerPaused === true || body.DownloadPaused === true || body.Download2Paused === true,
-            scope: 'the NZBGet download queue'
-        };
+        return { paused: downloadPaused(await this.#status()), scope: 'the NZBGet download queue' };
     }
 
     async setPaused(paused: boolean, id?: string): Promise<void> {
