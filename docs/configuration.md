@@ -803,6 +803,17 @@ you edit the file while the config page is open, the next save from that page
 is **refused**, because it was built from the file before your edit. Reload the
 page and make the change again.
 
+## Environment variables
+
+| Variable | Default | What it sets |
+| --- | --- | --- |
+| `ARR_MCP_CONFIG_DIR` | `/config` | The folder holding `config.yaml`, and the logs, audit trail, sessions and event log kept beside it |
+| `ARR_MCP_PORT` | `6060` | The HTTP port for `/mcp`, the config UI and webhooks |
+| `LOG_LEVEL` | `info` | Log verbosity: `trace`, `debug`, `info`, `warn`, `error`, `fatal` or `silent` |
+
+In the container, publish a different host port (`-p 8080:6060`) rather than
+changing `ARR_MCP_PORT`.
+
 ## When config.yaml will not load
 
 A config that fails validation starts arr-mcp in repair mode. The page at `http://<host>:6060` shows the

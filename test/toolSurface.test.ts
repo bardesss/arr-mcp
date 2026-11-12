@@ -110,6 +110,11 @@ describe('what 1.0 documents', () => {
         };
         expect(discover.inputSchema.shape.kind?.description).toBeDefined();
         expect(discover.inputSchema.shape.media_type?.description).toBeUndefined();
+        const library = toolsOf(s => registerGetLibrary(s, new LibraryLoader([radarr()], undefined))).get_library as unknown as {
+            inputSchema: { shape: Record<string, { description?: string }> };
+        };
+        expect(library.inputSchema.shape.user?.description).toBeDefined();
+        expect(library.inputSchema.shape.watched_by?.description).toBeUndefined();
     });
 });
 

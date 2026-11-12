@@ -1,7 +1,8 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
 import { ServiceIdSchema, type ServiceId } from '../src/config/schema.js';
+import { TOOL_NAMES } from '../src/tools/register.js';
 
 const DISPLAY: Record<ServiceId, string> = {
   radarr: 'Radarr',
@@ -57,6 +58,20 @@ describe('service lists', () => {
     ['README service line', readmeServices],
   ])('%s names every service', (_where, text) => {
     for (const name of NAMES) expect(text).toMatch(new RegExp(`\\b${name}\\b`));
+  });
+
+  it('server.json gives the current tool count', () => {
+    const { description } = JSON.parse(read('server.json')) as { description: string };
+    expect(description).toContain(`${TOOL_NAMES.length} tools`);
+  });
+
+  it('docs/configuration.md names every environment variable the server reads', () => {
+    const files = (readdirSync(new URL('../src', import.meta.url), { recursive: true }) as string[]).filter((f) => f.endsWith('.ts'));
+    const names = new Set(files.flatMap((f) => [...read(`src/${f.replaceAll('\\', '/')}`).matchAll(/process\.env\.([A-Z_]+)/g)].map((m) => m[1]!)));
+    // Set by the image build, not by whoever runs it.
+    names.delete('ARR_MCP_VERSION');
+    const doc = read('docs/configuration.md');
+    expect([...names].filter((name) => !doc.includes(`\`${name}\``))).toEqual([]);
   });
 
   it.each(['bug_report.yml', 'feature_request.yml'])('%s offers a checkbox per service', (file) => {

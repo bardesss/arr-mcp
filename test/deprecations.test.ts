@@ -62,12 +62,16 @@ describe('DEPRECATIONS', () => {
         }
     });
 
-    it('says Deprecated nowhere while nothing is deprecated', async () => {
+    it('says Deprecated nowhere, in tools, prompts, resources or references, while nothing is deprecated', async () => {
         if (DEPRECATIONS.length > 0) return;
         const flagged = (await listTools())
             .filter(t => /Deprecated/.test(JSON.stringify({ description: t.description, inputSchema: t.inputSchema })))
             .map(t => t.name);
         expect(flagged).toEqual([]);
+        const elsewhere = Object.entries(await otherSurfaces())
+            .filter(([, text]) => /deprecated/i.test(text))
+            .map(([name]) => name);
+        expect(elsewhere).toEqual([]);
     });
 
     it('removed every 1.x alias in 2.0.0', async () => {

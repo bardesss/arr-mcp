@@ -136,7 +136,7 @@ const TARGET = serviceTarget({
 });
 
 const UpdateMediaInput = z.object({
-    ...targetInput(TARGET, 'radarr for a film, sonarr for a series, lidarr for an artist.'),
+    ...targetInput(TARGET, '{{or: radarr=radarr for a film; sonarr=sonarr for a series; lidarr=lidarr for an artist}}.'),
     id: z
         .string()
         .min(1)

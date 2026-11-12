@@ -6,7 +6,6 @@ import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, 
 import { fenceText } from '../core/fence.ts';
 import type { SeerrAdapter } from '../services/seerr.ts';
 import type { MediaIssue, MediaRequest, RequestStatus } from '../services/types.ts';
-import { UserSchema } from './getPlayback.ts';
 
 type GetRequestsResult = {
     items: MediaRequest[];
@@ -108,7 +107,7 @@ const GetRequestsInput = toolInput({
     detail: DetailSchema,
     limit: LimitSchema,
     offset: OffsetSchema,
-    user: UserSchema,
+    user: z.string().min(1).optional().describe('Whose requests to read.'),
     status: StatusSchema
 });
 
