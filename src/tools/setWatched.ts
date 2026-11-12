@@ -91,6 +91,16 @@ async function pending(
     season: number | undefined,
     watched: boolean
 ): Promise<{ targets: WatchTarget[]; total: number }> {
+    if (item.kind === 'folder') {
+        // Jellyfin marks a folder's children recursively, so one write here
+        // would change far more than the "1 item" a preview could show.
+        throw new ServiceError('NotFound', 'jellyfin', `${item.title} is a folder, and marking it would mark every item inside it`, {
+            remedy:
+                item.seriesId !== undefined && item.season !== undefined
+                    ? `Pass the series id ${item.seriesId} with \`season: ${item.season}\`.`
+                    : 'Pass a film, series or episode id; for one season, the series id plus `season`.'
+        });
+    }
     if (item.kind !== 'series') {
         if (season !== undefined) {
             throw new ServiceError('NotFound', 'jellyfin', `${item.title} is not a series, so it has no seasons`, {
@@ -101,6 +111,16 @@ async function pending(
     }
 
     const episodes = await adapter.listEpisodeItems(user, item.id, season);
+    if (season !== undefined && episodes.length === 0) {
+        // An empty season reads as "already marked" otherwise. The second
+        // read only happens on this refusal path.
+        const seasons = [...new Set((await adapter.listEpisodeItems(user, item.id)).flatMap(e => (e.season === undefined ? [] : [e.season])))].sort(
+            (a, b) => a - b
+        );
+        throw new ServiceError('NotFound', 'jellyfin', `${item.title} has no season ${season} in Jellyfin`, {
+            remedy: seasons.length === 0 ? 'Jellyfin lists no episodes for this series.' : `Seasons it has: ${seasons.join(', ')}.`
+        });
+    }
     return { targets: episodes.filter(e => e.watched !== watched), total: episodes.length };
 }
 
@@ -122,6 +142,7 @@ const setWatchedInput = byMediaServers(ids => z.object({
     season: z
         .number()
         .int()
+        .min(0)
         .optional()
         .describe('One season of a series. Omit with a series id to mark the whole series. Refused on a film.'),
     watched: z.boolean().describe('true to mark watched, false to unmark.'),

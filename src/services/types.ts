@@ -2354,10 +2354,13 @@ export const hasUserSeasons = (a: ServiceAdapter): a is ServiceAdapter & UserSea
 export type WatchTarget = {
     id: string;
     title: string;
-    kind: 'movie' | 'series' | 'episode' | 'item';
+    /** `folder`: anything with children other than a series (a season, collection or library). */
+    kind: 'movie' | 'series' | 'episode' | 'item' | 'folder';
     watched: boolean;
     season?: number;
     episode?: number;
+    /** A season folder's series, so a refusal can name the id to use instead. */
+    seriesId?: string;
 };
 
 /**

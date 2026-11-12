@@ -234,6 +234,47 @@ describe('set_watched', () => {
         await expect(h.call({ item_id: MOVIE, season: 1, watched: true })).rejects.toThrow(/season/i);
     });
 
+    it('refuses a Season item, naming the series id and season to use instead', async () => {
+        // Jellyfin marks every child of a folder item, so previewing it as
+        // "1 item" would understate what the write does.
+        const h = harness({
+            item: { Id: MOVIE, Name: 'Season 2', Type: 'Season', IsFolder: true, IndexNumber: 2, SeriesId: SERIES, UserData: { Played: false } }
+        });
+        const err = await h.call({ item_id: MOVIE, watched: false }).catch((e: unknown) => e);
+        expect(err).toBeInstanceOf(ServiceError);
+        expect((err as ServiceError).remedy).toContain(SERIES);
+        expect((err as ServiceError).remedy).toContain('`season: 2`');
+        expect(h.marked).toHaveLength(0);
+    });
+
+    it('refuses a collection or library folder', async () => {
+        for (const Type of ['BoxSet', 'CollectionFolder']) {
+            const h = harness({ item: { Id: MOVIE, Name: 'Films', Type, IsFolder: true, UserData: { Played: false } } });
+            await expect(h.call({ item_id: MOVIE, watched: true })).rejects.toThrow(/every item inside it/);
+            expect(h.marked).toHaveLength(0);
+        }
+    });
+
+    it('still marks a leaf item of another type as one item', async () => {
+        const h = harness({ item: { Id: MOVIE, Name: 'Trailer', Type: 'Video', IsFolder: false, UserData: { Played: false } } });
+        const { structuredContent } = await h.call({ item_id: MOVIE, watched: true });
+        expect(structuredContent.effects.join(' ')).toContain('1 item');
+    });
+
+    it('refuses a season the series does not have, naming the ones it does', async () => {
+        const h = harness({ episodes: [episode(1, false), { ...episode(2, false), ParentIndexNumber: 1 }] });
+        const err = await h.call({ item_id: SERIES, season: 9, watched: true }).catch((e: unknown) => e);
+        expect(err).toBeInstanceOf(ServiceError);
+        expect((err as ServiceError).detail).toMatch(/no season 9/);
+        expect((err as ServiceError).remedy).toMatch(/1, 2/);
+        expect(h.marked).toHaveLength(0);
+    });
+
+    it('rejects a negative season in the schema', async () => {
+        const h = harness();
+        await expect(async () => h.call({ item_id: SERIES, season: -1, watched: true })).rejects.toThrow(/>=0/);
+    });
+
     it('says that re-marking does not restore the original play date', async () => {
         const h = harness();
         const { structuredContent } = await h.call({ item_id: MOVIE, watched: true });

@@ -686,16 +686,21 @@ export class JellyfinAdapter
 
     async readWatchTarget(user: ServiceUser, itemId: string): Promise<WatchTarget> {
         const id = this.#itemId(itemId);
-        const item = await this.#http.get<RawItemDetail & { Type?: string; UserData?: { Played?: boolean } }>(
-            `/Items/${id}?userId=${encodeURIComponent(user.id)}`
-        );
+        const item = await this.#http.get<
+            RawItemDetail & { Type?: string; IsFolder?: boolean; IndexNumber?: number; SeriesId?: string; UserData?: { Played?: boolean } }
+        >(`/Items/${id}?userId=${encodeURIComponent(user.id)}`);
 
         const KINDS: Record<string, WatchTarget['kind']> = { Movie: 'movie', Series: 'series', Episode: 'episode' };
+        // Marking a folder marks every child, so it is told apart from a leaf.
+        // Seen live: Season and CollectionFolder both carry IsFolder.
+        const folder = item.IsFolder === true || item.Type === 'Season' || item.Type === 'BoxSet';
+        const seasonOf = item.Type === 'Season' && typeof item.SeriesId === 'string' && /^[0-9a-f]{32}$/i.test(item.SeriesId);
         return {
             id,
             title: fenceText(item.Name ?? '', { service: this.id, field: 'Name' }),
-            kind: KINDS[item.Type ?? ''] ?? 'item',
-            watched: item.UserData?.Played === true
+            kind: KINDS[item.Type ?? ''] ?? (folder ? 'folder' : 'item'),
+            watched: item.UserData?.Played === true,
+            ...(seasonOf ? { seriesId: item.SeriesId, ...(typeof item.IndexNumber === 'number' ? { season: item.IndexNumber } : {}) } : {})
         };
     }
 
