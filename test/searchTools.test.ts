@@ -1009,6 +1009,52 @@ describe('discover_media', () => {
         const result = await buildDiscoverMedia(broken, { kind: 'movie', detail: 'full', limit: 50 });
         expect(result.degraded).toEqual(['seerr']);
     });
+
+    /** Seerr's paged answer, 20 to a page as TMDB serves it; rows are numbered from 1. */
+    const paging = (totalResults: number, totalPages = Math.ceil(totalResults / 20)) => {
+        const pages: number[] = [];
+        const fetchImpl = (async (input: string) => {
+            const page = Number(new URL(input).searchParams.get('page') ?? 1);
+            pages.push(page);
+            if (page > 500) return jsonResponse({ message: 'Unable to retrieve discover movies.' }, 500);
+            const start = (page - 1) * 20;
+            const results = Array.from({ length: Math.max(0, Math.min(20, totalResults - start)) }, (_, i) => ({
+                id: start + i + 1,
+                mediaType: 'movie',
+                title: `Film ${start + i + 1}`
+            }));
+            return jsonResponse({ page, totalPages, totalResults, results });
+        }) as unknown as typeof fetch;
+        return { pages, adapter: new SeerrAdapter(seerrConfig, fetchImpl) };
+    };
+
+    it('reads the pages a window covers and reports the whole list', async () => {
+        const { adapter, pages } = paging(495);
+        const result = await buildDiscoverMedia(adapter, { kind: 'movie', genre: '80', detail: 'minimal', limit: 50, offset: 30 });
+        expect(result.items.map(i => i.ids.tmdb)).toEqual(Array.from({ length: 50 }, (_, i) => 31 + i));
+        expect(result).toMatchObject({ total: 495, returned: 50, offset: 30, truncated: true });
+        expect(pages.sort((a, b) => a - b)).toEqual([2, 3, 4]);
+    });
+
+    it('stops the total at the last page TMDB serves', async () => {
+        const { adapter } = paging(20001, 1001);
+        const result = await buildDiscoverMedia(adapter, { kind: 'movie', detail: 'minimal', limit: 50, offset: 9990 });
+        expect(result).toMatchObject({ total: 10000, returned: 10 });
+    });
+
+    it('asks for no page past the last one TMDB serves', async () => {
+        const { adapter, pages } = paging(20001, 1001);
+        const result = await buildDiscoverMedia(adapter, { kind: 'movie', detail: 'minimal', limit: 50, offset: 10000 });
+        expect(result).toMatchObject({ total: 10000, returned: 0, degraded: [] });
+        expect(Math.max(...pages)).toBeLessThanOrEqual(500);
+    });
+
+    it('pages recommendations the same way', async () => {
+        const { adapter } = paging(564);
+        const result = await buildDiscoverMedia(adapter, { kind: 'movie', similarTo: '693134', detail: 'minimal', limit: 10, offset: 20 });
+        expect(result.items[0]?.ids.tmdb).toBe(21);
+        expect(result.total).toBe(564);
+    });
 });
 
 /**

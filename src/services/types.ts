@@ -686,6 +686,8 @@ export type CleanupOverview = {
     /** Eligible or scheduled, counted over every candidate, not only the ones `candidates` returns. */
     going?: { count: number; firstAt?: string };
     protections?: number;
+    /** More candidates than one read takes: `going` and `items` cover only the ones read. */
+    capped?: true;
 };
 
 /** One title's standing, for `get_media_details` and `diagnose_media`. */
@@ -2410,13 +2412,19 @@ export interface BookReadStatusCapable {
 export const hasBookReadStatus = (a: ServiceAdapter): a is ServiceAdapter & BookReadStatusCapable =>
     typeof (a as Partial<BookReadStatusCapable>).setBookReadStatus === 'function';
 
+/** The slice of a discover list a caller wants, as `offset` and `limit` in rows. */
+export type DiscoverWindow = { offset: number; limit: number };
+
 export interface DiscoverCapable {
-    discover(opts: {
-        mediaType: 'movie' | 'tv';
-        genre?: string;
-        year?: number;
-        minRating?: number;
-    }): Promise<SearchHit[]>;
+    discover(
+        opts: {
+            mediaType: 'movie' | 'tv';
+            genre?: string;
+            year?: number;
+            minRating?: number;
+        },
+        window?: DiscoverWindow
+    ): Promise<Window<SearchHit>>;
 }
 
 /**

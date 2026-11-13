@@ -388,6 +388,24 @@ describe('get_queue', () => {
         expect(result.items.map(i => i.id)).toContain('25');
     });
 
+    it('pages the queue in an order that holds between two reads', async () => {
+        // Time left, the default order, moves while the walk is under way: each
+        // read here sees it shifted by one row. Only `added` keeps still.
+        let reads = 0;
+        const rows = Array.from({ length: 250 }, (_, i) => ({ id: i + 1, title: `Film.${i + 1}-GROUP`, status: 'downloading' }));
+        const impl = (async (input: string) => {
+            const url = new URL(input);
+            const size = Number(url.searchParams.get('pageSize'));
+            const start = (Number(url.searchParams.get('page')) - 1) * size;
+            const shift = url.searchParams.get('sortKey') === 'added' && url.searchParams.get('sortDirection') === 'ascending' ? 0 : reads;
+            reads += 1;
+            const order = [...rows.slice(shift), ...rows.slice(0, shift)];
+            return jsonResponse({ totalRecords: rows.length, records: order.slice(start, start + size) });
+        }) as unknown as typeof fetch;
+        const queue = await new RadarrAdapter(keyed(7878), impl).getQueue();
+        expect(queue.map(i => Number(i.id))).toEqual(rows.map(r => r.id));
+    });
+
     it('normalises Radarr sizes, which arrive as bytes', async () => {
         const result = await buildGetQueue([radarr()], opts);
         expect(result.items[0]).toMatchObject({

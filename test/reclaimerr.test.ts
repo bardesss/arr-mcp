@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ReclaimerrAdapter } from '../src/services/reclaimerr.ts';
+import { cleanupLine } from '../src/tools/stackHealth.ts';
 
 const config = { url: 'http://reclaimerr:8000', api_key: 'rcl_x_y', timeout_ms: 5000, permissions: { safe_write: false, destructive: false } };
 const fixture = <T = unknown>(name: string): T =>
@@ -141,6 +142,21 @@ describe('ReclaimerrAdapter cleanup overview', () => {
         const overview = await adapter.readCleanupOverview(2);
         expect(overview.candidates?.items).toHaveLength(2);
         expect(overview.going).toEqual({ count: 5, firstAt: '2026-12-01T00:00:00.000Z' });
+    });
+
+    it('says when the candidates run past the pages it reads', async () => {
+        const [base] = fixture<Page>('candidates').items;
+        const page = (u: URL) => {
+            const n = Number(u.searchParams.get('page'));
+            const items = Array.from({ length: 200 }, (_, i) => ({ ...base, id: (n - 1) * 200 + i + 1, auto_delete_state: 'scheduled' }));
+            return { items, total: 6000, page: n, per_page: 200, total_pages: 30 };
+        };
+        const adapter = new ReclaimerrAdapter(config, stub(routes({ '/api/v1': readOnly, '/api/v1/candidates': page })));
+        const overview = await adapter.readCleanupOverview(10);
+        expect(overview.candidates?.total).toBe(6000);
+        expect(overview.capped).toBe(true);
+        expect(overview.going?.count).toBe(5000);
+        expect(cleanupLine(overview)).toMatch(/6000 cleanup candidate\(s\), at least 5000 set to go/);
     });
 
     it('reads the candidates once for the checks and the overview of one get_stack_health', async () => {
