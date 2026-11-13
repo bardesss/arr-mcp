@@ -50,17 +50,14 @@ export function retriedImportStepFor(row: QueueItem, fallback?: string): NextSte
         : { ...step, why: `${importer} keeps failing to import it by itself; the preview shows what it finds and why each file is refused.` };
 }
 
-/** The importers whose import_download takes a `mapping`. Lidarr's does not. */
-const MAPPERS: readonly string[] = ['radarr', 'sonarr'];
-
-/** An orphaned row whose importer takes a `mapping`: the only way it learns where the files go. */
-export const needsMapping = (row: QueueItem): boolean => row.orphaned === true && MAPPERS.includes(instanceArgs(row.service).service);
+/** An orphaned row on an importer, all of which take a `mapping`: the only way it learns where the files go. */
+export const needsMapping = (row: QueueItem): boolean => row.orphaned === true && IMPORTERS.includes(instanceArgs(row.service).service);
 
 /**
  * The import to offer for an orphaned row: one the *arr matched to nothing in
- * its library. That is a deleted film or series, or a release it never
+ * its library. That is a deleted film, series or album, or a release it never
  * matched at all, and only a `mapping` naming what each file is can tell its
- * importer where the second kind goes. None where the importer takes no mapping.
+ * importer where the second kind goes. None where nothing can import it.
  */
 export function orphanImportStepFor(row: QueueItem): NextStep | undefined {
     if (!needsMapping(row)) return undefined;

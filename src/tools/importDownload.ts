@@ -96,6 +96,7 @@ type MappingInput = {
     series_id?: string | undefined;
     season?: number | undefined;
     episodes?: number[] | undefined;
+    album_id?: string | undefined;
 };
 
 type Reassignment = { path: string; season: number; episode: number };
@@ -117,7 +118,8 @@ const toImportMapping = (mapping: MappingInput[] | undefined): ImportMapping[] |
         ...(m.movie_id === undefined ? {} : { movieId: Number(m.movie_id) }),
         ...(m.series_id === undefined ? {} : { seriesId: Number(m.series_id) }),
         ...(m.season === undefined ? {} : { season: m.season }),
-        ...(m.episodes === undefined ? {} : { episodes: m.episodes })
+        ...(m.episodes === undefined ? {} : { episodes: m.episodes }),
+        ...(m.album_id === undefined ? {} : { albumId: Number(m.album_id) })
     }));
 
 /**
@@ -453,7 +455,8 @@ const mappingField = z
                 .array(z.number().int().min(1))
                 .min(1)
                 .optional()
-                .describe('[[sonarr: Sonarr: the episode numbers in this file, more than one for a multi-episode file.]]')
+                .describe('[[sonarr: Sonarr: the episode numbers in this file, more than one for a multi-episode file.]]'),
+            album_id: IdSchema.optional().describe('[[lidarr: Lidarr: the album, an `albums` id on get_media_details.]]')
         })
     )
     .min(1)
@@ -491,7 +494,7 @@ const ImportDownloadInput = z.object({
         'Include every file the change touches: a file moved onto an episode that already has one must say where that one goes too, or the call is refused.'
     ),
     mapping: mappingField.describe(
-        "What each file really is. The service judges each mapped file again and imports it only if it then accepts it; unmapped files keep its own match."
+        "What each file is. The service judges each mapped file again and imports it only if it accepts it; unmapped files keep its own match."
     )
 });
 
@@ -500,7 +503,7 @@ export function registerImportDownload(server: McpServer, context: WriteContext,
         name: 'import_download',
         title: 'Import a finished download',
         description:
-            'Gets a finished download into the library when the *arr never took it: one stuck at `importBlocked` in get_queue, by its `download_id`; `mapping` fixes a wrong match[[lidarr:  (not on Lidarr)]]. Previews the files it will import and skip, and never forces one the service refuses. [[nzbget: `postprocess` first reruns NZBGet\'s post-processing, for a download a broken script left unimportable.]] [[sonarr: `remap` says which episode an imported file really is.]] [[grimmory: On Grimmory, `id` is a Bookdrop file from get_queue.]] Rescan or rename: trigger_scan. An import queues and returns (get_stack_health `commands`). Previews first; confirm to run. Field reference: arr://docs/import_download.',
+            'Gets a finished download into the library when the *arr never took it: one stuck at `importBlocked` in get_queue, by its `download_id`; `mapping` fixes a wrong match. Previews the files it will import and skip, and never forces one the service refuses. [[nzbget: `postprocess` first reruns NZBGet\'s post-processing, for a download a broken script left unimportable.]] [[sonarr: `remap` says which episode an imported file really is.]] [[grimmory: On Grimmory, `id` is a Bookdrop file from get_queue.]] Rescan or rename: trigger_scan. An import queues and returns (get_stack_health `commands`). Previews first; confirm to run. Field reference: arr://docs/import_download.',
         inputSchema: ImportDownloadInput,
         // Resolved from the arguments, so the permission checked, the audit row
         // written and the token issued all name the same instance.

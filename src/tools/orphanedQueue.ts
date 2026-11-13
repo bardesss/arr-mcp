@@ -53,7 +53,7 @@ export async function planOrphaned<B extends Record<string, unknown>>(adapter: O
         return imported === undefined ? [remove] : [imported, remove];
     });
     const rescue =
-        adapter.type === 'radarr' || adapter.type === 'sonarr'
+        adapter.type !== 'whisparr'
         ? 'Import one with import_download and a `mapping`, or remove it by `id`.'
         : `Import one by hand in ${adapter.id}, or remove it by \`id\`.`;
     return {
