@@ -125,7 +125,7 @@ function harness(
     opts: {
         destructive?: boolean;
         version?: string;
-        addFails?: boolean;
+        addFails?: boolean | string;
         syncFails?: boolean;
         profiles?: unknown[];
         tool?: 'manage_indexer' | 'delete_indexer';
@@ -147,7 +147,7 @@ function harness(
             }
             if (method === 'POST' && url.pathname === '/api/v1/indexer') {
                 return opts.addFails
-                    ? jsonResponse([{ errorMessage: 'Unable to connect' }], 400)
+                    ? jsonResponse([{ errorMessage: typeof opts.addFails === 'string' ? opts.addFails : 'Unable to connect' }], 400)
                     : jsonResponse({ id: 99 });
             }
             return new Response('', { status: 202 });
@@ -517,6 +517,13 @@ describe('manage_indexer add', () => {
         const h = harness({ addFails: true });
         await expect(h.confirmed({ action: 'add', definition: 'eztv' })).rejects.toThrow(
             /Prowlarr refused to add eztv/
+        );
+    });
+
+    it('carries the reason Prowlarr gave when the refusal is not the site test', async () => {
+        const h = harness({ addFails: 'Should not be empty' });
+        await expect(h.confirmed({ action: 'add', definition: 'eztv' })).rejects.toThrow(
+            /Prowlarr refused to add eztv: .*Should not be empty.*Nothing was added\. A failed site test/
         );
     });
 

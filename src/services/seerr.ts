@@ -911,6 +911,11 @@ export class SeerrAdapter
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {
-        return diagnoseConnection(this.id, this.type, () => this.getVersion());
+        return diagnoseConnection(this.id, this.type, async () => {
+            const version = await this.getVersion();
+            // `/status` is public, so a wrong key passes it.
+            await this.#http.get<unknown>('/api/v1/auth/me');
+            return version;
+        });
     }
 }

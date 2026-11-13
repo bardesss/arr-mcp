@@ -115,10 +115,19 @@ describe('PlexAdapter', () => {
     });
 
     it('returns a passing diagnosis with the reported version when the server answers', async () => {
-        const { adapter } = plex({ '/identity': IDENTITY });
+        const { adapter } = plex({ '/identity': IDENTITY, '/library/sections': CAPTURED_SECTIONS });
         const d = await adapter.testConnection();
         expect(d.ok).toBe(true);
         expect(d.version).toBe('1.43.3.10896-cb3ebc72d');
+    });
+
+    // `/identity` needs no token, so it alone passed a wrong one.
+    it('fails the connection test when the token is refused past /identity', async () => {
+        const impl = (async (input: string) =>
+            new URL(String(input)).pathname === '/identity' ? jsonResponse(IDENTITY) : jsonResponse({}, 401)) as unknown as typeof fetch;
+        const d = await new PlexAdapter(config(), impl).testConnection();
+        expect(d.ok).toBe(false);
+        expect(d.error?.kind).toBe('AuthFailed');
     });
 
     describe('playback', () => {
@@ -862,6 +871,26 @@ describe('PlexAdapter', () => {
         it('throws when every library refuses, since then nothing is scanning', async () => {
             const { adapter } = probe(three, ['1', '2', '5']);
             await expect(adapter.startLibraryScan()).rejects.toThrow(/any of its 3 libraries/);
+        });
+
+        it('keeps the cause when every refresh fails the same way', async () => {
+            const impl = (async (input: string) =>
+                new URL(String(input)).pathname === '/library/sections'
+                    ? jsonResponse(three)
+                    : jsonResponse({}, 401)) as unknown as typeof fetch;
+            await expect(new PlexAdapter(config(), impl).startLibraryScan()).rejects.toMatchObject({
+                kind: 'AuthFailed',
+                message: expect.not.stringMatching(/refused to scan/) as unknown
+            });
+        });
+
+        it('keeps the fixed text when the refresh failures differ', async () => {
+            const impl = (async (input: string) => {
+                const path = new URL(String(input)).pathname;
+                if (path === '/library/sections') return jsonResponse(three);
+                return path.includes('/1/') ? jsonResponse({}, 401) : new Response('<html>404</html>', { status: 404 });
+            }) as unknown as typeof fetch;
+            await expect(new PlexAdapter(config(), impl).startLibraryScan()).rejects.toThrow(/any of its 3 libraries/);
         });
 
         it('throws when the server lists no sections at all', async () => {

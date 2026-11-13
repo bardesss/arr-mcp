@@ -631,6 +631,31 @@ describe('ServiceHttp circuit breaker', () => {
         expect(calls).toBe(6);
     });
 
+    it.each([400, 401, 403, 409, 422])('does not count a %i towards it: the service answered', async status => {
+        let calls = 0;
+        const client = http(async () => {
+            calls += 1;
+            return json([{ errorMessage: 'refused' }], status);
+        });
+
+        for (let i = 0; i < 6; i += 1) {
+            await expect(client.post('/x', {})).rejects.toThrow(new RegExp(`HTTP ${status}`));
+        }
+        expect(calls).toBe(6);
+    });
+
+    it.each([408, 429, 500])('still counts a %i towards it', async status => {
+        let calls = 0;
+        const client = http(async () => {
+            calls += 1;
+            return json({}, status);
+        });
+
+        for (let i = 0; i < 5; i += 1) await expect(client.post('/x', {})).rejects.toThrow();
+        await expect(client.post('/x', {})).rejects.toThrow(/circuit/i);
+        expect(calls).toBe(5);
+    });
+
     it('admits only one trial while half-open, refusing the rest until it answers', async () => {
         vi.useFakeTimers();
         try {
