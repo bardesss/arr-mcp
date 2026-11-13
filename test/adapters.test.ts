@@ -1062,7 +1062,8 @@ describe('TransmissionAdapter', () => {
         await a.readSpeedLimit();
         await a.setSpeedLimit(100);
         await a.readSpeedLimit();
-        expect(reads).toBe(2);
+        // The read before, the write's own fresh read for turtle mode, and the read after.
+        expect(reads).toBe(3);
     });
 
     it('posts a session-get RPC call rather than issuing a GET', async () => {

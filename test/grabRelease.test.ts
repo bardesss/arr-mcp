@@ -362,6 +362,7 @@ describe('grab_release with a magnet', () => {
         // Not "Applied. Add torrent": nothing was added.
         expect(second.content[0]?.text).toMatch(/^Nothing added: transmission already has torrent c12fe1c0/);
         expect(second.structuredContent.summary).toMatch(/^Nothing added/);
+        expect(second.structuredContent).toMatchObject({ applied: false, noop: true });
     });
 
     it('sends the link as a form field on qBittorrent', async () => {

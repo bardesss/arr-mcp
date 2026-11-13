@@ -5,6 +5,7 @@ import { SHORT_READ_TTL_MS, cached } from '../core/cache.ts';
 import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
 import { hostPort } from '../core/hostPort.ts';
+import { logger } from '../core/logger.ts';
 import type { TorrentFacts } from '../core/cleanuparrRules.ts';
 import { ServiceHttp } from '../core/http.ts';
 import {
@@ -180,7 +181,8 @@ function torrentOf(t: RawTorrent & { hash: string }): { torrent: TorrentFacts } 
         torrent: {
             hash: t.hash.toLowerCase(),
             category: t.category ?? '',
-            tags: tagsOf(t),
+            // The pause mark is this server's bookkeeping; the status already says stopped.
+            tags: tagsOf(t).filter(tag => tag !== PAUSE_MARK),
             trackerDomains,
             ...(t.save_path ? { savePath: t.save_path } : {}),
             ...(typeof t.private === 'boolean' ? { private: t.private } : {}),
@@ -363,12 +365,19 @@ export class QbittorrentAdapter
         }
 
         const torrents = await this.#tagged();
-        const running = torrents.filter(t => !PAUSED_STATES.has(t.state ?? '')).length;
-        const marked = torrents.filter(isMarked).length;
+        const runningIds = torrents.filter(t => !PAUSED_STATES.has(t.state ?? '')).map(t => t.hash.toLowerCase());
+        const markedIds = torrents.filter(isMarked).map(t => t.hash.toLowerCase());
         return {
-            paused: marked > 0,
+            paused: markedIds.length > 0,
             scope: torrents.length === 1 ? '1 torrent' : `${torrents.length} torrents`,
-            torrents: { running, stopped: torrents.length - running, marked, mark: `tag ${PAUSE_MARK}` }
+            torrents: {
+                running: runningIds.length,
+                stopped: torrents.length - runningIds.length,
+                marked: markedIds.length,
+                mark: `tag ${PAUSE_MARK}`,
+                runningIds,
+                markedIds
+            }
         };
     }
 
@@ -379,7 +388,10 @@ export class QbittorrentAdapter
             const hash = this.#hash(id);
             await this.#verb(paused, hash);
             // Started by hand, so a later whole-client resume has nothing to do for it.
-            if (!paused && isMarked(torrent)) await this.#tag(false, hash);
+            if (!paused && isMarked(torrent)) {
+                await this.#tag(false, hash);
+                await this.#dropEmptyTag();
+            }
             return;
         }
 
@@ -399,6 +411,24 @@ export class QbittorrentAdapter
         if (held.length === 0) return;
         await this.#verb(false, held.join('|'));
         await this.#tag(false, held.join('|'));
+        await this.#dropEmptyTag();
+    }
+
+    /**
+     * `removeTags` leaves the tag itself in qBittorrent's tag list, where the
+     * user sees it in the sidebar. Deleted only once no torrent carries it:
+     * a pause running alongside may have tagged one since. Best effort, since
+     * the resume it follows has already happened.
+     */
+    async #dropEmptyTag(): Promise<void> {
+        try {
+            // Rows filtered here too: a qBittorrent older than the `tag` filter ignores it.
+            const still = await this.#http.get<RawTorrent[]>(`${API}/torrents/info?tag=${encodeURIComponent(PAUSE_MARK)}`);
+            if (Array.isArray(still) && still.some(isMarked)) return;
+            await this.#http.postForm(`${API}/torrents/deleteTags`, { tags: PAUSE_MARK }, true);
+        } catch (err) {
+            logger.warn({ service: this.id, err }, `could not delete the empty ${PAUSE_MARK} tag`);
+        }
     }
 
     /**
