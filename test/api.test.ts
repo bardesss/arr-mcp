@@ -285,6 +285,7 @@ describe('GET /settings and /token', () => {
     it('reads the MCP endpoint settings', async () => {
         expect(await (await api('/settings/mcp')).json()).toEqual({
             allowedHosts: [],
+            trustedProxies: [],
             allowTokenInUrl: false,
             oauthConfigured: false
         });

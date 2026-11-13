@@ -1,10 +1,11 @@
 import { SignJWT, createLocalJWKSet, exportJWK, generateKeyPair } from 'jose';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { buildApp, instructionsFor } from '../src/app.ts';
 import { ConfigSchema, ServiceIdSchema, type Config, type ServiceId } from '../src/config/schema.ts';
 import { WriteAudit } from '../src/core/audit.ts';
 import { attachLogStore, detachLogStore } from '../src/core/logger.ts';
 import { LogStore } from '../src/core/logs.ts';
+import { LogLimiter } from '../src/core/logLimiter.ts';
 import { Runtime } from '../src/core/runtime.ts';
 import { hashPassword } from '../src/core/session.ts';
 import { LidarrAdapter } from '../src/services/lidarr.ts';
@@ -1691,6 +1692,75 @@ describe('what a refused /mcp request records', () => {
         const fields = await rejection('/mcp', { 'X-Forwarded-For': '10.0.0.9, 10.0.0.1' });
         expect(fields.forwardedFor).toBe('10.0.0.9');
         expect(fields.ip).not.toBe('10.0.0.9');
+    });
+
+    // Anyone who reaches the port can cause this line, and each one lands in
+    // the ring the config UI reads, pushing real lines out.
+    it('logs one line per peer per minute, however many requests it refuses', async () => {
+        const logs = LogStore.ephemeral();
+        attachLogStore(logs);
+        try {
+            const app = buildApp({
+                runtime: Runtime.fromConfig(config, audit(), { adapters: [] }),
+                audit: audit(),
+                logs
+            });
+            for (let i = 0; i < 20; i++) {
+                expect((await app.request('http://localhost:6060/mcp', rpc(toolsList))).status).toBe(401);
+            }
+            expect(logs.recent().filter(r => r.msg === 'rejected unauthenticated MCP request')).toHaveLength(1);
+        } finally {
+            detachLogStore();
+            logs.close();
+        }
+    });
+});
+
+// The SDK's own warning went to stderr as plain text, the one non-JSON line in
+// `docker logs`, and named an option this app does not use.
+describe('the startup line about Host names', () => {
+    const build = (allowed_hosts: string[]) => {
+        const logs = LogStore.ephemeral();
+        attachLogStore(logs);
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        try {
+            buildApp({
+                runtime: Runtime.fromConfig({ ...config, auth: { ...config.auth, allowed_hosts } }, audit(), { adapters: [] }),
+                audit: audit(),
+                logs
+            });
+            return { warned: warn.mock.calls.length, lines: logs.recent().map(r => r.msg) };
+        } finally {
+            warn.mockRestore();
+            detachLogStore();
+            logs.close();
+        }
+    };
+
+    it('goes through the logger and names auth.allowed_hosts', () => {
+        const { warned, lines } = build([]);
+        expect(warned).toBe(0);
+        expect(lines.some(l => l.includes('auth.allowed_hosts'))).toBe(true);
+    });
+
+    it('is not written once hosts are pinned', () => {
+        const { warned, lines } = build(['arr.example.com']);
+        expect(warned).toBe(0);
+        expect(lines.some(l => l.includes('auth.allowed_hosts'))).toBe(false);
+    });
+});
+
+describe('LogLimiter', () => {
+    it('lets the first line through, drops the rest of the window, then reports the count', () => {
+        let now = 0;
+        const limiter = new LogLimiter(60_000, () => now);
+        expect(limiter.admit('a')).toBe(0);
+        expect(limiter.admit('a')).toBeUndefined();
+        expect(limiter.admit('a')).toBeUndefined();
+        expect(limiter.admit('b')).toBe(0);
+        now = 60_000;
+        expect(limiter.admit('a')).toBe(2);
+        expect(limiter.admit('a')).toBeUndefined();
     });
 });
 

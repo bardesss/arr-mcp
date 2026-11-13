@@ -5,7 +5,8 @@ import type { AnyServiceConfig, ServiceId } from '../src/config/schema.ts';
 import { BEARER_CALLER, WriteAudit } from '../src/core/audit.ts';
 import { ConfirmTokens } from '../src/core/confirm.ts';
 import { ServiceError } from '../src/core/errors.ts';
-import { permissionSourceFrom } from '../src/core/permissions.ts';
+import { permissionSourceFrom, type WriteTier } from '../src/core/permissions.ts';
+import { cappedTo } from '../src/mcp/scopes.ts';
 import type { LibraryLoader } from '../src/tools/library.ts';
 import type { CrossChecker, CrossCheckProfile } from '../src/tools/crossChecks.ts';
 import { rawTarget, registerWriteTool, type WritePlan, type WriteToolResult } from '../src/tools/write.ts';
@@ -65,6 +66,8 @@ function buildHarness(
         caller?: string;
         crossChecks?: CrossChecker;
         crossCheck?: CrossCheckProfile;
+        /** The tiers the presenting credential allows, as `/mcp` caps them. */
+        ceiling?: WriteTier[];
     } = {}
 ) {
     const audit = WriteAudit.ephemeral();
@@ -78,7 +81,12 @@ function buildHarness(
     registerWriteTool(
         server,
         {
-            permissions: permissionSourceFrom(instancesOf(opts.permissions ?? { radarr: service(false, true) })),
+            permissions: (() => {
+                const source = permissionSourceFrom(instancesOf(opts.permissions ?? { radarr: service(false, true) }));
+                return opts.ceiling === undefined
+                    ? source
+                    : cappedTo(source, new Set(opts.ceiling), () => ({ reason: 'this token is read-only', remedy: 'Use a write token.' }));
+            })(),
             confirm,
             audit,
             library: { invalidate } as unknown as LibraryLoader,
@@ -413,6 +421,60 @@ describe('write tool harness — the audit trail', () => {
         expect(routing.plan).not.toHaveBeenCalled();
         const rows = routing.audit.recent() as { outcome: string; target: string }[];
         expect(rows[0]).toMatchObject({ outcome: 'denied', target: '5' });
+    });
+
+    // A read token can never apply these, so a row per call would only let it
+    // grow the permanent audit table as fast as it can ask.
+    it('records nothing for a dry run the token could never apply', async () => {
+        const readOnly = buildHarness({ ceiling: [] });
+        const { structuredContent } = await readOnly.call('delete_media', { id: '5', dry_run: true });
+        expect(structuredContent.permission.allowed).toBe(false);
+        expect(structuredContent.audit_id).toBeUndefined();
+        expect(readOnly.audit.recent()).toHaveLength(0);
+    });
+
+    it('records nothing for a no-op the token could never apply', async () => {
+        const readOnly = buildHarness({ ceiling: [], plan: { ...PLAN, noop: true } });
+        await readOnly.call('delete_media', { id: '5', dry_run: true });
+        expect(readOnly.audit.recent()).toHaveLength(0);
+    });
+
+    it('records nothing for a dry run above the token that names an instance nobody configured', async () => {
+        const audit = WriteAudit.ephemeral();
+        const { server, call } = fakeServer();
+        const permissions = cappedTo(permissionSourceFrom([]), new Set(), () => ({ reason: 'read-only', remedy: 'r' }));
+        registerWriteTool(
+            server,
+            { permissions, confirm: new ConfirmTokens(), audit, library: { invalidate: vi.fn() } as unknown as LibraryLoader },
+            {
+                name: 'grab_release',
+                title: 'Grab',
+                description: 'Grabs.',
+                inputSchema: z.object({ service: z.literal('radarr'), instance: z.string().optional() }),
+                target: {
+                    adapters: [],
+                    to: { services: ['radarr'], can: (a): a is never => a !== undefined, cannot: 'cannot grab' }
+                },
+                operation: 'grab',
+                tier: 'safe',
+                plan: () => Promise.resolve(PLAN),
+                apply: () => Promise.resolve({})
+            }
+        );
+        await expect(call('grab_release', { service: 'radarr', instance: 'nope', dry_run: true })).rejects.toThrow();
+        expect(audit.recent()).toHaveLength(0);
+    });
+
+    it('still records a live write the token refuses', async () => {
+        const readOnly = buildHarness({ ceiling: [] });
+        await expect(readOnly.call('delete_media', { id: '5' })).rejects.toThrow(/read-only/);
+        expect(outcomes(readOnly)).toEqual(['denied']);
+    });
+
+    it('still records a dry run when only the config refuses it', async () => {
+        const denied = buildHarness({ permissions: { radarr: service(false, false) } });
+        await denied.call('delete_media', { id: '5', dry_run: true });
+        expect(outcomes(denied)).toEqual(['dry_run']);
     });
 
     it('records the resolved target, not the argument the caller typed', async () => {

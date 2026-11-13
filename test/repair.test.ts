@@ -236,6 +236,86 @@ describe('repair server with an unreadable auth block', () => {
 
 const PASSWORD = 'test-password-1234';
 
+/** Invalid (plex is named but not configured), and holding no credential, so it can be claimed. */
+const UNCLAIMED_RAW = 'auth:\n  username: admin\n  allowed_hosts: []\nservices: {}\nprimary_media_server: plex\n';
+
+// Claiming lands on the editor, which renders the file verbatim, so an
+// unclaimed instance whose file already holds keys would hand them to
+// whoever reached the port first.
+describe('repair server, unclaimed with credentials in the file', () => {
+    const API_KEY = 'radarr-api-key-0123456789abcdef';
+    const WITH_KEY = `auth:\n  username: admin\nservices:\n  radarr:\n    url: http://radarr:7878\n    api_key: ${API_KEY}\nbogus: 1\n`;
+
+    const appFor = async (raw: string) => {
+        const verdict = validateConfigText(raw);
+        if (verdict.ok) throw new Error('fixture must be invalid');
+        const dir = await seedDir(raw);
+        const app = buildRepairApp({
+            configDir: dir,
+            sessions: new Sessions(),
+            version: '1.2.3',
+            failure: new ConfigInvalidError(verdict.detail, raw, verdict.auth),
+            onPromote: async () => ({ ok: true })
+        });
+        return { app, dir };
+    };
+
+    const claim = (app: Awaited<ReturnType<typeof appFor>>['app']) =>
+        get(app, '/ui/setup', {
+            method: 'POST',
+            headers: { 'content-type': 'application/x-www-form-urlencoded', origin: 'http://localhost:6060' },
+            body: new URLSearchParams({ username: 'admin', password: PASSWORD, confirm: PASSWORD }).toString()
+        });
+
+    it('does not offer the setup form', async () => {
+        const { app } = await appFor(WITH_KEY);
+        const res = await get(app, '/ui/setup');
+        expect(res.status).toBe(503);
+        const page = await res.text();
+        expect(page).not.toContain('<form');
+        expect(page).toContain('restart');
+        expect(page).not.toContain(API_KEY);
+    });
+
+    it('refuses a same-origin claim, writes nothing, and never shows the key', async () => {
+        const { app, dir } = await appFor(WITH_KEY);
+        const res = await claim(app);
+        expect(res.status).toBe(503);
+        expect(res.headers.get('set-cookie')).toBeNull();
+        expect(await readFile(join(dir, 'config.yaml'), 'utf8')).toBe(WITH_KEY);
+
+        const repair = await get(app, '/ui/repair');
+        expect(repair.status).toBe(302);
+        expect(await repair.text()).not.toContain(API_KEY);
+    });
+
+    it.each([
+        ['an MCP token', `auth:\n  tokens:\n    - name: a\n      tier: read\n      hash: sha256:${'0'.repeat(64)}\nbogus: 1\n`],
+        ['a management key', `auth:\n  management_keys:\n    - name: a\n      tier: admin\n      hash: sha256:${'0'.repeat(64)}\n      created: 2026-01-01\nbogus: 1\n`],
+        ['the webhook secret', `webhooks:\n  enabled: true\n  secret: ${'s'.repeat(32)}\nbogus: 1\n`]
+    ])('counts %s as a credential', async (_label, raw) => {
+        const { app } = await appFor(raw);
+        const res = await get(app, '/ui/setup');
+        expect(res.status).toBe(503);
+        expect(await res.text()).toContain('holds API keys or tokens');
+    });
+
+    it('refuses a claim when a service was added to the file after startup', async () => {
+        const { app, dir } = await appFor(UNCLAIMED_RAW);
+        await writeFile(join(dir, 'config.yaml'), WITH_KEY, 'utf8');
+        const res = await claim(app);
+        expect(res.status).toBe(503);
+        expect(await readFile(join(dir, 'config.yaml'), 'utf8')).not.toContain('password_hash');
+    });
+
+    it('still offers setup for an invalid file with no credentials', async () => {
+        const { app } = await appFor(UNCLAIMED_RAW);
+        const res = await get(app, '/ui/setup');
+        expect(res.status).toBe(200);
+        expect(await res.text()).toContain('<form');
+    });
+});
+
 describe('repair server sign-in', () => {
     const claimed = async () =>
         repairApp({ auth: { ...AUTH_OK, password_hash: await hashPassword(PASSWORD) } });
@@ -297,7 +377,7 @@ describe('repair server sign-in', () => {
     it('claims an unclaimed instance and lands on the editor', async () => {
         const app = await repairApp({
             auth: AUTH_OK,
-            raw: `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  allowed_hosts: []\nservices:\n  radarr:\n    url: bad\n`
+            raw: UNCLAIMED_RAW
         });
         const res = await get(app, '/ui/setup', {
             method: 'POST',
@@ -352,7 +432,7 @@ describe('repair server sign-in', () => {
     });
 
     it('lets only one of two concurrent claims win', async () => {
-        const raw = `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  allowed_hosts: []\nservices:\n  radarr:\n    url: bad\n`;
+        const raw = UNCLAIMED_RAW;
         const dir = await seedDir(raw);
         const app = buildRepairApp({
             configDir: dir,
@@ -384,7 +464,7 @@ describe('repair server sign-in', () => {
     // made directly to config.yaml while the server was up — the failure this
     // server exists to survive is exactly the kind an editor fixes in place.
     it('keeps an operator\'s on-disk edit when claiming, rather than reverting to the startup snapshot', async () => {
-        const staleRaw = `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  allowed_hosts: []\nservices:\n  radarr:\n    url: bad\n`;
+        const staleRaw = UNCLAIMED_RAW;
         const dir = await seedDir(staleRaw);
         const app = buildRepairApp({
             configDir: dir,
@@ -395,7 +475,7 @@ describe('repair server sign-in', () => {
         });
 
         // The operator fixes the file directly while the server is still up.
-        const fixedRaw = `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  allowed_hosts: []\nservices:\n  radarr:\n    url: http://radarr.example.com\n`;
+        const fixedRaw = `${UNCLAIMED_RAW}# fixed by hand\n`;
         await writeFile(join(dir, 'config.yaml'), fixedRaw, 'utf8');
 
         const res = await get(app, '/ui/setup', {
@@ -407,7 +487,7 @@ describe('repair server sign-in', () => {
         expect(res.headers.get('location')).toBe('/ui/repair');
 
         const onDisk = await readFile(join(dir, 'config.yaml'), 'utf8');
-        expect(onDisk).toContain('http://radarr.example.com');
+        expect(onDisk).toContain('# fixed by hand');
         expect(onDisk).toContain('password_hash');
     });
 
@@ -415,7 +495,7 @@ describe('repair server sign-in', () => {
     // stale tab — or anyone who reaches the port — replaces a credential the
     // operator hand-added to the file.
     it('refuses a claim when config.yaml gained a password_hash after boot', async () => {
-        const staleRaw = `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  allowed_hosts: []\nservices:\n  radarr:\n    url: bad\n`;
+        const staleRaw = UNCLAIMED_RAW;
         const dir = await seedDir(staleRaw);
         const app = buildRepairApp({
             configDir: dir,
@@ -464,7 +544,7 @@ describe('repair server sign-in', () => {
     // bounced the operator between setup and login forever — `unclaimed()`
     // stayed true and each page sent them back to the other.
     it('says so when config.yaml gained a password_hash it cannot read', async () => {
-        const staleRaw = `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  allowed_hosts: []\nservices:\n  radarr:\n    url: bad\n`;
+        const staleRaw = UNCLAIMED_RAW;
         const dir = await seedDir(staleRaw);
         const app = buildRepairApp({
             configDir: dir,
@@ -498,7 +578,7 @@ describe('repair server sign-in', () => {
     // the case setIn cannot walk, distinct from the write-failure case the
     // catch is deliberately not scoped to cover.
     it('refuses a claim when auth on disk is no longer a mapping setIn can walk', async () => {
-        const staleRaw = `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  allowed_hosts: []\nservices:\n  radarr:\n    url: bad\n`;
+        const staleRaw = UNCLAIMED_RAW;
         const dir = await seedDir(staleRaw);
         const app = buildRepairApp({
             configDir: dir,
@@ -508,7 +588,7 @@ describe('repair server sign-in', () => {
             onPromote: async () => ({ ok: true })
         });
 
-        await writeFile(join(dir, 'config.yaml'), 'auth: nope\nservices:\n  radarr:\n    url: bad\n', 'utf8');
+        await writeFile(join(dir, 'config.yaml'), 'auth: nope\nprimary_media_server: plex\n', 'utf8');
 
         const res = await get(app, '/ui/setup', {
             method: 'POST',

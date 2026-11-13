@@ -14,6 +14,7 @@ import { bodyLimit } from 'hono/body-limit';
 import type { OAuthConfig, ServiceId } from './config/schema.ts';
 import { NO_CLIENT_ID, OAUTH_CALLER_PREFIX, type WriteAudit } from './core/audit.ts';
 import { logger } from './core/logger.ts';
+import { LogLimiter } from './core/logLimiter.ts';
 import type { LogStore } from './core/logs.ts';
 import { bearerCaller, matchToken, tiersOf, type StoredToken } from './core/mcpTokens.ts';
 import type { Runtime } from './core/runtime.ts';
@@ -295,9 +296,16 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
     const events = opts.events ?? WebhookEvents.ephemeral();
 
     const handler = createMcpHandler(mcpServerFactory(runtime, events, httpCeiling));
+    // Per peer, for the refusals anyone who reaches the port can cause.
+    const rejections = new LogLimiter();
 
-    // We bind 0.0.0.0 because the container must be reachable across the LAN,
-    // which drops the SDK's default localhost Host/Origin validation.
+    // The listener binds every interface because the container must be
+    // reachable across the LAN, so the SDK's localhost Host/Origin validation
+    // is not wanted. `host` is read for nothing else: a loopback name installs
+    // that validation, and `0.0.0.0` or `::` prints a plain-text warning to
+    // stderr that bypasses pino and names an option this app does not use.
+    // Any other value gets neither; the startup line below says the same thing
+    // in terms of `auth.allowed_hosts`.
     //
     // `allowedHosts` is deliberately NOT passed to the adapter, even though it
     // accepts one. The adapter installs its middleware when the app is
@@ -308,7 +316,12 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
     //
     // Validating here instead means the list is read from the runtime on every
     // request, like the MCP tokens, and takes effect the moment it is saved.
-    const transport = createMcpHonoApp({ host: '0.0.0.0' });
+    const transport = createMcpHonoApp({ host: 'all-interfaces' });
+    if (runtime.config.auth.allowed_hosts.length === 0) {
+        logger.info(
+            'auth.allowed_hosts is empty, so any Host name is accepted. Pin the names you reach arr-mcp by to guard against DNS rebinding'
+        );
+    }
 
     /**
      * An outer app purely for ordering.
@@ -501,15 +514,20 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
                 // not match. Without it the two read identically in the log, and
                 // "a client reconnected" is indistinguishable from "a stale token
                 // is still trying".
-                logger.warn(
-                    {
-                        path: '/mcp',
-                        ...originOf(c),
-                        via: presented.via,
-                        ...(presented.via === 'none' ? { queryOffered: presented.queryOffered } : {})
-                    },
-                    'rejected unauthenticated MCP request'
-                );
+                const origin = originOf(c);
+                const dropped = rejections.admit(`unauthenticated:${origin.ip}`);
+                if (dropped !== undefined) {
+                    logger.warn(
+                        {
+                            path: '/mcp',
+                            ...origin,
+                            via: presented.via,
+                            ...(presented.via === 'none' ? { queryOffered: presented.queryOffered } : {}),
+                            ...(dropped === 0 ? {} : { suppressed: dropped })
+                        },
+                        'rejected unauthenticated MCP request'
+                    );
+                }
                 return c.json(
                     {
                         error: 'unauthorized',
@@ -543,7 +561,14 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
                         { 'Retry-After': '30' }
                     );
                 }
-                logger.warn({ path: '/mcp', ...originOf(c), via: presented.via }, 'rejected an access token');
+                const origin = originOf(c);
+                const dropped = rejections.admit(`access-token:${origin.ip}`);
+                if (dropped !== undefined) {
+                    logger.warn(
+                        { path: '/mcp', ...origin, via: presented.via, ...(dropped === 0 ? {} : { suppressed: dropped }) },
+                        'rejected an access token'
+                    );
+                }
                 return bearerAuthChallengeResponse(err, metadataOpt);
             }
 

@@ -23,6 +23,7 @@ const COVERAGE: Record<string, { api: string } | { pageOnly: string }> = {
     'auth.password_hash': { pageOnly: 'the config page login' },
     'auth.allow_token_in_url': { api: '/settings/mcp' },
     'auth.allowed_hosts': { api: '/settings/mcp' },
+    'auth.trusted_proxies': { api: '/settings/mcp' },
     'auth.oauth': { api: '/settings/mcp' },
     'auth.management_key': { pageOnly: 'single key from before named keys, normalised into management_keys on load' },
     'auth.management_keys': { pageOnly: 'a management key cannot manage management keys' },

@@ -1,5 +1,6 @@
 import * as z from 'zod/v4';
 import { HASH_PATTERN, hashToken } from '../core/secrets.ts';
+import { isAddressOrCidr } from '../core/trustedProxies.ts';
 
 export const ServiceIdSchema = z.enum([
     'radarr',
@@ -607,6 +608,14 @@ export const AuthSchema = z.strictObject({
      * running behind a reverse proxy.
      */
     allowed_hosts: z.array(z.string()).default([]),
+    /**
+     * Peers whose `X-Forwarded-For` is believed, as addresses or CIDR ranges.
+     * Absent means none: the sign-in throttle then counts every request
+     * against the address that connected, which behind a proxy is the proxy.
+     */
+    trusted_proxies: z
+        .array(z.string().trim().refine(isAddressOrCidr, { message: 'must be an IP address or a CIDR range such as 172.18.0.0/16' }))
+        .optional(),
     oauth: OAuthSchema.optional(),
     /** Pre-named-keys single key. Normalised into a `default` entry on parse. */
     management_key: LegacyManagementKeySchema.optional(),

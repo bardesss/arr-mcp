@@ -11,7 +11,10 @@ const CONFIG_FILENAME = 'config.yaml';
 export const configPath = (configDir: string): string => join(configDir, CONFIG_FILENAME);
 
 /** What repair mode reads of an `auth` block that did not fully validate. */
-export type SalvagedAuth = Omit<z.infer<typeof AuthSchema>, 'oauth' | 'tokens' | 'bearer_token' | 'management_key' | 'management_keys'>;
+export type SalvagedAuth = Omit<
+    z.infer<typeof AuthSchema>,
+    'oauth' | 'tokens' | 'bearer_token' | 'management_key' | 'management_keys' | 'trusted_proxies'
+>;
 
 /**
  * A config.yaml that was read but could not be understood, as opposed to one
@@ -126,14 +129,15 @@ export function validateConfigText(raw: string): ConfigTextResult {
     // management keys are dropped from the shape, because a plain `z.object`
     // ignores keys it has no field for: a mistake inside those blocks (a
     // typo in one token entry, say) no longer fails the salvage whole and
-    // costs the operator the repair editor. Repair mode reads only
+    // costs the operator the repair editor. `trusted_proxies` goes too: repair
+    // mode throttles on the socket peer alone. Repair mode reads only
     // `allowed_hosts`, `password_hash` and `username`, and writes credentials
     // back through a re-read YAML document rather than through this object.
     // ConfigSchema's own `auth` field stays strict, so a typo anywhere in it
     // is still a startup failure.
     const authOnly = z
         .object(AuthSchema.shape)
-        .omit({ oauth: true, tokens: true, bearer_token: true, management_key: true, management_keys: true })
+        .omit({ oauth: true, tokens: true, bearer_token: true, management_key: true, management_keys: true, trusted_proxies: true })
         .safeParse(obj.auth);
     return {
         ok: false,

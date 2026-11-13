@@ -2,11 +2,9 @@
  * Failure backoff for the config UI sign-in.
  *
  * Keyed by the socket peer, which cannot be forged, so one noisy client does
- * not lock out the rest. A request that says it was forwarded shares a single
- * bucket instead: behind a proxy the address in `x-forwarded-for` is
- * unverifiable, and rotating it would otherwise reset an attacker's counter or
- * let them lock the operator out by forging theirs. That shared bucket is the
- * old global behaviour.
+ * not lock out the rest. Behind a proxy every request shares the proxy's
+ * bucket, unless the proxy is listed in `auth.trusted_proxies`; see
+ * `throttleKey` in `web/routes.ts`.
  */
 
 /** Failures allowed before any delay. Generous: a mistyped password twice over
