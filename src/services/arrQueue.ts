@@ -182,14 +182,30 @@ type RawCalendarMovie = {
 };
 
 /**
- * A film has up to three dates, and the useful one is the earliest you could
- * actually watch it: digital, then physical, then cinema. A row with none of
- * the three is dropped: an undated calendar entry is noise.
+ * A film has up to three dates, and Radarr lists it when any one falls in the
+ * window. The date shown is the earliest of those inside the window, so a film
+ * in cinemas this week is not dated by a digital release months away. With
+ * none inside (no range given, or a build that matched differently) it is the
+ * first of digital, physical, cinema. A row with none of the three is
+ * dropped: an undated calendar entry is noise.
  */
-export function readRadarrCalendar(movies: RawCalendarMovie[], service: string): CalendarEntry[] {
+export function readRadarrCalendar(
+    movies: RawCalendarMovie[],
+    service: string,
+    range?: { start: Date; end: Date }
+): CalendarEntry[] {
+    const inside = (date: string | undefined): date is string => {
+        const t = Date.parse(date ?? '');
+        return range !== undefined && t >= range.start.getTime() && t <= range.end.getTime();
+    };
+    const dated = (m: RawCalendarMovie): string | undefined =>
+        [m.digitalRelease, m.physicalRelease, m.inCinemas].filter(inside).sort((a, b) => Date.parse(a) - Date.parse(b))[0] ??
+        m.digitalRelease ??
+        m.physicalRelease ??
+        m.inCinemas;
     return movies
         .filter((m): m is RawCalendarMovie & { id: number } => typeof m.id === 'number')
-        .map(m => ({ m, date: m.digitalRelease ?? m.physicalRelease ?? m.inCinemas }))
+        .map(m => ({ m, date: dated(m) }))
         .filter((row): row is { m: RawCalendarMovie & { id: number }; date: string } => typeof row.date === 'string')
         .map(({ m, date }) => ({
             service,

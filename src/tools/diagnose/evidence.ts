@@ -1,6 +1,7 @@
 import { DOWNLOAD_CLIENTS, type ServiceId } from '../../config/schema.ts';
 import { ServiceError } from '../../core/errors.ts';
 import { gather, type Gathered } from '../../core/gather.ts';
+import { instantOf } from '../../core/instant.ts';
 import { logger } from '../../core/logger.ts';
 import { deadline, TIMED_OUT, type Deadline } from '../../core/timeout.ts';
 import { rankTitle, RANK_NONE } from '../../core/titleMatch.ts';
@@ -609,7 +610,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
                 lastImportAt = (await readArrHistory())
                     .filter(r => r.event === 'imported')
                     .map(r => r.at)
-                    .sort()
+                    .sort((a, b) => instantOf(a) - instantOf(b))
                     .at(-1);
             }
         }

@@ -14,9 +14,10 @@ const config: KeyedServiceConfig = {
     permissions: { safe_write: false, destructive: false }
 };
 
-const serving = (movies: unknown, episodes: unknown = { data: [] }) =>
+const serving = (movies: unknown, episodes: unknown = { data: [] }, timezone: string | undefined = 'UTC') =>
     (async (input: string | URL | Request) => {
         const url = new URL(input instanceof Request ? input.url : String(input));
+        if (url.pathname === '/api/system/status') return jsonResponse({ data: { bazarr_version: '1.5.3', timezone } });
         return jsonResponse(url.pathname.startsWith('/api/movies') ? movies : episodes);
     }) as unknown as typeof fetch;
 
@@ -26,7 +27,21 @@ describe('bazarrTimestamp', () => {
     });
 
     it('reads the MM/DD/YY form Bazarr formats for its own UI', () => {
-        expect(bazarrTimestamp({ parsed_timestamp: '09/02/26 20:07:53' })).toBe('2026-09-02T20:07:53.000Z');
+        expect(bazarrTimestamp({ parsed_timestamp: '09/02/26 20:07:53' }, 'UTC')).toBe('2026-09-02T20:07:53.000Z');
+    });
+
+    /** `parsed_timestamp` is Bazarr's local time: 20:07 in Amsterdam in summer is 18:07 UTC. */
+    it('reads the local time in the zone Bazarr reports, across a DST change', () => {
+        expect(bazarrTimestamp({ parsed_timestamp: '09/02/26 20:07:53' }, 'Europe/Amsterdam')).toBe('2026-09-02T18:07:53.000Z');
+        expect(bazarrTimestamp({ parsed_timestamp: '11/12/26 12:20:49' }, 'Europe/Amsterdam')).toBe('2026-11-12T11:20:49.000Z');
+        // The night clocks go back (01:00 UTC): 01:30 local is still summer time,
+        // though 01:30 read as UTC is already past the change.
+        expect(bazarrTimestamp({ parsed_timestamp: '10/25/26 01:30:00' }, 'Europe/Amsterdam')).toBe('2026-10-24T23:30:00.000Z');
+    });
+
+    it('claims no zone when Bazarr names none, or one Intl does not know', () => {
+        expect(bazarrTimestamp({ parsed_timestamp: '09/02/26 20:07:53' })).toBe('2026-09-02T20:07:53');
+        expect(bazarrTimestamp({ parsed_timestamp: '09/02/26 20:07:53' }, 'Not/AZone')).toBe('2026-09-02T20:07:53');
     });
 
     /** "2 days ago" is what `timestamp` holds on the versions seen. Dating a
@@ -51,6 +66,11 @@ describe('Bazarr history', () => {
             }
         ]
     };
+
+    it('dates rows in the zone from the Bazarr status', async () => {
+        const rows = await new BazarrAdapter(config, serving(ROWS, undefined, 'Europe/Amsterdam')).readHistory({});
+        expect(rows[0]?.at).toBe('2026-09-02T18:07:53.000Z');
+    });
 
     it('reports a subtitle download as its own event, not as an import', async () => {
         const rows = await new BazarrAdapter(config, serving(ROWS)).readHistory({});

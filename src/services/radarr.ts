@@ -302,7 +302,7 @@ export class RadarrAdapter
 
     async getCalendar(range: { start: Date; end: Date }): Promise<CalendarEntry[]> {
         const movies = await this.http.get<Parameters<typeof readRadarrCalendar>[0]>(calendarPath(this.http.apiRoot, range));
-        return readRadarrCalendar(movies, this.id);
+        return readRadarrCalendar(movies, this.id, range);
     }
 
     async getMediaDetails(id: string): Promise<MediaDetails> {

@@ -4,7 +4,7 @@ import type { FilmOrSeries, MergedItem } from '../src/core/resolver.ts';
 import { NzbgetAdapter } from '../src/services/nzbget.ts';
 import { SabnzbdAdapter } from '../src/services/sabnzbd.ts';
 import type { HistoryEntry, QueueItem, SubtitleGap } from '../src/services/types.ts';
-import { buildChain as chain, queueRowsFor, releaseMentions, type Diagnosis, type Evidence } from '../src/tools/diagnose/chain.ts';
+import { buildChain as chain, queueRowsFor, releaseMentions, wholeRemoval, type Diagnosis, type Evidence } from '../src/tools/diagnose/chain.ts';
 import { servingModes } from './helpers/serve.ts';
 
 /**
@@ -3226,5 +3226,16 @@ describe('buildChain: indexer failures weighed against the indexers enabled', ()
     it('keeps a failure the verdict when the indexers could not be counted', () => {
         const d = buildChain('some film', healthy({ item: noFile, rejections: [fail('One')] }));
         expect(d.verdict.stage).toBe('indexers');
+    });
+});
+
+describe('wholeRemoval', () => {
+    const removal = { at: '2026-11-02T02:00:05.500Z', kind: 'movie' as const, scope: 'movie', title: 'x', operation: 'delete' as const, rules: [] };
+    const status = { service: 'reclaimerr', candidates: [], protections: [], removals: [removal] };
+
+    // As strings `05Z` sorts after `05.500Z`, which read the import as the later of the two.
+    it('compares times as instants, so an import half a second earlier does not hide the removal', () => {
+        expect(wholeRemoval(status, '2026-11-02T02:00:05Z')).toBe(removal);
+        expect(wholeRemoval(status, '2026-11-02T02:00:06Z')).toBeUndefined();
     });
 });
