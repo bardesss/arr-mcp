@@ -21,7 +21,7 @@ export function humanBytes(bytes: number | undefined): string {
 type Mount = { service: string; freeSpace: number; totalSpace?: number | undefined; label?: string; path?: string };
 
 /** `mounts` names each mount the group was seen at, `radarr /config`, or the service alone when it gave no name. */
-type DiskGroup = { freeSpace: number; totalSpace?: number | undefined; services: string[]; mounts: string[] };
+export type DiskGroup = { freeSpace: number; totalSpace?: number | undefined; services: string[]; mounts: string[] };
 
 /**
  * How far apart two reports of one filesystem may be and still be one disk.

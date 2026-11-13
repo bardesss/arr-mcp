@@ -368,6 +368,7 @@ describe('the advertised tool surface', () => {
         description?: string;
         inputSchema?: { properties?: Record<string, unknown> };
         annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean };
+        outputSchema?: { properties?: Record<string, unknown>; required?: string[] };
     };
 
     const listToolsOf = async (a: ReturnType<typeof appWith>): Promise<Advertised[]> => {
@@ -516,6 +517,25 @@ describe('the advertised tool surface', () => {
     it(`keeps all tool descriptions together under ${DESCRIPTIONS_TOTAL_CAP} characters`, async () => {
         const total = (await listTools()).reduce((n, t) => n + (t.description ?? '').length, 0);
         expect(total).toBeLessThanOrEqual(DESCRIPTIONS_TOTAL_CAP);
+    });
+
+    /**
+     * The whole of `tools/list`, schemas included: what every session pays
+     * before its first call. 113,867 bytes when this was set (130,045 before
+     * the write output schema and the shared parameter text were cut); raising
+     * it is a decision, as above.
+     */
+    const SURFACE_BYTES_CAP = 116_000;
+
+    it(`keeps the whole tool list under ${SURFACE_BYTES_CAP} bytes`, async () => {
+        expect(Buffer.byteLength(JSON.stringify(await listTools()))).toBeLessThanOrEqual(SURFACE_BYTES_CAP);
+    });
+
+    /** Sent with every write tool; the conditional fields arrive in `structuredContent` all the same. */
+    it('declares only the fields every write result carries', async () => {
+        const writes = (await listTools()).filter(t => t.annotations?.readOnlyHint === false);
+        expect(writes.length).toBeGreaterThan(20);
+        for (const t of writes) expect(Object.keys(t.outputSchema?.properties ?? {}).sort(), t.name).toEqual([...(t.outputSchema?.required ?? [])].sort());
     });
 
     it('never sends a description scope marker', async () => {
@@ -1977,7 +1997,7 @@ describe('OAuth tokens at /mcp', () => {
     // get_stack_health's permissions list is what a model plans from, so it has
     // to show the same ceiling the gate enforces.
     it('reports permissions capped to the token in get_stack_health', async () => {
-        const stackHealth = { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'get_stack_health', arguments: {} } };
+        const stackHealth = { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'get_stack_health', arguments: { detail: 'full' } } };
         const permissionsFor = async (bearer: string) => {
             const res = await oauthApp(permissiveRadarr(), [deletableRadarr()]).request(
                 'http://localhost:6060/mcp',
@@ -2103,7 +2123,7 @@ describe('named tokens at /mcp', () => {
         return { app, trail };
     };
 
-    const stackHealth = { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'get_stack_health', arguments: {} } };
+    const stackHealth = { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'get_stack_health', arguments: { detail: 'full' } } };
 
     it('accepts a named token and refuses an unknown one', async () => {
         const app = appWith(withTokens([{ name: 'phone', tier: 'read', token: PHONE }]));

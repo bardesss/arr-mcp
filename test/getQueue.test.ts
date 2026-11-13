@@ -621,10 +621,18 @@ describe('next_steps', () => {
         expect(result.next_steps?.[0]?.arguments).toEqual({ service: 'radarr', instance: '4k', action: 'import', download_id: 'ABC' });
     });
 
-    it('offers at most three', async () => {
+    it('offers at most three, and counts the rest', async () => {
         const rows = ['A', 'B', 'C', 'D', 'E'].map((d, i) => blocked('sonarr', String(i), d));
         const result = await buildGetQueue([queueOf('sonarr', rows)], { detail: 'standard', limit: 50 });
         expect(result.next_steps).toHaveLength(3);
+        expect(result.next_steps_more).toBe(2);
+    });
+
+    it('leaves the count out when every step fits', async () => {
+        const rows = ['A', 'B', 'C'].map((d, i) => blocked('sonarr', String(i), d));
+        const result = await buildGetQueue([queueOf('sonarr', rows)], { detail: 'standard', limit: 50 });
+        expect(result.next_steps).toHaveLength(3);
+        expect(result).not.toHaveProperty('next_steps_more');
     });
 
     it('keeps a step whose row is past the page', async () => {
@@ -668,5 +676,40 @@ describe('next_steps', () => {
     it('offers nothing on Whisparr, which has no manual import', async () => {
         const result = await buildGetQueue([queueOf('whisparr', [blocked('whisparr', '1', 'ABC')])], { detail: 'standard', limit: 50 });
         expect(result).not.toHaveProperty('next_steps');
+    });
+});
+
+describe('one grab listed by an *arr and its client', () => {
+    type Row = Partial<QueueItem> & { service: string; id: string };
+    const row = (r: Row): QueueItem => ({ title: 'Some.Film.2026-GROUP', status: 'downloading', ...r });
+    const queueOf = (id: string, rows: QueueItem[]): ServiceAdapter => ({ id, type: id.split('/')[0], getQueue: async () => rows }) as unknown as ServiceAdapter;
+    const hash = 'c'.repeat(40);
+    const adapters = [
+        queueOf('radarr', [row({ service: 'radarr', id: '1', downloadId: 'SAB1', etaSeconds: 1 }), row({ service: 'radarr', id: '2', downloadId: hash.toUpperCase(), etaSeconds: 2 })]),
+        queueOf('sabnzbd', [row({ service: 'sabnzbd', id: 'SAB1', downloadId: 'SAB1', etaSeconds: 1 }), row({ service: 'sabnzbd', id: 'SAB9', downloadId: 'SAB9', etaSeconds: 3 })]),
+        queueOf('qbittorrent', [row({ service: 'qbittorrent', id: hash, status: 'seeding', etaSeconds: 2 })])
+    ];
+
+    it('folds the client row into the *arr row at standard, naming the client', async () => {
+        const result = await buildGetQueue(adapters, { detail: 'standard', limit: 50 });
+        expect(result.items.map(i => `${i.service}:${i.id}`)).toEqual(['radarr:1', 'radarr:2', 'sabnzbd:SAB9']);
+        expect(result.items.map(i => i.client)).toEqual(['sabnzbd', 'qbittorrent', undefined]);
+        expect(result.total).toBe(3);
+    });
+
+    it('folds at minimal too', async () => {
+        const result = await buildGetQueue(adapters, { detail: 'minimal', limit: 50 });
+        expect(result.total).toBe(3);
+    });
+
+    it('keeps both rows at full', async () => {
+        const result = await buildGetQueue(adapters, { detail: 'full', limit: 50 });
+        expect(result.total).toBe(5);
+        expect(result.items.some(i => i.client !== undefined)).toBe(false);
+    });
+
+    it('keeps a client row that is the only one a filter matches', async () => {
+        const result = await buildGetQueue(adapters, { detail: 'standard', limit: 50, filter: { status: 'seeding' } });
+        expect(result.items.map(i => `${i.service}:${i.id}`)).toEqual([`qbittorrent:${hash}`]);
     });
 });

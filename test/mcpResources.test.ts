@@ -406,7 +406,7 @@ describe('mirroring, never originating', () => {
         const body = (await read('arr://instances')) as {
             instances: { id: string; safe_write: boolean; destructive: boolean }[];
         };
-        const health = await buildStackHealth([radarr()], { detail: 'standard', limit: 50 }, INSTANCES);
+        const health = await buildStackHealth([radarr()], { detail: 'full', limit: 50 }, INSTANCES);
 
         for (const i of body.instances) {
             expect(health.permissions).toContainEqual({
