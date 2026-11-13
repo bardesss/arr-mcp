@@ -8,7 +8,7 @@ import type { ImportExclusion } from './types.ts';
 import type { IndexInput } from '../core/resolver.ts';
 import { readMetadataProfiles, readProfileNames, readQualityProfiles, readRootFolders, readTags } from './arrAdd.ts';
 import { findArrBlocklistEntry, readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
-import { awaitArrCommand, postArrCommand, readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
+import { NoCommandIdError, awaitArrCommand, postArrCommand, readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
 import { arrGrabRecorded, traceArrDownload } from './arrDownloadTrace.ts';
 import { readArrHistory } from './arrHistory.ts';
 import { listArrImportCandidates, runArrManualImport } from './arrManualImport.ts';
@@ -984,7 +984,14 @@ export class LidarrAdapter
      */
     async retagFiles(id: string, trackFileIds: readonly number[]): Promise<RetagRun> {
         const artistId = this.numericId('artist', id);
-        const handle = await postArrCommand(this.http, this.id, { name: 'RetagFiles', artistId, files: [...trackFileIds] });
+        let handle: Awaited<ReturnType<typeof postArrCommand>>;
+        try {
+            handle = await postArrCommand(this.http, this.id, { name: 'RetagFiles', artistId, files: [...trackFileIds] });
+        } catch (err) {
+            // Queued all the same, so it can still run: no id is not a failed write.
+            if (err instanceof NoCommandIdError) return { settled: false, commandId: 0, reason: err.message };
+            throw err;
+        }
         let row: Awaited<ReturnType<typeof awaitArrCommand>>;
         try {
             row = await awaitArrCommand(this.http, this.id, handle.commandId);

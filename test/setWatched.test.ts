@@ -65,6 +65,8 @@ function harness(
         item?: Record<string, unknown>;
         episodes?: Record<string, unknown>[];
         loader?: LibraryLoader;
+        /** The 1-based mark call that fails with a 500. */
+        failOnMark?: number;
     } = {}
 ) {
     const config = opts.config ?? jellyfinConfig();
@@ -76,6 +78,7 @@ function harness(
 
         if (url.pathname.startsWith('/UserPlayedItems/')) {
             marked.push({ method, path: url.pathname });
+            if (marked.length === opts.failOnMark) return jsonResponse({ message: 'boom' }, 500);
             return jsonResponse({ Played: method === 'POST' });
         }
         if (url.pathname === '/Users') return jsonResponse(USERS);
@@ -122,6 +125,31 @@ function harness(
 
     return { call: (a: Record<string, unknown>) => call(a), marked, audit };
 }
+
+describe('set_watched when Jellyfin fails part way', () => {
+    const confirmed = async (h: ReturnType<typeof harness>, args: Record<string, unknown>) => {
+        const preview = await h.call(args);
+        return h.call({ ...args, confirm: preview.structuredContent.confirm_token });
+    };
+
+    /** Two episodes are marked by the time the third fails: an error with no
+     *  count would say nothing changed. */
+    it('reports what it marked before the failure', async () => {
+        const h = harness({ episodes: [1, 2, 3, 4].map(n => episode(n, false)), failOnMark: 3 });
+        const done = await confirmed(h, { item_id: SERIES, season: 2, watched: true });
+
+        expect(done.structuredContent.applied).toBe(true);
+        expect(done.structuredContent.result).toMatchObject({ changed: 2, notTried: 1 });
+        expect(done.content[0]?.text).toMatch(/^Partly applied\. .* Marked 2, then Jellyfin failed on .*Episode 3.*, and 1 more was not tried/);
+        // Stopped at the failure rather than pressing on at a failing server.
+        expect(h.marked).toHaveLength(3);
+    });
+
+    it('still fails plainly when nothing was marked', async () => {
+        const h = harness({ failOnMark: 1 });
+        await expect(confirmed(h, { item_id: SERIES, season: 2, watched: true })).rejects.toThrow();
+    });
+});
 
 describe('set_watched', () => {
     it('lists the episode count in the effects, not just the season', async () => {

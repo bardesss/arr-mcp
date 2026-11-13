@@ -347,6 +347,13 @@ export function registerGrabRelease(
             };
         },
 
+        // The client already had it: a client that drops structuredContent
+        // would otherwise read "Applied. Add torrent" for a call that added nothing.
+        applied(outcome, plan) {
+            if ((outcome as { alreadyPresent?: string }).alreadyPresent === undefined) return undefined;
+            return `Nothing added: ${plan.target.replace(/^([^:]+):(.*)$/, '$1 already has torrent $2')}. It is in get_queue.`;
+        },
+
         async apply(plan, { service, instance, guid, indexer_id, magnet }) {
             if (magnet !== undefined) {
                 const added = await findClient(adapters, service, instance).addMagnet(magnet);

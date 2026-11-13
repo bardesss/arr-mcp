@@ -366,9 +366,29 @@ async function planDelete(adapter: Adapter, id: number): Promise<WritePlan> {
     };
 }
 
+/**
+ * Queues the sync after a change that has already landed. A sync that fails
+ * is reported beside the change rather than thrown: thrown, it would audit
+ * the change as failed, and a retry of a delete would find no indexer.
+ */
+async function thenSync(adapter: Adapter, done: Record<string, string>): Promise<Record<string, unknown>> {
+    try {
+        return { ...done, sync: await adapter.syncIndexers() };
+    } catch (err) {
+        return { ...done, syncFailed: err instanceof Error ? err.message : String(err) };
+    }
+}
+
+/** The applied sentence when the sync after the change did not start. */
+function syncFailedText(outcome: unknown, plan: WritePlan): string | undefined {
+    const failed = (outcome as { syncFailed?: string }).syncFailed;
+    if (failed === undefined) return undefined;
+    return `Applied. ${plan.summary} But Application Indexer Sync did not start: ${failed} The apps catch up on Prowlarr's next scheduled sync, or run trigger_scan with service "prowlarr" now.`;
+}
+
 async function applyDelete(adapter: Adapter, id: number) {
     await adapter.deleteIndexer(id);
-    return { deleted: `${adapter.id}:${id}`, sync: await adapter.syncIndexers() };
+    return thenSync(adapter, { deleted: `${adapter.id}:${id}` });
 }
 
 const ManageIndexerInput = z.object({
@@ -456,15 +476,17 @@ export function registerManageIndexer(
 
             if (action === 'add') {
                 const added = await adapter.addIndexer(planned.definition ?? '', planned.settings ?? {});
-                return { added: `${adapter.id}:${added}`, sync: await adapter.syncIndexers() };
+                return thenSync(adapter, { added: `${adapter.id}:${added}` });
             }
             // Every other action was refused in plan without an id.
             const target = id ?? 0;
             if (action === 'edit') await adapter.editIndexer(target, planned.settings ?? {});
             else await adapter.setIndexerEnabled(target, action === 'enable');
             const done = { edit: 'edited', disable: 'disabled', enable: 'enabled' }[action];
-            return { [done]: `${adapter.id}:${target}`, sync: await adapter.syncIndexers() };
-        }
+            return thenSync(adapter, { [done]: `${adapter.id}:${target}` });
+        },
+
+        applied: syncFailedText
     });
 }
 
@@ -493,6 +515,7 @@ export function registerDeleteIndexer(
         tier: 'destructive',
 
         plan: ({ instance, id }) => planDelete(findAdapter(adapters, instance), id),
-        apply: (_plan, { instance, id }) => applyDelete(findAdapter(adapters, instance), id)
+        apply: (_plan, { instance, id }) => applyDelete(findAdapter(adapters, instance), id),
+        applied: syncFailedText
     });
 }

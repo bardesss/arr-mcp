@@ -229,6 +229,8 @@ describe.each(TOOLS)('%s partial removal', (tool, args) => {
         expect(result).toContain('gone already');
         expect(second.content[0]?.text).toContain('1 of 2');
         expect(second.content[0]?.text).not.toMatch(/^Applied\./);
+        // The summary beside `applied: true` says what happened, not what was asked.
+        expect(second.structuredContent.summary).toContain('1 of 2');
     });
 
     it('still fails outright when nothing could be removed', async () => {

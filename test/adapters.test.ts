@@ -1161,6 +1161,43 @@ describe('QbittorrentAdapter', () => {
         expect(added).toEqual({ id: hex, duplicate: true });
     });
 
+    /** Up to 5.1 a refused add is a 200 whose body says `Fails.`. */
+    it('fails when qBittorrent answers that the add failed', async () => {
+        const refusing = new QbittorrentAdapter(
+            qbittorrentConfig,
+            serving({ '/api/v2/torrents/add': 'Fails.', '/api/v2/torrents/info': [] })
+        );
+        await expect(refusing.addMagnet(`magnet:?xt=urn:btih:${'b'.repeat(40)}`)).rejects.toMatchObject({
+            kind: 'UpstreamError',
+            message: expect.stringMatching(/did not add the torrent/)
+        });
+
+        const counted = new QbittorrentAdapter(
+            qbittorrentConfig,
+            serving({ '/api/v2/torrents/add': { success_count: 0, failure_count: 1, pending_count: 0 }, '/api/v2/torrents/info': [] })
+        );
+        await expect(counted.addMagnet(`magnet:?xt=urn:btih:${'b'.repeat(40)}`)).rejects.toThrow(/did not add the torrent/);
+
+        const accepted = new QbittorrentAdapter(
+            qbittorrentConfig,
+            serving({ '/api/v2/torrents/add': { success_count: 1, failure_count: 0, pending_count: 0 }, '/api/v2/torrents/info': [] })
+        );
+        await expect(accepted.addMagnet(`magnet:?xt=urn:btih:${'b'.repeat(40)}`)).resolves.toEqual({ id: 'b'.repeat(40), duplicate: false });
+    });
+
+    /** Older builds answer `Fails.` for a torrent they already hold. */
+    it('still reports a duplicate when the add answers Fails.', async () => {
+        const hex = 'c'.repeat(40);
+        const held = new QbittorrentAdapter(
+            qbittorrentConfig,
+            serving({
+                '/api/v2/torrents/add': 'Fails.',
+                [`/api/v2/torrents/info?hashes=${hex}`]: [{ hash: hex, name: 'x', state: 'stoppedUP' }]
+            })
+        );
+        await expect(held.addMagnet(`magnet:?xt=urn:btih:${hex}`)).resolves.toEqual({ id: hex, duplicate: true });
+    });
+
     it('reports an unrecognised state as unknown rather than guessing', async () => {
         const odd = new QbittorrentAdapter(
             qbittorrentConfig,

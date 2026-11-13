@@ -126,6 +126,7 @@ function harness(
         destructive?: boolean;
         version?: string;
         addFails?: boolean;
+        syncFails?: boolean;
         profiles?: unknown[];
         tool?: 'manage_indexer' | 'delete_indexer';
     } = {}
@@ -141,6 +142,7 @@ function harness(
                 ...(typeof init?.body === 'string' ? { body: JSON.parse(init.body) } : {})
             });
             if (url.pathname === '/api/v1/command') {
+                if (opts.syncFails === true) return jsonResponse({ message: 'database is locked' }, 500);
                 return jsonResponse({ id: 77, name: 'ApplicationIndexerSync', status: 'queued' });
             }
             if (method === 'POST' && url.pathname === '/api/v1/indexer') {
@@ -167,11 +169,12 @@ function harness(
             calls[name] = args => handler(spec.inputSchema.parse(args) as Record<string, unknown>);
         }
     };
+    const invalidate = vi.fn();
     const context = {
         permissions: permissionSourceFrom(instancesOf({ prowlarr: config as unknown as AnyServiceConfig })),
         confirm: new ConfirmTokens(),
         audit: WriteAudit.ephemeral(),
-        library: { invalidate: vi.fn() } as unknown as LibraryLoader
+        library: { invalidate } as unknown as LibraryLoader
     };
     registerManageIndexer(server as never, context, adapters);
     registerDeleteIndexer(server as never, context, adapters);
@@ -186,7 +189,7 @@ function harness(
         const preview = await call(args);
         return call({ ...args, confirm: preview.structuredContent.confirm_token });
     };
-    return { call, callTool, confirmed, writes };
+    return { call, callTool, confirmed, writes, invalidate };
 }
 
 describe('manage_indexer disable and enable', () => {
@@ -214,6 +217,15 @@ describe('manage_indexer disable and enable', () => {
             { method: 'PUT', path: '/api/v1/indexer/bulk', body: { ids: [21], enable: false } },
             { method: 'POST', path: '/api/v1/command', body: { name: 'ApplicationIndexerSync' } }
         ]);
+    });
+
+    it('reports the disable when the sync after it fails', async () => {
+        const h = harness({ syncFails: true });
+        const applied = await h.confirmed({ id: 21, action: 'disable' });
+
+        expect(applied.structuredContent.applied).toBe(true);
+        expect(applied.structuredContent.result).toMatchObject({ disabled: 'prowlarr:21', syncFailed: expect.any(String) });
+        expect(applied.content[0]?.text).toContain('trigger_scan with service "prowlarr"');
     });
 
     it('accepts the id as a string, the way a model copies it', async () => {
@@ -304,6 +316,19 @@ describe('delete_indexer', () => {
 
         expect(applied.structuredContent.applied).toBe(true);
         expect(h.writes.map(w => `${w.method} ${w.path}`)).toEqual(['DELETE /api/v1/indexer/21', 'POST /api/v1/command']);
+    });
+
+    /** The delete has landed by the time the sync is queued: reported as a
+     *  failure, a retry would answer that the indexer does not exist. */
+    it('reports the delete when the sync after it fails', async () => {
+        const h = harness({ tool: 'delete_indexer', syncFails: true });
+        const applied = await h.confirmed({ id: 21 });
+
+        expect(applied.structuredContent.applied).toBe(true);
+        expect(applied.structuredContent.result).toMatchObject({ deleted: 'prowlarr:21', syncFailed: expect.any(String) });
+        expect(applied.content[0]?.text).toMatch(/^Applied\. Delete .* But Application Indexer Sync did not start/);
+        expect(applied.structuredContent.summary).toMatch(/did not start/);
+        expect(h.invalidate).toHaveBeenCalled();
     });
 
     it('is refused when the destructive tier is off', async () => {

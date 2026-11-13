@@ -235,6 +235,11 @@ export class ServiceHttp {
         return this.#request<T>('POST', path, { form: fields }, false, discardBody ? 'none' : 'json');
     }
 
+    /** A form POST whose verdict is in a text body, as qBittorrent's `Fails.`. Never auto-retried. */
+    async postFormText(path: string, fields: Record<string, string>): Promise<string> {
+        return this.#request<string>('POST', path, { form: fields }, false, 'text');
+    }
+
     /**
      * Like every write, never auto-retried. `discardBody` because Sonarr's
      * `/episode/monitor` answers with an empty 200; routing that through the

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { KeyedServiceConfig } from '../src/config/schema.ts';
 import { apiKeyHeader } from '../src/core/auth.ts';
+import { ServiceError } from '../src/core/errors.ts';
 import { ServiceHttp } from '../src/core/http.ts';
 import { RENAME_MARKER, assertQueueClear, namingFormatKey, renameThroughTemporaryFormat } from '../src/services/arrRename.ts';
 import { jsonResponse } from './helpers/serve.ts';
@@ -34,6 +35,10 @@ type Opts = {
     pending?: Record<string, unknown>[];
     /** Set on the naming config the moment the first rename is sent, as someone editing settings mid-window. */
     editedMidWindow?: Record<string, unknown>;
+    /** The status each `RenameFiles` settles on, in order; `completed` when unset. */
+    statuses?: string[];
+    /** How many naming PUTs after the first one fail with a 500. */
+    restoreFailures?: number;
 };
 
 function sonarr(opts: Opts = {}) {
@@ -41,6 +46,8 @@ function sonarr(opts: Opts = {}) {
     const formats: string[] = [];
     const renames: { files: number[]; formatAtTheTime: unknown }[] = [];
     let pass = 0;
+    let restoreFailures = opts.restoreFailures ?? 0;
+    let failedPuts = 0;
 
     const impl = (async (input: string | URL | Request, init?: RequestInit) => {
         const url = new URL(input instanceof Request ? input.url : String(input));
@@ -50,6 +57,11 @@ function sonarr(opts: Opts = {}) {
         if (url.pathname === '/api/v3/command' && method === 'GET') return jsonResponse(opts.commands ?? []);
         if (url.pathname === '/api/v3/config/naming' && method === 'GET') return jsonResponse(naming);
         if (url.pathname === '/api/v3/config/naming' && method === 'PUT') {
+            if (formats.length > 0 && restoreFailures > 0) {
+                restoreFailures -= 1;
+                failedPuts += 1;
+                return jsonResponse({ message: 'database is locked' }, 500);
+            }
             Object.assign(naming, body);
             formats.push(String(naming.standardEpisodeFormat));
             return new Response(null, { status: 202 });
@@ -65,10 +77,11 @@ function sonarr(opts: Opts = {}) {
         if (url.pathname.startsWith('/api/v3/command/')) {
             const count = (opts.counts ?? [])[pass];
             const n = count === undefined && opts.counts !== undefined ? undefined : (count ?? 3);
+            const status = (opts.statuses ?? [])[pass] ?? 'completed';
             pass += 1;
             return jsonResponse({
                 id: Number(url.pathname.split('/').pop()),
-                status: 'completed',
+                status,
                 result: 'successful',
                 ...(n === undefined ? {} : { message: `${n} selected episode files renamed for Show` })
             });
@@ -84,7 +97,8 @@ function sonarr(opts: Opts = {}) {
         http: new ServiceHttp('sonarr', keyed(), apiKeyHeader('X-Api-Key', 'k'), impl),
         naming,
         formats,
-        renames
+        renames,
+        failedPuts: () => failedPuts
     };
 }
 
@@ -161,6 +175,37 @@ describe('renameThroughTemporaryFormat', () => {
             /only 0 of 3/
         );
         expect(s.naming.standardEpisodeFormat).toBe(FORMAT);
+    });
+
+    /** A failed command sends no count, which would otherwise read as every
+     *  file renamed. */
+    it('fails when a rename pass ends in anything but completed', async () => {
+        const first = sonarr({ statuses: ['failed'] });
+        await expect(renameThroughTemporaryFormat(first.http, 'sonarr', 5, 'standard', [11])).rejects.toThrow(/ended failed/);
+        expect(first.naming.standardEpisodeFormat).toBe(FORMAT);
+
+        const second = sonarr({ statuses: ['completed', 'aborted'], pending: [] });
+        await expect(renameThroughTemporaryFormat(second.http, 'sonarr', 5, 'standard', [11])).rejects.toThrow(/ended aborted/);
+    });
+
+    /** Sonarr busy with the rename it was just handed can time out one PUT. */
+    it('retries putting the format back once', async () => {
+        const s = sonarr({ restoreFailures: 1 });
+        const out = await renameThroughTemporaryFormat(s.http, 'sonarr', 5, 'standard', [11]);
+        expect(out.renamed).toBe(1);
+        expect(s.failedPuts()).toBe(1);
+        expect(s.naming.standardEpisodeFormat).toBe(FORMAT);
+    });
+
+    /** Left marked, every import is misnamed until someone notices, so the
+     *  error says which setting and what to put back, not a bare HTTP 500. */
+    it('names the setting and the value when the format cannot be put back', async () => {
+        const s = sonarr({ restoreFailures: 2 });
+        const err = await renameThroughTemporaryFormat(s.http, 'sonarr', 5, 'standard', [11]).catch((e: unknown) => e);
+        expect(err).toBeInstanceOf(ServiceError);
+        expect((err as ServiceError).message).toMatch(/Standard Episode Format still ends in "\[arr-mcp-remap\]"/);
+        expect((err as ServiceError).remedy).toContain(FORMAT);
+        expect(s.naming.standardEpisodeFormat).toBe(`${FORMAT}${RENAME_MARKER}`);
     });
 
     /** Leaving a file under the temporary name is the worst outcome here, so
