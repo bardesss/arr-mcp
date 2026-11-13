@@ -118,7 +118,8 @@ export async function buildGetIndexers(
     // merge, and re-apply the window that bounded each instance alone.
     const mergedRejections = rejections
         .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
-        .slice(0, RECENT_REJECTION_WINDOW);
+        .slice(0, RECENT_REJECTION_WINDOW)
+        .map(({ indexerId: _, ...r }) => r);
 
     return {
         ...shaped,

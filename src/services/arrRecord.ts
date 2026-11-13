@@ -78,9 +78,10 @@ export const mediaIdsParam = (kind: ArrKind): string => `${MEDIA_ID_FIELD[kind]}
 /**
  * How one item's history is asked for: `ids` sends that filter to `/history`;
  * `seriesEndpoint` reads `/history/series?seriesId=` instead, for Whisparr,
- * whose `/history` binds no `seriesIds` and silently answers every site's rows.
+ * whose `/history` binds no `seriesIds` and silently answers every site's rows;
+ * `local` filters here, for a Radarr older than 5.2, which drops `movieIds`.
  */
-export type ArrHistoryScope = 'ids' | 'seriesEndpoint';
+export type ArrHistoryScope = 'ids' | 'seriesEndpoint' | 'local';
 
 /**
  * Lidarr 3.1.6 names the protocol by its class, `UsenetDownloadProtocol` or

@@ -1,5 +1,6 @@
 import { fencer } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
+import { isoInstant } from '../core/instant.ts';
 import type { ArrKind } from '../core/resolver.ts';
 import { pageIsNewestFirst, pageSizeFor, readArrPages, readTotal } from './arrPaging.ts';
 import { mediaIdOf, protocolName } from './arrRecord.ts';
@@ -29,7 +30,7 @@ const toBlocklistEntry = (r: RawBlocklist & { id: number }, service: string, kin
         service,
         id: String(r.id),
         title: fence(r.sourceTitle ?? '', 'sourceTitle'),
-        at: r.date ?? '',
+        at: isoInstant(r.date) ?? r.date ?? '',
         ...(r.indexer === undefined ? {} : { indexer: fence(r.indexer, 'indexer') }),
         ...(r.message === undefined ? {} : { reason: fence(r.message, 'message') }),
         ...(r.protocol === undefined ? {} : { protocol: protocolName(r.protocol) }),

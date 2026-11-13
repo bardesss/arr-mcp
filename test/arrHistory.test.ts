@@ -336,6 +336,63 @@ describe('readArrHistory', () => {
         expect(rows.map(r => r.id)).toEqual(['2']);
     });
 
+    it('compares `since` and each date as instants, whatever their spelling', async () => {
+        const rows = await history(
+            http(async () =>
+                json({
+                    records: [
+                        // 10:30 UTC, after `since`, though its string sorts before it.
+                        { id: 1, eventType: 'grabbed', date: '2026-08-10T12:30:00+02:00', sourceTitle: 'in' },
+                        { id: 2, eventType: 'grabbed', date: '2026-08-10T09:59:59.9999999Z', sourceTitle: 'out' }
+                    ],
+                    totalRecords: 2
+                })
+            ),
+            'radarr',
+            'movie',
+            { since: '2026-08-10T10:00:00.000Z' }
+        );
+        expect(rows.map(r => [r.id, r.at])).toEqual([['1', '2026-08-10T10:30:00.000Z']]);
+    });
+
+    it('reads on past a page whose oldest row sorts before `since` as a string but is after it', async () => {
+        let fetches = 0;
+        const read = await history(
+            http(async (input: string) => {
+                fetches += 1;
+                const page = Number(new URL(input).searchParams.get('page'));
+                // Two full pages, every row an hour after `since`, which is spelled with an offset.
+                const records = Array.from({ length: 200 }, (_, i) => ({ id: (page - 1) * 200 + i + 1, eventType: 'grabbed', date: '2026-08-10T10:00:00Z', sourceTitle: 'x' }));
+                return json({ page, pageSize: 200, totalRecords: 400, records: page <= 2 ? records : [] });
+            }),
+            'radarr',
+            'movie',
+            { since: '2026-08-10T11:00:00+02:00' }
+        );
+        expect(read).toHaveLength(400);
+        expect(fetches).toBe(2);
+    });
+
+    it('filters one film here from the first read when told the service drops movieIds', async () => {
+        const seen: URL[] = [];
+        const read = await readArrHistory(
+            http(async (input: string) => {
+                const url = new URL(input);
+                seen.push(url);
+                // The early rows all belong to the asked film, so nothing in them gives the dropped filter away.
+                const records = [42, 42, 41, 43].map((movieId, i) => ({ id: i + 1, eventType: 'grabbed', date: `2026-08-0${9 - i}T00:00:00Z`, sourceTitle: 'x', movieId }));
+                return json({ page: 1, pageSize: 200, totalRecords: 4, records: records.slice(0, url.searchParams.has('movieIds') ? 2 : 4) });
+            }),
+            'radarr',
+            'movie',
+            { id: '42', want: 1 },
+            'local'
+        );
+        expect(seen.every(u => !u.searchParams.has('movieIds'))).toBe(true);
+        expect(read.items.every(r => r.mediaId === '42')).toBe(true);
+        expect(read.total).toBeLessThanOrEqual(2);
+    });
+
     it('drops a record with no id rather than surfacing one nothing can reference', async () => {
         const rows = await history(
             http(async () => json({ records: [{ eventType: 'grabbed', date: 'x', sourceTitle: 'y' }], totalRecords: 1 })),

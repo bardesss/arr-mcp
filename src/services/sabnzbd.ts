@@ -1,4 +1,5 @@
 import { instanceId } from '../config/instances.ts';
+import { instantOf } from '../core/instant.ts';
 import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import { queryParamKey } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
@@ -454,11 +455,11 @@ export class SabnzbdAdapter
             .flatMap(s => {
                 // `completed` is unix seconds. A row that cannot be dated is
                 // dropped rather than stamped with the epoch: `get_history`
-                // sorts and filters `since` as a plain string, so a 1970 date
-                // would quietly sink to the bottom of every answer.
+                // sorts and filters by instant, so a 1970 date would quietly
+                // sink to the bottom of every answer.
                 if (typeof s.completed !== 'number' || !Number.isFinite(s.completed)) return [];
                 const at = new Date(s.completed * 1000).toISOString();
-                if (opts.since !== undefined && at < opts.since) return [];
+                if (opts.since !== undefined && instantOf(at) < instantOf(opts.since)) return [];
 
                 const status = (s.status ?? '').toLowerCase();
                 return [

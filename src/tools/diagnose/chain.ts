@@ -66,11 +66,12 @@ export type Evidence = {
      *  boolean: the stage has to say which half of the answer is missing. */
     prowlarrDegraded: string[];
     /**
-     * The enabled indexers across every Prowlarr, read only when a rejection
-     * mentions the item, to weigh how many of them failed. Absent when not read
-     * or when any Prowlarr's count could not be (`<prowlarr>:indexers` in `degraded`).
+     * The enabled indexers across every Prowlarr, as `indexerKey`s, and those of
+     * them Prowlarr has disabled for now after failures. Read only when a
+     * rejection mentions the item, to weigh how many are out. Absent when not read
+     * or when any Prowlarr's list could not be (`<prowlarr>:indexers` in `degraded`).
      */
-    enabledIndexers?: number;
+    indexers?: { enabled: string[]; disabled: string[] };
     scan: ScanState | undefined;
     /**
      * A third state beyond looked/could-not-look: **never configured**. Without
@@ -538,6 +539,14 @@ const queueImportRemedy = (item: MergedItem): string =>
 /** `importBlocked`: the *arr tried, stopped, and does not try again by itself. */
 const queueImportBlockedRemedy = (item: MergedItem): string =>
     `${arrOf(item)} stopped before importing it and does not retry on its own. Fix what it reports, then trigger the import manually; a release it matched wrongly fails the same way until that is fixed in ${arrOf(item)}.`;
+/**
+ * `importPending` with reasons: the *arr tried, could not, and tries again
+ * each cycle with the same result. A live Sonarr 4.0.20 reports a download with
+ * no importable file this way ("No files found are eligible for import"), not
+ * as `importBlocked`.
+ */
+const queueImportFailingRemedy = (item: MergedItem): string =>
+    `${arrOf(item)} retries it on its own and fails the same way until what it reports is fixed there; an import by hand meets the same reasons. Otherwise remove the download and let ${arrOf(item)} search again.`;
 /** Importing already, but with reasons on the row, which an import by hand would meet too. */
 const queueImportingRemedy = (item: MergedItem): string =>
     `Wait for ${arrOf(item)} to import it. If it stays here, fix what it reports in ${arrOf(item)}: an import by hand meets the same reasons.`;
@@ -912,6 +921,12 @@ function queueStep(ev: Evidence, item: MergedItem): QueueResult {
         // A client's row is imported by the *arr that manages the item, not by the client.
         const importer = isClientRow(row) ? item.acquisition?.service : row.service;
         const state = importStateOf(grab);
+        if (state === 'importPending' && reasons !== '') {
+            return {
+                step: { stage: 'queue', service: row.service, status: 'blocked', detail: `Downloaded, but ${importer ?? arrOf(item)} could not import it.${reasons}${strikeNote}` },
+                remedy: queueImportFailingRemedy(item)
+            };
+        }
         // The *arr is importing it now: an import by hand would only race it, so
         // it waits, as a download in progress does, unless the *arr gave reasons.
         if (state !== undefined && IMPORTING.has(state)) {
@@ -1021,18 +1036,20 @@ function indexerStep(ev: Evidence, item: MergedItem): Step {
     if (mine.length > 0) {
         const first = mine[0] as IndexerRejection;
         const latest = `most recently ${first.indexer} on ${first.service}: ${first.reason}.`;
-        const enabled = ev.enabledIndexers;
-        if (enabled === undefined) {
+        if (ev.indexers === undefined) {
             return { stage: 'indexers', service: first.service, status: 'blocked', detail: `${mine.length} recent indexer failure(s), ${latest}` };
         }
-        // Blocks only when the failing indexers are most of those enabled: the
-        // rest still answer a search, so a few failures are a warning.
-        const failing = new Set(mine.map(r => `${r.service}\n${r.indexer}`)).size;
+        // Blocks only when the failing or disabled indexers are most of those
+        // enabled: the rest still answer a search, so a few failures are a
+        // warning. Counted by id, and only the ones still enabled.
+        const enabled = new Set(ev.indexers.enabled);
+        const failing = new Set(mine.map(rejectionKey).filter(k => enabled.has(k)));
+        const disabled = ev.indexers.disabled.filter(k => !failing.has(k)).length;
         return {
             stage: 'indexers',
             service: first.service,
-            status: failing * 2 > enabled ? 'blocked' : 'warning',
-            detail: `${mine.length} recent failure(s) from ${failing} of ${enabled} enabled indexer(s), ${latest}`
+            status: (failing.size + disabled) * 2 > enabled.size ? 'blocked' : 'warning',
+            detail: `${mine.length} recent failure(s) from ${failing.size} of ${enabled.size} enabled indexer(s)${disabled > 0 ? `, ${disabled} more disabled by Prowlarr` : ''}, ${latest}`
         };
     }
 
@@ -1189,6 +1206,10 @@ const REMEDIES: Partial<Record<Stage, string>> = {
     // stack runs (see managedRemedy), and `library`/`scan` name the configured
     // server (see libraryRemedy); none of the four fit a static per-stage map.
 };
+
+/** One indexer across every Prowlarr: the instance and Prowlarr's own id. */
+export const indexerKey = (service: string, id: number | string): string => `${service}\n${id}`;
+const rejectionKey = (r: IndexerRejection): string => indexerKey(r.service, r.indexerId ?? `name:${r.indexer}`);
 
 /** The ids that make an item a film or a series: no music item carries them (`jellyfin.ts`, `plex.ts`). */
 const FILM_OR_SERIES_IDS = ['tmdb', 'tvdb', 'imdb'] as const;

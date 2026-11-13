@@ -358,7 +358,7 @@ describe('Lidarr blocklist', () => {
 
         expect(sent[0]?.path).toBe('/api/v1/blocklist');
         expect(rows).toHaveLength(10);
-        expect(rows[0]).toMatchObject({ service: 'lidarr', id: '201', mediaId: '151', protocol: 'usenet', at: '2024-01-01T17:00:00Z' });
+        expect(rows[0]).toMatchObject({ service: 'lidarr', id: '201', mediaId: '151', protocol: 'usenet', at: '2024-01-01T17:00:00.000Z' });
         expect(unfenced(rows[0]?.title ?? '')).toBe('lidarr item 1');
         expect(unfenced(rows[0]?.reason ?? '')).toBe('Fixture message 1');
         expect(unfenced(rows[0]?.indexer ?? '')).toBe('Indexer 1');

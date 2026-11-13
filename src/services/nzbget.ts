@@ -1,4 +1,5 @@
 import { instanceId } from '../config/instances.ts';
+import { instantOf } from '../core/instant.ts';
 import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import { basicAuth, decodeOrRaw } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
@@ -724,7 +725,7 @@ export class NzbgetAdapter
             const id = row.NZBID ?? row.ID;
             if (typeof id !== 'number') return [];
             const at = new Date(row.HistoryTime * 1000).toISOString();
-            if (opts.since !== undefined && at < opts.since) return [];
+            if (opts.since !== undefined && instantOf(at) < instantOf(opts.since)) return [];
 
             const status = row.Status ?? 'unknown';
             const event = historyEvent(status);
