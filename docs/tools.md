@@ -251,8 +251,9 @@ torrents does not need the whole queue back: `category` (any of the client
 categories given), `status` (a prefix, so `seeding` also matches `seeding (no
 peers)`), and four that read Cleanuparr: `over_limit`, `struck`,
 `due_within_days` and `unmatched`. Those four read Cleanuparr at any `detail`,
-and each takes `false` for the opposite set. `total` counts the matching rows;
-`cleanuparrDue` and `counts` still describe the whole queue. A download that has
+and each takes `false` for the opposite set. `total` counts the matching rows
+and `counts` splits them by service; `cleanuparrDue` still describes the whole
+queue. A download that has
 not finished carries no `seeding`, so no Cleanuparr filter matches it.
 
 ### Seed time per tracker
@@ -1392,8 +1393,8 @@ client's row and the *arr's row of one grab match (below).
 
 Below `detail: "full"` a grab is listed once: a client row whose grab an *arr
 row also lists is left out, and that *arr row names the client in `client`.
-`total` counts the rows after that, while `counts` still says what each service
-reported. At `full` both rows are listed, since the client row is where the
+`total` counts the rows after that, and `counts` says how many of them each
+service lists, so it adds up to `total`. At `full` both rows are listed, since the client row is where the
 seed state and the client's own error are. A filter is applied first, so a
 client row only it matches (`status: "seeding"`, say) is still returned.
 
@@ -2650,8 +2651,11 @@ tier; see [writes.md](writes.md).
 
 `similar_to` takes a TMDB numeric id and answers from Seerr's
 recommendations. Combining it with `genre`/`year`/`min_rating` is refused.
-With no Seerr configured there is no fallback, and the response carries a
-`note` instead of a bare empty list.
+With no Seerr configured, `genre`, `year` and `min_rating` are answered from
+the local IMDb dataset (`metadata.imdb.enabled`), where the rating is IMDb's
+and `genre` must be a name such as "Crime", not a TMDB id. `similar_to` has no
+fallback, since the dataset holds no similarity data. When neither can answer,
+the response carries a `note` instead of a bare empty list.
 
 Seerr serves TMDB's list 20 to a page, and only the pages that `offset` and
 `limit` cover are read. `total` is the size of the whole list, up to 10,000:

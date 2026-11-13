@@ -322,7 +322,7 @@ describe('the card tools', () => {
         expect(cardsOf(result)?.items[0]).toMatchObject({ status: 'monitored', ref: { service: 'radarr', id: '340' } });
         // The record itself rides in the text, for a client that drops structuredContent.
         expect(result.content[0]?.text).toBe(
-            'movie from radarr.\n<<untrusted:radarr.title>>Blade<</>> (0): movie, radarr:340, tmdb:617127, imdb:tt10671440, no file, monitored'
+            'movie from radarr.\n<<untrusted:radarr.title>>Blade<</>>: movie, radarr:340, tmdb:617127, imdb:tt10671440, no file, monitored'
         );
     });
 });

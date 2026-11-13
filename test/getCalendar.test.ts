@@ -95,6 +95,11 @@ describe('get_calendar', () => {
         expect((await buildGetCalendar([radarr(undated)], opts)).items).toEqual([]);
     });
 
+    it('carries no `monitored`: the *arr calendars list only monitored items', async () => {
+        const result = await buildGetCalendar([radarr(), sonarr()], opts);
+        for (const item of result.items) expect(item).not.toHaveProperty('monitored');
+    });
+
     it('carries the series title on an episode', async () => {
         const result = await buildGetCalendar([sonarr()], opts);
         expect(result.items[0]).toMatchObject({ kind: 'episode', season: 1, episode: 1 });

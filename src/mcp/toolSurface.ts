@@ -1,5 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/server';
-import { DOWNLOAD_CLIENTS, KINDS_KEY, SERVICES_KEY, type ServiceId } from '../config/schema.ts';
+import { DOWNLOAD_CLIENTS, KINDS_KEY, SERVICES_KEY, VALUES_KEY, type ServiceId } from '../config/schema.ts';
 import type { LibraryKind } from '../core/resolver.ts';
 
 /**
@@ -14,6 +14,7 @@ import type { LibraryKind } from '../core/resolver.ts';
  * - on output schemas, field descriptions: `arr://docs/<tool>` and the results
  *   carry those, and Claude Code does not show output schemas to the model;
  * - on a `kind` field, every kind no configured service holds (`KIND_SERVICES`);
+ * - on an enum marked with `VALUES_KEY`, each value none of its services is configured for;
  * - on a `service` field built with `serviceOf`, every service the tool does
  *   not take and, when anything is configured, every service that is not;
  * - in a description, `{{and: lidarr=Lidarr; …}}` items whose service is not
@@ -201,6 +202,17 @@ export function leanJsonSchema(schema: unknown, io: 'input' | 'output', opts: Su
             if (held.length > 0) out['enum'] = held;
         }
         delete out[KINDS_KEY];
+    }
+    const values = out[VALUES_KEY];
+    if (isNode(values)) {
+        if (Array.isArray(out['enum'])) {
+            // A value with no entry applies on every stack, so the enum never empties.
+            out['enum'] = (out['enum'] as unknown[]).filter(v => {
+                const needs = values[String(v)];
+                return !Array.isArray(needs) || present(needs as string[], opts);
+            });
+        }
+        delete out[VALUES_KEY];
     }
 
     for (const key of ONE) if (isNode(out[key])) out[key] = leanJsonSchema(out[key], io, opts, false);

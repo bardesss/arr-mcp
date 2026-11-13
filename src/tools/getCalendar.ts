@@ -77,7 +77,6 @@ export function calendarLine(entry: CalendarEntry): string {
     const facts = [`${entry.service}:${entry.id}`];
     // An album's `hasFile` is the whole album, so one with some tracks is not "no file".
     if (!entry.hasFile) facts.push(entry.kind === 'album' ? 'incomplete' : 'no file');
-    if (!entry.monitored) facts.push('unmonitored');
 
     return `${entry.date}: ${name} (${facts.join(', ')})`;
 }

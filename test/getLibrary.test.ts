@@ -1211,6 +1211,11 @@ describe('books from Grimmory', () => {
         expect(libraryLine({ ...book(1), presence: 'unknown' })).not.toContain(', in ');
     });
 
+    it('prints no year for a film Radarr dates 0, its "unknown"', () => {
+        const line = libraryLine({ kind: 'movie', title: 'Untitled', year: 0, ids: { tmdb: 1 }, acquisition: { service: 'radarr', id: '5' } });
+        expect(line).toBe('Untitled: movie, radarr:5, tmdb:1');
+    });
+
     it('without kind, books are listed and never counted missing from a media server', async () => {
         const plexStub = {
             id: 'plex',

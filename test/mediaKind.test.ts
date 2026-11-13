@@ -37,7 +37,7 @@ function fake(id: string, opts: { held?: LibraryKind; hits?: Omit<SearchHit, 'se
                   getCalendar: () => {
                       asked.push('calendar');
                       return Promise.resolve<CalendarEntry[]>([
-                          { service: id, kind: 'movie', id: 1, title: id, date: '2026-11-10', hasFile: false, monitored: true }
+                          { service: id, kind: 'movie', id: 1, title: id, date: '2026-11-10', hasFile: false }
                       ]);
                   }
               }
