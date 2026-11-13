@@ -265,8 +265,10 @@ export class ProwlarrAdapter
             return created.id ?? 0;
         } catch (err) {
             if (err instanceof ServiceError && err.status === 400) {
-                throw new ServiceError('UpstreamError', this.id, `Prowlarr refused to add ${definitionName}`, {
-                    remedy: "Prowlarr tests an indexer before saving it, and the test failed: the site is usually down, blocked, or behind a captcha from here. Prowlarr's logs have its reason. Nothing was added.",
+                // A 400 is any validation failure, the site test being one; the
+                // detail carries Prowlarr's own reason, fenced.
+                throw new ServiceError('UpstreamError', this.id, `Prowlarr refused to add ${definitionName}: ${err.detail}`, {
+                    remedy: 'Nothing was added. A failed site test usually means the site is down, blocked, or behind a captcha from here.',
                     cause: err
                 });
             }
