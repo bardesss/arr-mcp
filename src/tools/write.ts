@@ -125,6 +125,9 @@ type WriteToolSpec<
      * applied result's `summary`.
      */
     applied?(outcome: unknown, plan: WritePlan<Bound>): string | undefined;
+    /** False when apply found its change already made (a torrent the client
+     *  already had): the result then reads `applied: false` and `noop: true`. */
+    landed?(outcome: unknown): boolean;
     /**
      * Calls worth offering now that the write has landed, as data for a client
      * to put to the person. Never run here. Called after the write only: a
@@ -596,10 +599,12 @@ export function registerWriteTool<
             // is what was asked: a partial or empty result says so in
             // `summary` too, not only in the text.
             const said = spec.applied?.(outcome, plan);
+            const landed = spec.landed?.(outcome) ?? true;
             return respond(
                 {
                     ...preview({ audit_id: id }),
-                    applied: true,
+                    applied: landed,
+                    ...(landed ? {} : { noop: true }),
                     ...(said === undefined ? {} : { summary: said }),
                     ...(outcome === undefined ? {} : { result: outcome }),
                     ...(nextSteps.length === 0 ? {} : { next_steps: nextSteps })

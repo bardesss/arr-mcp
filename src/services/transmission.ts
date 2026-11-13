@@ -136,7 +136,8 @@ function torrentOf(t: RawTorrent): { torrent?: TorrentFacts } {
         torrent: {
             hash: t.hashString.toLowerCase(),
             category,
-            tags: t.labels ?? [],
+            // The pause mark is this server's bookkeeping; the status already says stopped.
+            tags: (t.labels ?? []).filter(label => label !== PAUSE_MARK),
             trackerDomains,
             ...(t.downloadDir ? { savePath: t.downloadDir } : {}),
             ...(typeof t.isPrivate === 'boolean' ? { private: t.isPrivate } : {}),
@@ -172,6 +173,12 @@ type PauseRow = { id?: number; hashString?: string; status?: number; labels?: st
 const refOf = (t: PauseRow): string | number => t.hashString?.toLowerCase() ?? (t.id as number);
 
 const isMarked = (t: PauseRow): boolean => (t.labels ?? []).includes(PAUSE_MARK);
+
+/** Shared with pause_downloads, which refuses at the preview so no token is issued for it. */
+export const turtleModeRefusal = (service: string, kbps: number | undefined): Error =>
+    new Error(
+        `${service} is in alternative speed (turtle) mode, capped at ${kbps} KiB/s, which overrides any normal limit. Turn turtle mode off in Transmission first.`
+    );
 
 export class TransmissionAdapter
     implements
@@ -316,12 +323,19 @@ export class TransmissionAdapter
         }
 
         const torrents = await this.#labelled();
-        const running = torrents.filter(t => t.status !== 0).length;
-        const marked = torrents.filter(isMarked).length;
+        const runningIds = torrents.filter(t => t.status !== 0).map(t => String(refOf(t)));
+        const markedIds = torrents.filter(isMarked).map(t => String(refOf(t)));
         return {
-            paused: marked > 0,
+            paused: markedIds.length > 0,
             scope: torrents.length === 1 ? '1 torrent' : `${torrents.length} torrents`,
-            torrents: { running, stopped: torrents.length - running, marked, mark: `label ${PAUSE_MARK}` }
+            torrents: {
+                running: runningIds.length,
+                stopped: torrents.length - runningIds.length,
+                marked: markedIds.length,
+                mark: `label ${PAUSE_MARK}`,
+                runningIds,
+                markedIds
+            }
         };
     }
 
@@ -375,9 +389,16 @@ export class TransmissionAdapter
         return { service: this.id, kbps: Math.round((limit * speedBytes(session)) / 1024) };
     }
 
+    /** Refused in turtle mode: the normal limit would change and nothing would
+     *  slow down or speed up until that mode ends. Read fresh, not cached. */
     async setSpeedLimit(kbps: number | undefined): Promise<void> {
         const clearing = kbps === undefined || kbps <= 0;
-        const unit = clearing ? 1000 : speedBytes(await this.#session());
+        const session = await this.#readSession();
+        const alt = session['alt-speed-down'];
+        if (session['alt-speed-enabled'] === true && typeof alt === 'number') {
+            throw turtleModeRefusal(this.id, Math.round((alt * speedBytes(session)) / 1024));
+        }
+        const unit = clearing ? 1000 : speedBytes(session);
         const body = await this.#http.post<RpcResponse<unknown>>(RPC_PATH, {
             method: 'session-set',
             arguments: {
