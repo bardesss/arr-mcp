@@ -24,16 +24,22 @@
  * the next token added cannot be added to only one of them.
  */
 const LIGHT = `
-  --bg: #f6f7f9; --panel: #fff; --panel-2: #f0f2f5; --line: #d9dee7;
-  --text: #1a1d26; --dim: #5b6472; --accent: #1a56db;
+  --bg: #f5f6f8; --side: #eceef2; --panel: #fff; --panel-2: #f0f2f5; --line: #d9dee7;
+  --text: #1a1d26; --dim: #5b6472; --accent: #1a56db; --primary: #1a56db; --nav-on: #fff;
   --ok: #15803d; --warn: #b45309; --bad: #b91c1c;
+  --ok-bg: #dcfce7; --ok-fg: #14532d; --err-bg: #fee2e2; --err-fg: #7f1d1d;
 `;
 
+/* --accent is for links and marks, --primary is behind white button text. They
+   are one colour in the light theme; in the dark one a blue light enough to
+   read as a link on near-black is too light to carry white text (#6ea8fe was
+   about 2.2:1), so the button gets a deeper one that clears 4.5:1. */
 export const CSS = `
 :root {
-  --bg: #12141a; --panel: #1a1d26; --panel-2: #21252f; --line: #2c313d;
-  --text: #e6e8ee; --dim: #9aa2b1; --accent: #6ea8fe;
-  --ok: #4ade80; --warn: #fbbf24; --bad: #f87171;
+  --bg: #101216; --side: #0a0c0f; --panel: #171a20; --panel-2: #1d2129; --line: #262b35;
+  --text: #e8eaef; --dim: #9ba2ae; --accent: #7aaaff; --primary: #2f6fe0; --nav-on: #1d2129;
+  --ok: #3ecf7a; --warn: #f2a531; --bad: #f26b67;
+  --ok-bg: #12301e; --ok-fg: #b7f7cd; --err-bg: #3a1618; --err-fg: #ffc9cc;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 /* Follow the OS, unless the config says otherwise. The :not() is what lets an
@@ -45,38 +51,92 @@ export const CSS = `
 * { box-sizing: border-box; }
 body {
   margin: 0; background: var(--bg); color: var(--text);
-  font: 15px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  font: 14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
 }
 a { color: var(--accent); }
-header {
-  display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;
-  padding: .9rem 1.25rem; background: var(--panel); border-bottom: 1px solid var(--line);
+.logo { width: 24px; height: 24px; flex: none; color: var(--accent); }
+.brand {
+  display: flex; align-items: center; gap: .6rem; color: var(--text); text-decoration: none;
+  font-weight: 700; font-size: 1rem;
 }
-header h1 { font-size: 1rem; margin: 0; letter-spacing: .02em; display: flex; align-items: center; gap: .5rem; }
-header h1 span { color: var(--dim); font-weight: 400; }
-.logo { width: 22px; height: 22px; flex: none; color: var(--accent); }
-nav { display: flex; gap: .25rem; flex: 1; flex-wrap: wrap; }
-nav a {
-  padding: .35rem .7rem; border-radius: 6px; text-decoration: none;
-  color: var(--dim); font-size: .9rem;
+.brand small { font: 500 .72rem var(--mono); color: var(--dim); }
+
+/* --- the shell -----------------------------------------------------------
+   A sidebar beside the page, the way the *arr apps lay themselves out, so the
+   menu is where anyone running this stack already looks for it. Wraps rather
+   than switching layout at a breakpoint: below about 800px the content's
+   flex-basis no longer fits beside the sidebar, and the sidebar becomes a bar
+   across the top. */
+.app { display: flex; flex-wrap: wrap; min-height: 100vh; }
+.side {
+  flex: 0 0 220px; box-sizing: border-box; background: var(--side); border-right: 1px solid var(--line);
+  display: flex; flex-direction: column; gap: .25rem; padding: 1.1rem .75rem;
 }
-nav a:hover { background: var(--panel-2); color: var(--text); }
-nav a.on { background: var(--panel-2); color: var(--text); }
-main { max-width: 1100px; margin: 0 auto; padding: 1.5rem 1.25rem 2rem; }
+.side-top { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .2rem .6rem 1.1rem; }
+.side-nav { display: flex; flex-direction: column; gap: 2px; }
+.side-nav a {
+  display: flex; align-items: center; gap: .7rem; padding: .55rem .65rem; border-radius: 6px;
+  color: var(--dim); text-decoration: none; font-weight: 500;
+}
+.side-nav a:hover { background: var(--panel); color: var(--text); }
+/* A filled row and a coloured mark. No edge bar. */
+.side-nav a.on { background: var(--nav-on); color: var(--text); }
+.side-nav a.on .nav-icon { color: var(--accent); }
+.nav-icon { width: 18px; height: 18px; flex: none; }
+.side-foot {
+  margin-top: auto; padding: .9rem .65rem 0; border-top: 1px solid var(--line);
+  display: flex; flex-direction: column; gap: .5rem; font-size: .8rem;
+}
+.side-foot a, button.link { color: var(--dim); }
+button.link { background: none; border: 0; padding: 0; font: inherit; text-align: left; cursor: pointer; }
+button.link:hover { color: var(--text); filter: none; }
+/* Off screen rather than display:none, which would take it out of the tab
+   order and leave the menu unreachable from a keyboard. */
+.menu-toggle { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; pointer-events: none; }
+.burger {
+  display: none; width: 44px; height: 44px; box-sizing: border-box; margin: 0;
+  align-items: center; justify-content: center; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--panel-2); color: var(--text);
+}
+.burger .nav-icon:last-child, .menu-toggle:checked + .burger .nav-icon:first-child { display: none; }
+.menu-toggle:checked + .burger .nav-icon:last-child { display: block; }
+.menu-toggle:focus-visible + .burger { outline: 2px solid var(--accent); outline-offset: 2px; }
+.content { flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; }
+.top { padding: 1rem 1.75rem; border-bottom: 1px solid var(--line); }
+.top h1 { margin: 0; font-size: 1.15rem; font-weight: 600; }
+main { max-width: 1100px; width: 100%; box-sizing: border-box; padding: 1.5rem 1.75rem 2.5rem; }
+
+/* Sign-in, setup and repair: no session, so no menu. */
+header.bare { display: flex; padding: 1rem 1.25rem; border-bottom: 1px solid var(--line); background: var(--side); }
+main.bare { margin: 0 auto; }
 footer {
   max-width: 1100px; margin: 0 auto; padding: 1rem 1.25rem 2.5rem;
-  border-top: 1px solid var(--line); color: var(--dim); font-size: .85rem;
+  color: var(--dim); font-size: .85rem;
   display: flex; flex-wrap: wrap; gap: .3rem 1.1rem; align-items: baseline;
 }
-h2 { font-size: 1.05rem; margin: 2rem 0 .75rem; }
+
+/* In-page tabs: the log streams. */
+.tabs { display: flex; gap: .25rem; flex-wrap: wrap; margin-bottom: .75rem; }
+.tabs a {
+  padding: .4rem .75rem; border-radius: 6px; text-decoration: none;
+  color: var(--dim); font-size: .9rem; font-weight: 500;
+}
+.tabs a:hover { background: var(--panel); color: var(--text); }
+.tabs a.on { background: var(--panel-2); color: var(--text); }
+
+h2 {
+  font-size: .78rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--dim); margin: 2rem 0 .75rem;
+}
 h2:first-child { margin-top: 0; }
+.login h2 { font-size: 1.1rem; text-transform: none; letter-spacing: 0; color: var(--text); }
 p.note { color: var(--dim); font-size: .9rem; margin: .35rem 0 1rem; }
 .panel {
   background: var(--panel); border: 1px solid var(--line);
-  border-radius: 10px; padding: 1rem 1.1rem; margin-bottom: 1rem;
+  border-radius: 8px; padding: 1rem 1.1rem; margin-bottom: 1rem;
 }
 .grid { display: grid; gap: .85rem; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
-.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: .9rem 1rem; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: .9rem 1rem; }
 .card h3 { margin: 0 0 .4rem; font-size: .95rem; display: flex; align-items: center; gap: .5rem; }
 .card dl { margin: .5rem 0 0; display: grid; grid-template-columns: auto 1fr; gap: .2rem .75rem; font-size: .88rem; }
 .card dt { color: var(--dim); }
@@ -114,8 +174,8 @@ p.note { color: var(--dim); font-size: .9rem; margin: .35rem 0 1rem; }
 .dot { width: .6rem; height: .6rem; border-radius: 50%; display: inline-block; flex: none; }
 .dot.ok { background: var(--ok); } .dot.bad { background: var(--bad); } .dot.off { background: var(--dim); }
 .remedy {
-  margin-top: .6rem; padding: .5rem .6rem; border-left: 3px solid var(--warn);
-  background: var(--panel-2); border-radius: 0 6px 6px 0; font-size: .85rem; color: var(--text);
+  margin-top: .6rem; padding: .5rem .65rem; border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent);
+  background: color-mix(in srgb, var(--warn) 8%, transparent); border-radius: 6px; font-size: .85rem; color: var(--text);
 }
 table { width: 100%; border-collapse: collapse; font-size: .87rem; }
 /* A health message, a mount path, a URL: one long unbroken value in a cell is
@@ -131,35 +191,39 @@ th, td {
 th { color: var(--dim); font-weight: 500; position: sticky; top: 0; z-index: 1; background: var(--panel); }
 td.mono, .mono { font-family: var(--mono); font-size: .85em; }
 tr.lvl-40 td { color: var(--warn); } tr.lvl-50 td, tr.lvl-60 td { color: var(--bad); }
-.scroll { max-height: 65vh; overflow: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+.scroll { max-height: 65vh; overflow: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
 form.inline { display: flex; gap: .5rem; flex-wrap: wrap; align-items: end; margin-bottom: 1rem; }
 label { display: block; font-size: .85rem; color: var(--dim); margin-bottom: .2rem; }
 input, select, textarea {
-  background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
-  border-radius: 7px; padding: .45rem .6rem; font: inherit; min-width: 0; max-width: 100%;
+  background: var(--bg); color: var(--text); border: 1px solid var(--line);
+  border-radius: 6px; padding: .45rem .6rem; font: inherit; min-width: 0; max-width: 100%;
 }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 input[type=checkbox] { min-width: auto; }
-button {
-  background: var(--accent); color: #fff; border: 0; border-radius: 7px;
-  padding: .5rem .9rem; font: inherit; cursor: pointer;
+/* a.button is the same control as a link: "Create a token" on the dashboard
+   went to another page, and an <a> styled as a button is the honest element. */
+button, a.button {
+  display: inline-flex; align-items: center; justify-content: center; gap: .45rem;
+  min-height: 36px; box-sizing: border-box;
+  background: var(--primary); color: #fff; border: 1px solid var(--primary); border-radius: 6px;
+  padding: .4rem .9rem; font: 500 .9rem/1.2 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  cursor: pointer; text-decoration: none;
 }
-button.ghost { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); }
-button:hover { filter: brightness(1.1); }
+button.ghost, a.button.ghost { background: var(--panel-2); color: var(--text); border-color: var(--line); }
+button:hover, a.button:hover { filter: brightness(1.1); }
 .row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
-.msg { padding: .7rem .9rem; border-radius: 8px; margin-bottom: 1rem; font-size: .9rem; }
-.msg.ok { background: #14351f; color: #b7f7cd; }
-.msg.err { background: #3a1618; color: #ffc9cc; white-space: pre-wrap; }
-@media (prefers-color-scheme: light) {
-  .msg.ok { background: #dcfce7; color: #14532d; }
-  .msg.err { background: #fee2e2; color: #7f1d1d; }
-}
+/* From tokens, so the colours follow the theme picked in Settings as well as
+   the OS's. They used to sit under prefers-color-scheme alone, which put a
+   dark message on a light page whenever the two disagreed. */
+.msg { padding: .7rem .9rem; border-radius: 6px; margin-bottom: 1rem; font-size: .9rem; }
+.msg.ok { background: var(--ok-bg); color: var(--ok-fg); }
+.msg.err { background: var(--err-bg); color: var(--err-fg); white-space: pre-wrap; }
 .login { max-width: 380px; margin: 12vh auto; }
 .login .panel { padding: 1.5rem; }
 .field { margin-bottom: .9rem; }
 .field input { width: 100%; }
 .repair textarea { width: 100%; min-height: 26rem; font-family: var(--mono); font-size: .8rem; }
-fieldset { border: 1px solid var(--line); border-radius: 10px; padding: .9rem 1rem; margin: 0 0 1rem; }
+fieldset { border: 1px solid var(--line); border-radius: 8px; padding: .9rem 1rem; margin: 0 0 1rem; }
 legend { padding: 0 .4rem; color: var(--dim); font-size: .85rem; }
 .svc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: .75rem; }
 /* What type=password used to do, minus the part that made every password
@@ -174,10 +238,10 @@ legend { padding: 0 .4rem; color: var(--dim); font-size: .85rem; }
 [data-reveal][aria-pressed="false"] .eye-slash { display: none; }
 dialog {
   background: var(--panel); color: var(--text); border: 1px solid var(--line);
-  border-radius: 10px; padding: 0; max-width: 560px; width: calc(100% - 2rem);
+  border-radius: 8px; padding: 0; max-width: 560px; width: calc(100% - 2rem);
 }
 dialog::backdrop { background: rgba(0, 0, 0, .6); }
-dialog .panel { margin: 0; border: 0; border-radius: 10px; max-height: 82vh; overflow: auto; }
+dialog .panel { margin: 0; border: 0; border-radius: 8px; max-height: 82vh; overflow: auto; }
 .token { display: flex; gap: .5rem; align-items: center; margin-bottom: .5rem; flex-wrap: wrap; }
 /* Wraps rather than shrinking: squeezed onto one phone-width line, the field
    holding the token is narrower than the two buttons beside it, and a token
@@ -194,7 +258,7 @@ dialog .panel { margin: 0; border: 0; border-radius: 10px; max-height: 82vh; ove
 .trail { display: grid; gap: .6rem; }
 .entry {
   background: var(--panel); border: 1px solid var(--line);
-  border-radius: 10px; padding: .75rem .9rem;
+  border-radius: 8px; padding: .75rem .9rem;
 }
 .entry-top { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; }
 .entry-top .tool { font-weight: 600; }
@@ -218,20 +282,19 @@ dialog .panel { margin: 0; border: 0; border-radius: 10px; max-height: 82vh; ove
 .badge.failed { color: var(--bad); border-color: currentColor; }
 
 /* --- small screens -----------------------------------------------------
-   The body is one column at any width already. What breaks on a phone is the
-   header, where a title, four nav links and Sign out share one wrapping flex
-   row and land wherever they happen to fall. */
+   The sidebar becomes a bar across the top with a menu button. Closed, the
+   page starts right under it; open, the menu and its links drop down in the
+   bar, as the sidebar they are on a wide screen. */
+@media (max-width: 800px) {
+  .side { flex: 1 1 100%; border-right: 0; border-bottom: 1px solid var(--line); padding: .5rem .75rem; }
+  .side-top { padding: 0 0 0 .25rem; }
+  .burger { display: inline-flex; }
+  .side-nav, .side-foot { display: none; }
+  .side:has(.menu-toggle:checked) .side-nav { display: flex; padding: .5rem 0 .25rem; }
+  .side:has(.menu-toggle:checked) .side-foot { display: flex; margin-top: .25rem; padding: .75rem .65rem .4rem; }
+}
 @media (max-width: 700px) {
-  header { gap: .6rem .75rem; padding: .75rem .9rem; }
-  header h1 { flex: 1; }
-  /* A row of its own, under the title and Sign out. Moved with "order" rather
-     than in the markup, because on a wide screen the nav genuinely does belong
-     between those two, and the source order is the reading order. */
-  nav { order: 1; flex-basis: 100%; gap: .3rem; }
-  /* Stretched to fill the line: four links of unequal length wrapping across
-     two rows read as debris otherwise. Smaller and tighter so that on most
-     phones they fit on one row at all. */
-  nav a { flex: 1 1 auto; text-align: center; padding: .55rem .55rem; font-size: .85rem; }
+  .top { padding: .9rem 1rem; }
   main { padding: 1.25rem .9rem 1.5rem; }
   footer { padding: 1rem .9rem 2.5rem; }
   .panel, .card, .entry { padding: .8rem .85rem; }

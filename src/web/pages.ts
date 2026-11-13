@@ -7,7 +7,7 @@ import type { DatasetStatus } from '../metadata/imdbDataset.ts';
 import type { ConnectionDiagnosis, HealthCheck, HistoryEntry, ScanState, Window } from '../services/types.ts';
 import { humanBytes, type DiskGroup } from '../core/disks.ts';
 import { esc, html, raw, shortTime, type SafeHtml } from './html.ts';
-import { LOGO, serviceIcon } from './icons.ts';
+import { LOGO, NAV_ICONS, serviceIcon } from './icons.ts';
 
 /**
  * Every page, server rendered. No client framework and no build step: the
@@ -15,7 +15,9 @@ import { LOGO, serviceIcon } from './icons.ts';
  * the log auto-refresh.
  */
 
-type Nav = 'dashboard' | 'config' | 'logs' | 'audit';
+/** The configuration tabs are entries of their own here, so the page has one
+ *  menu rather than a menu and a second row of tabs under it. */
+type Nav = 'dashboard' | 'services' | 'access' | 'logs' | 'audit' | 'settings';
 
 /** Where this came from, and where a missing tool or a bug goes. On every
  *  page, including the sign-in one: the person who cannot get in is exactly
@@ -24,10 +26,18 @@ const REPO = 'https://github.com/bardesss/arr-mcp';
 
 const NAV: { key: Nav; href: string; label: string }[] = [
     { key: 'dashboard', href: '/ui', label: 'Dashboard' },
-    { key: 'config', href: '/ui/config', label: 'Configuration' },
+    { key: 'services', href: '/ui/config?tab=services', label: 'Services' },
+    { key: 'access', href: '/ui/config?tab=access', label: 'Access' },
     { key: 'logs', href: '/ui/logs', label: 'Logs' },
-    { key: 'audit', href: '/ui/audit', label: 'Write audit' }
+    { key: 'audit', href: '/ui/audit', label: 'Writes' },
+    { key: 'settings', href: '/ui/config?tab=settings', label: 'Settings' }
 ];
+
+/** rel="noreferrer" because this page is served over plain http on a LAN and
+ *  the links leave for github.com: without it the Referer header hands them
+ *  the hostname and port your instance is reachable on. */
+const repoLinks = (): SafeHtml => html`<a href="${REPO}" target="_blank" rel="noreferrer">Source on GitHub</a>
+    <a href="${REPO}/issues/new/choose" target="_blank" rel="noreferrer">Report a bug or request a tool</a>`;
 
 export function layout(opts: {
     title: string;
@@ -58,18 +68,46 @@ export function layout(opts: {
             ? raw('')
             : html`<div class="msg ${opts.message.kind}">${opts.message.text}</div>`;
 
-    const nav =
+    const brand = html`<a class="brand" href="/ui">${raw(LOGO)}<span>arr-mcp</span><small>${opts.version}</small></a>`;
+
+    /**
+     * The sidebar, or on a phone a bar with a menu button. The button is a
+     * checkbox and its label, so the menu opens without scripting; a
+     * <details> would also hide the sidebar on a wide screen, where it has to
+     * stay open. The checkbox carries the name, the label only draws it.
+     */
+    const shell = (main: string): string =>
         opts.nav === undefined
-            ? raw('')
-            : html`<nav>
-                  ${NAV.map(
-                      item => html`<a href="${item.href}" class="${item.key === opts.nav ? 'on' : ''}">${item.label}</a>`
-                  )}
-              </nav>
-              <form method="post" action="/ui/logout">
-                  <input type="hidden" name="csrf" value="${opts.csrf ?? ''}">
-                  <button class="ghost" type="submit">Sign out</button>
-              </form>`;
+            ? `<header class="bare">${brand.value}</header>
+<main class="bare">${main}</main>
+<footer>${repoLinks().value}</footer>`
+            : html`<div class="app">
+                  <aside class="side">
+                      <div class="side-top">
+                          ${brand}
+                          <input type="checkbox" id="menu-toggle" class="menu-toggle" aria-label="Menu" aria-controls="side-nav">
+                          <label for="menu-toggle" class="burger">${raw(NAV_ICONS.menu)}${raw(NAV_ICONS.close)}</label>
+                      </div>
+                      <nav class="side-nav" id="side-nav" aria-label="Main">
+                          ${NAV.map(item =>
+                              item.key === opts.nav
+                                  ? html`<a href="${item.href}" class="on" aria-current="page">${raw(NAV_ICONS[item.key])}${item.label}</a>`
+                                  : html`<a href="${item.href}" class="">${raw(NAV_ICONS[item.key])}${item.label}</a>`
+                          )}
+                      </nav>
+                      <div class="side-foot">
+                          ${repoLinks()}
+                          <form method="post" action="/ui/logout">
+                              <input type="hidden" name="csrf" value="${opts.csrf ?? ''}">
+                              <button class="link" type="submit">Sign out</button>
+                          </form>
+                      </div>
+                  </aside>
+                  <div class="content">
+                      <div class="top"><h1>${opts.title}</h1></div>
+                      <main>${raw(main)}</main>
+                  </div>
+              </div>`.value;
 
     return `<!doctype html>
 <html lang="en"${theme.value}>
@@ -93,16 +131,7 @@ dialog { display: block; position: static; max-width: none; width: auto; margin:
 </style></noscript>
 </head>
 <body>
-<header><h1>${LOGO}arr-mcp <span>${esc(opts.version)}</span></h1>${nav.value}</header>
-<main>${message.value}${opts.body.value}</main>
-<!-- rel="noreferrer" because this page is served over plain http on a LAN and
-     the link leaves for github.com: without it the Referer header hands them
-     the hostname and port your instance is reachable on. -->
-<footer>
-  <span>arr-mcp ${esc(opts.version)}</span>
-  <a href="${REPO}" target="_blank" rel="noreferrer">Source on GitHub</a>
-  <a href="${REPO}/issues/new/choose" target="_blank" rel="noreferrer">Report a bug or request a tool</a>
-</footer>
+${shell(message.value + opts.body.value)}
 <script src="/ui/app.js?v=${encodeURIComponent(opts.version)}" defer></script>
 </body>
 </html>`;
@@ -447,8 +476,8 @@ export type LogStreamKey = (typeof LOG_STREAMS)[number]['key'];
  * server-rendered page, so they work without scripting and read as the same
  * control wherever they appear.
  */
-export const tabBar = (tabs: readonly { href: string; label: string; on: boolean }[]): SafeHtml =>
-    html`<nav style="margin-bottom:.75rem">
+const tabBar = (tabs: readonly { href: string; label: string; on: boolean }[]): SafeHtml =>
+    html`<nav class="tabs">
         ${tabs.map(
             t => html`<a href="${t.href}" class="${t.on ? 'on' : ''}"${t.on ? raw(' aria-current="page"') : raw('')}>${t.label}</a>`
         )}
@@ -488,12 +517,12 @@ export function eventLogPage(opts: {
             : !opts.enabled
               ? html`<p class="note">
                     The library event log is off, so nothing new is being recorded. Turn it on under
-                    <a href="/ui/config?tab=settings#webhooks">Library event log</a> on the Configuration page.
+                    <a href="/ui/config?tab=settings#webhooks">Library event log</a> on the Settings page.
                 </p>`
               : rows.length === 0
                 ? html`<p class="note">
                       Nothing has arrived yet. Each Radarr, Sonarr and Lidarr instance needs a webhook connection, and
-                      <a href="/ui/config?tab=settings#webhooks">the Configuration page</a> has the details.
+                      <a href="/ui/config?tab=settings#webhooks">the Settings page</a> has the details.
                   </p>`
                 : raw('');
 
@@ -519,8 +548,7 @@ export function eventLogPage(opts: {
                   </table>
               </div>`;
 
-    const body = html`<h2>Logs</h2>
-        ${logTabs('events', '')}
+    const body = html`${logTabs('events', '')}
         <p class="note">
             What Radarr, Sonarr and Lidarr reported${opts.retentionDays === undefined ? raw('') : html`, kept for ${opts.retentionDays} days`}.
             A title's history goes from the service when the title is deleted, and this stays.
@@ -570,8 +598,7 @@ export function logsPage(opts: {
                   <button type="submit">Show</button>
               </form>`;
 
-    const body = html`<h2>Logs</h2>
-        <p class="note">
+    const body = html`<p class="note">
             The last few thousand lines, kept in a ring buffer beside your config. Full history stays in
             <span class="mono">docker logs</span>.
         </p>
@@ -739,8 +766,7 @@ function auditEntry(r: AuditRow): SafeHtml {
 }
 
 export function auditPage(opts: { csrf: string; version: string; rows: AuditRow[]; theme?: Theme | undefined }): string {
-    const body = html`<h2>Write audit</h2>
-        <p class="note">
+    const body = html`<p class="note">
             Every write attempt, including previews and refusals. An entry still reading
             <span class="mono">attempted</span> means arr-mcp stopped mid-write.
         </p>
@@ -749,6 +775,6 @@ export function auditPage(opts: { csrf: string; version: string; rows: AuditRow[
             ? html`<p class="note">Nothing has tried to write yet.</p>`
             : html`<div class="trail">${opts.rows.map(auditEntry)}</div>`}`;
 
-    return layout({ title: 'Write audit', nav: 'audit', csrf: opts.csrf, version: opts.version, body, theme: opts.theme });
+    return layout({ title: 'Writes', nav: 'audit', csrf: opts.csrf, version: opts.version, body, theme: opts.theme });
 }
 

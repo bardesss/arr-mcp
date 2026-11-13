@@ -806,16 +806,24 @@ describe('the configuration tabs', () => {
         expect(onTab(await res.text(), 'settings')).toBe(true);
     });
 
-    it('builds the tabs the same way as the Logs page', async () => {
+    // One menu: each tab is a sidebar entry, so no second row of tabs repeats it.
+    it('marks the tab in the sidebar and draws no tab row of its own', async () => {
         await signIn();
-        const bar = (page: string) => /<nav style="margin-bottom:\.75rem">[\s\S]*?<\/nav>/.exec(page)?.[0] ?? '';
-        const shape = (html: string) => html.replace(/href="[^"]*"/g, 'href').replace(/>[^<]+</g, '><').replace(/\s+/g, ' ');
-        const logs = bar(await (await call('/ui/logs')).text());
-        const config = bar(await (await call('/ui/config')).text());
+        for (const { key } of CONFIG_TABS) {
+            const page = await (await call(`/ui/config?tab=${key}`)).text();
+            const sidebar = /<nav class="side-nav"[\s\S]*?<\/nav>/.exec(page)?.[0] ?? '';
+            expect(onTab(sidebar, key), key).toBe(true);
+            expect(page.match(/aria-current="page"/g), key).toHaveLength(1);
+            expect(page, key).not.toContain('<nav class="tabs">');
+        }
+    });
 
-        expect(logs).toContain('aria-current="page"');
-        expect(config).toContain('aria-current="page"');
-        expect(shape(config).split('</a>')[0]).toBe(shape(logs).split('</a>')[0]);
+    it('builds the log streams as tabs inside the page', async () => {
+        await signIn();
+        const logs = await (await call('/ui/logs')).text();
+        expect(logs).toContain('<nav class="tabs">');
+        expect(logs).toContain('href="/ui/logs" class="on" aria-current="page"');
+        expect(logs).toContain('href="/ui/logs?stream=all" class="on" aria-current="page"');
     });
 });
 
@@ -2425,7 +2433,7 @@ describe('logs and audit', () => {
         await signIn();
         const res = await call('/ui/audit');
         expect(res.status).toBe(200);
-        expect(await res.text()).toContain('Write audit');
+        expect(await res.text()).toContain('<h1>Writes</h1>');
     });
 });
 

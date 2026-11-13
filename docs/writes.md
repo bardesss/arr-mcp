@@ -423,7 +423,7 @@ target and the arguments.
 If that file cannot be written, writes are refused rather than proceeding
 unrecorded. Reads are unaffected.
 
-The config UI's **Write audit** page reads the same trail.
+The config UI's **Writes** page reads the same trail.
 
 ## Ids, never titles
 

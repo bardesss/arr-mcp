@@ -226,7 +226,7 @@ export function readEventLog(
         ...(opts.eventType === undefined ? {} : { eventType: opts.eventType }),
         ...(opts.since === undefined ? {} : { since: opts.since })
     };
-    const OFF = 'The library event log is off, so nothing new is being recorded. Turn it on under Library event log on the Configuration page.';
+    const OFF = 'The library event log is off, so nothing new is being recorded. Turn it on under Library event log on the Settings page.';
     const empty = { ...applyLimit<HistoryEntry>([], opts.limit, opts.offset, 0), counts: {} };
 
     if (log === undefined) return { ...empty, degraded: [], note: OFF };
@@ -251,7 +251,7 @@ export function readEventLog(
     const note = !log.enabled
         ? OFF
         : anything === 0
-          ? 'The library event log is on, but nothing has arrived. Each Radarr, Sonarr and Lidarr instance needs a webhook connection, and the Configuration page has the details.'
+          ? 'The library event log is on, but nothing has arrived. Each Radarr, Sonarr and Lidarr instance needs a webhook connection, and the Settings page has the details.'
           : undefined;
     return {
         ...shaped,
