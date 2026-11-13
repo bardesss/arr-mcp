@@ -98,7 +98,14 @@ describe('transmission pause', () => {
         ]);
         const adapter = adapterWith(fake.fetch);
 
-        expect((await adapter.readPauseState()).torrents).toEqual({ running: 2, stopped: 1, marked: 0, mark: 'label arr-mcp-paused' });
+        expect((await adapter.readPauseState()).torrents).toEqual({
+            running: 2,
+            stopped: 1,
+            marked: 0,
+            mark: 'label arr-mcp-paused',
+            runningIds: [hashOf('2'), hashOf('3')],
+            markedIds: []
+        });
         await adapter.setPaused(true);
         expect(fake.torrents.map(t => [t.status, t.labels])).toEqual([
             [0, []],
@@ -119,6 +126,14 @@ describe('transmission pause', () => {
             [4, []]
         ]);
         expect(fake.calls.filter(c => c.method === 'torrent-start' || c.method === 'torrent-stop').every(c => Array.isArray(c.arguments?.ids))).toBe(true);
+    });
+
+    // The label is this server's bookkeeping, not the user's: get_queue and the
+    // Cleanuparr rule match never see it.
+    it('leaves its own label out of the queue facts', async () => {
+        const fake = transmissionFake([{ id: 1, hashString: hashOf('1'), status: 0, labels: ['arr-mcp-paused', 'tv'] }]);
+        const [row] = await adapterWith(fake.fetch).getQueue();
+        expect(row?.torrent?.tags).toEqual(['tv']);
     });
 
     it('unlabels a torrent resumed by its own id', async () => {
@@ -328,7 +343,14 @@ describe('qbittorrent pause', () => {
             ['stoppedDL', 'movies, arr-mcp-paused'],
             ['pausedDL', 'keep']
         ]);
-        expect((await adapter.readPauseState()).torrents).toEqual({ running: 0, stopped: 3, marked: 1, mark: 'tag arr-mcp-paused' });
+        expect((await adapter.readPauseState()).torrents).toEqual({
+            running: 0,
+            stopped: 3,
+            marked: 1,
+            mark: 'tag arr-mcp-paused',
+            runningIds: [],
+            markedIds: ['b'.repeat(40)]
+        });
 
         await adapter.setPaused(false);
         expect(fake.torrents.map(t => [t.state, t.tags])).toEqual([
@@ -337,6 +359,27 @@ describe('qbittorrent pause', () => {
             ['pausedDL', 'keep']
         ]);
         expect(fake.sent.every(h => h !== 'all')).toBe(true);
+        // No torrent carries the tag any more, so it does not linger in the client's tag list.
+        expect(fake.deletedTags).toEqual(['arr-mcp-paused']);
+    });
+
+    it('keeps the tag while another torrent still carries it', async () => {
+        const fake = qbitFake([
+            { hash: 'a'.repeat(40), state: 'stoppedDL', tags: 'arr-mcp-paused' },
+            { hash: 'b'.repeat(40), state: 'stoppedDL', tags: 'arr-mcp-paused' }
+        ]);
+        const adapter = adapterWith(fake.fetch);
+
+        await adapter.setPaused(false, 'a'.repeat(40));
+        expect(fake.deletedTags).toEqual([]);
+        await adapter.setPaused(false, 'b'.repeat(40));
+        expect(fake.deletedTags).toEqual(['arr-mcp-paused']);
+    });
+
+    it('leaves its own tag out of the queue facts', async () => {
+        const fake = qbitFake([{ hash: HASH, state: 'stoppedDL', tags: 'movies, arr-mcp-paused' }]);
+        const [row] = await adapterWith(fake.fetch).getQueue();
+        expect(row?.torrent?.tags).toEqual(['movies']);
     });
 
     it('refuses a whole-client pause on a qBittorrent without tags, before stopping anything', async () => {
@@ -351,13 +394,21 @@ type FakeQbit = { hash: string; state: string; tags?: string };
 /** An in-memory qBittorrent 5 that applies stop, start and tag writes. */
 function qbitFake(torrents: FakeQbit[]) {
     const sent: string[] = [];
+    const deletedTags: string[] = [];
     const impl = (async (input: string | URL | Request, init?: RequestInit) => {
         const url = new URL(input instanceof Request ? input.url : String(input));
         const form = new URLSearchParams(typeof init?.body === 'string' ? init.body : String(init?.body ?? ''));
         const verb = url.pathname.split('/').pop();
         if (verb === 'info') {
             const only = url.searchParams.get('hashes');
-            return jsonResponse(torrents.filter(t => only === null || t.hash === only));
+            const tag = url.searchParams.get('tag');
+            return jsonResponse(
+                torrents.filter(t => (only === null || t.hash === only) && (tag === null || (t.tags ?? '').split(', ').includes(tag)))
+            );
+        }
+        if (verb === 'deleteTags') {
+            deletedTags.push(form.get('tags') ?? '');
+            return new Response('', { status: 200 });
         }
         const hashes = form.get('hashes') ?? '';
         sent.push(hashes);
@@ -370,7 +421,7 @@ function qbitFake(torrents: FakeQbit[]) {
         }
         return new Response('', { status: 200 });
     }) as unknown as typeof fetch;
-    return { torrents, sent, fetch: impl };
+    return { torrents, sent, deletedTags, fetch: impl };
 }
 
 describe('qbittorrent pause, continued', () => {
@@ -679,6 +730,24 @@ describe('pause_downloads', () => {
 
             await h.call({ service: 'transmission', action: 'resume', confirm: preview.structuredContent.confirm_token });
             expect(fake.torrents.map(t => t.status)).toEqual([0, 4]);
+        });
+
+        // A torrent an *arr sends between preview and confirm was never named
+        // in the preview, so the token does not stop it.
+        it('refuses a pause token once the running torrents changed, and previews the new set', async () => {
+            const fake = transmissionFake([{ id: 1, hashString: hashOf('1'), status: 4, labels: [] }]);
+            const h = torrentHarness(fake);
+            const preview = await h.call({ service: 'transmission', action: 'pause' });
+
+            fake.torrents.push({ id: 2, hashString: hashOf('2'), status: 4, labels: [] });
+            const confirmed = await h.call({ service: 'transmission', action: 'pause', confirm: preview.structuredContent.confirm_token });
+
+            expect(confirmed.structuredContent).toMatchObject({ applied: false, summary: 'Pause the 2 torrents running on transmission.' });
+            expect(confirmed.structuredContent.confirm_error).toMatch(/changed since that preview/);
+            expect(fake.torrents.map(t => t.status)).toEqual([4, 4]);
+
+            await h.call({ service: 'transmission', action: 'pause', confirm: confirmed.structuredContent.confirm_token });
+            expect(fake.torrents.map(t => t.status)).toEqual([0, 0]);
         });
 
         it('refuses a resume for a torrent id the client does not have, rather than calling it running', async () => {

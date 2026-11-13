@@ -1098,8 +1098,8 @@ export type CalendarEntry = {
     episode?: number;
     /** ISO 8601. When the item becomes available, whatever the service calls it. */
     date: string;
+    /** No `monitored` beside it: an *arr calendar lists only monitored items unless sent `unmonitored=true`, which this never sends. */
     hasFile: boolean;
-    monitored: boolean;
 };
 
 export interface CalendarCapable {
@@ -1898,9 +1898,10 @@ export type PauseState = {
      * A torrent client's whole-client read. Neither has a client-wide pause, so
      * a pause stops the running torrents and marks them with `PAUSE_MARK`, and
      * resume starts the marked ones only; `paused` is "some are marked".
-     * `mark` names the marker in the client's own word.
+     * `mark` names the marker in the client's own word. The ids are what a
+     * pause or resume acts on, so a confirm token can bind to them.
      */
-    torrents?: { running: number; stopped: number; marked: number; mark: string };
+    torrents?: { running: number; stopped: number; marked: number; mark: string; runningIds: string[]; markedIds: string[] };
 };
 
 /** The qBittorrent tag or Transmission label a whole-client pause leaves on what

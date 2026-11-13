@@ -35,6 +35,8 @@ export const DOWNLOAD_CLIENTS: readonly ServiceId[] = ['sabnzbd', 'nzbget', 'tra
 export const SERVICES_KEY = 'x-arr-services';
 /** Marks a `kind` field, whose enum the tool list trims to the kinds the configured services hold. */
 export const KINDS_KEY = 'x-arr-kinds';
+/** Maps enum values to the services they need, `{ bookdrop: ['grimmory'] }`; the tool list drops a value none of them is configured for. */
+export const VALUES_KEY = 'x-arr-values';
 
 /**
  * A `service` field that advertises only the services this tool takes.

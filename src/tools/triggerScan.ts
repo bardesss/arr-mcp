@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { type ServiceId, serviceOf } from '../config/schema.ts';
+import { type ServiceId, serviceOf, VALUES_KEY } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import {
     hasCommandStatus,
@@ -179,6 +179,7 @@ const TriggerScanInput = z.object({
     instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
     action: z
         .enum(['scan', 'rename', 'bookdrop'])
+        .meta({ [VALUES_KEY]: { bookdrop: ['grimmory'] } })
         .default('scan')
         .describe(
             "scan rescans the library, or just one item when `id` is given[[lidarr:  (on Lidarr only the refresh narrows to one artist: the rescan still reads every root folder)]]; on an *arr it refreshes metadata from the provider first. rename renames one item's files to the service's own naming scheme, and requires `id`. [[grimmory: bookdrop rescans Grimmory's Bookdrop folder for new files.]]"

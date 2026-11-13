@@ -160,7 +160,35 @@ describe('the tool list on a stack', () => {
         const tools = await listTools({ radarr: svc(7878) });
         expect(tools.find(t => t.name === 'get_queue')?.description).toContain('downloadId');
     });
+
+    it('offers trigger_scan `bookdrop` only with Grimmory', async () => {
+        type Props = Record<string, { enum?: string[]; default?: unknown }>;
+        const action = async (services: Record<string, unknown>) =>
+            ((await listTools(services)).find(t => t.name === 'trigger_scan')?.inputSchema as { properties: Props }).properties['action'];
+        expect((await action(STACKS['small']!))?.enum).toEqual(['scan', 'rename']);
+        expect((await action(STACKS['small']!))?.default).toBe('scan');
+        expect((await action(STACKS['books']!))?.enum).toContain('bookdrop');
+        expect((await action({}))?.enum).toContain('bookdrop');
+    });
+
+    it('describes `episode` on Whisparr, where it is a scene id', async () => {
+        for (const name of ['get_releases', 'grab_release']) {
+            const tool = (await listTools(SHAPES_WHISPARR)).find(t => t.name === name);
+            const episode = (tool?.inputSchema as { properties: Record<string, { description?: string }> }).properties['episode'];
+            expect(episode?.description, name).toMatch(/Whisparr/);
+            expect(episode?.description, name).not.toMatch(/Sonarr/);
+        }
+    });
+
+    it('says a Sonarr or Whisparr re-search in grab_release needs `season` or `episode`', async () => {
+        const text = (await listTools(SHAPES_WHISPARR)).find(t => t.name === 'grab_release')?.description ?? '';
+        expect(text).toContain('A Whisparr re-search needs `season` or `episode`.');
+        const radarrOnly = (await listTools({ radarr: svc(7878) })).find(t => t.name === 'grab_release')?.description ?? '';
+        expect(radarrOnly).not.toContain('re-search needs');
+    });
 });
+
+const SHAPES_WHISPARR = { whisparr: svc(6969), sabnzbd: svc(8080) };
 
 /** Stacks the grammar guard reads every listed tool on, each a realistic shape. */
 const SHAPES: Record<string, Record<string, unknown>> = {
