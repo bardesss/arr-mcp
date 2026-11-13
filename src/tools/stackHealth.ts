@@ -527,7 +527,9 @@ export function registerStackHealth(
             const neverScanned = result.scans.filter(s => s.lastCompleted === undefined).length;
             const summary =
                 (result.degraded.length === 0
-                    ? `All ${result.services.length} configured service(s) healthy.` +
+                    ? // Reachable is all `degraded` measures; a service reporting
+                      // its own failing checks is not healthy.
+                      `All ${result.services.length} configured service(s) ${result.failures.total > 0 ? 'reachable' : 'healthy'}.` +
                       (neverScanned > 0 ? ` ${neverScanned} report no completed library scan.` : '')
                     : `${result.degraded.length} of ${result.services.length} service(s) degraded: ${result.degraded.join(', ')}.`) +
                 (primaryMediaServer === undefined ? '' : ` ${primaryMediaServer} is the primary media server.`) +

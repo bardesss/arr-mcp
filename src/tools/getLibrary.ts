@@ -191,6 +191,22 @@ function rejectImpossibleFilters(opts: LibraryQuery): void {
 }
 
 /**
+ * `watched` with the media server unread. Every film and series would have no
+ * playback half and so match `watched: false`: the whole library, handed to a
+ * "delete what nobody watched" question as its answer. A book's read status
+ * comes from Grimmory, so `kind: "book"` still works.
+ */
+function rejectWatchedWithoutPlayback(loader: LibraryLoader, opts: LibraryQuery, playbackFrom: string | undefined, note: string | undefined): void {
+    const server = loader.primaryMediaServerId;
+    if (opts.watched === undefined || opts.kind === 'book' || server === undefined || playbackFrom !== undefined) return;
+    throw new Error(
+        `watched needs ${server}'s watch state, and ${server} could not be read, so every film and series would look unwatched.` +
+            (note === undefined ? ' Ask again shortly.' : ` ${note}`) +
+            (loader.bookSourceIds.length === 0 ? '' : ' A book\'s read status does not depend on it: ask with kind: "book".')
+    );
+}
+
+/**
  * The same refusal for music, asked only when the caller named `kind: "artist"`.
  *
  * With a kind, the caller has said the question is about artists, so a filter no
@@ -352,6 +368,12 @@ function imdbUnavailableNote(state: 'off' | 'ingesting' | 'ready'): string | und
     return undefined;
 }
 
+/** What `libraryLine` reads; narrower than `MergedItem`, so a `get_media_details` candidate fits too. */
+type LineItem = Pick<MergedItem, 'kind' | 'title' | 'year' | 'ids'> &
+    Partial<Pick<MergedItem, 'presence' | 'playback' | 'library' | 'albumCount'>> & {
+        acquisition?: { service: string; id?: string; hasFile?: boolean; quality?: string; sizeBytes?: number };
+    };
+
 /**
  * One library item as a line of text, for the summary block `listText` builds.
  *
@@ -364,7 +386,7 @@ function imdbUnavailableNote(state: 'off' | 'ingesting' | 'ready'): string | und
  * the write tools take as `instance`/`id`; the external ones follow so a model
  * can cross-reference without a second call.
  */
-export function libraryLine(item: MergedItem): string {
+export function libraryLine(item: LineItem): string {
     const facts: string[] = [item.kind];
     if (item.acquisition?.id !== undefined) facts.push(`${item.acquisition.service}:${item.acquisition.id}`);
     for (const source of ['tmdb', 'tvdb', 'imdb', 'mbid'] as const) {
@@ -389,7 +411,8 @@ export function libraryLine(item: MergedItem): string {
 export async function buildGetLibrary(loader: LibraryLoader, opts: LibraryQuery): Promise<GetLibraryResult> {
     rejectImpossibleFilters(opts);
 
-    const { index, degraded, counts, note: libraryNote } = await loader.load(opts.watched_by);
+    const { index, degraded, counts, playbackFrom, note: libraryNote } = await loader.load(opts.watched_by);
+    rejectWatchedWithoutPlayback(loader, opts, playbackFrom, libraryNote);
 
     const genre = opts.genre?.toLowerCase();
     const quality = opts.quality?.toLowerCase();

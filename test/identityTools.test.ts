@@ -10,6 +10,11 @@ import { repeat } from './helpers/bigFixture.ts';
 import { expectWithinBudget } from './helpers/budget.ts';
 import { serving } from './helpers/serve.ts';
 
+/** Nothing listening: every request fails the way a stopped service does. */
+const refused = (async () => {
+    throw new TypeError('fetch failed', { cause: Object.assign(new Error('refused'), { code: 'ECONNREFUSED' }) });
+}) as unknown as typeof fetch;
+
 const TICKS = 10_000_000;
 const USER_ID = 'f137a2dd21bbc1b99aa5c0f6bf02a805';
 const GUEST_ID = '0d8bc4b2ad1c4f6e8b7a3c9d5e1f2a3b';
@@ -173,6 +178,14 @@ describe('get_playback', () => {
 
         expect(result.items).toEqual([]);
         expect(result.degraded).toEqual(['jellyfin']);
+    });
+
+    it('degrades when Jellyfin is down before the user lookup', async () => {
+        const config = jellyfinConfig();
+        const adapter = new JellyfinAdapter(config, refused);
+        const result = await buildGetPlayback(adapter, new IdentityResolver(adapter, config), { detail: 'standard', limit: 50 });
+        expect(result.degraded).toEqual(['jellyfin']);
+        expect(result.items).toEqual([]);
     });
 
     it('reports truncation honestly', async () => {
@@ -362,6 +375,14 @@ const seerr = (over: Partial<MultiUserServiceConfig> = {}, routes: Record<string
 };
 
 describe('get_requests', () => {
+    it('degrades when Seerr is down before the user lookup', async () => {
+        const config = seerrConfig();
+        const adapter = new SeerrAdapter(config, refused);
+        const result = await buildGetRequests(adapter, new IdentityResolver(adapter, config), { detail: 'standard', limit: 50 });
+        expect(result.degraded).toEqual(['seerr']);
+        expect(result.items).toEqual([]);
+    });
+
     it('maps numeric statuses to words', async () => {
         const { adapter, resolver } = seerr();
         const result = await buildGetRequests(adapter, resolver, { detail: 'full', limit: 50, user: 'bartus' });

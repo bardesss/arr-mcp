@@ -9,7 +9,9 @@ import type { AnyServiceConfig } from '../src/config/schema.ts';
 import { instancesOf } from './helpers/instances.ts';
 import { buildGetMetadataIssues, metadataIssueLine, metadataIssuesSummary, registerGetMetadataIssues } from '../src/tools/getMetadataIssues.ts';
 import type { BookMetadataIssue, ServiceAdapter } from '../src/services/types.ts';
-import type { LibraryLoader } from '../src/tools/library.ts';
+import { LibraryLoader } from '../src/tools/library.ts';
+import { TtlCache } from '../src/core/cache.ts';
+import { ServiceError } from '../src/core/errors.ts';
 import { PlexAdapter } from '../src/services/plex.ts';
 import { serving } from './helpers/serve.ts';
 
@@ -761,5 +763,65 @@ describe('get_metadata_issues library reuse and concurrency', () => {
         expect(peak).toBe(4);
         expect(result.items.map(i => i.title)).toEqual(sequential.items.map(i => i.title));
         expect(result.items).toHaveLength(10);
+    });
+});
+
+describe('get_metadata_issues with the media server down', () => {
+    const unreachable = () => new ServiceError('Unreachable', 'jellyfin', 'connection refused');
+    const bookIssue: BookMetadataIssue = { id: '58', title: 'Example Book 58', matchScore: 38.2, hasIdentifier: true, reason: 'low match score (38.2)', allLocked: false };
+    const books = { id: 'grimmory', type: 'grimmory', listBookMetadataIssues: async () => ({ issues: [bookIssue], scanned: 12 }) } as never;
+
+    it('keeps the book findings when the user lookup fails, and names the server', async () => {
+        const down = { resolve: async () => Promise.reject(unreachable()) } as unknown as IdentityResolver;
+        const result = await buildGetMetadataIssues([adapterWith({ DTF: [unmatched(4)] })], down, { detail: 'full', limit: 50, offset: 0, books });
+        expect(result.degraded).toEqual(['jellyfin']);
+        expect(result.items.map(i => i.kind)).toEqual(['book']);
+        expect(metadataIssuesSummary(result)).toContain('jellyfin could not be read in full');
+        expect(metadataIssuesSummary(result)).not.toContain('0 could not be read');
+    });
+
+    it('says nothing was compared when the library listing fails and there are no books', async () => {
+        const adapter = { ...(adapterWith({}) as unknown as Record<string, unknown>), listUserLibrary: async () => Promise.reject(unreachable()) } as unknown as ServiceAdapter;
+        const result = await buildGetMetadataIssues([adapter], identity, { detail: 'full', limit: 50, offset: 0 });
+        expect(result.degraded).toEqual(['jellyfin']);
+        expect(metadataIssuesSummary(result)).toMatch(/^No media server library could be read/);
+    });
+
+    it('still refuses when the server refuses the user', async () => {
+        const refused = { resolve: async () => Promise.reject(new ServiceError('AuthFailed', 'jellyfin', 'refused')) } as unknown as IdentityResolver;
+        await expect(buildGetMetadataIssues([adapterWith({})], refused, { detail: 'full', limit: 50, offset: 0, books })).rejects.toThrow(/auth failed/);
+    });
+});
+
+describe('get_metadata_issues paging', () => {
+    const counting = () => {
+        const adapter = adapterWith({ A: [unmatched(4)], B: [unmatched(4)], C: [unmatched(4)] }) as unknown as Record<string, unknown>;
+        const listUserLibrary = vi.fn(adapter.listUserLibrary as () => Promise<unknown[]>);
+        return { ...adapter, listUserLibrary } as unknown as ServiceAdapter & { listUserLibrary: typeof listUserLibrary };
+    };
+
+    it('pages one sweep rather than sweeping again for every page', async () => {
+        const adapter = counting();
+        const sweeps = new TtlCache();
+        const first = await buildGetMetadataIssues([adapter], identity, { detail: 'full', limit: 2, offset: 0, sweeps });
+        const second = await buildGetMetadataIssues([adapter], identity, { detail: 'full', limit: 2, offset: 2, sweeps });
+        expect(adapter.listUserLibrary).toHaveBeenCalledTimes(1);
+        expect([...first.items, ...second.items].map(i => i.title).sort()).toEqual(['A', 'B', 'C']);
+        expect(second.offset).toBe(2);
+    });
+
+    it('sweeps again after a write clears the library cache', async () => {
+        const adapter = counting();
+        const loader = new LibraryLoader([], undefined);
+        const server = new McpServer({ name: 'test', version: '0' });
+        registerGetMetadataIssues(server, { primary: { adapter: adapter as never, identity } }, undefined, loader);
+        const tools = (server as unknown as { _registeredTools: Record<string, { handler: (a: Record<string, unknown>, e: Record<string, unknown>) => Promise<unknown> }> })._registeredTools;
+        const call = (offset: number) => tools.get_metadata_issues!.handler({ detail: 'standard', limit: 2, offset }, {});
+        await call(0);
+        await call(2);
+        expect(adapter.listUserLibrary).toHaveBeenCalledTimes(1);
+        loader.invalidate();
+        await call(0);
+        expect(adapter.listUserLibrary).toHaveBeenCalledTimes(2);
     });
 });
