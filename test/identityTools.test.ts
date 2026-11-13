@@ -486,4 +486,29 @@ describe('get_requests', () => {
         await adapter.getRequests({ status: 'declined' });
         expect(urls[0]).not.toContain('filter=');
     });
+
+    it('names failed and completed requests and pushes those filters down', async () => {
+        const rows = {
+            results: [4, 5].map(status => ({ id: status, status, media: { tmdbId: status, mediaType: 'movie' }, requestedBy: { id: 1 } }))
+        };
+        const urls: string[] = [];
+        const impl = (async (input: string | URL | Request) => {
+            urls.push(input instanceof Request ? input.url : String(input));
+            return new Response(JSON.stringify(rows), { status: 200, headers: { 'content-type': 'application/json' } });
+        }) as unknown as typeof fetch;
+        const adapter = new SeerrAdapter(seerrConfig(), impl);
+
+        expect((await adapter.getRequests({})).map(r => r.status)).toEqual(['failed', 'completed']);
+
+        urls.length = 0;
+        expect((await adapter.getRequests({ status: 'completed' })).map(r => r.id)).toEqual([5]);
+        expect(urls[0]).toContain('filter=completed');
+
+        urls.length = 0;
+        expect((await adapter.getRequests({ status: 'failed' })).map(r => r.id)).toEqual([4]);
+        expect(urls[0]).toContain('filter=failed');
+
+        // Seerr's `approved` excludes completed, and so does this one.
+        expect(await adapter.getRequests({ status: 'approved' })).toEqual([]);
+    });
 });

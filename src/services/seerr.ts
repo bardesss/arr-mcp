@@ -63,17 +63,35 @@ type RawCombinedRatings = {
  * differently per media type: `title`/`releaseDate` for films, `name`/
  * `firstAirDate` for series, so both spellings are read.
  */
-type RawMediaDetails = { title?: string; name?: string; releaseDate?: string; firstAirDate?: string };
+type RawMediaDetails = {
+    title?: string;
+    name?: string;
+    releaseDate?: string;
+    firstAirDate?: string;
+    seasons?: { seasonNumber?: number }[];
+};
 type RawRequest = {
     id?: number;
     status?: number;
     createdAt?: string;
     media?: { tmdbId?: number; tvdbId?: number | null; mediaType?: string; title?: string };
     requestedBy?: { id?: number; displayName?: string; username?: string; email?: string };
+    seasons?: { seasonNumber?: number }[];
 };
 
-/** Seerr's numeric request statuses. */
-const STATUS: Record<number, RequestStatus> = { 1: 'pending', 2: 'approved', 3: 'declined' };
+/** Seerr's numeric request statuses. The spec's prose names only the first three; its `filter` enum and live rows have all five. */
+const STATUS: Record<number, RequestStatus> = { 1: 'pending', 2: 'approved', 3: 'declined', 4: 'failed', 5: 'completed' };
+
+/**
+ * Seerr validates query strings against its OpenAPI document and answers 400
+ * "must be url encoded" for a raw `! ' ( ) *`, which `encodeURIComponent`
+ * leaves alone. "Dune (2021)" is an ordinary thing to search for.
+ */
+const strictEncode = (value: string): string =>
+    encodeURIComponent(value).replace(/[!'()*]/g, c => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+
+const seasonNumbers = (seasons: { seasonNumber?: number }[] | undefined): number[] =>
+    (seasons ?? []).map(s => s.seasonNumber).filter((n): n is number => typeof n === 'number');
 
 type RawIssue = {
     id?: number;
@@ -257,7 +275,16 @@ export class SeerrAdapter
         // value for it, and mapping it onto a near-miss like `deleted` would
         // answer a different question. It stays an in-memory filter, and now
         // one that sees every row rather than the newest page.
-        const SERVER_SIDE_STATUS: Partial<Record<RequestStatus, string>> = { pending: 'pending', approved: 'approved' };
+        //
+        // Seerr's `approved` filter leaves out completed requests, and this
+        // module's `approved` means the same: a request handed on and not
+        // yet fulfilled.
+        const SERVER_SIDE_STATUS: Partial<Record<RequestStatus, string>> = {
+            pending: 'pending',
+            approved: 'approved',
+            failed: 'failed',
+            completed: 'completed'
+        };
         const pushedDown = opts.status === undefined ? undefined : SERVER_SIDE_STATUS[opts.status];
         if (SEERR_FILTERS_SERVER_SIDE && pushedDown !== undefined) params.set('filter', pushedDown);
 
@@ -309,12 +336,15 @@ export class SeerrAdapter
         const year = yearOf(raw.releaseDate ?? raw.firstAirDate);
         const requests = (raw.mediaInfo?.requests ?? [])
             .filter((r): r is RawRequest & { id: number } => typeof r.id === 'number')
-            .map(r =>
-                this.#toRequest({
+            .map(r => {
+                const request = this.#toRequest({
                     ...r,
                     media: { ...(r.media ?? {}), tvdbId: raw.mediaInfo?.tvdbId ?? null, tmdbId, mediaType }
-                })
-            );
+                });
+                const seasons = seasonNumbers(r.seasons);
+                return mediaType === 'tv' && seasons.length > 0 ? { ...request, seasons } : request;
+            });
+        const seasons = seasonNumbers(raw.seasons);
 
         return {
             ...(title === undefined || title === ''
@@ -322,7 +352,8 @@ export class SeerrAdapter
                 : {
                       media: {
                           title: fenceText(title, { service: this.id, field: 'title' }),
-                          ...(year === undefined ? {} : { year })
+                          ...(year === undefined ? {} : { year }),
+                          ...(mediaType === 'tv' && seasons.length > 0 ? { seasons } : {})
                       }
                   }),
             requests
@@ -720,7 +751,7 @@ export class SeerrAdapter
         if (source !== 'discover') return [];
 
         const page = await this.#http.get<{ results?: RawSearchResult[] }>(
-            `/api/v1/search?query=${encodeURIComponent(query)}`
+            `/api/v1/search?query=${strictEncode(query)}`
         );
 
         // A TMDB multi-search, so `results` carries people as well as titles.

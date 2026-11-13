@@ -532,6 +532,18 @@ describe('SeerrAdapter', () => {
         expect(hits.map(h => h.kind)).toEqual(['movie', 'series']);
     });
 
+    // Seerr's request validator answers 400 for a raw `( ) ! ' *` in the query.
+    it('percent-encodes the characters encodeURIComponent leaves raw', async () => {
+        const urls: string[] = [];
+        const impl = (async (input: string | URL | Request) => {
+            urls.push(input instanceof Request ? input.url : String(input));
+            return new Response(JSON.stringify({ results: [] }), { status: 200, headers: { 'content-type': 'application/json' } });
+        }) as unknown as typeof fetch;
+
+        await new SeerrAdapter(multiUser(5055), impl).search("Dune (2021) M*A*S*H! it's", 'discover');
+        expect(urls[0]).toContain('query=Dune%20%282021%29%20M%2AA%2AS%2AH%21%20it%27s');
+    });
+
     expectsAuthDiagnosis(new SeerrAdapter(multiUser(5055), unauthorized));
 });
 
