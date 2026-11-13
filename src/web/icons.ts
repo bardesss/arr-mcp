@@ -124,6 +124,27 @@ export const MARK_SVG =
     '<circle cx="5" cy="12" r="2.6" fill="#4c8dff" stroke="none"/>' +
     '</svg>\n';
 
+/** The sidebar's marks, on the same grid and weight as the services. */
+const navDraw = (paths: string): string =>
+    `<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" ` +
+    `stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
+
+export const NAV_ICONS = {
+    dashboard: navDraw(
+        '<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/>' +
+            '<rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>'
+    ),
+    services: navDraw('<rect x="3" y="4" width="18" height="7" rx="1.5"/><rect x="3" y="13" width="18" height="7" rx="1.5"/><path d="M7 7.5h.01M7 16.5h.01"/>'),
+    access: navDraw('<circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l3 3M14 9l2 2"/>'),
+    logs: navDraw('<path d="M4 6h16M4 12h16M4 18h10"/>'),
+    audit: navDraw('<path d="M12 3 4 6v6c0 4.5 3.4 8 8 9 4.6-1 8-4.5 8-9V6z"/><path d="m9 12 2 2 4-4"/>'),
+    settings: navDraw(
+        '<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M4.2 6.5l2.6 1.5M17.2 16l2.6 1.5M4.2 17.5 6.8 16M17.2 8l2.6-1.5"/>'
+    ),
+    menu: navDraw('<path d="M4 7h16M4 12h16M4 17h16"/>'),
+    close: navDraw('<path d="M6 6l12 12M18 6 6 18"/>')
+} as const;
+
 /** For an id the schema does not know: a service removed from config while its
  *  card is still on screen, or one added before this file catches up. */
 const FALLBACK = draw(

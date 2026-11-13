@@ -913,7 +913,7 @@ You can read the events under **Library events** on the Logs page, with
 [`get_history`](tools.md#get_history-and-the-event-log) and `source: "webhooks"`,
 and through `diagnose_media` when a title is no longer in your library.
 
-Turn it on under **Library event log** on the Configuration page, which writes a
+Turn it on under **Library event log** on the Settings page, which writes a
 generated secret and takes effect at once. Then add a connection in each Radarr,
 Sonarr and Lidarr instance, under Settings, Connect, Webhook:
 
@@ -922,7 +922,7 @@ Sonarr and Lidarr instance, under Settings, Connect, Webhook:
 | URL | `http://<arr-mcp as the service reaches it>:6060/webhooks/radarr`, `/webhooks/sonarr`, `/webhooks/lidarr`, or `/webhooks/radarr/4k` for a named instance |
 | Method | POST |
 | Username | `arr-mcp` (any name works) |
-| Password | The password shown on the Configuration page |
+| Password | The password shown on the Settings page |
 
 Tick these triggers:
 
@@ -965,7 +965,7 @@ ui:
 
 `system` follows the browser's `prefers-color-scheme` and tracks your OS as it
 changes; the other two override it. Omit the block for `system`; choosing it on
-the Configuration page removes the block. It is stored server-side, so it holds
+the Settings page removes the block. It is stored server-side, so it holds
 wherever you sign in from.
 
 ## The tools a client sees

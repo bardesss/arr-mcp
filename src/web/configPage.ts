@@ -26,7 +26,7 @@ import { withoutCredentials } from '../tools/stackHealth.ts';
 import { html, raw, type SafeHtml } from './html.ts';
 import { serviceIcon } from './icons.ts';
 import type { JwksProbe } from './jwksProbe.ts';
-import { layout, tabBar } from './pages.ts';
+import { layout } from './pages.ts';
 
 /**
  * One card per configured instance, and nothing else. Three rules shape it.
@@ -1221,16 +1221,13 @@ export function configPage(opts: {
             html`${savedAlone}${appearance}${mediaServers}${imdb}${webhooksCard(opts.config, keys, opts.confirmingNewSecret === true)}`
     };
 
-    const body = html`<h2>Configuration</h2>
-        ${tabBar(CONFIG_TABS.map(t => ({ href: `/ui/config?tab=${t.key}`, label: t.label, on: t.key === opts.tab })))}
-        ${sections[opts.tab]()}
-
-        <p class="note"><a href="/ui">Back to the dashboard</a></p>`;
+    // No tab row: each tab is its own entry in the sidebar.
+    const body = sections[opts.tab]();
 
     return layout({
         csrf: opts.csrf,
-        title: 'Configuration',
-        nav: 'config',
+        title: CONFIG_TABS.find(t => t.key === opts.tab)?.label ?? 'Services',
+        nav: opts.tab,
         version: opts.version,
         body,
         // Derived, not passed in: this page already has the config, and a

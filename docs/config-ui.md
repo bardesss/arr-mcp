@@ -1,17 +1,19 @@
 # The config UI
 
-`http://<host>:6060`. Four pages, no restart, no hand-edited YAML.
+`http://<host>:6060`. Six pages in a sidebar (behind a menu button on a phone), no restart, no hand-edited YAML.
 
 > One page is not listed here: if `config.yaml` fails to load, arr-mcp serves a
-> repair page instead of any of the four. See
+> repair page instead of any of these. See
 > [When config.yaml will not load](configuration.md#when-configyaml-will-not-load).
 
 | Page | What it is for |
 | --- | --- |
 | Dashboard | Every service tested live, plus disk space, failed health checks, library scan staleness, and how many MCP tokens exist, with a warning for any that expire soon |
-| Configuration | Add, edit, test and remove service instances one at a time; change credentials |
-| Logs | Three streams: all activity, problems only, or one service |
-| Write audit | Every write attempt: applied, previewed, refused or failed |
+| Services | Add, edit, test and remove service instances one at a time; change credentials |
+| Access | MCP tokens, the MCP endpoint, management API keys, OAuth and your sign-in |
+| Logs | All activity, problems only, one service, or library events |
+| Writes | Every write attempt: applied, previewed, refused or failed |
+| Settings | Appearance, media servers, the IMDb dataset and the library event log |
 
 ## The dashboard
 
@@ -48,12 +50,12 @@ screenshot cannot carry them. That is also why an empty field can never mean
 A new MCP token is the deliberate exception: handing it to your MCP client is
 the point. It is shown once, in the response to creating it, and never again.
 
-**Your password manager leaves the Configuration page alone.** Its secret
+**Your password manager leaves the Services and Access pages alone.** Its secret
 fields are masked in CSS rather than being `password` inputs and carry each
 manager's opt-out attribute, so a browser does not refill the URL and API key
 on every load. The sign-in page is a normal login form.
 
-## Configuration
+## Services
 
 <img src="../screenshots/config-dark.png" alt="The configuration page: one card per configured instance, with its URL, credentials and per-instance write permissions" width="880">
 
@@ -164,7 +166,7 @@ as it was recorded. An entry still reading `attempted` means arr-mcp stopped mid
 ## Dark and light
 
 **Follows your system by default**, through `prefers-color-scheme`. The
-**Appearance** card on the Configuration page overrides it with Dark or Light,
+**Appearance** card on the Settings page overrides it with Dark or Light,
 for the display that is not the one the OS was set up for.
 
 The choice is saved to `config.yaml` rather than to the browser, so it holds
