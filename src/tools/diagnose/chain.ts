@@ -47,7 +47,7 @@ export type Evidence = {
      * `id` is Seerr's own request id, the one `respond_to_request` takes.
      * `mayRespond` is whether that tool's own check would let the caller act on
      * it (their request, or `allow_other_users`); absent reads as no, so a
-     * request whose owner is unknown gets no approval offered.
+     * request whose owner is unknown gets no approval or retry offered.
      */
     request: { status: RequestStatus | 'unknown'; id?: number; mayRespond?: boolean } | null | undefined;
     /**
@@ -1790,16 +1790,16 @@ function nextStepsFor(
     const acquisition = item?.acquisition;
 
     switch (stage) {
-        case 'request':
-            return ev.request?.status === 'pending' && ev.request.id !== undefined && ev.request.mayRespond === true
-                ? [
-                      {
-                          tool: 'respond_to_request',
-                          arguments: { id: String(ev.request.id), verdict: 'approve' },
-                          why: `Approving hands the request to ${SEERR_ARR[seerrMediaType(item?.kind)]} to search for it.`
-                      }
-                  ]
-                : [];
+        case 'request': {
+            const status = ev.request?.status;
+            if ((status !== 'pending' && status !== 'failed') || ev.request?.id === undefined || ev.request.mayRespond !== true) return [];
+            const arr = SEERR_ARR[seerrMediaType(item?.kind)];
+            return [
+                status === 'pending'
+                    ? { tool: 'respond_to_request', arguments: { id: String(ev.request.id), verdict: 'approve' }, why: `Approving hands the request to ${arr} to search for it.` }
+                    : { tool: 'respond_to_request', arguments: { id: String(ev.request.id), verdict: 'retry' }, why: `Retrying sends the request to ${arr} again.` }
+            ];
+        }
         case 'managed':
             // `managed` is unknown with an *arr that could manage it unread,
             // and a lookup would ask it too.

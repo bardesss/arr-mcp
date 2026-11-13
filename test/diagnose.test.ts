@@ -1627,6 +1627,19 @@ describe('the diagnose budget', () => {
         expect(evidence.request).toMatchObject({ status: 'pending', mayRespond: false });
         expect(evidence.degraded).toContain('seerr');
     });
+    it('checks whether the caller may retry a failed request', async () => {
+        const adapters = [
+            stub('radarr', { listLibrary: async () => [FILM], getQueue: async () => [] }),
+            stub('seerr', {
+                getRequests: async () => [{ service: 'seerr', id: 9, status: 'failed', mediaType: 'movie', tmdbId: 550, requestedBy: 'Someone', requestedById: 3 }]
+            })
+        ];
+        const evidence = await collectEvidence(
+            { adapters, library: new LibraryLoader(adapters, undefined), seerrIdentity: { allowsOtherUsers: true } as never },
+            { query: 'some film' }
+        );
+        expect(evidence.request).toMatchObject({ status: 'failed', id: 9, mayRespond: true });
+    });
     it('does not start a read once the budget has run out', async () => {
         vi.useFakeTimers();
         let historyReads = 0;

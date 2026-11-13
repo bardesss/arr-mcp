@@ -2158,13 +2158,14 @@ export const hasMediaUpdate = (a: ServiceAdapter): a is ServiceAdapter & MediaUp
     typeof (a as Partial<MediaUpdateCapable>).updateMedia === 'function';
 
 /**
- * The two reversible verdicts on a request. Deliberately not including
- * "delete": approving and declining move a request between states it can be
+ * The reversible verdicts on a request. Deliberately not including "delete":
+ * approving, declining and retrying move a request between states it can be
  * moved back out of, and deleting destroys the record. That difference is a
  * permission tier, so it is also a different capability method and a different
- * tool.
+ * tool. `retry` is Seerr's own route for a failed request: it sets it approved
+ * and sends it to Radarr or Sonarr again, and answers 409 for any other status.
  */
-export type RequestVerdict = 'approve' | 'decline';
+export type RequestVerdict = 'approve' | 'decline' | 'retry';
 
 export interface RequestManageCapable {
     /** Returns the request as it stands afterwards, so the caller can report

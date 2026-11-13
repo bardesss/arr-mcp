@@ -45,6 +45,7 @@ const PENDING = {
     requestedBy: { id: 2, displayName: 'Sam' }
 };
 const APPROVED = { ...PENDING, status: 2 };
+const FAILED = { ...PENDING, status: 4 };
 
 /** What `/api/v1/movie/{tmdbId}` answers — where the title actually lives. */
 const MOVIE_DETAILS = { title: 'The Matrix', releaseDate: '1999-03-30' };
@@ -309,6 +310,15 @@ describe('SeerrAdapter request writes', () => {
         expect(updated.status).toBe('declined');
     });
 
+    // POST /api/v1/request/{requestId}/retry (specs/seerr.json): answers the request, now approved.
+    it('uses the retry endpoint for a retry', async () => {
+        const { impl, sent } = recordingFetch({ onWrite: () => jsonResponse(APPROVED) });
+        const updated = await new SeerrAdapter(seerrConfig, impl).respondToRequest('31', 'retry');
+
+        expect(sent.find(s => s.method === 'POST')?.path).toBe('/api/v1/request/31/retry');
+        expect(updated.status).toBe('approved');
+    });
+
     // Reporting "approved" off the back of a response we could not read would
     // be a claim we never verified.
     it('refuses to claim success when the response carries no request', async () => {
@@ -504,6 +514,40 @@ describe('respond_to_request', () => {
         const first = await h.call({ id: '31', verdict: 'decline' });
         expect(first.structuredContent.noop).toBe(false);
         expect(first.structuredContent.confirm_token).toBeTypeOf('string');
+    });
+
+    it('retries a failed request once confirmed, and audits it', async () => {
+        const h = harness(registerRespondToRequest, {
+            permissions: { seerr: tiered(true, false) },
+            requests: { results: [FAILED] },
+            onWrite: () => jsonResponse(APPROVED)
+        });
+
+        const first = await h.call({ id: '31', verdict: 'retry' });
+        expect(first.structuredContent.summary).toMatch(/^Retry .*The Matrix.*\(currently failed\)\.$/);
+        expect(first.structuredContent.effects[0]).toBe('Sends the request to Radarr again, which will search for it and start downloading. This uses disk space and bandwidth.');
+        expect(h.fetchImpl.sent.filter(s => s.method === 'POST')).toHaveLength(0);
+
+        const second = await h.call({ id: '31', verdict: 'retry', confirm: first.structuredContent.confirm_token });
+        expect(second.structuredContent.result).toEqual({ id: 31, status: 'approved' });
+        expect(h.fetchImpl.sent.find(s => s.method === 'POST')?.path).toBe('/api/v1/request/31/retry');
+        const rows = h.audit.recent() as { outcome: string; operation: string; target: string }[];
+        expect(rows[0]).toMatchObject({ outcome: 'applied', operation: 'respond_to_request', target: 'seerr:31' });
+    });
+
+    // Seerr answers 409 for these; refused before a token, naming the status.
+    it.each<[number, RegExp]>([
+        [1, /is pending, not failed\. Only a failed request can be retried\. Approve it instead\./],
+        [2, /is approved, not failed\. Only a failed request can be retried\.$/],
+        [3, /is declined, not failed/],
+        [5, /is completed, not failed/]
+    ])('refuses to retry a request with status %i', async (status, message) => {
+        const h = harness(registerRespondToRequest, {
+            permissions: { seerr: tiered(true, false) },
+            requests: { results: [{ ...PENDING, status }] }
+        });
+        await expect(h.call({ id: '31', verdict: 'retry' })).rejects.toThrow(message);
+        expect(h.fetchImpl.sent.filter(s => s.method !== 'GET')).toHaveLength(0);
     });
 
     it('is reachable on safe_write alone', async () => {
