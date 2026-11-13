@@ -27,6 +27,24 @@ describe('validateConfigText', () => {
         if (result.ok) expect(result.config.auth.tokens[0]?.name).toBe('default');
     });
 
+    // `service:` for `services:` used to load as a healthy instance with
+    // nothing configured.
+    it('refuses an unknown top-level key, naming it and the key it was probably meant to be', () => {
+        const result = validateConfigText(`${AUTH}service:\n  radarr:\n    url: http://radarr:7878\n`);
+        expect(result.ok).toBe(false);
+        if (result.ok) return;
+        expect(result.detail).toContain('"service" (did you mean services?)');
+        expect(result.detail).toContain('rename or remove it');
+        // Salvage still reads auth, so the repair editor is offered.
+        expect(result.auth?.username).toBe('admin');
+    });
+
+    it('offers no suggestion when nothing known is close', () => {
+        const result = validateConfigText(`${AUTH}services: {}\nfrobnicate: 1\n`);
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.detail).toContain('Unrecognized top-level key "frobnicate": rename or remove it');
+    });
+
     it('reports unparseable YAML without throwing', () => {
         const result = validateConfigText('auth: [unclosed\n');
         expect(result.ok).toBe(false);

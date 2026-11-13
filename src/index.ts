@@ -1,3 +1,4 @@
+import { mkdirSync } from 'node:fs';
 import type { Server } from 'node:http';
 import { serve } from '@hono/node-server';
 import { bootstrap } from './bootstrap.ts';
@@ -16,6 +17,16 @@ const PORT = Number(process.env.ARR_MCP_PORT ?? 6060);
 const VERSION = process.env.ARR_MCP_VERSION ?? '0.0.0-dev';
 // Also read by core/logger.ts, which sends log lines to stderr when it is set.
 const STDIO = process.argv.includes('--stdio');
+
+// Before the stores, which open their databases in this directory. loadConfig
+// creates it too, but runs after them, so on a first start without the Docker
+// entrypoint the process died in better-sqlite3 with a stack trace.
+try {
+    mkdirSync(CONFIG_DIR, { recursive: true });
+} catch (err) {
+    logger.fatal({ err }, `cannot create the config directory ${CONFIG_DIR}. Create it, or point ARR_MCP_CONFIG_DIR somewhere writable`);
+    process.exit(1);
+}
 
 // Attached before anything else runs, so startup lines (including the
 // token-hashing warnings and any config error) are in the ring buffer the

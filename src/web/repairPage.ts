@@ -6,7 +6,7 @@ import { layout } from './pages.ts';
  * This is the one page in the UI that renders credentials back to the browser;
  * `docs/security.md` records why.
  */
-export function repairPage(opts: { version: string; raw: string; detail: string; csrf: string }): string {
+export function repairPage(opts: { version: string; raw: string; base: string; detail: string; csrf: string }): string {
     const body = html`<div class="repair">
         <h2>config.yaml could not be loaded</h2>
         <p class="note">
@@ -15,6 +15,7 @@ export function repairPage(opts: { version: string; raw: string; detail: string;
         </p>
         <form method="post" action="/ui/repair">
             <input type="hidden" name="csrf" value="${opts.csrf}">
+            <input type="hidden" name="base" value="${opts.base}">
             <textarea name="config" spellcheck="false" autocapitalize="off" autocorrect="off"
                       autocomplete="off" wrap="off">${opts.raw}</textarea>
             <button type="submit">Validate and save</button>

@@ -69,6 +69,21 @@ function yamlErrorDetail(err: unknown, lines: LineCounter, raw: string): string 
     return `${said} at line ${line}, column ${col}`;
 }
 
+/** A file with no `auth` block is an unclaimed install with no tokens. */
+const withDefaultAuth = (obj: Record<string, unknown>): Record<string, unknown> =>
+    obj.auth === undefined ? { ...obj, auth: {} } : obj;
+
+/**
+ * A parsed YAML document through the schema, exactly as the loader reads it.
+ * The save path's drift check compares the file against what loaded, so it has
+ * to read the file the same way: without the `auth` default, a file with no
+ * `auth` block always counted as changed and could never be claimed.
+ */
+export function parseConfigValue(value: unknown): ReturnType<typeof ConfigSchema.safeParse> {
+    const isMapping = value !== null && typeof value === 'object' && !Array.isArray(value);
+    return ConfigSchema.safeParse(isMapping ? withDefaultAuth(value as Record<string, unknown>) : value);
+}
+
 /**
  * The whole content pipeline (YAML, shape, schema) in one place, so the
  * repair editor cannot accept text that startup then rejects. It writes
@@ -100,10 +115,7 @@ export function validateConfigText(raw: string): ConfigTextResult {
         };
     }
 
-    const obj = parsed as Record<string, unknown>;
-    // A file with no `auth` block is an unclaimed install with no tokens.
-    if (obj.auth === undefined) obj.auth = {};
-
+    const obj = withDefaultAuth(parsed as Record<string, unknown>);
     const result = ConfigSchema.safeParse(obj);
     if (result.success) return { ok: true, config: result.data };
 

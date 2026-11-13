@@ -636,7 +636,7 @@ const WebhooksSchema = z
         path: ['secret']
     });
 
-export const ConfigSchema = z.object({
+const ConfigShape = {
     // Parsing normalises tokens, so two parses of one file always agree.
     auth: AuthSchema.refine(value => !(value.oauth !== undefined && value.allow_token_in_url), {
         message: 'must be false while auth.oauth is configured. A JWT in the URL reaches every proxy log',
@@ -706,6 +706,49 @@ export const ConfigSchema = z.object({
         .object({ hide_unusable: z.boolean().default(false), media_cards: z.boolean().default(true) })
         .strict()
         .optional()
+};
+
+/** Edit distance, for naming the key a typo was probably meant to be. */
+function distance(a: string, b: string): number {
+    let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+    for (let i = 1; i <= a.length; i++) {
+        const row = [i];
+        for (let j = 1; j <= b.length; j++) {
+            const swap = a[i - 1] === b[j - 1] ? 0 : 1;
+            row[j] = Math.min((prev[j] ?? 0) + 1, (row[j - 1] ?? 0) + 1, (prev[j - 1] ?? 0) + swap);
+        }
+        prev = row;
+    }
+    return prev[b.length] ?? 0;
+}
+
+/**
+ * Names each stray key, and the known key it is probably a typo for. The
+ * stray key stays in quotes, which the unauthenticated repair surfaces redact,
+ * since a mis-indented value can land in key position. The suggestion is one
+ * of this schema's own keys, so it is left bare.
+ */
+function unknownTopLevelKeys(keys: readonly string[]): string {
+    const known = Object.keys(ConfigShape);
+    const named = keys.map(key => {
+        // Within two edits, and within half the known key's length, so `id`
+        // is not offered `ui`.
+        const scored = known
+            .map(k => ({ k, d: distance(key.toLowerCase(), k) }))
+            .filter(({ k, d }) => d <= Math.min(2, Math.floor(k.length / 2)))
+            .sort((a, b) => a.d - b.d);
+        const near = scored[0]?.k;
+        return near === undefined ? `"${key}"` : `"${key}" (did you mean ${near}?)`;
+    });
+    return `Unrecognized top-level key${keys.length === 1 ? '' : 's'} ${named.join(', ')}: rename or remove ${keys.length === 1 ? 'it' : 'them'}`;
+}
+
+/**
+ * Strict like every level below it: a misspelled `service:` or `webhook:` used
+ * to load as a healthy instance with nothing configured.
+ */
+export const ConfigSchema = z.strictObject(ConfigShape, {
+    error: issue => (issue.code === 'unrecognized_keys' ? unknownTopLevelKeys(issue.keys) : undefined)
 }).superRefine((config, ctx) => {
     // `jellyfin` and `plex` are distinct, individually valid keys, so the two
     // together are admitted, and this rule says which one the tools default to.

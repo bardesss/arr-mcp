@@ -61,7 +61,7 @@ describe('repair pages', () => {
     const detail = 'services.radarr.url\n  ✖ must be an http:// or https:// URL';
 
     it('renders the error and the file in an editable form', () => {
-        const page = repairPage({ version: '1.2.3', raw: 'auth:\n  username: admin\n', detail, csrf: 'tok' });
+        const page = repairPage({ version: '1.2.3', raw: 'auth:\n  username: admin\n', detail, csrf: 'tok', base: 'b' });
         expect(page).toContain('must be an http');
         expect(page).toContain('<textarea');
         expect(page).toContain('name="config"');
@@ -69,7 +69,7 @@ describe('repair pages', () => {
     });
 
     it('escapes the file rather than injecting it into the document', () => {
-        const page = repairPage({ version: '1.2.3', raw: 'note: </textarea><script>x()</script>', detail, csrf: 'tok' });
+        const page = repairPage({ version: '1.2.3', raw: 'note: </textarea><script>x()</script>', detail, csrf: 'tok', base: 'b' });
         expect(page).not.toContain('<script>x()</script>');
         expect(page).toContain('&lt;/textarea&gt;');
     });
@@ -77,7 +77,7 @@ describe('repair pages', () => {
     // The page is the operator's only route back in, so a nav bar of links to
     // pages that do not exist in this mode would be a lie.
     it('renders no navigation', () => {
-        expect(repairPage({ version: '1.2.3', raw: '', detail, csrf: 'tok' })).not.toContain('<nav>');
+        expect(repairPage({ version: '1.2.3', raw: '', detail, csrf: 'tok', base: 'b' })).not.toContain('<nav>');
     });
 
     it('shows the error alone when auth is unreadable, with no way to submit', () => {
@@ -545,7 +545,8 @@ describe('repair server save', () => {
         const cookie = (login.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
         const page = await (await get(app, '/ui/repair', { headers: { cookie } })).text();
         const csrf = /name="csrf" value="([^"]+)"/.exec(page)?.[1] ?? '';
-        return { app, dir, cookie, csrf };
+        const base = /name="base" value="([^"]+)"/.exec(page)?.[1] ?? '';
+        return { app, dir, cookie, csrf, base };
     };
 
     const save = (
@@ -555,7 +556,7 @@ describe('repair server save', () => {
         get(ctx.app, '/ui/repair', {
             method: 'POST',
             headers: { 'content-type': 'application/x-www-form-urlencoded', cookie: ctx.cookie },
-            body: new URLSearchParams({ csrf: ctx.csrf, config }).toString()
+            body: new URLSearchParams({ csrf: ctx.csrf, base: ctx.base, config }).toString()
         });
 
     it('re-renders the new error and keeps what was typed, without writing', async () => {
@@ -595,6 +596,42 @@ describe('repair server save', () => {
         const res = await save(ctx, VALID.replace('PLACEHOLDER', hash));
         expect(res.status).toBe(400);
         expect(await res.text()).toContain('loader said no');
+    });
+
+    // The write landed, so the re-rendered form has to start from it, or the
+    // next attempt is refused as a change the operator never made.
+    it('lets the next save through after a promotion that failed', async () => {
+        const ctx = await signedIn(async () => ({ ok: false, detail: 'loader said no' }));
+        const hash = await hashPassword(PASSWORD);
+        const page = await (await save(ctx, VALID.replace('PLACEHOLDER', hash))).text();
+        const base = /name="base" value="([^"]+)"/.exec(page)?.[1] ?? '';
+        const again = VALID.replace('PLACEHOLDER', hash).replace('services: {}', 'services: {} # again');
+        const res = await save({ ...ctx, base }, again);
+        expect(await res.text()).toContain('loader said no');
+        expect(await readFile(join(ctx.dir, 'config.yaml'), 'utf8')).toBe(again);
+    });
+
+    // Told the file is invalid, the operator may fix part of it over SSH. The
+    // editor showed the text from startup, and saving it reverted that edit.
+    it('shows the file as it is on disk now, not as it was at startup', async () => {
+        const ctx = await signedIn(async () => ({ ok: true }));
+        await writeFile(join(ctx.dir, 'config.yaml'), 'auth: {}\n# fixed-over-ssh\n', 'utf8');
+        const page = await (await get(ctx.app, '/ui/repair', { headers: { cookie: ctx.cookie } })).text();
+        expect(page).toContain('fixed-over-ssh');
+    });
+
+    it('refuses a save over a file that changed since the page was loaded, and shows the file as it is now', async () => {
+        const ctx = await signedIn(async () => ({ ok: true }));
+        const handEdit = 'auth: {}\n# fixed-over-ssh\n';
+        await writeFile(join(ctx.dir, 'config.yaml'), handEdit, 'utf8');
+
+        const hash = await hashPassword(PASSWORD);
+        const res = await save(ctx, VALID.replace('PLACEHOLDER', hash));
+        expect(res.status).toBe(400);
+        const page = await res.text();
+        expect(page).toContain('changed on disk');
+        expect(page).toContain('fixed-over-ssh');
+        expect(await readFile(join(ctx.dir, 'config.yaml'), 'utf8')).toBe(handEdit);
     });
 
     it('refuses a save with a bad CSRF token', async () => {
@@ -663,11 +700,12 @@ describe('promotion', () => {
 
         const page = await (await call('/ui/repair', { headers: { cookie } })).text();
         const csrf = /name="csrf" value="([^"]+)"/.exec(page)?.[1] ?? '';
+        const base = /name="base" value="([^"]+)"/.exec(page)?.[1] ?? '';
 
         const saved = await call('/ui/repair', {
             method: 'POST',
             headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
-            body: new URLSearchParams({ csrf, config: valid }).toString()
+            body: new URLSearchParams({ csrf, base, config: valid }).toString()
         });
         expect(saved.status).toBe(302);
 
@@ -696,12 +734,13 @@ describe('promotion', () => {
         const cookie = (login.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
         const page = await (await call('/ui/repair', { headers: { cookie } })).text();
         const csrf = /name="csrf" value="([^"]+)"/.exec(page)?.[1] ?? '';
+        const base = /name="base" value="([^"]+)"/.exec(page)?.[1] ?? '';
 
         const stillBroken = broken.replace('url: bad', 'url: worse');
         await call('/ui/repair', {
             method: 'POST',
             headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
-            body: new URLSearchParams({ csrf, config: stillBroken }).toString()
+            body: new URLSearchParams({ csrf, base, config: stillBroken }).toString()
         });
 
         // The validator stops it before anything is written, so this is the
@@ -725,12 +764,13 @@ describe('promotion', () => {
         const cookie = (login.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
         const page = await (await call('/ui/repair', { headers: { cookie } })).text();
         const csrf = /name="csrf" value="([^"]+)"/.exec(page)?.[1] ?? '';
+        const base = /name="base" value="([^"]+)"/.exec(page)?.[1] ?? '';
 
         const save = () =>
             call('/ui/repair', {
                 method: 'POST',
                 headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
-                body: new URLSearchParams({ csrf, config: valid }).toString()
+                body: new URLSearchParams({ csrf, base, config: valid }).toString()
             });
 
         const starts = vi.spyOn(Runtime, 'start');
@@ -771,6 +811,31 @@ describe('promotion', () => {
 
         const mcp = await (await call('/mcp', { method: 'POST' })).text();
         expect(mcp).not.toContain('MY-SUPER-SECRET');
+
+        close();
+    });
+
+    // Strict at the top as everywhere else: `webhook:` for `webhooks:` used to
+    // start a healthy instance with the event log silently off.
+    it('starts in repair mode on an unknown top-level key, naming the likely meant key', async () => {
+        const hash = await hashPassword(PASSWORD);
+        const { call, close } = await booted(
+            `auth:\n  username: admin\n  password_hash: ${hash}\nservices: {}\nwebhook:\n  enabled: true\n`
+        );
+
+        const health = (await (await call('/healthz')).json()) as { status: string; reason: string };
+        expect(health.status).toBe('degraded');
+        // The stray key itself is redacted here, the suggestion is not.
+        expect(health.reason).toContain('Unrecognized top-level key "…" (did you mean webhooks?)');
+
+        const login = await call('/ui/login', {
+            method: 'POST',
+            headers: { 'content-type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ username: 'admin', password: PASSWORD }).toString()
+        });
+        const cookie = (login.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+        const page = await (await call('/ui/repair', { headers: { cookie } })).text();
+        expect(page).toContain('&quot;webhook&quot; (did you mean webhooks?)');
 
         close();
     });
