@@ -325,12 +325,12 @@ export function registerTriggerScan(
 
             if (adapter.type === 'prowlarr') {
                 return `${adapter.id} is syncing its indexers to the apps connected to it. It runs in the background; get_stack_health's \`commands\` list says whether it has finished.${
-                    handle.commandId === 0 ? '' : ` Command id ${handle.commandId}.`
+                    handle.commandId === undefined ? '' : ` Command id ${handle.commandId}.`
                 }`;
             }
 
             return `${adapter.id} is ${hasLibraryMaintenance(adapter) ? 'refreshing and rescanning' : 'rescanning'} its library. It runs in the background. Check get_media_details or get_stack_health in a few minutes rather than expecting it to be finished now.${
-                handle.commandId === 0 ? '' : ` Command id ${handle.commandId}.`
+                handle.commandId === undefined ? '' : ` Command id ${handle.commandId}.`
             }${handle.detail === undefined ? '' : ` ${handle.detail}`}`;
         }
     });

@@ -381,21 +381,19 @@ export class QbittorrentAdapter
         };
     }
 
-    async setPaused(paused: boolean, id?: string): Promise<void> {
+    async setPaused(paused: boolean, id?: string, only?: readonly string[]): Promise<string | void> {
         if (id !== undefined) {
             const [torrent] = await this.#torrents(id);
             if (torrent === undefined) throw this.#notFound(id);
             const hash = this.#hash(id);
             await this.#verb(paused, hash);
             // Started by hand, so a later whole-client resume has nothing to do for it.
-            if (!paused && isMarked(torrent)) {
-                await this.#tag(false, hash);
-                await this.#dropEmptyTag();
-            }
+            if (!paused && isMarked(torrent)) return this.#unmark(hash, 1);
             return;
         }
 
-        const torrents = await this.#tagged();
+        const bound = only === undefined ? undefined : new Set(only);
+        const torrents = (await this.#tagged()).filter(t => bound === undefined || bound.has(t.hash.toLowerCase()));
         if (paused) {
             const running = torrents.filter(t => !PAUSED_STATES.has(t.state ?? '')).map(t => t.hash);
             if (running.length === 0) return;
@@ -410,7 +408,19 @@ export class QbittorrentAdapter
         const held = torrents.filter(isMarked).map(t => t.hash);
         if (held.length === 0) return;
         await this.#verb(false, held.join('|'));
-        await this.#tag(false, held.join('|'));
+        return this.#unmark(held.join('|'), held.length);
+    }
+
+    /** After a resume that landed: a tag left behind is reported, not thrown,
+     *  since thrown it would read as nothing resumed. A later whole-client
+     *  resume starts those torrents again, which are running anyway. */
+    async #unmark(hashes: string, count: number): Promise<string | void> {
+        try {
+            await this.#tag(false, hashes);
+        } catch (err) {
+            logger.warn({ service: this.id, err }, `resumed, but could not remove the ${PAUSE_MARK} tag`);
+            return `${count === 1 ? 'It keeps' : `${count} keep`} the tag ${PAUSE_MARK}, which could not be removed: ${err instanceof Error ? err.message : String(err)}`;
+        }
         await this.#dropEmptyTag();
     }
 

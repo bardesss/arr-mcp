@@ -25,17 +25,12 @@ type RawCommand = {
     ended?: string;
 };
 
-/** The service took the command but gave no id to follow it by. A caller
- *  that already says "queued, not verified" can catch this one. */
-export class NoCommandIdError extends ServiceError {
-    constructor(service: string) {
-        super('UpstreamError', service, `${service} queued the command but returned no command id, so arr-mcp cannot follow it`, {
-            remedy: "get_stack_health's `commands` says whether it ran. Do not send it again."
-        });
-    }
-}
-
-const noCommandId = (service: string): ServiceError => new NoCommandIdError(service);
+/** The service took the command but gave no id to follow it by, which only
+ *  matters to a caller that has to wait on it. */
+const noCommandId = (service: string): ServiceError =>
+    new ServiceError('UpstreamError', service, `${service} queued the command but returned no command id, so arr-mcp cannot follow it`, {
+        remedy: "get_stack_health's `commands` says whether it ran. Do not send it again."
+    });
 
 export async function postArrCommand(
     http: ServiceHttp,
@@ -43,12 +38,14 @@ export async function postArrCommand(
     body: Record<string, unknown> & { name: string }
 ): Promise<CommandHandle> {
     const queued = await http.post<RawCommand>(`${http.apiRoot}/command`, body);
-    // Refused here rather than handed back as 0: a caller that returns the
-    // handle would tell the model to follow a command nothing will ever list.
-    if (!Number.isInteger(queued.id) || (queued.id ?? 0) <= 0) throw noCommandId(service);
+    // Left out rather than handed back as 0, which would tell the model to
+    // follow a command nothing will ever list. The command is queued all the
+    // same, so it is not an error; a caller that has to wait on it gets one
+    // from `awaitArrCommand`.
+    const id = Number.isInteger(queued.id) && (queued.id ?? 0) > 0 ? (queued.id as number) : undefined;
     return {
         service,
-        commandId: queued.id as number,
+        ...(id === undefined ? {} : { commandId: id }),
         name: queued.name ?? body.name,
         ...(typeof queued.status === 'string' ? { status: queued.status } : {})
     };
@@ -234,10 +231,10 @@ type RawCommandDetail = RawCommand & { message?: string; result?: string };
 export async function awaitArrCommand(
     http: ServiceHttp,
     service: string,
-    commandId: number,
+    commandId: number | undefined,
     sleep: (ms: number) => Promise<void> = ms => new Promise(r => setTimeout(r, ms))
 ): Promise<{ status: string; result?: string; message?: string }> {
-    if (!Number.isInteger(commandId) || commandId <= 0) throw noCommandId(service);
+    if (commandId === undefined || !Number.isInteger(commandId) || commandId <= 0) throw noCommandId(service);
     const deadline = Date.now() + COMMAND_WAIT_MS;
 
     for (;;) {

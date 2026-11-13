@@ -347,6 +347,10 @@ export type SubtitleSearchTarget = {
 export interface SubtitleSearchCapable {
     /** Asks for one language for one item. Queued upstream, so it resolves before any subtitle exists. */
     triggerSubtitleSearch(target: SubtitleSearchTarget): Promise<void>;
+    /** One item Bazarr tracks, missing anything or not, by the id a search
+     *  takes: a film's Radarr id or an episode's Sonarr id. Undefined when
+     *  Bazarr has no such item. */
+    readSubtitleItem(kind: 'movie' | 'episode', id: number): Promise<SubtitleGap | undefined>;
 }
 
 export const hasSubtitleSearch = (a: ServiceAdapter): a is ServiceAdapter & SubtitleSearchCapable =>
@@ -1030,7 +1034,7 @@ export type RetagFile = {
  * How a `RetagFiles` run ended: the status it settled on, or, once it was
  * queued, why arr-mcp stopped waiting for it. It may still run then.
  */
-export type RetagRun = { settled: true; status: string; message?: string } | { settled: false; commandId: number; reason: string };
+export type RetagRun = { settled: true; status: string; message?: string } | { settled: false; commandId?: number; reason: string };
 
 /**
  * Rewriting a music file's embedded tags from Lidarr's metadata, which is
@@ -1360,7 +1364,9 @@ export const hasSearch = (a: ServiceAdapter): a is ServiceAdapter & SearchCapabl
  */
 export type CommandHandle = {
     service: string;
-    commandId: number;
+    /** Absent when the service gave none to follow: Plex and Jellyfin never
+     *  do, and an *arr that answers without one has still queued the work. */
+    commandId?: number;
     name: string;
     status?: string;
     detail?: string;
@@ -1919,7 +1925,12 @@ export const PAUSE_MARK = 'arr-mcp-paused';
 export interface PauseCapable {
     /** `id` narrows to one queue item; omitted means the whole client. */
     readPauseState(id?: string): Promise<PauseState>;
-    setPaused(paused: boolean, id?: string): Promise<void>;
+    /** `only`, on a torrent client's whole-client call, is the `runningIds` or
+     *  `markedIds` the preview read: it acts on those and nothing that started
+     *  or was marked since. Ignored by a client with a real pause. A sentence
+     *  comes back when the change landed but clearing the mark after a resume
+     *  did not: the torrents run, and the result says so rather than failing. */
+    setPaused(paused: boolean, id?: string, only?: readonly string[]): Promise<string | void>;
 }
 
 export const hasPause = (a: ServiceAdapter): a is ServiceAdapter & PauseCapable =>

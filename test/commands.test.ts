@@ -212,14 +212,16 @@ describe('awaitArrCommand', () => {
         expect(s.polls()).toBe(0);
     });
 
-    /** Handed back as 0, the id reached trigger_search's and import_download's
-     *  answers as a command to follow that nothing will ever list. */
-    it('refuses a queued command with no id at the source', async () => {
-        const s = sequence([{ name: 'MoviesSearch', status: 'queued' }]);
-        await expect(postArrCommand(reader(s.impl), 'radarr', { name: 'MoviesSearch' })).rejects.toMatchObject({
-            kind: 'UpstreamError',
-            message: expect.stringMatching(/returned no command id/)
-        });
+    /** Queued all the same, so it is reported as queued, with no id to
+     *  follow: handed back as 0, the id reached trigger_search's answer as a
+     *  command nothing will ever list, and thrown, a search that did start
+     *  read as failed. */
+    it('reports a queued command with no id as queued, without a handle', async () => {
+        for (const id of [undefined, 0, -1]) {
+            const s = sequence([{ ...(id === undefined ? {} : { id }), name: 'MoviesSearch', status: 'queued' }]);
+            const handle = await postArrCommand(reader(s.impl), 'radarr', { name: 'MoviesSearch' });
+            expect(handle).toEqual({ service: 'radarr', name: 'MoviesSearch', status: 'queued' });
+        }
     });
 
     it('stops on a command that failed rather than waiting out the budget', async () => {

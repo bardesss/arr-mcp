@@ -259,7 +259,7 @@ export class JellyfinAdapter
 
         await this.#http.post(`/ScheduledTasks/Running/${encodeURIComponent(scan.Id)}`, undefined, true);
 
-        return { service: this.id, commandId: 0, name: LIBRARY_SCAN_KEY, status: 'started' };
+        return { service: this.id, name: LIBRARY_SCAN_KEY, status: 'started' };
     }
 
     async getScanState(): Promise<ScanState> {
