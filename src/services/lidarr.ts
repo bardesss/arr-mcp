@@ -8,8 +8,8 @@ import type { ImportExclusion } from './types.ts';
 import type { IndexInput } from '../core/resolver.ts';
 import { readMetadataProfiles, readProfileNames, readQualityProfiles, readRootFolders, readTags } from './arrAdd.ts';
 import { findArrBlocklistEntry, readArrBlocklist, removeArrBlocklistItem } from './arrBlocklist.ts';
-import { awaitArrCommand, postArrCommand, readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
-import { arrGrabRecorded } from './arrDownloadTrace.ts';
+import { NoCommandIdError, awaitArrCommand, postArrCommand, readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
+import { arrGrabRecorded, traceArrDownload } from './arrDownloadTrace.ts';
 import { readArrHistory } from './arrHistory.ts';
 import { listArrImportCandidates, runArrManualImport } from './arrManualImport.ts';
 import { deleteArrMedia, lidarrCalendarPath, readArrQueue, readLidarrCalendar, removeArrQueueItem } from './arrQueue.ts';
@@ -17,6 +17,8 @@ import { lidarrDate } from './arrRecord.ts';
 import { findLidarrReleases, grabLidarrRelease } from './arrRelease.ts';
 import { arrRecentLogs, arrStartLibraryScan } from './arrSystem.ts';
 import { readArrWanted } from './arrWanted.ts';
+import { readSeedCriteria } from './arrSeedCriteria.ts';
+import { readArrProfileDiagnostics, readArrQualityProfile, updateArrQualityProfile } from './arrProfiles.ts';
 import {
     type AddCandidate,
     type AddMediaOptions,
@@ -32,6 +34,14 @@ import {
     type CommandStatusCapable,
     type DeleteMediaOptions,
     type DiskSpaceCapable,
+    type DownloadTrace,
+    type DownloadTraceCapable,
+    type IndexerSeedCriteria,
+    type SeedCriteriaCapable,
+    type ArrQualityProfileRecord,
+    type ProfileDiagnosticsCapable,
+    type ProfileDiagnosticsData,
+    type ProfileFixCapable,
     type HealthCheckCapable,
     type HistoryCapable,
     type HistoryEntry,
@@ -283,6 +293,10 @@ export class LidarrAdapter
         ArtistMonitorCapable,
         QueueCapable,
         QueueRemoveCapable,
+        DownloadTraceCapable,
+        SeedCriteriaCapable,
+        ProfileDiagnosticsCapable,
+        ProfileFixCapable,
         HistoryCapable,
         BlocklistCapable,
         LibraryScanCapable,
@@ -612,6 +626,29 @@ export class LidarrAdapter
 
     async grabRecorded(downloadId: string): Promise<boolean> {
         return arrGrabRecorded(this.http, this.id, downloadId);
+    }
+
+    async traceDownload(downloadId: string): Promise<DownloadTrace | undefined> {
+        return traceArrDownload(this.http, this.id, 'artist', downloadId);
+    }
+
+    async getSeedCriteria(): Promise<IndexerSeedCriteria[]> {
+        return readSeedCriteria(this.http, this.id, 'lidarr');
+    }
+
+    // Lidarr 3.1.6 answers /qualityprofile, /customformat and /language like
+    // Radarr; its custom formats have no language condition, so the language
+    // rules never fire on it.
+    async readProfileDiagnostics(): Promise<ProfileDiagnosticsData> {
+        return readArrProfileDiagnostics(this.http);
+    }
+
+    async readQualityProfile(id: number): Promise<ArrQualityProfileRecord> {
+        return readArrQualityProfile(this.http, id);
+    }
+
+    async updateQualityProfile(profile: ArrQualityProfileRecord): Promise<void> {
+        return updateArrQualityProfile(this.http, profile);
     }
 
     /**
@@ -947,7 +984,14 @@ export class LidarrAdapter
      */
     async retagFiles(id: string, trackFileIds: readonly number[]): Promise<RetagRun> {
         const artistId = this.numericId('artist', id);
-        const handle = await postArrCommand(this.http, this.id, { name: 'RetagFiles', artistId, files: [...trackFileIds] });
+        let handle: Awaited<ReturnType<typeof postArrCommand>>;
+        try {
+            handle = await postArrCommand(this.http, this.id, { name: 'RetagFiles', artistId, files: [...trackFileIds] });
+        } catch (err) {
+            // Queued all the same, so it can still run: no id is not a failed write.
+            if (err instanceof NoCommandIdError) return { settled: false, commandId: 0, reason: err.message };
+            throw err;
+        }
         let row: Awaited<ReturnType<typeof awaitArrCommand>>;
         try {
             row = await awaitArrCommand(this.http, this.id, handle.commandId);

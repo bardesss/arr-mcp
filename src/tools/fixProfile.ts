@@ -22,7 +22,7 @@ import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts
  */
 
 const TARGET = serviceTarget({
-    services: ['radarr', 'sonarr', 'whisparr'],
+    services: ['radarr', 'sonarr', 'whisparr', 'lidarr'],
     can: (a): a is ServiceAdapter & ProfileFixCapable & ProfileDiagnosticsCapable => hasProfileFix(a) && hasProfileDiagnostics(a),
     cannot: 'has no quality profiles arr-mcp can change',
     hint: 'Take `service` and `profile` from get_profile_issues.'
@@ -127,7 +127,7 @@ export function registerFixProfile(
         name: 'fix_profile',
         title: 'Fix a quality profile',
         description:
-            "Applies a proven quality profile fix: for a certain unreachable_floor or knife_edge_floor finding from get_profile_issues, sets the profile's minimum custom format score to the total of its positive formats less the cheapest one, nothing else. Re-checks first, so a finding that no longer holds is refused[[profilarr: , as is a profile on an instance where Profilarr syncs every profile (change it in Profilarr)]]. The preview shows the old floor, which only a manual edit restores. Confirm to apply; returns the profile and both floors.",
+            "Applies a proven quality profile fix: for a certain unreachable_floor or knife_edge_floor finding from get_profile_issues, sets the profile's minimum custom format score to the total of its positive formats less the cheapest one, nothing else. Re-checks first, so a finding that no longer holds is refused[[profilarr: , as is a profile on an instance where Profilarr syncs every profile (change it in Profilarr)]]. The preview shows the old floor, which only a manual edit restores. Confirm to apply; returns the profile and both floors. Field reference: arr://docs/fix_profile.",
         inputSchema: FixProfileInput,
         target: { adapters, to: TARGET },
         operation: 'update_quality_profile',

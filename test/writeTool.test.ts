@@ -5,7 +5,8 @@ import type { AnyServiceConfig, ServiceId } from '../src/config/schema.ts';
 import { BEARER_CALLER, WriteAudit } from '../src/core/audit.ts';
 import { ConfirmTokens } from '../src/core/confirm.ts';
 import { ServiceError } from '../src/core/errors.ts';
-import { permissionSourceFrom } from '../src/core/permissions.ts';
+import { permissionSourceFrom, type WriteTier } from '../src/core/permissions.ts';
+import { cappedTo } from '../src/mcp/scopes.ts';
 import type { LibraryLoader } from '../src/tools/library.ts';
 import type { CrossChecker, CrossCheckProfile } from '../src/tools/crossChecks.ts';
 import { rawTarget, registerWriteTool, type WritePlan, type WriteToolResult } from '../src/tools/write.ts';
@@ -58,25 +59,34 @@ type Harness = ReturnType<typeof buildHarness>;
 function buildHarness(
     opts: {
         permissions?: Partial<Record<ServiceId, AnyServiceConfig>>;
-        plan?: WritePlan;
+        plan?: WritePlan | (() => Promise<WritePlan>);
+        route?: (args: { id: string }) => string;
         apply?: () => Promise<unknown>;
         tier?: 'safe' | 'destructive';
         caller?: string;
         crossChecks?: CrossChecker;
         crossCheck?: CrossCheckProfile;
+        /** The tiers the presenting credential allows, as `/mcp` caps them. */
+        ceiling?: WriteTier[];
     } = {}
 ) {
     const audit = WriteAudit.ephemeral();
     const confirm = new ConfirmTokens();
     const invalidate = vi.fn();
     const apply = vi.fn(opts.apply ?? (() => Promise.resolve({ ok: true })));
-    const plan = vi.fn(() => Promise.resolve(opts.plan ?? PLAN));
+    const planned = opts.plan;
+    const plan = vi.fn(typeof planned === 'function' ? planned : () => Promise.resolve(planned ?? PLAN));
 
     const { server, call } = fakeServer();
     registerWriteTool(
         server,
         {
-            permissions: permissionSourceFrom(instancesOf(opts.permissions ?? { radarr: service(false, true) })),
+            permissions: (() => {
+                const source = permissionSourceFrom(instancesOf(opts.permissions ?? { radarr: service(false, true) }));
+                return opts.ceiling === undefined
+                    ? source
+                    : cappedTo(source, new Set(opts.ceiling), () => ({ reason: 'this token is read-only', remedy: 'Use a write token.' }));
+            })(),
             confirm,
             audit,
             library: { invalidate } as unknown as LibraryLoader,
@@ -88,7 +98,7 @@ function buildHarness(
             title: 'Delete a film or series',
             description: 'Deletes a film.',
             inputSchema: z.object({ id: z.string() }),
-            service: 'radarr',
+            service: opts.route ?? 'radarr',
             operation: 'delete_movie',
             tier: opts.tier ?? 'destructive',
             plan,
@@ -366,6 +376,105 @@ describe('write tool harness — the audit trail', () => {
         const oauth = buildHarness({ caller: 'oauth:desktop-client' });
         await oauth.call('delete_media', { id: '5', dry_run: true });
         expect((oauth.audit.recent() as { caller: string | null }[])[0]?.caller).toBe('oauth:desktop-client');
+    });
+
+    it('records a refusal thrown by the plan, with the argument as given', async () => {
+        const refusing = buildHarness({
+            plan: () => Promise.reject(new ServiceError('NotFound', 'radarr', 'no movie 5'))
+        });
+        await expect(refusing.call('delete_media', { id: '5' })).rejects.toThrow(/no movie 5/);
+
+        const rows = refusing.audit.recent() as { outcome: string; target: string; service: string; detail: string | null }[];
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({ outcome: 'denied', target: '5', service: 'radarr' });
+        expect(rows[0]?.detail).toContain('no movie 5');
+    });
+
+    it('records a plan refusal on a confirm call too', async () => {
+        let refuse = false;
+        const drifting = buildHarness({
+            plan: () => (refuse ? Promise.reject(new ServiceError('NotFound', 'radarr', 'gone')) : Promise.resolve(PLAN))
+        });
+        const first = await drifting.call('delete_media', { id: '5' });
+        refuse = true;
+        await expect(
+            drifting.call('delete_media', { id: '5', confirm: first.structuredContent.confirm_token })
+        ).rejects.toThrow(/gone/);
+        expect(outcomes(drifting)).toEqual(['unconfirmed', 'denied']);
+    });
+
+    it('records nothing for a dry run whose plan refuses', async () => {
+        const refusing = buildHarness({
+            plan: () => Promise.reject(new ServiceError('NotFound', 'radarr', 'no movie 5'))
+        });
+        await expect(refusing.call('delete_media', { id: '5', dry_run: true })).rejects.toThrow(/no movie 5/);
+        expect(refusing.audit.recent()).toHaveLength(0);
+    });
+
+    it('records a refusal thrown while routing to an instance', async () => {
+        const routing = buildHarness({
+            route: () => {
+                throw new ServiceError('NotFound', 'radarr', 'several radarr instances and none named');
+            }
+        });
+        await expect(routing.call('delete_media', { id: '5' })).rejects.toThrow(/none named/);
+        expect(routing.plan).not.toHaveBeenCalled();
+        const rows = routing.audit.recent() as { outcome: string; target: string }[];
+        expect(rows[0]).toMatchObject({ outcome: 'denied', target: '5' });
+    });
+
+    // A read token can never apply these, so a row per call would only let it
+    // grow the permanent audit table as fast as it can ask.
+    it('records nothing for a dry run the token could never apply', async () => {
+        const readOnly = buildHarness({ ceiling: [] });
+        const { structuredContent } = await readOnly.call('delete_media', { id: '5', dry_run: true });
+        expect(structuredContent.permission.allowed).toBe(false);
+        expect(structuredContent.audit_id).toBeUndefined();
+        expect(readOnly.audit.recent()).toHaveLength(0);
+    });
+
+    it('records nothing for a no-op the token could never apply', async () => {
+        const readOnly = buildHarness({ ceiling: [], plan: { ...PLAN, noop: true } });
+        await readOnly.call('delete_media', { id: '5', dry_run: true });
+        expect(readOnly.audit.recent()).toHaveLength(0);
+    });
+
+    it('records nothing for a dry run above the token that names an instance nobody configured', async () => {
+        const audit = WriteAudit.ephemeral();
+        const { server, call } = fakeServer();
+        const permissions = cappedTo(permissionSourceFrom([]), new Set(), () => ({ reason: 'read-only', remedy: 'r' }));
+        registerWriteTool(
+            server,
+            { permissions, confirm: new ConfirmTokens(), audit, library: { invalidate: vi.fn() } as unknown as LibraryLoader },
+            {
+                name: 'grab_release',
+                title: 'Grab',
+                description: 'Grabs.',
+                inputSchema: z.object({ service: z.literal('radarr'), instance: z.string().optional() }),
+                target: {
+                    adapters: [],
+                    to: { services: ['radarr'], can: (a): a is never => a !== undefined, cannot: 'cannot grab' }
+                },
+                operation: 'grab',
+                tier: 'safe',
+                plan: () => Promise.resolve(PLAN),
+                apply: () => Promise.resolve({})
+            }
+        );
+        await expect(call('grab_release', { service: 'radarr', instance: 'nope', dry_run: true })).rejects.toThrow();
+        expect(audit.recent()).toHaveLength(0);
+    });
+
+    it('still records a live write the token refuses', async () => {
+        const readOnly = buildHarness({ ceiling: [] });
+        await expect(readOnly.call('delete_media', { id: '5' })).rejects.toThrow(/read-only/);
+        expect(outcomes(readOnly)).toEqual(['denied']);
+    });
+
+    it('still records a dry run when only the config refuses it', async () => {
+        const denied = buildHarness({ permissions: { radarr: service(false, false) } });
+        await denied.call('delete_media', { id: '5', dry_run: true });
+        expect(outcomes(denied)).toEqual(['dry_run']);
     });
 
     it('records the resolved target, not the argument the caller typed', async () => {

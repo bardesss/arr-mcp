@@ -44,11 +44,11 @@ describe('*arr adapter capabilities', () => {
             'hasSeedCriteria'
         ]],
         ['lidarr', () => new LidarrAdapter(cfg), [
-            'hasArtistMonitor', 'hasBlocklist', 'hasCalendar', 'hasCommandStatus', 'hasDiskSpace',
+            'hasArtistMonitor', 'hasBlocklist', 'hasCalendar', 'hasCommandStatus', 'hasDiskSpace', 'hasDownloadTrace',
             'hasHealthChecks', 'hasHistory', 'hasImportExclusions', 'hasLibrary', 'hasLibraryMaintenance', 'hasLibraryScan',
             'hasLogs', 'hasManualImport', 'hasMediaAdd', 'hasMediaDelete', 'hasMediaDetails', 'hasMediaUpdate', 'hasMetadataProfiles',
-            'hasMonitorState', 'hasMonitoring', 'hasQueue', 'hasQueueRemove', 'hasReleaseGrab',
-            'hasReleaseSearch', 'hasScanState', 'hasSearch', 'hasSearchTrigger', 'hasTagRepair', 'hasWanted'
+            'hasMonitorState', 'hasMonitoring', 'hasProfileDiagnostics', 'hasProfileFix', 'hasQueue', 'hasQueueRemove', 'hasReleaseGrab',
+            'hasReleaseSearch', 'hasScanState', 'hasSearch', 'hasSearchTrigger', 'hasSeedCriteria', 'hasTagRepair', 'hasWanted'
         ]]
     ])('%s exposes exactly its capabilities', (_name, make, expected) => {
         expect(capabilities(make())).toEqual(expected);

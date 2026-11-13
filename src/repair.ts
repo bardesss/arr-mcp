@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { Hono } from 'hono';
 import type { Context } from 'hono';
@@ -24,7 +25,7 @@ import { CSS, JS } from './web/assets.ts';
 import { MARK_SVG } from './web/icons.ts';
 import { loginPage, setupPage } from './web/pages.ts';
 import { originOf, throttleKey } from './web/routes.ts';
-import { repairPage, unreadableAuthPage } from './web/repairPage.ts';
+import { credentialsHeldPage, repairPage, unreadableAuthPage } from './web/repairPage.ts';
 
 const NAME = 'arr-mcp';
 
@@ -42,6 +43,37 @@ type RepairDeps = {
 const MIN_PASSWORD = 12;
 
 const str = (value: unknown): string => (typeof value === 'string' ? value : '');
+
+/** What the repair form carries back, to tell whether the file changed under it. */
+const digest = (text: string): string => createHash('sha256').update(text).digest('hex');
+
+const isMapping = (value: unknown): value is Record<string, unknown> =>
+    value !== null && typeof value === 'object' && !Array.isArray(value);
+
+/** Anything but absent, null, an empty string, `[]` or `{}`. */
+const filled = (value: unknown): boolean =>
+    value !== undefined &&
+    value !== null &&
+    value !== '' &&
+    !(Array.isArray(value) && value.length === 0) &&
+    !(isMapping(value) && Object.keys(value).length === 0);
+
+/**
+ * Whether the parsed file holds something worth stealing: a service block (each
+ * carries a key or password), an MCP token, a management key or the webhook
+ * secret. Generous on purpose, since a false positive costs a restart and a
+ * false negative hands the keys to whoever claims first.
+ */
+function holdsCredential(value: unknown): boolean {
+    if (!isMapping(value)) return false;
+    const auth = isMapping(value.auth) ? value.auth : {};
+    const webhooks = isMapping(value.webhooks) ? value.webhooks : {};
+    return (
+        filled(value.services) ||
+        ['bearer_token', 'tokens', 'management_key', 'management_keys'].some(key => filled(auth[key])) ||
+        filled(webhooks.secret)
+    );
+}
 
 /**
  * The server that runs instead of the real one when config.yaml did not load:
@@ -161,9 +193,38 @@ export function buildRepairApp(deps: RepairDeps): Hono {
         return token;
     };
 
-    app.get('/ui/setup', c =>
-        unclaimed() ? c.html(setupPage({ version })) : c.redirect('/ui/login', 302)
-    );
+    /**
+     * config.yaml as it is now, falling back to the boot snapshot when it cannot
+     * be read. Parsed per request like `onDisk` below: the operator answering
+     * the page that refuses setup does so by editing the file.
+     */
+    const diskValue = async (): Promise<unknown> => {
+        let text = raw;
+        try {
+            text = await readFile(configPath(configDir), 'utf8');
+        } catch {
+            // Keep the snapshot.
+        }
+        try {
+            return parseDocument(text).toJS();
+        } catch {
+            return undefined;
+        }
+    };
+
+    /**
+     * Claiming lands on the editor, which renders the file verbatim. In normal
+     * mode an unclaimed instance can be claimed too, but nothing there shows a
+     * stored secret back, so here the claim is refused while the file holds one.
+     */
+    const credentialsHeld = (c: Context) =>
+        c.html(credentialsHeldPage({ version, detail: publicReason() }), 503);
+
+    app.get('/ui/setup', async c => {
+        if (!unclaimed()) return c.redirect('/ui/login', 302);
+        if (holdsCredential(await diskValue())) return credentialsHeld(c);
+        return c.html(setupPage({ version }));
+    });
 
     // No CSRF token: there is no session yet to bind one to, so the request's
     // origin is the binding that does exist.
@@ -220,6 +281,11 @@ export function buildRepairApp(deps: RepairDeps): Hono {
                     return reject(
                         'config.yaml has a password_hash that cannot be read. Delete the line to claim this instance, or correct it and restart.'
                     );
+                }
+
+                if (holdsCredential(doc.toJS())) {
+                    logger.warn({ ...originOf(c) }, 'refused a claim over a config that already holds credentials');
+                    return credentialsHeld(c);
                 }
 
                 doc.setIn(['auth', 'username'], username);
@@ -279,11 +345,29 @@ export function buildRepairApp(deps: RepairDeps): Hono {
         return c.redirect('/ui/repair', 302);
     });
 
-    app.get('/ui/repair', c => {
+    /**
+     * The file as it is now, and a digest of it for the form to carry back.
+     * Read per request, like the setup handler above: the operator told the
+     * file is invalid may well fix part of it over SSH, and showing the boot
+     * snapshot meant the next save here silently reverted that edit. An
+     * unreadable file falls back to the last text this server knew.
+     */
+    const onDisk = async (): Promise<{ text: string; base: string }> => {
+        let text: string | undefined;
+        try {
+            text = await readFile(configPath(configDir), 'utf8');
+        } catch {
+            text = undefined;
+        }
+        return { text: text ?? raw, base: text === undefined ? 'missing' : digest(text) };
+    };
+
+    app.get('/ui/repair', async c => {
         const session = sessionOf(c);
         if (session === undefined) return c.redirect(entry(), 302);
+        const { text, base } = await onDisk();
         c.header('cache-control', 'no-store');
-        return c.html(repairPage({ version, raw, detail, csrf: sessions.csrfFor(session) }));
+        return c.html(repairPage({ version, raw: text, base, detail, csrf: sessions.csrfFor(session) }));
     });
 
     app.post('/ui/repair', async c => {
@@ -294,13 +378,17 @@ export function buildRepairApp(deps: RepairDeps): Hono {
         if (!sessions.csrfValid(session, str(body.csrf))) return c.text('stale form, reload and try again', 403);
 
         const text = str(body.config);
+        const base = str(body.base);
         // The text as typed, not what is on disk: a save that failed must not
         // throw away the edit that failed.
         // `no-store` here too: a POST response is not cached by default, but
         // this one carries the same secrets the GET does.
-        const rerender = (message: string) => {
+        const rerender = (message: string, shown = text, shownBase = base) => {
             c.header('cache-control', 'no-store');
-            return c.html(repairPage({ version, raw: text, detail: message, csrf: sessions.csrfFor(session) }), 400);
+            return c.html(
+                repairPage({ version, raw: shown, base: shownBase, detail: message, csrf: sessions.csrfFor(session) }),
+                400
+            );
         };
 
         const verdict = validateConfigText(text);
@@ -322,8 +410,21 @@ export function buildRepairApp(deps: RepairDeps): Hono {
             // running instead.
             if (started) return c.redirect('/ui', 302);
 
-            // No `expected` drift check: the premise of this page is a file on
-            // disk that nothing else is running to change.
+            // Nothing else in the process writes the file, but the operator can,
+            // and the textarea was filled from what was there when the page
+            // loaded. A save over a change it never showed is refused, and the
+            // file as it is now is shown instead. Checked inside the queue, so
+            // an earlier save from another tab counts as a change too.
+            const current = await onDisk();
+            if (current.base !== base) {
+                return rerender(
+                    'config.yaml changed on disk since this page was loaded, so nothing was saved. ' +
+                        'This is the file as it is now; make the edit again.',
+                    current.text,
+                    current.base
+                );
+            }
+
             await writeFileAtomic(configPath(configDir), text);
             raw = text;
 
@@ -333,7 +434,8 @@ export function buildRepairApp(deps: RepairDeps): Hono {
                 // instance is degraded really did change. A validator refusal
                 // wrote nothing and must not change what /healthz reports.
                 detail = promoted.detail;
-                return rerender(detail);
+                // The file now holds this text, so the next save starts from it.
+                return rerender(detail, text, digest(text));
             }
 
             started = true;

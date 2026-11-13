@@ -925,6 +925,39 @@ describe('get_media_details', () => {
         expect(out.content[0]!.text).toContain('book from grimmory');
         expect(out.content[0]!.text).toContain('Example Library 1');
         expect(out.content[0]!.text).toContain('formats: EPUB, PDF');
+        expect(out.content[0]!.text).toContain('book, grimmory:58');
+    });
+
+    it('get_media_details by title carries the record and each candidate in its text', async () => {
+        const dune = (id: string, year: number, tmdb: number, over: Record<string, unknown> = {}) => ({
+            kind: 'movie' as const,
+            title: 'Dune',
+            year,
+            ids: { tmdb },
+            acquisition: { service: 'radarr', id, monitored: true, hasFile: true, quality: 'Bluray-1080p' },
+            ...over
+        });
+        const radarr = {
+            id: 'radarr',
+            type: 'radarr',
+            testConnection: async () => ({ ok: true }),
+            getVersion: async () => '5',
+            listLibrary: async () => [dune('1', 2021, 438631), dune('2', 1984, 841, { acquisition: { service: 'radarr', id: '2', monitored: false, hasFile: false } })]
+        } as unknown as ServiceAdapter;
+        let handler: ((a: Record<string, unknown>, e: unknown) => Promise<{ content: { text: string }[] }>) | undefined;
+        const server = {
+            registerTool: (_n: string, _cfg: never, h: never) => {
+                handler = h;
+            }
+        } as unknown as McpServer;
+        registerGetMediaDetails(server, [radarr], new LibraryLoader([radarr], undefined), undefined, undefined, false);
+
+        const lines = (await handler!({ query: 'Dune', detail: 'standard', limit: 50 }, {})).content[0]!.text.split('\n');
+        expect(lines).toHaveLength(3);
+        expect(lines[1]).toMatch(/^Dune \(\d{4}\): movie, radarr:\d, tmdb:\d+/);
+        expect(lines[2]).toMatch(/^also matched Dune \(\d{4}\): movie, radarr:\d, tmdb:\d+/);
+        expect(lines.join('\n')).toContain('radarr:1, tmdb:438631, monitored, Bluray-1080p');
+        expect(lines.join('\n')).toContain('radarr:2, tmdb:841');
     });
 
 });
@@ -1008,6 +1041,52 @@ describe('discover_media', () => {
         );
         const result = await buildDiscoverMedia(broken, { kind: 'movie', detail: 'full', limit: 50 });
         expect(result.degraded).toEqual(['seerr']);
+    });
+
+    /** Seerr's paged answer, 20 to a page as TMDB serves it; rows are numbered from 1. */
+    const paging = (totalResults: number, totalPages = Math.ceil(totalResults / 20)) => {
+        const pages: number[] = [];
+        const fetchImpl = (async (input: string) => {
+            const page = Number(new URL(input).searchParams.get('page') ?? 1);
+            pages.push(page);
+            if (page > 500) return jsonResponse({ message: 'Unable to retrieve discover movies.' }, 500);
+            const start = (page - 1) * 20;
+            const results = Array.from({ length: Math.max(0, Math.min(20, totalResults - start)) }, (_, i) => ({
+                id: start + i + 1,
+                mediaType: 'movie',
+                title: `Film ${start + i + 1}`
+            }));
+            return jsonResponse({ page, totalPages, totalResults, results });
+        }) as unknown as typeof fetch;
+        return { pages, adapter: new SeerrAdapter(seerrConfig, fetchImpl) };
+    };
+
+    it('reads the pages a window covers and reports the whole list', async () => {
+        const { adapter, pages } = paging(495);
+        const result = await buildDiscoverMedia(adapter, { kind: 'movie', genre: '80', detail: 'minimal', limit: 50, offset: 30 });
+        expect(result.items.map(i => i.ids.tmdb)).toEqual(Array.from({ length: 50 }, (_, i) => 31 + i));
+        expect(result).toMatchObject({ total: 495, returned: 50, offset: 30, truncated: true });
+        expect(pages.sort((a, b) => a - b)).toEqual([2, 3, 4]);
+    });
+
+    it('stops the total at the last page TMDB serves', async () => {
+        const { adapter } = paging(20001, 1001);
+        const result = await buildDiscoverMedia(adapter, { kind: 'movie', detail: 'minimal', limit: 50, offset: 9990 });
+        expect(result).toMatchObject({ total: 10000, returned: 10 });
+    });
+
+    it('asks for no page past the last one TMDB serves', async () => {
+        const { adapter, pages } = paging(20001, 1001);
+        const result = await buildDiscoverMedia(adapter, { kind: 'movie', detail: 'minimal', limit: 50, offset: 10000 });
+        expect(result).toMatchObject({ total: 10000, returned: 0, degraded: [] });
+        expect(Math.max(...pages)).toBeLessThanOrEqual(500);
+    });
+
+    it('pages recommendations the same way', async () => {
+        const { adapter } = paging(564);
+        const result = await buildDiscoverMedia(adapter, { kind: 'movie', similarTo: '693134', detail: 'minimal', limit: 10, offset: 20 });
+        expect(result.items[0]?.ids.tmdb).toBe(21);
+        expect(result.total).toBe(564);
     });
 });
 
@@ -1485,6 +1564,31 @@ describe('Rotten Tomatoes and IMDb from Seerr', () => {
         });
 
         expect(result.title).toContain('Some Film');
+    });
+
+    // A media server's item carries a TMDB id but not its kind, and TMDB's
+    // film and series ids are separate namespaces.
+    it('asks Seerr nothing for a media server item that is not known to be a film or series', async () => {
+        const asked: string[] = [];
+        const seerrFetch = (async (input: string | URL | Request) => {
+            asked.push(input instanceof Request ? input.url : String(input));
+            return new Response(JSON.stringify({ rt: { criticsScore: 12 } }), { status: 200, headers: { 'content-type': 'application/json' } });
+        }) as unknown as typeof fetch;
+        const jellyfin = {
+            id: 'jellyfin',
+            type: 'jellyfin',
+            getMediaDetails: async () => ({ kind: 'item', title: 'Game of Thrones', ids: { tmdb: 1399 } })
+        } as unknown as ServiceAdapter;
+
+        const result = await buildGetMediaDetails([jellyfin, new SeerrAdapter(seerrConfig, seerrFetch)], {
+            service: 'jellyfin',
+            id: 'abc',
+            detail: 'standard',
+            limit: 50
+        });
+
+        expect(result.ratings).toBeUndefined();
+        expect(asked).toEqual([]);
     });
 
     it('does nothing at all when no Seerr is configured', async () => {

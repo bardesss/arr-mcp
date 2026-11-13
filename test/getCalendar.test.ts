@@ -60,6 +60,36 @@ describe('get_calendar', () => {
         expect(result.items.find(i => i.id === 101)?.date).toBe('2026-08-06T00:00:00Z');
     });
 
+    it('dates a film by the release inside the window, not a later or earlier one', async () => {
+        const films = [
+            // In cinemas next week, digital months away.
+            { id: 103, title: 'Cinema Now', inCinemas: '2026-08-10T00:00:00Z', digitalRelease: '2026-12-01T00:00:00Z', hasFile: false, monitored: true },
+            // Digital long ago, physical this week.
+            { id: 104, title: 'Disc Now', digitalRelease: '2024-01-01T00:00:00Z', physicalRelease: '2026-08-03T00:00:00Z', hasFile: false, monitored: true },
+            // Two inside: the earlier one.
+            { id: 105, title: 'Both', physicalRelease: '2026-08-09T00:00:00Z', inCinemas: '2026-08-01T00:00:00Z', hasFile: false, monitored: true }
+        ];
+        const result = await buildGetCalendar([radarr(films)], opts);
+        expect(result.items.map(i => [i.id, i.date])).toEqual([
+            [105, '2026-08-01T00:00:00Z'],
+            [104, '2026-08-03T00:00:00Z'],
+            [103, '2026-08-10T00:00:00Z']
+        ]);
+    });
+
+    it('counts days back from the start of today, so 0 keeps what aired this morning', async () => {
+        const morning = [{ ...EPISODES[0]!, airDateUtc: '2026-08-05T06:00:00Z' }];
+        // Answers only what lies in the window asked for, as Sonarr does.
+        const windowed = (async (input: string) => {
+            const url = new URL(String(input));
+            const [start, end] = ['start', 'end'].map(k => Date.parse(url.searchParams.get(k) ?? ''));
+            const rows = morning.filter(e => Date.parse(e.airDateUtc) >= start! && Date.parse(e.airDateUtc) <= end!);
+            return new Response(JSON.stringify(rows), { status: 200, headers: { 'content-type': 'application/json' } });
+        }) as unknown as typeof fetch;
+        const result = await buildGetCalendar([new SonarrAdapter(keyed(8989), windowed)], { ...opts, daysBack: 0 });
+        expect(result.items).toHaveLength(1);
+    });
+
     it('omits a film with no date at all rather than emitting an undated row', async () => {
         const undated = [{ id: 102, title: 'No Date', hasFile: false, monitored: true }];
         expect((await buildGetCalendar([radarr(undated)], opts)).items).toEqual([]);
@@ -81,7 +111,7 @@ describe('get_calendar', () => {
         await buildGetCalendar([new RadarrAdapter(keyed(7878), spy)], { ...opts, daysBack: 3, daysAhead: 5 });
 
         const url = new URL(seen[0] ?? '');
-        expect(url.searchParams.get('start')).toBe('2026-08-02T12:00:00.000Z');
+        expect(url.searchParams.get('start')).toBe('2026-08-02T00:00:00.000Z');
         expect(url.searchParams.get('end')).toBe('2026-08-10T12:00:00.000Z');
     });
 

@@ -134,8 +134,17 @@ describe('grab_release', () => {
         const h = harness();
         await h.call({ ...ARGS, service: 'sonarr', episode: '901' });
         await h.call({ ...ARGS, service: 'sonarr', season: 2 });
-        await h.call({ ...ARGS, service: 'sonarr' });
-        expect(h.searched).toEqual(['?episodeId=901', '?seriesId=1&seasonNumber=2', '?seriesId=1']);
+        expect(h.searched).toEqual(['?episodeId=901', '?seriesId=1&seasonNumber=2']);
+    });
+
+    // A bare `seriesId` gets the indexers' RSS feed back, so a guid could match
+    // a release for another series entirely.
+    it('refuses a Sonarr or Whisparr re-search with neither season nor episode, without searching', async () => {
+        const h = harness();
+        await expect(h.call({ ...ARGS, service: 'sonarr' })).rejects.toThrow(/whole series/);
+        await expect(h.call({ ...ARGS, service: 'whisparr' })).rejects.toThrow(/whole site/);
+        expect(h.searched).toEqual([]);
+        expect(h.grabbed).toHaveLength(0);
     });
 
     it('refuses token-free previews that pass season and episode together', async () => {
@@ -237,8 +246,8 @@ describe('grab_release', () => {
 
     it('works against sonarr too', async () => {
         const h = harness();
-        const preview = await h.call({ ...ARGS, service: 'sonarr' });
-        await h.call({ ...ARGS, service: 'sonarr', confirm: preview.structuredContent.confirm_token });
+        const preview = await h.call({ ...ARGS, service: 'sonarr', season: 1 });
+        await h.call({ ...ARGS, service: 'sonarr', season: 1, confirm: preview.structuredContent.confirm_token });
         expect(h.grabbed).toEqual([{ guid: 'abc', indexerId: 3 }]);
     });
 });
@@ -350,6 +359,9 @@ describe('grab_release with a magnet', () => {
             confirm: first.structuredContent.confirm_token
         });
         expect(JSON.stringify(second.structuredContent.result)).toContain('alreadyPresent');
+        // Not "Applied. Add torrent": nothing was added.
+        expect(second.content[0]?.text).toMatch(/^Nothing added: transmission already has torrent c12fe1c0/);
+        expect(second.structuredContent.summary).toMatch(/^Nothing added/);
     });
 
     it('sends the link as a form field on qBittorrent', async () => {
@@ -518,8 +530,13 @@ describe('grab_release cross-checks', () => {
         const crossChecks = quiet();
         const h = harness({ crossChecks, item: ITEM });
 
-        const first = await h.call({ ...ARGS, service: 'whisparr' });
-        const second = await h.call({ ...ARGS, service: 'whisparr', confirm: first.structuredContent.confirm_token });
+        const first = await h.call({ ...ARGS, service: 'whisparr', season: 2019 });
+        const second = await h.call({
+            ...ARGS,
+            service: 'whisparr',
+            season: 2019,
+            confirm: first.structuredContent.confirm_token
+        });
 
         expect(second.structuredContent.applied).toBe(true);
         expect(h.reads.item).toBe(0);

@@ -2,9 +2,10 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { INSTANCE_PARAM_DESCRIPTION, instancesOfType, resolveInstance } from './resolveInstance.ts';
 import type { ServiceId } from '../config/schema.ts';
-import { ServiceIdSchema } from '../config/schema.ts';
+import { serviceOf } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { gather } from '../core/gather.ts';
+import { newestFirst } from '../core/instant.ts';
 import { logger } from '../core/logger.ts';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, windowEnd, type DetailLevel, unreachableTail } from '../core/shape.ts';
 import type { WebhookEvents } from '../core/webhookEvents.ts';
@@ -162,7 +163,7 @@ export async function buildGetHistory(
 
     // Newest first: "why did last night's download fail" is a question about
     // the most recent attempt, not the oldest.
-    items.sort((a, b) => b.at.localeCompare(a.at));
+    items.sort(newestFirst);
 
     const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
     const shaped = applyLimit(items, opts.limit, opts.offset, total);
@@ -193,7 +194,7 @@ function everyInstance(adapters: readonly ServiceAdapter[], service: ServiceId):
 }
 
 /**
- * `source: "webhooks"`: what Radarr and Sonarr reported, read from arr-mcp's own
+ * `source: "webhooks"`: what Radarr, Sonarr and Lidarr reported, read from arr-mcp's own
  * store. A separate read from `buildGetHistory`, because a stored row and the
  * service's own row for the same grab would otherwise both appear.
  *
@@ -208,12 +209,12 @@ export function readEventLog(
     opts: EventLogOptions
 ): GetHistoryResult & { note?: string } {
     if (opts.id !== undefined && opts.service === undefined) {
-        throw new Error('`id` scopes to one movie or series; pass `service` (and `instance` if it is named) to say which.');
+        throw new Error('`id` scopes to one movie, series or artist; pass `service` (and `instance` if it is named) to say which.');
     }
     if (opts.service !== undefined && !Object.hasOwn(WEBHOOK_SERVICES, opts.service)) {
         // Refused, because an empty list would read as "nothing happened to it".
         throw new ServiceError('NotFound', opts.service, `${opts.service} does not send events to arr-mcp`, {
-            remedy: 'The event log only holds what Radarr and Sonarr report. Leave `source` out to read the service\'s own history.'
+            remedy: 'The event log only holds what Radarr, Sonarr and Lidarr report. Leave `source` out to read the service\'s own history.'
         });
     }
     // As the default source: an id or a named instance is one instance, a
@@ -255,7 +256,7 @@ export function readEventLog(
     const note = !log.enabled
         ? OFF
         : anything === 0
-          ? 'The library event log is on, but nothing has arrived. Each Radarr and Sonarr instance needs a webhook connection, and the Configuration page has the details.'
+          ? 'The library event log is on, but nothing has arrived. Each Radarr, Sonarr and Lidarr instance needs a webhook connection, and the Configuration page has the details.'
           : undefined;
     return {
         ...shaped,
@@ -271,8 +272,8 @@ const GetHistoryInput = toolInput({
     source: z
         .enum(['services', 'webhooks'])
         .default('services')
-        .describe('`services` asks each service for its own history.[[radarr|sonarr:  `webhooks` reads the events {{and: radarr=Radarr; sonarr=Sonarr}} reported to arr-mcp, which survive deleting a title.]]'),
-    service: ServiceIdSchema.optional().describe('Scope to one service. Required alongside `id`.'),
+        .describe('`services` asks each service for its own history.[[radarr|sonarr|lidarr:  `webhooks` reads the events {{and: radarr=Radarr; sonarr=Sonarr; lidarr=Lidarr}} reported to arr-mcp, which survive deleting a title.]]'),
+    service: serviceOf(TARGET.services).optional().describe('Scope to one service. Required alongside `id`.'),
     instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
     id: z.string().min(1).optional().describe('One {{or: radarr=movie; sonarr|whisparr=series; lidarr=Lidarr artist}} id: `acquisition.id` on a get_library or get_media_details record. Requires `service`.'),
     event_type: EventTypeSchema,
@@ -293,7 +294,7 @@ export function registerGetHistory(server: McpServer, adapters: readonly Service
             title: 'Download history',
             annotations: READ_ONLY,
             description:
-                'What happened to a download after it left the queue (grabbed, imported, failed, deleted), merged across {{and: else=every service; radarr|sonarr|whisparr|lidarr=the *arrs; sabnzbd=SABnzbd; nzbget=NZBGet; bazarr=Bazarr (`subtitle` rows); cleanuparr=Cleanuparr (strikes and removals); reclaimerr=Reclaimerr (cleanup); shelfmark=Shelfmark; grimmory=Grimmory}}, in one vocabulary with the upstream word kept as `rawEvent`. This answers "why did last night\'s download fail": get_queue cannot see finished or failed items, and a failure carries the download client\'s own message. [[radarr|sonarr|whisparr|lidarr: Pass `service` and `id` to scope it to one {{or: radarr=movie; sonarr|whisparr=series; lidarr=Lidarr artist}}.]] `downloadId` links a row to its *arr grab[[nzbget: ; on an NZBGet row it is what import_download `action: "postprocess"` takes]]. [[radarr|sonarr: Deleting a title also deletes its Radarr and Sonarr history, so `source: "webhooks"` reads what they reported to arr-mcp instead, when the library event log is on.]] Field reference: arr://docs/get_history.',
+                'What happened to a download after it left the queue (grabbed, imported, failed, deleted), merged across {{and: else=every service; radarr|sonarr|whisparr|lidarr=the *arrs; sabnzbd=SABnzbd; nzbget=NZBGet; bazarr=Bazarr (`subtitle` rows); cleanuparr=Cleanuparr (strikes and removals); reclaimerr=Reclaimerr (cleanup); shelfmark=Shelfmark; grimmory=Grimmory}}, in one vocabulary with the upstream word kept as `rawEvent`. This answers "why did last night\'s download fail": get_queue cannot see finished or failed items, and a failure carries the download client\'s own message. [[radarr|sonarr|whisparr|lidarr: Pass `service` and `id` to scope it to one {{or: radarr=movie; sonarr|whisparr=series; lidarr=Lidarr artist}}.]] `downloadId` links a row to its *arr grab[[nzbget: ; on an NZBGet row it is what import_download `action: "postprocess"` takes]]. [[radarr|sonarr|lidarr: Deleting a title also deletes its {{and: radarr=Radarr; sonarr=Sonarr; lidarr=Lidarr}} history, so `source: "webhooks"` reads what they reported to arr-mcp instead, when the library event log is on.]] Field reference: arr://docs/get_history.',
             outputSchema: GetHistoryOutput,
             inputSchema: GetHistoryInput
         },

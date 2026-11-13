@@ -136,7 +136,7 @@ const TARGET = serviceTarget({
 });
 
 const UpdateMediaInput = z.object({
-    ...targetInput(TARGET, 'radarr for a film, sonarr for a series, lidarr for an artist.'),
+    ...targetInput(TARGET, '{{or: radarr=radarr for a film; sonarr=sonarr for a series; lidarr=lidarr for an artist}}.'),
     id: z
         .string()
         .min(1)
@@ -144,9 +144,10 @@ const UpdateMediaInput = z.object({
         .describe(
             "The item's id within that service: `acquisition.id` on a get_library or get_media_details record. [[lidarr: Omit it with `monitored` or `monitor_new_items` alone to reach every artist.]]"
         ),
-    quality_profile: z.string().optional().describe('Profile name or id to switch to.'),
+    quality_profile: z.string().min(1).optional().describe('Profile name or id to switch to.'),
     root_folder: z
         .string()
+        .min(1)
         .optional()
         .describe('Root folder path, or any distinctive part of it. Moves the files there unless move_files is false.'),
     monitored: z
@@ -169,12 +170,13 @@ const UpdateMediaInput = z.object({
         .describe('[[sonarr: Sonarr only: the numbering scheme.]]'),
     metadata_profile: z
         .string()
+        .min(1)
         .optional()
         .describe(
             '[[lidarr: Lidarr only: metadata profile name or id to switch to, which decides the album types and release statuses the artist gets. It applies at the artist’s next refresh, which this does not start. A name that matches none is refused, listing the ones the instance has.]]'
         ),
     tags: z
-        .array(z.string())
+        .array(z.string().min(1))
         .optional()
         .describe('Tag labels or ids that already exist. Replaces the whole set: pass [] to clear it.'),
     move_files: z
@@ -345,12 +347,20 @@ export function registerUpdateMedia(
                           'metadata profile',
                           service
                       );
+            // A set: `["kids", "kids"]` is one tag, and must not pass for an
+            // item's two.
             const resolvedTags =
                 tags === undefined
                     ? undefined
-                    : tags.map(requested =>
-                          chooseOne(knownTags, requested, TAG_MATCH, t => `${t.display} (id ${t.id})`, 'tag', service)
-                      );
+                    : [
+                          ...new Map(
+                              tags
+                                  .map(requested =>
+                                      chooseOne(knownTags, requested, TAG_MATCH, t => `${t.display} (id ${t.id})`, 'tag', service)
+                                  )
+                                  .map(t => [t.id, t] as const)
+                          ).values()
+                      ];
 
             const effects: string[] = [];
             const changes: string[] = [];
@@ -420,7 +430,7 @@ export function registerUpdateMedia(
             const tagIds = resolvedTags?.map(t => t.id);
             const tagsChanged =
                 tagIds !== undefined &&
-                (tagIds.length !== current.tagIds.length || tagIds.some(t => !current.tagIds.includes(t)));
+                (tagIds.length !== new Set(current.tagIds).size || tagIds.some(t => !current.tagIds.includes(t)));
             if (tagsChanged) {
                 effects.push(
                     tagIds.length === 0

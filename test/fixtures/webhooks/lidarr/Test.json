@@ -1,0 +1,20 @@
+{
+  "artist": {
+    "id": 1,
+    "name": "Test Name",
+    "path": "/media/library/item",
+    "mbId": "aaaaa-aaa-aaaa-aaaaaa",
+    "tags": [
+      "test-tag"
+    ]
+  },
+  "albums": [
+    {
+      "id": 123,
+      "title": "Test title"
+    }
+  ],
+  "eventType": "Test",
+  "instanceName": "Instance",
+  "applicationUrl": ""
+}

@@ -412,7 +412,7 @@ describe('PUT /settings', () => {
 
     it('sets allowTokenInUrl', async () => {
         const res = await api('/settings/mcp', json('PUT', { allowTokenInUrl: true }));
-        expect(await res.json()).toEqual({ allowedHosts: [], allowTokenInUrl: true, oauthConfigured: false });
+        expect(await res.json()).toEqual({ allowedHosts: [], trustedProxies: [], allowTokenInUrl: true, oauthConfigured: false });
     });
 
     it('refuses to change allowedHosts, which would let a leaked key lock the owner out', async () => {
@@ -420,6 +420,14 @@ describe('PUT /settings', () => {
         expect(res.status).toBe(400);
         expect(((await res.json()) as { message: string }).message).toBe('allowedHosts can only be changed on the config page.');
         expect(stack.runtime.config.auth.allowed_hosts).toEqual([]);
+    });
+
+    // A proxy on the list decides which client a failed sign-in counts against.
+    it('refuses to change trustedProxies', async () => {
+        const res = await api('/settings/mcp', json('PUT', { trustedProxies: ['0.0.0.0/0'] }));
+        expect(res.status).toBe(400);
+        expect(((await res.json()) as { message: string }).message).toBe('trustedProxies can only be changed on the config page.');
+        expect(stack.runtime.config.auth.trusted_proxies).toBeUndefined();
     });
 
     it('accepts its own GET body back', async () => {

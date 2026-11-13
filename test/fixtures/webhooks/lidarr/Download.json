@@ -1,0 +1,219 @@
+{
+  "artist": {
+    "id": 4,
+    "name": "Portishead",
+    "disambiguation": "",
+    "path": "/media/library/item",
+    "mbId": "8f6bd1e4-fbe1-4f50-aa9b-94c450ec0f11",
+    "type": "Group",
+    "genres": [
+      "Trip Hop",
+      "Electronic",
+      "Downtempo",
+      "Experimental Rock",
+      "Folktronica"
+    ],
+    "images": [
+      {
+        "coverType": "banner",
+        "url": "/media/library/item",
+        "remoteUrl": "/media/library/item"
+      },
+      {
+        "coverType": "fanart",
+        "url": "/media/library/item",
+        "remoteUrl": "/media/library/item"
+      },
+      {
+        "coverType": "poster",
+        "url": "/media/library/item",
+        "remoteUrl": "/media/library/item"
+      },
+      {
+        "coverType": "clearlogo",
+        "url": "/media/library/item",
+        "remoteUrl": "/media/library/item"
+      }
+    ],
+    "tags": []
+  },
+  "album": {
+    "id": 26,
+    "mbId": "48140466-cff6-3222-bd55-63c27e43190d",
+    "title": "Dummy",
+    "disambiguation": "",
+    "overview": "",
+    "albumType": "Album",
+    "secondaryAlbumTypes": [],
+    "releaseDate": "1994-08-22T00:00:00Z",
+    "genres": [
+      "Trip Hop",
+      "Electronic",
+      "Acid Jazz",
+      "Downtempo"
+    ],
+    "images": [
+      {
+        "coverType": "cover",
+        "url": "/media/library/item",
+        "remoteUrl": "https://indexer.example.test/"
+      },
+      {
+        "coverType": "disc",
+        "url": "/media/library/item",
+        "remoteUrl": "https://indexer.example.test/"
+      }
+    ]
+  },
+  "tracks": [
+    {
+      "id": 2483,
+      "title": "Mysterons",
+      "trackNumber": "1",
+      "qualityVersion": 0
+    },
+    {
+      "id": 2484,
+      "title": "Sour Times",
+      "trackNumber": "2",
+      "qualityVersion": 0
+    },
+    {
+      "id": 2485,
+      "title": "Strangers",
+      "trackNumber": "3",
+      "qualityVersion": 0
+    },
+    {
+      "id": 2486,
+      "title": "It Could Be Sweet",
+      "trackNumber": "4",
+      "qualityVersion": 0
+    },
+    {
+      "id": 2487,
+      "title": "Wandering Star",
+      "trackNumber": "5",
+      "qualityVersion": 0
+    },
+    {
+      "id": 2488,
+      "title": "Numb",
+      "trackNumber": "6",
+      "qualityVersion": 0
+    },
+    {
+      "id": 2489,
+      "title": "Roads",
+      "trackNumber": "7",
+      "qualityVersion": 0
+    },
+    {
+      "id": 2490,
+      "title": "Pedestal",
+      "trackNumber": "8",
+      "qualityVersion": 0
+    },
+    {
+      "id": 2491,
+      "title": "Biscuit",
+      "trackNumber": "9",
+      "qualityVersion": 0
+    },
+    {
+      "id": 2492,
+      "title": "Glory Box",
+      "trackNumber": "10",
+      "qualityVersion": 0
+    }
+  ],
+  "trackFiles": [
+    {
+      "id": 132,
+      "path": "/media/library/item",
+      "quality": "MP3-VBR-V0",
+      "qualityVersion": 1,
+      "size": 7733906,
+      "dateAdded": "2026-11-12T20:32:02.5130669Z"
+    },
+    {
+      "id": 133,
+      "path": "/media/library/item",
+      "quality": "MP3-VBR-V0",
+      "qualityVersion": 1,
+      "size": 6524269,
+      "dateAdded": "2026-11-12T20:32:02.557216Z"
+    },
+    {
+      "id": 134,
+      "path": "/media/library/item",
+      "quality": "MP3-VBR-V0",
+      "qualityVersion": 1,
+      "size": 6000610,
+      "dateAdded": "2026-11-12T20:32:02.5628301Z"
+    },
+    {
+      "id": 135,
+      "path": "/media/library/item",
+      "quality": "MP3-VBR-V0",
+      "qualityVersion": 1,
+      "size": 6642637,
+      "dateAdded": "2026-11-12T20:32:02.5679452Z"
+    },
+    {
+      "id": 136,
+      "path": "/media/library/item",
+      "quality": "MP3-VBR-V0",
+      "qualityVersion": 1,
+      "size": 7398476,
+      "dateAdded": "2026-11-12T20:32:02.5731988Z"
+    },
+    {
+      "id": 137,
+      "path": "/media/library/item",
+      "quality": "MP3-VBR-V0",
+      "qualityVersion": 1,
+      "size": 6105859,
+      "dateAdded": "2026-11-12T20:32:02.578621Z"
+    },
+    {
+      "id": 138,
+      "path": "/media/library/item",
+      "quality": "MP3-VBR-V0",
+      "qualityVersion": 1,
+      "size": 7454400,
+      "dateAdded": "2026-11-12T20:32:02.5849975Z"
+    },
+    {
+      "id": 139,
+      "path": "/media/library/item",
+      "quality": "MP3-VBR-V0",
+      "qualityVersion": 1,
+      "size": 5496002,
+      "dateAdded": "2026-11-12T20:32:02.5905024Z"
+    },
+    {
+      "id": 140,
+      "path": "/media/library/item",
+      "quality": "MP3-VBR-V0",
+      "qualityVersion": 1,
+      "size": 7630869,
+      "dateAdded": "2026-11-12T20:32:02.5968327Z"
+    },
+    {
+      "id": 141,
+      "path": "/media/library/item",
+      "quality": "MP3-VBR-V0",
+      "qualityVersion": 1,
+      "size": 7659827,
+      "dateAdded": "2026-11-12T20:32:02.6019671Z"
+    }
+  ],
+  "isUpgrade": false,
+  "downloadClient": "Download Client",
+  "downloadClientType": "SABnzbd",
+  "downloadId": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA1",
+  "eventType": "Download",
+  "instanceName": "Instance",
+  "applicationUrl": ""
+}

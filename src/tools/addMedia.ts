@@ -279,7 +279,7 @@ function folderDoubt(path: string, candidate: AddCandidate, type: string, extern
 }
 
 const AddMediaInput = z.object({
-    ...targetInput(TARGET, 'radarr for a film, sonarr for a series, whisparr for a site, lidarr for an artist[[shelfmark: , shelfmark for a book]].'),
+    ...targetInput(TARGET, '{{or: radarr=radarr for a film; sonarr=sonarr for a series; whisparr=whisparr for a site; lidarr=lidarr for an artist; shelfmark=shelfmark for a book}}.'),
     external_id: z
         .string()
         .min(1)
@@ -305,7 +305,7 @@ const AddMediaInput = z.object({
         .enum(['all', 'none', 'new'])
         .optional()
         .describe(
-            '[[lidarr: Lidarr only: the rule for albums Lidarr discovers later: `all`, `new` (only ones released on or after the newest album it already has) or `none`, as on set_monitoring. With no `monitor`, it also sets the albums the artist is added with. Omitted, the artist gets `all`: the root folder\'s own default applies only to an artist Lidarr adds on import.]][[sonarr:  Sonarr: `all` (the default) or `none`, whether seasons it finds later are monitored.]]'
+            '[[lidarr: Lidarr only: the rule for albums Lidarr discovers later: `all`, `new` (only ones released on or after the newest album it already has) or `none`, as on update_media. With no `monitor`, it also sets the albums the artist is added with. Omitted, the artist gets `all`: the root folder\'s own default applies only to an artist Lidarr adds on import.]][[sonarr:  Sonarr: `all` (the default) or `none`, whether seasons it finds later are monitored.]]'
         ),
     metadata_profile: z
         .string()

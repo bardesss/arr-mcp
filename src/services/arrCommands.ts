@@ -25,15 +25,30 @@ type RawCommand = {
     ended?: string;
 };
 
+/** The service took the command but gave no id to follow it by. A caller
+ *  that already says "queued, not verified" can catch this one. */
+export class NoCommandIdError extends ServiceError {
+    constructor(service: string) {
+        super('UpstreamError', service, `${service} queued the command but returned no command id, so arr-mcp cannot follow it`, {
+            remedy: "get_stack_health's `commands` says whether it ran. Do not send it again."
+        });
+    }
+}
+
+const noCommandId = (service: string): ServiceError => new NoCommandIdError(service);
+
 export async function postArrCommand(
     http: ServiceHttp,
     service: string,
     body: Record<string, unknown> & { name: string }
 ): Promise<CommandHandle> {
     const queued = await http.post<RawCommand>(`${http.apiRoot}/command`, body);
+    // Refused here rather than handed back as 0: a caller that returns the
+    // handle would tell the model to follow a command nothing will ever list.
+    if (!Number.isInteger(queued.id) || (queued.id ?? 0) <= 0) throw noCommandId(service);
     return {
         service,
-        commandId: queued.id ?? 0,
+        commandId: queued.id as number,
         name: queued.name ?? body.name,
         ...(typeof queued.status === 'string' ? { status: queued.status } : {})
     };
@@ -222,14 +237,7 @@ export async function awaitArrCommand(
     commandId: number,
     sleep: (ms: number) => Promise<void> = ms => new Promise(r => setTimeout(r, ms))
 ): Promise<{ status: string; result?: string; message?: string }> {
-    if (!Number.isInteger(commandId) || commandId <= 0) {
-        throw new ServiceError(
-            'UpstreamError',
-            service,
-            `${service} queued the command but returned no command id, so arr-mcp cannot wait for it`,
-            { remedy: "get_stack_health's `commands` says whether it ran. Do not send it again." }
-        );
-    }
+    if (!Number.isInteger(commandId) || commandId <= 0) throw noCommandId(service);
     const deadline = Date.now() + COMMAND_WAIT_MS;
 
     for (;;) {

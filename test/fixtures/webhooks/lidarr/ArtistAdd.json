@@ -1,0 +1,22 @@
+{
+  "artist": {
+    "id": 4,
+    "name": "Portishead",
+    "disambiguation": "",
+    "path": "/media/library/item",
+    "mbId": "8f6bd1e4-fbe1-4f50-aa9b-94c450ec0f11",
+    "type": "Group",
+    "genres": [
+      "Trip Hop",
+      "Electronic",
+      "Downtempo",
+      "Experimental Rock",
+      "Folktronica"
+    ],
+    "images": [],
+    "tags": []
+  },
+  "eventType": "ArtistAdd",
+  "instanceName": "Instance",
+  "applicationUrl": ""
+}

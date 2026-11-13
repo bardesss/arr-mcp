@@ -9,13 +9,16 @@ import {
     type Remedy
 } from '../core/episodeMismatch.ts';
 import { fenceText } from '../core/fence.ts';
+import { TtlCache } from '../core/cache.ts';
+import { isOutage } from '../core/errors.ts';
 import { mapLimit } from '../core/gather.ts';
+import type { IndexInput } from '../core/resolver.ts';
 import { logger } from '../core/logger.ts';
 import type { IdentityResolver } from '../core/identity.ts';
 import type { PermissionSource } from '../core/permissions.ts';
 import { unfenced } from '../core/titleMatch.ts';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
-import { hasMetadataInspect, hasUserLibrary, type BookMetadataIssueCapable, type ServiceAdapter } from '../services/types.ts';
+import { hasMetadataInspect, hasUserLibrary, type BookMetadataIssueCapable, type ServiceAdapter, type ServiceUser } from '../services/types.ts';
 import { bothIds, byMediaServers, pickMediaServer, serviceInput, withBoth, type MediaServers } from './mediaServers.ts';
 import { managedFolders, mergedHow, plexRepairAllowed, unlockHow, withLocks } from './fixMetadata.ts';
 import type { LibraryLoader } from './library.ts';
@@ -194,22 +197,54 @@ async function sweepBooks(books: ServiceAdapter & BookMetadataIssueCapable): Pro
     }
 }
 
-export async function buildGetMetadataIssues(
+/**
+ * Long enough to page through one answer, short enough that a fix made in the
+ * media server's own UI shows on the next sweep. A write through this server
+ * clears it sooner (see `registerGetMetadataIssues`).
+ */
+const SWEEP_TTL_MS = 120_000;
+const DEGRADED_SWEEP_TTL_MS = 20_000;
+
+/** Both halves, merged and sorted worst first, before paging. */
+async function sweepAll(
     adapters: readonly ServiceAdapter[],
     identity: IdentityResolver | undefined,
-    opts: { detail: DetailLevel; limit: number; offset: number; user?: string; permissions?: PermissionSource; library?: LibraryLoader; books?: ServiceAdapter & BookMetadataIssueCapable }
-): Promise<GetMetadataIssuesResult> {
+    opts: { user?: string; permissions?: PermissionSource; library?: LibraryLoader; books?: ServiceAdapter & BookMetadataIssueCapable }
+): Promise<Sweep> {
     const [media, books] = await Promise.all([sweepMedia(adapters, identity, opts), opts.books === undefined ? undefined : sweepBooks(opts.books)]);
     const issues = [...media.issues, ...(books?.issues ?? [])];
-    const degraded = [...media.degraded, ...(books?.degraded ?? [])];
-    const scanned = media.scanned + (books?.scanned ?? 0);
-    const skipped = media.skipped + (books?.skipped ?? 0);
-    const notComparable = media.notComparable;
-
     // Worst first: numbering findings outrank title ones, then sheer count,
     // then the lowest book score. Sorted before projection, where `numbering`
     // is always present.
     issues.sort((a, b) => (b.numbering ?? 0) - (a.numbering ?? 0) || b.mismatches - a.mismatches || (a.matchScore ?? 0) - (b.matchScore ?? 0));
+    return {
+        issues,
+        degraded: [...media.degraded, ...(books?.degraded ?? [])],
+        scanned: media.scanned + (books?.scanned ?? 0),
+        skipped: media.skipped + (books?.skipped ?? 0),
+        notComparable: media.notComparable
+    };
+}
+
+export async function buildGetMetadataIssues(
+    adapters: readonly ServiceAdapter[],
+    identity: IdentityResolver | undefined,
+    opts: {
+        detail: DetailLevel;
+        limit: number;
+        offset: number;
+        user?: string;
+        permissions?: PermissionSource;
+        library?: LibraryLoader;
+        books?: ServiceAdapter & BookMetadataIssueCapable;
+        /** Holds the whole sweep briefly, so paging with `offset` does not repeat it. */
+        sweeps?: TtlCache;
+    }
+): Promise<GetMetadataIssuesResult> {
+    const run = () => sweepAll(adapters, identity, opts);
+    const key = `sweep:${adapters.map(a => a.id).join(',')}:${opts.user ?? ''}:${opts.books?.id ?? ''}`;
+    const { issues, degraded, scanned, skipped, notComparable } =
+        opts.sweeps === undefined ? await run() : await opts.sweeps.get(key, SWEEP_TTL_MS, run, s => (s.degraded.length === 0 ? SWEEP_TTL_MS : DEGRADED_SWEEP_TTL_MS));
 
     const paged = applyLimit(issues, opts.limit, opts.offset);
     return {
@@ -243,12 +278,23 @@ async function sweepMedia(
         return { issues: [], degraded: [], scanned: 0, skipped: 0, notComparable: [] };
     }
 
-    const viewer = await identity.resolve(opts.user);
+    // A server that is down degrades this half by name, so the book findings
+    // still arrive and the summary says nothing was compared. A refusal or a
+    // user that matches nobody is config, and stays an error.
+    let viewer: ServiceUser;
+    let library: readonly IndexInput[];
+    try {
+        viewer = await identity.resolve(opts.user);
+        // The loader already holds this server's rows when it read them itself, so
+        // a sweep that follows a get_library call does not list the library twice.
+        const snapshot = opts.library === undefined ? undefined : await opts.library.load(opts.user).catch(() => undefined);
+        library = snapshot?.playbackFrom === adapter.id && snapshot.playbackRows !== undefined ? snapshot.playbackRows : await adapter.listUserLibrary(viewer);
+    } catch (err) {
+        if (!isOutage(err)) throw err;
+        logger.warn({ service: adapter.id, err }, 'metadata sweep could not read the library');
+        return { issues: [], degraded: [adapter.id], scanned: 0, skipped: 0, notComparable: [] };
+    }
     const repairAllowed = opts.permissions !== undefined && plexRepairAllowed(opts.permissions);
-    // The loader already holds this server's rows when it read them itself, so
-    // a sweep that follows a get_library call does not list the library twice.
-    const snapshot = opts.library === undefined ? undefined : await opts.library.load(opts.user).catch(() => undefined);
-    const library = snapshot?.playbackFrom === adapter.id && snapshot.playbackRows !== undefined ? snapshot.playbackRows : await adapter.listUserLibrary(viewer);
     const series = library.filter(i => i.kind === 'series' && i.playback?.itemId !== undefined);
 
     const issues: MetadataIssue[] = [];
@@ -388,6 +434,9 @@ export function registerGetMetadataIssues(
     library?: LibraryLoader,
     books?: ServiceAdapter & BookMetadataIssueCapable
 ): void {
+    // A landed write (fix_metadata among them) clears it with the library cache.
+    const sweeps = new TtlCache();
+    library?.onInvalidate(() => sweeps.clear());
     server.registerTool(
         'get_metadata_issues',
         {
@@ -401,7 +450,7 @@ export function registerGetMetadataIssues(
         },
         async ({ detail, limit, offset, service }) => {
             const chosen = pickMediaServer(servers, service);
-            const result = await buildGetMetadataIssues(chosen === undefined ? [] : [chosen.adapter], chosen?.identity, { detail, limit, offset, ...(permissions === undefined ? {} : { permissions }), ...(library === undefined ? {} : { library }), ...(books === undefined ? {} : { books }) });
+            const result = await buildGetMetadataIssues(chosen === undefined ? [] : [chosen.adapter], chosen?.identity, { detail, limit, offset, sweeps, ...(permissions === undefined ? {} : { permissions }), ...(library === undefined ? {} : { library }), ...(books === undefined ? {} : { books }) });
 
             return { content: [{ type: 'text', text: listText(metadataIssuesSummary(result), result.items, metadataIssueLine) }], structuredContent: result };
         }
@@ -422,8 +471,12 @@ export function metadataIssuesSummary(result: GetMetadataIssuesResult): string {
               (look === 0 ? '.' : `, and ${look} ${look === 1 ? 'needs' : 'need'} a look because this cannot tell which side is wrong.`)) +
         // A skip with nothing degraded is a lone book (or series) that could not
         // be read; it still shrinks the count, so it is said here too.
+        // A whole half that failed (the server down, or its films) skips no
+        // single item, and "0 could not be read" would say nothing was lost.
         (result.degraded.length > 0
-            ? ` ${skipped} could not be read at all (${result.degraded.join(', ')}), so the count above is out of fewer than the library holds.`
+            ? skipped > 0
+                ? ` ${skipped} could not be read at all (${result.degraded.join(', ')}), so the count above is out of fewer than the library holds.`
+                : ` ${result.degraded.join(', ')} could not be read in full, so the count above is out of fewer than the library holds.`
             : skipped > 0
               ? ` ${skipped} could not be read, so the count above is out of fewer than the library holds.`
               : '') +

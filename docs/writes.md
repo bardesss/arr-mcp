@@ -381,7 +381,8 @@ exercise. Where the tool has its own section, the same path carries an
 | Tool | Service | What | Why |
 | --- | --- | --- | --- |
 | `get_playback` | `plex` | Reading a non-zero `viewOffset` as resume and the rest as next-up, in `/library/onDeck` | Plex marks neither kind, and nobody has checked the split against a live server with an in-progress item; the read itself is captured |
-| `pause_downloads` | `qbittorrent` | Pause, resume and the speed limit, on both the v4 and v5 verbs | No qBittorrent on the maintainer's stack; written from the WebUI API description |
+| `pause_downloads` | `qbittorrent` | Pause, resume and the speed limit, on both the v4 and v5 verbs, and the `arr-mcp-paused` tag | No qBittorrent on the maintainer's stack; written from the WebUI API description |
+| `pause_downloads` | `transmission` | The whole-client pause and resume by the `arr-mcp-paused` label, and the alternative speed mode read | Written from the RPC spec; no label has been written on the live Transmission |
 | `grab_release` | `qbittorrent` | A magnet link sent to the client | No qBittorrent on the maintainer's stack |
 | `get_queue` | `qbittorrent` | The torrent list, the seed limits and `by_tracker`; only login and health have met a real server | No qBittorrent on the maintainer's stack; the fixtures were written from the WebUI API description |
 | `get_queue` | `grimmory` | A file waiting in the Bookdrop | The live Bookdrop was empty at capture; the row is tested on a constructed file |
@@ -406,6 +407,7 @@ exercise. Where the tool has its own section, the same path carries an
 | `delete_media` | `seerr` | Blocklisting with `seerr_blocklist` | The blocklist call is confirmed live through `blocklist_media`; the delete-then-blocklist path was not run, since it deletes a film |
 | `fix_profile` | `sonarr` | The profile write | Sonarr's profile list is recorded read-only; the `PUT` was captured only on Radarr, so on Sonarr it is unproven live |
 | `fix_profile` | `whisparr` | The profile read and write | No Whisparr on the maintainer's stack; shares the code and path with Radarr, whose exchange was captured, but was not captured itself |
+| `fix_profile` | `lidarr` | The profile write | The profile read is proven on Lidarr 3.1.6; the `PUT` shares Radarr's code and path but was not sent, and the live instance has no custom formats to give a floor finding |
 | `blocklist_media` | `sonarr` | Adding and removing an import exclusion | The list read is checked against a live Sonarr 4.0; the writes were not run |
 | `blocklist_media` | `lidarr` | Import exclusions | No Lidarr on the maintainer's stack; written from Lidarr's spec |
 | `set_watched` | `grimmory` | Marking a book read or unread | The test response is a hand-made mock; no live book has been changed |

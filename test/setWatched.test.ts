@@ -65,6 +65,8 @@ function harness(
         item?: Record<string, unknown>;
         episodes?: Record<string, unknown>[];
         loader?: LibraryLoader;
+        /** The 1-based mark call that fails with a 500. */
+        failOnMark?: number;
     } = {}
 ) {
     const config = opts.config ?? jellyfinConfig();
@@ -76,6 +78,7 @@ function harness(
 
         if (url.pathname.startsWith('/UserPlayedItems/')) {
             marked.push({ method, path: url.pathname });
+            if (marked.length === opts.failOnMark) return jsonResponse({ message: 'boom' }, 500);
             return jsonResponse({ Played: method === 'POST' });
         }
         if (url.pathname === '/Users') return jsonResponse(USERS);
@@ -122,6 +125,31 @@ function harness(
 
     return { call: (a: Record<string, unknown>) => call(a), marked, audit };
 }
+
+describe('set_watched when Jellyfin fails part way', () => {
+    const confirmed = async (h: ReturnType<typeof harness>, args: Record<string, unknown>) => {
+        const preview = await h.call(args);
+        return h.call({ ...args, confirm: preview.structuredContent.confirm_token });
+    };
+
+    /** Two episodes are marked by the time the third fails: an error with no
+     *  count would say nothing changed. */
+    it('reports what it marked before the failure', async () => {
+        const h = harness({ episodes: [1, 2, 3, 4].map(n => episode(n, false)), failOnMark: 3 });
+        const done = await confirmed(h, { item_id: SERIES, season: 2, watched: true });
+
+        expect(done.structuredContent.applied).toBe(true);
+        expect(done.structuredContent.result).toMatchObject({ changed: 2, notTried: 1 });
+        expect(done.content[0]?.text).toMatch(/^Partly applied\. .* Marked 2, then Jellyfin failed on .*Episode 3.*, and 1 more was not tried/);
+        // Stopped at the failure rather than pressing on at a failing server.
+        expect(h.marked).toHaveLength(3);
+    });
+
+    it('still fails plainly when nothing was marked', async () => {
+        const h = harness({ failOnMark: 1 });
+        await expect(confirmed(h, { item_id: SERIES, season: 2, watched: true })).rejects.toThrow();
+    });
+});
 
 describe('set_watched', () => {
     it('lists the episode count in the effects, not just the season', async () => {
@@ -232,6 +260,47 @@ describe('set_watched', () => {
     it('refuses a season on something that is not a series', async () => {
         const h = harness();
         await expect(h.call({ item_id: MOVIE, season: 1, watched: true })).rejects.toThrow(/season/i);
+    });
+
+    it('refuses a Season item, naming the series id and season to use instead', async () => {
+        // Jellyfin marks every child of a folder item, so previewing it as
+        // "1 item" would understate what the write does.
+        const h = harness({
+            item: { Id: MOVIE, Name: 'Season 2', Type: 'Season', IsFolder: true, IndexNumber: 2, SeriesId: SERIES, UserData: { Played: false } }
+        });
+        const err = await h.call({ item_id: MOVIE, watched: false }).catch((e: unknown) => e);
+        expect(err).toBeInstanceOf(ServiceError);
+        expect((err as ServiceError).remedy).toContain(SERIES);
+        expect((err as ServiceError).remedy).toContain('`season: 2`');
+        expect(h.marked).toHaveLength(0);
+    });
+
+    it('refuses a collection or library folder', async () => {
+        for (const Type of ['BoxSet', 'CollectionFolder']) {
+            const h = harness({ item: { Id: MOVIE, Name: 'Films', Type, IsFolder: true, UserData: { Played: false } } });
+            await expect(h.call({ item_id: MOVIE, watched: true })).rejects.toThrow(/every item inside it/);
+            expect(h.marked).toHaveLength(0);
+        }
+    });
+
+    it('still marks a leaf item of another type as one item', async () => {
+        const h = harness({ item: { Id: MOVIE, Name: 'Trailer', Type: 'Video', IsFolder: false, UserData: { Played: false } } });
+        const { structuredContent } = await h.call({ item_id: MOVIE, watched: true });
+        expect(structuredContent.effects.join(' ')).toContain('1 item');
+    });
+
+    it('refuses a season the series does not have, naming the ones it does', async () => {
+        const h = harness({ episodes: [episode(1, false), { ...episode(2, false), ParentIndexNumber: 1 }] });
+        const err = await h.call({ item_id: SERIES, season: 9, watched: true }).catch((e: unknown) => e);
+        expect(err).toBeInstanceOf(ServiceError);
+        expect((err as ServiceError).detail).toMatch(/no season 9/);
+        expect((err as ServiceError).remedy).toMatch(/1, 2/);
+        expect(h.marked).toHaveLength(0);
+    });
+
+    it('rejects a negative season in the schema', async () => {
+        const h = harness();
+        await expect(async () => h.call({ item_id: SERIES, season: -1, watched: true })).rejects.toThrow(/>=0/);
     });
 
     it('says that re-marking does not restore the original play date', async () => {

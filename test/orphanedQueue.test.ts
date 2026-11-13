@@ -100,6 +100,15 @@ describe.each(TOOLS)('%s cleaning orphans', (tool, args) => {
         expect(structuredContent.effects.join(' ')).toContain('Summerween');
     });
 
+    // A release the *arr never matched sits in the same state as deleted media.
+    it('words each row as matched to nothing, deleted or never matched, and names the rescue', async () => {
+        const { structuredContent } = await harness().call({ ...args, dry_run: true });
+        const effects = structuredContent.effects.join(' ');
+        expect(structuredContent.effects[0]).toBe('<<untrusted:radarr.title>>Good.Boy.2025.1080p-SPHD<</>>: completed/importBlocked, matched to nothing in the library: deleted, or never matched.');
+        expect(effects).not.toMatch(/no media behind it|is gone/);
+        expect(effects).toContain('import_download with a `mapping` can still import one that was never matched.');
+    });
+
     it('never touches an orphan that is still downloading', async () => {
         const h = harness();
         const { structuredContent } = await h.call({ ...args, dry_run: true });
@@ -220,6 +229,8 @@ describe.each(TOOLS)('%s partial removal', (tool, args) => {
         expect(result).toContain('gone already');
         expect(second.content[0]?.text).toContain('1 of 2');
         expect(second.content[0]?.text).not.toMatch(/^Applied\./);
+        // The summary beside `applied: true` says what happened, not what was asked.
+        expect(second.structuredContent.summary).toContain('1 of 2');
     });
 
     it('still fails outright when nothing could be removed', async () => {
@@ -270,6 +281,9 @@ describe.each(TOOLS)('%s on lidarr', (tool, _args, lidarrArgs) => {
         const effects = first.structuredContent.effects.join(' ');
 
         expect(effects).toContain('Deleted.Artist');
+        // Lidarr's import_download takes no mapping, so the rescue is Lidarr's own.
+        expect(effects).not.toContain('mapping');
+        expect(effects).toContain('can still be imported by hand in lidarr.');
         expect(effects).not.toContain('Gone.Artist');
         expect(effects).not.toContain('Kept.Artist');
         expect(effects).not.toContain('Done.Artist');

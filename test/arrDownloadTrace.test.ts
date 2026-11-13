@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fenceText } from '../src/core/fence.ts';
+import { LidarrAdapter } from '../src/services/lidarr.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
 import { serving } from './helpers/serve.ts';
@@ -15,6 +16,8 @@ const PAGE = 'page=1&pageSize=50&sortKey=date&sortDirection=descending';
 const byId = (id: string) => `/api/v3/history?downloadId=${id}&${PAGE}`;
 const radarr = (routes: Record<string, unknown>) => new RadarrAdapter(base, serving(routes));
 const sonarr = (routes: Record<string, unknown>) => new SonarrAdapter(base, serving(routes));
+const lidarr = (routes: Record<string, unknown>) => new LidarrAdapter({ ...base, url: 'http://192.0.2.10:8686' }, serving(routes));
+const lidarrById = (id: string) => `/api/v1/history?downloadId=${id}&${PAGE}`;
 const fence = (value: string) => fenceText(value, { service: 'radarr', field: 'sourceTitle' });
 
 describe('traceDownload', () => {
@@ -218,5 +221,50 @@ describe('traceDownload', () => {
             grabbedAt: '2026-10-01T10:05:00Z',
             imported: true
         });
+    });
+});
+
+// Lidarr 3.1.6 records the artist and album on each history row, takes
+// `artistIds` on /history, and logs a finished import as `downloadImported`.
+describe('traceDownload on Lidarr', () => {
+    const failed = { eventType: 'downloadFailed', date: '2026-10-01T10:00:00Z', artistId: 5, albumId: 51, sourceTitle: 'Old', downloadId: 'abc' };
+    const lfence = (value: string) => fenceText(value, { service: 'lidarr', field: 'sourceTitle' });
+
+    it('reports a replacement for the same album and reads its import', async () => {
+        const trace = await lidarr({
+            [lidarrById('abc')]: { records: [failed] },
+            [`/api/v1/history?artistIds=5&eventType=1&${PAGE}`]: {
+                records: [{ eventType: 'grabbed', date: '2026-10-01T10:05:00Z', artistId: 5, albumId: 51, sourceTitle: 'New', downloadId: 'def' }]
+            },
+            [lidarrById('def')]: {
+                records: [{ eventType: 'downloadImported', date: '2026-10-01T10:30:00Z', artistId: 5, albumId: 51, downloadId: 'def' }]
+            }
+        }).traceDownload('abc');
+        expect(trace).toEqual({
+            service: 'lidarr',
+            title: lfence('Old'),
+            failedAt: '2026-10-01T10:00:00Z',
+            replacement: { title: lfence('New'), grabbedAt: '2026-10-01T10:05:00Z', imported: true }
+        });
+    });
+
+    it('ignores a later grab of another album by the same artist', async () => {
+        const trace = await lidarr({
+            [lidarrById('abc')]: { records: [failed] },
+            [`/api/v1/history?artistIds=5&eventType=1&${PAGE}`]: {
+                records: [{ eventType: 'grabbed', date: '2026-10-01T10:05:00Z', artistId: 5, albumId: 52, sourceTitle: 'Other', downloadId: 'def' }]
+            }
+        }).traceDownload('abc');
+        expect(trace?.replacement).toBeUndefined();
+    });
+
+    it('ignores a later grab for another artist, even if the server ignored artistIds', async () => {
+        const trace = await lidarr({
+            [lidarrById('abc')]: { records: [failed] },
+            [`/api/v1/history?artistIds=5&eventType=1&${PAGE}`]: {
+                records: [{ eventType: 'grabbed', date: '2026-10-01T10:05:00Z', artistId: 6, albumId: 51, sourceTitle: 'Other', downloadId: 'def' }]
+            }
+        }).traceDownload('abc');
+        expect(trace?.replacement).toBeUndefined();
     });
 });

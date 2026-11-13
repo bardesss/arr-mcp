@@ -390,6 +390,8 @@ export type QueueItem = {
     /** The download client's own id for this grab: what `import_download`'s
      *  `import` action is addressed with. */
     downloadId?: string;
+    /** On an *arr row below `detail: "full"`: the download client whose own row of this grab `get_queue` folded into it. */
+    client?: string;
     /** Why Radarr, Sonarr, Whisparr or Lidarr will not import it, one line per reason. */
     statusMessages?: string[];
     /** ISO 8601, when the item arrived. Grimmory's Bookdrop rows only. */
@@ -688,6 +690,8 @@ export type CleanupOverview = {
     /** Eligible or scheduled, counted over every candidate, not only the ones `candidates` returns. */
     going?: { count: number; firstAt?: string };
     protections?: number;
+    /** More candidates than one read takes: `going` and `items` cover only the ones read. */
+    capped?: true;
 };
 
 /** One title's standing, for `get_media_details` and `diagnose_media`. */
@@ -719,7 +723,7 @@ export type IndexerSeedCriteria = {
     privacy?: string;
     seedRatio?: number;
     seedTimeSeconds?: number;
-    /** Sonarr's season packs, and Prowlarr's packs. */
+    /** Sonarr's season packs, Lidarr's discographies, and Prowlarr's packs. */
     packSeedTimeSeconds?: number;
 };
 
@@ -792,7 +796,7 @@ export type HistoryEntry = {
     /** The movie, series or artist id: hand it to get_media_details or trigger_search. */
     mediaId?: string;
     /** Webhook rows only. A re-added title gets a new `mediaId`, and these stay. */
-    externalIds?: { tmdb?: number; tvdb?: number; imdb?: string };
+    externalIds?: { tmdb?: number; tvdb?: number; imdb?: string; mbid?: string };
     /** Sonarr only. Kept separate from `mediaId`, which always names the series. */
     episodeId?: string;
     indexer?: string; // fenced
@@ -1134,7 +1138,8 @@ export type PlaybackEntry = {
     device?: string;
 };
 
-export type RequestStatus = 'pending' | 'approved' | 'declined';
+/** `failed`: Seerr could not hand the approved request to Radarr or Sonarr. `completed`: it was fulfilled. */
+export type RequestStatus = 'pending' | 'approved' | 'declined' | 'failed' | 'completed';
 
 export type MediaRequest = {
     service: string;
@@ -1158,7 +1163,12 @@ export const hasRequests = (a: ServiceAdapter): a is ServiceAdapter & RequestCap
     typeof (a as Partial<RequestCapable>).getRequests === 'function';
 
 /** What one title's requests look like: the title when Seerr names it, and every request made for it. */
-export type TitleRequests = { media?: { title: string; year?: number }; requests: MediaRequest[] };
+export type TitleRequests = {
+    /** `seasons`: a series' season numbers, specials included, when Seerr lists them. */
+    media?: { title: string; year?: number; seasons?: number[] };
+    /** `seasons`: the season numbers a series request asked for, when Seerr lists them. */
+    requests: (MediaRequest & { seasons?: number[] })[];
+};
 
 export interface RequestLookupCapable {
     /** One request by id; `undefined` when there is none or the id is not a number. */
@@ -1884,7 +1894,18 @@ export type PauseState = {
     scope: string;
     heldBy?: 'queue' | 'postProcessing';
     postProcessing?: { stage: string; paused: boolean };
+    /**
+     * A torrent client's whole-client read. Neither has a client-wide pause, so
+     * a pause stops the running torrents and marks them with `PAUSE_MARK`, and
+     * resume starts the marked ones only; `paused` is "some are marked".
+     * `mark` names the marker in the client's own word.
+     */
+    torrents?: { running: number; stopped: number; marked: number; mark: string };
 };
+
+/** The qBittorrent tag or Transmission label a whole-client pause leaves on what
+ *  it stopped. It lives in the client, so it survives an arr-mcp restart. */
+export const PAUSE_MARK = 'arr-mcp-paused';
 
 /**
  * Stopping and restarting a download client.
@@ -1912,8 +1933,11 @@ export const hasPause = (a: ServiceAdapter): a is ServiceAdapter & PauseCapable 
  *
  * An absent `kbps` means no cap is set: not a cap of zero, which on these
  * clients means "unlimited" anyway and would read as "stopped".
+ *
+ * `alternative` says the cap is Transmission's alternative ("turtle") speed,
+ * which overrides the normal limit for as long as it is on.
  */
-export type SpeedLimit = { service: string; kbps?: number };
+export type SpeedLimit = { service: string; kbps?: number; alternative?: true };
 
 export interface SpeedLimitCapable {
     readSpeedLimit(): Promise<SpeedLimit>;
@@ -2358,10 +2382,13 @@ export const hasUserSeasons = (a: ServiceAdapter): a is ServiceAdapter & UserSea
 export type WatchTarget = {
     id: string;
     title: string;
-    kind: 'movie' | 'series' | 'episode' | 'item';
+    /** `folder`: anything with children other than a series (a season, collection or library). */
+    kind: 'movie' | 'series' | 'episode' | 'item' | 'folder';
     watched: boolean;
     season?: number;
     episode?: number;
+    /** A season folder's series, so a refusal can name the id to use instead. */
+    seriesId?: string;
 };
 
 /**
@@ -2405,13 +2432,19 @@ export interface BookReadStatusCapable {
 export const hasBookReadStatus = (a: ServiceAdapter): a is ServiceAdapter & BookReadStatusCapable =>
     typeof (a as Partial<BookReadStatusCapable>).setBookReadStatus === 'function';
 
+/** The slice of a discover list a caller wants, as `offset` and `limit` in rows. */
+export type DiscoverWindow = { offset: number; limit: number };
+
 export interface DiscoverCapable {
-    discover(opts: {
-        mediaType: 'movie' | 'tv';
-        genre?: string;
-        year?: number;
-        minRating?: number;
-    }): Promise<SearchHit[]>;
+    discover(
+        opts: {
+            mediaType: 'movie' | 'tv';
+            genre?: string;
+            year?: number;
+            minRating?: number;
+        },
+        window?: DiscoverWindow
+    ): Promise<Window<SearchHit>>;
 }
 
 /**

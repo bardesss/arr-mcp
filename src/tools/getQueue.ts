@@ -6,8 +6,9 @@ import { annotateCleanuparr, dueWithin, type CleanuparrDue } from './cleanuparrQ
 import type { LibraryKind } from '../core/resolver.ts';
 import { hasQueue, type QueueItem, type ServiceAdapter } from '../services/types.ts';
 import { MediaKindSchema, holds } from './mediaKind.ts';
-import { importStepFor } from './importStep.ts';
+import { importStepFor, orphanImportStepFor } from './importStep.ts';
 import { nextStepLine, stepsField, type NextStep } from '../core/nextStep.ts';
+import { DOWNLOAD_CLIENTS } from '../config/schema.ts';
 
 type GetQueueResult = {
     items: QueueItem[];
@@ -28,8 +29,10 @@ type GetQueueResult = {
     byTracker?: TrackerSeeding[];
     /** At `detail: "full"`: what Cleanuparr's rules fall due on in the next week, across the whole queue, not just this page. */
     cleanuparrDue?: CleanuparrDue;
-    /** An import_download per download stuck at `importBlocked`, over every matching row, not just this page. */
+    /** An import_download per download stuck at `importBlocked`, over every matching row, not just this page, capped. */
     next_steps?: NextStep[];
+    /** How many more steps the cap on `next_steps` left out. */
+    next_steps_more?: number;
 };
 
 /**
@@ -103,6 +106,34 @@ export function dueText(due: CleanuparrDue): string {
         return t === undefined ? [] : [`${a} ${t.count} (${size(t.sizeBytes)})`];
     });
     return `Cleanuparr is due to ${parts.join(' and ')} in the next ${due.days} days${due.dryRun === true ? ' (dry run, so it only logs)' : ''}.`;
+}
+
+/**
+ * Below `full`, a download client's row is dropped when an *arr row of the
+ * same grab is in the list, and the *arr row names the client in `client`.
+ * Without a `kind` every download was listed twice, once by the *arr and once
+ * by the client, which doubled the answer for no new fact at `standard`: what
+ * the client row adds (seed state, its own error) is `full` detail. Matched
+ * on the client's download id, which is the *arr's `downloadId` (a SABnzbd
+ * nzo_id, an NZBGet drone id, a torrent hash) up to case.
+ */
+function foldClientRows(rows: readonly QueueItem[], clients: ReadonlySet<string>): QueueItem[] {
+    const keyOf = (q: QueueItem): string => (q.downloadId ?? q.id).toLowerCase();
+    const arrRows = new Map<string, QueueItem[]>();
+    for (const q of rows) {
+        if (clients.has(q.service) || q.downloadId === undefined) continue;
+        const key = q.downloadId.toLowerCase();
+        arrRows.set(key, [...(arrRows.get(key) ?? []), q]);
+    }
+    const owner = new Map<QueueItem, string>();
+    const kept = rows.filter(q => {
+        if (!clients.has(q.service)) return true;
+        const mine = arrRows.get(keyOf(q));
+        if (mine === undefined) return true;
+        for (const a of mine) owner.set(a, q.service);
+        return false;
+    });
+    return kept.map(q => (owner.has(q) ? { ...q, client: owner.get(q)! } : q));
 }
 
 const project = (q: QueueItem, detail: DetailLevel): QueueItem => {
@@ -214,7 +245,11 @@ export async function buildGetQueue(
     // Due totals stay whole-queue: they answer "what goes this week", not "of these rows".
     const due = opts.detail === 'full' ? dueWithin(items, now) : undefined;
     const matching = Object.keys(filter).length === 0 ? items : items.filter(i => matchesFilter(i, filter, now));
-    const shaped = applyLimit(matching, opts.limit, opts.offset);
+    // Folded after filtering, so a filter only a client row meets (a seed
+    // limit, a category) still finds it.
+    const clients = new Set(adapters.filter(a => DOWNLOAD_CLIENTS.includes(a.type)).map(a => a.id));
+    const listed = opts.detail === 'full' ? matching : foldClientRows(matching, clients);
+    const shaped = applyLimit(listed, opts.limit, opts.offset);
     const byTracker = opts.byTracker === undefined ? undefined : seedingByTracker(matching, now, opts.byTracker.minSeedDays);
     return {
         ...shaped,
@@ -223,18 +258,23 @@ export async function buildGetQueue(
         counts,
         ...(due === undefined ? {} : { cleanuparrDue: due }),
         ...(byTracker === undefined ? {} : { byTracker }),
-        ...stepsField(importSteps(matching))
+        ...stepsField(importSteps(matching), 3, true)
     };
 }
 
 /**
  * The imports to offer: a download the *arr finished and then would not
  * import (`importBlocked`). A completed row it is still importing on its own
- * (`importPending`) gets none, and neither does an orphan, whose film, series
- * or artist is gone.
+ * (`importPending`) gets none. An orphan, matched to nothing in the library,
+ * may be a release the *arr never matched rather than deleted media, so it
+ * gets one that asks for a `mapping`.
  */
 const importSteps = (rows: readonly QueueItem[]): NextStep[] =>
-    rows.flatMap(row => (row.importState === 'importBlocked' && row.orphaned !== true ? [importStepFor(row)].filter(s => s !== undefined) : []));
+    rows.flatMap(row => {
+        if (row.importState !== 'importBlocked') return [];
+        const step = row.orphaned === true ? orphanImportStepFor(row) : importStepFor(row);
+        return step === undefined ? [] : [step];
+    });
 
 const GetQueueInput = toolInput({
     kind: MediaKindSchema.describe(
@@ -283,8 +323,11 @@ export function registerGetQueue(server: McpServer, adapters: readonly ServiceAd
 
             const trackers =
                 result.byTracker === undefined ? '' : ['', 'Per tracker:', ...(result.byTracker.length === 0 ? ['(nothing seeding)'] : result.byTracker.map(trackerLine)), ''].join('\n');
-            const steps = (result.next_steps ?? []).map(step => `
-${nextStepLine(step)}`).join('');
+            const steps =
+                (result.next_steps ?? []).map(step => `
+${nextStepLine(step)}`).join('') +
+                (result.next_steps_more === undefined ? '' : `
+${result.next_steps_more} more blocked download(s) not offered here.`);
             return { content: [{ type: 'text', text: listText(summary + trackers, result.items, queueLine) + steps }], structuredContent: result };
         }
     );

@@ -71,7 +71,7 @@ function harness(
         trace?: () => Promise<DownloadTrace | undefined>;
         target?: RetryTarget;
         client?: 'sabnzbd' | 'nzbget';
-        lidarr?: boolean;
+        lidarr?: () => Promise<DownloadTrace | undefined>;
         whisparr?: () => Promise<DownloadTrace | undefined>;
     } = {}
 ) {
@@ -89,11 +89,13 @@ function harness(
 
     const whisparr = new WhisparrAdapter(keyed(6969), unused);
     if (opts.whisparr !== undefined) vi.spyOn(whisparr, 'traceDownload').mockImplementation(opts.whisparr);
+    const lidarr = new LidarrAdapter(keyed(8686), unused);
+    if (opts.lidarr !== undefined) vi.spyOn(lidarr, 'traceDownload').mockImplementation(opts.lidarr);
 
     const adapters: ServiceAdapter[] = [
         client,
         radarr,
-        ...(opts.lidarr ? [new LidarrAdapter(keyed(8686), unused)] : []),
+        ...(opts.lidarr === undefined ? [] : [lidarr]),
         ...(opts.whisparr === undefined ? [] : [whisparr])
     ];
 
@@ -139,13 +141,20 @@ describe('retry_download', () => {
         expect(h.run).not.toHaveBeenCalled();
     });
 
-    it('says Lidarr is not checked only when a Lidarr is configured', async () => {
-        const h = harness({ lidarr: true });
+    it('traces Lidarr too, so a replacement album reaches the preview', async () => {
+        const h = harness({
+            lidarr: async () => ({
+                service: 'lidarr',
+                title: 'Old.Album',
+                failedAt: '2026-10-01T10:00:00Z',
+                replacement: { title: 'New.Album', grabbedAt: '2026-10-02T10:00:00Z', imported: true }
+            })
+        });
         const { structuredContent } = await h.call({ service: 'sabnzbd', id: 'SABnzbd_nzo_abc' });
 
         const effects = structuredContent.effects.join(' ');
-        expect(effects).toMatch(/lidarr is not checked for a replacement/i);
-        expect(effects).not.toMatch(/whisparr/i);
+        expect(effects).toContain('lidarr has already grabbed New.Album');
+        expect(effects).not.toMatch(/not checked|whisparr/i);
     });
 
     it("traces Whisparr like Sonarr, so its replacement reaches the preview", async () => {

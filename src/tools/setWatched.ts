@@ -91,6 +91,16 @@ async function pending(
     season: number | undefined,
     watched: boolean
 ): Promise<{ targets: WatchTarget[]; total: number }> {
+    if (item.kind === 'folder') {
+        // Jellyfin marks a folder's children recursively, so one write here
+        // would change far more than the "1 item" a preview could show.
+        throw new ServiceError('NotFound', 'jellyfin', `${item.title} is a folder, and marking it would mark every item inside it`, {
+            remedy:
+                item.seriesId !== undefined && item.season !== undefined
+                    ? `Pass the series id ${item.seriesId} with \`season: ${item.season}\`.`
+                    : 'Pass a film, series or episode id; for one season, the series id plus `season`.'
+        });
+    }
     if (item.kind !== 'series') {
         if (season !== undefined) {
             throw new ServiceError('NotFound', 'jellyfin', `${item.title} is not a series, so it has no seasons`, {
@@ -101,6 +111,16 @@ async function pending(
     }
 
     const episodes = await adapter.listEpisodeItems(user, item.id, season);
+    if (season !== undefined && episodes.length === 0) {
+        // An empty season reads as "already marked" otherwise. The second
+        // read only happens on this refusal path.
+        const seasons = [...new Set((await adapter.listEpisodeItems(user, item.id)).flatMap(e => (e.season === undefined ? [] : [e.season])))].sort(
+            (a, b) => a - b
+        );
+        throw new ServiceError('NotFound', 'jellyfin', `${item.title} has no season ${season} in Jellyfin`, {
+            remedy: seasons.length === 0 ? 'Jellyfin lists no episodes for this series.' : `Seasons it has: ${seasons.join(', ')}.`
+        });
+    }
     return { targets: episodes.filter(e => e.watched !== watched), total: episodes.length };
 }
 
@@ -122,6 +142,7 @@ const setWatchedInput = byMediaServers(ids => z.object({
     season: z
         .number()
         .int()
+        .min(0)
         .optional()
         .describe('One season of a series. Omit with a series id to mark the whole series. Refused on a film.'),
     watched: z.boolean().describe('true to mark watched, false to unmark.'),
@@ -262,11 +283,33 @@ export function registerSetWatched(
             // Sequentially rather than in parallel: this can be a whole
             // series, and a burst of a hundred concurrent writes at one
             // Jellyfin is how a rate limit turns into a half-applied change.
+            // It stops at the first failure, and what was marked before it is
+            // reported as applied: thrown, a series half marked would read as
+            // nothing changed, and the library cache would keep the old state.
+            let changed = 0;
             for (const each of targets) {
-                await adapter.setWatched(viewer, each.id, watched);
+                try {
+                    await adapter.setWatched(viewer, each.id, watched);
+                } catch (err) {
+                    if (changed === 0) throw err;
+                    return {
+                        changed,
+                        failed: `${each.title}: ${err instanceof Error ? err.message : String(err)}`,
+                        notTried: targets.length - changed - 1
+                    };
+                }
+                changed += 1;
             }
 
-            return { changed: targets.length };
+            return { changed };
+        },
+
+        applied(outcome, plan) {
+            const { changed, failed, notTried } = outcome as { changed: number; failed?: string; notTried?: number };
+            if (failed === undefined) return undefined;
+            return `Partly applied. ${plan.summary} Marked ${changed}, then Jellyfin failed on ${failed}${
+                notTried === 0 ? '' : `, and ${notTried} more ${notTried === 1 ? 'was' : 'were'} not tried`
+            }. Call set_watched again to finish: it only marks what is still left.`;
         }
     });
 }

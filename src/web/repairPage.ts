@@ -6,7 +6,7 @@ import { layout } from './pages.ts';
  * This is the one page in the UI that renders credentials back to the browser;
  * `docs/security.md` records why.
  */
-export function repairPage(opts: { version: string; raw: string; detail: string; csrf: string }): string {
+export function repairPage(opts: { version: string; raw: string; base: string; detail: string; csrf: string }): string {
     const body = html`<div class="repair">
         <h2>config.yaml could not be loaded</h2>
         <p class="note">
@@ -15,6 +15,7 @@ export function repairPage(opts: { version: string; raw: string; detail: string;
         </p>
         <form method="post" action="/ui/repair">
             <input type="hidden" name="csrf" value="${opts.csrf}">
+            <input type="hidden" name="base" value="${opts.base}">
             <textarea name="config" spellcheck="false" autocapitalize="off" autocorrect="off"
                       autocomplete="off" wrap="off">${opts.raw}</textarea>
             <button type="submit">Validate and save</button>
@@ -22,6 +23,32 @@ export function repairPage(opts: { version: string; raw: string; detail: string;
         <p class="note">
             This shows the file's contents, credentials included: it is the only way to edit a
             file that could not be parsed.
+        </p>
+    </div>`;
+
+    return layout({
+        title: 'Configuration invalid',
+        version: opts.version,
+        body,
+        message: { kind: 'err', text: opts.detail }
+    });
+}
+
+/**
+ * Read-only, because nobody has claimed the instance and the file already holds
+ * credentials: whoever claimed it here would land on an editor that shows them
+ * every key in the file. Normal mode never renders a stored secret back, so a
+ * restart after the fix is where the setup page is safe to offer.
+ */
+export function credentialsHeldPage(opts: { version: string; detail: string }): string {
+    const body = html`<div class="repair">
+        <h2>config.yaml could not be loaded</h2>
+        <p class="note">
+            Nobody has set a password for this instance yet, and <code>config.yaml</code> already
+            holds API keys or tokens. Setting one up here would show the file, keys included, to
+            whoever got to this page first, so it is not offered. Fix the error below in
+            <code>config.yaml</code> directly and restart; the setup page then works as on a fresh
+            install.
         </p>
     </div>`;
 

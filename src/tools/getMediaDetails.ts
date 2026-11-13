@@ -1,11 +1,13 @@
 import { INSTANCE_PARAM_DESCRIPTION, resolveInstance } from './resolveInstance.ts';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { ServiceIdSchema, type ServiceId } from '../config/schema.ts';
+import { serviceOf, type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { servicesOnly } from '../core/gather.ts';
 import { filmOrSeriesMatch, isFilmOrSeries, type FilmOrSeries } from '../core/resolver.ts';
-import { DetailSchema, LimitSchema, READ_ONLY, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, READ_ONLY, listText, toolInput, type DetailLevel } from '../core/shape.ts';
+import { titled } from '../core/labels.ts';
+import { libraryLine } from './getLibrary.ts';
 import { logger } from '../core/logger.ts';
 import { enrichWithImdb } from '../metadata/enrich.ts';
 import { SeerrAdapter } from '../services/seerr.ts';
@@ -32,7 +34,7 @@ export async function buildGetMediaDetails(
     const adapter = resolveInstance(adapters, opts.service, opts.instance);
     if (!hasMediaDetails(adapter)) {
         throw new ServiceError('NotFound', adapter.id, `${adapter.id} has no media details to return`, {
-            remedy: 'Only radarr, sonarr, lidarr and jellyfin can answer get_media_details.'
+            remedy: 'Only radarr, sonarr, whisparr, lidarr, jellyfin, plex and grimmory can answer get_media_details.'
         });
     }
 
@@ -67,10 +69,12 @@ async function withSeerrRatings<T extends { kind: string; ids: { tmdb?: number }
 ): Promise<T & { seerrBlocklisted?: true }> {
     const seerr = adapters.find((a): a is SeerrAdapter => a instanceof SeerrAdapter);
     const tmdb = details.ids.tmdb;
-    if (seerr === undefined || tmdb === undefined) return details;
+    // Only a film or a series: a media server's `item` (a show, a season, an
+    // episode) still carries a TMDB id, and TMDB's film and series ids are
+    // separate namespaces, so guessing `movie` scores some other film.
+    if (seerr === undefined || tmdb === undefined || (details.kind !== 'movie' && details.kind !== 'series')) return details;
 
-    const kind = details.kind === 'series' ? 'series' : 'movie';
-    const [extra, blocklisted] = await Promise.all([seerr.getRatings(tmdb, kind), blocklistedIn(seerr, tmdb, details.kind)]);
+    const [extra, blocklisted] = await Promise.all([seerr.getRatings(tmdb, details.kind), blocklistedIn(seerr, tmdb, details.kind)]);
 
     const merged = { ...extra, ...details.ratings };
     const rated = Object.keys(merged).length === 0 ? details : { ...details, ratings: merged };
@@ -332,6 +336,30 @@ export async function resolveMediaDetails(
     return withCleanup(adapters, await withSeerrRatings(adapters, resolved));
 }
 
+/**
+ * The record as one line, for a client that shows only the text block (#234):
+ * the `service:id` the write tools take, and the file and monitoring state a
+ * caller checks before one. The rest stays in `structuredContent`.
+ */
+function recordLine(result: MediaDetails | ResolvedMediaDetails): string {
+    const blocklisted = 'seerrBlocklisted' in result && result.seerrBlocklisted === true ? ['blocklisted in Seerr'] : [];
+    if ('presence' in result) {
+        const a = result.acquisition;
+        const extra = a === undefined ? [] : [a.monitored ? 'monitored' : 'unmonitored', ...(result.kind === 'movie' && a.quality !== undefined ? [a.quality] : [])];
+        return [libraryLine(result), ...extra, ...blocklisted].join(', ');
+    }
+    const facts: string[] = [result.kind, `${result.service}:${result.id}`];
+    for (const source of ['tmdb', 'tvdb', 'imdb', 'mbid'] as const) {
+        const id = result.ids[source];
+        if (id !== undefined) facts.push(`${source}:${id}`);
+    }
+    if (result.hasFile === false) facts.push('no file');
+    // A book's `monitored` is always false: Grimmory monitors nothing.
+    if (result.monitored !== undefined && result.kind !== 'book') facts.push(result.monitored ? 'monitored' : 'unmonitored');
+    if (result.quality !== undefined) facts.push(result.quality);
+    return `${titled(result.title, result.year)}: ${[...facts, ...blocklisted].join(', ')}`;
+}
+
 const GetMediaDetailsInput = toolInput({
     query: z
         .string()
@@ -340,7 +368,7 @@ const GetMediaDetailsInput = toolInput({
         .describe(
             'A title, matched against every title the services know (original and alternate titles too). When other items match equally well, the answer carries `ambiguous: true` and their `candidates`. A title not in your library is refused with what a metadata lookup knows of it, so no other search is needed.'
         ),
-    service: ServiceIdSchema.optional().describe('With `id`: one service’s own view.'),
+    service: serviceOf(['radarr', 'sonarr', 'whisparr', 'lidarr', 'jellyfin', 'plex', 'grimmory']).optional().describe('With `id`: one service’s own view.'),
     instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
     id: z.string().min(1).optional().describe("The item's id within that service."),
     detail: DetailSchema,
@@ -435,8 +463,10 @@ export function registerGetMediaDetails(
                 ? await cardFromDetails(result, 'presence' in result ? (await loader.load()).index : undefined, adapters)
                 : undefined;
             const answer = 'display' in result ? withoutDisplay(result) : result;
+            const others = 'candidates' in result ? (result.candidates ?? []) : [];
+            const text = listText(summary + cleanupNote, [recordLine(result), ...others.map(c => `also matched ${libraryLine(c)}`)], line => line);
 
-            return withCards({ content: [{ type: 'text' as const, text: summary + cleanupNote }], structuredContent: answer }, cards);
+            return withCards({ content: [{ type: 'text' as const, text }], structuredContent: answer }, cards);
         }
     );
 }

@@ -11,7 +11,10 @@ const CONFIG_FILENAME = 'config.yaml';
 export const configPath = (configDir: string): string => join(configDir, CONFIG_FILENAME);
 
 /** What repair mode reads of an `auth` block that did not fully validate. */
-export type SalvagedAuth = Omit<z.infer<typeof AuthSchema>, 'oauth' | 'tokens' | 'bearer_token' | 'management_key' | 'management_keys'>;
+export type SalvagedAuth = Omit<
+    z.infer<typeof AuthSchema>,
+    'oauth' | 'tokens' | 'bearer_token' | 'management_key' | 'management_keys' | 'trusted_proxies'
+>;
 
 /**
  * A config.yaml that was read but could not be understood, as opposed to one
@@ -69,6 +72,21 @@ function yamlErrorDetail(err: unknown, lines: LineCounter, raw: string): string 
     return `${said} at line ${line}, column ${col}`;
 }
 
+/** A file with no `auth` block is an unclaimed install with no tokens. */
+const withDefaultAuth = (obj: Record<string, unknown>): Record<string, unknown> =>
+    obj.auth === undefined ? { ...obj, auth: {} } : obj;
+
+/**
+ * A parsed YAML document through the schema, exactly as the loader reads it.
+ * The save path's drift check compares the file against what loaded, so it has
+ * to read the file the same way: without the `auth` default, a file with no
+ * `auth` block always counted as changed and could never be claimed.
+ */
+export function parseConfigValue(value: unknown): ReturnType<typeof ConfigSchema.safeParse> {
+    const isMapping = value !== null && typeof value === 'object' && !Array.isArray(value);
+    return ConfigSchema.safeParse(isMapping ? withDefaultAuth(value as Record<string, unknown>) : value);
+}
+
 /**
  * The whole content pipeline (YAML, shape, schema) in one place, so the
  * repair editor cannot accept text that startup then rejects. It writes
@@ -100,10 +118,7 @@ export function validateConfigText(raw: string): ConfigTextResult {
         };
     }
 
-    const obj = parsed as Record<string, unknown>;
-    // A file with no `auth` block is an unclaimed install with no tokens.
-    if (obj.auth === undefined) obj.auth = {};
-
+    const obj = withDefaultAuth(parsed as Record<string, unknown>);
     const result = ConfigSchema.safeParse(obj);
     if (result.success) return { ok: true, config: result.data };
 
@@ -114,14 +129,15 @@ export function validateConfigText(raw: string): ConfigTextResult {
     // management keys are dropped from the shape, because a plain `z.object`
     // ignores keys it has no field for: a mistake inside those blocks (a
     // typo in one token entry, say) no longer fails the salvage whole and
-    // costs the operator the repair editor. Repair mode reads only
+    // costs the operator the repair editor. `trusted_proxies` goes too: repair
+    // mode throttles on the socket peer alone. Repair mode reads only
     // `allowed_hosts`, `password_hash` and `username`, and writes credentials
     // back through a re-read YAML document rather than through this object.
     // ConfigSchema's own `auth` field stays strict, so a typo anywhere in it
     // is still a startup failure.
     const authOnly = z
         .object(AuthSchema.shape)
-        .omit({ oauth: true, tokens: true, bearer_token: true, management_key: true, management_keys: true })
+        .omit({ oauth: true, tokens: true, bearer_token: true, management_key: true, management_keys: true, trusted_proxies: true })
         .safeParse(obj.auth);
     return {
         ok: false,

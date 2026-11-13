@@ -31,3 +31,20 @@ export function importStepFor(row: QueueItem, fallback?: string): NextStep | und
         why: `Asks ${importer} to import the finished download.`
     };
 }
+
+/** The importers whose import_download takes a `mapping`. Lidarr's does not. */
+const MAPPERS: readonly string[] = ['radarr', 'sonarr'];
+
+/**
+ * The import to offer for an orphaned row: one the *arr matched to nothing in
+ * its library. That is a deleted film or series, or a release it never
+ * matched at all, and only a `mapping` naming what each file is can tell its
+ * importer where the second kind goes. None where the importer takes no mapping.
+ */
+export function orphanImportStepFor(row: QueueItem): NextStep | undefined {
+    if (!MAPPERS.includes(instanceArgs(row.service).service)) return undefined;
+    const step = importStepFor(row);
+    return step === undefined
+        ? undefined
+        : { ...step, why: `${row.service} matched this download to nothing in its library: deleted, or never matched. To import it, add \`mapping\` with what each file is.` };
+}

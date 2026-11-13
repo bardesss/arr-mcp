@@ -426,7 +426,7 @@ const PENDING_RENAMES = [
  * `completed` and `successful` while one file never moves.
  */
 function seriesStack(
-    opts: { renames?: unknown[]; message?: string; omitMessage?: boolean; halfApplies?: boolean } = {}
+    opts: { renames?: unknown[]; message?: string; omitMessage?: boolean; halfApplies?: boolean; renameStatus?: string } = {}
 ) {
     const sent: { path: string; method: string; body: Record<string, unknown> | undefined }[] = [];
     let lastCommand = 'ManualImport';
@@ -478,7 +478,7 @@ function seriesStack(
             return jsonResponse({
                 id: 92,
                 name: lastCommand,
-                status: 'completed',
+                status: lastCommand === 'RenameFiles' ? (opts.renameStatus ?? 'completed') : 'completed',
                 result: 'successful',
                 ...(lastCommand === 'RenameFiles' && opts.omitMessage !== true
                     ? { message: opts.message ?? '1 selected episode files renamed for Show' }
@@ -666,6 +666,19 @@ describe('remapping episodes', () => {
         expect(out.renamed).toBe(1);
     });
 
+    /** A rename that failed (permission denied, a read-only disk) sends no
+     *  count either, and must not read as every file renamed. */
+    it('fails when the rename command itself failed', async () => {
+        const s = seriesStack({
+            renames: [
+                { episodeFileId: 11, existingPath: 'Season 01/Show - S01E01.mkv', newPath: 'Season 01/Show - S01E09.mkv' }
+            ],
+            omitMessage: true,
+            renameStatus: 'failed'
+        });
+        await expect(s.sonarr.runEpisodeRemap('5', ROTATION)).rejects.toThrow(/RenameFiles command ended failed/);
+    });
+
     /**
      * Found on a live Sonarr 4.0.19, not imagined: a rotation sent seconds
      * after two earlier remaps of the same series left one episode pointing at
@@ -801,6 +814,23 @@ describe('importing with a mapping', () => {
                 languages: [{ id: 1, name: 'English' }]
             }
         ]);
+    });
+
+    // Merged by position: a short answer or a row without its verdict would
+    // otherwise pass the mapped file as importable, never judged.
+    it.each([
+        ['answers fewer rows than were sent', []],
+        ['answers a row without rejections', [{ path: '/downloads/Good.Boy.2025/Good.Boy.2025.mkv' }]],
+        ['answers something other than a list', { message: 'error' }]
+    ])('refuses the mapping when the reprocess %s', async (_case, answer) => {
+        const s = mappingStack(BLOCKED);
+        const impl = (async (input: string | URL | Request, init?: RequestInit) =>
+            new URL(String(input)).pathname === '/api/v3/manualimport' && init?.method === 'POST'
+                ? jsonResponse(answer)
+                : s.impl(input, init)) as unknown as typeof fetch;
+        await expect(
+            new RadarrAdapter(keyed(7878), impl).listImportCandidates('nzo_gb', [{ path: 'Good.Boy.2025.mkv', movieId: 42 }])
+        ).rejects.toThrow(/did not judge every mapped file/);
     });
 
     it('leaves a file the mapping does not name on the service match', async () => {

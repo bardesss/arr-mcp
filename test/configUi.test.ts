@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -46,15 +46,11 @@ let audit: WriteAudit;
  * `release` comes first because `beforeEach` has already opened a claimed
  * fixture by the time this runs.
  */
-const seedUnclaimed = async () => {
+const seedUnclaimed = async (text = `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  allowed_hosts: []\nservices: {}\n`) => {
     await release();
 
     dir = await mkdtemp(join(tmpdir(), 'arr-mcp-ui-'));
-    await writeFile(
-        join(dir, 'config.yaml'),
-        `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  allowed_hosts: []\nservices: {}\n`,
-        'utf8'
-    );
+    await writeFile(join(dir, 'config.yaml'), text, 'utf8');
 
     const { config } = await loadConfig(dir);
     audit = WriteAudit.ephemeral();
@@ -349,22 +345,63 @@ describe('access control', () => {
         expect(proxied.headers.get('set-cookie')).toContain('Secure');
     });
 
-    it('blocks a proxied burst without blocking a direct sign-in', async () => {
-        cookie = '';
-        vi.useFakeTimers({ toFake: ['Date'] });
-
-        try {
+    describe('whose counter a failed sign-in lands on', () => {
+        /** A sign-in from a given socket peer, optionally claiming to forward for someone. */
+        const from = (peer: string, forwardedFor?: string) => {
             const wrong = form({ username: 'admin', password: 'wrong' });
-            const forwarded = { ...wrong, headers: { ...wrong.headers, 'x-forwarded-for': '203.0.113.9' } };
-            for (let i = 0; i < FREE_ATTEMPTS; i++) await call('/ui/login', forwarded);
-            const blocked = await call('/ui/login', forwarded);
-            expect(blocked.status).toBe(429);
+            return app.request(
+                'http://localhost:6060/ui/login',
+                {
+                    ...wrong,
+                    headers: { ...(wrong.headers as Record<string, string>), ...(forwardedFor === undefined ? {} : { 'x-forwarded-for': forwardedFor }) }
+                },
+                { incoming: { socket: { remoteAddress: peer, remoteFamily: peer.includes(':') ? 'IPv6' : 'IPv4' } } }
+            );
+        };
 
-            const direct = await call('/ui/login', wrong);
-            expect(direct.status).toBe(401);
-        } finally {
+        const exhaust = async (peer: string, forwardedFor?: string) => {
+            for (let i = 0; i < FREE_ATTEMPTS; i++) expect((await from(peer, forwardedFor)).status).toBe(401);
+            expect((await from(peer, forwardedFor)).status).toBe(429);
+        };
+
+        beforeEach(() => {
+            vi.useFakeTimers({ toFake: ['Date'] });
+        });
+        afterEach(() => {
             vi.useRealTimers();
-        }
+        });
+
+        // A direct client that added the header used to land in the bucket every
+        // proxied sign-in shared, and could hold it blocked against all of them.
+        it('ignores X-Forwarded-For from a peer that is not a trusted proxy', async () => {
+            await exhaust('192.168.1.50', '203.0.113.9');
+            expect((await from('192.168.1.2', '203.0.113.10')).status).toBe(401);
+            expect((await from('192.168.1.50', '198.51.100.1')).status).toBe(429);
+        });
+
+        it('gives each client behind a trusted proxy its own counter', async () => {
+            await seed('', '  trusted_proxies:\n    - 172.18.0.0/16\n');
+            await exhaust('172.18.0.5', '203.0.113.9');
+            expect((await from('172.18.0.5', '203.0.113.10')).status).toBe(401);
+        });
+
+        it('reads the hop the proxy added, not one the client wrote', async () => {
+            await seed('', '  trusted_proxies:\n    - 172.18.0.5\n');
+            await exhaust('172.18.0.5', '203.0.113.9');
+            expect((await from('172.18.0.5', '198.51.100.1, 203.0.113.9')).status).toBe(429);
+        });
+
+        it('takes the trusted list from the config page', async () => {
+            await signIn();
+            const csrf = await csrfFrom();
+            const saved = await call(
+                '/ui/config/mcp',
+                form({ csrf, 'auth.allowed_hosts': '', 'auth.trusted_proxies': '172.18.0.0/16, 10.0.0.1' })
+            );
+            expect(saved.status).toBeLessThan(400);
+            expect(runtime.config.auth.trusted_proxies).toEqual(['172.18.0.0/16', '10.0.0.1']);
+            expect(await readFile(join(dir, 'config.yaml'), 'utf8')).toContain('172.18.0.0/16');
+        });
     });
 
     // Regression guard for the race the throttle exists to close: a burst of
@@ -2212,6 +2249,30 @@ describe('an unclaimed instance', () => {
         expect(res.status).toBe(400);
         expect(res.headers.get('set-cookie')).toBeNull();
         expect(runtime.config.auth.password_hash).toBeUndefined();
+    });
+
+    // The loader reads a missing `auth` block as unclaimed, and the save's
+    // drift check did not, so the claim failed silently and setup came back.
+    it('claims a hand-written file with no auth block', async () => {
+        await seedUnclaimed('services: {}\n');
+        const res = await claim(GOOD);
+
+        expect(res.status).toBe(302);
+        expect(res.headers.get('location')).toBe('/ui');
+        expect(res.headers.get('set-cookie')).toContain('arr_mcp_session=');
+        expect(await readFile(join(dir, 'config.yaml'), 'utf8')).toContain('password_hash');
+    });
+
+    // Only a drift means someone else claimed it. Anything else redirected to
+    // login, which sent the operator straight back here with no reason given.
+    it('says so when the claim cannot be saved', async () => {
+        await rm(join(dir, 'config.yaml'));
+        await mkdir(join(dir, 'config.yaml'));
+        const res = await claim(GOOD);
+
+        expect(res.status).toBe(400);
+        expect(await res.text()).toContain('could not be saved');
+        expect(res.headers.get('set-cookie')).toBeNull();
     });
 
     it('survives a restart as an unclaimed instance rather than repairing itself', async () => {

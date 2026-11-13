@@ -381,11 +381,22 @@ async function applyMapping(
         };
     });
 
-    const judged = await http.post<RawCandidate[]>(`${http.apiRoot}/manualimport`, items.map(i => i.body));
+    const judged = await http.post<unknown>(`${http.apiRoot}/manualimport`, items.map(i => i.body));
+    // Merged by position, so a short list or a row without its verdict would
+    // otherwise pass a mapped file as importable without it being judged.
+    if (
+        !Array.isArray(judged) ||
+        judged.length !== items.length ||
+        !judged.every(row => Array.isArray((row as RawCandidate | null)?.rejections))
+    ) {
+        throw new ServiceError('UpstreamError', service, `${service} did not judge every mapped file`, {
+            remedy: 'Nothing was imported. Try again; if it repeats, import the files from its Activity page.'
+        });
+    }
 
     const merged = [...raw];
     items.forEach(({ m, r, index, episodes, body }, i) => {
-        const back = judged[i] ?? {};
+        const back = judged[i] as RawCandidate;
         const title = targets.get(targetOf(m))?.title;
         const releaseGroup = back.releaseGroup ?? r.releaseGroup;
         const indexerFlags = back.indexerFlags ?? r.indexerFlags;
@@ -882,6 +893,13 @@ async function renameRemappedFiles(
         files: free.map(r => r.episodeFileId)
     });
     const settled = await awaitArrCommand(http, service, rename.commandId);
+    // A failed or aborted command carries no count, which below would read
+    // as every file renamed. Nothing it says can be trusted, so it fails here.
+    if (settled.status !== 'completed') {
+        throw new ServiceError('UpstreamError', service, `${service} reassigned the files but its RenameFiles command ended ${settled.status}`, {
+            remedy: `The reassignment is applied and correct; only the filenames are behind. ${service} reported: ${fenceText(settled.message ?? '', { service, field: 'message' }) || 'nothing'}. Check its log, then run action: "rename" on the series to retry.`
+        });
+    }
     const count = renamedCount(settled.message);
 
     // `completed` is not the signal: the count is. A build that stops

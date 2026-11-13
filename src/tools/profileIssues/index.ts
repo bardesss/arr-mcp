@@ -1,5 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
+import { SERVICES_KEY } from '../../config/schema.ts';
 import type { ServiceInstance } from '../../config/instances.ts';
 import { logger } from '../../core/logger.ts';
 import { nextStepLine, stepsField, type NextStep } from '../../core/nextStep.ts';
@@ -29,7 +30,7 @@ import {
     type LanguageNames
 } from './rules.ts';
 
-type ArrServiceType = 'radarr' | 'sonarr' | 'whisparr';
+type ArrServiceType = 'radarr' | 'sonarr' | 'whisparr' | 'lidarr';
 
 type ProfileIssue = {
     service: ArrServiceType;
@@ -57,7 +58,7 @@ type GetProfileIssuesResult = {
 };
 
 const NO_ARR_NOTE =
-    'No Radarr, Sonarr or Whisparr is configured, so there are no quality profiles to check. This is a blind ' +
+    'No Radarr, Sonarr, Whisparr or Lidarr is configured, so there are no quality profiles to check. This is a blind ' +
     'spot, not a clean bill of health. Add one of those services in config.yaml.';
 
 const DRIFT_NOT_CHECKED_NOTE =
@@ -86,12 +87,13 @@ function profileIssueLine(issue: ProfileIssue): string {
 }
 
 /** Profilarr's API reports how many profiles it syncs per arr, not which, so
- *  a remedy cannot tell a synced profile from one made in the arr. */
+ *  a remedy cannot tell a synced profile from one made in the arr. It syncs
+ *  no Lidarr, so a Lidarr profile is always Lidarr's own. */
 const profileOwner = (service: ArrServiceType): string =>
-    `In Profilarr if it syncs this profile, otherwise in ${ARR_NAMES[service] ?? service}`;
+    service === 'lidarr' ? 'In Lidarr' : `In Profilarr if it syncs this profile, otherwise in ${ARR_NAMES[service] ?? service}`;
 
 const isArrAdapter =(a: ServiceAdapter): a is ServiceAdapter & ProfileDiagnosticsCapable =>
-    (a.type === 'radarr' || a.type === 'sonarr' || a.type === 'whisparr') && hasProfileDiagnostics(a);
+    (a.type === 'radarr' || a.type === 'sonarr' || a.type === 'whisparr' || a.type === 'lidarr') && hasProfileDiagnostics(a);
 
 type ProfilarrStatusCapable = {
     status(): Promise<{ arrs: ProfilarrArrStatus[] }>;
@@ -221,6 +223,10 @@ export async function buildGetProfileIssues(
     const notes: string[] = [];
 
     if (targeted.length === 0) notes.push(NO_MATCHING_INSTANCE_NOTE);
+    const wanted = opts.profile?.toLowerCase();
+    // Every profile name an instance that answered holds, for the note when none is `profile`.
+    const seenNames = new Set<string>();
+    let profileFound = false;
 
     await Promise.all(
         targeted.map(async adapter => {
@@ -236,8 +242,10 @@ export async function buildGetProfileIssues(
             // Built per instance, never shared: Radarr and Sonarr do not agree
             // on language ids.
             const languages: LanguageNames = new Map(data.languages.map(l => [l.id, l.name]));
-            const profiles =
-                opts.profile === undefined ? data.profiles : data.profiles.filter(p => p.name === opts.profile);
+            // A name typed with other casing must not read as a clean profile.
+            const profiles = wanted === undefined ? data.profiles : data.profiles.filter(p => p.name.toLowerCase() === wanted);
+            for (const p of data.profiles) seenNames.add(p.name);
+            if (profiles.length > 0) profileFound = true;
 
             for (const profile of profiles) {
                 const findings = [
@@ -261,6 +269,10 @@ export async function buildGetProfileIssues(
             }
         })
     );
+
+    if (opts.profile !== undefined && seenNames.size > 0 && !profileFound) {
+        notes.push(`No instance checked has a quality profile named "${opts.profile}", so this empty result says nothing about it. The profiles are: ${[...seenNames].sort().join(', ')}.`);
+    }
 
     if (profilarr === undefined) {
         notes.push(DRIFT_NOT_CHECKED_NOTE);
@@ -332,7 +344,7 @@ const GetProfileIssuesInput = toolInput({
     detail: DetailSchema,
     limit: LimitSchema,
     offset: OffsetSchema,
-    service: z.enum(['radarr', 'sonarr', 'whisparr']).optional().describe('Only report on this service.'),
+    service: z.enum(['radarr', 'sonarr', 'whisparr', 'lidarr']).meta({ [SERVICES_KEY]: ['radarr', 'sonarr', 'whisparr', 'lidarr'] }).optional().describe('Only report on this service.'),
     instance: z.string().optional().describe('Only report on this named instance.'),
     profile: z.string().optional().describe('Only report on this quality profile, by name.')
 });
@@ -358,7 +370,7 @@ export function registerGetProfileIssues(
             title: 'Profile issues',
             annotations: READ_ONLY,
             description:
-                'Faults in {{and: radarr=Radarr; sonarr=Sonarr; whisparr=Whisparr}} quality profiles: a ' +
+                'Faults in {{and: radarr=Radarr; sonarr=Sonarr; whisparr=Whisparr; lidarr=Lidarr}} quality profiles: a ' +
                 'minimum custom format score nothing can reach, a score set exactly on the edge, a narrower ' +
                 'language format scored while a wider one sits at zero, a scored language the minimum does not ' +
                 'enforce, a dialect sibling left uncovered[[profilarr: , and Profilarr-reported drift between its saved ' +

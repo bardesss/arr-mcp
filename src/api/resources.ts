@@ -67,6 +67,7 @@ export function findInstance(config: Config, type: string, name: string | undefi
 
 export const mcpSettings = (config: Config) => ({
     allowedHosts: config.auth.allowed_hosts,
+    trustedProxies: config.auth.trusted_proxies ?? [],
     allowTokenInUrl: config.auth.allow_token_in_url,
     oauthConfigured: config.auth.oauth !== undefined
 });

@@ -238,6 +238,24 @@ describe('remedy', () => {
         const remedy = result.items.find(i => i.kind === 'language_preferred_not_required')?.remedy;
         expect(remedy).toMatch(/^In Profilarr if it syncs this profile, otherwise in Sonarr, /);
     });
+
+    // Profilarr syncs only Radarr and Sonarr, so a Lidarr profile is Lidarr's own.
+    it('checks Lidarr profiles and names only Lidarr in the remedy', async () => {
+        const lidarr = {
+            id: 'lidarr',
+            type: 'lidarr',
+            testConnection: async () => ({ ok: true, service: 'lidarr', latency_ms: 1 }),
+            getVersion: async () => '3.1.6.5079',
+            readProfileDiagnostics: async () => ({
+                profiles: [{ id: 1, name: 'Lossless', minFormatScore: 200, formatItems: [{ name: 'FLAC', score: 100 }] }],
+                formats: [],
+                languages: []
+            })
+        } as const;
+        const result = await buildGetProfileIssues([lidarr as never], { detail: 'full', limit: 10 }, []);
+        expect(result.items).toMatchObject([{ service: 'lidarr', profile: 'Lossless', kind: 'unreachable_floor' }]);
+        expect(result.items[0]?.remedy).toMatch(/^In Lidarr, /);
+    });
 });
 
 /**
@@ -323,5 +341,33 @@ describe('next_steps', () => {
     it('still offers it where Profilarr syncs only some profiles', async () => {
         const result = await buildGetProfileIssues([arr(unreachable, 3), profilarr(1)], { detail: 'full', limit: 10 }, []);
         expect(result.next_steps).toHaveLength(1);
+    });
+});
+
+describe('the profile filter', () => {
+    const arr = {
+        id: 'sonarr',
+        type: 'sonarr',
+        testConnection: async () => ({ ok: true, service: 'sonarr', latency_ms: 1 }),
+        getVersion: async () => '4.0.0',
+        readProfileDiagnostics: async () => ({
+            profiles: [
+                { name: 'HD-1080p', minFormatScore: 500, formatItems: [{ name: 'A', score: 100 }] },
+                { name: 'Any', minFormatScore: 0, formatItems: [] }
+            ],
+            formats: [],
+            languages: []
+        })
+    } as never;
+
+    it('matches a profile name whatever its casing', async () => {
+        const result = await buildGetProfileIssues([arr], { detail: 'full', limit: 10, profile: 'hd-1080P' }, []);
+        expect(result.items).toMatchObject([{ profile: 'HD-1080p', kind: 'unreachable_floor' }]);
+    });
+
+    it('says so when no instance has the profile, and names the ones there are', async () => {
+        const result = await buildGetProfileIssues([arr], { detail: 'full', limit: 10, profile: 'Ultra' }, []);
+        expect(result.items).toEqual([]);
+        expect(result.note).toMatch(/no.*quality profile named "Ultra".*Any, HD-1080p/i);
     });
 });

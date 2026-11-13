@@ -177,6 +177,36 @@ describe('readArrHistory', () => {
         expect(seen[0]).toContain('seriesIds=7');
     });
 
+    it('keeps one movie when the service ignores movieIds, as Radarr before 5.2 does', async () => {
+        // 300 rows over three films, newest first; this one is every third.
+        const base = Date.UTC(2026, 7, 1);
+        const all = Array.from({ length: 300 }, (_, i) => ({
+            id: i + 1,
+            eventType: 'grabbed',
+            date: new Date(base - i * 60_000).toISOString(),
+            sourceTitle: 'x',
+            movieId: 40 + (i % 3)
+        }));
+        const seen: URL[] = [];
+        const ignoring = (async (input: string | URL | Request) => {
+            const url = new URL(input instanceof Request ? input.url : String(input));
+            seen.push(url);
+            const pageSize = Number(url.searchParams.get('pageSize') || 200);
+            const page = Number(url.searchParams.get('page') || 1);
+            return json({ page, pageSize, totalRecords: all.length, records: all.slice((page - 1) * pageSize, page * pageSize) });
+        }) as unknown as typeof fetch;
+
+        const read = await readArrHistory(http(ignoring), 'radarr', 'movie', { id: '42', want: 10 });
+        expect(read.items).toHaveLength(66); // the matches on the first whole page
+        expect(read.items.every(r => r.mediaId === '42')).toBe(true);
+        expect(read.atMost).toBe(true);
+        expect(seen.at(-1)?.searchParams.has('movieIds')).toBe(false);
+
+        const whole = await readArrHistory(http(ignoring), 'radarr', 'movie', { id: '42' });
+        expect(whole.items).toHaveLength(100);
+        expect(whole.total).toBe(100);
+    });
+
     it('reads data.indexer, present only on grabbed and failed records', async () => {
         const [row] = await history(
             http(async () =>

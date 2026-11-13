@@ -26,7 +26,7 @@ import {
 import { selectAdapters } from './instanceOptions.ts';
 import { INSTANCE_PARAM_DESCRIPTION } from './resolveInstance.ts';
 import { buildSeedingRules, type SeedingRules } from './seedingRules.ts';
-import { groupDisks, humanBytes } from '../core/disks.ts';
+import { groupDisks, humanBytes, type DiskGroup } from '../core/disks.ts';
 
 /** How much of one instance's log `logs` was folded from. */
 type LogLines = { service: string; read: number; total: number; logDbEnabled?: false };
@@ -35,7 +35,13 @@ type Shaped<T> = { items: T[]; total: number; returned: number; offset: number; 
 
 type StackHealthResult = {
     services: ConnectionDiagnosis[];
-    disks: Shaped<DiskSpace>;
+    /**
+     * One row per filesystem, as the text has it: services in one stack see
+     * the same disks, and four *arrs on one host would otherwise send each
+     * mount four times and spend the shared `limit` on the repeats. Mounts
+     * name the path only at `full`.
+     */
+    disks: Shaped<DiskGroup>;
     failures: Shaped<HealthCheck>;
     /**
      * Not run through applyLimit: bounded by the number of configured services,
@@ -54,8 +60,8 @@ type StackHealthResult = {
     primaryMediaServer?: string;
     /**
      * What each instance is allowed to do, absent unless the caller supplied
-     * the instances, and absent at `minimal`, which answers "is anything
-     * broken" and a permission is not a fault.
+     * the instances, and only at `full`: it is static config, the same on
+     * every call, and `services` already names every instance id.
      *
      * Reported here because `arr://instances` needs it and a resource must
      * mirror a tool rather than originate one: a client that ignores resources
@@ -65,8 +71,8 @@ type StackHealthResult = {
      * answer; it is not a second one.
      */
     permissions?: InstancePermissions[];
-    /** Absent unless the caller supplied the instances, and absent at
-     *  `minimal`; a URL is not a fault. */
+    /** Absent unless the caller supplied the instances, and only at `full`,
+     *  like `permissions`. */
     endpoints?: InstanceEndpoint[];
     /**
      * Torrent client defaults and indexer seed criteria, plus notes where they
@@ -138,22 +144,11 @@ export function withoutCredentials(url: string): string {
 
 /**
  * minimal: is anything broken? A verdict per service, and counts only.
- * standard: everything except disk paths, the longest strings in the response
- *            and rarely what the question was about.
- * full: everything, paths included.
+ * standard and full: built to their level in `buildStackHealth` (disk paths,
+ * permissions and endpoints only at full), so passed through here.
  */
 function project(result: StackHealthResult, detail: DetailLevel): StackHealthResult {
-    if (detail === 'full') return result;
-
-    if (detail === 'standard') {
-        return {
-            ...result,
-            disks: {
-                ...result.disks,
-                items: result.disks.items.map(({ path: _path, ...rest }) => rest)
-            }
-        };
-    }
+    if (detail !== 'minimal') return result;
 
     return {
         services: result.services.map(s => ({
@@ -346,10 +341,14 @@ export async function buildStackHealth(
     // parameter: one budget spans two lists, so a single number could not say
     // which of them it meant to skip into, and neither list is one you page
     // through. `limit` here bounds context, it does not paginate.
+    // Sorted first so a group lists its mounts in the same order every call.
+    // Paths, the longest strings in the answer and rarely the question, only at full.
+    disks.sort((a, b) => a.service.localeCompare(b.service) || (a.path ?? '').localeCompare(b.path ?? ''));
+    const groups = groupDisks(opts.detail === 'full' ? disks : disks.map(({ path: _path, ...rest }) => rest));
     const shapedDisks =
         remaining === 0
-            ? { items: [], total: disks.length, returned: 0, offset: 0, truncated: disks.length > 0 }
-            : applyLimit(disks, remaining);
+            ? { items: [], total: groups.length, returned: 0, offset: 0, truncated: groups.length > 0 }
+            : applyLimit(groups, remaining);
 
     // Counts stay honest at every detail level: a model must never see
     // returned: 0 and conclude there are no disks.
@@ -358,7 +357,7 @@ export async function buildStackHealth(
     // already capped these flags to the token's scopes, the same ceiling the
     // write gate applies, so this never reports a write the gate would refuse.
     const permissions =
-        instances === undefined
+        instances === undefined || opts.detail !== 'full'
             ? undefined
             : [...instances]
                   .map(i => ({
@@ -371,7 +370,7 @@ export async function buildStackHealth(
     // Same source as permissions, so a base URL and its permission set can
     // never disagree about which instance they describe.
     const endpoints =
-        instances === undefined
+        instances === undefined || opts.detail !== 'full'
             ? undefined
             : [...instances]
                   .map(i => ({ instance: i.id, service: i.type, baseUrl: withoutCredentials(i.config.url) }))
@@ -415,7 +414,7 @@ function healthLines(result: Pick<StackHealthResult, 'services' | 'failures' | '
         return `${s.service} (${s.error?.kind ?? 'failed'}): ${detail}${remedy}`;
     });
     const failures = result.failures.items.map(f => `${f.service} health check ${f.source} (${f.type}): ${f.message}`);
-    const disks = groupDisks(result.disks.items).map(
+    const disks = result.disks.items.map(
         d => `disk (${d.mounts.join(', ')}): ${humanBytes(d.freeSpace)} free${d.totalSpace === undefined ? '' : ` of ${humanBytes(d.totalSpace)}`}`
     );
     return [...services, ...failures, ...disks];
@@ -438,14 +437,14 @@ function shownLine(result: Pick<StackHealthResult, 'failures' | 'disks'>): strin
 }
 
 /** One sentence on what is about to go, because that is the question a cleanup service raises. */
-function cleanupLine(cleanup: CleanupOverview | undefined): string {
+export function cleanupLine(cleanup: CleanupOverview | undefined): string {
     const candidates = cleanup?.candidates;
     if (cleanup === undefined || candidates === undefined) return '';
     const off = cleanup.autoDelete?.enabled === false ? ' Its automatic deletion is off, so nothing goes on its own.' : '';
     if (candidates.total === 0) return ` ${cleanup.service} has nothing set to be deleted.${off}`;
     // Counted by the adapter before `limit` cut the list.
     const going = cleanup.going ?? { count: 0 };
-    return ` ${cleanup.service}: ${candidates.total} cleanup candidate(s), ${going.count} set to go${going.firstAt === undefined ? '' : `, the first on ${going.firstAt.slice(0, 10)}`}.${off}`;
+    return ` ${cleanup.service}: ${candidates.total} cleanup candidate(s), ${cleanup.capped === true ? 'at least ' : ''}${going.count} set to go${going.firstAt === undefined ? '' : `, the first on ${going.firstAt.slice(0, 10)}`}.${off}`;
 }
 
 /**
@@ -458,14 +457,14 @@ function cleanupLine(cleanup: CleanupOverview | undefined): string {
 const stackHealthOutput = memoBy((withPrimary: boolean) => z.looseObject({
     services: z.array(z.unknown()).describe('One row per configured instance: reachable, version, latency.'),
     failures: TruncationSchema.describe('Health checks the services themselves are reporting.'),
-    disks: TruncationSchema.describe('Free space per root folder.'),
+    disks: TruncationSchema.describe('Free space per filesystem, the mounts that see it folded into one row.'),
     scans: z.array(z.unknown()).describe('When each library was last scanned. Never truncated; bounded by the number of services.'),
     commands: z
         .array(z.unknown())
         .optional()
         .describe('Queued or running tasks, plus anything finished in the last fifteen minutes. Absent at `minimal`.'),
-    permissions: z.array(z.unknown()).optional().describe('What each instance may do. Absent at `minimal`: a permission is not a fault.'),
-    endpoints: z.array(z.unknown()).optional().describe('Where each instance lives. Never a credential.'),
+    permissions: z.array(z.unknown()).optional().describe('What each instance may do. Only at `detail: "full"`.'),
+    endpoints: z.array(z.unknown()).optional().describe('Where each instance lives. Never a credential. Only at `detail: "full"`.'),
     seedingRules: z
         .object({
             clients: z.array(z.unknown()),
@@ -504,7 +503,7 @@ const StackHealthInput = toolInput({
 
 /** The full description of get_stack_health. */
 const STACK_HEALTH_DESCRIPTION =
-    'Health of every configured service: version, disk space, failing health checks, last library scan, and what each instance may do (`permissions`, whose ids are the valid `instance` values). Answers partially, with a `degraded` list, when a service is down. `commands` follows up trigger_search and trigger_scan: queued, running, and finished in the last 15 minutes, so a command not listed has finished. Profiles, root folders and tags: get_instance_options. `service` or `instance` checks one, without `seedingRules`. `detail: "full"` adds `seedingRules` (client, indexer [[cleanuparr: and Cleanuparr ]]seed limits[[cleanuparr:  and removal rules]]), [[reclaimerr: Reclaimerr `cleanup` (what will be deleted or moved, and when), ]]and each service\'s recent warnings and errors in `logs`; check `lastSeen`, since an old line may no longer apply. API keys are never returned. Field reference: arr://docs/get_stack_health.';
+    'Health of every configured service: version, disk space, failing health checks, last library scan (`services` ids are the valid `instance` values). Answers partially, with a `degraded` list, when a service is down. `commands` follows up trigger_search and trigger_scan: queued, running, and finished in the last 15 minutes, so a command not listed has finished. Profiles, root folders and tags: get_instance_options. `service` or `instance` checks one, without `seedingRules`. `detail: "full"` adds `permissions`, `seedingRules` ({{and: *=client; *=indexer; cleanuparr=Cleanuparr}} seed limits[[cleanuparr:  and removal rules]])[[reclaimerr: , Reclaimerr `cleanup` (what will be deleted or moved, and when),]] and each service\'s recent warnings and errors in `logs`; check `lastSeen`, since an old line may no longer apply. API keys are never returned. Field reference: arr://docs/get_stack_health.';
 
 
 export function registerStackHealth(
@@ -527,7 +526,9 @@ export function registerStackHealth(
             const neverScanned = result.scans.filter(s => s.lastCompleted === undefined).length;
             const summary =
                 (result.degraded.length === 0
-                    ? `All ${result.services.length} configured service(s) healthy.` +
+                    ? // Reachable is all `degraded` measures; a service reporting
+                      // its own failing checks is not healthy.
+                      `All ${result.services.length} configured service(s) ${result.failures.total > 0 ? 'reachable' : 'healthy'}.` +
                       (neverScanned > 0 ? ` ${neverScanned} report no completed library scan.` : '')
                     : `${result.degraded.length} of ${result.services.length} service(s) degraded: ${result.degraded.join(', ')}.`) +
                 (primaryMediaServer === undefined ? '' : ` ${primaryMediaServer} is the primary media server.`) +

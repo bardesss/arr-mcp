@@ -32,7 +32,7 @@ off until you turn them on; see [writes](writes.md).
 | `set_monitoring` | Turn monitoring on or off: a whole series (by id or title), one season, specific episodes; on Lidarr, `level: "album"` for one album |
 | `retry_download` | Try this failed usenet download again, with its password if it needs one, or a failed or cancelled Shelfmark book |
 | `pause_downloads` | Pause, resume or throttle a download client, or one item in its queue |
-| `remove_queue_item` | Get rid of this stuck or wrong download, or with `orphaned: true` every completed download whose film, series or artist no longer exists; on Grimmory, discard a file waiting in the Bookdrop |
+| `remove_queue_item` | Get rid of this stuck or wrong download, or with `orphaned: true` every import-blocked download the *arr matched to nothing in its library; on Grimmory, discard a file waiting in the Bookdrop |
 | `remove_blocklist_item` | Let this blocklisted release be grabbed again |
 | `delete_media` | Remove this film, series or artist, optionally from disk; on Grimmory, delete a book and its files |
 | `delete_episode_files` | Free disk from one season or a handful of episodes, without touching the series |
@@ -172,7 +172,9 @@ you. Pair `offset` with `sort` when the order matters: without one the order is
 whatever the services returned, and an item can move between pages.
 
 `get_stack_health` is the exception and takes no `offset`. One `limit` budget spans
-its two lists, spent on failures before disks. The
+its two lists, spent on failures before disks. A disk row is one filesystem:
+the mounts every service sees it through are folded into its `mounts` and
+`services`, named by path only at `detail: "full"`. The
 Reclaimerr candidates under `cleanup`, at `detail: "full"`, take their own
 `limit` rather than sharing that budget.
 
@@ -201,6 +203,11 @@ rather than a list. With several instances of a service configured it also takes
 **Every answer comes twice: a summary and a structure.** The text block is for
 a reader; `structuredContent` is the contract, and every tool declares its
 shape as an `outputSchema` so a client knows what it will get before it calls.
+A write tool declares only the fields every write result carries (`applied`,
+`dry_run`, `tool`, `service`, `operation`, `tier`, `target`, `summary`,
+`effects`, `noop` and `permission.allowed`);
+`confirm_token`, `warnings`, `next_steps` and the other conditional fields
+arrive in `structuredContent` all the same.
 Read `total` from there rather than parsing it out of "50 of 243 item(s)",
 that sentence is prose and may be reworded.
 
@@ -309,23 +316,28 @@ which is stateless HTTP; `tools.media_cards: false` turns them off entirely
 
 ## `get_history` and the event log
 
-`delete_media` removes a title's history from Radarr or Sonarr along with the
-title. With `source: "webhooks"`, `get_history` reads the events those services
+`delete_media` removes a title's history from Radarr, Sonarr or Lidarr along
+with the title. With `source: "webhooks"`, `get_history` reads the events those services
 reported to arr-mcp instead, so this is the only record that survives a delete.
 It needs the [library event log](configuration.md#the-library-event-log) turned
 on, and it holds nothing from before that.
 
 `service`, `instance`, `id`, `event_type`, `since` and paging work as they do
 for the default `source: "services"`, which never includes stored rows. A service
-other than Radarr or Sonarr is refused. `note` says when the log is off or when
+other than Radarr, Sonarr or Lidarr is refused. `note` says when the log is off or when
 nothing has arrived, and an unreadable store is `event-log` in `degraded`.
 
 A stored row differs from a service's own row in a few ways:
 
 - `at` is when arr-mcp received the event, because the payload has no timestamp.
 - `id` is arr-mcp's own row number.
-- `externalIds` holds TMDB, TVDB and IMDb ids. A re-added title gets a new
-  `mediaId`, and these stay the same.
+- `externalIds` holds TMDB, TVDB and IMDb ids, or a Lidarr artist's MusicBrainz
+  id as `mbid`. A re-added title gets a new `mediaId`, and these stay the same.
+- A Lidarr row's title is `Artist - Album`. Lidarr's download failure names only
+  the release, which is not kept, so that row has no title; its `downloadId`
+  links it to the grab. Lidarr 3.1.6 sends an upgrade as a plain import, and
+  after an artist delete an album delete per album that says its files were
+  kept even when they went, so an album delete only ever says `files deleted`.
 - `added` is a new `event`, and events without a captured payload are `unknown`
   with their name in `rawEvent`, at every detail level.
 - `reason` is why a file went (`manual`), or for a deleted title whether its files
@@ -353,8 +365,19 @@ comes first. A Jellyfin id gives no kind, nor does a Plex item that is not a
 film or a show, so there any *arr that could not be read counts, Lidarr aside
 when the item carries a tmdb, tvdb or imdb id, as a film or a show does.
 
-Remedies name the *arr that manages the item. For one nothing manages, the
-`managed` remedy names the *arrs configured here that could manage it (of its
+A title the media server shows and nothing manages is `playable`: the summary
+says nothing will upgrade or replace it, and there is no step to add it, which
+would only download a second copy. Its `managed` step is a `warning` that says
+the same. For a film, that copy also outranks a request; for a series, it
+outranks a declined request, or one in a state Seerr does not name, which the
+summary mentions, while a pending one stays the verdict, since it may ask for
+episodes the copy lacks. When a title has several Seerr requests, a pending one speaks for it,
+or else the newest. A declined request, or one in a state Seerr does not name,
+does not stop a title an *arr monitors: the verdict goes on to the file and the
+queue, and the summary mentions the request.
+
+Remedies name the *arr that manages the item. For one nothing manages and the
+media server does not show, the `managed` remedy names the *arrs configured here that could manage it (of its
 kind, or, when its kind is not known, by the same rule), or says that none is;
 for one an *arr has but does not monitor, it names that *arr. The step that
 approves a Seerr request names Radarr for a film and Sonarr for a series, the
@@ -413,6 +436,28 @@ the *arr could not send, asks you to check its download clients. A message on an
 *arr's row that is not in trouble (NZBGet's PAR status on a finished download,
 "qBittorrent is downloading metadata") is not read as a fault; a row still on
 its way shows it after "Still downloading".
+
+A finished download waiting on its import is read by the *arr's own import
+state (`importState` in get_queue). At `importBlocked` the *arr stopped and does
+not try again, so the remedy says to fix what it reports and the step imports
+it. While the *arr says it is importing it, the stage says so and offers no
+import, which would only race it, and no remedy unless the *arr gave reasons.
+Without a state, the remedy says to check the *arr's history and the step
+imports it, as before. The reasons the *arr gives on its row (`statusMessages`,
+such as "Not an upgrade for existing movie file") follow the queue stage's
+detail, at most three, with the count of the rest that get_queue lists.
+
+A series or an artist reads `playable` once any episode or track is on disk, so
+a blocked queue step beside it, even a download in progress or a release held
+back, is added to the summary as possibly an episode or album you do not have
+yet. A film's file is the whole film, so a grab beside it is only mentioned when
+it has a remedy.
+
+An indexer failure that mentions the title is the verdict only when the failing
+indexers are more than half of those enabled across every Prowlarr, which are
+counted only then. Fewer make the `indexers` step a `warning`: a missing file
+stays the verdict, with its search step, and the summary names the failures.
+When the indexers could not be counted, a failure stays the verdict.
 
 With no row from the client in the grab, only the *arr's row says whether a
 torrent has finished, and it cannot tell one missing its files from a finished
@@ -558,7 +603,7 @@ hold ids, `download_id`, and, for a lookup, the words you gave as `query`.
 | `managed`, in Lidarr | `update_media` with the artist `id` and `monitored: true`: the artist flag only, each album keeps its own |
 | `managed` or `resolve`, nothing manages it | `search_media` with `source: "discover"` with your `query`, only when you diagnosed by title, and for `managed` not while an *arr of its kind (any *arr, for a media server's id with no kind) could not be read; an artist comes back among Lidarr's hits, each with the MusicBrainz id `add_media` takes as `ids.mbid` |
 | `request`, pending | `respond_to_request` with `verdict: "approve"`, only if you may act on that request (it is yours, or `allow_other_users` is on) |
-| `queue`, import pending, including a torrent stopped after it finished | `import_download` with the `download_id` of the *arr's row, on Radarr, Sonarr or Lidarr |
+| `queue`, import pending, including a torrent stopped after it finished | `import_download` with the `download_id` of the *arr's row, on Radarr, Sonarr or Lidarr, unless the *arr says it is importing it itself (`importPending`, `importing`, `imported`) |
 | `queue`, failed, a warning or a state it does not know | `remove_queue_item` with the row's service and id; it deletes partial data and does not blocklist, and for a warning on the *arr's own row its `why` says to add `blocklist: true` if the release itself is bad |
 | `queue`, paused or stopped before it finished, with the client's own row in the queue, paused too, and no paused queue holding it but SABnzbd's wait for post-processing | `pause_downloads` with `action: "resume"` and that row's service and id |
 | `queue`, paused, with the SABnzbd or NZBGet row in the queue held by that client's paused queue, other than SABnzbd's wait for post-processing, whether the row is paused itself or not | `pause_downloads` with `action: "resume"` and that client's service, no `id` |
@@ -590,13 +635,16 @@ With more than one instance of a service, each is reported separately. With
 Plex and Jellyfin both configured, `primaryMediaServer` names the one the tools
 default to.
 
-It also reports `endpoints`: `instance`, `service` and `baseUrl` for every
-configured instance, so a script knows where each one lives. It never carries a
-key: **no tool in this server returns an API key**, because anything a tool
-returns passes through a model's context. A script that needs credentials runs
-beside `config.yaml` and imports `loadConfig`.
+The `service` of each `services` row is the instance id other tools take as
+`instance`.
 
-`endpoints` is absent at `detail: "minimal"`, alongside `permissions`.
+At `detail: "full"` it also reports `permissions`, what each instance may do,
+and `endpoints`: `instance`, `service` and `baseUrl` for every configured
+instance, so a script knows where each one lives. Both are static config, the
+same on every call, so `minimal` and `standard` leave them out. `endpoints`
+never carries a key: **no tool in this server returns an API key**, because
+anything a tool returns passes through a model's context. A script that needs
+credentials runs beside `config.yaml` and imports `loadConfig`.
 
 ### Which services report health checks
 
@@ -619,7 +667,7 @@ in `degraded` rather than in `failures`.
 
 ### Profiles, root folders and tags: `get_instance_options`
 
-`get_instance_options` takes optional `service` and `instance` (an id as `get_stack_health`'s `permissions`
+`get_instance_options` takes optional `service` and `instance` (an id as `get_stack_health`'s `services`
 lists it); an `instance` that does not exist is refused with the ones that do.
 
 It lists, per Radarr, Sonarr, Whisparr or Lidarr instance, the
@@ -642,8 +690,9 @@ here. Absent rather than empty when the root is fully mapped.
 `seedingRules` answers "what are my seeding rules". `clients` gives each
 torrent client's default `ratioLimit` and `seedingLimitSeconds` (absent means
 none) and the `action` it takes on reaching one. `indexers` gives each torrent
-indexer's `seedRatio` and `seedTimeSeconds` from Radarr, Sonarr, Whisparr and
-Prowlarr, plus Prowlarr's `privacy`. An *arr hands its indexer's criteria to the
+indexer's `seedRatio` and `seedTimeSeconds` from Radarr, Sonarr, Whisparr, Lidarr
+and Prowlarr, `packSeedTimeSeconds` for Sonarr's season packs, Lidarr's
+discographies and Prowlarr's packs, plus Prowlarr's `privacy`. An *arr hands its indexer's criteria to the
 client with every grab, and they override the client default, so the indexer
 row is usually the one that decides.
 
@@ -1340,8 +1389,15 @@ reports `unknown` for everything.
 Each Radarr, Sonarr, Whisparr or Lidarr row carries `downloadId`, the download
 client's own id for that grab. On Radarr, Sonarr and Lidarr it is what
 `import_download` takes (Whisparr has no manual import). SABnzbd
-and NZBGet rows carry the same id, so a client's row and the *arr's row of one
-grab match (below).
+and NZBGet rows carry the same id, and a torrent row has it as its `id`, so a
+client's row and the *arr's row of one grab match (below).
+
+Below `detail: "full"` a grab is listed once: a client row whose grab an *arr
+row also lists is left out, and that *arr row names the client in `client`.
+`total` counts the rows after that, while `counts` still says what each service
+reported. At `full` both rows are listed, since the client row is where the
+seed state and the client's own error are. A filter is applied first, so a
+client row only it matches (`status: "seeding"`, say) is still returned.
 
 **Unverified live** (qBittorrent): the torrent list, the seed limits and `by_tracker`; only login and health have met a real server.
 
@@ -1354,8 +1410,15 @@ movie, series or artist the grab is for, and an orphaned row has none. `diagnose
 matches a row to a title by that id first, and falls back to the release name
 only when a row has none or comes from another instance.
 
-Lidarr rows carry `statusMessages` the same way, and `orphaned` when the
-artist they were grabbed for has been deleted.
+Lidarr rows carry `statusMessages` the same way, and `orphaned` when Lidarr
+matched the download to no artist: the artist was deleted, or the release was
+never matched.
+
+A row stuck at `importBlocked` gets an `import_download` step in `next_steps`,
+at most three of them; `next_steps_more` counts the ones left out.
+On Radarr and Sonarr an `orphaned` one does too, since it may be a release the
+service never matched: its `why` asks for a `mapping` naming what each file is.
+Lidarr's import takes no mapping, so an orphaned Lidarr row gets none.
 
 `errorMessage` is the download's message, from the client or the *arr: why it is
 in trouble, or a note on it (NZBGet's PAR status on a finished download,
@@ -1702,10 +1765,12 @@ This call is slow: the service polls every configured indexer before
 answering. Its per-call timeout is 120 seconds rather than the usual 10. A long
 wait here is not a hang; retrying it starts a second full indexer sweep.
 
-Sonarr runs one indexer search per episode, so a season search scales with the
-season's episode count and a whole-series search with every episode the series
-has. To replace one bad episode, pass `episode`; a whole season may not fit in
-the timeout. Retry is off for this call, so a timeout means one sweep ran out of
+On **Sonarr** and **Whisparr**, pass `season` or `episode`. Their release
+endpoint has no whole-series search: given only a series id it answers with the
+indexers' RSS feed, releases for any series, so that call is refused. Sonarr
+runs one indexer search per episode, so a season search scales with the
+season's episode count. To replace one bad episode, pass `episode`; a whole
+season may not fit in the timeout. Retry is off for this call, so a timeout means one sweep ran out of
 time, not two.
 
 On **Lidarr**, `id` is the artist and `album` narrows the search to one of its
@@ -1740,8 +1805,8 @@ a token, which can take tens of seconds. That way an expired release is
 reported as no longer on offer, and the preview names the release.
 
 Pass the same `season` or `episode` `get_releases` was called with, so that
-re-search covers the scope you actually searched rather than the whole series,
-and on Lidarr the same `album`. All three are refused alongside `magnet`, which
+re-search covers the scope you actually searched (a Sonarr or Whisparr one with
+neither is refused), and on Lidarr the same `album`. All three are refused alongside `magnet`, which
 never goes through an *arr and so has no scope to narrow.
 
 A Lidarr grab answers only once Lidarr has handed the release to the download
@@ -1878,19 +1943,30 @@ both or neither is refused). It always removes the download from the client, so
 `remove_from_client: false` is refused, and so is `blocklist: true`. A download
 client is refused before anything is read.
 
-Radarr and Sonarr leave a completed download in the queue forever when the film
-or series it belongs to has been deleted: there is nothing to import it into,
-so it sits at `importBlocked`. Both hide these from the queue by default;
-`get_queue` asks for them and marks each one `orphaned`.
+`orphaned` means only that the queue row names no film, series or artist.
+Radarr and Sonarr leave a completed download at `importBlocked` with no media
+when they matched it to nothing in the library, and two different things end
+there: a download whose film or series was deleted, and one they never matched
+at all (a title mismatch, a name they could not parse, a download added to
+their category by hand). Both hide these from the queue by default; `get_queue`
+asks for them and marks each one `orphaned`.
 
 The tool removes exactly the items that are **both** `orphaned` and
-`importState: "importBlocked"`, from the queue and from the download client.
-That pairing is not configurable: an item can be unlinked and still
-transferring, and deleting one of those destroys a download in progress.
+`importState: "importBlocked"`, from the queue and from the download client,
+which deletes the data. That pairing is not configurable: an item can be
+unlinked and still transferring, and deleting one of those destroys a download
+in progress.
+
+It cannot tell the two kinds apart, so the preview says of each row that it
+matched nothing in the library, "deleted, or never matched", and does not claim
+the media is gone. Read the names before confirming. On Radarr and Sonarr,
+`import_download` with a `mapping` naming what each file is imports one that
+was never matched, and `get_queue` offers that step in `next_steps` for an
+orphaned `importBlocked` row. On Lidarr and Whisparr, import it by hand in the service.
 
 It never blocklists, so any of these can be grabbed again later.
 
-Lidarr does the same for an album whose artist was deleted, and `orphaned: true`
+Lidarr does the same for an album whose artist was deleted or never matched, and `orphaned: true`
 takes `service: "lidarr"` with the same rule, **from Lidarr 2.10.1**. Before
 it, the download stays `status: "completed"` with
 `importState: "downloading"` and a warning ("Artist name mismatch, automatic
@@ -2008,7 +2084,13 @@ preview and the confirm is refused rather than written.
 
 A series id with `season` marks that season. The preview reports the **number
 of episodes**. It counts only the episodes that would actually
-change, so re-running it on a mostly-watched season says so.
+change, so re-running it on a mostly-watched season says so. A season the
+series does not have is refused with the seasons it does have.
+
+A folder item (a Season's own id, a collection or a library) is refused:
+Jellyfin marks every item inside a folder, more than one preview line can
+show. For a Season id the refusal names the series id and `season` to pass
+instead.
 
 Safe tier, with one caveat stated in every preview: unmarking and re-marking
 restores the watched flag but **not** the original play date or resume
@@ -2364,14 +2446,16 @@ The music repair needs no media server and is not gated by
 
 ## `get_profile_issues`
 
-Faults in Radarr, Sonarr and Whisparr quality profiles and custom formats:
+Faults in Radarr, Sonarr, Whisparr and Lidarr quality profiles and custom formats:
 the configuration mistakes that make a profile unable to do what it looks
 like it does. Read-only, since Profilarr may own and re-sync the profiles.
 Every `remedy` is a change to make **in Profilarr** when it syncs the profile,
 or in the arr itself when it does not; this tool performs none of them, and
 [`fix_profile`](#fix_profile) applies the two floor findings.
 Profilarr's API says how many profiles it syncs to each arr but not which, so
-the remedy names both places.
+the remedy names both places. Profilarr syncs no Lidarr, so a Lidarr remedy
+names Lidarr alone. Lidarr's custom formats have no language condition, so only
+the floor findings can fire on it.
 
 Six finding kinds, each carrying a `confidence`:
 
@@ -2392,7 +2476,7 @@ it is unaffected by the `profile` filter and carries no `profile` field.
 `drift: null` on the Profilarr side means "not checked yet"; it is never
 folded into a finding, and `note` says so instead.
 
-Needs at least one of Radarr, Sonarr or Whisparr configured to find anything.
+Needs at least one of Radarr, Sonarr, Whisparr or Lidarr configured to find anything.
 Drift findings additionally need a `profilarr` service: without one, `note`
 says so and the rest of the findings still run.
 
@@ -2402,7 +2486,7 @@ Applies the one fix `get_profile_issues` can prove: a profile's minimum custom
 format score that nothing can reach (`unreachable_floor`) or that sits exactly
 on the total of its positive formats (`knife_edge_floor`). Takes `service`,
 `instance`, `profile` (the name `get_profile_issues` printed; an id also works)
-and `finding` (`unreachable_floor` or `knife_edge_floor`). Radarr, Sonarr and Whisparr.
+and `finding` (`unreachable_floor` or `knife_edge_floor`). Radarr, Sonarr, Whisparr and Lidarr.
 
 The new minimum is the total of the profile's positive custom formats less the
 cheapest one, so a release that lacks only the cheapest format still passes,
@@ -2441,6 +2525,9 @@ putting the old minimum back is a manual edit.
 **Unverified live** (Whisparr): the profile read and write. It shares the code
 and path with Radarr.
 
+**Unverified live** (Lidarr): the write. The read is proven on 3.1.6, whose
+profiles have the same `minFormatScore` and `formatItems` fields.
+
 ## `sync_database`
 
 The only write on Profilarr, and it reaches Profilarr alone, never Radarr or
@@ -2471,14 +2558,32 @@ in KiB/s (1024 bytes), and `0` removes it. Always client-wide, never per item, s
 item.
 
 Each client uses a different unit; the tool always takes KiB/s and converts.
-Clearing on Transmission zeroes the number as well as the enable flag.
+Clearing on Transmission zeroes the number as well as the enable flag. While
+Transmission's alternative speed (turtle) mode is on, its cap is the one
+reported, and a new limit is refused: it would not take effect until that mode
+ends.
 
 Safe tier, because the undo is this same tool with the other `action`.
 
 **It does not stop the \*arrs grabbing.** They carry on searching and sending
-releases, which then sit in the paused client until it is resumed. The preview
-of a whole-client pause says so. Pausing or resuming one item leaves the rest
-of the client as it was, and its undo names the same `id`.
+releases. SABnzbd and NZBGet hold them in the paused queue until it is resumed;
+a torrent client starts them at once. The preview of a whole-client pause says
+so. Pausing or resuming one item leaves the rest of the client as it was, and
+its undo names the same `id`.
+
+Transmission and qBittorrent have no client-wide pause. A whole-client pause
+stops only the torrents that are running and marks them with the Transmission
+label or qBittorrent tag `arr-mcp-paused`, which lives in the client and so
+survives a restart of arr-mcp. Resume starts only the marked torrents and
+removes the mark; a torrent stopped any other way, at its ratio limit or by
+hand, stays stopped. The client reads as paused while any torrent carries the
+mark, and a pause is a no-op only when nothing is running, so a torrent an
+\*arr sent after the first pause is stopped by a second. A client without
+labels or tags (Transmission before 3.0, qBittorrent before 4.2) refuses a
+whole-client pause or resume; one torrent at a time with `id` still works.
+Transmission torrent ids are info hashes, as `get_queue` reports them; the
+integer `transmission-remote` shows is accepted too, but Transmission
+renumbers those when it restarts.
 
 `service` is required, and names one client, because permissions are checked
 per service. Pausing everything is one call per client.
@@ -2500,10 +2605,12 @@ the rows can hide a manual pause, and its preview says that if it is only the
 wait, downloading starts once that ends. A pause by hand that leaves the rows
 looking like the wait reads the same way, since they cannot tell the two apart:
 a second pause is then offered, and `diagnose_media` still says SABnzbd resumes
-by itself. For the two torrent clients "paused" means every torrent is stopped,
-and a client holding no torrents at all reads as *not* paused.
+by itself. An `id` the client does not have is refused as not found.
 
 **Unverified live** (qBittorrent): pause, resume and the speed limit.
+
+**Unverified live** (Transmission): the whole-client pause and resume by label,
+and the turtle mode read.
 
 ## `retry_download`
 
@@ -2536,13 +2643,14 @@ the NZB came from. It is never shown back, and the audit log redacts it. When a
 SABnzbd job was added from a URL, a retry fetches the NZB again and may not keep
 the password; the preview says so.
 
-**Moved on.** The preview checks whether Radarr, Sonarr or Whisparr has already grabbed a
-replacement for the same media and whether it was imported. If so it warns that
-retrying may leave two copies, and does not refuse. Lidarr is not
-checked; when one is configured, the preview says that too. A Radarr, Sonarr or Whisparr that
-cannot be reached is named rather than treated as "no replacement".
+**Moved on.** The preview checks whether Radarr, Sonarr, Whisparr or Lidarr has already
+grabbed a replacement for the same media (the same episodes, or the same albums) and whether
+it was imported. If so it warns that retrying may leave two copies, and does not refuse. An
+*arr that cannot be reached is named rather than treated as "no replacement".
 
 **Unverified live** (Whisparr): the replacement check, inherited from Sonarr's spec, not captured.
+(Lidarr): the download id read is proven on 3.1.6; the replacement check, which needs a
+failed download, is not.
 
 **After the retry.** The result says which *arr is tracking the download (or
 that none recorded it), and repeats the two-copies warning when the preview
@@ -2569,6 +2677,10 @@ tier; see [writes.md](writes.md).
 recommendations. Combining it with `genre`/`year`/`min_rating` is refused.
 With no Seerr configured there is no fallback, and the response carries a
 `note` instead of a bare empty list.
+
+Seerr serves TMDB's list 20 to a page, and only the pages that `offset` and
+`limit` cover are read. `total` is the size of the whole list, up to 10,000:
+TMDB serves no page past 500.
 
 ## `trigger_subtitle_search`
 
@@ -2924,9 +3036,10 @@ size on disk.
 
 With `delete_files: true` Lidarr deletes the artist's folder, through its
 recycle bin when one is set, unless that folder holds another artist's or is the
-same as one, when it deletes no files at all. The artist's history goes with it,
-and Lidarr's events are not in arr-mcp's event log, so only arr-mcp's audit
-trail keeps a record of the delete. `add_import_exclusion` keeps Lidarr's import
+same as one, when it deletes no files at all. The artist's history goes with it; with the
+[library event log](configuration.md#the-library-event-log) on, what Lidarr
+reported about the artist survives there, and arr-mcp's audit trail records the
+delete. `add_import_exclusion` keeps Lidarr's import
 lists from adding the artist again until one of its albums is added, by hand or
 through Lidarr's API, which deletes the exclusion. The preview runs none of the
 cross-checks (see [writes](writes.md)).
@@ -3157,7 +3270,7 @@ people actually ask are rarely one call.
 | `arr://health` | A stack verdict, stamped with when it was taken |
 | `arr://library/summary` | Total, on disk, still wanted |
 | `arr://lidarr/monitoring` | Every Lidarr artist's monitoring policy: who will keep discovering albums, and who carries the artist flag; with more than one Lidarr, each instance that answered as well (one that did not is in `degraded`), and totals that add them up (an artist two hold counts in each) |
-| `arr://docs/<tool>` | The full field reference for the tools with the most to explain (`get_library`, `get_stack_health`, `get_queue` and fourteen more). Each of their descriptions is kept under 1,000 characters and ends with a pointer here |
+| `arr://docs/<tool>` | The full field reference for the tools with the most to explain (`get_library`, `get_stack_health`, `get_queue` and others). Each of their descriptions is kept under 1,000 characters and ends with a pointer here |
 
 **Client support for both is uneven, so nothing is reachable only through
 them.** A prompt is a sequence of tool calls the model could have made anyway,

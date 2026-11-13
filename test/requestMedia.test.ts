@@ -87,7 +87,7 @@ function harness(
             return jsonResponse({ pageInfo: { pages: 1 }, results: opts.existing ?? [] });
         }
         if (url.pathname === '/api/v1/movie/438631') return jsonResponse(detail(438631, 'movie', { title: 'Dune', releaseDate: '2021-10-22' }));
-        if (url.pathname === '/api/v1/tv/1396') return jsonResponse(detail(1396, 'tv', { name: 'Breaking Bad', firstAirDate: '2008-01-20' }));
+        if (url.pathname === '/api/v1/tv/1396') return jsonResponse(detail(1396, 'tv', { name: 'Breaking Bad', firstAirDate: '2008-01-20', seasons: [0, 1, 2, 3, 4, 5].map(seasonNumber => ({ seasonNumber })) }));
         if (url.pathname === '/api/v1/movie/999') return jsonResponse(detail(999, 'movie', { title: 'Other', releaseDate: '2020-01-01' }));
         // What a live Seerr 3.4.1 answers for an id TMDB does not have: a 500,
         // not a 404.
@@ -213,8 +213,40 @@ describe('request_media', () => {
         const pending = harness({ existing: [row(30, 2, 'Approved'), row(20, 1, 'Waiting'), row(10, 2, 'Old')] });
         expect((await pending.call(MOVIE)).structuredContent.summary).toContain('Waiting');
 
-        const newest = harness({ existing: [row(10, 2, 'Old'), row(30, 3, 'Newest'), row(20, 2, 'Middle')] });
+        const newest = harness({ existing: [row(10, 2, 'Old'), row(30, 5, 'Newest'), row(20, 2, 'Middle')] });
         expect((await newest.call(MOVIE)).structuredContent.summary).toContain('Newest');
+    });
+
+    it('requests again after a decline or a failure, and says what is on record', async () => {
+        for (const status of [3, 4]) {
+            const h = harness({ existing: [requestRow({ status })] });
+            const { structuredContent } = await h.call(MOVIE);
+            expect(structuredContent.noop).toBe(false);
+            expect(structuredContent.effects[0]).toMatch(/^Already on record for .*Dune.*: (declined|failed) by /);
+        }
+    });
+
+    describe('on a series, an earlier request covers only its own seasons', () => {
+        const SERIES = { media_type: 'tv', media_id: 1396 };
+        const tvRow = (seasons: number[], status = 2) =>
+            requestRow({ status, media: { tmdbId: 1396, mediaType: 'tv' }, seasons: seasons.map(seasonNumber => ({ seasonNumber })) });
+
+        it('requests a season the earlier request did not ask for', async () => {
+            const h = harness({ existing: [tvRow([1, 2])] });
+            const { structuredContent } = await h.call({ ...SERIES, seasons: [3] });
+            expect(structuredContent.noop).toBe(false);
+            expect(structuredContent.effects[0]).toContain('approved by <<untrusted:seerr.user>>Sam<</>> (seasons 1, 2)');
+        });
+
+        it('is a no-op for seasons already requested', async () => {
+            const h = harness({ existing: [tvRow([1, 2])] });
+            expect((await h.call({ ...SERIES, seasons: [2] })).structuredContent.noop).toBe(true);
+        });
+
+        it('reads every season, specials aside, against what Seerr lists', async () => {
+            expect((await harness({ existing: [tvRow([1, 2])] }).call(SERIES)).structuredContent.noop).toBe(false);
+            expect((await harness({ existing: [tvRow([1, 2, 3]), tvRow([4, 5], 5)] }).call(SERIES)).structuredContent.noop).toBe(true);
+        });
     });
 
     it('checks for a duplicate from the title lookup, not the whole request history', async () => {

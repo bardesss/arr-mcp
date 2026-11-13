@@ -56,6 +56,7 @@ const PauseDownloadsInput = z.object({
         ),
     id: z
         .string()
+        .min(1)
         .optional()
         .describe(
             'One queue item to pause or resume, exactly as get_queue reported its id. Omit for the whole client. Refused with action "limit".'
@@ -103,6 +104,59 @@ function resumeLine(state: PauseState, client: string, waiting: boolean): string
     return `Restarts ${state.scope} on ${client}. ${after}`;
 }
 
+const torrentCount = (n: number): string => (n === 1 ? '1 torrent' : `${n} torrents`);
+
+/**
+ * A whole-client pause on a torrent client, which has no client-wide flag:
+ * pause stops and marks the running torrents, resume starts the marked ones.
+ * So each is a no-op on its own count, not on one shared "paused" reading:
+ * a torrent an *arr sent after a pause is running, and a second pause stops it.
+ */
+function torrentPlan(
+    client: string,
+    target: string,
+    paused: boolean,
+    t: NonNullable<PauseState['torrents']>
+): WritePlan {
+    const args = { action: paused ? 'pause' : 'resume' };
+    if (paused) {
+        if (t.running === 0) {
+            return {
+                target,
+                summary: t.marked > 0 ? `${client} is already paused: no torrent is running.` : `No torrent is running on ${client}, so there is nothing to pause.`,
+                effects: [],
+                noop: true
+            };
+        }
+        return {
+            target,
+            summary: `Pause the ${torrentCount(t.running)} running on ${client}.`,
+            effects: [
+                `Stops them and gives them the ${t.mark}. Nothing already downloaded is lost${t.stopped > 0 ? `, and the ${t.stopped} already stopped stay as they are` : ''}.`,
+                'Does NOT stop the *arrs searching and grabbing. A torrent they send meanwhile starts downloading at once.',
+                'Undo it by calling this tool again with action: "resume", which starts only the torrents this stopped.'
+            ],
+            args
+        };
+    }
+    if (t.marked === 0) {
+        return {
+            target,
+            summary: `No torrent on ${client} has the ${t.mark} a pause sets, so there is nothing to resume. Resume a stopped torrent by its \`id\`.`,
+            effects: [],
+            noop: true
+        };
+    }
+    return {
+        target,
+        summary: `Resume the ${torrentCount(t.marked)} paused on ${client}.`,
+        effects: [
+            `Starts the ${torrentCount(t.marked)} with the ${t.mark} and removes it; torrents stopped another way stay stopped. Downloading resumes immediately and uses bandwidth.`
+        ],
+        args
+    };
+}
+
 export function registerPauseDownloads(
     server: McpServer,
     context: WriteContext,
@@ -112,7 +166,7 @@ export function registerPauseDownloads(
         name: 'pause_downloads',
         title: 'Pause, resume or throttle a download client',
         description:
-            'Pauses, resumes or throttles one download client ({{or: sabnzbd=SABnzbd; nzbget=NZBGet; transmission=Transmission; qbittorrent=qBittorrent}}) or one item in its queue when `id` is given. The bandwidth answer: "stop downloading for an hour", or `action: "limit"` with `speed_limit_kbps` (KiB/s) to slow it down instead of stopping it (0 removes the cap). A limit is always client-wide, never per item. Safe tier, because the undo is this same tool with the other action. It does NOT stop the *arrs grabbing: they carry on finding and sending releases, which then sit in the paused client. `service` is required and names one client; pausing "everything" means one call each. Previews first; confirm to apply it.',
+            'Pauses, resumes or throttles one download client ({{or: sabnzbd=SABnzbd; nzbget=NZBGet; transmission=Transmission; qbittorrent=qBittorrent}}) or one item in its queue when `id` is given. The bandwidth answer: "stop downloading for an hour", or `action: "limit"` with `speed_limit_kbps` (KiB/s) to slow it down instead (0 removes the cap). A limit is client-wide. Safe tier: the undo is the other action. [[transmission|qbittorrent: On a torrent client, pause tags the running torrents and resume starts only those.]] It does NOT stop the *arrs grabbing: releases still reach the client. `service` is required and names one client; pausing "everything" means one call each. Previews first; confirm to apply it.',
         inputSchema: PauseDownloadsInput,
         // The resolved instance id, not the bare type: permissions are
         // granted per instance.
@@ -146,6 +200,13 @@ export function registerPauseDownloads(
                         effects: [],
                         noop: true
                     };
+                }
+                // Transmission keeps the normal limit behind turtle mode, so
+                // setting it would report a change that does nothing yet.
+                if (current.alternative) {
+                    throw new Error(
+                        `${client.id} is in alternative speed (turtle) mode, capped at ${current.kbps} KiB/s, which overrides any normal limit. Turn turtle mode off in Transmission first.`
+                    );
                 }
 
                 return {
@@ -189,6 +250,8 @@ export function registerPauseDownloads(
             }
             // During SABnzbd's wait the rows can hide a manual pause, so a whole-queue resume is sent, not refused.
             const waiting = whole && state.heldBy === 'postProcessing';
+
+            if (id === undefined && state.torrents !== undefined) return torrentPlan(adapter.id, target, paused, state.torrents);
 
             // Asking someone to confirm a no-op teaches them to confirm
             // without reading.

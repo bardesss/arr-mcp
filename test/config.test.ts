@@ -342,6 +342,26 @@ describe('an unclaimed config', () => {
         expect(written).not.toContain('password_hash');
         expect(written).not.toContain('null');
     });
+
+    // The drift check has to read the file the way the loader did, or a file
+    // with no `auth` block always counts as changed and can never be saved.
+    it('saves over a file with no auth block when nothing changed since it loaded', async () => {
+        const dir = await freshDir();
+        await writeFile(join(dir, 'config.yaml'), 'services: {}\n', 'utf8');
+        const { config: expected } = await loadConfig(dir);
+
+        await saveConfig(dir, { ...expected, auth: { ...expected.auth, password_hash: 'scrypt$00$11' } }, { expected });
+
+        expect(await readFile(join(dir, 'config.yaml'), 'utf8')).toContain('password_hash: scrypt$00$11');
+    });
+});
+
+describe('the top level', () => {
+    it('refuses a key the schema does not know', () => {
+        const result = ConfigSchema.safeParse({ auth: AUTH, services: {}, webhook: { enabled: true } });
+        expect(result.success).toBe(false);
+        expect(result.error?.issues[0]?.message).toContain('"webhook" (did you mean webhooks?)');
+    });
 });
 
 describe('plex', () => {

@@ -103,6 +103,20 @@ describe('Transmission speed limit', () => {
         });
     });
 
+    it('reads the alternative (turtle) cap while that mode is on, whatever the normal limit says', async () => {
+        const { impl } = recording(() =>
+            jsonResponse({
+                result: 'success',
+                arguments: { 'alt-speed-enabled': true, 'alt-speed-down': 512, 'speed-limit-down-enabled': false }
+            })
+        );
+        expect(await new TransmissionAdapter(clientConfig, impl).readSpeedLimit()).toEqual({
+            service: 'transmission',
+            kbps: 500,
+            alternative: true
+        });
+    });
+
     it('sets the number and the flag together', async () => {
         const { impl, sent } = recording(() => jsonResponse({ result: 'success' }));
         await new TransmissionAdapter(clientConfig, impl).setSpeedLimit(500);

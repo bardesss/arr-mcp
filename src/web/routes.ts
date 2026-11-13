@@ -5,7 +5,7 @@ import { commitConfig } from '../config/commit.ts';
 import { configEtag } from '../config/etag.ts';
 import { listInstances } from '../config/instances.ts';
 import { addManagementKey, revokeManagementKey, setImdb, setMcpEndpoint, setPrimaryMediaServer } from '../config/edits.ts';
-import { ConfigUnloadableError, saveConfig } from '../config/save.ts';
+import { ConfigDriftError, ConfigUnloadableError, saveConfig } from '../config/save.ts';
 import { OAuthSchema, ServiceIdSchema, ThemeSchema, type Config, type OAuthConfig, type ServiceId, type Theme } from '../config/schema.ts';
 import type { WriteAudit } from '../core/audit.ts';
 import { unfence } from '../core/fence.ts';
@@ -15,6 +15,7 @@ import { LoginThrottle } from '../core/loginThrottle.ts';
 import { managementKeyField } from '../core/managementKey.ts';
 import type { LogStore } from '../core/logs.ts';
 import type { Runtime } from '../core/runtime.ts';
+import { clientAddress } from '../core/trustedProxies.ts';
 import {
     clearedSessionCookie,
     hashPassword,
@@ -166,9 +167,14 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                 },
                 { expected }
             );
-        } catch {
+        } catch (err) {
             // Someone else claimed it while this request was in flight.
-            return c.redirect('/ui/login', 302);
+            if (err instanceof ConfigDriftError) return c.redirect('/ui/login', 302);
+            // Anything else left the file unclaimed, and redirecting sent the
+            // operator from login straight back to this page with no reason.
+            // The reason goes to the log, not to a visitor who has no session.
+            logger.error({ err }, 'could not save the claim to config.yaml');
+            return reject('config.yaml could not be saved, so this instance is still unclaimed. The server log has the reason.');
         }
         await runtime.reload();
 
@@ -193,7 +199,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     app.post('/ui/login', async c => {
         if (unclaimed()) return c.redirect('/ui/setup', 302);
 
-        const key = throttleKey(c);
+        const key = throttleKey(c, runtime.config.auth.trusted_proxies ?? []);
         const waitMs = loginThrottle.blockedFor(key);
         if (waitMs > 0) {
             const seconds = Math.ceil(waitMs / 1000);
@@ -1080,15 +1086,17 @@ export const originOf = (c: Context): { ip: string; forwardedFor?: string } => {
 const secureFor = (c: Pick<Context, 'req'>): boolean => requestIsHttps(c.req.url, c.req.header('x-forwarded-proto'));
 
 /**
- * What the sign-in throttle counts a request against. The socket peer cannot be
- * forged, so it is the key. A request that says it was forwarded shares one
- * bucket: the address behind a proxy is unverifiable, so keying on it would let
- * an attacker rotate a header to reset their counter.
+ * What the sign-in throttle counts a request against: the socket peer, which
+ * cannot be forged. `X-Forwarded-For` counts only when that peer is listed in
+ * `auth.trusted_proxies`, so each client behind the proxy gets its own bucket.
+ *
+ * Any other peer's header is ignored. Honouring it let a client rotate the
+ * header to reset its counter, and sharing one bucket among every request that
+ * carried one let a direct client join that bucket and hold it blocked against
+ * everyone signing in through the proxy.
  */
-export const throttleKey = (c: Context): string =>
-    c.req.header('x-forwarded-for') !== undefined || c.req.header('forwarded') !== undefined
-        ? 'proxied'
-        : `peer:${peerAddress(c)}`;
+export const throttleKey = (c: Context, trusted: readonly string[] = []): string =>
+    `peer:${clientAddress(peerAddress(c), c.req.header('x-forwarded-for'), trusted)}`;
 
 export const warnIfCredentialMove = (c: Context, err: unknown): void => {
     if (err instanceof CredentialWouldMoveError) {
@@ -1357,10 +1365,11 @@ function buildOAuthConfig(current: Config, form: Record<string, unknown>): Confi
     return { ...current, auth: { ...current.auth, oauth: parseOAuthDraft(form) } };
 }
 
-/** The MCP endpoint. Owns `allowed_hosts` and `allow_token_in_url`. */
+/** The MCP endpoint. Owns `allowed_hosts`, `allow_token_in_url` and `trusted_proxies`. */
 export function buildMcpConfig(current: Config, form: Record<string, unknown>): Config {
     return setMcpEndpoint(current, {
         allowedHosts: str(form['auth.allowed_hosts']).split(','),
-        allowTokenInUrl: on(form['auth.allow_token_in_url'])
+        allowTokenInUrl: on(form['auth.allow_token_in_url']),
+        trustedProxies: str(form['auth.trusted_proxies']).split(',')
     });
 }

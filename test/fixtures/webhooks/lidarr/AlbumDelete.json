@@ -1,0 +1,73 @@
+{
+  "artist": {
+    "id": 4,
+    "name": "Portishead",
+    "disambiguation": "",
+    "path": "/media/library/item",
+    "mbId": "8f6bd1e4-fbe1-4f50-aa9b-94c450ec0f11",
+    "type": "Group",
+    "genres": [
+      "Trip Hop",
+      "Electronic",
+      "Downtempo",
+      "Experimental Rock",
+      "Folktronica"
+    ],
+    "images": [
+      {
+        "coverType": "banner",
+        "url": "/media/library/item",
+        "remoteUrl": "/media/library/item"
+      },
+      {
+        "coverType": "fanart",
+        "url": "/media/library/item",
+        "remoteUrl": "/media/library/item"
+      },
+      {
+        "coverType": "poster",
+        "url": "/media/library/item",
+        "remoteUrl": "/media/library/item"
+      },
+      {
+        "coverType": "clearlogo",
+        "url": "/media/library/item",
+        "remoteUrl": "/media/library/item"
+      }
+    ],
+    "tags": []
+  },
+  "album": {
+    "id": 27,
+    "mbId": "163339ab-813b-3d29-bba8-e1d5acf63cab",
+    "title": "Third",
+    "disambiguation": "",
+    "overview": "",
+    "albumType": "Album",
+    "secondaryAlbumTypes": [],
+    "releaseDate": "2008-04-08T00:00:00Z",
+    "genres": [
+      "Trip Hop",
+      "Electronic",
+      "Downtempo",
+      "Experimental Rock",
+      "Folk Rock"
+    ],
+    "images": [
+      {
+        "coverType": "cover",
+        "url": "/media/library/item",
+        "remoteUrl": "https://indexer.example.test/"
+      },
+      {
+        "coverType": "disc",
+        "url": "/media/library/item",
+        "remoteUrl": "https://indexer.example.test/"
+      }
+    ]
+  },
+  "deletedFiles": false,
+  "eventType": "AlbumDelete",
+  "instanceName": "Instance",
+  "applicationUrl": ""
+}

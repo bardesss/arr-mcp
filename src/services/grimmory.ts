@@ -3,6 +3,7 @@ import { grimmorySession, noAuth } from '../core/auth.ts';
 import { ServiceError, type ServiceErrorKind } from '../core/errors.ts';
 import type { IndexInput } from '../core/resolver.ts';
 import { fenceText } from '../core/fence.ts';
+import { isoInstant } from '../core/instant.ts';
 import { ServiceHttp } from '../core/http.ts';
 import { parseEventStream } from '../core/eventStream.ts';
 import { compareVersions, parseVersion } from './versions.ts';
@@ -142,12 +143,12 @@ const isBookEntity = (v: unknown): boolean => typeof v === 'string' && v.toUpper
 /** A Java LocalDateTime has no offset; the ones Grimmory sends are read as UTC. */
 const NO_OFFSET = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$/;
 const WITH_OFFSET = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
-/** An audit `createdAt` as ISO with an offset: a bare one gets `Z`; anything else is not a time. */
+/** An audit `createdAt` as `toISOString()`: a bare one is UTC; anything else is not a time. */
 const auditTime = (v: unknown): string | undefined => {
     const s = str(v);
     if (s === undefined) return undefined;
     const iso = NO_OFFSET.test(s) ? `${s}Z` : WITH_OFFSET.test(s) ? s : undefined;
-    return iso !== undefined && Number.isFinite(Date.parse(iso)) ? iso : undefined;
+    return iso === undefined ? undefined : isoInstant(iso);
 };
 /** `since` as an instant: a date or an offset-free time is UTC. */
 const auditInstant = (since: string): number => Date.parse(NO_OFFSET.test(since) ? `${since}Z` : since);

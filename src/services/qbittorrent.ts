@@ -26,7 +26,8 @@ import {
     type ServiceAdapter,
     type SpeedLimit,
     type SpeedLimitCapable,
-    type TorrentEndpoint
+    type TorrentEndpoint,
+    PAUSE_MARK
 } from './types.ts';
 
 const API = '/api/v2';
@@ -162,6 +163,11 @@ function seedingOf(t: RawTorrent): { seeding?: SeedingState } {
 
 const STOPPED = new Set(['pausedUP', 'stoppedUP', 'pausedDL', 'stoppedDL']);
 
+/** qBittorrent sends tags as one comma-separated string. */
+const tagsOf = (t: RawTorrent): string[] => (t.tags ?? '').split(',').map(s => s.trim()).filter(s => s !== '');
+
+const isMarked = (t: RawTorrent): boolean => tagsOf(t).includes(PAUSE_MARK);
+
 /** Only the active tracker: torrents/info carries one. Cleanuparr checks every tracker. */
 function torrentOf(t: RawTorrent & { hash: string }): { torrent: TorrentFacts } {
     let trackerDomains: string[];
@@ -174,7 +180,7 @@ function torrentOf(t: RawTorrent & { hash: string }): { torrent: TorrentFacts } 
         torrent: {
             hash: t.hash.toLowerCase(),
             category: t.category ?? '',
-            tags: (t.tags ?? '').split(',').map(s => s.trim()).filter(s => s !== ''),
+            tags: tagsOf(t),
             trackerDomains,
             ...(t.save_path ? { savePath: t.save_path } : {}),
             ...(typeof t.private === 'boolean' ? { private: t.private } : {}),
@@ -182,6 +188,23 @@ function torrentOf(t: RawTorrent & { hash: string }): { torrent: TorrentFacts } 
             seeding: t.amount_left === 0
         }
     };
+}
+
+/**
+ * Whether `torrents/add` took the torrent. Up to 5.1 it answers 200 with
+ * `Ok.` or `Fails.`, so the status line says nothing; later builds answer
+ * empty or with JSON counts.
+ */
+function addAccepted(body: string): boolean {
+    if (body === '' || body === 'Ok.') return true;
+    try {
+        const counts = JSON.parse(body) as { success_count?: unknown; pending_count?: unknown; failure_count?: unknown };
+        if (typeof counts !== 'object' || counts === null) return false;
+        const n = (v: unknown) => (typeof v === 'number' ? v : 0);
+        return n(counts.success_count) + n(counts.pending_count) > 0 || n(counts.failure_count) === 0;
+    } catch {
+        return false;
+    }
 }
 
 export class QbittorrentAdapter
@@ -321,48 +344,113 @@ export class QbittorrentAdapter
     }
 
     /**
-     * qBittorrent has no client-wide paused flag, so this is the same
-     * every-torrent-is-stopped reading Transmission gets, and it counts both
-     * spellings, because 5.0 renamed the paused states to stopped and this
-     * adapter serves 4.x and 5.x alike, exactly as `TORRENT_STATE` already
-     * does.
+     * qBittorrent has no client-wide paused flag. A whole-client pause stops
+     * the running torrents and tags them, and the client reads as paused while
+     * any torrent carries the tag; stopped torrents without it were stopped by
+     * something else and resume leaves them be. Both spellings of stopped
+     * count, because 5.0 renamed the paused states and this adapter serves 4.x
+     * and 5.x alike, exactly as `TORRENT_STATE` already does.
      *
      * **Spec-derived, like every pause path here.** There is no qBittorrent on
      * the stack these adapters were probed against, so nothing below was
      * confirmed against a live instance.
      */
     async readPauseState(id?: string): Promise<PauseState> {
-        const torrents = await this.#torrents(id);
-        const stopped = torrents.filter(t => PAUSED_STATES.has(t.state ?? '')).length;
+        if (id !== undefined) {
+            const [torrent] = await this.#torrents(id);
+            if (torrent === undefined) throw this.#notFound(id);
+            return { paused: PAUSED_STATES.has(torrent.state ?? ''), scope: `torrent ${id}` };
+        }
 
-        if (id !== undefined) return { paused: torrents.length > 0 && stopped === torrents.length, scope: `torrent ${id}` };
+        const torrents = await this.#tagged();
+        const running = torrents.filter(t => !PAUSED_STATES.has(t.state ?? '')).length;
+        const marked = torrents.filter(isMarked).length;
         return {
-            paused: torrents.length > 0 && stopped === torrents.length,
-            scope: torrents.length === 1 ? '1 torrent' : `${torrents.length} torrents`
+            paused: marked > 0,
+            scope: torrents.length === 1 ? '1 torrent' : `${torrents.length} torrents`,
+            torrents: { running, stopped: torrents.length - running, marked, mark: `tag ${PAUSE_MARK}` }
         };
+    }
+
+    async setPaused(paused: boolean, id?: string): Promise<void> {
+        if (id !== undefined) {
+            const [torrent] = await this.#torrents(id);
+            if (torrent === undefined) throw this.#notFound(id);
+            const hash = this.#hash(id);
+            await this.#verb(paused, hash);
+            // Started by hand, so a later whole-client resume has nothing to do for it.
+            if (!paused && isMarked(torrent)) await this.#tag(false, hash);
+            return;
+        }
+
+        const torrents = await this.#tagged();
+        if (paused) {
+            const running = torrents.filter(t => !PAUSED_STATES.has(t.state ?? '')).map(t => t.hash);
+            if (running.length === 0) return;
+            // Tagged before they stop: a stop that fails half-way then leaves
+            // running torrents tagged, which resume starts harmlessly, rather
+            // than stopped ones resume does not know about.
+            await this.#tag(true, running.join('|'));
+            await this.#verb(true, running.join('|'));
+            return;
+        }
+
+        const held = torrents.filter(isMarked).map(t => t.hash);
+        if (held.length === 0) return;
+        await this.#verb(false, held.join('|'));
+        await this.#tag(false, held.join('|'));
     }
 
     /**
      * v5 renamed `pause`/`resume` to `stop`/`start`. Both are attempted: the
      * new verb first, the old one only if that 404s, because this adapter has
-     * no version gate and guessing wrong would silently do nothing.
+     * no version gate and guessing wrong would silently do nothing. `hashes`
+     * is never `all`: that would start torrents no pause stopped.
      */
-    async setPaused(paused: boolean, id?: string): Promise<void> {
-        if (id !== undefined && (await this.#torrents(id)).length === 0) {
-            throw new ServiceError('NotFound', this.id, `no torrent with hash "${id}"`, {
-                remedy: 'qBittorrent torrent ids are info hashes. Take one from get_queue.'
-            });
-        }
-
-        const hashes = id === undefined ? 'all' : this.#hash(id);
+    async #verb(paused: boolean, hashes: string): Promise<void> {
         const [modern, legacy] = paused ? ['stop', 'pause'] : ['start', 'resume'];
-
         try {
             await this.#http.postForm(`${API}/torrents/${modern}`, { hashes }, true);
         } catch (err) {
             if (!(err instanceof ServiceError) || err.kind !== 'NotFound') throw err;
             await this.#http.postForm(`${API}/torrents/${legacy}`, { hashes }, true);
         }
+    }
+
+    /** `addTags` creates the tag if it does not exist yet. */
+    async #tag(mark: boolean, hashes: string): Promise<void> {
+        try {
+            await this.#http.postForm(`${API}/torrents/${mark ? 'addTags' : 'removeTags'}`, { hashes, tags: PAUSE_MARK }, true);
+        } catch (err) {
+            if (err instanceof ServiceError && err.kind === 'NotFound') throw this.#noTags();
+            throw err;
+        }
+    }
+
+    /** Every torrent, refused on a qBittorrent without tags (before 4.2, whose
+     *  rows carry no `tags` field): a whole-client pause with nowhere to record
+     *  what it stopped could not be undone exactly. */
+    async #tagged(): Promise<(RawTorrent & { hash: string })[]> {
+        const torrents = (await this.#torrents()).filter(
+            (t): t is RawTorrent & { hash: string } => typeof t.hash === 'string' && t.hash !== ''
+        );
+        if (torrents.some(t => t.tags === undefined)) throw this.#noTags();
+        return torrents;
+    }
+
+    #noTags(): ServiceError {
+        return new ServiceError(
+            'VersionUnsupported',
+            this.id,
+            'this qBittorrent has no torrent tags, so a whole-client pause could not record which torrents it stopped',
+            { remedy: 'Pause or resume torrents one at a time with `id`, or upgrade to qBittorrent 4.2 or later.' }
+        );
+    }
+
+    #notFound(id: string): ServiceError {
+        return new ServiceError('NotFound', this.id, `no torrent with hash "${id}"`, {
+            remedy: 'qBittorrent torrent ids are info hashes. Take one from get_queue.'
+        });
     }
 
     /**
@@ -399,11 +487,22 @@ export class QbittorrentAdapter
                 ? []
                 : await this.#http.get<RawTorrent[]>(`${API}/torrents/info?hashes=${encodeURIComponent(hash)}`);
 
-        await this.#http.postForm(`${API}/torrents/add`, { urls: uri }, true);
+        const duplicate = Array.isArray(existing) && existing.length > 0;
+        const answer = await this.#http.postFormText(`${API}/torrents/add`, { urls: uri });
+        // A duplicate is already known, and older builds answer one with
+        // `Fails.` too, so the body only decides a new torrent.
+        if (!duplicate && !addAccepted(answer)) {
+            throw new ServiceError(
+                'UpstreamError',
+                this.id,
+                `qBittorrent did not add the torrent: it answered ${fenceText(answer, { service: this.id, field: 'add' })}`,
+                { remedy: 'Check the magnet link, and that qBittorrent has finished starting up, then try again.' }
+            );
+        }
 
         return {
             ...(hash === undefined ? {} : { id: hash }),
-            duplicate: Array.isArray(existing) && existing.length > 0
+            duplicate
         };
     }
 

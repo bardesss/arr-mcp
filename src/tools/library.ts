@@ -76,6 +76,7 @@ export class LibraryLoader {
     readonly #cache: TtlCache;
     readonly #dataset: ImdbDataset | undefined;
     readonly #mediaServers: LibraryMediaServers | undefined;
+    readonly #onInvalidate: (() => void)[] = [];
 
     constructor(
         adapters: readonly ServiceAdapter[],
@@ -101,6 +102,12 @@ export class LibraryLoader {
 
     get secondaryMediaServerId(): string | undefined {
         return this.#mediaServers?.secondary?.id;
+    }
+
+    /** The media server whose rows fill `playback`, as `#build` picks it. */
+    get primaryMediaServerId(): string | undefined {
+        const primaryId = this.#mediaServers?.primaryId;
+        return this.#adapters.filter(hasUserLibrary).find(a => primaryId === undefined || a.id === primaryId)?.id;
     }
 
     /**
@@ -149,6 +156,11 @@ export class LibraryLoader {
         );
     }
 
+    /** Another cache built from the same services (the metadata sweep) clears with this one. */
+    onInvalidate(listener: () => void): void {
+        this.#onInvalidate.push(listener);
+    }
+
     /**
      * Called after a successful write, so the next `get_library` reflects it
      * rather than up to five minutes of a library that no longer exists.
@@ -159,6 +171,7 @@ export class LibraryLoader {
      */
     invalidate(): void {
         this.#cache.clear();
+        for (const listener of this.#onInvalidate) listener();
         // The adapters hold their own copy of the same bytes now, and a write
         // that only cleared the join would leave search_media answering from
         // pre-write data.

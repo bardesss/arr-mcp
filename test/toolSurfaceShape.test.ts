@@ -144,6 +144,28 @@ describe('a service field', () => {
         expect(view.safeParse({ service: 'bazarr' }).success).toBe(true);
     });
 
+    describe('with a default', () => {
+        type Listed = { required?: string[]; properties: { service: { enum: unknown; default?: unknown } } };
+        const listed = (opts: SurfaceOptions): Listed => {
+            const schema = z.object({ service: serviceOf(['seerr', 'radarr', 'sonarr']).default('seerr') });
+            const view = leanSchema(schema, opts) as unknown as { '~standard': { jsonSchema: { input: (o: unknown) => Listed } } };
+            return view['~standard'].jsonSchema.input({ target: 'draft-2020-12' });
+        };
+
+        it('keeps the default while the enum still holds it', () => {
+            const json = listed(on('seerr', 'radarr'));
+            expect(json.properties.service.default).toBe('seerr');
+            expect(json.required ?? []).not.toContain('service');
+        });
+
+        it('drops a default the narrowed enum no longer holds, and asks for the field instead', () => {
+            const json = listed(on('radarr', 'sonarr'));
+            expect(json.properties.service.enum).toEqual(['radarr', 'sonarr']);
+            expect(json.properties.service).not.toHaveProperty('default');
+            expect(json.required).toContain('service');
+        });
+    });
+
     it('leaves the shared schema itself alone', () => {
         const schema = shape();
         leanSchema(schema, on('radarr'));

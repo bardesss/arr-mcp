@@ -77,8 +77,11 @@ redacted.
 
 The file's contents go no further than that editor, which is behind the same
 session as the rest of the UI, sends `cache-control: no-store`, and is only
-reachable while the configuration is invalid. When the sign-in fields in `auth`
-cannot be read, no editor is served at all; see
+reachable while the configuration is invalid. An instance nobody has claimed
+cannot be claimed here while the file holds a credential (a service, an MCP
+token, a management key or the event log's secret), because the claim lands on
+that editor. When the sign-in fields in `auth` cannot be read, no editor is
+served at all; see
 [When config.yaml will not load](configuration.md#when-configyaml-will-not-load).
 
 The *error text* is a separate question, because it is not behind the session:
@@ -97,7 +100,7 @@ startup log keeps the key, so it can hold a secret written that way.
 ## The library event log
 
 Off by default. While it's off, `/webhooks/*` answers 404 to everyone. While it's
-on, Radarr and Sonarr post to it, so it takes requests with neither a session nor
+on, Radarr, Sonarr and Lidarr post to it, so it takes requests with neither a session nor
 an MCP token.
 
 **How a request is authenticated.** HTTP Basic, because that's what an *arr can
@@ -295,13 +298,18 @@ either way. The control is visibility before the fact, not impossibility.
   sign-in after an https one can bounce back to the login page.
 - `/ui/login` throttles itself after 5 free failed attempts, then delays each
   further one with a growing backoff capped at 5 minutes. The counter is kept
-  per socket peer, which cannot be forged. A request carrying `X-Forwarded-For`
-  or `Forwarded` shares one bucket instead, since the address behind a proxy is
-  unverifiable, and a direct client can also fill it.
+  per socket peer, which cannot be forged, so behind a reverse proxy everyone
+  shares the proxy's counter. List the proxy in
+  [`auth.trusted_proxies`](configuration.md#trusted_proxies) and the counter is
+  kept per client instead, read from the last `X-Forwarded-For` hop the proxy
+  added. A header from any other peer is ignored.
 - A log line records two addresses where they differ: `ip` is the peer the
   socket actually came from, and `forwardedFor` is the first hop of
-  `X-Forwarded-For` when a request carried one. The header is caller-supplied
-  and there is no trusted-proxy list, so treat `forwardedFor` as a claim.
+  `X-Forwarded-For` when a request carried one. That hop is whatever the client
+  wrote, so treat `forwardedFor` as a claim.
+- A refused `/mcp` request is logged at most once a minute per peer, with a
+  `suppressed` count of the ones dropped since, so a client that keeps trying
+  cannot push the rest of the log out of the ring the Logs page reads.
 - Sessions end when you end them: signing out revokes that session, and changing
   the password revokes every session issued before it, whether it was changed in
   the UI or by hand in `config.yaml`. A restart does not undo either. Deleting
@@ -355,7 +363,8 @@ server does not introspect tokens, so one revoked at the issuer but not yet
 expired is still accepted here until it runs out. TLS is the reverse proxy's
 job; arr-mcp speaks plain HTTP and says so.
 
-Note also that the container binds `0.0.0.0` by design, because it has to be
+Note also that arr-mcp listens on every interface by design (`::`, which takes
+IPv4 too, or `0.0.0.0` where IPv6 is switched off), because it has to be
 reachable across the LAN. That drops the MCP SDK's default localhost Host and
 Origin validation, which is exactly why the `allowed_hosts` check exists as a
 replacement. If you forward that port from your router, an MCP token is the
@@ -369,6 +378,9 @@ only thing between the internet and every credential in your stack. Do not do th
 
 - Every write attempt writes a row to `audit.db`, including previews, no-ops and
   refusals. There is no path from arguments to a mutation that skips the trail.
+  The one thing left out is a dry run or no-op from a token whose tier could
+  never apply it: it changes nothing, and recording it would let a read token
+  grow the table as fast as it can call.
 - The row is written as `attempted` **before** the service is called, and
   replaced when the call resolves. A row still reading `attempted` therefore
   means arr-mcp died mid-write.

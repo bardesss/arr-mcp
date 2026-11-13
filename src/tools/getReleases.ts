@@ -133,7 +133,7 @@ const GetReleasesInput = toolInput({
         .nonnegative()
         .optional()
         .describe(
-            '[[sonarr|whisparr: {{and: sonarr=Sonarr; whisparr=Whisparr}} only: search one season rather than the whole series.]] [[whisparr: On Whisparr a season is a release year.]] [[radarr: Refused against Radarr.]]'
+            '[[sonarr|whisparr: {{and: sonarr=Sonarr; whisparr=Whisparr}} only: one season.]] [[whisparr: On Whisparr a season is a release year.]] [[radarr: Refused against Radarr.]]'
         ),
     episode: z
         .string()
@@ -166,7 +166,7 @@ export function registerGetReleases(
             title: 'Interactive search results',
             annotations: READ_ONLY,
             description:
-                `Runs the interactive search an *arr's own UI runs and returns every candidate, rejected ones included with their \`rejections\` (often because the library already holds an equal or better file). trigger_search cannot show what was found; this can, and its \`guid\` and \`indexerId\` (at \`detail: "full"\`) are what grab_release takes. **Slow**: every indexer is polled synchronously, 15 seconds or more is normal and the timeout is ${(RELEASE_SEARCH_TIMEOUT_MS / 1000).toFixed(0)}s. A long wait is not a hang: do not retry. [[sonarr: Keep it narrow: on Sonarr pass \`episode\` for one search instead of a \`season\` (one search per episode).]] [[lidarr: On Lidarr \`id\` is the artist, so pass \`album\`, since a whole artist can return over a thousand rows.]] [[radarr: \`season\` is refused on Radarr.]] \`seeders\` is absent, not zero, on usenet. [[shelfmark: For a book, \`service: "shelfmark"\` with a book id from search_media \`source: "discover"\`.]] Field reference: arr://docs/get_releases.`,
+                `Runs the interactive search an *arr's own UI runs and returns every candidate, rejected ones included with their \`rejections\` (often because the library already holds an equal or better file). trigger_search cannot show what was found; this can, and its \`guid\` and \`indexerId\` (at \`detail: "full"\`) are what grab_release takes. **Slow**: every indexer is polled synchronously, 15 seconds or more is normal and the timeout is ${(RELEASE_SEARCH_TIMEOUT_MS / 1000).toFixed(0)}s. A long wait is not a hang: do not retry. [[sonarr|whisparr: Needs \`season\` or \`episode\`; \`episode\` is a single search.]] [[lidarr: On Lidarr \`id\` is the artist, so pass \`album\`, since a whole artist can return over a thousand rows.]] [[radarr: \`season\` is refused on Radarr.]] \`seeders\` is absent, not zero, on usenet. [[shelfmark: For a book, \`service: "shelfmark"\` with a book id from search_media \`source: "discover"\`.]] Field reference: arr://docs/get_releases.`,
             outputSchema: PagedOutputSchema,
             inputSchema: GetReleasesInput
         },

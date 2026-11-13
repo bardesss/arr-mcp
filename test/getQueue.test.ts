@@ -388,6 +388,24 @@ describe('get_queue', () => {
         expect(result.items.map(i => i.id)).toContain('25');
     });
 
+    it('pages the queue in an order that holds between two reads', async () => {
+        // Time left, the default order, moves while the walk is under way: each
+        // read here sees it shifted by one row. Only `added` keeps still.
+        let reads = 0;
+        const rows = Array.from({ length: 250 }, (_, i) => ({ id: i + 1, title: `Film.${i + 1}-GROUP`, status: 'downloading' }));
+        const impl = (async (input: string) => {
+            const url = new URL(input);
+            const size = Number(url.searchParams.get('pageSize'));
+            const start = (Number(url.searchParams.get('page')) - 1) * size;
+            const shift = url.searchParams.get('sortKey') === 'added' && url.searchParams.get('sortDirection') === 'ascending' ? 0 : reads;
+            reads += 1;
+            const order = [...rows.slice(shift), ...rows.slice(0, shift)];
+            return jsonResponse({ totalRecords: rows.length, records: order.slice(start, start + size) });
+        }) as unknown as typeof fetch;
+        const queue = await new RadarrAdapter(keyed(7878), impl).getQueue();
+        expect(queue.map(i => Number(i.id))).toEqual(rows.map(r => r.id));
+    });
+
     it('normalises Radarr sizes, which arrive as bytes', async () => {
         const result = await buildGetQueue([radarr()], opts);
         expect(result.items[0]).toMatchObject({
@@ -441,6 +459,17 @@ describe('get_queue', () => {
     it('translates Transmission numeric status codes into words', async () => {
         const result = await buildGetQueue([transmission()], opts);
         expect(result.items[0]).toMatchObject({ service: 'transmission', id: '7', status: 'downloading', etaSeconds: 900 });
+    });
+
+    // The RPC's integer id is renumbered when the daemon restarts; the hash is not.
+    it('reports a Transmission torrent by its info hash, not its session id', async () => {
+        const torrents = TRANSMISSION_TORRENTS.arguments.torrents.map(t => ({ ...t, hashString: 'ABCDEF'.padEnd(40, '0') }));
+        const adapter = new TransmissionAdapter(
+            transmissionConfig,
+            (async () => jsonResponse({ ...TRANSMISSION_TORRENTS, arguments: { torrents } })) as unknown as typeof fetch
+        );
+        const result = await buildGetQueue([adapter], opts);
+        expect(result.items[0]?.id).toBe('abcdef'.padEnd(40, '0'));
     });
 
     it('omits an empty Transmission error string rather than reporting a blank error', async () => {
@@ -592,10 +621,18 @@ describe('next_steps', () => {
         expect(result.next_steps?.[0]?.arguments).toEqual({ service: 'radarr', instance: '4k', action: 'import', download_id: 'ABC' });
     });
 
-    it('offers at most three', async () => {
+    it('offers at most three, and counts the rest', async () => {
         const rows = ['A', 'B', 'C', 'D', 'E'].map((d, i) => blocked('sonarr', String(i), d));
         const result = await buildGetQueue([queueOf('sonarr', rows)], { detail: 'standard', limit: 50 });
         expect(result.next_steps).toHaveLength(3);
+        expect(result.next_steps_more).toBe(2);
+    });
+
+    it('leaves the count out when every step fits', async () => {
+        const rows = ['A', 'B', 'C'].map((d, i) => blocked('sonarr', String(i), d));
+        const result = await buildGetQueue([queueOf('sonarr', rows)], { detail: 'standard', limit: 50 });
+        expect(result.next_steps).toHaveLength(3);
+        expect(result).not.toHaveProperty('next_steps_more');
     });
 
     it('keeps a step whose row is past the page', async () => {
@@ -612,8 +649,67 @@ describe('next_steps', () => {
         expect(result).not.toHaveProperty('next_steps');
     });
 
+    // An orphan may be a release Radarr never matched, which only a mapping can import.
+    it('offers import_download for an orphaned row stuck at importBlocked, asking for a mapping', async () => {
+        const orphan = row({ service: 'radarr/4k', id: '1', downloadId: 'ABC', orphaned: true, importState: 'importBlocked' });
+        const result = await buildGetQueue([queueOf('radarr/4k', [orphan])], { detail: 'standard', limit: 50 });
+        expect(result.next_steps).toEqual([
+            {
+                tool: 'import_download',
+                arguments: { service: 'radarr', instance: '4k', action: 'import', download_id: 'ABC' },
+                why: 'radarr/4k matched this download to nothing in its library: deleted, or never matched. To import it, add `mapping` with what each file is.'
+            }
+        ]);
+    });
+
+    it('offers nothing for an orphan still downloading, or one on Lidarr, whose import takes no mapping', async () => {
+        const result = await buildGetQueue(
+            [
+                queueOf('radarr', [row({ service: 'radarr', id: '1', downloadId: 'ABC', orphaned: true, status: 'downloading', importState: 'downloading' })]),
+                queueOf('lidarr', [row({ service: 'lidarr', id: '2', downloadId: 'DEF', orphaned: true, importState: 'importBlocked' })])
+            ],
+            { detail: 'standard', limit: 50 }
+        );
+        expect(result).not.toHaveProperty('next_steps');
+    });
+
     it('offers nothing on Whisparr, which has no manual import', async () => {
         const result = await buildGetQueue([queueOf('whisparr', [blocked('whisparr', '1', 'ABC')])], { detail: 'standard', limit: 50 });
         expect(result).not.toHaveProperty('next_steps');
+    });
+});
+
+describe('one grab listed by an *arr and its client', () => {
+    type Row = Partial<QueueItem> & { service: string; id: string };
+    const row = (r: Row): QueueItem => ({ title: 'Some.Film.2026-GROUP', status: 'downloading', ...r });
+    const queueOf = (id: string, rows: QueueItem[]): ServiceAdapter => ({ id, type: id.split('/')[0], getQueue: async () => rows }) as unknown as ServiceAdapter;
+    const hash = 'c'.repeat(40);
+    const adapters = [
+        queueOf('radarr', [row({ service: 'radarr', id: '1', downloadId: 'SAB1', etaSeconds: 1 }), row({ service: 'radarr', id: '2', downloadId: hash.toUpperCase(), etaSeconds: 2 })]),
+        queueOf('sabnzbd', [row({ service: 'sabnzbd', id: 'SAB1', downloadId: 'SAB1', etaSeconds: 1 }), row({ service: 'sabnzbd', id: 'SAB9', downloadId: 'SAB9', etaSeconds: 3 })]),
+        queueOf('qbittorrent', [row({ service: 'qbittorrent', id: hash, status: 'seeding', etaSeconds: 2 })])
+    ];
+
+    it('folds the client row into the *arr row at standard, naming the client', async () => {
+        const result = await buildGetQueue(adapters, { detail: 'standard', limit: 50 });
+        expect(result.items.map(i => `${i.service}:${i.id}`)).toEqual(['radarr:1', 'radarr:2', 'sabnzbd:SAB9']);
+        expect(result.items.map(i => i.client)).toEqual(['sabnzbd', 'qbittorrent', undefined]);
+        expect(result.total).toBe(3);
+    });
+
+    it('folds at minimal too', async () => {
+        const result = await buildGetQueue(adapters, { detail: 'minimal', limit: 50 });
+        expect(result.total).toBe(3);
+    });
+
+    it('keeps both rows at full', async () => {
+        const result = await buildGetQueue(adapters, { detail: 'full', limit: 50 });
+        expect(result.total).toBe(5);
+        expect(result.items.some(i => i.client !== undefined)).toBe(false);
+    });
+
+    it('keeps a client row that is the only one a filter matches', async () => {
+        const result = await buildGetQueue(adapters, { detail: 'standard', limit: 50, filter: { status: 'seeding' } });
+        expect(result.items.map(i => `${i.service}:${i.id}`)).toEqual([`qbittorrent:${hash}`]);
     });
 });

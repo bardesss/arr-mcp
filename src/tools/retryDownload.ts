@@ -69,14 +69,8 @@ async function askArrs(adapters: readonly ServiceAdapter[], downloadId: string):
     };
 }
 
-/** The *arrs with no download trace, by adapter type and display name. */
-const UNTRACED = [
-    ['lidarr', 'Lidarr']
-] as const;
-
-/** The preview's lines about replacements. Lidarr is named
- *  only when one is configured; naming it otherwise is noise. */
-function movedOnLines(view: ArrView, adapters: readonly ServiceAdapter[]): string[] {
+/** The preview's lines about replacements. */
+function movedOnLines(view: ArrView): string[] {
     const replaced = view.traces.flatMap(trace => {
         const next = trace.replacement;
         if (next === undefined) return [];
@@ -85,12 +79,7 @@ function movedOnLines(view: ArrView, adapters: readonly ServiceAdapter[]): strin
         ];
     });
     const unreachable = view.unreachable.map(id => `Could not check ${id} for a replacement, so one it grabbed would not show here.`);
-    const unchecked = UNTRACED.filter(([type]) => adapters.some(a => a.type === type)).map(([, name]) => name);
-    return [
-        ...replaced,
-        ...unreachable,
-        ...(unchecked.length === 0 ? [] : [`${unchecked.join(' and ')} ${unchecked.length === 1 ? 'is' : 'are'} not checked for a replacement.`])
-    ];
+    return [...replaced, ...unreachable];
 }
 
 /** The result's lines about the *arrs: who is tracking it, and the
@@ -174,7 +163,7 @@ export function registerRetryDownload(server: McpServer, context: WriteContext, 
 
             const effects = [METHOD_TEXT[target.method](adapter.id), describeTarget(target, adapter.id)];
             const view = target.downloadId === undefined ? undefined : await askArrs(adapters, target.downloadId);
-            if (view !== undefined) effects.push(...movedOnLines(view, adapters));
+            if (view !== undefined) effects.push(...movedOnLines(view));
             if (password !== undefined) effects.push('A password will be used.');
             if (password !== undefined && target.method === 'retry' && adapter.type === 'sabnzbd') {
                 effects.push(

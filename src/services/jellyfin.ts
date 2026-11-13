@@ -226,7 +226,7 @@ export class JellyfinAdapter
      * guaranteed source of silent mismatches.
      */
     async listUsers(): Promise<ServiceUser[]> {
-        const users = await this.#http.get<RawUser[]>('/Users');
+        const users = await this.#http.getArray<RawUser>('/Users');
         return users
             .filter((u): u is { Id: string; Name: string } => typeof u.Id === 'string' && typeof u.Name === 'string')
             .map(u => ({ id: u.Id, name: u.Name }));
@@ -248,7 +248,7 @@ export class JellyfinAdapter
      * poll.
      */
     async startLibraryScan(): Promise<CommandHandle> {
-        const tasks = await this.#http.get<RawTask[]>('/ScheduledTasks');
+        const tasks = await this.#http.getArray<RawTask>('/ScheduledTasks');
         const scan = tasks.find(t => t.Key === LIBRARY_SCAN_KEY);
 
         if (scan?.Id === undefined) {
@@ -263,7 +263,7 @@ export class JellyfinAdapter
     }
 
     async getScanState(): Promise<ScanState> {
-        const tasks = await this.#http.get<RawTask[]>('/ScheduledTasks');
+        const tasks = await this.#http.getArray<RawTask>('/ScheduledTasks');
         const scan = tasks.find(t => t.Key === LIBRARY_SCAN_KEY);
         const lastCompleted = scan?.LastExecutionResult?.EndTimeUtc;
         return {
@@ -308,7 +308,7 @@ export class JellyfinAdapter
 
     async getPlayback(user: ServiceUser): Promise<PlaybackEntry[]> {
         const [sessions, resume] = await Promise.all([
-            this.#http.get<RawSession[]>('/Sessions'),
+            this.#http.getArray<RawSession>('/Sessions'),
             /**
              * `/UserItems/Resume` is the documented way to ask for the resumable
              * set. `/Items?IsResumable=true` looks like the right query but is
@@ -686,16 +686,21 @@ export class JellyfinAdapter
 
     async readWatchTarget(user: ServiceUser, itemId: string): Promise<WatchTarget> {
         const id = this.#itemId(itemId);
-        const item = await this.#http.get<RawItemDetail & { Type?: string; UserData?: { Played?: boolean } }>(
-            `/Items/${id}?userId=${encodeURIComponent(user.id)}`
-        );
+        const item = await this.#http.get<
+            RawItemDetail & { Type?: string; IsFolder?: boolean; IndexNumber?: number; SeriesId?: string; UserData?: { Played?: boolean } }
+        >(`/Items/${id}?userId=${encodeURIComponent(user.id)}`);
 
         const KINDS: Record<string, WatchTarget['kind']> = { Movie: 'movie', Series: 'series', Episode: 'episode' };
+        // Marking a folder marks every child, so it is told apart from a leaf.
+        // Seen live: Season and CollectionFolder both carry IsFolder.
+        const folder = item.IsFolder === true || item.Type === 'Season' || item.Type === 'BoxSet';
+        const seasonOf = item.Type === 'Season' && typeof item.SeriesId === 'string' && /^[0-9a-f]{32}$/i.test(item.SeriesId);
         return {
             id,
             title: fenceText(item.Name ?? '', { service: this.id, field: 'Name' }),
-            kind: KINDS[item.Type ?? ''] ?? 'item',
-            watched: item.UserData?.Played === true
+            kind: KINDS[item.Type ?? ''] ?? (folder ? 'folder' : 'item'),
+            watched: item.UserData?.Played === true,
+            ...(seasonOf ? { seriesId: item.SeriesId, ...(typeof item.IndexNumber === 'number' ? { season: item.IndexNumber } : {}) } : {})
         };
     }
 

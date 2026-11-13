@@ -4,8 +4,8 @@ import { unfence } from '../core/fence.ts';
 import { logFields, type LogRow } from '../core/logs.ts';
 import { expiringSoon, isExpired, type StoredToken } from '../core/mcpTokens.ts';
 import type { DatasetStatus } from '../metadata/imdbDataset.ts';
-import type { ConnectionDiagnosis, DiskSpace, HealthCheck, HistoryEntry, ScanState, Window } from '../services/types.ts';
-import { groupDisks, humanBytes } from '../core/disks.ts';
+import type { ConnectionDiagnosis, HealthCheck, HistoryEntry, ScanState, Window } from '../services/types.ts';
+import { humanBytes, type DiskGroup } from '../core/disks.ts';
 import { esc, html, raw, shortTime, type SafeHtml } from './html.ts';
 import { LOGO, serviceIcon } from './icons.ts';
 
@@ -248,7 +248,8 @@ export function dashboardPage(opts: {
     /** Absent when the IMDb dataset is not configured, in which case the
      *  panel is not rendered at all rather than rendered as "off". */
     imdb?: DatasetStatus | undefined;
-    disks: DiskSpace[];
+    /** Already one row per filesystem: `buildStackHealth` groups them. */
+    disks: DiskGroup[];
     failures: HealthCheck[];
     scans: ScanState[];
     theme?: Theme | undefined;
@@ -304,7 +305,7 @@ export function dashboardPage(opts: {
                   </tbody>
               </table>`;
 
-    const grouped = groupDisks(opts.disks);
+    const grouped = opts.disks;
     const disks =
         grouped.length === 0
             ? html`<p class="note">No service reported disk space.</p>`
@@ -491,7 +492,7 @@ export function eventLogPage(opts: {
                 </p>`
               : rows.length === 0
                 ? html`<p class="note">
-                      Nothing has arrived yet. Each Radarr and Sonarr instance needs a webhook connection, and
+                      Nothing has arrived yet. Each Radarr, Sonarr and Lidarr instance needs a webhook connection, and
                       <a href="/ui/config?tab=settings#webhooks">the Configuration page</a> has the details.
                   </p>`
                 : raw('');
@@ -521,7 +522,7 @@ export function eventLogPage(opts: {
     const body = html`<h2>Logs</h2>
         ${logTabs('events', '')}
         <p class="note">
-            What Radarr and Sonarr reported${opts.retentionDays === undefined ? raw('') : html`, kept for ${opts.retentionDays} days`}.
+            What Radarr, Sonarr and Lidarr reported${opts.retentionDays === undefined ? raw('') : html`, kept for ${opts.retentionDays} days`}.
             A title's history goes from the service when the title is deleted, and this stays.
             ${(opts.read?.total ?? 0) > rows.length ? html`Showing the latest ${rows.length} of ${opts.read?.total ?? 0}.` : raw('')}
         </p>

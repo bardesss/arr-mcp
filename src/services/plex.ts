@@ -986,6 +986,17 @@ export class PlexAdapter
         const failed = sections.filter((_, i) => results[i]?.status === 'rejected');
 
         if (failed.length === sections.length) {
+            // A timeout or a refused token on every section is that, not a
+            // missing library: keep the kind and its remedy.
+            const reasons: unknown[] = results.map(r => (r.status === 'rejected' ? (r.reason as unknown) : undefined));
+            const first = reasons[0];
+            if (
+                first instanceof ServiceError &&
+                KEPT_STEP_KINDS.has(first.kind) &&
+                reasons.every(r => r instanceof ServiceError && r.kind === first.kind)
+            ) {
+                throw first;
+            }
             throw new ServiceError(
                 'UpstreamError',
                 this.id,
@@ -1029,6 +1040,11 @@ export class PlexAdapter
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {
-        return diagnoseConnection(this.id, this.type, () => this.getVersion());
+        return diagnoseConnection(this.id, this.type, async () => {
+            const version = await this.getVersion();
+            // `/identity` answers without a token, so a wrong one passes it.
+            await this.#sections();
+            return version;
+        });
     }
 }

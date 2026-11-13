@@ -7,12 +7,12 @@ import { fenceText } from '../src/core/fence.ts';
 import { IdentityResolver } from '../src/core/identity.ts';
 import type { IndexInput } from '../src/core/resolver.ts';
 import { buildChain as chain, type Diagnosis, type Evidence } from '../src/tools/diagnose/chain.ts';
-import { collectEvidence, DIAGNOSE_BUDGET_MS } from '../src/tools/diagnose/evidence.ts';
+import { collectEvidence, DIAGNOSE_BUDGET_MS, findRequest } from '../src/tools/diagnose/evidence.ts';
 import { buildDiagnose, type DiagnoseDeps } from '../src/tools/diagnose/index.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
 import { GrimmoryAdapter } from '../src/services/grimmory.ts';
 import { LidarrAdapter } from '../src/services/lidarr.ts';
-import type { ServiceAdapter, UserDirectoryCapable } from '../src/services/types.ts';
+import type { MediaRequest, ServiceAdapter, UserDirectoryCapable } from '../src/services/types.ts';
 
 /** These tests diagnose by title, the form that takes a query. */
 const buildChain = (query: string, ev: Evidence): Diagnosis => chain(query, ev, true);
@@ -124,6 +124,44 @@ describe('diagnose', () => {
             { query: 'some film' }
         );
         expect(JSON.stringify(d)).not.toContain('Someone Else');
+    });
+
+    describe('counting the enabled indexers', () => {
+        const indexer = (id: number, enabled: boolean) => ({ service: 'prowlarr', id, name: `i${id}`, enabled, protocol: 'torrent', priority: 25 });
+        const withProwlarr = (query: string, counts: { reads: number }, fails = false): DiagnoseDeps => {
+            const adapters = [
+                stub('radarr', { listLibrary: async () => [FILM], getQueue: async () => [] }),
+                stub('prowlarr', {
+                    getIndexers: async () => {
+                        counts.reads += 1;
+                        if (fails) throw new Error('down');
+                        return [indexer(1, true), indexer(2, true), indexer(3, true), indexer(4, false)];
+                    },
+                    getRecentRejections: async () => [{ service: 'prowlarr', indexer: 'i1', at: '2026-08-05T02:00:00Z', reason: 'HTTP 429', query }]
+                })
+            ];
+            return { adapters, library: new LibraryLoader(adapters, undefined) };
+        };
+
+        it('reads them when a failure mentions the item, and weighs the failure against them', async () => {
+            const counts = { reads: 0 };
+            const d = await buildDiagnose(withProwlarr('Some Film', counts), { query: 'some film' });
+            expect(counts.reads).toBe(1);
+            expect(d.steps.find(s => s.stage === 'indexers')).toMatchObject({ status: 'warning', detail: expect.stringContaining('from 1 of 3 enabled indexer(s)') });
+            expect(d.verdict.stage).toBe('file');
+        });
+
+        it('does not read them when no failure mentions the item', async () => {
+            const counts = { reads: 0 };
+            await buildDiagnose(withProwlarr('Another Title', counts), { query: 'some film' });
+            expect(counts.reads).toBe(0);
+        });
+
+        it('keeps the failure the verdict when they cannot be read, without costing certainty', async () => {
+            const d = await buildDiagnose(withProwlarr('Some Film', { reads: 0 }, true), { query: 'some film' });
+            expect(d.verdict).toMatchObject({ stage: 'indexers', certain: true });
+            expect(d.degraded).toContain('prowlarr:indexers');
+        });
     });
 
     it('degrades a failing service into unknown rather than failing the call', async () => {
@@ -1597,5 +1635,35 @@ describe('the diagnose budget', () => {
         vi.useFakeTimers();
         await buildDiagnose(deps(), { query: 'some film' });
         expect(vi.getTimerCount()).toBe(0);
+    });
+});
+
+describe('findRequest', () => {
+    const req = (id: number, status: MediaRequest['status'], requestedAt?: string, over: Partial<MediaRequest> = {}): MediaRequest => ({
+        service: 'seerr',
+        id,
+        status,
+        mediaType: 'movie',
+        tmdbId: 550,
+        requestedBy: 'someone',
+        ...(requestedAt === undefined ? {} : { requestedAt }),
+        ...over
+    });
+
+    it('takes the newest request, whatever order Seerr lists them in', () => {
+        const found = findRequest([req(1, 'declined', '2026-01-10T00:00:00Z'), req(2, 'approved', '2026-03-10T00:00:00Z')], { tmdb: 550 }, 'movie');
+        expect(found?.id).toBe(2);
+    });
+
+    it('still prefers a pending request over a newer one', () => {
+        const found = findRequest([req(1, 'pending', '2026-01-10T00:00:00Z'), req(2, 'approved', '2026-03-10T00:00:00Z')], { tmdb: 550 }, 'movie');
+        expect(found?.id).toBe(1);
+    });
+
+    it('puts an undated request last, and breaks a tie on the TMDB match', () => {
+        expect(findRequest([req(1, 'declined'), req(2, 'approved', '2026-03-10T00:00:00Z')], { tmdb: 550 }, 'movie')?.id).toBe(2);
+        const byTvdb = req(3, 'declined', '2026-03-10T00:00:00Z', { mediaType: 'tv', tmdbId: 9, tvdbId: 1 });
+        const byTmdb = req(4, 'approved', '2026-03-10T00:00:00Z', { mediaType: 'tv' });
+        expect(findRequest([byTvdb, byTmdb], { tmdb: 550, tvdb: 1 }, 'series')?.id).toBe(4);
     });
 });

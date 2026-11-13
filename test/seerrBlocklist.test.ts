@@ -197,6 +197,12 @@ describe('blocklist_media', () => {
         expect(seerr.listed.has('movie:348')).toBe(false);
     });
 
+    it.each(['0x10', '1e3', ' 348 ', '348.0'])('refuses the non-canonical id %j before asking Seerr', async id => {
+        const seerr = fakeSeerr({ listed: ['movie:16', 'movie:1000', 'movie:348'] });
+        await expect(setup(seerr, false, true).call({ action: 'remove', id, kind: 'movie' })).rejects.toThrow(/is not a TMDB id/);
+        expect(seerr.sent).toHaveLength(0);
+    });
+
     it('fails on a TMDB id Seerr does not know rather than blocklisting it blind', async () => {
         await expect(setup(fakeSeerr()).call({ action: 'add', id: 999, kind: 'movie' })).rejects.toThrow(/404/);
     });

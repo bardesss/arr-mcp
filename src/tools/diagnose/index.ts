@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { ServiceIdSchema } from '../../config/schema.ts';
+import { serviceOf } from '../../config/schema.ts';
 import { NextStepSchema, nextStepLine } from '../../core/nextStep.ts';
 import { READ_ONLY, toolInput } from '../../core/shape.ts';
 import { buildChain, type Diagnosis } from './chain.ts';
@@ -18,7 +18,7 @@ export async function buildDiagnose(deps: DiagnoseDeps, target: DiagnoseTarget):
 
 const DiagnoseInput = toolInput({
     query: z.string().min(1).optional().describe('A title: how a person actually asks.'),
-    service: ServiceIdSchema.optional().describe('With `id`: an exact item, when one is already in hand.'),
+    service: serviceOf(['radarr', 'sonarr', 'whisparr', 'lidarr', 'jellyfin', 'plex']).optional().describe('With `id`: an exact item, when one is already in hand.'),
     id: z.string().min(1).optional(),
     instance: z.string().min(1).optional().describe(INSTANCE_PARAM_DESCRIPTION),
     user: z
