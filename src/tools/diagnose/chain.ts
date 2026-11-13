@@ -19,7 +19,7 @@ import type {
     SubtitleGap
 } from '../../services/types.ts';
 import { removalSentence, upcomingSentence } from '../cleanupStatus.ts';
-import { importFailing, importStepFor, retriedImportStepFor } from '../importStep.ts';
+import { importFailing, importStepFor, needsMapping, orphanImportStepFor, retriedImportStepFor } from '../importStep.ts';
 import { instanceArgs } from '../resolveInstance.ts';
 
 type Stage = 'resolve' | 'request' | 'managed' | 'file' | 'queue' | 'indexers' | 'library' | 'scan' | 'subtitles';
@@ -765,7 +765,7 @@ function strikeNoteFor(row: QueueItem, standing: Evidence['strikes']): string {
  * that carries a download id and not from the row that was picked: a torrent
  * client's row has none.
  */
-function importStep(mine: readonly QueueItem[], item: MergedItem): NextStep | undefined {
+function importSource(mine: readonly QueueItem[]): QueueItem | undefined {
     // None while the *arr says it is importing the grab itself, as get_queue offers none then,
     // unless it gave reasons: then it keeps failing, and get_queue offers one too.
     const pending = mine.filter(q => {
@@ -773,11 +773,25 @@ function importStep(mine: readonly QueueItem[], item: MergedItem): NextStep | un
         const grab = sameGrab(q, mine);
         return !IMPORTING.has(importStateOf(grab) ?? '') || grab.some(g => !isClientRow(g) && importFailing(g));
     });
-    const source = pending.find(q => q.mediaId !== undefined) ?? pending[0];
+    return pending.find(q => q.mediaId !== undefined) ?? pending[0];
+}
+
+function importStep(mine: readonly QueueItem[], item: MergedItem): NextStep | undefined {
+    const source = importSource(mine);
     if (source === undefined) return undefined;
+    // Matched to nothing in the library, so an import without a mapping finds nowhere to put it.
+    if (needsMapping(source)) return orphanImportStepFor(source);
     return importStateOf(sameGrab(source, mine)) === 'importPending'
         ? retriedImportStepFor(source, item.acquisition?.service)
         : importStepFor(source, item.acquisition?.service);
+}
+
+/** Added to an import remedy when the import offered needs a `mapping`. */
+function mappingNote(mine: readonly QueueItem[]): string {
+    const source = importSource(mine);
+    return source !== undefined && needsMapping(source)
+        ? ` ${source.service} matched the download to nothing in its library, so the import needs \`mapping\` saying what each file is.`
+        : '';
 }
 
 /** The rows that stand for this row's download, itself included. */
@@ -823,7 +837,7 @@ function finishedFiles(row: QueueItem, grab: readonly QueueItem[], cls: QueueCla
  */
 function troubleRemedy(cls: Trouble, kept: Kept | undefined, row: QueueItem, grab: readonly QueueItem[], item: MergedItem): string {
     if (cls === 'failed') return queueFaultRemedy(item);
-    if (kept === 'importPending') return queueImportRemedy(item);
+    if (kept === 'importPending') return queueImportRemedy(item) + mappingNote(grab);
     if (cls === 'unrecognised') return kept === undefined ? queueUnrecognisedRemedy(item) : QUEUE_UNRECOGNISED_KEPT_REMEDY;
     if (kept === undefined) {
         const said = grab.find(isClientRow) ?? row;
@@ -931,7 +945,7 @@ function queueStep(ev: Evidence, item: MergedItem): QueueResult {
             const next = importStep(mine, item);
             return {
                 step: { stage: 'queue', service: row.service, status: 'blocked', detail: `Downloaded, but ${importer ?? arrOf(item)} could not import it.${reasons}${strikeNote}` },
-                remedy: queueImportFailingRemedy(item),
+                remedy: queueImportFailingRemedy(item) + mappingNote(mine),
                 ...(next === undefined ? {} : { next })
             };
         }
@@ -957,7 +971,7 @@ function queueStep(ev: Evidence, item: MergedItem): QueueResult {
                 status: 'blocked',
                 detail: `${state === 'importBlocked' ? `Downloaded, but ${importer ?? arrOf(item)} will not import it` : `Downloaded, but not yet imported${by}`}.${reasons}${strikeNote}`
             },
-            remedy: state === 'importBlocked' ? queueImportBlockedRemedy(item) : queueImportRemedy(item),
+            remedy: (state === 'importBlocked' ? queueImportBlockedRemedy(item) : queueImportRemedy(item)) + mappingNote(mine),
             ...(next === undefined ? {} : { next })
         };
     }

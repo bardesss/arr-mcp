@@ -3236,6 +3236,29 @@ describe("buildChain: the *arr's own import state and reasons", () => {
         expect(d.verdict.next_steps?.map(s => s.tool)).toEqual(['import_download']);
     });
 
+    // Radarr matched it to nothing in the library, so only a mapping says where it goes.
+    it('names `mapping` for an orphaned import at importBlocked', () => {
+        const mismatch = reason('Movie title mismatch, automatic import is not possible.');
+        const { mediaId: _mediaId, ...rest } = done({ importState: 'importBlocked', statusMessages: [mismatch], orphaned: true });
+        const d = run(rest);
+        expect(d.verdict.remedy).toContain('`mapping`');
+        expect(d.verdict.next_steps).toEqual([expect.objectContaining({ tool: 'import_download', why: expect.stringContaining('`mapping`') })]);
+    });
+
+    it('names `mapping` for an orphaned import the *arr keeps failing', () => {
+        const none = reason('No files found are eligible for import in /downloads/complete/Some.Film.2026.1080p');
+        const { mediaId: _mediaId, ...rest } = done({ importState: 'importPending', statusMessages: [none], orphaned: true });
+        const d = run(rest);
+        expect(d.verdict.remedy).toContain('`mapping`');
+        expect(d.verdict.next_steps).toEqual([expect.objectContaining({ tool: 'import_download', why: expect.stringContaining('`mapping`') })]);
+    });
+
+    it('does not name `mapping` for a row matched to the film', () => {
+        const mismatch = reason('Movie title mismatch, automatic import is not possible.');
+        const d = run(done({ importState: 'importBlocked', statusMessages: [mismatch] }));
+        expect(d.verdict.remedy).not.toContain('mapping');
+    });
+
     it("reads the *arr's state when a client's row of the grab comes first", () => {
         const client: QueueItem = {
             service: 'sabnzbd',

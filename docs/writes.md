@@ -210,8 +210,7 @@ ones, and a token taken to a second instance is refused.
 A token that is refused for any reason but having been used already comes back
 as a fresh preview with a new token, and its text carries that preview's summary
 and effects as a first preview does. Some writes also bind what they act on, not
-only the arguments: `remove_queue_item` with `orphaned: true` the queue items it listed,
-`delete_episode_files` the file ids, `grab_release` the release, and a
+only the arguments: `delete_episode_files` the file ids, `grab_release` the release, and a
 `fix_metadata` retag the files, their albums and Lidarr's Scrub Existing Tags
 setting. For those, the same call is refused when that has moved since the old
 preview, and the new effects are what the caller reads before confirming again.
