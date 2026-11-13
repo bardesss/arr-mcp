@@ -126,6 +126,44 @@ describe('diagnose', () => {
         expect(JSON.stringify(d)).not.toContain('Someone Else');
     });
 
+    describe('counting the enabled indexers', () => {
+        const indexer = (id: number, enabled: boolean) => ({ service: 'prowlarr', id, name: `i${id}`, enabled, protocol: 'torrent', priority: 25 });
+        const withProwlarr = (query: string, counts: { reads: number }, fails = false): DiagnoseDeps => {
+            const adapters = [
+                stub('radarr', { listLibrary: async () => [FILM], getQueue: async () => [] }),
+                stub('prowlarr', {
+                    getIndexers: async () => {
+                        counts.reads += 1;
+                        if (fails) throw new Error('down');
+                        return [indexer(1, true), indexer(2, true), indexer(3, true), indexer(4, false)];
+                    },
+                    getRecentRejections: async () => [{ service: 'prowlarr', indexer: 'i1', at: '2026-08-05T02:00:00Z', reason: 'HTTP 429', query }]
+                })
+            ];
+            return { adapters, library: new LibraryLoader(adapters, undefined) };
+        };
+
+        it('reads them when a failure mentions the item, and weighs the failure against them', async () => {
+            const counts = { reads: 0 };
+            const d = await buildDiagnose(withProwlarr('Some Film', counts), { query: 'some film' });
+            expect(counts.reads).toBe(1);
+            expect(d.steps.find(s => s.stage === 'indexers')).toMatchObject({ status: 'warning', detail: expect.stringContaining('from 1 of 3 enabled indexer(s)') });
+            expect(d.verdict.stage).toBe('file');
+        });
+
+        it('does not read them when no failure mentions the item', async () => {
+            const counts = { reads: 0 };
+            await buildDiagnose(withProwlarr('Another Title', counts), { query: 'some film' });
+            expect(counts.reads).toBe(0);
+        });
+
+        it('keeps the failure the verdict when they cannot be read, without costing certainty', async () => {
+            const d = await buildDiagnose(withProwlarr('Some Film', { reads: 0 }, true), { query: 'some film' });
+            expect(d.verdict).toMatchObject({ stage: 'indexers', certain: true });
+            expect(d.degraded).toContain('prowlarr:indexers');
+        });
+    });
+
     it('degrades a failing service into unknown rather than failing the call', async () => {
         const adapters = [
             stub('radarr', { listLibrary: async () => [FILM], getQueue: async () => [] }),

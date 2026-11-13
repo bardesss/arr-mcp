@@ -2733,15 +2733,15 @@ describe('buildChain — a Lidarr artist', () => {
         expect(stepFor(d, 'managed')).toMatchObject({ status: 'unknown', service: 'sonarr' });
         expect(d.verdict).toMatchObject({ stage: 'managed', certain: false, remedy: 'Check that sonarr is reachable, then diagnose_media again: it may be managing it.' });
 
-        // The film's kind was known: Sonarr cannot hold it.
+        // The film's kind was known: Sonarr cannot hold it, and the library copy is what plays.
         const known = buildChain('some film', healthy({ item: guessed, libraryDegraded: ['sonarr'] }));
-        expect(stepFor(known, 'managed')?.status).toBe('blocked');
+        expect(stepFor(known, 'managed')?.status).toBe('warning');
     });
 
     // A film or series id rules music out, and with it Lidarr; an item with none may be music.
     it.each<[MergedItem['ids'], string]>([
-        [{ tmdb: 550 }, 'blocked'],
-        [{ imdb: 'tt0000550' }, 'blocked'],
+        [{ tmdb: 550 }, 'warning'],
+        [{ imdb: 'tt0000550' }, 'warning'],
         [{}, 'unknown']
     ])('counts an unread Lidarr for a guessed kind only when the ids could be music (%j)', (ids, status) => {
         const guessed = item({ title: fence('Some Title', 'jellyfin', 'Name'), ids, acquisition: undefined, presence: 'jellyfin_only' });
@@ -3062,5 +3062,158 @@ describe('buildChain: in the media server with nothing managing it', () => {
         const d = buildChain('some show', healthy({ item: onServer({ kind: 'series', ids: { tvdb: 1 } }), request: { status: 'pending' } }));
         expect(d.verdict.stage).toBe('request');
         expect(d.verdict.summary).toMatch(/visible in jellyfin/);
+    });
+
+    it('keeps the managed step in line with the verdict, and still says nothing manages it', () => {
+        const d = buildChain('some film', healthy({ item: onServer() }));
+        expect(stepFor(d, 'managed')).toEqual({
+            stage: 'managed',
+            status: 'warning',
+            detail: 'Nothing configured here manages it, so nothing will upgrade or replace the copy in the library.'
+        });
+    });
+
+    it.each<['declined' | 'unknown', string]>([
+        ['declined', 'was declined'],
+        ['unknown', 'is in an indeterminate state']
+    ])('lets a series copy in the library outrank a request Seerr reports as %s, and mentions it', (status, said) => {
+        const d = buildChain('some show', healthy({ item: onServer({ kind: 'series', ids: { tvdb: 1 } }), request: { status } }));
+        expect(d.verdict.stage).toBe('playable');
+        expect(d.verdict.summary).toContain(`(Also: the Seerr request ${said}, but it is in jellyfin anyway, so the request does not hold it up.)`);
+    });
+});
+
+describe('buildChain: a series or artist with a file and a grab on its way', () => {
+    const show = item({
+        kind: 'series',
+        title: fence('Fargo', 'sonarr'),
+        ids: { tvdb: 1 },
+        acquisition: { service: 'sonarr', id: '7', monitored: true, hasFile: true }
+    });
+    const sonarrRow = (over: Partial<QueueItem> = {}): QueueItem => ({
+        service: 'sonarr',
+        id: 'q1',
+        title: queueTitle('sonarr', 'Fargo.S05E01.1080p'),
+        status: 'downloading',
+        mediaId: '7',
+        ...over
+    });
+
+    it('names a download in progress beside the playable verdict', () => {
+        const d = buildChain('fargo', healthy({ item: show, queue: { items: [sonarrRow()], partial: [] } }));
+        expect(d.verdict).toMatchObject({ stage: 'playable', certain: true });
+        expect(d.verdict.summary).toContain('(Also: Still downloading. This may be an episode you do not have yet.)');
+    });
+
+    it('names a release the *arr holds back beside the playable verdict', () => {
+        const d = buildChain('fargo', healthy({ item: show, queue: { items: [sonarrRow({ status: 'delay' })], partial: [] } }));
+        expect(d.verdict.summary).toContain('(Also: sonarr is holding this release back and has sent nothing to a download client. This may be an episode');
+    });
+
+    it('says an album for an artist', () => {
+        const artist = item({
+            kind: 'artist',
+            title: fence('Daft Punk', 'lidarr', 'artistName'),
+            ids: { mbid: '00000000-0000-4000-8000-000000000001' },
+            acquisition: { service: 'lidarr', id: '3', monitored: true, hasFile: true },
+            playback: undefined
+        });
+        const row = sonarrRow({ service: 'lidarr', title: queueTitle('lidarr', 'Daft.Punk.Homework.FLAC'), mediaId: '3' });
+        const d = buildChain('daft punk', healthy({ item: artist, queue: { items: [row], partial: [] } }));
+        expect(d.verdict.summary).toContain('This may be an album you do not have yet.');
+    });
+
+    it('stays quiet about a film whose file is already there, where a grab is an upgrade', () => {
+        const film = item({ acquisition: { service: 'radarr', id: '5', monitored: true, hasFile: true } });
+        const row = sonarrRow({ service: 'radarr', title: queueTitle('radarr', 'Some.Film.2026.2160p'), mediaId: '5' });
+        const d = buildChain('some film', healthy({ item: film, queue: { items: [row], partial: [] } }));
+        expect(d.verdict.summary).not.toContain('Also');
+    });
+});
+
+describe("buildChain: the *arr's own import state and reasons", () => {
+    const noFile = item({ acquisition: { service: 'radarr', id: '5', monitored: true, hasFile: false }, presence: 'arr_only', playback: undefined });
+    const reason = (text: string): string => fenceText(text, { service: 'radarr', field: 'statusMessage' });
+    const done = (over: Partial<QueueItem> = {}): QueueItem => ({
+        service: 'radarr',
+        id: 'q1',
+        title: queueTitle('radarr', 'Some.Film.2026.1080p'),
+        status: 'completed',
+        protocol: 'torrent',
+        sizeBytes: 1000,
+        remainingBytes: 0,
+        mediaId: '5',
+        downloadId: 'ABC123',
+        ...over
+    });
+    const run = (...rows: QueueItem[]) => buildChain('some film', healthy({ item: noFile, queue: { items: rows, partial: [] } }));
+
+    it('says the *arr is importing it, shows its reasons, and offers no import that would meet them', () => {
+        const upgrade = reason('Not an upgrade for existing movie file');
+        const d = run(done({ importState: 'importPending', statusMessages: [upgrade] }));
+        expect(stepFor(d, 'queue')?.detail).toBe(`Downloaded, and radarr is importing it. radarr says: ${upgrade}.`);
+        expect(d.verdict.remedy).toBe('Wait for Radarr to import it. If it stays here, fix what it reports in Radarr: an import by hand meets the same reasons.');
+        expect(d.verdict.next_steps).toBeUndefined();
+    });
+
+    it('waits, with no remedy, on an import the *arr is running without complaint', () => {
+        const d = run(done({ importState: 'importing' }));
+        expect(d.verdict).toMatchObject({ stage: 'queue', summary: 'Downloaded, and radarr is importing it.' });
+        expect(d.verdict.remedy).toBeUndefined();
+        expect(d.verdict.next_steps).toBeUndefined();
+    });
+
+    it('offers the import at importBlocked, with the reasons', () => {
+        const mismatch = reason('Found matching movie via grab history, but release was matched to movie by ID. Manual Import required.');
+        const d = run(done({ importState: 'importBlocked', statusMessages: [mismatch] }));
+        expect(stepFor(d, 'queue')?.detail).toBe(`Downloaded, but radarr will not import it. radarr says: ${mismatch}.`);
+        expect(d.verdict.remedy).toMatch(/^Radarr stopped before importing it and does not retry on its own\./);
+        expect(d.verdict.next_steps?.map(s => s.tool)).toEqual(['import_download']);
+    });
+
+    it("reads the *arr's state when a client's row of the grab comes first", () => {
+        const client: QueueItem = {
+            service: 'sabnzbd',
+            id: 'nzo_1',
+            title: queueTitle('sabnzbd', 'Some.Film.2026.1080p'),
+            status: 'completed',
+            protocol: 'usenet',
+            sizeBytes: 1000,
+            remainingBytes: 0,
+            downloadId: 'ABC123'
+        };
+        const d = run(client, done({ importState: 'importPending' }));
+        expect(d.verdict.next_steps).toBeUndefined();
+    });
+
+    it("shows the *arr's reasons on a row in trouble, and caps them", () => {
+        const lines = ['one', 'two', 'three', 'four'].map(reason);
+        const d = run(done({ status: 'warning', remainingBytes: 500, statusMessages: lines }));
+        expect(stepFor(d, 'queue')?.detail).toBe(`Download warning. radarr says: ${lines.slice(0, 3).join('; ')}; 1 more in get_queue.`);
+    });
+});
+
+describe('buildChain: indexer failures weighed against the indexers enabled', () => {
+    const noFile = item({ acquisition: { service: 'radarr', id: '5', monitored: true, hasFile: false }, presence: 'arr_only', playback: undefined });
+    const fail = (indexer: string) => ({ service: 'prowlarr', indexer, at: '2026-08-05T02:00:00Z', reason: 'HTTP 429', query: 'Some Film' });
+
+    it('keeps the missing file the verdict when one indexer of ten failed, and names the failure', () => {
+        const d = buildChain('some film', healthy({ item: noFile, rejections: [fail('One')], enabledIndexers: 10 }));
+        expect(stepFor(d, 'indexers')).toMatchObject({ status: 'warning', detail: '1 recent failure(s) from 1 of 10 enabled indexer(s), most recently One on prowlarr: HTTP 429.' });
+        expect(d.verdict).toMatchObject({ stage: 'file', certain: true });
+        expect(d.verdict.summary).toContain('(Also: 1 recent failure(s) from 1 of 10 enabled indexer(s)');
+        expect(d.verdict.remedy).toBe('Trigger a search in radarr. Nothing is downloading, and most indexers reported no failure.');
+        expect(d.verdict.next_steps?.map(s => s.tool)).toEqual(['trigger_search']);
+    });
+
+    it('makes the indexers the verdict when most of them failed', () => {
+        const d = buildChain('some film', healthy({ item: noFile, rejections: ['A', 'B', 'C', 'C'].map(fail), enabledIndexers: 5 }));
+        expect(stepFor(d, 'indexers')?.detail).toMatch(/^4 recent failure\(s\) from 3 of 5 enabled/);
+        expect(d.verdict.stage).toBe('indexers');
+    });
+
+    it('keeps a failure the verdict when the indexers could not be counted', () => {
+        const d = buildChain('some film', healthy({ item: noFile, rejections: [fail('One')] }));
+        expect(d.verdict.stage).toBe('indexers');
     });
 });
