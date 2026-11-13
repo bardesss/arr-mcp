@@ -1,4 +1,3 @@
-import { getConnInfo } from '@hono/node-server/conninfo';
 import type { Context, Hono } from 'hono';
 import { sameUrl } from '../api/bodies.ts';
 import { commitConfig } from '../config/commit.ts';
@@ -44,7 +43,7 @@ import {
 import type { ExpiryChoice, TokenTier } from '../core/mcpTokens.ts';
 import { configPage, configTabForPost, configTabNamed, defaultUserNote, offerableTypes, type OAuthDraft } from './configPage.ts';
 import { isLoopbackHost, probeJwks } from './jwksProbe.ts';
-import { apiEndpoint, mcpEndpoint, requestIsHttps, sameOrigin } from './origin.ts';
+import { apiEndpoint, forwardedProtoOf, mcpEndpoint, peerAddress, requestIsHttps, sameOrigin } from './origin.ts';
 import type { WebhookEvents } from '../core/webhookEvents.ts';
 import type { HistoryEntry, Window } from '../services/types.ts';
 import {
@@ -101,12 +100,12 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     // seconds, and counting that as coming back would keep a forgotten browser
     // signed in for good. A response that set the cookie itself (sign-out, a
     // password change) has already decided, and this must not overwrite it.
-    app.use('/ui/*', async (c, next) => {
+    app.use('/ui/*', async (c: Context, next) => {
         await next();
         if (c.req.method !== 'GET' || runtime.config.auth.password_hash === undefined) return;
         if (c.res.headers.has('set-cookie') || !c.res.headers.get('content-type')?.startsWith('text/html')) return;
         const renewed = runtime.sessions.renew(readCookie(c.req.header('cookie'), SESSION_COOKIE));
-        if (renewed !== undefined) c.header('set-cookie', sessionCookie(renewed, Math.floor(SESSION_TTL_MS / 1000), secureFor(c)));
+        if (renewed !== undefined) c.header('set-cookie', sessionCookie(renewed, Math.floor(SESSION_TTL_MS / 1000), secureFor(c, runtime)));
     });
 
     app.get('/ui/app.css', c => c.body(CSS, 200, { 'content-type': 'text/css; charset=utf-8', ...CACHE }));
@@ -179,7 +178,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         await runtime.reload();
 
         const token = runtime.sessions.issue();
-        c.header('set-cookie', sessionCookie(token, Math.floor(SESSION_TTL_MS / 1000), secureFor(c)));
+        c.header('set-cookie', sessionCookie(token, Math.floor(SESSION_TTL_MS / 1000), secureFor(c, runtime)));
         logger.info({ ...originOf(c), username }, 'config UI claimed');
         return c.redirect('/ui', 302);
     });
@@ -246,7 +245,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
 
         loginThrottle.recordSuccess(key);
         const token = runtime.sessions.issue();
-        c.header('set-cookie', sessionCookie(token, Math.floor(SESSION_TTL_MS / 1000), secureFor(c)));
+        c.header('set-cookie', sessionCookie(token, Math.floor(SESSION_TTL_MS / 1000), secureFor(c, runtime)));
         logger.info({ ...originOf(c), username }, 'config UI sign-in');
         return c.redirect('/ui', 302);
     });
@@ -260,7 +259,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         // Clearing the cookie only ends the session for the browser holding it.
         // Anyone with a copy of the token kept access until it expired.
         runtime.sessions.revoke(session);
-        c.header('set-cookie', clearedSessionCookie(secureFor(c)));
+        c.header('set-cookie', clearedSessionCookie(secureFor(c, runtime)));
         return c.redirect('/ui/login', 302);
     });
 
@@ -301,7 +300,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                 tokens: snapshot.config.auth.tokens,
                 plaintextOnDisk: runtime.plaintextOnDisk,
                 now: new Date(),
-                mcpUrl: mcpEndpoint(c.req.url, c.req.header('x-forwarded-proto')),
+                mcpUrl: mcpEndpoint(c.req.url, forwardedProtoOf(c, runtime.config.auth.trusted_proxies ?? [])),
                 ...(runtime.dataset === undefined ? {} : { imdb: runtime.dataset.status() }),
                 disks: health.disks.items,
                 failures: health.failures.items,
@@ -704,7 +703,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                     // you out of the page you changed it on.
                     runtime.sessions.rotateKey();
                     activeSession = runtime.sessions.issue();
-                    c.header('set-cookie', sessionCookie(activeSession, Math.floor(SESSION_TTL_MS / 1000), secureFor(c)));
+                    c.header('set-cookie', sessionCookie(activeSession, Math.floor(SESSION_TTL_MS / 1000), secureFor(c, runtime)));
                 }
             } catch (err) {
                 // The file is written atomically and validated first, so
@@ -725,7 +724,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                         : {
                               revealed: {
                                   ...reveal,
-                                  mcpUrl: mcpEndpoint(c.req.url, c.req.header('x-forwarded-proto')),
+                                  mcpUrl: mcpEndpoint(c.req.url, forwardedProtoOf(c, runtime.config.auth.trusted_proxies ?? [])),
                                   urlToken: runtime.config.auth.allow_token_in_url
                               }
                           }),
@@ -734,7 +733,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                         : {
                               revealedKey: {
                                   key: revealKey,
-                                  apiUrl: apiEndpoint(c.req.url, c.req.header('x-forwarded-proto'))
+                                  apiUrl: apiEndpoint(c.req.url, forwardedProtoOf(c, runtime.config.auth.trusted_proxies ?? []))
                               }
                           })
                 }
@@ -1083,7 +1082,8 @@ export const originOf = (c: Context): { ip: string; forwardedFor?: string } => {
     };
 };
 
-const secureFor = (c: Pick<Context, 'req'>): boolean => requestIsHttps(c.req.url, c.req.header('x-forwarded-proto'));
+const secureFor = (c: Context, runtime: Runtime): boolean =>
+    requestIsHttps(c.req.url, forwardedProtoOf(c, runtime.config.auth.trusted_proxies ?? []));
 
 /**
  * What the sign-in throttle counts a request against: the socket peer, which
@@ -1096,22 +1096,11 @@ const secureFor = (c: Pick<Context, 'req'>): boolean => requestIsHttps(c.req.url
  * everyone signing in through the proxy.
  */
 export const throttleKey = (c: Context, trusted: readonly string[] = []): string =>
-    `peer:${clientAddress(peerAddress(c), c.req.header('x-forwarded-for'), trusted)}`;
+    `peer:${clientAddress(peerAddress(c), c.req.header('x-forwarded-for'), trusted, c.req.header('forwarded'))}`;
 
 export const warnIfCredentialMove = (c: Context, err: unknown): void => {
     if (err instanceof CredentialWouldMoveError) {
         logger.warn({ ...originOf(c), ...managementKeyField(c), target: err.target }, 'refused to send a stored credential to a new host');
-    }
-};
-
-const peerAddress = (c: Context): string => {
-    try {
-        // IPv4-mapped IPv6 is what a dual-stack listener reports for a plain
-        // IPv4 client; the prefix is noise to a reader chasing a LAN address.
-        return (getConnInfo(c).remote.address ?? 'unknown').replace(/^::ffff:/, '');
-    } catch {
-        // No node socket behind the context: a Request built in a test.
-        return 'unknown';
     }
 };
 

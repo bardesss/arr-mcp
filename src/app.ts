@@ -36,6 +36,7 @@ import { registerApiRoutes } from './api/index.ts';
 import { WebhookEvents } from './core/webhookEvents.ts';
 import { Discovery } from './discovery/run.ts';
 import type { DiscoveryService } from './web/routes.ts';
+import { forwardedProtoOf } from './web/origin.ts';
 import { originOf, registerWebRoutes } from './web/routes.ts';
 import { registerWebhookRoutes } from './web/webhooks.ts';
 
@@ -452,7 +453,7 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
             const { oauth } = runtime.config.auth;
             if (oauth === undefined) return c.notFound();
 
-            const document = resourceMetadata(oauth, c.req.url, c.req.header('x-forwarded-proto'));
+            const document = resourceMetadata(oauth, c.req.url, forwardedProtoOf(c, runtime.config.auth.trusted_proxies ?? []));
             if (document === undefined) return c.notFound();
 
             // HEAD reuses the GET response's headers (Content-Type,
@@ -479,7 +480,7 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
         // authenticate. Omitted entirely when no issuer is configured:
         // pointing at a 404 is worse than saying nothing.
         const metadataUrl =
-            auth.oauth === undefined ? undefined : resourceMetadataUrl(c.req.url, c.req.header('x-forwarded-proto'));
+            auth.oauth === undefined ? undefined : resourceMetadataUrl(c.req.url, forwardedProtoOf(c, auth.trusted_proxies ?? []));
         // `exactOptionalPropertyTypes` refuses `resourceMetadataUrl: undefined`
         // on the SDK's own options types; the key must be absent, not present
         // with an undefined value.

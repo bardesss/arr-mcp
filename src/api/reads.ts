@@ -2,7 +2,7 @@ import type { Context, Hono } from 'hono';
 import { listInstances } from '../config/instances.ts';
 import { LEVELS, logFields } from '../core/logs.ts';
 import { buildStackHealth } from '../tools/stackHealth.ts';
-import { mcpEndpoint } from '../web/origin.ts';
+import { forwardedProtoOf, mcpEndpoint } from '../web/origin.ts';
 import { API_BASE, apiError, withEtag } from './http.ts';
 import type { ApiDeps } from './index.ts';
 import { appResource, findInstance, imdbSettings, mcpSettings, mediaServerSettings, tokenResources } from './resources.ts';
@@ -19,7 +19,7 @@ export function registerReads(app: Hono, deps: ApiDeps): void {
     const { runtime, logs, version } = deps;
 
     app.get(`${API_BASE}/system/status`, c =>
-        c.json({ appName: 'arr-mcp', version, mcpUrl: mcpEndpoint(c.req.url, c.req.header('x-forwarded-proto')) ?? null })
+        c.json({ appName: 'arr-mcp', version, mcpUrl: mcpEndpoint(c.req.url, forwardedProtoOf(c, runtime.config.auth.trusted_proxies ?? [])) ?? null })
     );
 
     app.get(`${API_BASE}/health`, async c => {

@@ -293,7 +293,9 @@ either way. The control is visibility before the fact, not impossibility.
   every service's API key and can change them, so sign out on a shared machine.
   The cookie is marked `Secure` when the page was reached over https, directly
   or through a proxy sending `X-Forwarded-Proto: https`, and not over plain
-  http, where a browser would refuse to store it. Cookies are scoped to the
+  http, where a browser would refuse to store it. Once
+  [`auth.trusted_proxies`](configuration.md#trusted_proxies) is set, only the
+  listed proxies are believed about https. Cookies are scoped to the
   hostname, not the port, so use one scheme per hostname, or a plain-http
   sign-in after an https one can bounce back to the login page.
 - `/ui/login` throttles itself after 5 free failed attempts, then delays each
@@ -302,7 +304,8 @@ either way. The control is visibility before the fact, not impossibility.
   shares the proxy's counter. List the proxy in
   [`auth.trusted_proxies`](configuration.md#trusted_proxies) and the counter is
   kept per client instead, read from the last `X-Forwarded-For` hop the proxy
-  added. A header from any other peer is ignored.
+  added, or the last `for=` of `Forwarded` when it sends only that. A header
+  from any other peer is ignored.
 - A log line records two addresses where they differ: `ip` is the peer the
   socket actually came from, and `forwardedFor` is the first hop of
   `X-Forwarded-For` when a request carried one. That hop is whatever the client

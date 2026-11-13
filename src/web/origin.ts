@@ -1,4 +1,6 @@
+import { getConnInfo } from '@hono/node-server/conninfo';
 import type { Context } from 'hono';
+import { forwardedProto } from '../core/trustedProxies.ts';
 
 /**
  * The absolute MCP endpoint, derived from the request that asked for the page.
@@ -42,10 +44,31 @@ export function requestIsHttps(requestUrl: string, proto: string | undefined): b
 const forwardedHttps = (proto: string | undefined): boolean =>
     (proto ?? '').split(',')[0]?.trim().toLowerCase() === 'https';
 
+/** The socket peer's address, the one fact about a request a client cannot forge. */
+export const peerAddress = (c: Context): string => {
+    try {
+        // IPv4-mapped IPv6 is what a dual-stack listener reports for a plain
+        // IPv4 client; the prefix is noise to a reader chasing a LAN address.
+        return (getConnInfo(c).remote.address ?? 'unknown').replace(/^::ffff:/, '');
+    } catch {
+        // No node socket behind the context: a Request built in a test.
+        return 'unknown';
+    }
+};
+
 /**
- * `X-Forwarded-Proto` is the only forwarded header read here, and only because
+ * The forwarded scheme this request is read with, for `requestIsHttps` and
+ * `mcpEndpoint`: from any peer while `auth.trusted_proxies` is empty, from the
+ * listed peers only once it is set. See `forwardedProto`.
+ */
+export const forwardedProtoOf = (c: Context, trusted: readonly string[]): string | undefined =>
+    forwardedProto(peerAddress(c), c.req.header('x-forwarded-proto'), c.req.header('forwarded'), trusted);
+
+/**
+ * The forwarded scheme is the only forwarded value read here, and only because
  * omitting it breaks the TLS-terminating-proxy case outright: the page would
- * hand out an `http://` URL that cannot work.
+ * hand out an `http://` URL that cannot work. Callers pass it through
+ * `forwardedProtoOf`, which applies `auth.trusted_proxies`.
  *
  * `X-Forwarded-Host` is deliberately not read. nginx, Caddy and Traefik all pass
  * the external `Host` through by default, so it buys nothing in the common case
