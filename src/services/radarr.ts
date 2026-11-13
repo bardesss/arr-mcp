@@ -19,6 +19,7 @@ import {
 } from './arrAdd.ts';
 import { readArrProfileDiagnostics, readArrQualityProfile, updateArrQualityProfile } from './arrProfiles.ts';
 import { readArrHistory } from './arrHistory.ts';
+import { compareVersions, parseVersion } from './versions.ts';
 import { arrGrabRecorded, traceArrDownload } from './arrDownloadTrace.ts';
 import { postArrCommand, readArrCommands, refreshArrItem, renameArrItem } from './arrCommands.ts';
 import { listArrImportCandidates, runArrManualImport } from './arrManualImport.ts';
@@ -178,7 +179,17 @@ export class RadarrAdapter
     }
 
     async readHistory(opts: HistoryQuery): Promise<Window<HistoryEntry>> {
-        return readArrHistory(this.http, this.id, 'movie', opts);
+        return readArrHistory(this.http, this.id, 'movie', opts, opts.id === undefined || (await this.#bindsMovieIds()) ? 'ids' : 'local');
+    }
+
+    /** Whether `/history` binds `movieIds`, which Radarr does from 5.2 on; read once. Unknown counts as yes. */
+    #movieIds: boolean | undefined;
+    async #bindsMovieIds(): Promise<boolean> {
+        if (this.#movieIds !== undefined) return this.#movieIds;
+        const version = parseVersion(await this.getVersion().catch(() => ''));
+        if (version === undefined) return true;
+        this.#movieIds = compareVersions(version, [5, 2]) >= 0;
+        return this.#movieIds;
     }
 
     async traceDownload(downloadId: string): Promise<DownloadTrace | undefined> {

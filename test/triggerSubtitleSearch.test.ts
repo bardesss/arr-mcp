@@ -283,28 +283,20 @@ describe('trigger_subtitle_search outside the wanted list', () => {
 
     const seriesless = { ...tracked, '/api/episodes': { data: [{ sonarrEpisodeId: 9999, title: 'Pilot', season: 1, episode: 1 }] } };
 
-    it('needs series_id for an episode Bazarr reports without one, and refuses before writing', async () => {
+    it('refuses an episode Bazarr reports without a series before writing', async () => {
         const h = harness({ routes: seriesless });
         await expect(
             h.call({ service: 'bazarr', kind: 'episode', id: '9999', language: 'nl', search_anyway: true, dry_run: true })
-        ).rejects.toThrow(/series_id/);
+        ).rejects.toThrow(/no series for this episode/);
         expect(h.bazarrFetch.patches()).toHaveLength(0);
     });
 
-    it('uses the series_id it was given', async () => {
+    it('takes no series_id: the series comes from Bazarr', async () => {
         const h = harness({ routes: seriesless });
-        const args = {
-            service: 'bazarr',
-            kind: 'episode',
-            id: '9999',
-            language: 'nl',
-            search_anyway: true,
-            series_id: 67
-        };
-        const first = await h.call(args);
-        await h.call({ ...args, confirm: first.structuredContent.confirm_token });
-
-        expect(h.bazarrFetch.patches()[0]?.query).toMatchObject({ seriesid: '67', episodeid: '9999' });
+        expect(() =>
+            h.call({ service: 'bazarr', kind: 'episode', id: '9999', language: 'nl', search_anyway: true, series_id: 67 })
+        ).toThrow(/Unknown argument\(s\): series_id/);
+        expect(h.bazarrFetch.patches()).toHaveLength(0);
     });
 
     /** A language the item is not missing is still a no-op by default — the

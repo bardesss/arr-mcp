@@ -127,17 +127,25 @@ describe('diagnose', () => {
     });
 
     describe('counting the enabled indexers', () => {
-        const indexer = (id: number, enabled: boolean) => ({ service: 'prowlarr', id, name: `i${id}`, enabled, protocol: 'torrent', priority: 25 });
-        const withProwlarr = (query: string, counts: { reads: number }, fails = false): DiagnoseDeps => {
+        const indexer = (id: number, enabled: boolean, disabledUntil?: string) => ({
+            service: 'prowlarr',
+            id,
+            name: `i${id}`,
+            enabled,
+            protocol: 'torrent',
+            priority: 25,
+            ...(disabledUntil === undefined ? {} : { disabledUntil })
+        });
+        const withProwlarr = (query: string, counts: { reads: number }, fails = false, disabledUntil?: string): DiagnoseDeps => {
             const adapters = [
                 stub('radarr', { listLibrary: async () => [FILM], getQueue: async () => [] }),
                 stub('prowlarr', {
                     getIndexers: async () => {
                         counts.reads += 1;
                         if (fails) throw new Error('down');
-                        return [indexer(1, true), indexer(2, true), indexer(3, true), indexer(4, false)];
+                        return [indexer(1, true), indexer(2, true, disabledUntil), indexer(3, true), indexer(4, false)];
                     },
-                    getRecentRejections: async () => [{ service: 'prowlarr', indexer: 'i1', at: '2026-08-05T02:00:00Z', reason: 'HTTP 429', query }]
+                    getRecentRejections: async () => [{ service: 'prowlarr', indexer: 'i1', indexerId: 1, at: '2026-08-05T02:00:00Z', reason: 'HTTP 429', query }]
                 })
             ];
             return { adapters, library: new LibraryLoader(adapters, undefined) };
@@ -149,6 +157,14 @@ describe('diagnose', () => {
             expect(counts.reads).toBe(1);
             expect(d.steps.find(s => s.stage === 'indexers')).toMatchObject({ status: 'warning', detail: expect.stringContaining('from 1 of 3 enabled indexer(s)') });
             expect(d.verdict.stage).toBe('file');
+        });
+
+        it('counts one Prowlarr has disabled for now as out, and one whose disable ran out as back', async () => {
+            const later = new Date(Date.now() + 3_600_000).toISOString();
+            const d = await buildDiagnose(withProwlarr('Some Film', { reads: 0 }, false, later), { query: 'some film' });
+            expect(d.steps.find(s => s.stage === 'indexers')).toMatchObject({ status: 'blocked', detail: expect.stringContaining('from 1 of 3 enabled indexer(s), 1 more disabled by Prowlarr') });
+            const past = await buildDiagnose(withProwlarr('Some Film', { reads: 0 }, false, '2020-01-01T00:00:00Z'), { query: 'some film' });
+            expect(past.steps.find(s => s.stage === 'indexers')).toMatchObject({ status: 'warning' });
         });
 
         it('does not read them when no failure mentions the item', async () => {

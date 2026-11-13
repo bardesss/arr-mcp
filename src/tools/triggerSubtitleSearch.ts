@@ -39,13 +39,6 @@ const TriggerSubtitleSearchInput = z.object({
         .describe(
             'Search even when Bazarr does not list this item (or this language) as missing. The "I have Dutch subs and they are wrong" case; it may replace a subtitle you already have.'
         ),
-    series_id: z
-        .number()
-        .int()
-        .optional()
-        .describe(
-            'The Sonarr series id. Only needed when Bazarr reports an episode without one.'
-        ),
     forced: z.boolean().default(false).describe('Search for a forced subtitle track.'),
     hearing_impaired: z.boolean().default(false).describe('Search for a hearing-impaired subtitle track.')
 });
@@ -73,8 +66,7 @@ export function registerTriggerSubtitleSearch(
             language,
             forced,
             hearing_impaired,
-            search_anyway,
-            series_id
+            search_anyway
         }, adapter): Promise<WritePlan> {
             // Bazarr's ids are integers. Anything else would reach it as NaN
             // under `search_anyway`, which skips the wanted list.
@@ -113,14 +105,14 @@ export function registerTriggerSubtitleSearch(
                                 : "An episode's id here is its Sonarr episode id, not the series id: get_media_details on the series at `detail: \"full\"` lists them."
                     });
                 }
-                const seriesId = item.seriesId ?? series_id;
+                const seriesId = item.seriesId;
 
                 // Refused rather than sent: Bazarr rejects the call, after the
-                // token has been spent.
+                // token has been spent. Its episode rows are keyed by series, so
+                // one without is a row Bazarr has not finished syncing.
                 if (kind === 'episode' && seriesId === undefined) {
-                    throw new ServiceError('NotFound', adapter.id, 'an episode subtitle search needs the series id', {
-                        remedy:
-                            'Pass series_id, the Sonarr series id (`acquisition.id` on the series in get_library): Bazarr reported none for this episode.'
+                    throw new ServiceError('NotFound', adapter.id, 'Bazarr reported no series for this episode', {
+                        remedy: 'Let Bazarr sync with Sonarr, then try again.'
                     });
                 }
 

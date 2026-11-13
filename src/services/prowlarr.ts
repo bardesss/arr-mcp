@@ -419,6 +419,7 @@ export class ProwlarrAdapter
                 return {
                     service: this.id,
                     indexer: nameOf(r.indexerId),
+                    ...(r.indexerId === undefined ? {} : { indexerId: r.indexerId }),
                     at: r.date,
                     reason: fenceText(described === '' ? 'failed, no reason recorded' : described, {
                         service: this.id,

@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { instantOf } from '../core/instant.ts';
 import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import { apiKeyHeader, noAuth } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
@@ -249,7 +250,7 @@ export class ShelfmarkAdapter
         }
         return (await this.#finished()).flatMap(row => {
             const event = FINISHED_EVENTS[row.status];
-            if (event === undefined || row.at === undefined || (opts.since !== undefined && row.at < opts.since)) return [];
+            if (event === undefined || row.at === undefined || (opts.since !== undefined && instantOf(row.at) < instantOf(opts.since))) return [];
             const format = str(row.task.format);
             const source = str(row.task.source_display_name);
             const reason = event === 'failed' ? this.#fencedReason(row.task) : undefined;

@@ -441,8 +441,12 @@ its way shows it after "Still downloading".
 A finished download waiting on its import is read by the *arr's own import
 state (`importState` in get_queue). At `importBlocked` the *arr stopped and does
 not try again, so the remedy says to fix what it reports and the step imports
-it. While the *arr says it is importing it, the stage says so and offers no
-import, which would only race it, and no remedy unless the *arr gave reasons.
+it. At `importPending` with reasons the *arr tried and could not, and tries
+again with the same result (a live Sonarr reports a download with no importable
+file this way), so the stage says it could not import it and offers no import,
+which would meet the same reasons. While the *arr is importing it, the stage
+says so and offers no import, which would only race it, and no remedy unless the
+*arr gave reasons.
 Without a state, the remedy says to check the *arr's history and the step
 imports it, as before. The reasons the *arr gives on its row (`statusMessages`,
 such as "Not an upgrade for existing movie file") follow the queue stage's
@@ -455,8 +459,8 @@ yet. A film's file is the whole film, so a grab beside it is only mentioned when
 it has a remedy.
 
 An indexer failure that mentions the title is the verdict only when the failing
-indexers are more than half of those enabled across every Prowlarr, which are
-counted only then. Fewer make the `indexers` step a `warning`: a missing file
+indexers, with any Prowlarr has disabled for now after failures, are more than
+half of those enabled across every Prowlarr, counted by id and only then. Fewer make the `indexers` step a `warning`: a missing file
 stays the verdict, with its search step, and the summary names the failures.
 When the indexers could not be counted, a failure stays the verdict.
 
@@ -2717,8 +2721,7 @@ that is not missing is reported as nothing to do.
 
 Outside the wanted list, the preview reads the item from Bazarr first: an id
 Bazarr does not have is refused, since a search for it would find nothing, and
-an episode's series id comes from Bazarr's own row. `series_id` is only needed
-for an episode Bazarr reports without one.
+an episode's series id comes from Bazarr's own row.
 
 ## `trigger_scan`
 

@@ -198,6 +198,14 @@ const MODERN_AGENTS = new Set(['tv.plex.agents.series', 'tv.plex.agents.movie'])
 /** Kinds that say something about the connection, so they survive `#step`'s rewrap. */
 const KEPT_STEP_KINDS = new Set<ServiceErrorKind>(['Timeout', 'Unreachable', 'AuthFailed']);
 
+/** How a library refresh failed, for naming mixed failures. Any other kind reads as `refused`. */
+const SCAN_FAILURE: Partial<Record<ServiceErrorKind, string>> = {
+    Timeout: 'timed out',
+    Unreachable: 'unreachable',
+    AuthFailed: 'token refused',
+    NotFound: 'not found'
+};
+
 /** Plex library item types, for `?type=` on `/library/sections/{key}/all`. */
 const PLEX_TYPE_MOVIE = 1;
 const PLEX_TYPE_EPISODE = 4;
@@ -997,10 +1005,21 @@ export class PlexAdapter
             ) {
                 throw first;
             }
+            // Failures of more than one kind are named per library, so a timeout
+            // is not reported as a refusal.
+            const byKind = new Map<string, string[]>();
+            sections.forEach((s, i) => {
+                const r = reasons[i];
+                const how = (r instanceof ServiceError ? SCAN_FAILURE[r.kind] : undefined) ?? 'refused';
+                byKind.set(how, [...(byKind.get(how) ?? []), name(s)]);
+            });
+            const which = sections.length === 1 ? 'its library' : `any of its ${sections.length} libraries`;
             throw new ServiceError(
                 'UpstreamError',
                 this.id,
-                `Plex refused to scan ${sections.length === 1 ? 'its library' : `any of its ${sections.length} libraries`}`,
+                byKind.size === 1
+                    ? `Plex refused to scan ${which}`
+                    : `Plex could not scan ${which}: ${[...byKind].map(([how, names]) => `${how} on ${names.join(', ')}`).join('; ')}`,
                 { remedy: 'Check the libraries still exist in Plex and that the token may write to them.' }
             );
         }

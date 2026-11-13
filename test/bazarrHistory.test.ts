@@ -113,3 +113,11 @@ describe('Bazarr history', () => {
         );
     });
 });
+
+describe('Bazarr recent log times', () => {
+    it('reads them in the zone the history uses', async () => {
+        const logs = { data: [{ timestamp: '2026-09-02 20:07:53', type: 'ERROR', message: 'x' }] };
+        const { entries } = await new BazarrAdapter(config, serving({ data: [] }, logs, 'Europe/Amsterdam')).getRecentLogs();
+        expect(entries[0]?.lastSeen).toBe('2026-09-02T18:07:53.000Z');
+    });
+});

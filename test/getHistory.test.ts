@@ -120,9 +120,30 @@ describe('get_history', () => {
         );
         const result = await buildGetHistory([scopedRadarr, sonarr()], { ...opts, service: 'radarr', id: '1689' });
         expect(result.items).toHaveLength(2);
-        expect(seen[0]).toContain('/api/v3/history?');
-        expect(seen[0]).not.toContain('/api/v3/history/movie');
-        expect(seen[0]).toContain('movieIds=1689');
+        const history = seen.filter(u => u.includes('/history'));
+        expect(history[0]).toContain('/api/v3/history?');
+        expect(history[0]).not.toContain('/api/v3/history/movie');
+        expect(history[0]).toContain('movieIds=1689');
+    });
+
+    it('filters one film locally on a Radarr older than 5.2, which drops movieIds, so the total is right', async () => {
+        const read = async (version: string) => {
+            const seen: URL[] = [];
+            const adapter = new RadarrAdapter(keyed(7878), (async (input: string) => {
+                const url = new URL(String(input));
+                seen.push(url);
+                if (url.pathname.endsWith('/system/status')) return Response.json({ version });
+                // The newest rows are the asked film's, so a dropped filter does not show in them.
+                const records = [1689, 1689, 7, 8].map((movieId, i) => ({ id: i + 1, eventType: 'grabbed', date: `2026-08-0${9 - i}T00:00:00Z`, sourceTitle: 'x', movieId }));
+                return Response.json({ page: 1, pageSize: 200, totalRecords: 4, records });
+            }) as unknown as typeof fetch);
+            const result = await adapter.readHistory({ id: '1689', want: 2 });
+            return { result, scoped: seen.some(u => u.searchParams.has('movieIds')) };
+        };
+        const old = await read('4.7.5.7809');
+        expect(old.scoped).toBe(false);
+        expect(old.result.total).toBe(2);
+        expect((await read('5.2.6.8376')).scoped).toBe(true);
     });
 
     it('refuses an id with no service, rather than matching a coincidental id in the wrong service', async () => {
@@ -325,11 +346,15 @@ describe('get_history', () => {
         };
 
         it('refuses a since value that is not ISO 8601, naming the expected format', () => {
-            // A plausible model output that string-comparison would otherwise
-            // turn into a silent, confident empty list rather than an error.
+            // A plausible model output that would otherwise read as the epoch
+            // and keep everything.
             const result = schema().safeParse({ since: 'last week' });
             expect(result.success).toBe(false);
             expect(JSON.stringify(result.error?.issues)).toMatch(/ISO 8601/);
+        });
+
+        it('refuses a value that starts like a date but is not one', () => {
+            expect(schema().safeParse({ since: '2026-13-45' }).success).toBe(false);
         });
 
         it('accepts a bare ISO date and a full ISO datetime', () => {
@@ -392,6 +417,14 @@ describe('SABnzbd history', () => {
         const rows = await new SabnzbdAdapter(sabConfig, answering(SLOTS)).readHistory({
             since: new Date(1_788_000_050 * 1000).toISOString()
         });
+        expect(rows.map(r => r.id)).toEqual(['SABnzbd_nzo_b']);
+    });
+
+    it('honours since written with an offset, as an instant', async () => {
+        // The same instant as above, written two hours ahead of UTC.
+        const utc = new Date(1_788_000_050 * 1000);
+        const local = new Date(utc.getTime() + 2 * 3_600_000).toISOString().replace('.000Z', '+02:00');
+        const rows = await new SabnzbdAdapter(sabConfig, answering(SLOTS)).readHistory({ since: local });
         expect(rows.map(r => r.id)).toEqual(['SABnzbd_nzo_b']);
     });
 

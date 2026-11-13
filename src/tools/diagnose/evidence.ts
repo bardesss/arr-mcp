@@ -33,7 +33,7 @@ import type { WebhookEvents } from '../../core/webhookEvents.ts';
 import { EVENT_LOG_SOURCE } from '../getHistory.ts';
 import { RECENT_REJECTION_WINDOW } from '../getIndexers.ts';
 import { resolveInstance } from '../resolveInstance.ts';
-import { mentions, queueRowsFor, releaseMentions, type Evidence } from './chain.ts';
+import { indexerKey, mentions, queueRowsFor, releaseMentions, type Evidence } from './chain.ts';
 
 export type DiagnoseTarget = { query?: string; service?: ServiceId; id?: string; instance?: string; user?: string };
 
@@ -358,11 +358,13 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
         // must not make a Lidarr diagnosis uncertain.
         const isArtist = item?.kind === 'artist';
         const seerr = isArtist ? undefined : deps.adapters.find(hasRequests);
-        // The queues of the item's own kind, and the download clients' (no
-        // `queueKind`). A film is not read against Lidarr's queue, so an unreachable
-        // Lidarr cannot leave its queue "only partially known"; an artist is read
-        // against Lidarr's alone, and `queueRowsFor` counts a client row for it only
-        // through a Lidarr row's download id, so a film's grab is never its own.
+        // A film or series reads the Radarr, Sonarr and Whisparr queues and the
+        // download clients' (no `queueKind`): `queueRowsFor` drops the other kind's
+        // rows, but needs them to drop a client row tied to one by download id,
+        // which would otherwise match on title. Lidarr's queue is not read, so an
+        // unreachable Lidarr cannot leave it "only partially known". An artist is
+        // read against Lidarr's alone, and `queueRowsFor` counts a client row for it
+        // only through a Lidarr row's download id, so a film's grab is never its own.
         const queueKinds: readonly LibraryKind[] = isArtist ? ['artist'] : ['movie', 'series'];
         const queueAdapters = deps.adapters
             .filter(hasQueue)
@@ -437,11 +439,19 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
         // How many indexers there are, only when a failure mentions the item: one
         // rate-limited indexer of ten is rarely why a title is missing. Every
         // Prowlarr counts, since each syncs its indexers to the *arrs.
-        const enabledIndexersP: Promise<number | undefined> = rejectionsP.then(async rows => {
+        // Prowlarr's status disables a failing indexer until `disabledUntil`, and
+        // until then it answers no search.
+        const indexersP: Promise<Evidence['indexers']> = rejectionsP.then(async rows => {
             if (item === undefined || !rows?.some(r => r.query !== undefined && mentions(r.query, item))) return undefined;
             if (prowlarrDegraded.length > 0) return undefined;
             const lists = await Promise.all(prowlarrs.map(p => probe(`${p.id}:indexers`, degraded, () => p.getIndexers())));
-            return lists.every(l => l !== undefined) ? lists.reduce((sum, l) => sum + l.filter(i => i.enabled).length, 0) : undefined;
+            if (!lists.every(l => l !== undefined)) return undefined;
+            const enabled = lists.flat().filter(i => i.enabled);
+            const now = Date.now();
+            return {
+                enabled: enabled.map(i => indexerKey(i.service, i.id)),
+                disabled: enabled.filter(i => instantOf(i.disabledUntil) > now).map(i => indexerKey(i.service, i.id))
+            };
         });
 
         const scanP: Promise<ScanState | undefined> =
@@ -482,11 +492,11 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
                       albumsAdapter.getMediaDetails(albumsId, { includeEpisodes: true, episodeLimit: 500 })
                   ).then(details => (details?.albums === undefined ? undefined : { list: details.albums, truncated: details.albumsTruncated === true }));
 
-        const [requests, queueGathered, rejections, enabledIndexers, scan, subtitles, albums] = await Promise.all([
+        const [requests, queueGathered, rejections, indexers, scan, subtitles, albums] = await Promise.all([
             requestsP,
             queueP,
             rejectionsP,
-            enabledIndexersP,
+            indexersP,
             scanP,
             subtitlesP,
             albumsP
@@ -626,7 +636,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
             rejections,
             prowlarrConfigured,
             prowlarrDegraded: prowlarrDegraded.sort(),
-            ...(enabledIndexers === undefined ? {} : { enabledIndexers }),
+            ...(indexers === undefined ? {} : { indexers }),
             scan,
             ...(mediaServer === undefined ? {} : { mediaServer }),
             scanCapable: scanAdapter !== undefined,

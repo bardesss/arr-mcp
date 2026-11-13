@@ -137,7 +137,11 @@ export function bazarrTimestamp(h: { timestamp?: number | string; parsed_timesta
     if (match === null) return undefined;
 
     const [, month, day, year, hour, minute, second] = match;
-    const local = `20${year}-${month}-${day}T${hour}:${minute}:${second}`;
+    return zonedInstant(`20${year}-${month}-${day}T${hour}:${minute}:${second}`, zone);
+}
+
+/** A local `YYYY-MM-DDTHH:MM:SS` in `zone` as `toISOString()`; without a known zone it stays local. */
+function zonedInstant(local: string, zone: string | undefined): string | undefined {
     const wall = Date.parse(`${local}Z`);
     if (!Number.isFinite(wall)) return undefined;
     if (zone === undefined) return local;
@@ -197,15 +201,15 @@ export class BazarrAdapter
      * Bazarr answers with its whole current log at every level and cannot filter,
      * so the filter and the limit are here, and `total` counts warnings and worse
      * like the other services' logs. It has no logger field, and its times are
-     * local with no offset, so they stay that way rather than claim a zone.
+     * local with no offset, read in Bazarr's zone the way its history is.
      */
     async getRecentLogs(): Promise<RecentLogs> {
-        const body = await this.#http.get<Envelope<RawLogRow[]>>('/api/system/logs');
+        const [body, zone] = await Promise.all([this.#http.get<Envelope<RawLogRow[]>>('/api/system/logs'), this.#timeZone()]);
         const lines = (body.data ?? []).flatMap(row => {
             const level = LOG_LEVELS.get(row.type ?? '');
-            return level !== undefined && typeof row.timestamp === 'string'
-                ? [{ time: row.timestamp.replace(' ', 'T'), level, logger: 'bazarr', message: row.message ?? '' }]
-                : [];
+            if (level === undefined || typeof row.timestamp !== 'string') return [];
+            const local = row.timestamp.replace(' ', 'T');
+            return [{ time: zonedInstant(local, zone) ?? local, level, logger: 'bazarr', message: row.message ?? '' }];
         });
         const newest = lines.slice(0, LOG_LINES);
         return { entries: foldLogLines(newest, this.id), read: newest.length, total: lines.length };

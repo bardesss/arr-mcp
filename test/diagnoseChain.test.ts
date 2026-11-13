@@ -4,7 +4,7 @@ import type { FilmOrSeries, MergedItem } from '../src/core/resolver.ts';
 import { NzbgetAdapter } from '../src/services/nzbget.ts';
 import { SabnzbdAdapter } from '../src/services/sabnzbd.ts';
 import type { HistoryEntry, QueueItem, SubtitleGap } from '../src/services/types.ts';
-import { buildChain as chain, queueRowsFor, releaseMentions, wholeRemoval, type Diagnosis, type Evidence } from '../src/tools/diagnose/chain.ts';
+import { buildChain as chain, indexerKey, queueRowsFor, releaseMentions, wholeRemoval, type Diagnosis, type Evidence } from '../src/tools/diagnose/chain.ts';
 import { servingModes } from './helpers/serve.ts';
 
 /**
@@ -3196,12 +3196,27 @@ describe("buildChain: the *arr's own import state and reasons", () => {
     });
     const run = (...rows: QueueItem[]) => buildChain('some film', healthy({ item: noFile, queue: { items: rows, partial: [] } }));
 
-    it('says the *arr is importing it, shows its reasons, and offers no import that would meet them', () => {
+    it('says the *arr could not import it, shows its reasons, and offers no import that would meet them', () => {
         const upgrade = reason('Not an upgrade for existing movie file');
         const d = run(done({ importState: 'importPending', statusMessages: [upgrade] }));
+        expect(stepFor(d, 'queue')?.detail).toBe(`Downloaded, but radarr could not import it. radarr says: ${upgrade}.`);
+        expect(d.verdict.remedy).toMatch(/^Radarr retries it on its own and fails the same way until what it reports is fixed there/);
+        expect(d.verdict.next_steps).toBeUndefined();
+    });
+
+    // How a live Sonarr 4.0.20 reports a finished download with nothing to import.
+    it('does not say to wait on an import pending with no eligible files', () => {
+        const none = reason('No files found are eligible for import in /downloads/complete/Some.Film.2026.1080p');
+        const d = run(done({ importState: 'importPending', statusMessages: [none] }));
+        expect(d.verdict.summary).toMatch(/^Downloaded, but radarr could not import it\./);
+        expect(d.verdict.remedy).not.toMatch(/^Wait/);
+    });
+
+    it('waits, with a remedy, on an import the *arr is running with reasons', () => {
+        const upgrade = reason('Not an upgrade for existing movie file');
+        const d = run(done({ importState: 'importing', statusMessages: [upgrade] }));
         expect(stepFor(d, 'queue')?.detail).toBe(`Downloaded, and radarr is importing it. radarr says: ${upgrade}.`);
         expect(d.verdict.remedy).toBe('Wait for Radarr to import it. If it stays here, fix what it reports in Radarr: an import by hand meets the same reasons.');
-        expect(d.verdict.next_steps).toBeUndefined();
     });
 
     it('waits, with no remedy, on an import the *arr is running without complaint', () => {
@@ -3243,10 +3258,12 @@ describe("buildChain: the *arr's own import state and reasons", () => {
 
 describe('buildChain: indexer failures weighed against the indexers enabled', () => {
     const noFile = item({ acquisition: { service: 'radarr', id: '5', monitored: true, hasFile: false }, presence: 'arr_only', playback: undefined });
-    const fail = (indexer: string) => ({ service: 'prowlarr', indexer, at: '2026-08-05T02:00:00Z', reason: 'HTTP 429', query: 'Some Film' });
+    const fail = (indexer: string, indexerId = indexer.charCodeAt(0)) => ({ service: 'prowlarr', indexer, indexerId, at: '2026-08-05T02:00:00Z', reason: 'HTTP 429', query: 'Some Film' });
+    const keys = (...ids: number[]) => ids.map(id => indexerKey('prowlarr', id));
+    const ten = keys(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
 
     it('keeps the missing file the verdict when one indexer of ten failed, and names the failure', () => {
-        const d = buildChain('some film', healthy({ item: noFile, rejections: [fail('One')], enabledIndexers: 10 }));
+        const d = buildChain('some film', healthy({ item: noFile, rejections: [fail('One', 1)], indexers: { enabled: ten, disabled: [] } }));
         expect(stepFor(d, 'indexers')).toMatchObject({ status: 'warning', detail: '1 recent failure(s) from 1 of 10 enabled indexer(s), most recently One on prowlarr: HTTP 429.' });
         expect(d.verdict).toMatchObject({ stage: 'file', certain: true });
         expect(d.verdict.summary).toContain('(Also: 1 recent failure(s) from 1 of 10 enabled indexer(s)');
@@ -3255,9 +3272,21 @@ describe('buildChain: indexer failures weighed against the indexers enabled', ()
     });
 
     it('makes the indexers the verdict when most of them failed', () => {
-        const d = buildChain('some film', healthy({ item: noFile, rejections: ['A', 'B', 'C', 'C'].map(fail), enabledIndexers: 5 }));
+        const d = buildChain('some film', healthy({ item: noFile, rejections: ['A', 'B', 'C', 'C'].map(n => fail(n)), indexers: { enabled: keys(65, 66, 67, 1, 2), disabled: [] } }));
         expect(stepFor(d, 'indexers')?.detail).toMatch(/^4 recent failure\(s\) from 3 of 5 enabled/);
         expect(d.verdict.stage).toBe('indexers');
+    });
+
+    it('counts indexers by id, so two that share a name are two', () => {
+        const d = buildChain('some film', healthy({ item: noFile, rejections: [fail('Same', 1), fail('Same', 2)], indexers: { enabled: keys(1, 2, 3), disabled: [] } }));
+        expect(stepFor(d, 'indexers')).toMatchObject({ status: 'blocked' });
+        expect(stepFor(d, 'indexers')?.detail).toMatch(/from 2 of 3 enabled/);
+    });
+
+    it('counts the ones Prowlarr has disabled for now as out', () => {
+        const d = buildChain('some film', healthy({ item: noFile, rejections: [fail('One', 1)], indexers: { enabled: keys(1, 2, 3, 4), disabled: keys(1, 2, 3) } }));
+        expect(stepFor(d, 'indexers')).toMatchObject({ status: 'blocked' });
+        expect(stepFor(d, 'indexers')?.detail).toMatch(/^1 recent failure\(s\) from 1 of 4 enabled indexer\(s\), 2 more disabled by Prowlarr,/);
     });
 
     it('keeps a failure the verdict when the indexers could not be counted', () => {

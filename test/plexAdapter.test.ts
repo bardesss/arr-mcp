@@ -885,13 +885,15 @@ describe('PlexAdapter', () => {
             });
         });
 
-        it('keeps the fixed text when the refresh failures differ', async () => {
+        it('names each kind of failure when the refreshes fail differently', async () => {
             const impl = (async (input: string) => {
                 const path = new URL(String(input)).pathname;
                 if (path === '/library/sections') return jsonResponse(three);
                 return path.includes('/1/') ? jsonResponse({}, 401) : new Response('<html>404</html>', { status: 404 });
             }) as unknown as typeof fetch;
-            await expect(new PlexAdapter(config(), impl).startLibraryScan()).rejects.toThrow(/any of its 3 libraries/);
+            await expect(new PlexAdapter(config(), impl).startLibraryScan()).rejects.toThrow(
+                /could not scan any of its 3 libraries: token refused on Movies; not found on TV Shows, Bumpers/
+            );
         });
 
         it('throws when the server lists no sections at all', async () => {

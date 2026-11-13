@@ -37,19 +37,14 @@ const EventTypeSchema = z
     .describe('Only entries of this normalised type. Omit for all.');
 
 /**
- * Both the paging early-exit and the final filter in `readArrHistory` compare
- * `since` against a record's own `date` as plain strings, cheap and correct
- * for ISO 8601, but silently wrong for anything else: `'2026-08-…' < 'last
- * week'` is true, so a value like that ends paging after page one and then
- * filters out everything that made it through, answering a confident empty
- * list rather than an error.
+ * Every service's `since` filter compares instants, so the value has to be
+ * one: `last week` would read as the epoch and keep everything.
  */
+const SINCE_FORMAT = 'must be an ISO 8601 date or time, e.g. "2026-08-01" or "2026-08-01T00:00:00Z"';
 const SinceSchema = z
     .string()
-    .regex(
-        /^\d{4}-\d{2}-\d{2}/,
-        'must start with an ISO 8601 date (YYYY-MM-DD), e.g. "2026-08-01" or "2026-08-01T00:00:00Z". It is compared as a plain string against each record\'s own date.'
-    )
+    .regex(/^\d{4}-\d{2}-\d{2}/, SINCE_FORMAT)
+    .refine(v => Number.isFinite(Date.parse(v)), SINCE_FORMAT)
     .optional()
     .describe('ISO 8601. Only entries at or after this time.');
 
