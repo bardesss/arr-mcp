@@ -2635,6 +2635,10 @@ recommendations. Combining it with `genre`/`year`/`min_rating` is refused.
 With no Seerr configured there is no fallback, and the response carries a
 `note` instead of a bare empty list.
 
+Seerr serves TMDB's list 20 to a page, and only the pages that `offset` and
+`limit` cover are read. `total` is the size of the whole list, up to 10,000:
+TMDB serves no page past 500.
+
 ## `trigger_subtitle_search`
 
 The write half of `get_subtitles`, and it takes its arguments straight from

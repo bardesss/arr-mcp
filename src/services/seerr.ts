@@ -13,6 +13,7 @@ import {
     type ConnectionDiagnosis,
     type CreateRequestOptions,
     type DiscoverCapable,
+    type DiscoverWindow,
     type IssueCapable,
     type LogCapable,
     type MediaIssue,
@@ -28,7 +29,8 @@ import {
     type SearchSource,
     type ServiceAdapter,
     type ServiceUser,
-    type UserDirectoryCapable
+    type UserDirectoryCapable,
+    type Window
 } from './types.ts';
 
 type RawSearchResult = {
@@ -140,6 +142,14 @@ const PAGE_SIZE = 100;
 
 /** TMDB's genre list changes on the order of years, not requests. */
 const GENRE_TTL_MS = 24 * 60 * 60 * 1000;
+/** TMDB's fixed page length, and the last page it will serve. */
+const TMDB_PAGE_SIZE = 20;
+const TMDB_MAX_PAGES = 500;
+/** Pages read at once when a window spans several; Seerr asks TMDB for each. */
+const TMDB_PAGE_READS = 4;
+
+type RawResultsPage = { results?: RawSearchResult[]; totalPages?: number; totalResults?: number };
+const FIRST_PAGE: DiscoverWindow = { offset: 0, limit: TMDB_PAGE_SIZE };
 
 type RawGenre = { id?: number; name?: string };
 type GenreTable = { byLowerName: Map<string, number>; names: string[] };
@@ -818,12 +828,15 @@ export class SeerrAdapter
      * rather than by us. Design spec defers rating filters over your *own*
      * library to the IMDb dataset: that is get_library earlier, not this.
      */
-    async discover(opts: {
-        mediaType: 'movie' | 'tv';
-        genre?: string;
-        year?: number;
-        minRating?: number;
-    }): Promise<SearchHit[]> {
+    async discover(
+        opts: {
+            mediaType: 'movie' | 'tv';
+            genre?: string;
+            year?: number;
+            minRating?: number;
+        },
+        window: DiscoverWindow = FIRST_PAGE
+    ): Promise<Window<SearchHit>> {
         const params = new URLSearchParams();
         if (opts.genre !== undefined) {
             const id = /^\d+$/.test(opts.genre) ? opts.genre : String(await this.genreId(opts.mediaType, opts.genre));
@@ -840,13 +853,7 @@ export class SeerrAdapter
         }
 
         const endpoint = opts.mediaType === 'movie' ? 'movies' : 'tv';
-        const page = await this.#http.get<{ results?: RawSearchResult[] }>(
-            `/api/v1/discover/${endpoint}?${params.toString()}`
-        );
-
-        return (page.results ?? [])
-            .filter((r): r is RawSearchResult & { id: number } => typeof r.id === 'number')
-            .map(r => this.#toHit(r, opts.mediaType === 'tv' ? 'series' : 'movie'));
+        return this.#tmdbWindow(`/api/v1/discover/${endpoint}`, params, opts.mediaType, window);
     }
 
     /**
@@ -857,13 +864,50 @@ export class SeerrAdapter
      * outright for a series that `/recommendations` answered for with over a
      * thousand. `recommendations` is the only one worth exposing.
      */
-    async recommendations(opts: { mediaType: 'movie' | 'tv'; id: string }): Promise<SearchHit[]> {
+    async recommendations(opts: { mediaType: 'movie' | 'tv'; id: string }, window: DiscoverWindow = FIRST_PAGE): Promise<Window<SearchHit>> {
         const path = opts.mediaType === 'movie' ? `/api/v1/movie/${opts.id}/recommendations` : `/api/v1/tv/${opts.id}/recommendations`;
-        const page = await this.#http.get<{ results?: RawSearchResult[] }>(path);
+        return this.#tmdbWindow(path, new URLSearchParams(), opts.mediaType, window);
+    }
 
-        return (page.results ?? [])
+    /**
+     * The rows `window` asks for out of a TMDB list Seerr serves 20 to a page,
+     * and how many rows the list has. One page was all this read before, so a
+     * genre with thousands of films came back as "20 of 20" and `offset: 20`
+     * found nothing. TMDB answers no page past 500 (a live Seerr turned page
+     * 600 into an HTTP 500), so `total` stops at what can be paged to.
+     */
+    async #tmdbWindow(path: string, params: URLSearchParams, mediaType: 'movie' | 'tv', window: DiscoverWindow): Promise<Window<SearchHit>> {
+        const offset = Math.max(Math.trunc(window.offset), 0);
+        const first = Math.floor(offset / TMDB_PAGE_SIZE) + 1;
+        const read = (page: number) => {
+            const query = new URLSearchParams(params);
+            if (page > 1) query.set('page', String(page));
+            const qs = query.toString();
+            return this.#http.get<RawResultsPage>(qs === '' ? path : `${path}?${qs}`);
+        };
+
+        // Past the last page TMDB serves, page one still gives the total.
+        const head = await read(first > TMDB_MAX_PAGES ? 1 : first);
+        if (first > TMDB_MAX_PAGES) return { items: [], total: Math.min(head.totalResults ?? 0, TMDB_MAX_PAGES * TMDB_PAGE_SIZE) };
+        const pages = Math.min(typeof head.totalPages === 'number' ? head.totalPages : first, TMDB_MAX_PAGES);
+        const total = Math.min(
+            typeof head.totalResults === 'number' ? head.totalResults : (first - 1) * TMDB_PAGE_SIZE + (head.results ?? []).length,
+            pages * TMDB_PAGE_SIZE
+        );
+        const last = Math.min(Math.ceil((offset + Math.max(window.limit, 1)) / TMDB_PAGE_SIZE), pages);
+        const rest = await mapLimit(
+            Array.from({ length: Math.max(last - first, 0) }, (_, i) => first + 1 + i),
+            TMDB_PAGE_READS,
+            read
+        );
+        const rows = [head, ...rest].flatMap(p => p.results ?? []);
+        const skip = offset - (first - 1) * TMDB_PAGE_SIZE;
+        const kind = mediaType === 'tv' ? 'series' : 'movie';
+        const items = rows
+            .slice(skip, skip + window.limit)
             .filter((r): r is RawSearchResult & { id: number } => typeof r.id === 'number')
-            .map(r => this.#toHit(r, opts.mediaType === 'tv' ? 'series' : 'movie'));
+            .map(r => this.#toHit(r, kind));
+        return { items, total };
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {

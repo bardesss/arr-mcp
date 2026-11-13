@@ -72,6 +72,14 @@ const INCLUDE_UNKNOWN = {
     artist: 'includeUnknownArtistItems=true'
 } as const;
 
+/**
+ * The default order is time left, which changes between two page reads, so a
+ * queue longer than one page could list a row twice and skip another. `added`
+ * does not change. `id` would not do: Radarr 6 and Sonarr 4 ignore it on the
+ * queue and fall back to time left (checked live).
+ */
+const QUEUE_SORT = 'sortKey=added&sortDirection=ascending';
+
 /** `kind` is passed in because `service` may be an instance id like `radarr/hd`. */
 export async function readArrQueue(
     http: ServiceHttp,
@@ -81,7 +89,7 @@ export async function readArrQueue(
     // Off upstream by default, which hides records whose movie, series or
     // artist was deleted: stuck at importBlocked forever, and invisible here.
     const includeUnknown = INCLUDE_UNKNOWN[kind];
-    const records = await pageArr<RawQueueRecord>(http, `${http.apiRoot}/queue`, includeUnknown);
+    const records = await pageArr<RawQueueRecord>(http, `${http.apiRoot}/queue`, `${includeUnknown}&${QUEUE_SORT}`);
 
     return records
         .filter((r): r is RawQueueRecord & { id: number } => typeof r.id === 'number')

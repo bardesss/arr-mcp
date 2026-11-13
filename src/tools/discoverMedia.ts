@@ -8,7 +8,6 @@ import {
     OffsetSchema,
     PagedOutputSchema,
     READ_ONLY,
-    applyLimit,
     listText,
     preferred,
     toolInput,
@@ -18,7 +17,7 @@ import type { SeerrAdapter } from '../services/seerr.ts';
 import { fenceText } from '../core/fence.ts';
 import { enrichWithImdb } from '../metadata/enrich.ts';
 import type { ImdbDataset } from '../metadata/imdbDataset.ts';
-import type { SearchHit } from '../services/types.ts';
+import type { SearchHit, Window } from '../services/types.ts';
 import { withoutDisplay } from '../core/display.ts';
 import { searchLine, type GetSearchResult } from './searchMedia.ts';
 
@@ -86,17 +85,20 @@ export async function buildDiscoverMedia(
     // including the items Seerr hands back.
     const mediaType = opts.kind === 'series' ? 'tv' : 'movie';
 
-    let hits: SearchHit[];
+    // Seerr pages its answer, so only the pages this window covers are read.
+    const offset = Math.max(Math.trunc(opts.offset ?? 0), 0);
+    const window = { offset, limit: opts.limit };
+    let found: Window<SearchHit>;
     try {
-        hits =
+        found =
             opts.similarTo !== undefined
-                ? await adapter.recommendations({ mediaType, id: opts.similarTo })
+                ? await adapter.recommendations({ mediaType, id: opts.similarTo }, window)
                 : await adapter.discover({
                       mediaType,
                       ...(opts.genre === undefined ? {} : { genre: opts.genre }),
                       ...(opts.year === undefined ? {} : { year: opts.year }),
                       ...(opts.minRating === undefined ? {} : { minRating: opts.minRating })
-                  });
+                  }, window);
     } catch (err) {
         // Propagate vs. degrade turns on the error's kind, same rule as
         // LibraryLoader#resolveUser. `NotFound` covers two cases that both
@@ -116,14 +118,16 @@ export async function buildDiscoverMedia(
     // TMDB-backed, so a hit carrying an imdb id gains an IMDb rating beside
     // the TMDB one it already had; source selection and enrichment are
     // independent decisions.
-    const shaped = applyLimit(hits, opts.limit, opts.offset);
-    const rated = enrichWithImdb(shaped.items, dataset);
+    const rated = enrichWithImdb(found.items, dataset);
 
     return {
-        ...shaped,
         items: rated.map(h => project(h, opts.detail)),
+        total: found.total,
+        returned: found.items.length,
+        offset,
+        truncated: found.items.length < found.total,
         degraded: [],
-        counts: { [adapter.id]: hits.length }
+        counts: { [adapter.id]: found.total }
     };
 }
 
