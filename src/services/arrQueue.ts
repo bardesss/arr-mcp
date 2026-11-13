@@ -221,8 +221,7 @@ export function readRadarrCalendar(
             id: m.id,
             title: fenceText(m.title ?? '', { service, field: 'title' }),
             date,
-            hasFile: m.hasFile ?? false,
-            monitored: m.monitored ?? false
+            hasFile: m.hasFile ?? false
         }));
 }
 
@@ -266,8 +265,7 @@ export function readSonarrCalendar(
             ...(e.seasonNumber === undefined ? {} : { season: e.seasonNumber }),
             ...(e.episodeNumber === undefined ? {} : { episode: e.episodeNumber }),
             date: e[dateField] as string,
-            hasFile: e.hasFile ?? false,
-            monitored: e.monitored ?? false
+            hasFile: e.hasFile ?? false
         }));
 }
 
@@ -324,8 +322,7 @@ export function readLidarrCalendar(albums: RawCalendarAlbum[], service: string):
                 ? { artist: fenceText(a.artist.artistName, { service, field: 'artist.artistName' }) }
                 : {}),
             date,
-            hasFile: albumComplete(a.statistics),
-            monitored: a.monitored ?? false
+            hasFile: albumComplete(a.statistics)
         }));
 }
 

@@ -250,12 +250,15 @@ export async function buildGetQueue(
     const clients = new Set(adapters.filter(a => DOWNLOAD_CLIENTS.includes(a.type)).map(a => a.id));
     const listed = opts.detail === 'full' ? matching : foldClientRows(matching, clients);
     const shaped = applyLimit(listed, opts.limit, opts.offset);
+    // Per service, what is listed: raw rows would count a folded client row
+    // twice and add up to more than `total`. A service that answered stays at 0.
+    const listedCounts = Object.fromEntries(Object.keys(counts).map(id => [id, listed.filter(q => q.service === id).length]));
     const byTracker = opts.byTracker === undefined ? undefined : seedingByTracker(matching, now, opts.byTracker.minSeedDays);
     return {
         ...shaped,
         items: shaped.items.map(i => project(i, opts.detail)),
         degraded,
-        counts,
+        counts: listedCounts,
         ...(due === undefined ? {} : { cleanuparrDue: due }),
         ...(byTracker === undefined ? {} : { byTracker }),
         ...stepsField(importSteps(matching), 3, true)

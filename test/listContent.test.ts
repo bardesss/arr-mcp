@@ -79,8 +79,7 @@ const CASES: { tool: string; text: string; names: string; id: string }[] = [
             season: 1,
             episode: 2,
             date: '2026-09-20',
-            hasFile: false,
-            monitored: true
+            hasFile: false
         } as never),
         names: 'Some Show',
         id: 'sonarr:44'

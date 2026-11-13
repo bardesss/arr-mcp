@@ -1096,8 +1096,8 @@ export type CalendarEntry = {
     episode?: number;
     /** ISO 8601. When the item becomes available, whatever the service calls it. */
     date: string;
+    /** No `monitored` beside it: an *arr calendar lists only monitored items unless sent `unmonitored=true`, which this never sends. */
     hasFile: boolean;
-    monitored: boolean;
 };
 
 export interface CalendarCapable {

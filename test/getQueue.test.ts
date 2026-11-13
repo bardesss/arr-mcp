@@ -697,6 +697,14 @@ describe('one grab listed by an *arr and its client', () => {
         expect(result.total).toBe(3);
     });
 
+    it('counts per service what is listed, so the counts add up to total', async () => {
+        const folded = await buildGetQueue(adapters, { detail: 'standard', limit: 50 });
+        expect(folded.counts).toEqual({ radarr: 2, sabnzbd: 1, qbittorrent: 0 });
+        expect((await buildGetQueue(adapters, { detail: 'full', limit: 50 })).counts).toEqual({ radarr: 2, sabnzbd: 2, qbittorrent: 1 });
+        const seeding = await buildGetQueue(adapters, { detail: 'standard', limit: 50, filter: { status: 'seeding' } });
+        expect(seeding.counts).toEqual({ radarr: 0, sabnzbd: 0, qbittorrent: 1 });
+    });
+
     it('folds at minimal too', async () => {
         const result = await buildGetQueue(adapters, { detail: 'minimal', limit: 50 });
         expect(result.total).toBe(3);

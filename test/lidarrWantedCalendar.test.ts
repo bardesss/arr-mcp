@@ -199,9 +199,9 @@ describe('Lidarr calendar', () => {
             kind: 'album',
             id: 3,
             date: '1997-01-20T00:00:00Z',
-            hasFile: false,
-            monitored: true
+            hasFile: false
         });
+        expect(rows[0]).not.toHaveProperty('monitored');
         const [raw] = calendarRows();
         expect(unfenced(rows[0]?.title ?? '')).toBe(raw?.title);
         expect(unfenced(rows[0]?.artist ?? '')).toBe(raw?.artist.artistName);
