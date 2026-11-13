@@ -122,7 +122,7 @@ async function describe(adapters: readonly ServiceAdapter[], request: MediaReque
 
 const RespondToRequestInput = z.object({
     id: z.string().min(1).describe('The Seerr request id, as get_requests reported it.'),
-    verdict: z.enum(['approve', 'decline']).describe('approve or decline.')
+    verdict: z.enum(['approve', 'decline', 'retry']).describe('retry: failed requests only.')
 });
 
 export function registerRespondToRequest(
@@ -133,9 +133,9 @@ export function registerRespondToRequest(
 ): void {
     registerWriteTool(server, context, {
         name: 'respond_to_request',
-        title: 'Approve or decline a request',
+        title: 'Respond to a request',
         description:
-            'Approves or declines a pending Seerr request. Approving hands it to Radarr or Sonarr, which will search for it and download it, so it costs disk space and bandwidth even though the decision itself is reversible. Take `id` from get_requests. Previews first; confirm to apply the verdict.',
+            'Approves or declines a pending Seerr request, or retries a failed one. Approving or retrying hands it to Radarr or Sonarr to search for and download, so it costs disk space and bandwidth even though the decision is reversible. Take `id` from get_requests. Previews first; confirm.',
         inputSchema: RespondToRequestInput,
         service: 'seerr',
         operation: 'respond_to_request',
@@ -144,7 +144,14 @@ export function registerRespondToRequest(
         async plan({ id, verdict }): Promise<WritePlan> {
             const request = await findRequest(adapters, id, identity);
             const label = await describe(adapters, request);
-            const target = verdict === 'approve' ? 'approved' : 'declined';
+
+            // Seerr answers 409 for a retry of anything but a failed request.
+            // Refused here, before a confirm token, with the verdict that fits.
+            if (verdict === 'retry' && request.status !== 'failed') {
+                const instead = request.status === 'pending' ? ' Approve it instead.' : '';
+                throw new Error(`${label} is ${request.status}, not failed. Only a failed request can be retried.${instead}`);
+            }
+            const target = verdict === 'decline' ? 'declined' : 'approved';
 
             // Re-approving an approved request is not an error, but it is not
             // an action either, and asking someone to confirm a no-op teaches
@@ -160,19 +167,20 @@ export function registerRespondToRequest(
 
             const arr = request.mediaType === 'unknown' ? 'Radarr or Sonarr' : SEERR_ARR[request.mediaType];
             const effects =
-                verdict === 'approve'
+                verdict === 'decline'
                     ? [
-                          `Hands the request to ${arr}, which will search for it and start downloading. This uses disk space and bandwidth.`,
-                          `Marks the request approved. ${requester(request)} will see it as accepted.`
-                      ]
-                    : [
                           `Marks the request declined. ${requester(request)} will see it as rejected.`,
                           'Downloads nothing. Anything already downloaded for it is left alone.'
+                      ]
+                    : [
+                          `${verdict === 'retry' ? `Sends the request to ${arr} again` : `Hands the request to ${arr}`}, which will search for it and start downloading. This uses disk space and bandwidth.`,
+                          `Marks the request approved. ${requester(request)} will see it as accepted.`
                       ];
+            const verb = { approve: 'Approve', decline: 'Decline', retry: 'Retry' }[verdict];
 
             return {
                 target: `seerr:${request.id}`,
-                summary: `${verdict === 'approve' ? 'Approve' : 'Decline'} ${label} (currently ${request.status}).`,
+                summary: `${verb} ${label} (currently ${request.status}).`,
                 effects,
                 args: { id, verdict }
             };

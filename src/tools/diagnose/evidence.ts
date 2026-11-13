@@ -552,7 +552,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
             // leaves, so the next step is withheld where the write would refuse.
             // Unknown (no identity, or it would not resolve) reads as "may not".
             let mayRespond = false;
-            if (match !== undefined && match.status === 'pending' && deps.seerrIdentity !== undefined) {
+            if (match !== undefined && (match.status === 'pending' || match.status === 'failed') && deps.seerrIdentity !== undefined) {
                 const may = budget.expired()
                     ? TIMED_OUT
                     : await budget.race(mayManageRequest(match, deps.seerrIdentity).catch(() => false));

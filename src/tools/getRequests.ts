@@ -137,7 +137,7 @@ export function registerGetRequests(
             title: 'Requests',
             annotations: READ_ONLY,
             description:
-                'Media requests in Seerr for one user. Defaults to the configured user; reading another requires allow_other_users. At `detail: "full"` it also returns `issues`: what your users have reported as broken (video, audio, subtitle), each naming its media and newest comments. Issues are everyone\'s, not just this user\'s, and a Seerr that cannot answer for them still answers for the requests. Approve or decline with respond_to_request, remove with delete_request.',
+                'Media requests in Seerr for one user. Defaults to the configured user; reading another requires allow_other_users. At `detail: "full"` it also returns `issues`: what your users have reported as broken (video, audio, subtitle), each naming its media and newest comments. Issues are everyone\'s, not just this user\'s, and a Seerr that cannot answer for them still answers for the requests. Approve, decline or retry with respond_to_request.',
             outputSchema: GetRequestsOutput,
             inputSchema: GetRequestsInput
         },

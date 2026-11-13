@@ -519,6 +519,8 @@ export class SeerrAdapter
 
         // Seerr wants a POST with no meaningful body; it rejects one with no
         // content-type at all, so an empty object is sent rather than nothing.
+        // `/approve`, `/decline` and `/retry` share this shape and each answer
+        // with the updated request.
         const updated = await this.#http.post<RawRequest>(`/api/v1/request/${requestId}/${verdict}`, {});
 
         // The response is the updated request. If it comes back without an id

@@ -198,6 +198,16 @@ const CASES: Case[] = [
         expected: { tool: 'respond_to_request', arguments: { id: '12', verdict: 'approve' } }
     },
     {
+        name: 'request, failed',
+        diagnosis: () => buildChain(QUERY, healthy({ item: item({ acquisition: undefined, presence: 'unknown' }), request: { status: 'failed', id: 13, mayRespond: true } })),
+        expected: { tool: 'respond_to_request', arguments: { id: '13', verdict: 'retry' } }
+    },
+    {
+        name: 'request, failed, someone else’s',
+        diagnosis: () => buildChain(QUERY, healthy({ item: item({ acquisition: undefined, presence: 'unknown' }), request: { status: 'failed', id: 12, mayRespond: false } })),
+        expected: undefined
+    },
+    {
         name: 'queue, import pending',
         diagnosis: () => buildChain(QUERY, healthy(withRows(row()))),
         expected: { tool: 'import_download', arguments: { service: 'radarr', action: 'import', download_id: 'ABC123' } }
@@ -665,7 +675,8 @@ const world = (): ServiceAdapter[] => [
     }),
     stub('seerr', {
         getRequests: async () => [{ service: 'seerr', id: 12, status: 'pending', mediaType: 'movie', requestedBy: 'Someone' }],
-        getRequest: async () => ({ service: 'seerr', id: 12, status: 'pending', mediaType: 'movie', requestedBy: 'Someone' }),
+        // 13 is the failed request a retry is offered for.
+        getRequest: async (id: string) => ({ service: 'seerr', id: Number(id), status: id === '13' ? 'failed' : 'pending', mediaType: 'movie', requestedBy: 'Someone' }),
         getMediaRequests: async () => ({ requests: [] }),
         respondToRequest: async () => ({ id: 12, status: 'approved' }),
         describeRequestMedia: async () => undefined,

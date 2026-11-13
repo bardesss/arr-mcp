@@ -36,7 +36,7 @@ off until you turn them on; see [writes](writes.md).
 | `remove_blocklist_item` | Let this blocklisted release be grabbed again |
 | `delete_media` | Remove this film, series or artist, optionally from disk; on Grimmory, delete a book and its files |
 | `delete_episode_files` | Free disk from one season or a handful of episodes, without touching the series |
-| `respond_to_request` | Approve or decline what someone asked for |
+| `respond_to_request` | Approve or decline what someone asked for, or retry a failed request |
 | `delete_request` | Drop a request record entirely |
 | `blocklist_media` | Stop anyone requesting this through Seerr, or an *arr's import lists adding it again; or lift either |
 | `request_media` | Ask Seerr for this, through its approval queue and quotas |
@@ -611,7 +611,7 @@ hold ids, `download_id`, and, for a lookup, the words you gave as `query`.
 | `managed`, in Sonarr or Whisparr | `set_monitoring` with `monitored: true` |
 | `managed`, in Lidarr | `update_media` with the artist `id` and `monitored: true`: the artist flag only, each album keeps its own |
 | `managed` or `resolve`, nothing manages it | `search_media` with `source: "discover"` with your `query`, only when you diagnosed by title, and for `managed` not while an *arr of its kind (any *arr, for a media server's id with no kind) could not be read; an artist comes back among Lidarr's hits, each with the MusicBrainz id `add_media` takes as `ids.mbid` |
-| `request`, pending | `respond_to_request` with `verdict: "approve"`, only if you may act on that request (it is yours, or `allow_other_users` is on) |
+| `request`, pending or failed | `respond_to_request` with `verdict: "approve"` (pending) or `"retry"` (failed), only if you may act on that request (it is yours, or `allow_other_users` is on) |
 | `queue`, import pending, including a torrent stopped after it finished | `import_download` with the `download_id` of the *arr's row, on Radarr, Sonarr or Lidarr, unless the *arr says it is importing it itself (`importPending`, `importing`, `imported`) |
 | `queue`, failed, a warning or a state it does not know | `remove_queue_item` with the row's service and id; it deletes partial data and does not blocklist, and for a warning on the *arr's own row its `why` says to add `blocklist: true` if the release itself is bad |
 | `queue`, paused or stopped before it finished, with the client's own row in the queue, paused too, and no paused queue holding it but SABnzbd's wait for post-processing | `pause_downloads` with `action: "resume"` and that row's service and id |
