@@ -964,7 +964,7 @@ describe('import_download remapping episodes', () => {
         id: 'jellyfin',
         type: 'jellyfin',
         listUserLibrary: async () => [],
-        startLibraryScan: async () => ({ commandId: 0 })
+        startLibraryScan: async () => ({ service: 'jellyfin', name: 'RefreshLibrary' })
     } as unknown as ServiceAdapter;
 
     it('hands back a rescan of the media server once the files agree', async () => {

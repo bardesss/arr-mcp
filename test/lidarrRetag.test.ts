@@ -105,6 +105,15 @@ describe('LidarrAdapter retagging', () => {
         expect(sent.some(s => s.path === '/api/v1/command/41')).toBe(true);
         expect(row).toMatchObject({ settled: true, status: 'completed' });
     });
+
+    // Queued, so it can still run: not a failed write, and no id to name.
+    it('reports a retag Lidarr queued without an id as unsettled, naming no command', async () => {
+        const { adapter, sent } = lidarr({ queued: { name: 'RetagFiles', status: 'queued' } });
+        const row = await adapter.retagFiles('101', [1001]);
+
+        expect(row).toEqual({ settled: false, reason: expect.stringMatching(/returned no command id/) as unknown });
+        expect(sent.some(s => s.path.startsWith('/api/v1/command/'))).toBe(false);
+    });
 });
 
 describe('retagged in get_history', () => {

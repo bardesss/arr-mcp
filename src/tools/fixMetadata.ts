@@ -258,9 +258,9 @@ async function applyRetag(adapter: Lidarr, bound: { artistId: string; files: num
         return {
             filesBefore: n,
             status: 'unknown',
-            ...(run.commandId > 0 ? { commandId: run.commandId } : {}),
+            ...(run.commandId === undefined ? {} : { commandId: run.commandId }),
             verified: false,
-            note: `NOT VERIFIED: Lidarr queued RetagFiles${run.commandId > 0 ? ` (command ${run.commandId})` : ''}, and arr-mcp stopped waiting for it: ${run.reason}. It may still run. get_stack_health's \`commands\` shows when it ends; then preview fix_metadata again to see which files still differ. Do not confirm it again.${scrubbed}`
+            note: `NOT VERIFIED: Lidarr queued RetagFiles${run.commandId === undefined ? '' : ` (command ${run.commandId})`}, and arr-mcp stopped waiting for it: ${run.reason}. It may still run. get_stack_health's \`commands\` shows when it ends; then preview fix_metadata again to see which files still differ. Do not confirm it again.${scrubbed}`
         };
     }
     const row = run;

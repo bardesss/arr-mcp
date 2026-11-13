@@ -382,6 +382,22 @@ describe('qbittorrent pause', () => {
         expect(row?.torrent?.tags).toEqual(['movies']);
     });
 
+    it('pauses and resumes only the torrents it is handed, when handed some', async () => {
+        const other = 'b'.repeat(40);
+        const fake = qbitFake([
+            { hash: HASH, state: 'downloading', tags: '' },
+            { hash: other, state: 'downloading', tags: '' }
+        ]);
+        const adapter = adapterWith(fake.fetch);
+        await adapter.setPaused(true, undefined, [HASH.toLowerCase()]);
+        expect(fake.torrents.map(t => t.state)).toEqual(['stoppedDL', 'downloading']);
+
+        fake.torrents[1]!.state = 'stoppedDL';
+        fake.torrents[1]!.tags = 'arr-mcp-paused';
+        await adapter.setPaused(false, undefined, [HASH.toLowerCase()]);
+        expect(fake.torrents.map(t => t.state)).toEqual(['downloading', 'stoppedDL']);
+    });
+
     it('refuses a whole-client pause on a qBittorrent without tags, before stopping anything', async () => {
         const fake = qbitFake([{ hash: HASH, state: 'downloading' }]);
         await expect(adapterWith(fake.fetch).setPaused(true)).rejects.toThrow(/no torrent tags/);
@@ -732,6 +748,27 @@ describe('pause_downloads', () => {
             expect(fake.torrents.map(t => t.status)).toEqual([0, 4]);
         });
 
+        // Thrown, the resume that landed would be audited and reported as failed.
+        it('reports a resume that landed when the label could not be removed after it', async () => {
+            const fake = transmissionFake([{ id: 2, hashString: hashOf('2'), status: 0, labels: ['arr-mcp-paused'] }]);
+            const refusing = (async (input: unknown, init?: RequestInit) => {
+                const body = JSON.parse(String(init?.body)) as { method: string };
+                if (body.method === 'torrent-set') return jsonResponse({ result: 'label write refused' });
+                return fake.fetch(input as string, init);
+            }) as unknown as typeof fetch;
+            const h = harness({
+                adapters: [new TransmissionAdapter(credential(9091), refusing)],
+                permissions: { transmission: credential(9091) as unknown as AnyServiceConfig }
+            });
+            const preview = await h.call({ service: 'transmission', action: 'resume' });
+            const done = await h.call({ service: 'transmission', action: 'resume', confirm: preview.structuredContent.confirm_token });
+
+            expect(fake.torrents[0]?.status).toBe(4);
+            expect(done.structuredContent.applied).toBe(true);
+            expect(done.content[0]?.text).toMatch(/^Applied\. Resume the 1 torrent paused on transmission\. It keeps the label arr-mcp-paused, which could not be removed: .*label write refused/);
+            expect((h.audit.recent()[0] as { outcome: string }).outcome).toBe('applied');
+        });
+
         // A torrent an *arr sends between preview and confirm was never named
         // in the preview, so the token does not stop it.
         it('refuses a pause token once the running torrents changed, and previews the new set', async () => {
@@ -748,6 +785,32 @@ describe('pause_downloads', () => {
 
             await h.call({ service: 'transmission', action: 'pause', confirm: confirmed.structuredContent.confirm_token });
             expect(fake.torrents.map(t => t.status)).toEqual([0, 0]);
+        });
+
+        // Between the confirm call's own read and the apply, which acts on the
+        // ids that read bound rather than reading the client again.
+        it('does not stop a torrent that starts after the confirm read', async () => {
+            const fake = transmissionFake([{ id: 1, hashString: hashOf('1'), status: 4, labels: [] }]);
+            let reads = 0;
+            const late = (async (input: unknown, init?: RequestInit) => {
+                const answer = await fake.fetch(input as string, init);
+                const body = JSON.parse(String(init?.body)) as { method: string; arguments?: { ids?: unknown } };
+                if (body.method === 'torrent-get' && body.arguments?.ids === undefined && ++reads === 2) {
+                    fake.torrents.push({ id: 2, hashString: hashOf('2'), status: 4, labels: [] });
+                }
+                return answer;
+            }) as unknown as typeof fetch;
+            const h = harness({
+                adapters: [new TransmissionAdapter(credential(9091), late)],
+                permissions: { transmission: credential(9091) as unknown as AnyServiceConfig }
+            });
+
+            const preview = await h.call({ service: 'transmission', action: 'pause' });
+            const done = await h.call({ service: 'transmission', action: 'pause', confirm: preview.structuredContent.confirm_token });
+
+            expect(done.structuredContent.applied).toBe(true);
+            expect(fake.torrents.map(t => t.status)).toEqual([0, 4]);
+            expect(fake.torrents[1]?.labels).toEqual([]);
         });
 
         it('refuses a resume for a torrent id the client does not have, rather than calling it running', async () => {

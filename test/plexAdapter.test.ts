@@ -851,7 +851,8 @@ describe('PlexAdapter', () => {
             expect(seen).toEqual(['1', '2', '5']);
             // 0 for the same reason Jellyfin's is: Plex hands back no id, and a
             // made-up number would look like something `get_stack_health` could poll.
-            expect(handle).toMatchObject({ service: 'plex', commandId: 0, status: 'started' });
+            expect(handle).toMatchObject({ service: 'plex', status: 'started' });
+            expect(handle).not.toHaveProperty('commandId');
             expect(handle.detail).toBeUndefined();
         });
 

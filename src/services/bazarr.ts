@@ -295,6 +295,36 @@ export class BazarrAdapter
         );
     }
 
+    /**
+     * Checked live against Bazarr 1.6: both routes filter by the id, and
+     * answer 200 with no rows for one Bazarr does not have. An episode row
+     * carries its series id but not the series title, so that is one more read.
+     */
+    async readSubtitleItem(kind: 'movie' | 'episode', id: number): Promise<SubtitleGap | undefined> {
+        if (kind === 'movie') {
+            const body = await this.#http.get<Envelope<RawWantedMovie[]>>(`/api/movies?radarrid[]=${id}`);
+            const row = (body.data ?? []).find(m => m.radarrId === id);
+            return row === undefined ? undefined : this.#movieGap(row);
+        }
+
+        const body = await this.#http.get<Envelope<RawSeriesEpisode[]>>(`/api/episodes?episodeid[]=${id}`);
+        const row = (body.data ?? []).find(e => e.sonarrEpisodeId === id);
+        if (row === undefined) return undefined;
+        const seriesId = row.sonarrSeriesId;
+        const series =
+            typeof seriesId === 'number' ? await this.#http.get<Envelope<RawSeries[]>>(`/api/series?seriesid[]=${seriesId}`) : undefined;
+        return this.#episodeGap({
+            id,
+            seriesId,
+            seriesTitle: (series?.data ?? []).find(s => s.sonarrSeriesId === seriesId)?.title,
+            episodeTitle: row.title,
+            season: row.season,
+            episode: row.episode,
+            sceneName: row.sceneName,
+            missing: row.missing_subtitles
+        });
+    }
+
     #language(m: RawMissing): MissingLanguage {
         return {
             name: m.name ?? 'unknown',

@@ -19,8 +19,8 @@ const TARGET = serviceTarget({
 
 const label = (gap: SubtitleGap): string =>
     gap.kind === 'movie'
-        ? gap.title
-        : `${gap.title} ${gap.season ?? '?'}x${gap.episode ?? '?'}${gap.episodeTitle === undefined ? '' : ` ${gap.episodeTitle}`}`;
+        ? gap.title || `movie ${gap.id}`
+        : `${gap.title || `series ${gap.seriesId ?? '?'}`} ${gap.season ?? '?'}x${gap.episode ?? '?'}${gap.episodeTitle === undefined ? '' : ` ${gap.episodeTitle}`}`;
 
 const TriggerSubtitleSearchInput = z.object({
     ...targetInput(TARGET),
@@ -44,7 +44,7 @@ const TriggerSubtitleSearchInput = z.object({
         .int()
         .optional()
         .describe(
-            'The Sonarr series id. Only needed with search_anyway for an episode Bazarr does not list as missing, since the missing list is otherwise where the series id comes from.'
+            'The Sonarr series id. Only needed when Bazarr reports an episode without one.'
         ),
     forced: z.boolean().default(false).describe('Search for a forced subtitle track.'),
     hearing_impaired: z.boolean().default(false).describe('Search for a hearing-impaired subtitle track.')
@@ -59,7 +59,7 @@ export function registerTriggerSubtitleSearch(
         name: 'trigger_subtitle_search',
         title: 'Search for a subtitle',
         description:
-            'Asks Bazarr to go looking for one language of subtitles for one item it already tracks, the "it is missing Dutch subs and I do not want to wait for the next round" action. Takes `kind`, `id` and `language` exactly as get_subtitles reports them. By default it only searches for something Bazarr lists as missing; `search_anyway: true` searches regardless, which is how you replace a subtitle you already have but do not want (for an episode outside that list, pass `series_id` too). This queues a search and returns immediately; it does not wait, and finding a subtitle is not guaranteed. Previews first; confirm to run it.',
+            'Asks Bazarr to go looking for one language of subtitles for one item it already tracks, the "it is missing Dutch subs and I do not want to wait for the next round" action. Takes `kind`, `id` and `language` exactly as get_subtitles reports them. By default it only searches for something Bazarr lists as missing; `search_anyway: true` searches regardless, which is how you replace a subtitle you already have but do not want. This queues a search and returns immediately; it does not wait, and finding a subtitle is not guaranteed. Previews first; confirm to run it.',
         inputSchema: TriggerSubtitleSearchInput,
         target: { adapters, to: TARGET },
         operation: 'trigger_subtitle_search',
@@ -101,20 +101,32 @@ export function registerTriggerSubtitleSearch(
                     });
                 }
 
-                // The wanted list is the only place an episode's series id is
-                // offered, so outside it the caller has to supply one. Refused
-                // rather than sent: Bazarr rejects the call, after the token
-                // has been spent.
-                if (kind === 'episode' && series_id === undefined) {
+                // Bazarr runs a search for an id it does not have as readily as
+                // for one it does, and finds nothing for it. Its own row also
+                // names the item for the preview, and an episode's series.
+                const item = await adapter.readSubtitleItem(kind, Number(id));
+                if (item === undefined) {
+                    throw new ServiceError('NotFound', adapter.id, `${adapter.id} has no ${kind} ${id}`, {
+                        remedy:
+                            kind === 'movie'
+                                ? "A film's id here is its Radarr id: `acquisition.id` on get_library or get_media_details."
+                                : "An episode's id here is its Sonarr episode id, not the series id: get_media_details on the series at `detail: \"full\"` lists them."
+                    });
+                }
+                const seriesId = item.seriesId ?? series_id;
+
+                // Refused rather than sent: Bazarr rejects the call, after the
+                // token has been spent.
+                if (kind === 'episode' && seriesId === undefined) {
                     throw new ServiceError('NotFound', adapter.id, 'an episode subtitle search needs the series id', {
                         remedy:
-                            'Pass series_id, the Sonarr series id (`acquisition.id` on the series in get_library). It is only in the missing list for items that are actually missing subtitles.'
+                            'Pass series_id, the Sonarr series id (`acquisition.id` on the series in get_library): Bazarr reported none for this episode.'
                     });
                 }
 
                 return {
                     target,
-                    summary: `Ask ${adapter.id} to search for ${language} subtitles for ${kind} ${id}.`,
+                    summary: `Ask ${adapter.id} to search for ${language} subtitles for ${label(item)}.`,
                     effects: [
                         `${adapter.id} does not list this ${kind} as missing ${language} subtitles, so this is a search for something it believes it already has or does not want.`,
                         'It may replace a subtitle that is already there with whatever the providers rank best.',
@@ -126,7 +138,7 @@ export function registerTriggerSubtitleSearch(
                         language,
                         forced,
                         hearing_impaired,
-                        ...(series_id === undefined ? {} : { seriesId: series_id })
+                        ...(seriesId === undefined ? {} : { seriesId })
                     }
                 };
             }

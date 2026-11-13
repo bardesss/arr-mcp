@@ -6,6 +6,7 @@ import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
 import { fenceText } from '../core/fence.ts';
 import { hostPort } from '../core/hostPort.ts';
+import { logger } from '../core/logger.ts';
 import type { TorrentFacts } from '../core/cleanuparrRules.ts';
 import {
     diagnoseConnection,
@@ -339,7 +340,7 @@ export class TransmissionAdapter
         };
     }
 
-    async setPaused(paused: boolean, id?: string): Promise<void> {
+    async setPaused(paused: boolean, id?: string, only?: readonly string[]): Promise<string | void> {
         if (id !== undefined) {
             // The same pre-check `removeQueueItem` makes, for the same reason:
             // probed live, `torrent-stop` for an id Transmission has never seen
@@ -348,11 +349,12 @@ export class TransmissionAdapter
             if (torrent === undefined) throw this.#notFound(id);
             await this.#rpc(paused ? 'torrent-stop' : 'torrent-start', { ids: [this.#torrentRef(id)] });
             // Started by hand, so a later whole-client resume has nothing to do for it.
-            if (!paused && isMarked(torrent)) await this.#relabel([torrent], false);
+            if (!paused && isMarked(torrent)) return this.#unmark([torrent]);
             return;
         }
 
-        const torrents = await this.#labelled();
+        const bound = only === undefined ? undefined : new Set(only);
+        const torrents = (await this.#labelled()).filter(t => bound === undefined || bound.has(String(refOf(t))));
         if (paused) {
             const running = torrents.filter(t => t.status !== 0);
             if (running.length === 0) return;
@@ -367,7 +369,19 @@ export class TransmissionAdapter
         const held = torrents.filter(isMarked);
         if (held.length === 0) return;
         await this.#rpc('torrent-start', { ids: held.map(refOf) });
-        await this.#relabel(held, false);
+        return this.#unmark(held);
+    }
+
+    /** After a resume that landed: a label left behind is reported, not
+     *  thrown, since thrown it would read as nothing resumed. A later
+     *  whole-client resume starts those torrents again, which run anyway. */
+    async #unmark(torrents: PauseRow[]): Promise<string | void> {
+        try {
+            await this.#relabel(torrents, false);
+        } catch (err) {
+            logger.warn({ service: this.id, err }, `resumed, but could not remove the ${PAUSE_MARK} label`);
+            return `${torrents.length === 1 ? 'It keeps' : `${torrents.length} keep`} the label ${PAUSE_MARK}, which could not be removed: ${err instanceof Error ? err.message : String(err)}`;
+        }
     }
 
     /**

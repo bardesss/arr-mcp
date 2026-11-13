@@ -28,7 +28,7 @@ export async function planOrphaned(adapter: OrphanCapable): Promise<WritePlan<Or
             summary:
                 `${adapter.id} has no orphaned queue items stuck at importBlocked.` +
                 (adapter.type === 'lidarr'
-                    ? ' Lidarr before 2.10.1 never marks one importBlocked: there, a deleted artist\'s finished download stays `completed` with a warning in get_queue, and remove_queue_item with its `id` removes it.'
+                    ? ' Lidarr before 2.10.1 never marks one importBlocked: there, a finished download matched to nothing in the library (deleted, or never matched) stays `completed` with a warning in get_queue, and remove_queue_item with its `id` removes it.'
                     : ''),
             effects: [],
             noop: true

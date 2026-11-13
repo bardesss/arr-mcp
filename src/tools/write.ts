@@ -277,7 +277,8 @@ function writeInput(schema: z.ZodObject): z.ZodObject {
  * The one place a write tool is turned into an MCP tool. Every branch below
  * either records an audit row or is a pure preview that records one as
  * `dry_run`; there is no path from arguments to `apply` that skips the tier
- * check, the confirmation, or the trail.
+ * check, the confirmation, or the trail. Refusals above the caller's own
+ * credential are counted into one row a minute rather than one each.
  */
 export function registerWriteTool<
     Schema extends z.ZodObject,
@@ -330,12 +331,23 @@ export function registerWriteTool<
             // audit names and the token binds to. Deriving it later, from the
             // plan, say, would let the three disagree.
             const tier = typeof spec.tier === 'function' ? spec.tier(args) : spec.tier;
+            // A refusal of a live call, and one row for it. A call the caller's
+            // own credential could never make is rate-limited per caller and
+            // tool (`refusedAboveCeiling`): a row each would let a read token
+            // grow the permanent audit table as fast as it can ask.
+            const deny = (named: string, target: string, detail: string): void => {
+                const record = { tool: spec.name, service: named, operation: spec.operation, tier, target, args: {}, caller };
+                if (permissions.permits?.(tier, named) === false) {
+                    audit.refusedAboveCeiling(record, detail);
+                    return;
+                }
+                audit.settle(audit.begin(record), 'denied', detail);
+            };
             // An argument the plan or router refused, or a title it could not
-            // find. A dry run that fails to plan records nothing, as before.
+            // find. A dry run records nothing for it, whichever refused it.
             const refused = (named: string, err: unknown): void => {
                 if (dryRun) return;
-                const id = audit.begin({ tool: spec.name, service: named, operation: spec.operation, tier, target: rawTarget(args), args: {}, caller });
-                audit.settle(id, 'denied', err instanceof Error ? err.message : String(err));
+                deny(named, rawTarget(args), err instanceof Error ? err.message : String(err));
             };
             let service: string;
             let adapter: Adapter & ServiceAdapter;
@@ -344,12 +356,8 @@ export function registerWriteTool<
                 try {
                     adapter = resolveTarget(spec.target.adapters, spec.target.to, type, instance);
                 } catch (err) {
-                    // Refused before anything else ran, and recorded like any other
-                    // refusal, except a dry run the token could never apply (see `quiet`).
-                    if (!(dryRun && permissions.permits?.(tier, type) === false)) {
-                        const id = audit.begin({ tool: spec.name, service: type, operation: spec.operation, tier, target: rawTarget(args), args: {}, caller });
-                        audit.settle(id, 'denied', err instanceof Error ? err.message : String(err));
-                    }
+                    // Refused before anything else ran, and recorded like any other refusal.
+                    refused(type, err);
                     throw err;
                 }
                 service = adapter.id;
@@ -381,16 +389,7 @@ export function registerWriteTool<
 
             if (!verdict.allowed && !dryRun) {
                 const given = rawTarget(args);
-                const id = audit.begin({
-                    tool: spec.name,
-                    service,
-                    operation: spec.operation,
-                    tier,
-                    target: given,
-                    args: {},
-                    caller
-                });
-                audit.settle(id, 'denied', verdict.reason);
+                deny(service, given, verdict.reason);
                 throw new ServiceError(
                     'PermissionDenied',
                     service,

@@ -125,10 +125,10 @@ export function registerRequestMedia(
                 // A no-op creates nothing, so a request already on record still
                 // answers even when the title lookup fails.
                 const found = hasRequests(adapter)
-                    ? (await adapter.getRequests({})).find(r => r.tmdbId === media_id && r.mediaType === media_type)
-                    : undefined;
-                if (found === undefined) throw wrongId(err, media_type, media_id);
-                lookup = { requests: [found] };
+                    ? (await adapter.getRequests({})).filter(r => r.tmdbId === media_id && r.mediaType === media_type)
+                    : [];
+                if (found.length === 0) throw wrongId(err, media_type, media_id);
+                lookup = { requests: found };
             }
 
             // A declined or failed request covers nothing, and a series request
@@ -150,8 +150,21 @@ export function registerRequestMedia(
                 ? (live.find(r => r.status === 'pending') ?? [...live].sort((a, b) => b.id - a.id)[0])
                 : undefined;
             const media = lookup.media;
+            const by = (r: MediaRequest): string => fenceText(r.requestedBy, { service: adapter.id, field: 'user' });
             // Creating for a title that has none means a wrong id, and a token
-            // for it applies as a 500.
+            // for it applies as a 500. Unless Seerr has a request on record for
+            // it: then the id is right and only the title read failed.
+            if (existing === undefined && media === undefined && lookup.requests.length > 0) {
+                const newest = [...lookup.requests].sort((a, b) => b.id - a.id)[0] as MediaRequest;
+                throw new ServiceError(
+                    'UpstreamError',
+                    'seerr',
+                    `Seerr could not read ${media_type} ${media_id}, and its request ${newest.id} by ${by(newest)} was ${newest.status}, so it covers nothing`,
+                    {
+                        remedy: 'The id is right: Seerr has that request on record. A new request needs the title, so try again once Seerr can read it; get_requests shows the earlier one.'
+                    }
+                );
+            }
             if (existing === undefined && media === undefined) {
                 throw wrongId(
                     new ServiceError('NotFound', 'seerr', `/api/v1/${media_type}/${media_id} has no title`),
@@ -163,7 +176,6 @@ export function registerRequestMedia(
                 media === undefined
                     ? `${media_type === 'movie' ? 'movie' : 'series'} ${media_id} (title unavailable)`
                     : titled(media.title, media.year);
-            const by = (r: MediaRequest): string => fenceText(r.requestedBy, { service: adapter.id, field: 'user' });
 
             if (existing !== undefined) {
                 return {

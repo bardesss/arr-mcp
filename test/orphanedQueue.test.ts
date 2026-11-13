@@ -306,6 +306,8 @@ describe.each(TOOLS)('%s on lidarr', (tool, _args, lidarrArgs) => {
 
         expect(structuredContent.noop).toBe(true);
         expect(structuredContent.summary).toMatch(/before 2\.10\.1 never marks one importBlocked/);
+        // It cannot tell a deleted artist from a download it never matched.
+        expect(structuredContent.summary).toContain('matched to nothing in the library (deleted, or never matched)');
         expect(content[0]?.text).toContain('remove_queue_item with its `id`');
     });
 });

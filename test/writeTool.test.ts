@@ -465,10 +465,62 @@ describe('write tool harness — the audit trail', () => {
         expect(audit.recent()).toHaveLength(0);
     });
 
+    // As a dry run the plan or a `service` router refuses: nothing was asked for.
+    it('records nothing for any dry run refused while routing to an instance, and a row for a live one', async () => {
+        const audit = WriteAudit.ephemeral();
+        const { server, call } = fakeServer();
+        registerWriteTool(
+            server,
+            { permissions: permissionSourceFrom([]), confirm: new ConfirmTokens(), audit, library: { invalidate: vi.fn() } as unknown as LibraryLoader },
+            {
+                name: 'grab_release',
+                title: 'Grab',
+                description: 'Grabs.',
+                inputSchema: z.object({ service: z.literal('radarr'), instance: z.string().optional() }),
+                target: {
+                    adapters: [],
+                    to: { services: ['radarr'], can: (a): a is never => a !== undefined, cannot: 'cannot grab' }
+                },
+                operation: 'grab',
+                tier: 'safe',
+                plan: () => Promise.resolve(PLAN),
+                apply: () => Promise.resolve({})
+            }
+        );
+        await expect(call('grab_release', { service: 'radarr', instance: 'nope', dry_run: true })).rejects.toThrow();
+        expect(audit.recent()).toHaveLength(0);
+        await expect(call('grab_release', { service: 'radarr', instance: 'nope' })).rejects.toThrow();
+        expect((audit.recent() as { outcome: string }[]).map(r => r.outcome)).toEqual(['denied']);
+    });
+
     it('still records a live write the token refuses', async () => {
         const readOnly = buildHarness({ ceiling: [] });
         await expect(readOnly.call('delete_media', { id: '5' })).rejects.toThrow(/read-only/);
         expect(outcomes(readOnly)).toEqual(['denied']);
+    });
+
+    it('records repeated live writes the token refuses as one row a minute, with the count', async () => {
+        vi.useFakeTimers();
+        try {
+            const readOnly = buildHarness({ ceiling: [], caller: 'bearer:phone#00000000' });
+            for (let i = 0; i < 4; i++) await expect(readOnly.call('delete_media', { id: '5' })).rejects.toThrow(/read-only/);
+            expect(outcomes(readOnly)).toEqual(['denied']);
+
+            vi.advanceTimersByTime(61_000);
+            await expect(readOnly.call('delete_media', { id: '5' })).rejects.toThrow(/read-only/);
+            const rows = readOnly.audit.recent() as { outcome: string; detail: string }[];
+            expect(rows.map(r => r.outcome)).toEqual(['denied', 'denied']);
+            expect(rows[0]?.detail).toMatch(/and 3 more refused since the last row/);
+            expect(rows[1]?.detail).not.toMatch(/more refused/);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('still records each live write a token may make but the config refuses', async () => {
+        const denied = buildHarness({ permissions: { radarr: service(false, false) } });
+        for (let i = 0; i < 3; i++) await expect(denied.call('delete_media', { id: '5' })).rejects.toThrow();
+        expect(outcomes(denied)).toEqual(['denied', 'denied', 'denied']);
     });
 
     it('still records a dry run when only the config refuses it', async () => {
