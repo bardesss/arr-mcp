@@ -2715,8 +2715,10 @@ replaced.
 Without the flag, an item outside the wanted list is refused and a language
 that is not missing is reported as nothing to do.
 
-For an episode outside the wanted list, pass `series_id` too; Bazarr rejects
-the call without it.
+Outside the wanted list, the preview reads the item from Bazarr first: an id
+Bazarr does not have is refused, since a search for it would find nothing, and
+an episode's series id comes from Bazarr's own row. `series_id` is only needed
+for an episode Bazarr reports without one.
 
 ## `trigger_scan`
 

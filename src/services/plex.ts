@@ -960,8 +960,8 @@ export class PlexAdapter
      * Verified live against 1.43.1.10611: a refresh answers 200 with no body
      * and no `Content-Type` at all, hence `discardBody`, since parsing that
      * as JSON would report a scan that did start as a failure, and carries no
-     * command id, so `commandId` is 0 for the same reason Jellyfin's is rather
-     * than inventing a number that looks pollable. The section's own
+     * command id, so `commandId` is left out for the same reason Jellyfin's is
+     * rather than inventing a number that looks pollable. The section's own
      * `refreshing` flag flipped true within a second, which is what
      * `getScanState` above already reads, so the follow-up needs no new call.
      *
@@ -1007,7 +1007,6 @@ export class PlexAdapter
 
         return {
             service: this.id,
-            commandId: 0,
             name: 'refresh',
             status: 'started',
             ...(failed.length === 0

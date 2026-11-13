@@ -654,7 +654,7 @@ const lidarrStub = () =>
         runManualImport: async () => ({ name: 'ManualImport' })
     });
 
-const jellyfinStub = () => stub('jellyfin', { listUserLibrary: async () => [], startLibraryScan: async () => ({ commandId: 0 }) });
+const jellyfinStub = () => stub('jellyfin', { listUserLibrary: async () => [], startLibraryScan: async () => ({ service: 'jellyfin', name: 'RefreshLibrary' }) });
 
 const world = (): ServiceAdapter[] => [
     radarrStub('radarr'),

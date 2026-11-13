@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import type { Database as Db, Statement } from 'better-sqlite3';
 import { join } from 'node:path';
 import type { WriteTier } from './permissions.ts';
+import { LogLimiter } from './logLimiter.ts';
 import { logger } from './logger.ts';
 
 /**
@@ -188,8 +189,11 @@ export class WriteAudit {
     readonly #settle: Statement;
     readonly #recent: Statement;
     readonly #counts: Statement;
+    /** Per caller and tool; see `refusedAboveCeiling`. */
+    readonly #ceilingRefusals: LogLimiter;
 
-    private constructor(db: Db, path: string) {
+    private constructor(db: Db, path: string, ceilingRefusals: LogLimiter = new LogLimiter()) {
+        this.#ceilingRefusals = ceilingRefusals;
         this.#db = db;
         this.#path = path;
         this.#insert = db.prepare(
@@ -219,11 +223,11 @@ export class WriteAudit {
     }
 
     /** In-memory trail for tests; same schema, same statements, no file. */
-    static ephemeral(): WriteAudit {
+    static ephemeral(ceilingRefusals?: LogLimiter): WriteAudit {
         const db = new Database(':memory:');
         db.exec(SCHEMA);
         migrate(db);
-        return new WriteAudit(db, ':memory:');
+        return new WriteAudit(db, ':memory:', ceilingRefusals);
     }
 
     /**
@@ -264,6 +268,22 @@ export class WriteAudit {
         } catch (err) {
             logger.error({ err, id, outcome, path: this.#path }, 'could not settle write audit row');
         }
+    }
+
+    /**
+     * A write the caller's own credential can never make, such as a live
+     * delete from a read-only token: one `denied` row per caller and tool a
+     * minute, carrying how many were refused unrecorded since the last one.
+     * A row per call would let that token grow the permanent table as fast as
+     * it can ask. Undefined when this one went unrecorded.
+     */
+    refusedAboveCeiling(record: AuditRecord, detail: string): number | undefined {
+        const dropped = this.#ceilingRefusals.admit(`${record.caller}
+${record.tool}`);
+        if (dropped === undefined) return undefined;
+        const id = this.begin(record);
+        this.settle(id, 'denied', dropped === 0 ? detail : `${detail} (and ${dropped} more refused since the last row)`);
+        return id;
     }
 
     /** Newest first. */

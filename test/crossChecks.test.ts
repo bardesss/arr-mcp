@@ -459,7 +459,10 @@ describe('cross-checks — acquire', () => {
         expect(advice.warnings).toEqual([]);
     });
 
-    it('warns when the request is pending or declined, not when it is approved', async () => {
+    it('warns when the request is pending, failed or declined, not when it is approved', async () => {
+        expect((await check(subject, 'acquire', { seerr: [request('failed')] })).warnings).toEqual([
+            'The Seerr request for Alien (1979) failed: Seerr could not send it on to its *arr.'
+        ]);
         expect((await check(subject, 'acquire', { seerr: [request('pending')] })).warnings).toEqual([
             'The Seerr request for Alien (1979) is still waiting for approval.'
         ]);

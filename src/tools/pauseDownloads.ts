@@ -106,6 +106,12 @@ function resumeLine(state: PauseState, client: string, waiting: boolean): string
     return `Restarts ${state.scope} on ${client}. ${after}`;
 }
 
+/** The exact torrents a whole-client plan read, for its apply. Kept off `args`,
+ *  which the digest stands in for, and keyed by the plan the confirm call
+ *  verified the token against, so apply acts on what was previewed and not on
+ *  a second read. */
+const boundTorrents = new WeakMap<WritePlan, readonly string[]>();
+
 const torrentCount = (n: number): string => (n === 1 ? '1 torrent' : `${n} torrents`);
 
 /** The torrents a whole-client pause or resume acts on, folded into its token:
@@ -130,7 +136,12 @@ function torrentPlan(
     paused: boolean,
     t: NonNullable<PauseState['torrents']>
 ): WritePlan {
-    const args = { action: paused ? 'pause' : 'resume', torrents: setOf(paused ? t.runningIds : t.markedIds) };
+    const ids = paused ? t.runningIds : t.markedIds;
+    const args = { action: paused ? 'pause' : 'resume', torrents: setOf(ids) };
+    const bind = (plan: WritePlan): WritePlan => {
+        boundTorrents.set(plan, ids);
+        return plan;
+    };
     if (paused) {
         if (t.running === 0) {
             return {
@@ -140,7 +151,7 @@ function torrentPlan(
                 noop: true
             };
         }
-        return {
+        return bind({
             target,
             summary: `Pause the ${torrentCount(t.running)} running on ${client}.`,
             effects: [
@@ -149,7 +160,7 @@ function torrentPlan(
                 'Undo it by calling this tool again with action: "resume", which starts only the torrents this stopped.'
             ],
             args
-        };
+        });
     }
     if (t.marked === 0) {
         return {
@@ -159,14 +170,14 @@ function torrentPlan(
             noop: true
         };
     }
-    return {
+    return bind({
         target,
         summary: `Resume the ${torrentCount(t.marked)} paused on ${client}.`,
         effects: [
             `Starts the ${torrentCount(t.marked)} with the ${t.mark} and removes it; torrents stopped another way stay stopped. Downloading resumes immediately and uses bandwidth.`
         ],
         args
-    };
+    });
 }
 
 export function registerPauseDownloads(
@@ -301,15 +312,23 @@ export function registerPauseDownloads(
             };
         },
 
-        async apply(_plan, { service, instance, action, id, speed_limit_kbps }, adapter) {
+        async apply(plan, { service, instance, action, id, speed_limit_kbps }, adapter) {
             if (action === 'limit') {
                 const kbps = speed_limit_kbps === undefined || speed_limit_kbps === 0 ? undefined : speed_limit_kbps;
                 const client = findLimitAdapter(adapters, service, instance);
                 await client.setSpeedLimit(kbps);
                 return { limitKbps: kbps ?? null, service: client.id };
             }
-            await adapter.setPaused(action === 'pause', id);
-            return { [action === 'pause' ? 'paused' : 'resumed']: `${adapter.id}:${id ?? 'all'}` };
+            const note = await adapter.setPaused(action === 'pause', id, boundTorrents.get(plan));
+            return {
+                [action === 'pause' ? 'paused' : 'resumed']: `${adapter.id}:${id ?? 'all'}`,
+                ...(typeof note === 'string' ? { note } : {})
+            };
+        },
+
+        applied(outcome, plan) {
+            const note = (outcome as { note?: string } | undefined)?.note;
+            return note === undefined ? undefined : `Applied. ${plan.summary} ${note}.`;
         }
     });
 }

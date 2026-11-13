@@ -301,6 +301,15 @@ describe('request_media', () => {
         expect(structuredContent.summary).toContain('title unavailable');
     });
 
+    // Not the wrong-id refusal: Seerr has the id on record, so it is right.
+    it('names the declined request when the title lookup fails and that is all Seerr has', async () => {
+        const h = harness({ existing: [requestRow({ id: 23, status: 3, media: { tmdbId: 31510819, mediaType: 'tv' } })] });
+        const call = h.call({ media_type: 'tv', media_id: 31510819 });
+        await expect(call).rejects.toThrow(/request 23 by .*Sam.* was declined/);
+        await expect(call).rejects.not.toThrow(/search_media/);
+        expect(h.posted).toHaveLength(0);
+    });
+
     it('names the title in the preview, not just the id', async () => {
         const h = harness();
         const { structuredContent } = await h.call(MOVIE);

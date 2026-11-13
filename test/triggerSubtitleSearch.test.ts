@@ -203,6 +203,16 @@ describe('trigger_subtitle_search', () => {
  * never justify, because the item is not missing anything.
  */
 describe('trigger_subtitle_search outside the wanted list', () => {
+    /** What Bazarr 1.6 answers for one tracked item, as checked live: `year` is a string. */
+    const tracked = {
+        '/api/movies/wanted': MOVIES,
+        '/api/episodes/wanted': EPISODES,
+        '/api/movies': { data: [{ radarrId: 9999, title: 'Other Film', year: '2020', missing_subtitles: [] }], total: 1 },
+        '/api/episodes': { data: [{ sonarrEpisodeId: 9999, sonarrSeriesId: 67, title: 'Pilot', season: 1, episode: 1, missing_subtitles: [] }] },
+        '/api/series': { data: [{ sonarrSeriesId: 67, title: 'Rick and Morty' }] }
+    };
+    const untracked = { '/api/movies/wanted': MOVIES, '/api/episodes/wanted': EPISODES, '/api/movies': { data: [], total: 0 }, '/api/episodes': { data: [] } };
+
     it('still refuses an unknown item by default, and says how to mean it', async () => {
         const thrown = await harness()
             .call({ service: 'bazarr', kind: 'movie', id: '9999', language: 'nl', dry_run: true })
@@ -213,8 +223,8 @@ describe('trigger_subtitle_search outside the wanted list', () => {
         expect(thrown).toMatch(/missing subtitles/i);
     });
 
-    it('searches an item Bazarr does not list, when told to', async () => {
-        const h = harness();
+    it('searches an item Bazarr does not list, when told to, naming it from Bazarr', async () => {
+        const h = harness({ routes: tracked });
         const first = await h.call({
             service: 'bazarr',
             kind: 'movie',
@@ -224,6 +234,8 @@ describe('trigger_subtitle_search outside the wanted list', () => {
         });
 
         expect(first.structuredContent.effects.join(' ')).toMatch(/does not list this movie as missing/i);
+        expect(first.structuredContent.summary).toBe('Ask bazarr to search for nl subtitles for <<untrusted:bazarr.title>>Other Film<</>>.');
+        expect(h.bazarrFetch.sent.find(s => s.path === '/api/movies')?.query).toEqual({ 'radarrid[]': '9999' });
 
         const second = await h.call({
             service: 'bazarr',
@@ -246,8 +258,33 @@ describe('trigger_subtitle_search outside the wanted list', () => {
         expect(h.bazarrFetch.patches()).toHaveLength(0);
     });
 
-    it('needs series_id for an episode outside the list, and refuses before writing', async () => {
-        const h = harness();
+    it.each([
+        ['movie', /bazarr has no movie 9999/, /Radarr id/],
+        ['episode', /bazarr has no episode 9999/, /not the series id/]
+    ])('refuses a %s id Bazarr does not have, even with search_anyway', async (kind, message, remedy) => {
+        const h = harness({ routes: untracked });
+        const call = h.call({ service: 'bazarr', kind, id: '9999', language: 'nl', search_anyway: true });
+        await expect(call).rejects.toThrow(message);
+        await expect(call).rejects.toMatchObject({ remedy: expect.stringMatching(remedy) as unknown });
+        expect(h.bazarrFetch.patches()).toHaveLength(0);
+        expect(h.audit.recent()[0]?.outcome).toBe('denied');
+    });
+
+    it("takes an episode's series from Bazarr, and names the episode", async () => {
+        const h = harness({ routes: tracked });
+        const args = { service: 'bazarr', kind: 'episode', id: '9999', language: 'nl', search_anyway: true };
+        const first = await h.call(args);
+        expect(first.structuredContent.summary).toMatch(/Rick and Morty.* 1x1 .*Pilot/);
+        await h.call({ ...args, confirm: first.structuredContent.confirm_token });
+
+        expect(h.bazarrFetch.sent.find(s => s.path === '/api/episodes')?.query).toEqual({ 'episodeid[]': '9999' });
+        expect(h.bazarrFetch.patches()[0]?.query).toMatchObject({ seriesid: '67', episodeid: '9999' });
+    });
+
+    const seriesless = { ...tracked, '/api/episodes': { data: [{ sonarrEpisodeId: 9999, title: 'Pilot', season: 1, episode: 1 }] } };
+
+    it('needs series_id for an episode Bazarr reports without one, and refuses before writing', async () => {
+        const h = harness({ routes: seriesless });
         await expect(
             h.call({ service: 'bazarr', kind: 'episode', id: '9999', language: 'nl', search_anyway: true, dry_run: true })
         ).rejects.toThrow(/series_id/);
@@ -255,7 +292,7 @@ describe('trigger_subtitle_search outside the wanted list', () => {
     });
 
     it('uses the series_id it was given', async () => {
-        const h = harness();
+        const h = harness({ routes: seriesless });
         const args = {
             service: 'bazarr',
             kind: 'episode',

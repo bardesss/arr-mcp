@@ -280,6 +280,8 @@ export function buildCrossChecker(adapters: readonly ServiceAdapter[], library: 
                 }
                 if (matching.some(r => r.status === 'pending')) {
                     warnings.push(`The Seerr request for ${label} is still waiting for approval.`);
+                } else if (matching.some(r => r.status === 'failed')) {
+                    warnings.push(`The Seerr request for ${label} failed: Seerr could not send it on to its *arr.`);
                 } else if (matching.some(r => r.status === 'declined')) {
                     warnings.push(`The Seerr request for ${label} was declined.`);
                 }
