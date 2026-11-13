@@ -550,6 +550,7 @@ auth:
   username: admin
   password_hash: "…"         # scrypt; written by the setup page, never by you
   allowed_hosts: []          # empty accepts any Host, right for a LAN container
+  trusted_proxies: []        # reverse proxies whose X-Forwarded-For is believed
   tokens:                    # named MCP tokens; see MCP tokens below
     - name: claude-desktop
       tier: destructive
@@ -574,6 +575,31 @@ redirects to setup until someone claims it.
 locks you out of the page you would fix it from.** Recover by editing
 `config.yaml` by hand and restarting. A literal IPv6 address is written with its
 brackets, `"[fd00::1]"`, and matches with or without a port.
+
+### `trusted_proxies`
+
+The addresses of reverse proxies in front of arr-mcp, as single addresses or
+CIDR ranges:
+
+```yaml
+auth:
+  trusted_proxies:
+    - 172.18.0.0/16   # the Docker network the proxy runs on
+    - 192.168.1.5
+```
+
+It decides one thing: which address a failed config UI sign-in counts against.
+Without it, every request counts against the address that connected, so behind
+a proxy all your clients share the proxy's counter, and five wrong passwords
+from anywhere delay the next sign-in for everyone. With the proxy listed, each
+client gets its own counter, taken from the last `X-Forwarded-For` hop the proxy
+added. `X-Forwarded-For` from an address not on the list is ignored, so a
+client cannot pick its own counter by sending the header.
+
+Absent or empty is the default, and safe: setting it only changes whose counter
+a failure lands on. Set it on the config page, under MCP endpoint, or here. An
+entry that is not an address or a range fails at startup. Repair mode ignores it
+and counts per connecting address.
 
 ### MCP tokens
 
@@ -810,7 +836,7 @@ page and make the change again.
 | Variable | Default | What it sets |
 | --- | --- | --- |
 | `ARR_MCP_CONFIG_DIR` | `/config` | The folder holding `config.yaml`, and the logs, audit trail, sessions and event log kept beside it |
-| `ARR_MCP_PORT` | `6060` | The HTTP port for `/mcp`, the config UI and webhooks |
+| `ARR_MCP_PORT` | `6060` | The HTTP port for `/mcp`, the config UI and webhooks. arr-mcp listens on it on every interface, IPv6 and IPv4, or IPv4 only where IPv6 is switched off |
 | `LOG_LEVEL` | `info` | Log verbosity: `trace`, `debug`, `info`, `warn`, `error`, `fatal` or `silent` |
 
 In the container, publish a different host port (`-p 8080:6060`) rather than
@@ -825,7 +851,12 @@ normally without a restart. There is no MCP endpoint and no services until then;
 container healthcheck built on `/healthz` does not restart-loop it.
 
 Sign-in works as usual. If nobody has claimed the instance yet, you claim it
-first, exactly as on a fresh install.
+first, exactly as on a fresh install, unless the file already holds a
+credential: a service, an MCP token, a management key or the event log's
+secret. Claiming opens the editor, which shows the file with every key in it,
+so the page refuses and asks you to fix `config.yaml` directly and restart. The
+setup page then works as on a fresh install. A config you wrote by hand before
+the first start, with one typo in it, is the usual way to get here.
 
 **The one case this cannot fix** is a file whose sign-in fields cannot be read:
 YAML that does not parse, a top level or an `auth:` that is not a mapping, or a

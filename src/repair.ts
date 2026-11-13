@@ -25,7 +25,7 @@ import { CSS, JS } from './web/assets.ts';
 import { MARK_SVG } from './web/icons.ts';
 import { loginPage, setupPage } from './web/pages.ts';
 import { originOf, throttleKey } from './web/routes.ts';
-import { repairPage, unreadableAuthPage } from './web/repairPage.ts';
+import { credentialsHeldPage, repairPage, unreadableAuthPage } from './web/repairPage.ts';
 
 const NAME = 'arr-mcp';
 
@@ -46,6 +46,34 @@ const str = (value: unknown): string => (typeof value === 'string' ? value : '')
 
 /** What the repair form carries back, to tell whether the file changed under it. */
 const digest = (text: string): string => createHash('sha256').update(text).digest('hex');
+
+const isMapping = (value: unknown): value is Record<string, unknown> =>
+    value !== null && typeof value === 'object' && !Array.isArray(value);
+
+/** Anything but absent, null, an empty string, `[]` or `{}`. */
+const filled = (value: unknown): boolean =>
+    value !== undefined &&
+    value !== null &&
+    value !== '' &&
+    !(Array.isArray(value) && value.length === 0) &&
+    !(isMapping(value) && Object.keys(value).length === 0);
+
+/**
+ * Whether the parsed file holds something worth stealing: a service block (each
+ * carries a key or password), an MCP token, a management key or the webhook
+ * secret. Generous on purpose, since a false positive costs a restart and a
+ * false negative hands the keys to whoever claims first.
+ */
+function holdsCredential(value: unknown): boolean {
+    if (!isMapping(value)) return false;
+    const auth = isMapping(value.auth) ? value.auth : {};
+    const webhooks = isMapping(value.webhooks) ? value.webhooks : {};
+    return (
+        filled(value.services) ||
+        ['bearer_token', 'tokens', 'management_key', 'management_keys'].some(key => filled(auth[key])) ||
+        filled(webhooks.secret)
+    );
+}
 
 /**
  * The server that runs instead of the real one when config.yaml did not load:
@@ -165,9 +193,38 @@ export function buildRepairApp(deps: RepairDeps): Hono {
         return token;
     };
 
-    app.get('/ui/setup', c =>
-        unclaimed() ? c.html(setupPage({ version })) : c.redirect('/ui/login', 302)
-    );
+    /**
+     * config.yaml as it is now, falling back to the boot snapshot when it cannot
+     * be read. Parsed per request like `onDisk` below: the operator answering
+     * the page that refuses setup does so by editing the file.
+     */
+    const diskValue = async (): Promise<unknown> => {
+        let text = raw;
+        try {
+            text = await readFile(configPath(configDir), 'utf8');
+        } catch {
+            // Keep the snapshot.
+        }
+        try {
+            return parseDocument(text).toJS();
+        } catch {
+            return undefined;
+        }
+    };
+
+    /**
+     * Claiming lands on the editor, which renders the file verbatim. In normal
+     * mode an unclaimed instance can be claimed too, but nothing there shows a
+     * stored secret back, so here the claim is refused while the file holds one.
+     */
+    const credentialsHeld = (c: Context) =>
+        c.html(credentialsHeldPage({ version, detail: publicReason() }), 503);
+
+    app.get('/ui/setup', async c => {
+        if (!unclaimed()) return c.redirect('/ui/login', 302);
+        if (holdsCredential(await diskValue())) return credentialsHeld(c);
+        return c.html(setupPage({ version }));
+    });
 
     // No CSRF token: there is no session yet to bind one to, so the request's
     // origin is the binding that does exist.
@@ -224,6 +281,11 @@ export function buildRepairApp(deps: RepairDeps): Hono {
                     return reject(
                         'config.yaml has a password_hash that cannot be read. Delete the line to claim this instance, or correct it and restart.'
                     );
+                }
+
+                if (holdsCredential(doc.toJS())) {
+                    logger.warn({ ...originOf(c) }, 'refused a claim over a config that already holds credentials');
+                    return credentialsHeld(c);
                 }
 
                 doc.setIn(['auth', 'username'], username);

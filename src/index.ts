@@ -1,6 +1,5 @@
 import { mkdirSync } from 'node:fs';
 import type { Server } from 'node:http';
-import { serve } from '@hono/node-server';
 import { bootstrap } from './bootstrap.ts';
 import { ConfigInvalidError } from './config/load.ts';
 import { WriteAudit } from './core/audit.ts';
@@ -9,6 +8,7 @@ import { logger } from './core/logger.ts';
 import { LogStore } from './core/logs.ts';
 import { Sessions } from './core/session.ts';
 import { WebhookEvents } from './core/webhookEvents.ts';
+import { listen } from './listen.ts';
 import { closeServer, createShutdown, type ShutdownStep } from './shutdown.ts';
 import { serveOverStdio } from './stdio.ts';
 
@@ -91,11 +91,17 @@ if (STDIO) {
 } else {
     const app = await bootstrap({ configDir: CONFIG_DIR, audit, logs, events, sessions, version: VERSION, port: PORT });
 
-    const server = serve({ fetch: app.fetch, port: PORT, hostname: '0.0.0.0' }, info => {
-        logger.info({ port: info.port }, `arr-mcp listening. Open the config UI at http://<host>:${info.port}`);
-    });
+    let server: Server;
+    try {
+        const bound = await listen(app.fetch, PORT);
+        server = bound.server;
+        logger.info({ port: PORT, address: bound.hostname }, `arr-mcp listening. Open the config UI at http://<host>:${PORT}`);
+    } catch (err) {
+        logger.fatal({ err, port: PORT }, `cannot listen on port ${PORT}. Free it, or set ARR_MCP_PORT to another`);
+        process.exit(1);
+    }
     const shutdown = createShutdown([
-        { name: 'http', run: () => closeServer(server as Server) },
+        { name: 'http', run: () => closeServer(server) },
         { name: 'runtime', run: () => app.close() },
         ...closeStores
     ]);

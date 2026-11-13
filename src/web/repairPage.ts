@@ -35,6 +35,32 @@ export function repairPage(opts: { version: string; raw: string; base: string; d
 }
 
 /**
+ * Read-only, because nobody has claimed the instance and the file already holds
+ * credentials: whoever claimed it here would land on an editor that shows them
+ * every key in the file. Normal mode never renders a stored secret back, so a
+ * restart after the fix is where the setup page is safe to offer.
+ */
+export function credentialsHeldPage(opts: { version: string; detail: string }): string {
+    const body = html`<div class="repair">
+        <h2>config.yaml could not be loaded</h2>
+        <p class="note">
+            Nobody has set a password for this instance yet, and <code>config.yaml</code> already
+            holds API keys or tokens. Setting one up here would show the file, keys included, to
+            whoever got to this page first, so it is not offered. Fix the error below in
+            <code>config.yaml</code> directly and restart; the setup page then works as on a fresh
+            install.
+        </p>
+    </div>`;
+
+    return layout({
+        title: 'Configuration invalid',
+        version: opts.version,
+        body,
+        message: { kind: 'err', text: opts.detail }
+    });
+}
+
+/**
  * Read-only, because `auth` itself did not parse: no password can be checked,
  * and offering the setup page would let anyone who reaches the port claim the
  * instance by corrupting its config.

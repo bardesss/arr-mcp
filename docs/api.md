@@ -278,6 +278,7 @@ block exists. Its contents are not returned.
 ```json
 {
   "allowedHosts": [],
+  "trustedProxies": [],
   "allowTokenInUrl": false,
   "oauthConfigured": false
 }
@@ -397,6 +398,8 @@ Changes `allowTokenInUrl`. `oauthConfigured` from GET is accepted and ignored.
 list, so a body you got from GET can be sent back. Anything else is a 400 with
 `allowedHosts can only be changed on the config page.` The pin also gates the
 config page, so a leaked key could otherwise lock the owner out.
+`trustedProxies` follows the same rule, because a proxy on that list decides
+which client a failed sign-in counts against.
 
 Answers 200 with the same body as GET.
 
