@@ -3,6 +3,7 @@ import { apiKeyHeader } from '../core/auth.ts';
 import { SHORT_READ_TTL_MS, cached } from '../core/cache.ts';
 import { ServiceError } from '../core/errors.ts';
 import { fenceText, fencer } from '../core/fence.ts';
+import { isoInstant } from '../core/instant.ts';
 import type { CleanuparrRule, RuleAction, RulePrivacy } from '../core/cleanuparrRules.ts';
 import { hostPort } from '../core/hostPort.ts';
 import { logger } from '../core/logger.ts';
@@ -699,7 +700,8 @@ export class CleanuparrAdapter implements ServiceAdapter, HealthCheckCapable, Cl
         return {
             service: this.id,
             id: e.id,
-            at: e.timestamp ?? '',
+            // Sent with `+00:00`, at times with seven fraction digits; folded so it sorts with the *arrs' `Z` times.
+            at: isoInstant(e.timestamp) ?? e.timestamp ?? '',
             event: EVENT[e.eventType] ?? 'unknown',
             rawEvent: e.eventType,
             title: fence(e.itemTitle ?? e.message ?? '', 'itemTitle'),

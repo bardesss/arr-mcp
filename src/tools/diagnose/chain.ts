@@ -1,5 +1,6 @@
 import { DOWNLOAD_CLIENTS, type ServiceId } from '../../config/schema.ts';
 import { servicesOnly } from '../../core/gather.ts';
+import { instantOf } from '../../core/instant.ts';
 import type { NextStep } from '../../core/nextStep.ts';
 import { unfenced } from '../../core/titleMatch.ts';
 import { ARR_KIND, ARR_NAMES, type MergedItem } from '../../core/resolver.ts';
@@ -1826,7 +1827,7 @@ function nextStepsFor(
  */
 export function wholeRemoval(cleanup: CleanupStatus | null | undefined, lastImportAt: string | undefined): CleanupRemoval | undefined {
     const latest = cleanup?.removals.find(r => r.scope === 'movie' || r.scope === 'version' || r.scope === 'series');
-    return latest === undefined || (lastImportAt !== undefined && lastImportAt > latest.at) ? undefined : latest;
+    return latest === undefined || (lastImportAt !== undefined && instantOf(lastImportAt) > instantOf(latest.at)) ? undefined : latest;
 }
 
 /**

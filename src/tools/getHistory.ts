@@ -5,6 +5,7 @@ import type { ServiceId } from '../config/schema.ts';
 import { serviceOf } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { gather } from '../core/gather.ts';
+import { newestFirst } from '../core/instant.ts';
 import { logger } from '../core/logger.ts';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, windowEnd, type DetailLevel, unreachableTail } from '../core/shape.ts';
 import type { WebhookEvents } from '../core/webhookEvents.ts';
@@ -162,7 +163,7 @@ export async function buildGetHistory(
 
     // Newest first: "why did last night's download fail" is a question about
     // the most recent attempt, not the oldest.
-    items.sort((a, b) => b.at.localeCompare(a.at));
+    items.sort(newestFirst);
 
     const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
     const shaped = applyLimit(items, opts.limit, opts.offset, total);

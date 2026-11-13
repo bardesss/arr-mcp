@@ -3,6 +3,7 @@ import { apiKeyHeader } from '../core/auth.ts';
 import { SHORT_READ_TTL_MS, cached } from '../core/cache.ts';
 import { ServiceError } from '../core/errors.ts';
 import { fenceText, fencer } from '../core/fence.ts';
+import { isoInstant, newestFirst } from '../core/instant.ts';
 import { logger } from '../core/logger.ts';
 import { ServiceHttp } from '../core/http.ts';
 import {
@@ -259,7 +260,7 @@ export class ReclaimerrAdapter implements ServiceAdapter, HealthCheckCapable, Hi
             removals: removals
                 .filter(e => e.payload?.candidate?.tmdb_id === tmdbId && kindOf(e.payload.candidate.media_type) === kind)
                 .map(e => this.#removalOf(e, ruleMap))
-                .sort((a, b) => b.at.localeCompare(a.at))
+                .sort(newestFirst)
         };
     }
 
@@ -283,7 +284,7 @@ export class ReclaimerrAdapter implements ServiceAdapter, HealthCheckCapable, Hi
             const last = i === windows.length - 1;
             if (last || opts.want === undefined || items.length >= opts.want) break;
         }
-        items.sort((a, b) => b.at.localeCompare(a.at));
+        items.sort(newestFirst);
         return { items, total: items.length };
     }
 
@@ -460,10 +461,15 @@ export class ReclaimerrAdapter implements ServiceAdapter, HealthCheckCapable, Hi
     }
 }
 
-/** Reclaimerr stores UTC but serialises some timestamps without an offset; say so, or they read as local time. */
+/**
+ * Reclaimerr stores UTC but serialises some timestamps without an offset; say
+ * so, or they read as local time. Any offset it does send is folded into
+ * `toISOString()`, so these sort and compare with every other service's times.
+ */
 function utc(v: string | null | undefined): string {
     if (typeof v !== 'string' || v === '') return '';
-    return /(?:Z|[+-]\d{2}:?\d{2})$/.test(v) ? v : `${v}Z`;
+    const zoned = /(?:Z|[+-]\d{2}:?\d{2})$/.test(v) ? v : `${v}Z`;
+    return isoInstant(zoned) ?? zoned;
 }
 
 function optionalNum<K extends string>(key: K, v: number | null | undefined): Partial<Record<K, number>> {

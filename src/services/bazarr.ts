@@ -4,6 +4,7 @@ import { apiKeyHeader } from '../core/auth.ts';
 import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
 import { fenceText, fencer } from '../core/fence.ts';
+import { instantOf } from '../core/instant.ts';
 import { LOG_LINES, foldLogLines } from './logLines.ts';
 import {
     diagnoseConnection,
@@ -33,7 +34,8 @@ import {
  * `{ data: … }`, and the version field is `bazarr_version`.
  */
 type Envelope<T> = { data?: T };
-type RawStatus = { bazarr_version?: string };
+/** `timezone` is the zone Bazarr writes its local times in, such as `Europe/Amsterdam`. */
+type RawStatus = { bazarr_version?: string; timezone?: string };
 type RawHealth = { object?: string; issue?: string };
 type RawLogRow = { timestamp?: string; type?: string; message?: string };
 /** Python's level names, as the *arrs spell the ones they share. INFO and DEBUG are not faults. */
@@ -94,16 +96,39 @@ type RawHistory = {
     parsed_timestamp?: string;
 };
 
+/** How far `zone`'s wall clock is ahead of UTC at instant `t`, in ms; `undefined` for a zone Intl does not know. */
+function zoneOffset(t: number, zone: string): number | undefined {
+    try {
+        const parts = new Intl.DateTimeFormat('en-US', {
+            timeZone: zone,
+            hourCycle: 'h23',
+            year: 'numeric',
+            month: 'numeric',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: 'numeric',
+            second: 'numeric'
+        }).formatToParts(new Date(t));
+        const n = (type: string) => Number(parts.find(p => p.type === type)?.value);
+        const wall = Date.UTC(n('year'), n('month') - 1, n('day'), n('hour'), n('minute'), n('second'));
+        return Number.isFinite(wall) ? wall - Math.floor(t / 1000) * 1000 : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
 /**
  * ISO 8601, or nothing.
  *
  * Bazarr has shipped two different `timestamp` shapes, and its
- * `parsed_timestamp` is a US-ordered local time with a two-digit year. A row
- * matching neither is dropped by the caller rather than dated: this feeds a
- * list that is sorted and `since`-filtered as plain strings, so a guessed date
+ * `parsed_timestamp` is a US-ordered local time with a two-digit year, in the
+ * zone `/api/system/status` names. With that zone it becomes `toISOString()`.
+ * Without one it stays a local time with no offset rather than claim UTC: a
+ * Bazarr in Amsterdam would otherwise be an hour or two out. A row matching
+ * neither shape is dropped by the caller rather than dated: a guessed date
  * does not merely mislabel one row, it reorders the answer.
  */
-export function bazarrTimestamp(h: { timestamp?: number | string; parsed_timestamp?: string }): string | undefined {
+export function bazarrTimestamp(h: { timestamp?: number | string; parsed_timestamp?: string }, zone?: string): string | undefined {
     if (typeof h.timestamp === 'number' && Number.isFinite(h.timestamp)) {
         return new Date(h.timestamp * 1000).toISOString();
     }
@@ -112,8 +137,17 @@ export function bazarrTimestamp(h: { timestamp?: number | string; parsed_timesta
     if (match === null) return undefined;
 
     const [, month, day, year, hour, minute, second] = match;
-    const parsed = Date.parse(`20${year}-${month}-${day}T${hour}:${minute}:${second}Z`);
-    return Number.isFinite(parsed) ? new Date(parsed).toISOString() : undefined;
+    const local = `20${year}-${month}-${day}T${hour}:${minute}:${second}`;
+    const wall = Date.parse(`${local}Z`);
+    if (!Number.isFinite(wall)) return undefined;
+    if (zone === undefined) return local;
+
+    // The offset at the wall time read as UTC is a first guess; across a DST
+    // change it can be an hour off, so it is taken again at the result.
+    const first = zoneOffset(wall, zone);
+    if (first === undefined) return local;
+    const settled = zoneOffset(wall - first, zone) ?? first;
+    return new Date(wall - settled).toISOString();
 }
 
 export class BazarrAdapter
@@ -123,6 +157,8 @@ export class BazarrAdapter
     readonly instance: string | undefined;
     readonly id: string;
     readonly #http: ServiceHttp;
+    /** Bazarr's own time zone, read once from its status. */
+    #zone: string | undefined;
 
     constructor(config: ConfigByService['bazarr'], fetchImpl: typeof fetch = fetch) {
         this.instance = config.name;
@@ -377,9 +413,9 @@ export class BazarrAdapter
      *
      * **Dates are the awkward part.** `timestamp` is a *relative* string
      * ("2 days ago") on the versions seen; `parsed_timestamp` is
-     * `MM/DD/YY HH:MM:SS`. A row whose date cannot be read is dropped rather
-     * than dated: `get_history` sorts and filters `since` as a plain string,
-     * so an invented date would quietly reorder everything.
+     * `MM/DD/YY HH:MM:SS` in Bazarr's own zone. A row whose date cannot be
+     * read is dropped rather than dated: an invented date would quietly
+     * reorder everything `get_history` merges it with.
      */
     async readHistory(opts: { id?: string; since?: string }): Promise<HistoryEntry[]> {
         if (opts.id !== undefined) {
@@ -388,15 +424,16 @@ export class BazarrAdapter
             });
         }
 
-        const [movies, episodes] = await Promise.all([
+        const [movies, episodes, zone] = await Promise.all([
             this.#http.get<Envelope<RawHistory[]>>('/api/movies/history?length=100'),
-            this.#http.get<Envelope<RawHistory[]>>('/api/episodes/history?length=100')
+            this.#http.get<Envelope<RawHistory[]>>('/api/episodes/history?length=100'),
+            this.#timeZone()
         ]);
 
         const rows = [...(movies.data ?? []), ...(episodes.data ?? [])].flatMap((h, index) => {
-            const at = bazarrTimestamp(h);
+            const at = bazarrTimestamp(h, zone);
             if (at === undefined) return [];
-            if (opts.since !== undefined && at < opts.since) return [];
+            if (opts.since !== undefined && instantOf(at) < instantOf(opts.since)) return [];
 
             const parts = [h.language, h.provider].filter((p): p is string => typeof p === 'string' && p !== '');
             return [
@@ -418,6 +455,15 @@ export class BazarrAdapter
         });
 
         return rows;
+    }
+
+    /** Unknown when the status read fails or names no zone; the history then stays in local time. */
+    async #timeZone(): Promise<string | undefined> {
+        if (this.#zone !== undefined) return this.#zone;
+        const body = await this.#http.get<Envelope<RawStatus>>('/api/system/status').catch(() => undefined);
+        const zone = body?.data?.timezone;
+        if (typeof zone === 'string' && zone !== '') this.#zone = zone;
+        return this.#zone;
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {

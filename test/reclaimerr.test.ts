@@ -140,7 +140,7 @@ describe('ReclaimerrAdapter cleanup overview', () => {
         const adapter = new ReclaimerrAdapter(config, stub(routes({ '/api/v1': readOnly, '/api/v1/candidates': { items, total: 5, page: 1, per_page: 200, total_pages: 1 } })));
         const overview = await adapter.readCleanupOverview(2);
         expect(overview.candidates?.items).toHaveLength(2);
-        expect(overview.going).toEqual({ count: 5, firstAt: '2026-12-01T00:00:00Z' });
+        expect(overview.going).toEqual({ count: 5, firstAt: '2026-12-01T00:00:00.000Z' });
     });
 
     it('reads the candidates once for the checks and the overview of one get_stack_health', async () => {
@@ -195,7 +195,7 @@ describe('ReclaimerrAdapter title status', () => {
         const adapter = new ReclaimerrAdapter(config, stub(routes({ '/api/v1': readOnly, '/api/v1/events': events })));
         const status = await adapter.readCleanupStatus(candidate?.media_type as 'movie', candidate?.tmdb_id as number);
         expect(status.removals).toHaveLength(1);
-        expect(status.removals[0]).toMatchObject({ at: '2026-11-02T02:00:05Z', operation: 'delete' });
+        expect(status.removals[0]).toMatchObject({ at: '2026-11-02T02:00:05.000Z', operation: 'delete' });
     });
 });
 
@@ -256,6 +256,22 @@ describe('ReclaimerrAdapter history', () => {
             ['a', 'scheduled']
         ]);
         expect(seen.some(s => s.includes('cursor=a'))).toBe(true);
+    });
+
+    it('orders by instant and hands over toISOString when an event carries an offset', async () => {
+        const events = {
+            items: [
+                { id: 'a', type: 'candidate.deleted', occurred_at: '2026-10-30T01:00:00+02:00', payload: {} },
+                { id: 'b', type: 'candidate.deleted', occurred_at: '2026-10-29T23:30:00Z', payload: {} }
+            ],
+            has_more: false
+        };
+        const adapter = new ReclaimerrAdapter(config, stub(routes({ '/api/v1': readOnly, '/api/v1/events': events })));
+        const { items } = await adapter.readHistory({ since: '2026-10-01' });
+        expect(items.map(e => [e.id, e.at])).toEqual([
+            ['b', '2026-10-29T23:30:00.000Z'],
+            ['a', '2026-10-29T23:00:00.000Z']
+        ]);
     });
 
     it('reads nothing for an event type Reclaimerr never emits', async () => {
