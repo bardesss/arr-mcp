@@ -104,7 +104,7 @@ button.link:hover { color: var(--text); filter: none; }
 .content { flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; }
 .top { padding: 1rem 1.75rem; border-bottom: 1px solid var(--line); }
 .top h1 { margin: 0; font-size: 1.15rem; font-weight: 600; }
-main { max-width: 1100px; width: 100%; box-sizing: border-box; padding: 1.5rem 1.75rem 2.5rem; }
+main { max-width: 1280px; width: 100%; box-sizing: border-box; padding: 1.5rem 1.75rem 2.5rem; }
 
 /* Sign-in, setup and repair: no session, so no menu. */
 header.bare { display: flex; padding: 1rem 1.25rem; border-bottom: 1px solid var(--line); background: var(--side); }
@@ -280,6 +280,96 @@ dialog .panel { margin: 0; border: 0; border-radius: 8px; max-height: 82vh; over
 .badge.applied { color: var(--ok); border-color: currentColor; }
 .badge.denied, .badge.attempted { color: var(--warn); border-color: currentColor; }
 .badge.failed { color: var(--bad); border-color: currentColor; }
+
+/* --- the dashboard -------------------------------------------------------
+   Four numbers, then what needs attention, then one line per service. A
+   healthy stack costs a glance; a broken one puts its fix at the top. */
+.strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .75rem; margin-bottom: 1.25rem; }
+.stat {
+  display: flex; flex-direction: column; gap: .15rem; padding: .85rem 1rem; border-radius: 8px;
+  background: var(--panel); border: 1px solid var(--line); color: var(--text); text-decoration: none;
+}
+.stat:hover { border-color: var(--dim); }
+.stat-k { font-size: .78rem; color: var(--dim); font-weight: 500; }
+.stat-v { font-size: 1.5rem; font-weight: 600; line-height: 1.3; }
+.stat-v small { font-size: .85rem; color: var(--dim); font-weight: 500; }
+.stat-s { font-size: .8rem; color: var(--dim); overflow-wrap: anywhere; }
+.stat-s.warn { color: var(--warn); }
+.dash { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 1.25rem; align-items: start; }
+.dash-main, .dash-side { display: flex; flex-direction: column; gap: 1.25rem; min-width: 0; }
+.box { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.box-h { display: flex; align-items: baseline; gap: .75rem; padding: .7rem 1rem; border-bottom: 1px solid var(--line); }
+.box-h h2 { margin: 0; flex: 1; }
+.box-h a { font-size: .82rem; }
+.box-b { padding: .85rem 1rem; }
+.box-b > :first-child { margin-top: 0; }
+.box-b > :last-child { margin-bottom: 0; }
+p.box-b { margin: 0; }
+.alert {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: .2rem .85rem; align-items: start;
+  padding: .85rem 1rem; border-bottom: 1px solid var(--line);
+}
+.alert:last-child { border-bottom: 0; }
+.sev {
+  grid-row: span 2; margin-top: .1rem; font-size: .7rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+  padding: .1rem .45rem; border-radius: 4px; border: 1px solid currentColor; white-space: nowrap;
+}
+.sev.bad { color: var(--bad); } .sev.warn { color: var(--warn); }
+.alert-what { font-weight: 600; overflow-wrap: anywhere; }
+.alert-what .mono { font-weight: 400; }
+.alert-fix { grid-column: 2; color: var(--dim); font-size: .87rem; }
+.alert-act { grid-column: 3; grid-row: 1 / span 2; align-self: center; }
+.svc-table th[scope="row"] { color: var(--text); font-weight: 500; position: static; background: none; }
+.svc-table tr.group th {
+  background: var(--bg); color: var(--dim); font-size: .72rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .05em; padding: .5rem 1rem .35rem; position: static;
+}
+.svc-table th:first-child, .svc-table td:first-child { padding-left: 1rem; }
+.svc-table th:last-child, .svc-table td:last-child { padding-right: 1rem; white-space: nowrap; }
+.svc-table td, .svc-table th { vertical-align: middle; }
+.svc-table tbody:last-child tr:last-child > * { border-bottom: 0; }
+.svc-table tr.fail { background: color-mix(in srgb, var(--bad) 7%, transparent); }
+.svc-name { display: flex; align-items: center; gap: .6rem; }
+.tier {
+  font-size: .75rem; padding: .05rem .45rem; border-radius: 4px; white-space: nowrap;
+  border: 1px solid var(--line); color: var(--dim);
+}
+.tier.safe { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+.tier.destructive { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
+.st { display: inline-flex; align-items: center; gap: .45rem; font-weight: 500; }
+.st i { width: .5rem; height: .5rem; border-radius: 50%; background: currentColor; }
+.st.ok { color: var(--ok); } .st.bad { color: var(--bad); }
+ul.tokens, ul.feed { list-style: none; margin: .75rem 0; padding: 0; }
+.tokens li { display: flex; justify-content: space-between; gap: .75rem; padding: .45rem 0; border-top: 1px solid var(--line); font-size: .87rem; }
+.tokens .warn, .warn { color: var(--warn); }
+.feed li {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .1rem .6rem; align-items: baseline;
+  padding: .55rem 0; border-top: 1px solid var(--line); font-size: .87rem;
+}
+.feed li:first-child { border-top: 0; padding-top: 0; }
+/* Under the tool rather than beside it: a full timestamp and a tool name do
+   not share a 320px column. */
+.feed time, .feed-sub { grid-column: 2; font-size: .78rem; }
+.feed-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-side .token { flex-wrap: nowrap; }
+.dash-side .token input { flex: 1 1 0; }
+.disk { display: flex; flex-direction: column; gap: .35rem; padding: .6rem 0; border-top: 1px solid var(--line); }
+.disk:first-child { border-top: 0; padding-top: 0; }
+.disk-l { display: flex; justify-content: space-between; gap: .5rem; font-size: .87rem; }
+.bar { height: 6px; border-radius: 3px; background: var(--panel-2); overflow: hidden; }
+.bar b { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+.bar b.warn { background: var(--warn); }
+.small { font-size: .78rem; }
+dl.kv { display: grid; grid-template-columns: auto 1fr; gap: .2rem .75rem; margin: 0; font-size: .87rem; }
+dl.kv dt { color: var(--dim); } dl.kv dd { margin: 0; }
+@media (max-width: 1100px) { .dash { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 700px) {
+  .strip { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; }
+  .svc-table .opt { display: none; }
+  .alert { grid-template-columns: minmax(0, 1fr); }
+  .sev { grid-row: auto; justify-self: start; }
+  .alert-fix, .alert-act { grid-column: 1; grid-row: auto; justify-self: start; }
+}
 
 /* --- small screens -----------------------------------------------------
    The sidebar becomes a bar across the top with a menu button. Closed, the

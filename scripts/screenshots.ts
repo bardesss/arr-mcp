@@ -57,7 +57,9 @@ const PAGES: { name: string; html: string }[] = [
             imdb: fixture.IMDB,
             disks: fixture.DISKS,
             failures: fixture.FAILURES,
-            scans: fixture.SCANS
+            scans: fixture.SCANS,
+            tiers: fixture.TIERS,
+            recentWrites: fixture.AUDIT_ROWS.slice(0, 3)
         })
     },
     {
