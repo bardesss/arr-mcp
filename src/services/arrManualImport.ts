@@ -52,6 +52,8 @@ type RawCandidate = {
     rejections?: RawRejection[] | null;
     /** Set here, never upstream: the file was placed by a caller's mapping. */
     mapped?: true;
+    /** Set here, never upstream: the album a Lidarr mapping named for the file. */
+    mappedAlbumId?: number;
 };
 
 type RawEpisodeRow = { id?: number; seasonNumber?: number; episodeNumber?: number; episodeFileId?: number };
@@ -79,6 +81,10 @@ function musicTitleOf(raw: RawCandidate): string | undefined {
  */
 const unplacedMusic = (raw: RawCandidate): string[] => [
     ...(typeof raw.album?.id === 'number' ? [] : ['no album matched']),
+    // A mapped file Lidarr still identified as another album is not imported there.
+    ...(raw.mappedAlbumId === undefined || raw.album?.id === undefined || raw.album.id === raw.mappedAlbumId
+        ? []
+        : [`not placed on album ${raw.mappedAlbumId}`]),
     ...(Number.isInteger(raw.albumReleaseId) && (raw.albumReleaseId as number) > 0 ? [] : ['no release matched']),
     ...(trackIdsOf(raw).length > 0 ? [] : ['no track matched'])
 ];
@@ -273,8 +279,14 @@ async function refuseUnfinishedMusic(http: ServiceHttp, service: string, downloa
 const UNKNOWN_QUALITY = { quality: { id: 0, name: 'Unknown' }, revision: { version: 1, real: 0, isRepack: false } };
 const UNKNOWN_LANGUAGES = [{ id: 0, name: 'Unknown' }];
 
-function checkMappingShape(service: string, resource: 'movie' | 'series', m: ImportMapping): void {
+function checkMappingShape(service: string, resource: ArrKind, m: ImportMapping): void {
     const series = m.seriesId !== undefined || m.season !== undefined || m.episodes !== undefined;
+    if (resource === 'artist' && (m.albumId === undefined || m.movieId !== undefined || series)) {
+        throw new Error(`On ${service}, a mapping entry takes \`album_id\` and nothing else ("${m.path}").`);
+    }
+    if (resource !== 'artist' && m.albumId !== undefined) {
+        throw new Error(`On ${service}, a mapping entry takes ${resource === 'movie' ? '`movie_id`' : '`series_id`, `season` and `episodes`'}, not \`album_id\` ("${m.path}").`);
+    }
     if (resource === 'movie' && (m.movieId === undefined || series)) {
         throw new Error(`On ${service}, a mapping entry takes \`movie_id\` and nothing else ("${m.path}").`);
     }
@@ -319,18 +331,23 @@ async function lookUpTarget(
  * without overriding a rejection the service still has. Paths, series and
  * episodes are all resolved first, so a bad one fails before anything is sent.
  */
-async function applyMapping(
-    http: ServiceHttp,
-    service: string,
-    resource: 'movie' | 'series',
-    downloadId: string,
-    raw: RawCandidate[],
-    mapping: ImportMapping[]
-): Promise<RawCandidate[]> {
+type Located = { m: ImportMapping; r: RawCandidate & { path: string }; index: number };
+
+/**
+ * Each mapping entry's file in the download, once each. Lidarr reports no
+ * relative path and a `name` without its extension, so a path that is the end
+ * of exactly one file's full path names that file too.
+ */
+function locateMapped(service: string, downloadId: string, raw: RawCandidate[], mapping: ImportMapping[]): Located[] {
     const seen = new Set<number>();
-    const located = mapping.map(m => {
-        checkMappingShape(service, resource, m);
-        const index = raw.findIndex(r => r.path === m.path || r.relativePath === m.path || r.name === m.path);
+    const endsIn = (r: RawCandidate, p: string): boolean =>
+        typeof r.path === 'string' && (r.path.endsWith(`/${p}`) || r.path.endsWith(`\\${p}`));
+    return mapping.map(m => {
+        let index = raw.findIndex(r => r.path === m.path || r.relativePath === m.path || r.name === m.path);
+        if (index === -1) {
+            const ending = raw.flatMap((r, i) => (endsIn(r, m.path) ? [i] : []));
+            if (ending.length === 1) index = ending[0] as number;
+        }
         if (index === -1) {
             const known = raw.map(r => r.relativePath ?? r.name ?? r.path).join('; ');
             throw new ServiceError('NotFound', service, `download ${downloadId} has no file "${m.path}"`, {
@@ -341,6 +358,17 @@ async function applyMapping(
         seen.add(index);
         return { m, r: raw[index] as RawCandidate & { path: string }, index };
     });
+}
+
+async function applyMapping(
+    http: ServiceHttp,
+    service: string,
+    resource: 'movie' | 'series',
+    downloadId: string,
+    raw: RawCandidate[],
+    mapping: ImportMapping[]
+): Promise<RawCandidate[]> {
+    const located = locateMapped(service, downloadId, raw, mapping);
 
     const targetOf = (m: ImportMapping): number => (resource === 'movie' ? m.movieId : m.seriesId) as number;
     const targets = new Map<number, TargetLookup>();
@@ -415,18 +443,87 @@ async function applyMapping(
     return merged;
 }
 
+type RawAlbumTarget = { id?: number; title?: string; artistId?: number; artist?: { artistName?: string } };
+
 /**
- * A mapping answers "which movie, or which season and episodes", and a Lidarr
- * file is neither. Refused before anything is sent, never ignored: an ignored
- * one would import on Lidarr's own match while the caller believed theirs had
- * been applied.
+ * Lidarr's half of a mapping: the caller names the album, and Lidarr's own
+ * reprocess (`POST /manualimport`, `ManualImportService.UpdateItems`, Lidarr
+ * 3.1.6) identifies the files against it, picking the release and the tracks
+ * as its Manual Import dialog does. The release is left out so it may choose
+ * one of that album's; the track ids it sends are ignored there, so none are.
+ *
+ * Lidarr answers grouped by album, not in the order sent, so the verdicts are
+ * merged by path. A file it still puts on another album is reported as
+ * rejected rather than imported where the caller did not ask.
  */
-function refuseMusicMapping(service: string, mapping: readonly ImportMapping[]): void {
-    if (mapping.length === 0) return;
-    throw new Error(
-        `${service} does not take a \`mapping\`: it names a movie or episodes, and a Lidarr file belongs to an album and its tracks. ` +
-            'Drop it. If Lidarr matched a file to the wrong album, fix the match in Lidarr itself.'
+async function applyMusicMapping(
+    http: ServiceHttp,
+    service: string,
+    downloadId: string,
+    raw: RawCandidate[],
+    mapping: ImportMapping[]
+): Promise<RawCandidate[]> {
+    const located = locateMapped(service, downloadId, raw, mapping);
+
+    const albums = new Map<number, RawAlbumTarget>();
+    for (const id of new Set(located.map(l => l.m.albumId as number))) {
+        try {
+            albums.set(id, await http.get<RawAlbumTarget>(`${http.apiRoot}/album/${id}`));
+        } catch (err) {
+            if (err instanceof ServiceError && err.kind === 'NotFound') {
+                throw new ServiceError('NotFound', service, `${service} has no album ${id}`, {
+                    remedy: 'get_media_details on the artist, with `detail: "full"`, lists its albums and their ids. Add the artist first if Lidarr does not have it.',
+                    cause: err
+                });
+            }
+            throw err;
+        }
+    }
+
+    const bodies = located.map(({ m, r }) => ({
+        path: r.path,
+        artistId: albums.get(m.albumId as number)?.artistId,
+        albumId: m.albumId,
+        // Lidarr keeps a quality it is sent unless it is Unknown, and has none
+        // to fall back on for a file the read gave none.
+        quality: r.quality ?? UNKNOWN_QUALITY,
+        ...(r.releaseGroup === null || r.releaseGroup === undefined ? {} : { releaseGroup: r.releaseGroup }),
+        ...(r.indexerFlags === undefined ? {} : { indexerFlags: r.indexerFlags }),
+        downloadId,
+        replaceExistingFiles: false,
+        disableReleaseSwitching: false
+    }));
+
+    const judged = await http.post<unknown>(`${http.apiRoot}/manualimport`, bodies);
+    const byPath = new Map(
+        (Array.isArray(judged) ? (judged as (RawCandidate | null)[]) : [])
+            .filter((row): row is RawCandidate => typeof row?.path === 'string' && Array.isArray(row.rejections))
+            .map(row => [row.path as string, row])
     );
+    if (!located.every(({ r }) => byPath.has(r.path))) {
+        throw new ServiceError('UpstreamError', service, `${service} did not judge every mapped file`, {
+            remedy: 'Nothing was imported. Try again; if it repeats, import the files from its Activity page.'
+        });
+    }
+
+    const merged = [...raw];
+    for (const { m, r, index } of located) {
+        const back = byPath.get(r.path) as RawCandidate;
+        const releaseGroup = back.releaseGroup ?? r.releaseGroup;
+        merged[index] = {
+            ...r,
+            ...(back.artist === undefined ? {} : { artist: back.artist }),
+            ...(back.album === undefined ? {} : { album: back.album }),
+            ...(back.albumReleaseId === undefined ? {} : { albumReleaseId: back.albumReleaseId }),
+            tracks: back.tracks ?? [],
+            quality: back.quality ?? r.quality ?? UNKNOWN_QUALITY,
+            ...(releaseGroup === null || releaseGroup === undefined ? {} : { releaseGroup }),
+            rejections: back.rejections ?? [],
+            mapped: true,
+            mappedAlbumId: m.albumId as number
+        };
+    }
+    return merged;
 }
 
 /**
@@ -446,17 +543,22 @@ async function readCandidates(
     downloadId: string,
     mapping: ImportMapping[] = []
 ): Promise<{ raw: RawCandidate[]; judged: (ImportCandidate | undefined)[]; candidates: ImportCandidate[] }> {
-    if (resource === 'artist') {
-        refuseMusicMapping(service, mapping);
-        await refuseUnfinishedMusic(http, service, downloadId);
-    }
+    // A wrong shape is refused before anything is sent, never ignored: an
+    // ignored one would import on the service's own match.
+    for (const m of mapping) checkMappingShape(service, resource, m);
+    if (resource === 'artist') await refuseUnfinishedMusic(http, service, downloadId);
     let raw: RawCandidate[];
     try {
         raw = await http.get<RawCandidate[]>(`${http.apiRoot}/manualimport?${candidateQuery(resource, downloadId)}`);
     } catch (err) {
         throw await explainUnfinishedDownload(http, service, resource, downloadId, err);
     }
-    if (mapping.length > 0 && resource !== 'artist') raw = await applyMapping(http, service, resource, downloadId, raw, mapping);
+    if (mapping.length > 0) {
+        raw =
+            resource === 'artist'
+                ? await applyMusicMapping(http, service, downloadId, raw, mapping)
+                : await applyMapping(http, service, resource, downloadId, raw, mapping);
+    }
 
     // `judged` keeps one slot per raw row, `undefined` where a row has no
     // path, so `judged[i]` is always `raw[i]`'s own verdict. `candidates`
@@ -501,10 +603,8 @@ export async function runArrManualImport(
 
     if (importable.length === 0) {
         const reasons = [...new Set(candidates.flatMap(c => c.rejections))].join('; ');
-        const fix =
-            resource === 'artist'
-                ? `Fix the match in ${service} itself: \`mapping\` names movies and episodes, and this tool imports what the service is willing to take, never forcing a rejected file.`
-                : `If ${service} matched a file to the wrong movie or episodes, or to none, pass \`mapping\` to say what it is and ${service} judges it again. Anything it still rejects has to be fixed in ${service}: this tool imports what the service is willing to take, and forcing a rejected file is not something it will do on your behalf.`;
+        const what = resource === 'artist' ? 'album' : 'movie or episodes';
+        const fix = `If ${service} matched a file to the wrong ${what}, or to none, pass \`mapping\` to say what it is and ${service} judges it again. Anything it still rejects has to be fixed in ${service}: this tool imports what the service is willing to take, and forcing a rejected file is not something it will do on your behalf.`;
         throw new ServiceError('UpstreamError', service, `${service} will not import anything from ${downloadId}`, {
             remedy:
                 reasons === ''

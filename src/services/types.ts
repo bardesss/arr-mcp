@@ -1529,13 +1529,15 @@ export type ImportCandidate = {
 };
 
 /** What a person says one file in a download is. `path` is as the preview
- *  names it, or absolute. Radarr takes `movieId`; Sonarr takes the rest. */
+ *  names it, or absolute. Radarr takes `movieId`, Lidarr `albumId`; Sonarr
+ *  takes the rest. */
 export type ImportMapping = {
     path: string;
     movieId?: number;
     seriesId?: number;
     season?: number;
     episodes?: number[];
+    albumId?: number;
 };
 
 export interface ManualImportCapable {

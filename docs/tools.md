@@ -452,8 +452,8 @@ Without a state, the remedy says to check the *arr's history and the step
 imports it, as before. The reasons the *arr gives on its row (`statusMessages`,
 such as "Not an upgrade for existing movie file") follow the queue stage's
 detail, at most three, with the count of the rest that get_queue lists.
-When the row is `orphaned` on Radarr or Sonarr (matched to nothing in the
-library), the remedy and the step's `why` both say the import needs a `mapping`
+When the row is `orphaned` on Radarr, Sonarr or Lidarr (matched to nothing in
+the library), the remedy and the step's `why` both say the import needs a `mapping`
 naming what each file is.
 
 A series or an artist reads `playable` once any episode or track is on disk, so
@@ -1436,9 +1436,9 @@ A row stuck at `importBlocked`, or at `importPending` with `statusMessages` (the
 *arr retries it every cycle and fails the same way), gets an `import_download`
 step in `next_steps`, at most three of them; `next_steps_more` counts the ones
 left out.
-On Radarr and Sonarr an `orphaned` one does too, since it may be a release the
-service never matched: its `why` asks for a `mapping` naming what each file is.
-Lidarr's import takes no mapping, so an orphaned Lidarr row gets none.
+On Radarr, Sonarr and Lidarr an `orphaned` one does too, since it may be a
+release the service never matched: its `why` asks for a `mapping` naming what
+each file is.
 
 `errorMessage` is the download's message, from the client or the *arr: why it is
 in trouble, or a note on it (NZBGet's PAR status on a finished download,
@@ -1979,10 +1979,10 @@ was never matched is data an import could still use. So the tool lists the
 items that are **both** `orphaned` and `importState: "importBlocked"` (an item
 can be unlinked and still transferring) as a no-op: no confirmation token, and
 no change. Each row carries its `id` and status, and `next_steps` gives, per
-row, `import_download` with its `download_id` (on Radarr and Sonarr, add a
-`mapping` naming what each file is) and `remove_queue_item` with its `id`, which
-removes it from the queue and the client and deletes its data. On Lidarr and
-Whisparr, import it by hand in the service. The text carries the rows and the
+row, `import_download` with its `download_id` (add a `mapping` naming what each
+file is) and `remove_queue_item` with its `id`, which removes it from the queue
+and the client and deletes its data. On Whisparr, import it by hand in the
+service. The text carries the rows and the
 steps too, for a client that drops `structuredContent`.
 
 Before 2.0 it removed every such row with its data after one confirmation.
@@ -2840,9 +2840,17 @@ instead, see below. Safe tier.
 finished, since from a torrent client Lidarr would list the partial files. It
 then reads the candidates without allowing them to replace existing files. Each
 file is named in the preview by artist and album. A file Lidarr matched to no
-album, no release or no tracks is not importable. `mapping` is refused on Lidarr rather than ignored, since it
-names movies and episodes, and a Lidarr file belongs to an album and its tracks.
-A wrong album match is fixed in Lidarr itself.
+album, no release or no tracks is not importable.
+
+A `mapping` entry on Lidarr takes `album_id` and nothing else: an album id from
+`get_media_details` on the artist at `detail: "full"`. Lidarr's reprocess call,
+the one its Manual Import dialog makes, identifies the mapped files against
+that album and picks the release and the tracks itself, then judges them again.
+It judges the mapped files of one album as the whole release, so map every file
+of the album: mapping some leaves the rest out and reads as "Has missing
+tracks". A file it still places on no track, or on another album, is skipped. A
+movie or episode field on Lidarr, or `album_id` on Radarr or Sonarr, is refused
+rather than ignored.
 
 There is no Lidarr `remap`.
 
@@ -2881,7 +2889,7 @@ forced through: this imports what the service is willing to take.
 A title mismatch, an unknown movie or an unplaceable episode fails the same way
 on every retry; `get_queue`'s `statusMessages` say which. `mapping` gives the
 answer the web UI's Manual Import dialog would: per file, `movie_id` on Radarr,
-or `series_id`, `season` and `episodes` on Sonarr.
+`series_id`, `season` and `episodes` on Sonarr, or `album_id` on Lidarr.
 
 ```json
 { "service": "sonarr", "action": "import", "download_id": "SABnzbd_nzo_ab12",

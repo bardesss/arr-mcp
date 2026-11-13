@@ -895,6 +895,9 @@ describe('importing with a mapping', () => {
                 { path: 'Good.Boy.2025.mkv', seriesId: 7, season: 1, episodes: [1] }
             ])
         ).rejects.toThrow(/movie_id/);
+        await expect(
+            new RadarrAdapter(keyed(7878), s.impl).listImportCandidates('nzo_gb', [{ path: 'Good.Boy.2025.mkv', movieId: 42, albumId: 3 }])
+        ).rejects.toThrow(/movie_id/);
     });
 
     it('turns season and episode numbers into the episode ids Sonarr wants', async () => {

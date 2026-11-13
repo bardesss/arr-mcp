@@ -238,8 +238,7 @@ const LIBRARY_SCAN_TASK = 'RescanFolders';
  * one artist (the rescan after it still reads every root folder), rename an
  * artist's files, import a finished download by its id, and follow the command
  * in `get_stack_health`. All four are the shared helpers, with
- * `resource: 'artist'` where they take one; an import `mapping` is refused,
- * because it names movies and episodes.
+ * `resource: 'artist'` where they take one; an import `mapping` names albums.
  *
  * `DiskSpaceCapable`, `HealthCheckCapable`, `LogCapable` and `ScanStateCapable`
  * are `get_stack_health`'s: the disks, the failing health checks, the recent

@@ -194,16 +194,19 @@ describe('remove_queue_item orphaned: true on lidarr', () => {
         expect(read?.query).toMatchObject({ includeUnknownArtistItems: 'true' });
     });
 
-    it('lists only the import-blocked album, offers removal by id and no import, and removes nothing', async () => {
+    it('lists only the import-blocked album, offers an import with a mapping and removal by id, and removes nothing', async () => {
         const h = lidarrHarness();
         const { structuredContent } = await h.call(args);
         const effects = structuredContent.effects.join(' ');
         expect(effects).toContain('Deleted.Artist');
         expect(effects).not.toMatch(/Gone\.Artist|Kept\.Artist|Done\.Artist|Older\.Artist/);
-        // Lidarr's import_download takes no mapping, so the import is Lidarr's own.
-        expect(effects).not.toContain('mapping');
-        expect(structuredContent.summary).toContain('by hand in lidarr');
+        expect(structuredContent.summary).toContain('Import one with import_download and a `mapping`');
         expect((structuredContent as { next_steps?: unknown }).next_steps).toEqual([
+            expect.objectContaining({
+                tool: 'import_download',
+                arguments: { service: 'lidarr', action: 'import', download_id: 'CCC333' },
+                why: expect.stringContaining('add `mapping`')
+            }),
             expect.objectContaining({ tool: 'remove_queue_item', arguments: { service: 'lidarr', id: '211' } })
         ]);
         expect(h.fetch.deletes()).toHaveLength(0);

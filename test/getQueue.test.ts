@@ -662,15 +662,26 @@ describe('next_steps', () => {
         ]);
     });
 
-    it('offers nothing for an orphan still downloading, or one on Lidarr, whose import takes no mapping', async () => {
+    it('offers nothing for an orphan still downloading', async () => {
         const result = await buildGetQueue(
-            [
-                queueOf('radarr', [row({ service: 'radarr', id: '1', downloadId: 'ABC', orphaned: true, status: 'downloading', importState: 'downloading' })]),
-                queueOf('lidarr', [row({ service: 'lidarr', id: '2', downloadId: 'DEF', orphaned: true, importState: 'importBlocked' })])
-            ],
+            [queueOf('radarr', [row({ service: 'radarr', id: '1', downloadId: 'ABC', orphaned: true, status: 'downloading', importState: 'downloading' })])],
             { detail: 'standard', limit: 50 }
         );
         expect(result).not.toHaveProperty('next_steps');
+    });
+
+    it('offers a Lidarr orphan the same import with a mapping', async () => {
+        const result = await buildGetQueue(
+            [queueOf('lidarr', [row({ service: 'lidarr', id: '2', downloadId: 'DEF', orphaned: true, importState: 'importBlocked' })])],
+            { detail: 'standard', limit: 50 }
+        );
+        expect(result.next_steps).toEqual([
+            {
+                tool: 'import_download',
+                arguments: { service: 'lidarr', action: 'import', download_id: 'DEF' },
+                why: 'lidarr matched this download to nothing in its library: deleted, or never matched. To import it, add `mapping` with what each file is.'
+            }
+        ]);
     });
 
     it('offers nothing on Whisparr, which has no manual import', async () => {

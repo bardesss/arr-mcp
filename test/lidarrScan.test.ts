@@ -240,12 +240,15 @@ describe('Lidarr import by download id', () => {
         expect(sent.filter(s => s.method === 'POST')).toEqual([]);
     });
 
-    it('refuses a mapping before asking Lidarr anything, rather than ignoring it', async () => {
+    it('refuses a movie or episode mapping before asking Lidarr anything, rather than ignoring it', async () => {
         const { adapter, sent } = importing();
-        const mapping = [{ path: '01.flac', movieId: 42 }];
 
-        await expect(adapter.listImportCandidates('nzo-1', mapping)).rejects.toThrow(/does not take a `mapping`/);
-        await expect(adapter.runManualImport('nzo-1', mapping)).rejects.toThrow(/does not take a `mapping`/);
+        await expect(adapter.listImportCandidates('nzo-1', [{ path: '01.flac', movieId: 42 }])).rejects.toThrow(
+            /takes `album_id` and nothing else/
+        );
+        await expect(adapter.runManualImport('nzo-1', [{ path: '01.flac', albumId: 32, season: 1 }])).rejects.toThrow(
+            /takes `album_id` and nothing else/
+        );
         expect(sent).toEqual([]);
     });
 
@@ -371,14 +374,45 @@ describe('trigger_scan on lidarr', () => {
         expect(effects.slice(1).join(' ')).toContain('no track matched');
     });
 
-    it('refuses a mapping on lidarr through import_download, before any request', async () => {
+    it('refuses a movie mapping on lidarr through import_download, before any request', async () => {
         const { adapter, sent } = importing();
         const call = harness(adapter, registerImportDownload);
 
         await expect(
             call({ service: 'lidarr', download_id: 'nzo-1', mapping: [{ path: '01.flac', movie_id: '42' }], dry_run: true })
-        ).rejects.toThrow(/does not take a `mapping`/);
+        ).rejects.toThrow(/takes `album_id` and nothing else/);
         expect(sent).toEqual([]);
+    });
+
+    it('previews a mapped file through import_download as the album named, and binds the mapping', async () => {
+        const { adapter } = lidarr(s => {
+            if (s.path === '/api/v1/queue') return QUEUE('completed');
+            if (s.path === '/api/v1/album/32') return { id: 32, title: 'Second', artistId: 3, artist: { artistName: 'Some Artist' } };
+            if (s.path === '/api/v1/manualimport' && s.method === 'POST') {
+                return (s.body as Record<string, unknown>[]).map(b => ({
+                    path: b.path,
+                    artist: { id: 3, artistName: 'Some Artist' },
+                    album: { id: 32, title: 'Second' },
+                    albumReleaseId: 320,
+                    tracks: [{ id: 933 }],
+                    rejections: []
+                }));
+            }
+            if (s.path === '/api/v1/manualimport') return ROWS;
+            return undefined;
+        });
+        const call = harness(adapter, registerImportDownload);
+
+        const { structuredContent } = await call({
+            service: 'lidarr',
+            download_id: 'nzo-1',
+            mapping: [{ path: '03.flac', album_id: '32' }],
+            dry_run: true
+        });
+        const effects = structuredContent.effects.map(plain);
+
+        expect(structuredContent.summary).toContain('Import 2 file(s) from download nzo-1 into lidarr');
+        expect(effects).toContainEqual(expect.stringContaining('03.flac as Some Artist: Second (your mapping)'));
     });
 
     it('refuses an import on trigger_scan: download_id is no longer one of its arguments', async () => {
@@ -387,5 +421,129 @@ describe('trigger_scan on lidarr', () => {
 
         expect(() => call({ service: 'lidarr', download_id: 'nzo-1', dry_run: true })).toThrow(/Unknown argument\(s\): download_id/);
         expect(sent).toEqual([]);
+    });
+});
+
+/**
+ * A mapping on Lidarr names the album; Lidarr's own reprocess (`POST
+ * /manualimport`, `ManualImportService.UpdateItems`, Lidarr 3.1.6) then picks
+ * the release and the tracks for the files in it and judges them again.
+ */
+describe('Lidarr import with a mapping', () => {
+    const SECOND = { id: 32, title: 'Second', artistId: 3, artist: { id: 3, artistName: 'Some Artist' } };
+
+    /** One verdict for a posted file; track id 93x for file 0x. */
+    const judgedRow = (body: Record<string, unknown>, over: Record<string, unknown> = {}) => ({
+        path: body.path,
+        artist: { id: body.artistId, artistName: 'Some Artist' },
+        album: { id: body.albumId, title: 'Second' },
+        albumReleaseId: 320,
+        tracks: [{ id: 930 + Number(String(body.path).slice(-7, -5)) }],
+        quality: { quality: { id: 6, name: 'FLAC' } },
+        rejections: [],
+        ...over
+    });
+
+    // Lidarr answers the reprocess grouped by album, so not in the order sent: reversed here.
+    function mapped(reprocess?: (bodies: Record<string, unknown>[]) => unknown) {
+        return lidarr(s => {
+            if (s.path === '/api/v1/queue') return QUEUE('completed');
+            if (s.path === '/api/v1/album/32') return SECOND;
+            if (s.path === '/api/v1/manualimport' && s.method === 'POST') {
+                const bodies = s.body as Record<string, unknown>[];
+                return reprocess === undefined ? [...bodies].reverse().map(b => judgedRow(b)) : reprocess(bodies);
+            }
+            if (s.path === '/api/v1/manualimport') return ROWS;
+            if (s.path === '/api/v1/command') return COMMAND('ManualImport');
+            return undefined;
+        });
+    }
+
+    const mapping = [
+        { path: '03.flac', albumId: 32 },
+        { path: '/dl/a/05.flac', albumId: 32 }
+    ];
+
+    it('asks Lidarr to judge the mapped file again on the album named, leaving the release to it', async () => {
+        const { adapter, sent } = mapped();
+
+        const candidates = await adapter.listImportCandidates('nzo-1', [{ path: '03.flac', albumId: 32 }]);
+
+        const post = sent.find(s => s.method === 'POST');
+        expect(post?.path).toBe('/api/v1/manualimport');
+        expect(post?.body).toEqual([
+            {
+                path: '/dl/a/03.flac',
+                artistId: 3,
+                albumId: 32,
+                quality: { quality: { id: 0, name: 'Unknown' }, revision: { version: 1, real: 0, isRepack: false } },
+                downloadId: 'nzo-1',
+                replaceExistingFiles: false,
+                disableReleaseSwitching: false
+            }
+        ]);
+        const three = candidates.find(c => c.path === '/dl/a/03.flac');
+        expect(three).toMatchObject({ matchedId: 3, rejections: [], mapped: true });
+        expect(unfenced(three?.matchedTitle ?? '')).toBe('Some Artist: Second');
+    });
+
+    it('merges Lidarr\'s verdicts by path, then imports the mapped files with the release and tracks it chose', async () => {
+        const { adapter, sent } = mapped();
+
+        await adapter.runManualImport('nzo-1', mapping);
+
+        const command = sent.find(s => s.path === '/api/v1/command')?.body as { files: Record<string, unknown>[] };
+        expect(command.files).toEqual([
+            expect.objectContaining({ path: '/dl/a/01.flac', albumId: 31, albumReleaseId: 310, trackIds: [901] }),
+            expect.objectContaining({ path: '/dl/a/03.flac', artistId: 3, albumId: 32, albumReleaseId: 320, trackIds: [933] }),
+            expect.objectContaining({ path: '/dl/a/05.flac', artistId: 3, albumId: 32, albumReleaseId: 320, trackIds: [935] })
+        ]);
+    });
+
+    it('still skips a mapped file Lidarr rejects, or places on no track', async () => {
+        const { adapter } = mapped(bodies => [
+            judgedRow(bodies[0]!, { rejections: [{ reason: 'Has missing tracks' }] }),
+            judgedRow(bodies[1]!, { tracks: [] })
+        ]);
+
+        const candidates = await adapter.listImportCandidates('nzo-1', mapping);
+
+        expect(candidates.find(c => c.path === '/dl/a/03.flac')?.rejections.map(unfenced)).toEqual(['Has missing tracks']);
+        expect(candidates.find(c => c.path === '/dl/a/05.flac')?.rejections).toEqual(['no track matched']);
+    });
+
+    it('treats a file Lidarr put on another album as rejected', async () => {
+        const { adapter } = mapped(bodies => bodies.map(b => judgedRow(b, { album: { id: 31, title: 'First' } })));
+
+        const candidates = await adapter.listImportCandidates('nzo-1', [{ path: '03.flac', albumId: 32 }]);
+
+        expect(candidates.find(c => c.path === '/dl/a/03.flac')?.rejections).toEqual(['not placed on album 32']);
+    });
+
+    it.each([
+        ['leaves a mapped file out', (bodies: Record<string, unknown>[]) => [judgedRow(bodies[0]!)]],
+        ['answers a row without rejections', (bodies: Record<string, unknown>[]) => bodies.map(b => ({ ...judgedRow(b), rejections: null }))],
+        ['answers something other than a list', () => ({ message: 'error' })]
+    ])('refuses the mapping when the reprocess %s', async (_case, answer) => {
+        const { adapter, sent } = mapped(answer);
+
+        await expect(adapter.runManualImport('nzo-1', mapping)).rejects.toThrow(/did not judge every mapped file/);
+        expect(sent.filter(s => s.path === '/api/v1/command')).toEqual([]);
+    });
+
+    it('names an album Lidarr does not have, before the reprocess', async () => {
+        const { adapter, sent } = mapped();
+
+        await expect(adapter.listImportCandidates('nzo-1', [{ path: '03.flac', albumId: 99 }])).rejects.toMatchObject({
+            message: expect.stringMatching(/has no album 99/),
+            remedy: expect.stringMatching(/get_media_details/)
+        });
+        expect(sent.filter(s => s.method === 'POST')).toEqual([]);
+    });
+
+    it('names a path the download does not have', async () => {
+        const { adapter } = mapped();
+
+        await expect(adapter.listImportCandidates('nzo-1', [{ path: '09.flac', albumId: 32 }])).rejects.toThrow(/has no file "09.flac"/);
     });
 });
