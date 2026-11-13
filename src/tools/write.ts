@@ -49,6 +49,12 @@ export type WritePlan<Bound extends Record<string, unknown> = Record<string, unk
      */
     noop?: boolean;
     /**
+     * On a no-op that only lists (`remove_queue_item` with `orphaned: true`):
+     * the calls to make for what it lists. The text then carries the effects
+     * and these, since the listing is the answer.
+     */
+    next?: NextStep[];
+    /**
      * The title this write touches, for the cross-checks. Only read when the
      * tool sets `crossCheck`, so a plan can always fill it in. A function is
      * for a subject that costs an upstream read to name: the harness calls it
@@ -467,7 +473,14 @@ export function registerWriteTool<
             // --- 1. Nothing to do -------------------------------------------------
             if (plan.noop === true) {
                 const id = quiet ? undefined : audit.begin(record);
-                if (id !== undefined) audit.settle(id, 'dry_run', 'no-op: already in the requested state');
+                const next = plan.next ?? [];
+                if (id !== undefined) audit.settle(id, 'dry_run', next.length > 0 ? 'no-op: listed only' : 'no-op: already in the requested state');
+                if (next.length > 0) {
+                    return respond(
+                        preview({ ...(id === undefined ? {} : { audit_id: id }), next_steps: next }),
+                        `${plan.summary}\n\n${plan.effects.map(e => `- ${e}`).join('\n')}\n\n${next.map(nextStepLine).join('\n')}\n\nNo change was made and no confirmation is needed.`
+                    );
+                }
                 return respond(
                     preview(id === undefined ? {} : { audit_id: id }),
                     `Nothing to do: ${plan.summary} No change was made and no confirmation is needed.`

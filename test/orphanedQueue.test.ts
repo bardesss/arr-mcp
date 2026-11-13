@@ -27,13 +27,15 @@ const BLOCKED_A = {
     id: 693439963,
     title: 'Good.Boy.2025.1080p-SPHD',
     status: 'completed',
-    trackedDownloadState: 'importBlocked'
+    trackedDownloadState: 'importBlocked',
+    downloadId: 'AAA111'
 };
 const BLOCKED_B = {
     id: 1036990902,
     title: 'Summerween.2026.1080p-BobDobbs',
     status: 'completed',
-    trackedDownloadState: 'importBlocked'
+    trackedDownloadState: 'importBlocked',
+    downloadId: 'BBB222'
 };
 /** Unlinked but mid-transfer — the live Sonarr had one of these. */
 const ORPHAN_DOWNLOADING = { id: 731469873, title: 'Lawless.2012-CHD', status: 'downloading', trackedDownloadState: 'downloading' };
@@ -87,98 +89,69 @@ function baseHarness(records: unknown[] = [BLOCKED_A, BLOCKED_B, ORPHAN_DOWNLOAD
     return { call: (args: Record<string, unknown>) => callTool(tool, args), callTool, fetch };
 }
 
-/** `remove_queue_item` with `orphaned: true`. */
-const TOOLS = [['remove_queue_item', { service: 'radarr', orphaned: true }, { service: 'lidarr', orphaned: true }]] as const;
 
-describe.each(TOOLS)('%s cleaning orphans', (tool, args) => {
-    const harness = (records?: unknown[], opts: Parameters<typeof baseHarness>[1] = {}) => baseHarness(records, { ...opts, tool });
+/**
+ * `orphaned: true` lists and never removes. The *arrs delete a film's or
+ * series' history with it, so nothing tells a download whose media was
+ * deleted from one they never matched (a title mismatch, one added by hand),
+ * and removing the second deletes data `import_download` could still import.
+ */
+describe('remove_queue_item orphaned: true lists', () => {
+    const args = { service: 'radarr', orphaned: true };
+    const harness = (records?: unknown[], opts: Parameters<typeof baseHarness>[1] = {}) => baseHarness(records, opts);
+    type Steps = { next_steps?: { tool: string; arguments: Record<string, unknown>; why: string }[] };
 
-    it('previews only the orphaned items that are import-blocked', async () => {
-        const { structuredContent } = await harness().call({ ...args, dry_run: true });
+    it('lists only the orphaned items that are import-blocked, with their ids', async () => {
+        const { structuredContent } = await harness().call(args);
+        expect(structuredContent.noop).toBe(true);
         expect(structuredContent.summary).toContain('2');
-        expect(structuredContent.effects.join(' ')).toContain('Good.Boy');
-        expect(structuredContent.effects.join(' ')).toContain('Summerween');
-    });
-
-    // A release the *arr never matched sits in the same state as deleted media.
-    it('words each row as matched to nothing, deleted or never matched, and names the rescue', async () => {
-        const { structuredContent } = await harness().call({ ...args, dry_run: true });
         const effects = structuredContent.effects.join(' ');
-        expect(structuredContent.effects[0]).toBe('<<untrusted:radarr.title>>Good.Boy.2025.1080p-SPHD<</>>: completed/importBlocked, matched to nothing in the library: deleted, or never matched.');
-        expect(effects).not.toMatch(/no media behind it|is gone/);
-        expect(effects).toContain('import_download with a `mapping` can still import one that was never matched.');
+        expect(effects).toContain('Good.Boy');
+        expect(effects).toContain('693439963');
+        expect(effects).toContain('Summerween');
+        expect(effects).not.toMatch(/Lawless|Still\.Here|Some\.Film/);
     });
 
-    it('never touches an orphan that is still downloading', async () => {
+    it('issues no confirmation token and removes nothing, even when confirmed', async () => {
         const h = harness();
-        const { structuredContent } = await h.call({ ...args, dry_run: true });
-        expect(structuredContent.effects.join(' ')).not.toContain('Lawless');
-
         const first = await h.call(args);
-        await h.call({ ...args, confirm: first.structuredContent.confirm_token });
-        expect(h.fetch.deletes().map(d => d.path)).not.toContain('/api/v3/queue/731469873');
-    });
-
-    it('leaves a blocked item alone when its movie still exists', async () => {
-        const { structuredContent } = await harness().call({ ...args, dry_run: true });
-        expect(structuredContent.effects.join(' ')).not.toContain('Still.Here');
-    });
-
-    it('leaves a healthy download alone', async () => {
-        const { structuredContent } = await harness().call({ ...args, dry_run: true });
-        expect(structuredContent.effects.join(' ')).not.toContain('Some.Film');
-    });
-
-    it('changes nothing on a dry run', async () => {
-        const h = harness();
-        await h.call({ ...args, dry_run: true });
+        expect(first.structuredContent.confirm_token).toBeUndefined();
+        const single = await h.call({ service: 'radarr', id: '5' });
+        const again = await h.call({ ...args, confirm: single.structuredContent.confirm_token });
+        expect(again.structuredContent.applied).toBe(false);
         expect(h.fetch.deletes()).toHaveLength(0);
     });
 
-    it('deletes nothing on the first call, then every match on the confirmed one', async () => {
-        const h = harness();
-        const first = await h.call(args);
-        expect(h.fetch.deletes()).toHaveLength(0);
-
-        const second = await h.call({ ...args, confirm: first.structuredContent.confirm_token });
-        expect(second.structuredContent.applied).toBe(true);
-        expect(h.fetch.deletes().map(d => d.path).sort()).toEqual([
-            '/api/v3/queue/1036990902',
-            '/api/v3/queue/693439963'
+    it('offers, per row, the import with a mapping and the removal by id', async () => {
+        const { structuredContent, content } = await harness().call(args);
+        expect((structuredContent as WriteToolResult & Steps).next_steps).toEqual([
+            expect.objectContaining({ tool: 'import_download', arguments: { service: 'radarr', action: 'import', download_id: 'AAA111' }, why: expect.stringContaining('`mapping`') }),
+            expect.objectContaining({ tool: 'remove_queue_item', arguments: { service: 'radarr', id: '693439963' } }),
+            expect.objectContaining({ tool: 'import_download', arguments: { service: 'radarr', action: 'import', download_id: 'BBB222' } }),
+            expect.objectContaining({ tool: 'remove_queue_item', arguments: { service: 'radarr', id: '1036990902' } })
         ]);
+        // A client that drops structuredContent still sees the rows and the steps.
+        const text = content[0]?.text ?? '';
+        expect(text).toContain('Good.Boy');
+        expect(text).toContain('Next: remove_queue_item {"service":"radarr","id":"693439963"}');
+        expect(text).not.toMatch(/^Nothing to do/);
     });
 
-    it('removes them from the download client, which is the point', async () => {
-        const h = harness();
-        const first = await h.call(args);
-        await h.call({ ...args, confirm: first.structuredContent.confirm_token });
-        expect(h.fetch.deletes()[0]?.query).toMatchObject({ removeFromClient: 'true' });
+    it('does not claim the media is gone', async () => {
+        const { structuredContent } = await harness().call(args);
+        const said = [structuredContent.summary, ...structuredContent.effects].join(' ');
+        expect(said).toContain('deleted, or never matched');
+        expect(said).not.toMatch(/no media behind it|is gone/);
     });
 
-    it('does not blocklist — the release was fine, the film was deleted', async () => {
-        const h = harness();
-        const first = await h.call(args);
-        await h.call({ ...args, confirm: first.structuredContent.confirm_token });
-        expect(h.fetch.deletes()[0]?.query).toMatchObject({ blocklist: 'false' });
-    });
-
-    it('is a no-op when there is nothing orphaned to clean', async () => {
-        const { structuredContent } = await harness([HEALTHY]).call({ ...args, dry_run: true });
+    it('is a plain no-op when there is nothing orphaned', async () => {
+        const { structuredContent, content } = await harness([HEALTHY]).call({ ...args, dry_run: true });
         expect(structuredContent.noop).toBe(true);
         // The Lidarr version note is Lidarr's alone.
         expect(structuredContent.summary).not.toContain('2.10.1');
         expect(structuredContent.confirm_token).toBeUndefined();
-    });
-
-    // The harness adds the prefix; a summary carrying its own doubles it.
-    it('does not say "Nothing to do" twice', async () => {
-        const { content } = await harness([HEALTHY]).call({ ...args, dry_run: true });
-        expect(content[0]?.text).not.toMatch(/Nothing to do — Nothing to do/);
-    });
-
-    it('is destructive tier — safe_write alone is not enough', async () => {
-        const h = harness(undefined, { permissions: { radarr: permissive(true, false) } });
-        await expect(h.call(args)).rejects.toThrow(/services\.radarr\.permissions\.destructive: true/);
+        expect((structuredContent as WriteToolResult & Steps).next_steps).toBeUndefined();
+        expect(content[0]?.text).not.toMatch(/Nothing to do: Nothing to do/);
     });
 
     it('refuses a service with no queue', async () => {
@@ -194,73 +167,20 @@ describe.each(TOOLS)('%s cleaning orphans', (tool, args) => {
     });
 });
 
-/**
- * Removal used to throw on the first failure, which audited the whole write as
- * failed and told the caller nothing about the items that *had* been removed —
- * so a retry re-planned against a queue that had already changed underneath it.
- */
-describe.each(TOOLS)('%s partial removal', (tool, args) => {
-    const harness = (records?: unknown[], opts: Parameters<typeof baseHarness>[1] = {}) => baseHarness(records, { ...opts, tool });
-    const failingOn = (bad: (id: string) => boolean): ServiceAdapter => {
-        const adapter = {
-            id: 'radarr',
-            type: 'radarr',
-            getVersion: async () => '5.0.0',
-            testConnection: async () => ({ ok: true, service: 'radarr', latency_ms: 1 }),
-            getQueue: async () => [
-                { service: 'radarr', id: 'a', title: 'A', status: 'completed', importState: 'importBlocked', orphaned: true, protocol: 'torrent' },
-                { service: 'radarr', id: 'b', title: 'B', status: 'completed', importState: 'importBlocked', orphaned: true, protocol: 'torrent' }
-            ],
-            supportsBlocklist: true,
-            removeQueueItem: async (id: string) => {
-                if (bad(id)) throw new Error('gone already');
-            }
-        } as unknown as ServiceAdapter;
-        return adapter;
-    };
-
-    it('reports how many were removed when one fails', async () => {
-        const h = harness([], { adapters: [failingOn(id => id === 'b')] });
-        const first = await h.call(args);
-        const second = await h.call({ ...args, confirm: first.structuredContent.confirm_token });
-
-        const result = String((second.structuredContent as { result?: unknown }).result ?? '');
-        expect(result).toContain('1 of 2');
-        expect(result).toContain('gone already');
-        expect(second.content[0]?.text).toContain('1 of 2');
-        expect(second.content[0]?.text).not.toMatch(/^Applied\./);
-        // The summary beside `applied: true` says what happened, not what was asked.
-        expect(second.structuredContent.summary).toContain('1 of 2');
-    });
-
-    it('still fails outright when nothing could be removed', async () => {
-        const h = harness([], { adapters: [failingOn(() => true)] });
-        const first = await h.call(args);
-
-        await expect(h.call({ ...args, confirm: first.structuredContent.confirm_token })).rejects.toThrow(
-            /none of the 2/i
-        );
-    });
-});
-
-/** Lidarr marks a row orphaned when its artist is gone, as Radarr and Sonarr do for a film or series. */
-describe.each(TOOLS)('%s on lidarr', (tool, _args, lidarrArgs) => {
-    const harness = (records?: unknown[], opts: Parameters<typeof baseHarness>[1] = {}) => baseHarness(records, { ...opts, tool });
-    const ALBUM_BLOCKED = { id: 211, title: 'Deleted.Artist-Album-FLAC', status: 'completed', trackedDownloadState: 'importBlocked' };
+/** Lidarr marks a row orphaned when it matched no artist, as Radarr and Sonarr do for a film or series. */
+describe('remove_queue_item orphaned: true on lidarr', () => {
+    const ALBUM_BLOCKED = { id: 211, title: 'Deleted.Artist-Album-FLAC', status: 'completed', trackedDownloadState: 'importBlocked', downloadId: 'CCC333' };
     const ALBUM_DOWNLOADING = { id: 212, title: 'Gone.Artist-Live-MP3', status: 'downloading', trackedDownloadState: 'downloading' };
     const ALBUM_LINKED = { id: 213, title: 'Kept.Artist-Album-FLAC', status: 'completed', artistId: 12, trackedDownloadState: 'importBlocked' };
     /** Orphaned but already imported, the shape a deleted artist's finished downloads took live on 2.1.3. */
     const ALBUM_IMPORTED = { id: 214, title: 'Done.Artist-Album-FLAC', status: 'completed', trackedDownloadState: 'imported' };
-    /**
-     * Finished, orphaned and stuck, but on Lidarr before 2.10.1, which never
-     * sets `importBlocked`: seen live on 2.1.3. The rule does not stretch to
-     * cover it; `remove_queue_item` is the route, and the tool says so.
-     */
+    /** Finished, orphaned and stuck, but on Lidarr before 2.10.1, which never sets `importBlocked`: seen live on 2.1.3. */
     const ALBUM_PRE_2_10_1 = { id: 215, title: 'Older.Artist-Album-FLAC', status: 'completed', trackedDownloadState: 'downloading', trackedDownloadStatus: 'warning' };
+    const args = { service: 'lidarr', orphaned: true };
 
-    const lidarrHarness = () => {
-        const fetch = recordingFetch([ALBUM_BLOCKED, ALBUM_DOWNLOADING, ALBUM_LINKED, ALBUM_IMPORTED, ALBUM_PRE_2_10_1]);
-        const h = harness([], {
+    const lidarrHarness = (records: unknown[] = [ALBUM_BLOCKED, ALBUM_DOWNLOADING, ALBUM_LINKED, ALBUM_IMPORTED, ALBUM_PRE_2_10_1]) => {
+        const fetch = recordingFetch(records);
+        const h = baseHarness([], {
             adapters: [new LidarrAdapter(keyed(8686) as never, fetch.impl)],
             permissions: { lidarr: permissive(true, true) }
         });
@@ -269,61 +189,42 @@ describe.each(TOOLS)('%s on lidarr', (tool, _args, lidarrArgs) => {
 
     it('asks Lidarr for the unknown-artist items it hides by default', async () => {
         const h = lidarrHarness();
-        await h.call({ ...lidarrArgs, dry_run: true });
-
+        await h.call({ ...args, dry_run: true });
         const read = h.fetch.sent.find(s => s.method === 'GET' && s.path === '/api/v1/queue');
         expect(read?.query).toMatchObject({ includeUnknownArtistItems: 'true' });
     });
 
-    it('removes only the import-blocked album whose artist is gone, from the client, without blocklisting', async () => {
+    it('lists only the import-blocked album, offers removal by id and no import, and removes nothing', async () => {
         const h = lidarrHarness();
-        const first = await h.call(lidarrArgs);
-        const effects = first.structuredContent.effects.join(' ');
-
+        const { structuredContent } = await h.call(args);
+        const effects = structuredContent.effects.join(' ');
         expect(effects).toContain('Deleted.Artist');
-        // Lidarr's import_download takes no mapping, so the rescue is Lidarr's own.
+        expect(effects).not.toMatch(/Gone\.Artist|Kept\.Artist|Done\.Artist|Older\.Artist/);
+        // Lidarr's import_download takes no mapping, so the import is Lidarr's own.
         expect(effects).not.toContain('mapping');
-        expect(effects).toContain('can still be imported by hand in lidarr.');
-        expect(effects).not.toContain('Gone.Artist');
-        expect(effects).not.toContain('Kept.Artist');
-        expect(effects).not.toContain('Done.Artist');
-        expect(effects).not.toContain('Older.Artist');
+        expect(structuredContent.summary).toContain('by hand in lidarr');
+        expect((structuredContent as { next_steps?: unknown }).next_steps).toEqual([
+            expect.objectContaining({ tool: 'remove_queue_item', arguments: { service: 'lidarr', id: '211' } })
+        ]);
         expect(h.fetch.deletes()).toHaveLength(0);
-
-        await h.call({ ...lidarrArgs, confirm: first.structuredContent.confirm_token });
-
-        expect(h.fetch.deletes().map(d => d.path)).toEqual(['/api/v1/queue/211']);
-        expect(h.fetch.deletes()[0]?.query).toMatchObject({ removeFromClient: 'true', blocklist: 'false' });
     });
 
-    it('says, when there is nothing to clean, that Lidarr before 2.10.1 never marks a download importBlocked', async () => {
-        const fetch = recordingFetch([ALBUM_PRE_2_10_1]);
-        const h = harness([], {
-            adapters: [new LidarrAdapter(keyed(8686) as never, fetch.impl)],
-            permissions: { lidarr: permissive(true, true) }
-        });
-        const { structuredContent, content } = await h.call({ ...lidarrArgs, dry_run: true });
-
+    it('says, when there is nothing to list, that Lidarr before 2.10.1 never marks a download importBlocked', async () => {
+        const h = lidarrHarness([ALBUM_PRE_2_10_1]);
+        const { structuredContent, content } = await h.call({ ...args, dry_run: true });
         expect(structuredContent.noop).toBe(true);
         expect(structuredContent.summary).toMatch(/before 2\.10\.1 never marks one importBlocked/);
-        // It cannot tell a deleted artist from a download it never matched.
         expect(structuredContent.summary).toContain('matched to nothing in the library (deleted, or never matched)');
         expect(content[0]?.text).toContain('remove_queue_item with its `id`');
     });
 });
 
-describe('remove_queue_item orphaned', () => {
-    const remove = (records?: unknown[], opts: Parameters<typeof baseHarness>[1] = {}) => baseHarness(records, { ...opts, tool: 'remove_queue_item' });
+describe('remove_queue_item orphaned arguments', () => {
+    const remove = (records?: unknown[], opts: Parameters<typeof baseHarness>[1] = {}) => baseHarness(records, opts);
 
-    it('binds the preview to the orphaned target', async () => {
+    it('binds the listing to the orphaned target', async () => {
         const viaRemove = await remove().call({ service: 'radarr', orphaned: true, dry_run: true });
         expect(viaRemove.structuredContent.target).toBe('radarr:orphaned');
-    });
-
-    it('refuses remove_from_client: false with orphaned, before any read', async () => {
-        const h = remove();
-        await expect(h.call({ service: 'radarr', orphaned: true, remove_from_client: false, dry_run: true })).rejects.toThrow(/cannot leave it alone/);
-        expect(h.fetch.sent).toHaveLength(0);
     });
 
     it('refuses an id with orphaned, naming the other', async () => {
@@ -338,9 +239,9 @@ describe('remove_queue_item orphaned', () => {
         expect(h.fetch.sent).toHaveLength(0);
     });
 
-    it('refuses blocklist: true with orphaned, before any read', async () => {
+    it.each([{ remove_from_client: false }, { remove_from_client: true }, { blocklist: true }])('refuses %o with orphaned, before any read', async extra => {
         const h = remove();
-        await expect(h.call({ service: 'radarr', orphaned: true, blocklist: true, dry_run: true })).rejects.toThrow(/never blocklists/);
+        await expect(h.call({ service: 'radarr', orphaned: true, ...extra, dry_run: true })).rejects.toThrow(/only lists/);
         expect(h.fetch.sent).toHaveLength(0);
     });
 
@@ -355,28 +256,5 @@ describe('remove_queue_item orphaned', () => {
         const h = remove(undefined, { adapters: [qbit], permissions: { qbittorrent: permissive(true, true) } });
         await expect(h.call({ service: 'qbittorrent', orphaned: true, dry_run: true })).rejects.toThrow(/Radarr, Sonarr, Whisparr and Lidarr only/);
         expect((qbit as unknown as { getQueue: ReturnType<typeof vi.fn> }).getQueue).not.toHaveBeenCalled();
-    });
-
-    // One ConfirmTokens serves every tool, so a token must not carry from one
-    // kind of removal to another: each confirm is a fresh preview, not a delete.
-    describe('confirm tokens do not cross', () => {
-        const refused = (r: { structuredContent: WriteToolResult }) => {
-            expect(r.structuredContent.applied).not.toBe(true);
-            expect(r.structuredContent.confirm_token).toBeDefined();
-        };
-
-        it('a single-id token sent with orphaned', async () => {
-            const h = remove();
-            const first = await h.call({ service: 'radarr', id: '5' });
-            refused(await h.call({ service: 'radarr', orphaned: true, confirm: first.structuredContent.confirm_token }));
-            expect(h.fetch.deletes()).toHaveLength(0);
-        });
-
-        it('an orphaned token sent with an id', async () => {
-            const h = remove();
-            const first = await h.call({ service: 'radarr', orphaned: true });
-            refused(await h.call({ service: 'radarr', id: '5', confirm: first.structuredContent.confirm_token }));
-            expect(h.fetch.deletes()).toHaveLength(0);
-        });
     });
 });

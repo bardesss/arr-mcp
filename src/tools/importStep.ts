@@ -53,6 +53,9 @@ export function retriedImportStepFor(row: QueueItem, fallback?: string): NextSte
 /** The importers whose import_download takes a `mapping`. Lidarr's does not. */
 const MAPPERS: readonly string[] = ['radarr', 'sonarr'];
 
+/** An orphaned row whose importer takes a `mapping`: the only way it learns where the files go. */
+export const needsMapping = (row: QueueItem): boolean => row.orphaned === true && MAPPERS.includes(instanceArgs(row.service).service);
+
 /**
  * The import to offer for an orphaned row: one the *arr matched to nothing in
  * its library. That is a deleted film or series, or a release it never
@@ -60,7 +63,7 @@ const MAPPERS: readonly string[] = ['radarr', 'sonarr'];
  * importer where the second kind goes. None where the importer takes no mapping.
  */
 export function orphanImportStepFor(row: QueueItem): NextStep | undefined {
-    if (!MAPPERS.includes(instanceArgs(row.service).service)) return undefined;
+    if (!needsMapping(row)) return undefined;
     const step = importStepFor(row);
     return step === undefined
         ? undefined

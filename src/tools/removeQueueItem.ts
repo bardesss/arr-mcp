@@ -3,7 +3,7 @@ import * as z from 'zod/v4';
 import { ServiceError } from '../core/errors.ts';
 import { PENDING_STATUSES } from '../services/arrRecord.ts';
 import { hasQueue, hasQueueRemove, type QueueItem, type QueueRemoveCapable, type ServiceAdapter } from '../services/types.ts';
-import { applyOrphaned, canClearOrphans, planOrphaned } from './orphanedQueue.ts';
+import { canListOrphans, planOrphaned } from './orphanedQueue.ts';
 import { outcomeText, registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 import { targetInput, serviceTarget } from './serviceTarget.ts';
 
@@ -32,7 +32,7 @@ const RemoveQueueItemInput = z.object({
         .boolean()
         .optional()
         .describe(
-            'Instead of `id`. Refuses `blocklist: true` and `remove_from_client: false`.'
+            'Instead of `id`: lists, removes nothing.'
         ),
     remove_from_client: z
         .boolean()
@@ -48,7 +48,7 @@ const RemoveQueueItemInput = z.object({
         )
 });
 
-type RemoveBound = { service: string; id: string; removeFromClient: boolean; blocklist: boolean } | { ids: string[] };
+type RemoveBound = { service: string; id: string; removeFromClient: boolean; blocklist: boolean };
 
 /**
  * Why `blocklist: true` blocklists one row and not another, read in Radarr
@@ -114,7 +114,7 @@ export function registerRemoveQueueItem(
         name: 'remove_queue_item',
         title: 'Remove a queue item',
         description:
-            'Removes one item from a download queue: the stuck-at-0%, wrong-release, or stalled download. Take `service` and `id` from get_queue. Optionally deletes partial data and, on an *arr, blocklists the release so it will not be grabbed again. [[nzbget: On NZBGet, keeping the data parks the download in its history rather than deleting it.]] [[shelfmark: On Shelfmark it cancels a queued or running book, and a failed one has nothing to cancel.]] [[grimmory: On Grimmory it discards a file waiting in the Bookdrop, which deletes the file from disk (so `remove_from_client: false` is refused).]] [[radarr|sonarr|whisparr|lidarr: `orphaned: true` in place of `id` removes every finished download at importBlocked that matched no library item (deleted, or never matched) from one *arr and its client.]] Previews first; confirm to remove it.',
+            'Removes one item from a download queue: the stuck-at-0%, wrong-release, or stalled download. Take `service` and `id` from get_queue. Optionally deletes partial data and, on an *arr, blocklists the release so it will not be grabbed again. [[nzbget: On NZBGet, keeping the data parks the download in its history rather than deleting it.]] [[shelfmark: On Shelfmark it cancels a queued or running book, and a failed one has nothing to cancel.]] [[grimmory: On Grimmory it discards a file waiting in the Bookdrop, which deletes the file from disk (so `remove_from_client: false` is refused).]] [[radarr|sonarr|whisparr|lidarr: `orphaned: true` in place of `id` lists the finished downloads at importBlocked that matched no library item, with next steps, and removes nothing.]] Previews first; confirm to remove it.',
         inputSchema: RemoveQueueItemInput,
         // The resolved instance id, not the bare type: permissions are granted per
         // instance, so checking `radarr` against a config that only grants
@@ -128,20 +128,15 @@ export function registerRemoveQueueItem(
             if (orphaned === true) {
                 if (id !== undefined) {
                     throw new ServiceError('NotFound', adapter.id, 'pass `id` or `orphaned: true`, not both', {
-                        remedy: 'Leave out `id` to remove every orphaned download, or leave out `orphaned` to remove that one item.'
+                        remedy: 'Leave out `id` to list the orphaned downloads, or leave out `orphaned` to remove that one item.'
                     });
                 }
-                if (requested === false) {
-                    throw new ServiceError('NotFound', adapter.id, '`orphaned` always removes the download from the client, so it cannot leave it alone', {
-                        remedy: 'Leave out `remove_from_client`. To keep a download, remove one row by `id` instead.'
+                if (requested !== undefined || blocklist) {
+                    throw new ServiceError('NotFound', adapter.id, '`orphaned` only lists, so `remove_from_client` and `blocklist` do nothing with it', {
+                        remedy: 'Leave them out to list the orphaned downloads, then pass them with each row\'s `id` to remove it.'
                     });
                 }
-                if (blocklist) {
-                    throw new ServiceError('NotFound', adapter.id, '`orphaned` never blocklists: the release is not what went wrong', {
-                        remedy: 'Leave out `blocklist`. To blocklist one release, pass its `id` instead.'
-                    });
-                }
-                if (!canClearOrphans(adapter)) {
+                if (!canListOrphans(adapter)) {
                     throw new ServiceError('NotFound', adapter.id, `${adapter.id} reports no orphaned items`, {
                         remedy: 'orphaned works with Radarr, Sonarr, Whisparr and Lidarr only.'
                     });
@@ -149,7 +144,7 @@ export function registerRemoveQueueItem(
                 return planOrphaned(adapter);
             }
             if (id === undefined) {
-                throw new ServiceError('NotFound', adapter.id, 'pass `id`, or `orphaned: true` for every orphaned download', {
+                throw new ServiceError('NotFound', adapter.id, 'pass `id`, or `orphaned: true` to list the orphaned downloads', {
                     remedy: 'Take an id from get_queue.'
                 });
             }
@@ -227,10 +222,6 @@ export function registerRemoveQueueItem(
         // What the plan resolved and the token is bound to, not the raw flags.
         async apply(plan, _args, adapter) {
             if (plan.args === undefined) throw new Error('remove_queue_item: the plan bound no flags to send');
-            if ('ids' in plan.args) {
-                if (!canClearOrphans(adapter)) throw new Error('remove_queue_item: the plan bound orphans for an adapter that cannot clear them');
-                return applyOrphaned({ ...plan, args: plan.args }, adapter);
-            }
             const { id, removeFromClient, blocklist } = plan.args;
             await adapter.removeQueueItem(id, { removeFromClient, blocklist });
             return { removed: `${adapter.id}:${id}` };

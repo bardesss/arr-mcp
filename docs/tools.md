@@ -32,7 +32,7 @@ off until you turn them on; see [writes](writes.md).
 | `set_monitoring` | Turn monitoring on or off: a whole series (by id or title), one season, specific episodes; on Lidarr, `level: "album"` for one album |
 | `retry_download` | Try this failed usenet download again, with its password if it needs one, or a failed or cancelled Shelfmark book |
 | `pause_downloads` | Pause, resume or throttle a download client, or one item in its queue |
-| `remove_queue_item` | Get rid of this stuck or wrong download, or with `orphaned: true` every import-blocked download the *arr matched to nothing in its library; on Grimmory, discard a file waiting in the Bookdrop |
+| `remove_queue_item` | Get rid of this stuck or wrong download, or with `orphaned: true` list the import-blocked downloads the *arr matched to nothing in its library; on Grimmory, discard a file waiting in the Bookdrop |
 | `remove_blocklist_item` | Let this blocklisted release be grabbed again |
 | `delete_media` | Remove this film, series or artist, optionally from disk; on Grimmory, delete a book and its files |
 | `delete_episode_files` | Free disk from one season or a handful of episodes, without touching the series |
@@ -452,6 +452,9 @@ Without a state, the remedy says to check the *arr's history and the step
 imports it, as before. The reasons the *arr gives on its row (`statusMessages`,
 such as "Not an upgrade for existing movie file") follow the queue stage's
 detail, at most three, with the count of the rest that get_queue lists.
+When the row is `orphaned` on Radarr or Sonarr (matched to nothing in the
+library), the remedy and the step's `why` both say the import needs a `mapping`
+naming what each file is.
 
 A series or an artist reads `playable` once any episode or track is on disk, so
 a blocked queue step beside it, even a download in progress or a release held
@@ -1956,9 +1959,9 @@ keeps seeding.
 
 Pass `orphaned: true` in place of `id`, with `service` and `instance` naming one
 Radarr, Sonarr, Whisparr or Lidarr instance (exactly one of `id` and `orphaned`;
-both or neither is refused). It always removes the download from the client, so
-`remove_from_client: false` is refused, and so is `blocklist: true`. A download
-client is refused before anything is read.
+both or neither is refused). It lists and removes nothing, so
+`remove_from_client` and `blocklist` are refused with it. A download client is
+refused before anything is read.
 
 `orphaned` means only that the queue row names no film, series or artist.
 Radarr and Sonarr leave a completed download at `importBlocked` with no media
@@ -1968,39 +1971,32 @@ at all (a title mismatch, a name they could not parse, a download added to
 their category by hand). Both hide these from the queue by default; `get_queue`
 asks for them and marks each one `orphaned`.
 
-The tool removes exactly the items that are **both** `orphaned` and
-`importState: "importBlocked"`, from the queue and from the download client,
-which deletes the data. That pairing is not configurable: an item can be
-unlinked and still transferring, and deleting one of those destroys a download
-in progress.
+Nothing tells the two apart. Radarr and Sonarr delete a film's or series'
+history with it (checked live on Radarr 6.4.4 and Sonarr 4.0.20), so no grab
+record survives to name the deleted media, and their message is the same title
+mismatch either way. Removing a download deletes its data, which for one that
+was never matched is data an import could still use. So the tool lists the
+items that are **both** `orphaned` and `importState: "importBlocked"` (an item
+can be unlinked and still transferring) as a no-op: no confirmation token, and
+no change. Each row carries its `id` and status, and `next_steps` gives, per
+row, `import_download` with its `download_id` (on Radarr and Sonarr, add a
+`mapping` naming what each file is) and `remove_queue_item` with its `id`, which
+removes it from the queue and the client and deletes its data. On Lidarr and
+Whisparr, import it by hand in the service. The text carries the rows and the
+steps too, for a client that drops `structuredContent`.
 
-It cannot tell the two kinds apart, so the preview says of each row that it
-matched nothing in the library, "deleted, or never matched", and does not claim
-the media is gone. Read the names before confirming. On Radarr and Sonarr,
-`import_download` with a `mapping` naming what each file is imports one that
-was never matched, and `get_queue` offers that step in `next_steps` for an
-orphaned `importBlocked` row. On Lidarr and Whisparr, import it by hand in the service.
+Before 2.0 it removed every such row with its data after one confirmation.
 
-It never blocklists, so any of these can be grabbed again later.
-
-Lidarr does the same for an album whose artist was deleted or never matched, and `orphaned: true`
-takes `service: "lidarr"` with the same rule, **from Lidarr 2.10.1**. Before
-it, the download stays `status: "completed"` with
+Lidarr leaves an album whose artist was deleted or never matched the same way,
+and `orphaned: true` takes `service: "lidarr"` with the same rule, **from Lidarr
+2.10.1**. Before it, the download stays `status: "completed"` with
 `importState: "downloading"` and a warning ("Artist name mismatch, automatic
 import is not possible"), so on 2.1.3 to 2.10.0 the rule matches nothing, and a
-Lidarr preview with nothing to clean says so. Remove one of those with
+Lidarr listing with nothing in it says so. Remove one of those with
 `remove_queue_item` and its `id`. A deleted artist's downloads that had already
-imported read `orphaned` with `importState: "imported"` instead, and are left alone: they are
-not stuck, and `remove_queue_item` removes one if it is wanted gone.
-
-The preview lists every item by name before anything is removed, and the
-confirmation token is bound to those exact ids, so an item that appears in the
-queue after the preview is not removed.
-
-The text reports what actually happened, not what was planned: if only some of
-the items go it says so ("1 of 2 removed"), not only in `result`.
-`import_download` and `trigger_subtitle_search` do the same when part of a remap or
-a subtitle search did not run.
+imported read `orphaned` with `importState: "imported"` instead, and are not
+listed: they are not stuck, and `remove_queue_item` removes one if it is wanted
+gone.
 
 ## `manage_indexer`
 
