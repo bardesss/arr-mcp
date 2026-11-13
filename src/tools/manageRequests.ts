@@ -3,6 +3,7 @@ import * as z from 'zod/v4';
 import { ServiceError } from '../core/errors.ts';
 import { fenceText } from '../core/fence.ts';
 import type { IdentityResolver } from '../core/identity.ts';
+import { SEERR_ARR } from '../core/resolver.ts';
 import {
     hasRequestManage,
     hasRequestLookup,
@@ -157,10 +158,11 @@ export function registerRespondToRequest(
                 };
             }
 
+            const arr = request.mediaType === 'unknown' ? 'Radarr or Sonarr' : SEERR_ARR[request.mediaType];
             const effects =
                 verdict === 'approve'
                     ? [
-                          'Hands the request to Radarr or Sonarr, which will search for it and start downloading. This uses disk space and bandwidth.',
+                          `Hands the request to ${arr}, which will search for it and start downloading. This uses disk space and bandwidth.`,
                           `Marks the request approved. ${requester(request)} will see it as accepted.`
                       ]
                     : [

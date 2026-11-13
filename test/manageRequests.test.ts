@@ -344,6 +344,20 @@ describe('respond_to_request', () => {
         expect(gets).not.toContain('/api/v1/request');
     });
 
+    // Seerr hands a film to Radarr and a series to Sonarr; a request of no known kind names both.
+    it.each<[string | undefined, Record<string, unknown>, string]>([
+        ['movie', { tmdbId: 603, tvdbId: null }, 'Radarr'],
+        ['tv', { tmdbId: 1001, tvdbId: 1002 }, 'Sonarr'],
+        [undefined, { tmdbId: 603, tvdbId: null }, 'Radarr or Sonarr']
+    ])('names the *arr an approved request goes to (media type %s)', async (mediaType, ids, arr) => {
+        const h = harness(registerRespondToRequest, {
+            permissions: { seerr: tiered(true, false) },
+            requests: { results: [{ ...PENDING, media: { ...ids, ...(mediaType === undefined ? {} : { mediaType }) } }] }
+        });
+        const { structuredContent } = await h.call({ id: '31', verdict: 'approve', dry_run: true });
+        expect(structuredContent.effects[0]).toBe(`Hands the request to ${arr}, which will search for it and start downloading. This uses disk space and bandwidth.`);
+    });
+
     it('names a zero-padded id by the request it resolves to', async () => {
         const h = harness(registerRespondToRequest, { permissions: { seerr: tiered(true, false) } });
         const { structuredContent } = await h.call({ id: '031', verdict: 'approve', dry_run: true });

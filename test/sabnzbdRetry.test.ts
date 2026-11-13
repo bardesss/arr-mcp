@@ -39,10 +39,10 @@ const recording = (handler: Handler) => {
 };
 
 /** A client whose queue and history are fixed, answering writes with `writes`. */
-const fixed = (queue: Slot[], history: Slot[], writes: Handler = () => ({ status: true })) =>
+const fixed = (queue: Slot[], history: Slot[], writes: Handler = () => ({ status: true }), paused = false) =>
     recording((params, calls) => {
         const mode = params.get('mode');
-        if (mode === 'queue' && !params.get('name')) return { queue: { slots: queue } };
+        if (mode === 'queue' && !params.get('name')) return { queue: { paused, slots: queue } };
         if (mode === 'history') return { history: { slots: history } };
         return writes(params, calls);
     });
@@ -141,6 +141,20 @@ describe('sabnzbd findRetryTarget', () => {
         expect(writesIn(requests)).toHaveLength(0);
     });
 
+    // Under a paused queue a job resumed after its password keeps waiting there: Queued under a manual
+    // pause, Downloading during the wait for post-processing (`build_queue`).
+    it.each(['Queued', 'Downloading'])('says a paused queue holds an encrypted %s job, rather than that it is running', async status => {
+        const { adapter, requests } = fixed([{ nzo_id: 'q1', filename: 'Show.S01E01', status, priority: 'Normal', labels: ['ENCRYPTED'] }], [], undefined, true);
+
+        const error = await caught(adapter.findRetryTarget('q1', { hasPassword: true }));
+
+        expect(error.message).toMatch(/is encrypted but not paused/);
+        expect(error.remedy).toBe(
+            "It is not paused itself, so there is nothing to unlock, but SABnzbd's whole queue is paused, so it waits there: resume the queue with pause_downloads (`action: \"resume\"` without an `id`) if it stays paused."
+        );
+        expect(writesIn(requests)).toHaveLength(0);
+    });
+
     // The label is translated: on a non-English UI a paused job may be
     // encrypted with no way to tell from the API.
     it('refuses a paused job it cannot confirm is encrypted, pointing at SABnzbd\'s own UI', async () => {
@@ -212,6 +226,35 @@ describe('sabnzbd runRetry', () => {
             id: 'SABnzbd_nzo_new',
             state: 'downloading'
         });
+    });
+
+    // A retried job goes back to a queue that may be paused; one at Force priority downloads through a manual pause.
+    // Under a manual pause SABnzbd shows a Force job as Downloading (`build_queue`).
+    // A job paused itself needs its own resume as well.
+    it.each<[boolean, string, string, true | undefined, true | undefined]>([
+        [true, 'Normal', 'Queued', true, undefined],
+        [true, 'Force', 'Downloading', undefined, undefined],
+        [false, 'Normal', 'Queued', undefined, undefined],
+        [false, 'Normal', 'Paused', undefined, true],
+        [true, 'Normal', 'Paused', true, true]
+    ])('marks a retried job the paused queue holds (queue paused %s, priority %s, %s)', async (queuePaused, priority, status, held, pausedItself) => {
+        let retried = false;
+        const { adapter } = recording(params => {
+            const mode = params.get('mode');
+            if (mode === 'retry') {
+                retried = true;
+                return { nzo_id: 'SABnzbd_nzo_new' };
+            }
+            if (mode === 'queue') {
+                return { queue: { paused: queuePaused, slots: retried ? [{ nzo_id: 'SABnzbd_nzo_new', filename: 'Some.Movie.2020', status, priority }] : [] } };
+            }
+            return { history: { slots: retried ? [] : [failed] } };
+        });
+
+        const outcome = await adapter.runRetry('SABnzbd_nzo_old', { method: 'retry' });
+        expect(outcome.state).toBe('downloading');
+        expect(outcome.queuePaused).toBe(held);
+        expect(outcome.pausedItself).toBe(pausedItself);
     });
 
     it('refuses an answer with no nzo_id, even one that says status: true', async () => {
