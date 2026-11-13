@@ -283,11 +283,33 @@ export function registerSetWatched(
             // Sequentially rather than in parallel: this can be a whole
             // series, and a burst of a hundred concurrent writes at one
             // Jellyfin is how a rate limit turns into a half-applied change.
+            // It stops at the first failure, and what was marked before it is
+            // reported as applied: thrown, a series half marked would read as
+            // nothing changed, and the library cache would keep the old state.
+            let changed = 0;
             for (const each of targets) {
-                await adapter.setWatched(viewer, each.id, watched);
+                try {
+                    await adapter.setWatched(viewer, each.id, watched);
+                } catch (err) {
+                    if (changed === 0) throw err;
+                    return {
+                        changed,
+                        failed: `${each.title}: ${err instanceof Error ? err.message : String(err)}`,
+                        notTried: targets.length - changed - 1
+                    };
+                }
+                changed += 1;
             }
 
-            return { changed: targets.length };
+            return { changed };
+        },
+
+        applied(outcome, plan) {
+            const { changed, failed, notTried } = outcome as { changed: number; failed?: string; notTried?: number };
+            if (failed === undefined) return undefined;
+            return `Partly applied. ${plan.summary} Marked ${changed}, then Jellyfin failed on ${failed}${
+                notTried === 0 ? '' : `, and ${notTried} more ${notTried === 1 ? 'was' : 'were'} not tried`
+            }. Call set_watched again to finish: it only marks what is still left.`;
         }
     });
 }

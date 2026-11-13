@@ -121,7 +121,8 @@ type WriteToolSpec<
      * effect happened, so `Applied. ${plan.summary}` is always true. A tool
      * whose apply can turn out to have done nothing (a sync that found
      * nothing to pull) supplies this to say so; returning `undefined` falls
-     * back to the default sentence.
+     * back to the default sentence. A sentence returned here is also the
+     * applied result's `summary`.
      */
     applied?(outcome: unknown, plan: WritePlan<Bound>): string | undefined;
     /**
@@ -580,15 +581,20 @@ export function registerWriteTool<
                 logger.warn({ tool: spec.name, err }, 'followUps threw; reporting the write without next steps');
             }
 
+            // A tool's own sentence is what happened, where the plan's summary
+            // is what was asked: a partial or empty result says so in
+            // `summary` too, not only in the text.
+            const said = spec.applied?.(outcome, plan);
             return respond(
                 {
                     ...preview({ audit_id: id }),
                     applied: true,
+                    ...(said === undefined ? {} : { summary: said }),
                     ...(outcome === undefined ? {} : { result: outcome }),
                     ...(nextSteps.length === 0 ? {} : { next_steps: nextSteps })
                 },
                 // In the text as well as the field (#234).
-                (spec.applied?.(outcome, plan) ?? `Applied. ${plan.summary}`) + nextSteps.map(step => `\n${nextStepLine(step)}`).join('')
+                (said ?? `Applied. ${plan.summary}`) + nextSteps.map(step => `\n${nextStepLine(step)}`).join('')
             );
         }
     );

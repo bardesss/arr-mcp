@@ -190,6 +190,23 @@ function torrentOf(t: RawTorrent & { hash: string }): { torrent: TorrentFacts } 
     };
 }
 
+/**
+ * Whether `torrents/add` took the torrent. Up to 5.1 it answers 200 with
+ * `Ok.` or `Fails.`, so the status line says nothing; later builds answer
+ * empty or with JSON counts.
+ */
+function addAccepted(body: string): boolean {
+    if (body === '' || body === 'Ok.') return true;
+    try {
+        const counts = JSON.parse(body) as { success_count?: unknown; pending_count?: unknown; failure_count?: unknown };
+        if (typeof counts !== 'object' || counts === null) return false;
+        const n = (v: unknown) => (typeof v === 'number' ? v : 0);
+        return n(counts.success_count) + n(counts.pending_count) > 0 || n(counts.failure_count) === 0;
+    } catch {
+        return false;
+    }
+}
+
 export class QbittorrentAdapter
     implements
         ServiceAdapter,
@@ -470,11 +487,22 @@ export class QbittorrentAdapter
                 ? []
                 : await this.#http.get<RawTorrent[]>(`${API}/torrents/info?hashes=${encodeURIComponent(hash)}`);
 
-        await this.#http.postForm(`${API}/torrents/add`, { urls: uri }, true);
+        const duplicate = Array.isArray(existing) && existing.length > 0;
+        const answer = await this.#http.postFormText(`${API}/torrents/add`, { urls: uri });
+        // A duplicate is already known, and older builds answer one with
+        // `Fails.` too, so the body only decides a new torrent.
+        if (!duplicate && !addAccepted(answer)) {
+            throw new ServiceError(
+                'UpstreamError',
+                this.id,
+                `qBittorrent did not add the torrent: it answered ${fenceText(answer, { service: this.id, field: 'add' })}`,
+                { remedy: 'Check the magnet link, and that qBittorrent has finished starting up, then try again.' }
+            );
+        }
 
         return {
             ...(hash === undefined ? {} : { id: hash }),
-            duplicate: Array.isArray(existing) && existing.length > 0
+            duplicate
         };
     }
 

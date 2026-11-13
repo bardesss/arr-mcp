@@ -153,12 +153,42 @@ export async function planBook(book: ServiceAdapter & BookMetadataCapable, rawId
  * verified against: the `id` as given may still carry its `grimmory:` prefix.
  * Unlocks first so the write can land, locks last so the new values are kept.
  */
-async function applyBook(book: ServiceAdapter & BookMetadataCapable, plan: WritePlan): Promise<{ changed: string[] }> {
+type BookOutcome = { changed: string[] } | { done: string[]; failed: string };
+
+async function applyBook(book: ServiceAdapter & BookMetadataCapable, plan: WritePlan): Promise<BookOutcome> {
     const bound = plan.args as { id: string; fields: BookFields; clear: BookField[]; lock: BookField[]; unlock: BookField[] };
-    if (bound.unlock.length > 0) await book.setBookFieldLocks(bound.id, bound.unlock, false);
-    if (Object.keys(bound.fields).length > 0 || bound.clear.length > 0) await book.writeBookMetadata(bound.id, bound.fields, bound.clear);
-    if (bound.lock.length > 0) await book.setBookFieldLocks(bound.id, bound.lock, true);
+    const steps: [string, () => Promise<unknown>][] = [];
+    if (bound.unlock.length > 0) {
+        steps.push([`unlock ${bound.unlock.map(nameOf).join(', ')}`, () => book.setBookFieldLocks(bound.id, bound.unlock, false)]);
+    }
+    if (Object.keys(bound.fields).length > 0 || bound.clear.length > 0) {
+        steps.push(['write the metadata', () => book.writeBookMetadata(bound.id, bound.fields, bound.clear)]);
+    }
+    if (bound.lock.length > 0) {
+        steps.push([`lock ${bound.lock.map(nameOf).join(', ')}`, () => book.setBookFieldLocks(bound.id, bound.lock, true)]);
+    }
+
+    // A step that fails after another has landed is reported beside what
+    // landed: thrown, the unlock before a failed write would read as nothing
+    // having changed while the fields stay unlocked.
+    const done: string[] = [];
+    for (const [what, run] of steps) {
+        try {
+            await run();
+        } catch (err) {
+            if (done.length === 0) throw err;
+            return { done, failed: `${what}: ${err instanceof Error ? err.message : String(err)}` };
+        }
+        done.push(what);
+    }
     return { changed: [...Object.keys(bound.fields), ...bound.clear] };
+}
+
+/** The applied sentence for an edit that stopped part way. */
+function partlyApplied(outcome: unknown, plan: WritePlan): string | undefined {
+    if (typeof outcome !== 'object' || outcome === null || !('failed' in outcome)) return undefined;
+    const { done, failed } = outcome as { done: string[]; failed: string };
+    return `Partly applied. ${plan.summary} It did ${done.join(', then ')}, but could not ${failed}. Preview update_book again to see where the book stands now.`;
 }
 
 const UpdateBookInput = z.object({
@@ -199,6 +229,8 @@ export function registerUpdateBook(server: McpServer, context: WriteContext, ada
 
         async apply(plan, { instance }) {
             return applyBook(resolveTarget(adapters, TARGET, 'grimmory', instance), plan);
-        }
+        },
+
+        applied: partlyApplied
     });
 }

@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { KeyedServiceConfig } from '../src/config/schema.ts';
 import { apiKeyHeader } from '../src/core/auth.ts';
 import { ServiceHttp } from '../src/core/http.ts';
-import { COMMAND_WAIT_MS, arrItemId, awaitArrCommand, readArrCommands, renamedCount } from '../src/services/arrCommands.ts';
+import { COMMAND_WAIT_MS, arrItemId, awaitArrCommand, postArrCommand, readArrCommands, renamedCount } from '../src/services/arrCommands.ts';
 import { ProwlarrAdapter } from '../src/services/prowlarr.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
@@ -210,6 +210,16 @@ describe('awaitArrCommand', () => {
             message: expect.stringMatching(/returned no command id/)
         });
         expect(s.polls()).toBe(0);
+    });
+
+    /** Handed back as 0, the id reached trigger_search's and import_download's
+     *  answers as a command to follow that nothing will ever list. */
+    it('refuses a queued command with no id at the source', async () => {
+        const s = sequence([{ name: 'MoviesSearch', status: 'queued' }]);
+        await expect(postArrCommand(reader(s.impl), 'radarr', { name: 'MoviesSearch' })).rejects.toMatchObject({
+            kind: 'UpstreamError',
+            message: expect.stringMatching(/returned no command id/)
+        });
     });
 
     it('stops on a command that failed rather than waiting out the budget', async () => {

@@ -61,6 +61,23 @@ describe('trigger_scan on grimmory', () => {
         expect(done.structuredContent.result).toContain('rescanning 1 library');
     });
 
+    /** The first library's rescan has started by the time the second fails. */
+    it('reports the libraries it started when a later one fails', async () => {
+        const { call, puts } = scanTool({
+            'GET /api/v1/libraries': json([
+                { id: 1, name: 'Fiction', watch: false },
+                { id: 3, name: 'Poetry', watch: false }
+            ]),
+            ...REFRESH_1,
+            'PUT /api/v1/libraries/3/refresh': json({ message: 'boom' }, 500)
+        });
+        const preview = await call({ service: 'grimmory' });
+        const done = await call({ service: 'grimmory', confirm: preview.structuredContent.confirm_token });
+        expect(done.structuredContent.applied).toBe(true);
+        expect(puts()).toEqual(['/api/v1/libraries/1/refresh', '/api/v1/libraries/3/refresh']);
+        expect(done.structuredContent.result).toMatch(/rescanning 1 library\. 1 could not be started: 3 \(/);
+    });
+
     it('scans one library by name, case-insensitively, or by id', async () => {
         const { call } = scanTool();
         for (const library of ['fiction', '1']) {
@@ -823,6 +840,20 @@ describe('update_book', () => {
         expect(puts().map(p => p.path)).toEqual(['/api/v1/books/metadata/toggle-field-locks', '/api/v1/books/58/metadata']);
         expect(puts()[0]?.body).toEqual({ bookIds: [58], fieldActions: { titleLocked: 'UNLOCK' } });
         expect(puts()[1]?.body).toMatchObject({ metadata: { bookId: 58, title: 'New' } });
+    });
+
+    /** The unlock has landed by the time the write fails, so the fields are
+     *  unlocked: a plain failure would say nothing changed. */
+    it('reports an unlock that landed when the write after it fails', async () => {
+        const { call, puts } = editTool({
+            'GET /api/v1/books/58': bookWith({ titleLocked: true }),
+            'PUT /api/v1/books/58/metadata': json({ message: 'boom' }, 500)
+        });
+        const { done } = await confirm(call, { title: 'New', unlock_fields: ['title'] });
+        expect(done.structuredContent.applied).toBe(true);
+        expect(done.structuredContent.result).toMatchObject({ done: ['unlock title'], failed: expect.stringMatching(/^write the metadata: /) });
+        expect(done.content[0]?.text).toMatch(/^Partly applied\. .* It did unlock title, but could not write the metadata/);
+        expect(puts().map(p => p.path)).toEqual(['/api/v1/books/metadata/toggle-field-locks', '/api/v1/books/58/metadata']);
     });
 
     it('locks after writing', async () => {

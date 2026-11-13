@@ -880,6 +880,13 @@ async function renameRemappedFiles(
         files: free.map(r => r.episodeFileId)
     });
     const settled = await awaitArrCommand(http, service, rename.commandId);
+    // A failed or aborted command carries no count, which below would read
+    // as every file renamed. Nothing it says can be trusted, so it fails here.
+    if (settled.status !== 'completed') {
+        throw new ServiceError('UpstreamError', service, `${service} reassigned the files but its RenameFiles command ended ${settled.status}`, {
+            remedy: `The reassignment is applied and correct; only the filenames are behind. ${service} reported: ${fenceText(settled.message ?? '', { service, field: 'message' }) || 'nothing'}. Check its log, then run action: "rename" on the series to retry.`
+        });
+    }
     const count = renamedCount(settled.message);
 
     // `completed` is not the signal: the count is. A build that stops

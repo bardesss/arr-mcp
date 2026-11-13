@@ -424,7 +424,7 @@ const PENDING_RENAMES = [
  * `completed` and `successful` while one file never moves.
  */
 function seriesStack(
-    opts: { renames?: unknown[]; message?: string; omitMessage?: boolean; halfApplies?: boolean } = {}
+    opts: { renames?: unknown[]; message?: string; omitMessage?: boolean; halfApplies?: boolean; renameStatus?: string } = {}
 ) {
     const sent: { path: string; method: string; body: Record<string, unknown> | undefined }[] = [];
     let lastCommand = 'ManualImport';
@@ -476,7 +476,7 @@ function seriesStack(
             return jsonResponse({
                 id: 92,
                 name: lastCommand,
-                status: 'completed',
+                status: lastCommand === 'RenameFiles' ? (opts.renameStatus ?? 'completed') : 'completed',
                 result: 'successful',
                 ...(lastCommand === 'RenameFiles' && opts.omitMessage !== true
                     ? { message: opts.message ?? '1 selected episode files renamed for Show' }
@@ -662,6 +662,19 @@ describe('remapping episodes', () => {
         });
         const out = await s.sonarr.runEpisodeRemap('5', ROTATION);
         expect(out.renamed).toBe(1);
+    });
+
+    /** A rename that failed (permission denied, a read-only disk) sends no
+     *  count either, and must not read as every file renamed. */
+    it('fails when the rename command itself failed', async () => {
+        const s = seriesStack({
+            renames: [
+                { episodeFileId: 11, existingPath: 'Season 01/Show - S01E01.mkv', newPath: 'Season 01/Show - S01E09.mkv' }
+            ],
+            omitMessage: true,
+            renameStatus: 'failed'
+        });
+        await expect(s.sonarr.runEpisodeRemap('5', ROTATION)).rejects.toThrow(/RenameFiles command ended failed/);
     });
 
     /**

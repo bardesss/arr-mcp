@@ -216,14 +216,51 @@ async function stillMisnamed(http: ServiceHttp, seriesId: number, fileIds: numbe
     }
 }
 
+/** Where each format lives in Sonarr's UI, for a remedy someone has to follow by hand. */
+const FORMAT_LABEL: Record<string, string> = {
+    standardEpisodeFormat: 'Standard Episode Format',
+    dailyEpisodeFormat: 'Daily Episode Format',
+    animeEpisodeFormat: 'Anime Episode Format'
+};
+
+/**
+ * Puts the real format back, retrying once. Left marked, every episode
+ * Sonarr imports is named with the marker until the next rotated rename
+ * notices, so a failure here says which setting to fix and what to put in it.
+ */
+async function restoreFormat(http: ServiceHttp, service: string, key: keyof RawNaming, format: string): Promise<void> {
+    try {
+        await setFormat(http, key, format);
+        return;
+    } catch (err) {
+        logger.warn({ service, key: String(key), err }, 'could not put the naming format back; retrying once');
+    }
+    try {
+        await setFormat(http, key, format);
+    } catch (err) {
+        const label = FORMAT_LABEL[String(key)] ?? String(key);
+        throw new ServiceError('UpstreamError', service, `${service}'s ${label} still ends in "${RENAME_MARKER.trim()}": it could not be put back`, {
+            remedy: `Every episode ${service} imports is named with that marker until this is fixed. In ${service}, Settings → Media Management, set ${label} back to ${fenceText(format, { service, field: 'format' })}. The reassignment is applied and correct.`,
+            cause: err
+        });
+    }
+}
+
+/** One `RenameFiles` over the set. A command that ended in anything but
+ *  `completed` renamed nothing it can vouch for, so it is a failure here
+ *  whatever its message says. */
 const renamePass = async (
     http: ServiceHttp,
     service: string,
     seriesId: number,
-    fileIds: number[]
+    fileIds: number[],
+    remedy: string
 ): Promise<number | undefined> => {
     const queued = await postArrCommand(http, service, { name: 'RenameFiles', seriesId, files: fileIds });
     const settled = await awaitArrCommand(http, service, queued.commandId);
+    if (settled.status !== 'completed') {
+        throw new ServiceError('UpstreamError', service, `${service}'s RenameFiles command ended ${settled.status}`, { remedy });
+    }
     return renamedCount(settled.message);
 };
 
@@ -261,7 +298,13 @@ export async function renameThroughTemporaryFormat(
 
     try {
         await setFormat(http, key, `${format}${RENAME_MARKER}`);
-        const first = await renamePass(http, service, seriesId, fileIds);
+        const first = await renamePass(
+            http,
+            service,
+            seriesId,
+            fileIds,
+            `The naming format has been put back. The reassignment is applied and correct; the filenames are not. Check ${service}'s log, then run trigger_scan with action "rename" on this series.`
+        );
         if (first !== undefined && first < fileIds.length) {
             throw new ServiceError(
                 'UpstreamError',
@@ -273,12 +316,18 @@ export async function renameThroughTemporaryFormat(
             );
         }
     } finally {
-        await setFormat(http, key, format);
+        await restoreFormat(http, service, key, format);
     }
 
     // Second pass under the real format: every destination is free now,
     // because the first pass moved every one of these files off it.
-    const second = await renamePass(http, service, seriesId, fileIds);
+    const second = await renamePass(
+        http,
+        service,
+        seriesId,
+        fileIds,
+        `The naming format is back to what it was, but these files may still carry "${RENAME_MARKER.trim()}". Check ${service}'s log, then run trigger_scan with action "rename" on this series to finish it.`
+    );
 
     // The command's own count is not trusted alone: a build that stops sending
     // the message reports undefined, and two undefineds would otherwise read as

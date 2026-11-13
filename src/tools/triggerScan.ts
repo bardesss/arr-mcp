@@ -150,9 +150,26 @@ async function applyBookScan(adapter: ServiceAdapter & BookLibraryScanCapable, p
     }
 
     const ids = (plan.args?.libraryIds as string[] | undefined) ?? [];
-    for (const id of ids) await adapter.refreshBookLibrary(id);
+    // Each library on its own: thrown on the second, the first one's rescan
+    // would be reported as never started.
+    const started: string[] = [];
+    const failed: string[] = [];
+    for (const id of ids) {
+        try {
+            await adapter.refreshBookLibrary(id);
+            started.push(id);
+        } catch (err) {
+            if (ids.length === 1) throw err;
+            failed.push(`${id} (${err instanceof Error ? err.message : String(err)})`);
+        }
+    }
+    if (started.length === 0) {
+        throw new ServiceError('UpstreamError', adapter.id, `none of the ${ids.length} libraries could be rescanned: ${failed.join('; ')}`);
+    }
 
-    return `${adapter.id} is rescanning ${ids.length === 1 ? '1 library' : `${ids.length} libraries`}. It runs in the background: check get_library in a few minutes rather than expecting the books to be there now.`;
+    const scanning = `${adapter.id} is rescanning ${started.length === 1 ? '1 library' : `${started.length} libraries`}`;
+    const rest = failed.length === 0 ? '' : ` ${failed.length} could not be started: ${failed.join('; ')}. Rescan those with \`library\`.`;
+    return `${scanning}.${rest} It runs in the background: check get_library in a few minutes rather than expecting the books to be there now.`;
 }
 
 const TriggerScanInput = z.object({
