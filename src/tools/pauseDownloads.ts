@@ -4,7 +4,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { DOWNLOAD_CLIENTS, type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
-import { hasPause, hasSpeedLimit, type PauseState, type QueueHold, type ServiceAdapter } from '../services/types.ts';
+import { hasPause, hasSpeedLimit, type PauseState, type ServiceAdapter } from '../services/types.ts';
 import { turtleModeRefusal } from '../services/transmission.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 import { targetInput, serviceTarget } from './serviceTarget.ts';
@@ -65,28 +65,46 @@ const PauseDownloadsInput = z.object({
         )
 });
 
+/** SABnzbd's switch that pauses its queue while it post-processes. */
+const SWITCH = '"Pause Downloading During Post-Processing"';
+
 /**
  * What else holds one SABnzbd or NZBGet item, for its resume preview and for
  * the no-op of an item not paused itself: its client's paused queue, which this
- * tool resumes without an `id`; SABnzbd's wait for post-processing, which ends
- * by itself, though its rows can look like it under a manual pause
- * (`sabHolds`); or NZBGet's paused post-processing, which this tool does not
- * resume.
+ * tool resumes without an `id`, or SABnzbd's wait for post-processing, which
+ * ends by itself, though its rows can look like it under a manual pause
+ * (`sabWaiting`).
  */
-const HOLD_TEXT: Readonly<Record<QueueHold, (client: string) => { noop: string; effect: string }>> = {
+const HOLD_TEXT: Readonly<Record<NonNullable<PauseState['heldBy']>, (client: string) => { noop: string; effect: string }>> = {
     queue: client => ({
         noop: `${client}'s whole queue is: resume that with this tool and no \`id\`.`,
         effect: `${client}'s whole queue is paused too, so it starts downloading only once that is resumed, with this tool and no \`id\`.`
     }),
     postProcessing: client => ({
-        noop: `${client} pauses its queue while it post-processes ("Pause Downloading During Post-Processing"), and resumes by itself; if it stays paused, resume it with this tool and no \`id\`.`,
-        effect: `${client} pauses its queue while it post-processes ("Pause Downloading During Post-Processing"), so it starts downloading once that ends; if the queue stays paused, resume it with this tool and no \`id\`.`
-    }),
-    postPaused: client => ({
-        noop: `${client}'s post-processing is: it waits there until post-processing is resumed in ${client}.`,
-        effect: `${client}'s post-processing is paused too, so it then waits there until post-processing is resumed in ${client}.`
+        noop: `${client} pauses its queue while it post-processes (${SWITCH}), and resumes by itself; if it stays paused, resume it with this tool and no \`id\`.`,
+        effect: `${client} pauses its queue while it post-processes (${SWITCH}), so it starts downloading once that ends; if the queue stays paused, resume it with this tool and no \`id\`.`
     })
 };
+
+/**
+ * SABnzbd's whole queue while its rows show the wait for post-processing
+ * (`sabWaiting`), worded as what the rows show, since they can hide a manual
+ * pause. A pause is sent, so the queue stays paused once the wait ends; a
+ * resume is sent too, though it does not end the wait.
+ */
+const WAIT_TEXT = {
+    pause: (scope: string, client: string) =>
+        `Pauses ${scope} on ${client} by hand. Its rows show it waiting on post-processing (${SWITCH}), after which it would resume by itself; this keeps it paused after.`,
+    resume: (client: string) =>
+        `If ${client} is only waiting on post-processing (${SWITCH}), as its rows show, this does not end that, and downloading starts once it ends.`
+};
+
+/** The first line of a resume preview: what restarts, and what still holds it. */
+function resumeLine(state: PauseState, client: string, waiting: boolean): string {
+    if (waiting) return `Restarts ${state.scope} on ${client} if it is paused by hand. ${WAIT_TEXT.resume(client)}`;
+    const after = state.heldBy === undefined ? 'Downloading resumes immediately and uses bandwidth.' : HOLD_TEXT[state.heldBy](client).effect;
+    return `Restarts ${state.scope} on ${client}. ${after}`;
+}
 
 const torrentCount = (n: number): string => (n === 1 ? '1 torrent' : `${n} torrents`);
 
@@ -218,12 +236,33 @@ export function registerPauseDownloads(
             const state = await adapter.readPauseState(id);
 
             const target = `${adapter.id}:${id ?? 'all'}`;
+            const whole = id === undefined;
+
+            // One NZBGet item in post-processing: NZBGet pauses its spare repair files and unpauses the ones a
+            // repair asks for (`RequestMorePars`), so a pause or resume here would only fight it.
+            if (state.postProcessing !== undefined) {
+                const holds = [
+                    ...(state.heldBy === 'queue' ? [`${adapter.id}'s whole queue is paused, which holds the repair files it asked for: resume that with this tool and no \`id\`.`] : []),
+                    ...(state.postProcessing.paused ? [`${adapter.id}'s post-processing is paused: resume that in ${adapter.id}.`] : [])
+                ];
+                return {
+                    target,
+                    summary: [
+                        `${state.scope} on ${adapter.id} is ${state.postProcessing.stage}. NZBGet pauses its spare repair files and unpauses the ones a repair asks for, so this sends nothing.`,
+                        ...holds
+                    ].join(' '),
+                    effects: [],
+                    noop: true
+                };
+            }
+            // During SABnzbd's wait the rows can hide a manual pause, so a whole-queue resume is sent, not refused.
+            const waiting = whole && state.heldBy === 'postProcessing';
 
             if (id === undefined && state.torrents !== undefined) return torrentPlan(adapter.id, target, paused, state.torrents);
 
             // Asking someone to confirm a no-op teaches them to confirm
             // without reading.
-            if (state.paused === paused) {
+            if (!waiting && state.paused === paused) {
                 // A held item that is not paused itself is not running either.
                 const held = paused ? undefined : state.heldBy;
                 return {
@@ -237,19 +276,21 @@ export function registerPauseDownloads(
                 };
             }
 
+            const grabbed = `Anything the *arrs grabbed while it was paused starts downloading ${waiting ? 'with it' : 'too'}.`;
             // One item paused or resumed leaves the rest of the client as it
             // was, so what the *arrs grab meanwhile neither piles up nor starts.
-            const whole = id === undefined;
             const effects = paused
                 ? [
-                      `Stops ${state.scope} on ${adapter.id}. Nothing already downloaded is lost, and partial downloads resume where they left off.`,
+                      waiting
+                          ? WAIT_TEXT.pause(state.scope, adapter.id)
+                          : `Stops ${state.scope} on ${adapter.id}. Nothing already downloaded is lost, and partial downloads resume where they left off.`,
                       // The thing a bare "paused" would let someone believe.
                       ...(whole ? ['Does NOT stop the *arrs searching and grabbing. They keep sending releases, which pile up in this client until it is resumed.'] : []),
                       `Undo it by calling this tool again with action: "resume"${whole ? '' : ` and the same \`id\``}.`
                   ]
                 : [
-                      `Restarts ${state.scope} on ${adapter.id}. ${state.heldBy === undefined ? 'Downloading resumes immediately and uses bandwidth.' : HOLD_TEXT[state.heldBy](adapter.id).effect}`,
-                      ...(whole ? ['Anything the *arrs grabbed while it was paused starts downloading too.'] : [])
+                      resumeLine(state, adapter.id, waiting),
+                      ...(whole ? [grabbed] : [])
                   ];
 
             return {

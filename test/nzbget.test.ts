@@ -414,7 +414,7 @@ describe('NzbgetAdapter', () => {
     // A paused queue holds every group not yet in post-processing but a Force one (priority 900 and up,
     // `QueueCoordinator`). Paused post-processing holds a group waiting for it (`PickNextJob`), in a par
     // check or repair (`RepairController::CheckPauseState`) or running a script, Force aside, but not an
-    // unpack. A one-item read reports the same.
+    // unpack. A one-item read reports a queue hold the same way, and a group past downloading as such.
     it.each<[Record<string, boolean>, string, number, string | undefined]>([
         [{ DownloadPaused: true }, 'QUEUED', 0, 'queue'],
         [{ DownloadPaused: true }, 'PAUSED', 0, 'queue'],
@@ -430,14 +430,89 @@ describe('NzbgetAdapter', () => {
         [{ PostPaused: true }, 'EXECUTING_SCRIPT', 0, 'postPaused'],
         [{ PostPaused: true }, 'REPAIRING', 900, undefined],
         [{ PostPaused: true }, 'UNPACKING', 0, undefined],
-        [{ PostPaused: false }, 'PP_QUEUED', 0, undefined]
+        [{ PostPaused: false }, 'PP_QUEUED', 0, undefined],
+        // A queue script's job waits for post-processing once the script ends (`PickNextJob`).
+        [{ PostPaused: true }, 'QS_QUEUED', 0, 'postPaused']
     ])('marks what holds a group (status %j, group %s, priority %i)', async (status, groupStatus, priority, held) => {
-        // NZBGet reads a group as PAUSED only when every byte left is paused (`DetectStatus`).
-        const groups = [{ NZBID: 7, Status: groupStatus, FileSizeMB: 10, RemainingSizeMB: 10, PausedSizeMB: groupStatus === 'PAUSED' ? 10 : 0, MaxPriority: priority }];
+        // NZBGet reads a group as PAUSED only when every byte left is paused (`DetectStatus`), and in
+        // post-processing what is left is the paused extra repair files, with no repair asking for more.
+        const fetching = ['QUEUED', 'DOWNLOADING', 'FETCHING'].includes(groupStatus);
+        const groups = [{ NZBID: 7, Status: groupStatus, FileSizeMB: 10, ...(fetching ? { RemainingSizeMB: 10, PausedSizeMB: 0 } : { RemainingSizeMB: 2, PausedSizeMB: 2 }), MaxPriority: priority }];
         const { fetchImpl } = rpcRecording(request => json({ jsonrpc: '2.0', result: request.method === 'status' ? status : groups, id: request.id }));
         const adapter = new NzbgetAdapter(config, fetchImpl);
         expect((await adapter.getQueue())[0]?.heldBy).toBe(held);
-        expect((await adapter.readPauseState('7')).heldBy).toBe(held);
+        const read = await adapter.readPauseState('7');
+        expect(read.heldBy).toBe(held === 'queue' ? 'queue' : undefined);
+        expect(read.postProcessing?.paused).toBe(fetching || groupStatus === 'PAUSED' ? undefined : held === 'postPaused');
+    });
+
+    // A repair still fetching the repair files it asked for is held by a paused queue and by paused
+    // post-processing at once, and a row names both; Force priority goes through either.
+    it.each<[Record<string, boolean>, number, string | undefined]>([
+        [{ DownloadPaused: true, PostPaused: true }, 0, 'queueAndPostPaused'],
+        [{ DownloadPaused: true }, 0, 'queue'],
+        [{ PostPaused: true }, 0, 'postPaused'],
+        [{ DownloadPaused: true, PostPaused: true }, 900, undefined]
+    ])('marks what holds a repair still fetching (status %j, priority %i)', async (status, priority, held) => {
+        const groups = [{ NZBID: 7, Status: 'REPAIRING', FileSizeMB: 100, RemainingSizeMB: 40, PausedSizeMB: 25, MaxPriority: priority }];
+        const { fetchImpl } = rpcRecording(request => json({ jsonrpc: '2.0', result: request.method === 'status' ? status : groups, id: request.id }));
+        expect((await new NzbgetAdapter(config, fetchImpl).getQueue())[0]?.heldBy).toBe(held);
+    });
+
+    // `DetectStatus` names a queue script's stages and the rename after an unpack; each takes the word of the stage beside it.
+    it.each([
+        ['QS_QUEUED', 'verifying'],
+        ['QS_EXECUTING', 'moving'],
+        ['POST_UNPACK_RENAMING', 'moving']
+    ])('maps %s to %s', async (raw, word) => {
+        const { fetchImpl } = rpcRecording(request => json({ jsonrpc: '2.0', result: request.method === 'status' ? {} : [{ NZBID: 7, Status: raw, FileSizeMB: 10, RemainingSizeMB: 0 }], id: request.id }));
+        expect((await new NzbgetAdapter(config, fetchImpl).getQueue())[0]?.status).toBe(word);
+    });
+
+    // After GroupPause, `Status` stays DOWNLOADING while in-flight articles drain; in post-processing,
+    // the paused bytes are the extra repair files NZBGet pauses on add (`PrePostProcessor`). A status the
+    // adapter does not know keeps the rule for a download.
+    it.each([
+        ['DOWNLOADING', 10, 10, 'paused', true],
+        ['DOWNLOADING', 10, 4, 'downloading', false],
+        ['QUEUED', 0, 0, 'queued', false],
+        ['REPAIRING', 2, 2, 'repairing', false],
+        ['PP_QUEUED', 2, 2, 'verifying', false],
+        ['SOME_NEW_STAGE', 10, 10, 'paused', true],
+        ['SOME_NEW_STAGE', 10, 4, 'some_new_stage', false]
+    ])('reads a %s group with %i MB left and %i paused as %s', async (raw, remainingMB, pausedMB, word, pausedItself) => {
+        const groups = [{ NZBID: 7, Status: raw, FileSizeMB: 10, RemainingSizeMB: remainingMB, PausedSizeMB: pausedMB }];
+        const { fetchImpl } = rpcRecording(request => json({ jsonrpc: '2.0', result: request.method === 'status' ? {} : groups, id: request.id }));
+        const adapter = new NzbgetAdapter(config, fetchImpl);
+        expect((await adapter.getQueue())[0]?.status).toBe(word);
+        expect((await adapter.readPauseState('7')).paused).toBe(pausedItself);
+    });
+
+    // An unpack goes on while post-processing is paused, and a group only queued for it is not verifying yet.
+    it.each<[Record<string, boolean>, Record<string, unknown>, object]>([
+        [{ PostPaused: true }, { Status: 'UNPACKING', RemainingSizeMB: 2, PausedSizeMB: 2 }, { postProcessing: { stage: 'in post-processing (extracting)', paused: false } }],
+        [{ PostPaused: true }, { Status: 'PP_QUEUED', RemainingSizeMB: 0, PausedSizeMB: 0 }, { postProcessing: { stage: 'queued for post-processing', paused: true } }],
+        [{ PostPaused: true }, { Status: 'QS_QUEUED', RemainingSizeMB: 0, PausedSizeMB: 0 }, { postProcessing: { stage: 'queued for post-processing', paused: true } }],
+        // A paused queue holds the repair files a repair still fetches (`QueueCoordinator`).
+        [
+            { DownloadPaused: true },
+            { Status: 'REPAIRING', FileSizeMB: 100, RemainingSizeMB: 40, PausedSizeMB: 25 },
+            { heldBy: 'queue', postProcessing: { stage: 'in post-processing (repairing)', paused: false } }
+        ],
+        [
+            { DownloadPaused: true, PostPaused: true },
+            { Status: 'REPAIRING', FileSizeMB: 100, RemainingSizeMB: 40, PausedSizeMB: 25 },
+            { heldBy: 'queue', postProcessing: { stage: 'in post-processing (repairing)', paused: true } }
+        ],
+        [{}, { Status: 'REPAIRING', FileSizeMB: 100, RemainingSizeMB: 40, PausedSizeMB: 25 }, { postProcessing: { stage: 'in post-processing (repairing)', paused: false } }],
+        [{}, { Status: 'PP_FINISHED', RemainingSizeMB: 0, PausedSizeMB: 0 }, { postProcessing: { stage: 'done with post-processing', paused: false } }],
+        // A status it does not know, or none, is not called post-processing.
+        [{}, { Status: 'SOME_NEW_STAGE', RemainingSizeMB: 0, PausedSizeMB: 0 }, {}],
+        [{}, { RemainingSizeMB: 0, PausedSizeMB: 0 }, {}]
+    ])('reads one group (status %j, group %j)', async (status, group, extra) => {
+        const groups = [{ NZBID: 7, FileSizeMB: 10, ...group }];
+        const { fetchImpl } = rpcRecording(request => json({ jsonrpc: '2.0', result: request.method === 'status' ? status : groups, id: request.id }));
+        await expect(new NzbgetAdapter(config, fetchImpl).readPauseState('7')).resolves.toEqual({ paused: false, scope: 'queue item 7', ...extra });
     });
 
     it('converts the speed limit and disk status units', async () => {
@@ -1164,6 +1239,8 @@ describe('NzbgetAdapter', () => {
                 setParameter?: boolean | 'rpcError';
                 onProcess?: 'queue' | 'removed';
                 onRetry?: 'queue' | 'refuse' | 'nothing' | 'refiled';
+                status?: Row | 'invalid';
+                retriedGroup?: Row;
             } = {}
         ) => {
             const state = {
@@ -1178,6 +1255,10 @@ describe('NzbgetAdapter', () => {
                         return ok(state.history);
                     case 'listgroups':
                         return ok(state.groups);
+                    case 'status':
+                        // `invalid` fails the read the way a server does, with a JSON-RPC error.
+                        if (opts.status === 'invalid') return json({ jsonrpc: '2.0', error: { code: 1, message: 'status failed' }, id: request.id });
+                        return ok(opts.status ?? { DownloadPaused: false, PostPaused: false, DownloadRate: 0 });
                     case 'log': {
                         const [from, count] = request.params as [number, number];
                         return ok(from === 0 ? state.log.slice(-count) : state.log.filter(m => (m.ID as number) >= from));
@@ -1219,7 +1300,7 @@ describe('NzbgetAdapter', () => {
                             } else {
                                 state.log.push({ ID: 12, Kind: 'INFO', Text: `Retrying failed articles for ${String(target.NZBName)}` });
                                 state.history = state.history.filter(r => r !== target);
-                                state.groups = [{ NZBID: target.NZBID, Status: 'DOWNLOADING' }];
+                                state.groups = [{ NZBID: target.NZBID, Status: 'DOWNLOADING', ...opts.retriedGroup }];
                             }
                         }
                         return ok(true);
@@ -1295,6 +1376,27 @@ describe('NzbgetAdapter', () => {
             expect(edits(requests)).toEqual([['HistoryRetryFailed', 0, '', [4]]]);
             expect(outcome).toMatchObject({ id: '4', state: 'downloading' });
             expect(outcome.status).toContain('downloading');
+        });
+
+        // A retried download goes back to a queue that may be paused; one at Force priority goes through it.
+        // One NZBGet pauses itself waits for its own resume, with the queue paused or not.
+        it.each<[Row | 'invalid', Row, true | undefined, true | undefined]>([
+            [{ DownloadPaused: true }, {}, true, undefined],
+            [{ DownloadPaused: true }, { MaxPriority: 900 }, undefined, undefined],
+            [{ DownloadPaused: false }, {}, undefined, undefined],
+            // A status read that fails after the retry landed leaves the mark out.
+            ['invalid', {}, undefined, undefined],
+            [{ DownloadPaused: false }, { Status: 'PAUSED' }, undefined, true],
+            [{ DownloadPaused: true }, { Status: 'PAUSED' }, true, true],
+            // Status stays DOWNLOADING while in-flight articles drain after a pause, every byte left paused.
+            [{ DownloadPaused: false }, { RemainingSizeMB: 6, PausedSizeMB: 6 }, undefined, true]
+        ])('marks a retried download its paused queue holds (status %j, group %j)', async (status, group, queuePaused, pausedItself) => {
+            const { adapter } = fake({ history: [missing()], retriedGroup: group, status });
+            const outcome = await adapter.runRetry('4', { method: 'retry-failed' });
+            expect(outcome).toMatchObject({ state: 'downloading' });
+            expect(outcome.queuePaused).toBe(queuePaused);
+            expect(outcome.pausedItself).toBe(pausedItself);
+            expect(outcome.status).toContain(pausedItself === true ? 'paused' : 'downloading');
         });
 
         it('picks retry-failed when the par check failed, even for an unpack failure', async () => {

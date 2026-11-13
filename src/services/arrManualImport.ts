@@ -142,15 +142,17 @@ const IN_PROGRESS = new Set(['queued', 'paused', 'downloading']);
 
 /**
  * Why the *arrs read a download as paused, and what to do, by protocol. A
- * torrent pauses only in its client; a usenet download also while its client's
- * whole queue is paused, and on NZBGet while its paused extra repair files are
- * all it has left, into post-processing (`Nzbget`). `diagnose_media` reads the
- * client's own row to tell those apart.
+ * torrent pauses only in its client. A usenet download also pauses with its
+ * client's whole queue, SABnzbd's wait for post-processing included, and on
+ * NZBGet while its paused extra repair files are all it has left, into
+ * post-processing (`Nzbget`); `diagnose_media` reads the client's own row to
+ * tell those apart. A row with no protocol gets the usenet wording, which
+ * covers a torrent's cause too.
  */
 const PAUSED = {
     torrent: { cause: 'the client paused it', action: 'Resume it with pause_downloads' },
     usenet: {
-        cause: 'the client paused it or its whole queue, or NZBGet is post-processing it, which the *arrs can read as paused, and diagnose_media on it says which',
+        cause: 'the client or its whole queue paused it, or it is post-processing; diagnose_media on it says which',
         action: 'Resume it with pause_downloads, or wait for the post-processing'
     }
 } as const;

@@ -36,6 +36,12 @@ export const ARR_NAMES: Readonly<Record<string, string>> = {
     lidarr: 'Lidarr'
 };
 
+/** The *arr Seerr hands an approved request to, by Seerr's media type, whatever else the stack runs. */
+export const SEERR_ARR: Readonly<Record<'movie' | 'tv', string>> = { movie: 'Radarr', tv: 'Sonarr' };
+
+/** Seerr's media type for a film or a series. */
+export const seerrMediaType = (kind: string | undefined): 'movie' | 'tv' => (kind === 'movie' ? 'movie' : 'tv');
+
 /** A merged row the *arr chain can read. See `isArrItem`. */
 export type ArrItem = MergedItem & { kind: ArrKind };
 

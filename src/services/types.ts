@@ -357,9 +357,11 @@ export const hasSubtitleSearch = (a: ServiceAdapter): a is ServiceAdapter & Subt
  * the client's whole queue is paused, which a resume ends. On SABnzbd,
  * `postProcessing`: the wait its "Pause Downloading During Post-Processing"
  * switch adds, which a resume does not end. On NZBGet, `postPaused`: its
- * post-processing is paused, which holds a download waiting for it or in it.
+ * post-processing is paused, which holds a download waiting for it or in it;
+ * `queueAndPostPaused`: both hold a repair, the queue the repair files it
+ * asked for.
  */
-export type QueueHold = 'queue' | 'postProcessing' | 'postPaused';
+export type QueueHold = 'queue' | 'postProcessing' | 'postPaused' | 'queueAndPostPaused';
 
 /** `heldBy` to spread into a row or a pause state, when something holds it. */
 export const withHold = <H extends QueueHold>(hold: H | undefined): { heldBy?: H } => (hold === undefined ? {} : { heldBy: hold });
@@ -1605,7 +1607,17 @@ export type RetryOutcome = {
     state: 'downloading' | 'processing' | 'finished';
     status: string; // fenced
     event?: HistoryEventType; // when state is 'finished'
+    /** A job in the queue that the client's paused queue holds, so it is not downloading yet. */
+    queuePaused?: true;
+    /** A job in the queue that the client pauses itself, which needs its own resume. */
+    pausedItself?: true;
 };
+
+/**
+ * What to do for a job a client's paused queue holds. "If it stays paused"
+ * covers SABnzbd's wait for post-processing, which ends by itself.
+ */
+export const RESUME_HELD_QUEUE = 'resume the queue with pause_downloads (`action: "resume"` without an `id`) if it stays paused.';
 
 export interface RetryCapable {
     /** Refuses anything that did not fail. `hasPassword` only decides whether an encrypted queue job is a target. */
@@ -1870,12 +1882,18 @@ export const hasQueueRemove = (a: ServiceAdapter): a is ServiceAdapter & QueueRe
  * What a client reports about its own paused state, and what that state is
  * *of*, "the SABnzbd queue", "2 torrents", so a preview can say it. `heldBy`,
  * on a one-item read from SABnzbd or NZBGet, is what else holds that item, so
- * resuming the item alone does not start it.
+ * resuming the item alone does not start it; on SABnzbd's whole queue, the
+ * wait for post-processing its rows show, with `paused` false.
+ * `postProcessing`, on a one-item read from NZBGet, is a download in
+ * post-processing, whose repair files NZBGet pauses and unpauses itself: where
+ * it is, in words, and whether NZBGet's post-processing is paused; `heldBy` is
+ * then a paused queue holding repair files a repair asked for.
  */
 export type PauseState = {
     paused: boolean;
     scope: string;
-    heldBy?: QueueHold;
+    heldBy?: 'queue' | 'postProcessing';
+    postProcessing?: { stage: string; paused: boolean };
     /**
      * A torrent client's whole-client read. Neither has a client-wide pause, so
      * a pause stops the running torrents and marks them with `PAUSE_MARK`, and

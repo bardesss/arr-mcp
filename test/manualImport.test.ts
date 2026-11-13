@@ -244,20 +244,22 @@ describe('a download that has not finished', () => {
         );
     });
 
-    // The *arrs read a usenet download as paused when the client paused it or its whole queue, and while
-    // NZBGet's paused extra repair files are all it has left, into post-processing (`Nzbget`), where
-    // waiting is the remedy. A torrent pauses only in its client.
-    it.each([
+    // The *arrs read a usenet download as paused when the client or its whole queue paused it, SABnzbd's
+    // wait for post-processing included, and while NZBGet's paused extra repair files are all it has left,
+    // into post-processing (`Nzbget`), where waiting is the remedy. A torrent pauses only in its client; a
+    // row with no protocol gets the usenet wording.
+    const USENET =
+        /^get_queue reports it as paused\/downloading: the client or its whole queue paused it, or it is post-processing; diagnose_media on it says which\. There is nothing to import until the download client says the item is complete: .*\. Resume it with pause_downloads, or wait for the post-processing, then try again\.$/;
+    it.each<[string, string | undefined, RegExp]>([
+        ['usenet', 'usenet', USENET],
+        ['protocol-less', undefined, USENET],
         [
-            'usenet',
-            /^get_queue reports it as paused\/downloading: the client paused it or its whole queue, or NZBGet is post-processing it, which the \*arrs can read as paused, and diagnose_media on it says which\. There is nothing to import until the download client says the item is complete: .*\. Resume it with pause_downloads, or wait for the post-processing, then try again\.$/
-        ],
-        [
+            'torrent',
             'torrent',
             /^get_queue reports it as paused\/downloading: the client paused it\. There is nothing to import until the download client says the item is complete: .*\. Resume it with pause_downloads, then try again\.$/
         ]
-    ])('says a paused %s download is resumed, or waited for only while NZBGet post-processes it', async (protocol, remedy) => {
-        const s = stack(500, [{ ...RUNNING_ROW, status: 'paused', protocol }]);
+    ])('says a paused %s download is resumed, or waited for while it post-processes', async (_case, protocol, remedy) => {
+        const s = stack(500, [{ ...RUNNING_ROW, status: 'paused', ...(protocol === undefined ? {} : { protocol }) }]);
         const err = (await new RadarrAdapter(keyed(7878), s.impl).runManualImport('nzo_abc').catch((e: unknown) => e)) as { message: string; remedy: string };
         expect(err.message).toMatch(/has not finished downloading/);
         expect(err.remedy).toMatch(remedy);
