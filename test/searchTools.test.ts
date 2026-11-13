@@ -1487,6 +1487,31 @@ describe('Rotten Tomatoes and IMDb from Seerr', () => {
         expect(result.title).toContain('Some Film');
     });
 
+    // A media server's item carries a TMDB id but not its kind, and TMDB's
+    // film and series ids are separate namespaces.
+    it('asks Seerr nothing for a media server item that is not known to be a film or series', async () => {
+        const asked: string[] = [];
+        const seerrFetch = (async (input: string | URL | Request) => {
+            asked.push(input instanceof Request ? input.url : String(input));
+            return new Response(JSON.stringify({ rt: { criticsScore: 12 } }), { status: 200, headers: { 'content-type': 'application/json' } });
+        }) as unknown as typeof fetch;
+        const jellyfin = {
+            id: 'jellyfin',
+            type: 'jellyfin',
+            getMediaDetails: async () => ({ kind: 'item', title: 'Game of Thrones', ids: { tmdb: 1399 } })
+        } as unknown as ServiceAdapter;
+
+        const result = await buildGetMediaDetails([jellyfin, new SeerrAdapter(seerrConfig, seerrFetch)], {
+            service: 'jellyfin',
+            id: 'abc',
+            detail: 'standard',
+            limit: 50
+        });
+
+        expect(result.ratings).toBeUndefined();
+        expect(asked).toEqual([]);
+    });
+
     it('does nothing at all when no Seerr is configured', async () => {
         const adapters = [new RadarrAdapter(keyed(7878), serving({ '/api/v3/movie/42': MOVIE }))];
         const result = await buildGetMediaDetails(adapters, {

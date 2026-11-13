@@ -1132,7 +1132,8 @@ export type PlaybackEntry = {
     device?: string;
 };
 
-export type RequestStatus = 'pending' | 'approved' | 'declined';
+/** `failed`: Seerr could not hand the approved request to Radarr or Sonarr. `completed`: it was fulfilled. */
+export type RequestStatus = 'pending' | 'approved' | 'declined' | 'failed' | 'completed';
 
 export type MediaRequest = {
     service: string;
@@ -1156,7 +1157,12 @@ export const hasRequests = (a: ServiceAdapter): a is ServiceAdapter & RequestCap
     typeof (a as Partial<RequestCapable>).getRequests === 'function';
 
 /** What one title's requests look like: the title when Seerr names it, and every request made for it. */
-export type TitleRequests = { media?: { title: string; year?: number }; requests: MediaRequest[] };
+export type TitleRequests = {
+    /** `seasons`: a series' season numbers, specials included, when Seerr lists them. */
+    media?: { title: string; year?: number; seasons?: number[] };
+    /** `seasons`: the season numbers a series request asked for, when Seerr lists them. */
+    requests: (MediaRequest & { seasons?: number[] })[];
+};
 
 export interface RequestLookupCapable {
     /** One request by id; `undefined` when there is none or the id is not a number. */

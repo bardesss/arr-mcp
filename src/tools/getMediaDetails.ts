@@ -67,10 +67,12 @@ async function withSeerrRatings<T extends { kind: string; ids: { tmdb?: number }
 ): Promise<T & { seerrBlocklisted?: true }> {
     const seerr = adapters.find((a): a is SeerrAdapter => a instanceof SeerrAdapter);
     const tmdb = details.ids.tmdb;
-    if (seerr === undefined || tmdb === undefined) return details;
+    // Only a film or a series: a media server's `item` (a show, a season, an
+    // episode) still carries a TMDB id, and TMDB's film and series ids are
+    // separate namespaces, so guessing `movie` scores some other film.
+    if (seerr === undefined || tmdb === undefined || (details.kind !== 'movie' && details.kind !== 'series')) return details;
 
-    const kind = details.kind === 'series' ? 'series' : 'movie';
-    const [extra, blocklisted] = await Promise.all([seerr.getRatings(tmdb, kind), blocklistedIn(seerr, tmdb, details.kind)]);
+    const [extra, blocklisted] = await Promise.all([seerr.getRatings(tmdb, details.kind), blocklistedIn(seerr, tmdb, details.kind)]);
 
     const merged = { ...extra, ...details.ratings };
     const rated = Object.keys(merged).length === 0 ? details : { ...details, ratings: merged };

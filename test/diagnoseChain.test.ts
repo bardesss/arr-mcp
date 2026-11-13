@@ -137,6 +137,16 @@ describe('buildChain — each stage blocking in isolation', () => {
         expect(d.verdict.summary).toMatch(/declined/i);
     });
 
+    it('stops at request when Seerr could not hand it on, and says so', () => {
+        const d = buildChain('some film', {
+            ...healthy(),
+            item: item({ acquisition: undefined, presence: 'unknown' }),
+            request: { status: 'failed' }
+        });
+        expect(d.verdict.stage).toBe('request');
+        expect(stepFor(d, 'request')?.detail).toMatch(/could not hand it to Radarr or Sonarr/);
+    });
+
     it('reports a pending request as the blockage, not the missing file', () => {
         const d = buildChain('some film', {
             ...healthy(),
@@ -3003,8 +3013,9 @@ describe('buildChain: a request Radarr has moved past', () => {
     };
     const monitoredNoFile = item({ acquisition: { service: 'radarr', id: '5', monitored: true, hasFile: false }, presence: 'arr_only', playback: undefined });
 
-    it.each<['declined' | 'unknown', RegExp]>([
+    it.each<['declined' | 'failed' | 'unknown', RegExp]>([
         ['declined', /the Seerr request was declined, but Radarr monitors it anyway/],
+        ['failed', /the Seerr request failed, but Radarr monitors it anyway/],
         ['unknown', /the Seerr request is in an indeterminate state, but Radarr monitors it anyway/]
     ])('lets the download in progress speak over a %s request', (status, aside) => {
         const d = buildChain('some film', healthy({ item: monitoredNoFile, request: { status }, queue: { items: [downloading], partial: [] } }));
