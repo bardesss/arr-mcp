@@ -37,6 +37,7 @@ const broken: ConnectionDiagnosis = {
 };
 
 const std = { detail: 'standard', limit: 50 } as const;
+const full = { detail: 'full', limit: 50 } as const;
 
 describe('get_stack_health primary media server', () => {
     it('names the primary media server at every detail level', async () => {
@@ -291,8 +292,8 @@ describe('get_stack_health', () => {
             service: 'radarr',
             path: `/mnt/${i}`,
             label: `d${i}`,
-            freeSpace: 1,
-            totalSpace: 2
+            freeSpace: i + 1,
+            totalSpace: 10
         }));
         const failures: HealthCheck[] = Array.from({ length: 4 }, (_, i) => ({
             service: 'radarr',
@@ -458,7 +459,7 @@ describe('get_stack_health', () => {
 
     it('returns disk paths only at detail: full', async () => {
         const disks: DiskSpace[] = [
-            { service: 'radarr', path: '/movies', label: 'movies', freeSpace: 1, totalSpace: 2 }
+            { service: 'radarr', path: '/movies', label: '', freeSpace: 1, totalSpace: 2 }
         ];
         const build = (detail: 'standard' | 'full') =>
             buildStackHealth([fakeArr({ diagnosis: healthy, getDiskSpace: async () => disks })], {
@@ -466,10 +467,27 @@ describe('get_stack_health', () => {
                 limit: 50
             });
 
-        expect((await build('full')).disks.items[0]?.path).toBe('/movies');
-        expect((await build('standard')).disks.items[0]?.path).toBeUndefined();
+        expect((await build('full')).disks.items[0]?.mounts).toEqual(['radarr /movies']);
+        expect((await build('standard')).disks.items[0]?.mounts).toEqual(['radarr']);
         // The row survives; only the path is gone.
         expect((await build('standard')).disks.items[0]?.freeSpace).toBe(1);
+    });
+
+    // Four *arrs on one host report the same filesystems; the text already
+    // folded them, and the structured half sent each mount once per service.
+    it('folds one filesystem seen by several services into one row, and counts rows against limit', async () => {
+        const seen = (service: string): DiskSpace[] => [
+            { service, label: '/data', freeSpace: 5, totalSpace: 10 },
+            { service, label: '/config', freeSpace: 2, totalSpace: 4 }
+        ];
+        const arr = (id: string) => ({ ...fakeArr({ diagnosis: { ...healthy, service: id }, getDiskSpace: async () => seen(id) }), id, type: id }) as ArrLike;
+        const result = await buildStackHealth([arr('radarr'), arr('sonarr'), arr('lidarr')], { detail: 'standard', limit: 2 });
+
+        expect(result.disks).toMatchObject({ total: 2, returned: 2, truncated: false });
+        expect(result.disks.items).toEqual([
+            { freeSpace: 2, totalSpace: 4, services: ['lidarr', 'radarr', 'sonarr'], mounts: ['lidarr /config', 'radarr /config', 'sonarr /config'] },
+            { freeSpace: 5, totalSpace: 10, services: ['lidarr', 'radarr', 'sonarr'], mounts: ['lidarr /data', 'radarr /data', 'sonarr /data'] }
+        ]);
     });
 
     it('drops the remedy at minimal but keeps the error kind', async () => {
@@ -501,7 +519,7 @@ describe('get_stack_health service and instance filter', () => {
     it('reports only the service asked for', async () => {
         const result = await buildStackHealth(
             [fakeArr({ diagnosis: healthy }), sonarr],
-            { ...std, service: 'sonarr' },
+            { ...full, service: 'sonarr' },
             [instance('radarr', 'radarr'), instance('sonarr', 'sonarr')]
         );
         expect(result.services.map(s => s.service)).toEqual(['sonarr']);
@@ -517,8 +535,8 @@ describe('get_stack_health service and instance filter', () => {
     it('takes the bare instance name as well as the full id', async () => {
         const all = [fakeArr({ diagnosis: healthy }), radarr4k];
         const rows = [instance('radarr', 'radarr'), instance('radarr/4k', 'radarr')];
-        const byName = await buildStackHealth(all, { ...std, service: 'radarr', instance: '4k' }, rows);
-        const byId = await buildStackHealth(all, { ...std, instance: 'radarr/4k' }, rows);
+        const byName = await buildStackHealth(all, { ...full, service: 'radarr', instance: '4k' }, rows);
+        const byId = await buildStackHealth(all, { ...full, instance: 'radarr/4k' }, rows);
         expect(byName.permissions?.map(p => p.instance)).toEqual(['radarr/4k']);
         expect(byId.permissions?.map(p => p.instance)).toEqual(['radarr/4k']);
     });
@@ -535,7 +553,6 @@ describe('get_stack_health service and instance filter', () => {
 
     it('leaves seedingRules out under a filter, so it cannot report gaps that need the whole stack', async () => {
         const client = { ...fakeArr({ diagnosis: healthy }), id: 'qbittorrent', type: 'qbittorrent', getSeedLimits: async () => ({ service: 'qbittorrent', action: 'stop' }) } as unknown as ArrLike;
-        const full = { detail: 'full', limit: 50 } as const;
         expect((await buildStackHealth([client], full)).seedingRules).toBeDefined();
         expect((await buildStackHealth([client, sonarr], { ...full, service: 'sonarr' })).seedingRules).toBeUndefined();
     });
@@ -564,7 +581,7 @@ describe('get_stack_health permissions', () => {
         }) as unknown as ServiceInstance;
 
     it('reports what each instance is allowed to do', async () => {
-        const result = await buildStackHealth([fakeArr({ diagnosis: healthy })], std, [
+        const result = await buildStackHealth([fakeArr({ diagnosis: healthy })], full, [
             instance('radarr/4k', true, false),
             instance('sonarr', false, false)
         ]);
@@ -575,12 +592,12 @@ describe('get_stack_health permissions', () => {
         ]);
     });
 
-    /** Minimal answers "is anything broken", and a permission is not a fault. */
-    it('leaves permissions out of a minimal answer', async () => {
-        const result = await buildStackHealth([fakeArr({ diagnosis: healthy })], { detail: 'minimal', limit: 50 }, [
-            instance('radarr', true, true)
-        ]);
-        expect(result.permissions).toBeUndefined();
+    /** Static config, the same on every call: sent only when asked for. */
+    it('leaves permissions out below full', async () => {
+        for (const detail of ['minimal', 'standard'] as const) {
+            const result = await buildStackHealth([fakeArr({ diagnosis: healthy })], { detail, limit: 50 }, [instance('radarr', true, true)]);
+            expect(result, detail).not.toHaveProperty('permissions');
+        }
     });
 
     /** Every existing call site passes no instances and must keep working. */
@@ -614,19 +631,18 @@ describe('get_stack_health endpoints', () => {
         }) as unknown as ServiceInstance;
 
     it('reports each instance base URL', async () => {
-        const result = await buildStackHealth([fakeArr({ diagnosis: healthy })], std, [
+        const result = await buildStackHealth([fakeArr({ diagnosis: healthy })], full, [
             instanceWithUrl('radarr', 'http://192.0.2.10:7878')
         ]);
 
         expect(result.endpoints).toEqual([{ instance: 'radarr', service: 'radarr', baseUrl: 'http://192.0.2.10:7878' }]);
     });
 
-    /** Minimal answers "is anything broken", and a URL is not a fault. */
-    it('omits endpoints out of a minimal answer', async () => {
-        const result = await buildStackHealth([fakeArr({ diagnosis: healthy })], { detail: 'minimal', limit: 50 }, [
-            instanceWithUrl('radarr', 'http://192.0.2.10:7878')
-        ]);
-        expect(result).not.toHaveProperty('endpoints');
+    it('omits endpoints below full, like permissions', async () => {
+        for (const detail of ['minimal', 'standard'] as const) {
+            const result = await buildStackHealth([fakeArr({ diagnosis: healthy })], { detail, limit: 50 }, [instanceWithUrl('radarr', 'http://192.0.2.10:7878')]);
+            expect(result, detail).not.toHaveProperty('endpoints');
+        }
     });
 
     /** Every existing call site passes no instances and must keep working. */
@@ -666,7 +682,7 @@ describe('get_stack_health endpoints', () => {
     });
 
     it('keeps the host and port after stripping the credential', async () => {
-        const result = await buildStackHealth([fakeArr({ diagnosis: healthy })], std, [
+        const result = await buildStackHealth([fakeArr({ diagnosis: healthy })], full, [
             instanceWithUrl('transmission', `http://admin:${SENTINEL}@192.0.2.10:9091`)
         ]);
         // Still usable as a base URL: stripping must not cost the answer the
