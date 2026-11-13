@@ -120,6 +120,20 @@ describe('SonarrAdapter', () => {
         expect(sonarr?.message).not.toContain('<</>> run');
     });
 
+    it('warns about a naming format an interrupted remap rename left marked', async () => {
+        const naming = { standardEpisodeFormat: '{Series Title} S{season:00}E{episode:00}', animeEpisodeFormat: '{Series Title} {absolute:000} [arr-mcp-remap]' };
+        const checks = await new SonarrAdapter(keyed(8989), serving({ '/api/v3/health': [], '/api/v3/config/naming': naming })).getFailedHealthChecks();
+        expect(checks).toHaveLength(1);
+        expect(checks[0]).toMatchObject({ service: 'sonarr', type: 'warning' });
+        expect(checks[0]?.message).toMatch(/^Anime Episode Format still ends in "\[arr-mcp-remap\]"/);
+    });
+
+    it('keeps its own health checks when the naming read fails', async () => {
+        const body = [{ source: 'IndexerStatusCheck', type: 'error', message: 'down' }];
+        const checks = await new SonarrAdapter(keyed(8989), serving({ '/api/v3/health': body })).getFailedHealthChecks();
+        expect(checks.map(c => c.source)).toEqual(['IndexerStatusCheck']);
+    });
+
     expectsAuthDiagnosis(new SonarrAdapter(keyed(8989), unauthorized));
 });
 

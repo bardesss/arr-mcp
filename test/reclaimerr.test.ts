@@ -146,17 +146,51 @@ describe('ReclaimerrAdapter cleanup overview', () => {
 
     it('says when the candidates run past the pages it reads', async () => {
         const [base] = fixture<Page>('candidates').items;
+        // Every one is scheduled, so even the state-filtered read runs past the cap.
         const page = (u: URL) => {
             const n = Number(u.searchParams.get('page'));
-            const items = Array.from({ length: 200 }, (_, i) => ({ ...base, id: (n - 1) * 200 + i + 1, auto_delete_state: 'scheduled' }));
+            const state = u.searchParams.get('auto_delete_state');
+            if (state === 'eligible') return { items: [], total: 0, page: 1, per_page: 200, total_pages: 0 };
+            const items = Array.from({ length: 200 }, (_, i) => ({
+                ...base,
+                id: (n - 1) * 200 + i + 1,
+                auto_delete_state: 'scheduled',
+                auto_delete_eligible_at: '2026-12-01T00:00:00Z'
+            }));
             return { items, total: 6000, page: n, per_page: 200, total_pages: 30 };
         };
         const adapter = new ReclaimerrAdapter(config, stub(routes({ '/api/v1': readOnly, '/api/v1/candidates': page })));
         const overview = await adapter.readCleanupOverview(10);
         expect(overview.candidates?.total).toBe(6000);
         expect(overview.capped).toBe(true);
-        expect(overview.going?.count).toBe(5000);
-        expect(cleanupLine(overview)).toMatch(/6000 cleanup candidate\(s\), at least 5000 set to go/);
+        expect(overview.going).toMatchObject({ count: 5000, capped: true });
+        expect(cleanupLine(overview)).toMatch(/6000 cleanup candidate\(s\), at least 5000 set to go, the first on or before 2026-12-01/);
+    });
+
+    it('finds the soonest deletion past a capped read through the state filter', async () => {
+        const [base] = fixture<Page>('candidates').items;
+        const seen: string[] = [];
+        const one = (row: object) => ({ items: [row], total: 1, page: 1, per_page: 200, total_pages: 1 });
+        const page = (u: URL) => {
+            const state = u.searchParams.get('auto_delete_state');
+            if (state === 'eligible') return one({ ...base, id: 9999, auto_delete_state: 'eligible', auto_delete_eligible_at: '2026-11-20T00:00:00Z' });
+            if (state === 'scheduled') return one({ ...base, id: 1, auto_delete_state: 'scheduled', auto_delete_eligible_at: '2026-12-01T00:00:00Z' });
+            // Newest-created first: the old eligible one sits past the pages read.
+            const n = Number(u.searchParams.get('page'));
+            const items = Array.from({ length: 200 }, (_, i) => ({
+                ...base,
+                id: (n - 1) * 200 + i + 1,
+                auto_delete_state: n === 1 && i === 0 ? 'scheduled' : 'disabled',
+                auto_delete_eligible_at: n === 1 && i === 0 ? '2026-12-01T00:00:00Z' : null
+            }));
+            return { items, total: 6000, page: n, per_page: 200, total_pages: 30 };
+        };
+        const adapter = new ReclaimerrAdapter(config, stub(routes({ '/api/v1': readOnly, '/api/v1/candidates': page }), seen));
+        const overview = await adapter.readCleanupOverview(3);
+        expect(overview.going).toEqual({ count: 2, firstAt: '2026-11-20T00:00:00.000Z' });
+        expect(overview.candidates?.items.map(c => c.id)).toEqual(['9999', '1', '2']);
+        expect(cleanupLine(overview)).toMatch(/6000 cleanup candidate\(s\), 2 set to go, the first on 2026-11-20/);
+        expect(seen.filter(s => s.includes('auto_delete_state=')).length).toBe(2);
     });
 
     it('reads the candidates once for the checks and the overview of one get_stack_health', async () => {

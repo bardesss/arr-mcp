@@ -19,7 +19,7 @@ import type {
     SubtitleGap
 } from '../../services/types.ts';
 import { removalSentence, upcomingSentence } from '../cleanupStatus.ts';
-import { importStepFor } from '../importStep.ts';
+import { importFailing, importStepFor, retriedImportStepFor } from '../importStep.ts';
 import { instanceArgs } from '../resolveInstance.ts';
 
 type Stage = 'resolve' | 'request' | 'managed' | 'file' | 'queue' | 'indexers' | 'library' | 'scan' | 'subtitles';
@@ -546,7 +546,7 @@ const queueImportBlockedRemedy = (item: MergedItem): string =>
  * as `importBlocked`.
  */
 const queueImportFailingRemedy = (item: MergedItem): string =>
-    `${arrOf(item)} retries it on its own and fails the same way until what it reports is fixed there; an import by hand meets the same reasons. Otherwise remove the download and let ${arrOf(item)} search again.`;
+    `${arrOf(item)} retries it on its own and fails the same way until what it reports is fixed there. The import's preview shows what it finds and why each file is refused; otherwise remove the download and let ${arrOf(item)} search again.`;
 /** Importing already, but with reasons on the row, which an import by hand would meet too. */
 const queueImportingRemedy = (item: MergedItem): string =>
     `Wait for ${arrOf(item)} to import it. If it stays here, fix what it reports in ${arrOf(item)}: an import by hand meets the same reasons.`;
@@ -766,12 +766,18 @@ function strikeNoteFor(row: QueueItem, standing: Evidence['strikes']): string {
  * client's row has none.
  */
 function importStep(mine: readonly QueueItem[], item: MergedItem): NextStep | undefined {
-    // None while the *arr says it is importing the grab itself, as get_queue offers none then.
-    const pending = mine.filter(
-        q => classifyQueueStatus(q) === 'importPending' && q.downloadId !== undefined && !IMPORTING.has(importStateOf(sameGrab(q, mine)) ?? '')
-    );
+    // None while the *arr says it is importing the grab itself, as get_queue offers none then,
+    // unless it gave reasons: then it keeps failing, and get_queue offers one too.
+    const pending = mine.filter(q => {
+        if (classifyQueueStatus(q) !== 'importPending' || q.downloadId === undefined) return false;
+        const grab = sameGrab(q, mine);
+        return !IMPORTING.has(importStateOf(grab) ?? '') || grab.some(g => !isClientRow(g) && importFailing(g));
+    });
     const source = pending.find(q => q.mediaId !== undefined) ?? pending[0];
-    return source === undefined ? undefined : importStepFor(source, item.acquisition?.service);
+    if (source === undefined) return undefined;
+    return importStateOf(sameGrab(source, mine)) === 'importPending'
+        ? retriedImportStepFor(source, item.acquisition?.service)
+        : importStepFor(source, item.acquisition?.service);
 }
 
 /** The rows that stand for this row's download, itself included. */
@@ -922,9 +928,11 @@ function queueStep(ev: Evidence, item: MergedItem): QueueResult {
         const importer = isClientRow(row) ? item.acquisition?.service : row.service;
         const state = importStateOf(grab);
         if (state === 'importPending' && reasons !== '') {
+            const next = importStep(mine, item);
             return {
                 step: { stage: 'queue', service: row.service, status: 'blocked', detail: `Downloaded, but ${importer ?? arrOf(item)} could not import it.${reasons}${strikeNote}` },
-                remedy: queueImportFailingRemedy(item)
+                remedy: queueImportFailingRemedy(item),
+                ...(next === undefined ? {} : { next })
             };
         }
         // The *arr is importing it now: an import by hand would only race it, so

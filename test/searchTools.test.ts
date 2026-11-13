@@ -1082,6 +1082,21 @@ describe('discover_media', () => {
         expect(Math.max(...pages)).toBeLessThanOrEqual(500);
     });
 
+    it('reads at most five pages a call and says where the rest starts', async () => {
+        const { adapter, pages } = paging(9000);
+        const result = await buildDiscoverMedia(adapter, { kind: 'movie', detail: 'minimal', limit: 500, offset: 10 });
+        expect(pages.sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 5]);
+        expect(result).toMatchObject({ total: 9000, returned: 90, truncated: true });
+        expect(result.note).toMatch(/at most 5 Seerr pages.*offset 100 continues/);
+    });
+
+    it('says nothing about the page budget when the window fits it', async () => {
+        const { adapter } = paging(9000);
+        const result = await buildDiscoverMedia(adapter, { kind: 'movie', detail: 'minimal', limit: 100 });
+        expect(result.returned).toBe(100);
+        expect(result.note).toBeUndefined();
+    });
+
     it('pages recommendations the same way', async () => {
         const { adapter } = paging(564);
         const result = await buildDiscoverMedia(adapter, { kind: 'movie', similarTo: '693134', detail: 'minimal', limit: 10, offset: 20 });

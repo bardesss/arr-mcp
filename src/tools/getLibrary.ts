@@ -198,11 +198,15 @@ function rejectImpossibleFilters(opts: LibraryQuery): void {
  */
 function rejectWatchedWithoutPlayback(loader: LibraryLoader, opts: LibraryQuery, playbackFrom: string | undefined, note: string | undefined): void {
     const server = loader.primaryMediaServerId;
-    if (opts.watched === undefined || opts.kind === 'book' || server === undefined || playbackFrom !== undefined) return;
+    if (opts.watched === undefined || opts.kind === 'book' || playbackFrom !== undefined) return;
+    const books = loader.bookSourceIds.length === 0 ? '' : ' A book\'s read status does not depend on it: ask with kind: "book".';
+    if (server === undefined) {
+        throw new Error(`watched needs a media server's watch state, and none is configured, so every film and series would look unwatched.${books}`);
+    }
     throw new Error(
         `watched needs ${server}'s watch state, and ${server} could not be read, so every film and series would look unwatched.` +
             (note === undefined ? ' Ask again shortly.' : ` ${note}`) +
-            (loader.bookSourceIds.length === 0 ? '' : ' A book\'s read status does not depend on it: ask with kind: "book".')
+            books
     );
 }
 

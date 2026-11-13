@@ -12,6 +12,7 @@ import { fenceText } from '../core/fence.ts';
 import { TtlCache } from '../core/cache.ts';
 import { isOutage } from '../core/errors.ts';
 import { mapLimit } from '../core/gather.ts';
+import { deadline, TIMED_OUT } from '../core/timeout.ts';
 import type { IndexInput } from '../core/resolver.ts';
 import { logger } from '../core/logger.ts';
 import type { IdentityResolver } from '../core/identity.ts';
@@ -97,6 +98,8 @@ type GetMetadataIssuesResult = {
     /** How many reads failed outright. `itemsScanned` counts successes only, so
      *  without this the denominator silently shrinks. */
     itemsSkipped?: number;
+    /** Series the time budget ran out before, so nothing is claimed about them. */
+    notSwept?: number;
 };
 
 const FIX: Record<Remedy, string> = {
@@ -168,7 +171,7 @@ export function metadataIssueLine(issue: MetadataIssue): string {
     return `${issue.title}: ${facts.join(', ')}; ${issue.fix}`;
 }
 
-type Sweep = { issues: MetadataIssue[]; degraded: string[]; scanned: number; skipped: number; notComparable: string[] };
+type Sweep = { issues: MetadataIssue[]; degraded: string[]; scanned: number; skipped: number; notComparable: string[]; notSwept?: number };
 
 /** The books half: one adapter call, and a failure only degrades it by name. */
 async function sweepBooks(books: ServiceAdapter & BookMetadataIssueCapable): Promise<Sweep> {
@@ -204,12 +207,18 @@ async function sweepBooks(books: ServiceAdapter & BookMetadataIssueCapable): Pro
  */
 const SWEEP_TTL_MS = 120_000;
 const DEGRADED_SWEEP_TTL_MS = 20_000;
+/**
+ * How long the series half may take. One episode read per series has no end on
+ * a big library, and a call that outlives the client's own timeout returns
+ * nothing at all; this returns what was compared and counts the rest.
+ */
+const SWEEP_BUDGET_MS = 45_000;
 
 /** Both halves, merged and sorted worst first, before paging. */
 async function sweepAll(
     adapters: readonly ServiceAdapter[],
     identity: IdentityResolver | undefined,
-    opts: { user?: string; permissions?: PermissionSource; library?: LibraryLoader; books?: ServiceAdapter & BookMetadataIssueCapable }
+    opts: { user?: string; permissions?: PermissionSource; library?: LibraryLoader; books?: ServiceAdapter & BookMetadataIssueCapable; budgetMs?: number }
 ): Promise<Sweep> {
     const [media, books] = await Promise.all([sweepMedia(adapters, identity, opts), opts.books === undefined ? undefined : sweepBooks(opts.books)]);
     const issues = [...media.issues, ...(books?.issues ?? [])];
@@ -222,7 +231,8 @@ async function sweepAll(
         degraded: [...media.degraded, ...(books?.degraded ?? [])],
         scanned: media.scanned + (books?.scanned ?? 0),
         skipped: media.skipped + (books?.skipped ?? 0),
-        notComparable: media.notComparable
+        notComparable: media.notComparable,
+        ...(media.notSwept === undefined ? {} : { notSwept: media.notSwept })
     };
 }
 
@@ -239,12 +249,15 @@ export async function buildGetMetadataIssues(
         books?: ServiceAdapter & BookMetadataIssueCapable;
         /** Holds the whole sweep briefly, so paging with `offset` does not repeat it. */
         sweeps?: TtlCache;
+        budgetMs?: number;
     }
 ): Promise<GetMetadataIssuesResult> {
     const run = () => sweepAll(adapters, identity, opts);
     const key = `sweep:${adapters.map(a => a.id).join(',')}:${opts.user ?? ''}:${opts.books?.id ?? ''}`;
-    const { issues, degraded, scanned, skipped, notComparable } =
-        opts.sweeps === undefined ? await run() : await opts.sweeps.get(key, SWEEP_TTL_MS, run, s => (s.degraded.length === 0 ? SWEEP_TTL_MS : DEGRADED_SWEEP_TTL_MS));
+    const { issues, degraded, scanned, skipped, notComparable, notSwept } =
+        opts.sweeps === undefined
+            ? await run()
+            : await opts.sweeps.get(key, SWEEP_TTL_MS, run, s => (s.degraded.length === 0 && s.notSwept === undefined ? SWEEP_TTL_MS : DEGRADED_SWEEP_TTL_MS));
 
     const paged = applyLimit(issues, opts.limit, opts.offset);
     return {
@@ -253,7 +266,8 @@ export async function buildGetMetadataIssues(
         degraded,
         itemsScanned: scanned,
         ...(skipped === 0 ? {} : { itemsSkipped: skipped }),
-        ...(notComparable.length === 0 ? {} : { notComparable })
+        ...(notComparable.length === 0 ? {} : { notComparable }),
+        ...(notSwept === undefined ? {} : { notSwept })
     };
 }
 
@@ -263,12 +277,13 @@ type SeriesResult =
     | { kind: 'issue'; issue: MetadataIssue }
     | { kind: 'notComparable'; title: string }
     | { kind: 'clean' }
-    | { kind: 'skipped' };
+    | { kind: 'skipped' }
+    | { kind: 'notSwept' };
 
 async function sweepMedia(
     adapters: readonly ServiceAdapter[],
     identity: IdentityResolver | undefined,
-    opts: { user?: string; permissions?: PermissionSource; library?: LibraryLoader }
+    opts: { user?: string; permissions?: PermissionSource; library?: LibraryLoader; budgetMs?: number }
 ): Promise<Sweep> {
     const adapter = adapters.find(a => hasMetadataInspect(a) && hasUserLibrary(a));
 
@@ -347,7 +362,7 @@ async function sweepMedia(
         if (!degraded.includes(adapter.id)) degraded.push(adapter.id);
     }
 
-    const results = await mapLimit(series, SERIES_CONCURRENCY, async (item): Promise<SeriesResult> => {
+    const inspectSeries = async (item: IndexInput): Promise<SeriesResult> => {
         const itemId = item.playback?.itemId;
         if (itemId === undefined) return { kind: 'clean' };
         try {
@@ -404,7 +419,18 @@ async function sweepMedia(
             logger.warn({ service: adapter.id, itemId, err }, 'metadata sweep skipped a series');
             return { kind: 'skipped' };
         }
+    };
+
+    const budget = deadline(opts.budgetMs ?? SWEEP_BUDGET_MS);
+    const results = await mapLimit(series, SERIES_CONCURRENCY, async (item): Promise<SeriesResult> => {
+        // Once the budget is spent a read could only be thrown away, so it is not started.
+        if (budget.expired()) return { kind: 'notSwept' };
+        const result = await budget.race(inspectSeries(item));
+        return result === TIMED_OUT ? { kind: 'notSwept' } : result;
     });
+    budget.clear();
+
+    let notSwept = 0;
 
     for (const result of results) {
         if (result.kind === 'skipped') {
@@ -416,11 +442,15 @@ async function sweepMedia(
             notComparable.push(result.title);
             continue;
         }
+        if (result.kind === 'notSwept') {
+            notSwept += 1;
+            continue;
+        }
         scanned += 1;
         if (result.kind === 'issue') issues.push(result.issue);
     }
 
-    return { issues, degraded, scanned, skipped, notComparable };
+    return { issues, degraded, scanned, skipped, notComparable, ...(notSwept === 0 ? {} : { notSwept }) };
 }
 
 const getMetadataIssuesInput = byMediaServers(ids =>
@@ -459,7 +489,7 @@ export function registerGetMetadataIssues(
 
 /** The line above the rows: what was compared, what disagrees, and what could not be read. */
 export function metadataIssuesSummary(result: GetMetadataIssuesResult): string {
-    if (result.itemsScanned === 0) return 'No media server library could be read, so nothing was compared. This is not a clean result.';
+    if (result.itemsScanned === 0 && result.notSwept === undefined) return 'No media server library could be read, so nothing was compared. This is not a clean result.';
     const rename = result.items.filter(i => i.remedy === 'rename_files').length;
     const look = result.items.filter(i => i.remedy === 'inspect').length;
     const skipped = result.itemsSkipped ?? 0;
@@ -482,6 +512,9 @@ export function metadataIssuesSummary(result: GetMetadataIssuesResult): string {
               : '') +
         // Said out loud, because it is the difference between a
         // quiet library and one nothing could be compared in.
-        (result.notComparable === undefined ? '' : ` ${result.notComparable.length} series had no file paths to compare, so nothing is claimed about them.`)
+        (result.notComparable === undefined ? '' : ` ${result.notComparable.length} series had no file paths to compare, so nothing is claimed about them.`) +
+        (result.notSwept === undefined
+            ? ''
+            : ` ${result.notSwept} series were not swept within the ${SWEEP_BUDGET_MS / 1000} s time budget, so nothing is claimed about them.`)
     );
 }

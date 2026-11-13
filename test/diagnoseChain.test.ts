@@ -3196,12 +3196,14 @@ describe("buildChain: the *arr's own import state and reasons", () => {
     });
     const run = (...rows: QueueItem[]) => buildChain('some film', healthy({ item: noFile, queue: { items: rows, partial: [] } }));
 
-    it('says the *arr could not import it, shows its reasons, and offers no import that would meet them', () => {
+    it('says the *arr could not import it, shows its reasons, and offers the import get_queue offers', () => {
         const upgrade = reason('Not an upgrade for existing movie file');
         const d = run(done({ importState: 'importPending', statusMessages: [upgrade] }));
         expect(stepFor(d, 'queue')?.detail).toBe(`Downloaded, but radarr could not import it. radarr says: ${upgrade}.`);
         expect(d.verdict.remedy).toMatch(/^Radarr retries it on its own and fails the same way until what it reports is fixed there/);
-        expect(d.verdict.next_steps).toBeUndefined();
+        expect(d.verdict.next_steps).toEqual([
+            expect.objectContaining({ tool: 'import_download', arguments: expect.objectContaining({ service: 'radarr', action: 'import' }), why: expect.stringMatching(/^radarr keeps failing to import it by itself/) })
+        ]);
     });
 
     // How a live Sonarr 4.0.20 reports a finished download with nothing to import.

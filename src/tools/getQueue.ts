@@ -6,7 +6,7 @@ import { annotateCleanuparr, dueWithin, type CleanuparrDue } from './cleanuparrQ
 import type { LibraryKind } from '../core/resolver.ts';
 import { hasQueue, type QueueItem, type ServiceAdapter } from '../services/types.ts';
 import { MediaKindSchema, holds } from './mediaKind.ts';
-import { importStepFor, orphanImportStepFor } from './importStep.ts';
+import { importFailing, importStepFor, orphanImportStepFor, retriedImportStepFor } from './importStep.ts';
 import { nextStepLine, stepsField, type NextStep } from '../core/nextStep.ts';
 import { DOWNLOAD_CLIENTS } from '../config/schema.ts';
 
@@ -29,7 +29,7 @@ type GetQueueResult = {
     byTracker?: TrackerSeeding[];
     /** At `detail: "full"`: what Cleanuparr's rules fall due on in the next week, across the whole queue, not just this page. */
     cleanuparrDue?: CleanuparrDue;
-    /** An import_download per download stuck at `importBlocked`, over every matching row, not just this page, capped. */
+    /** An import_download per download the *arr will not import, over every matching row, not just this page, capped. */
     next_steps?: NextStep[];
     /** How many more steps the cap on `next_steps` left out. */
     next_steps_more?: number;
@@ -267,15 +267,17 @@ export async function buildGetQueue(
 
 /**
  * The imports to offer: a download the *arr finished and then would not
- * import (`importBlocked`). A completed row it is still importing on its own
- * (`importPending`) gets none. An orphan, matched to nothing in the library,
- * may be a release the *arr never matched rather than deleted media, so it
- * gets one that asks for a `mapping`.
+ * import (`importBlocked`), or keeps failing to (`importPending` with reasons).
+ * A completed row it is still importing on its own, with no reasons, gets
+ * none. An orphan, matched to nothing in the library, may be a release the
+ * *arr never matched rather than deleted media, so it gets one that asks for a
+ * `mapping`.
  */
 const importSteps = (rows: readonly QueueItem[]): NextStep[] =>
     rows.flatMap(row => {
-        if (row.importState !== 'importBlocked') return [];
-        const step = row.orphaned === true ? orphanImportStepFor(row) : importStepFor(row);
+        if (!importFailing(row)) return [];
+        const step =
+            row.orphaned === true ? orphanImportStepFor(row) : row.importState === 'importBlocked' ? importStepFor(row) : retriedImportStepFor(row);
         return step === undefined ? [] : [step];
     });
 
@@ -303,7 +305,7 @@ export function registerGetQueue(server: McpServer, adapters: readonly ServiceAd
             title: 'Download queue',
             annotations: READ_ONLY,
             description:
-                'Everything downloading or stalled, merged across every *arr queue and download client[[grimmory: , plus files waiting in Grimmory\'s Bookdrop]]. Sizes are bytes, ETAs seconds; release names are fenced as untrusted data. An *arr row carries `downloadId` and `statusMessages`: a finished download stuck at `importState: "importBlocked"` comes back as an import_download step in `next_steps`; a title mismatch or unknown episode fails the same way on every retry and has to be fixed in the service. [[transmission|qbittorrent: At `detail: "full"` a torrent carries `seeding` (ratio, time seeded, the limit that applies, `overLimit`) and, with Cleanuparr, the rule that governs it, its `strikes` and `dueAt`; `cleanuparrDue` totals what falls due within 7 days.]] Filter on the server rather than reading the whole queue. Remove a row with remove_queue_item. Field reference: arr://docs/get_queue.',
+                'Everything downloading or stalled, merged across every *arr queue and download client[[grimmory: , plus files waiting in Grimmory\'s Bookdrop]]. Sizes are bytes, ETAs seconds; release names are fenced as untrusted data. An *arr row carries `downloadId` and `statusMessages`: a finished download stuck at `importBlocked`, or `importPending` with messages, comes back as an import_download step in `next_steps`; a title mismatch or unknown episode fails on every retry until fixed in the service. [[transmission|qbittorrent: At `detail: "full"` a torrent carries `seeding` (ratio, time seeded, the limit that applies, `overLimit`) and, with Cleanuparr, the rule that governs it, its `strikes` and `dueAt`; `cleanuparrDue` totals what falls due within 7 days.]] Filter on the server rather than reading the whole queue. Remove a row with remove_queue_item. Field reference: arr://docs/get_queue.',
             outputSchema: PagedOutputSchema,
             inputSchema: GetQueueInput
         },

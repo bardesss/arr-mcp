@@ -1,4 +1,5 @@
 import { aliasesOf } from '../core/titleMatch.ts';
+import { logger } from '../core/logger.ts';
 import type { ConfigByService } from '../config/schema.ts';
 import { LIBRARY_TTL_MS } from '../core/cache.ts';
 import { ArrAdapterBase } from './arrBase.ts';
@@ -38,6 +39,7 @@ import { readArrWanted } from './arrWanted.ts';
 import { audioLanguagesByFileId } from './arrMediaInfo.ts';
 import { flattenSeriesRating, type RawRating } from './arrRatings.ts';
 import { arrRecentLogs, arrStartLibraryScan } from './arrSystem.ts';
+import { namingMarkerChecks } from './arrRename.ts';
 import {
     type BlocklistEntry,
     type IndexerSeedCriteria,
@@ -47,6 +49,7 @@ import {
     type DiskSpaceCapable,
     type DownloadTrace,
     type DownloadTraceCapable,
+    type HealthCheck,
     type HealthCheckCapable,
     type LogCapable,
     type RecentLogs,
@@ -200,6 +203,19 @@ export class SonarrAdapter
 
     constructor(config: ConfigByService['sonarr'], fetchImpl: typeof fetch = fetch) {
         super('sonarr', config, fetchImpl);
+    }
+
+    /** Sonarr's own checks, plus a naming format an interrupted remap rename left marked. */
+    override async getFailedHealthChecks(): Promise<HealthCheck[]> {
+        const [checks, marker] = await Promise.all([
+            super.getFailedHealthChecks(),
+            // An extra, not the answer: a failed naming read leaves Sonarr's own checks standing.
+            namingMarkerChecks(this.http, this.id).catch((err: unknown) => {
+                logger.warn({ service: this.id, err }, 'could not read the naming format for the remap marker');
+                return [];
+            })
+        ]);
+        return [...checks, ...marker];
     }
 
     async getRecentLogs(): Promise<RecentLogs> {

@@ -13,11 +13,11 @@ import {
     toolInput,
     type DetailLevel
 } from '../core/shape.ts';
-import type { SeerrAdapter } from '../services/seerr.ts';
+import { TMDB_PAGES_PER_CALL, type SeerrAdapter } from '../services/seerr.ts';
 import { fenceText } from '../core/fence.ts';
 import { enrichWithImdb } from '../metadata/enrich.ts';
 import type { ImdbDataset } from '../metadata/imdbDataset.ts';
-import type { SearchHit, Window } from '../services/types.ts';
+import type { DiscoverPage, SearchHit } from '../services/types.ts';
 import { withoutDisplay } from '../core/display.ts';
 import { searchLine, type GetSearchResult } from './searchMedia.ts';
 
@@ -88,7 +88,7 @@ export async function buildDiscoverMedia(
     // Seerr pages its answer, so only the pages this window covers are read.
     const offset = Math.max(Math.trunc(opts.offset ?? 0), 0);
     const window = { offset, limit: opts.limit };
-    let found: Window<SearchHit>;
+    let found: DiscoverPage;
     try {
         found =
             opts.similarTo !== undefined
@@ -127,7 +127,10 @@ export async function buildDiscoverMedia(
         offset,
         truncated: found.items.length < found.total,
         degraded: [],
-        counts: { [adapter.id]: found.total }
+        counts: { [adapter.id]: found.total },
+        ...(found.cut === true
+            ? { note: `One call reads at most ${TMDB_PAGES_PER_CALL} Seerr pages, so this stops short of limit; offset ${offset + found.items.length} continues.` }
+            : {})
     };
 }
 
@@ -243,7 +246,7 @@ const DiscoverMediaOutput = PagedOutputSchema.extend({
         .string()
         .optional()
         .describe(
-            'Present when an empty list needs defending, for example when nothing configured could answer. Report the reason rather than saying nothing matched.'
+            'Present when the list needs explaining: nothing configured could answer, or the read stopped short. Report it rather than saying nothing matched.'
         )
 });
 
@@ -285,9 +288,9 @@ export function registerDiscoverMedia(
             const summary =
                 result.degraded.length > 0
                     ? 'Seerr could not answer; nothing to discover.'
-                    : result.note !== undefined
+                    : result.note !== undefined && result.returned === 0
                       ? result.note
-                      : `${result.returned} of ${result.total} ${resolved === 'series' ? 'series' : 'film(s)'} found.`;
+                      : `${result.returned} of ${result.total} ${resolved === 'series' ? 'series' : 'film(s)'} found.${result.note === undefined ? '' : ` ${result.note}`}`;
 
             return { content: [{ type: 'text', text: listText(summary, result.items, searchLine) }], structuredContent: result };
         }

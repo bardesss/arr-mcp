@@ -692,10 +692,13 @@ export type CleanupOverview = {
     rules?: CleanupRule[];
     /** Soonest first: eligible, then scheduled, then the ones held back. */
     candidates?: Window<CleanupCandidate>;
-    /** Eligible or scheduled, counted over every candidate, not only the ones `candidates` returns. */
-    going?: { count: number; firstAt?: string };
+    /**
+     * Eligible or scheduled, counted over every candidate, not only the ones `candidates` returns.
+     * `capped`: even those ran past the pages read, so `count` is a floor and `firstAt` may not be the soonest.
+     */
+    going?: { count: number; firstAt?: string; capped?: true };
     protections?: number;
-    /** More candidates than one read takes: `going` and `items` cover only the ones read. */
+    /** More candidates than one read takes: `items` past the ones set to go cover only the ones read. */
     capped?: true;
 };
 
@@ -2447,6 +2450,8 @@ export const hasBookReadStatus = (a: ServiceAdapter): a is ServiceAdapter & Book
 
 /** The slice of a discover list a caller wants, as `offset` and `limit` in rows. */
 export type DiscoverWindow = { offset: number; limit: number };
+/** `cut`: the read stopped at its page budget before the window was full. */
+export type DiscoverPage = Window<SearchHit> & { cut?: true };
 
 export interface DiscoverCapable {
     discover(
@@ -2457,7 +2462,7 @@ export interface DiscoverCapable {
             minRating?: number;
         },
         window?: DiscoverWindow
-    ): Promise<Window<SearchHit>>;
+    ): Promise<DiscoverPage>;
 }
 
 /**

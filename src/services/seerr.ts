@@ -13,6 +13,7 @@ import {
     type ConnectionDiagnosis,
     type CreateRequestOptions,
     type DiscoverCapable,
+    type DiscoverPage,
     type DiscoverWindow,
     type IssueCapable,
     type LogCapable,
@@ -29,8 +30,7 @@ import {
     type SearchSource,
     type ServiceAdapter,
     type ServiceUser,
-    type UserDirectoryCapable,
-    type Window
+    type UserDirectoryCapable
 } from './types.ts';
 
 type RawSearchResult = {
@@ -147,6 +147,8 @@ const TMDB_PAGE_SIZE = 20;
 const TMDB_MAX_PAGES = 500;
 /** Pages read at once when a window spans several; Seerr asks TMDB for each. */
 const TMDB_PAGE_READS = 4;
+/** Pages one call reads at most, so a big `limit` is not dozens of TMDB round trips; the rest is one `offset` away. */
+export const TMDB_PAGES_PER_CALL = 5;
 
 type RawResultsPage = { results?: RawSearchResult[]; totalPages?: number; totalResults?: number };
 const FIRST_PAGE: DiscoverWindow = { offset: 0, limit: TMDB_PAGE_SIZE };
@@ -836,7 +838,7 @@ export class SeerrAdapter
             minRating?: number;
         },
         window: DiscoverWindow = FIRST_PAGE
-    ): Promise<Window<SearchHit>> {
+    ): Promise<DiscoverPage> {
         const params = new URLSearchParams();
         if (opts.genre !== undefined) {
             const id = /^\d+$/.test(opts.genre) ? opts.genre : String(await this.genreId(opts.mediaType, opts.genre));
@@ -864,7 +866,7 @@ export class SeerrAdapter
      * outright for a series that `/recommendations` answered for with over a
      * thousand. `recommendations` is the only one worth exposing.
      */
-    async recommendations(opts: { mediaType: 'movie' | 'tv'; id: string }, window: DiscoverWindow = FIRST_PAGE): Promise<Window<SearchHit>> {
+    async recommendations(opts: { mediaType: 'movie' | 'tv'; id: string }, window: DiscoverWindow = FIRST_PAGE): Promise<DiscoverPage> {
         const path = opts.mediaType === 'movie' ? `/api/v1/movie/${opts.id}/recommendations` : `/api/v1/tv/${opts.id}/recommendations`;
         return this.#tmdbWindow(path, new URLSearchParams(), opts.mediaType, window);
     }
@@ -876,7 +878,7 @@ export class SeerrAdapter
      * found nothing. TMDB answers no page past 500 (a live Seerr turned page
      * 600 into an HTTP 500), so `total` stops at what can be paged to.
      */
-    async #tmdbWindow(path: string, params: URLSearchParams, mediaType: 'movie' | 'tv', window: DiscoverWindow): Promise<Window<SearchHit>> {
+    async #tmdbWindow(path: string, params: URLSearchParams, mediaType: 'movie' | 'tv', window: DiscoverWindow): Promise<DiscoverPage> {
         const offset = Math.max(Math.trunc(window.offset), 0);
         const first = Math.floor(offset / TMDB_PAGE_SIZE) + 1;
         const read = (page: number) => {
@@ -894,7 +896,8 @@ export class SeerrAdapter
             typeof head.totalResults === 'number' ? head.totalResults : (first - 1) * TMDB_PAGE_SIZE + (head.results ?? []).length,
             pages * TMDB_PAGE_SIZE
         );
-        const last = Math.min(Math.ceil((offset + Math.max(window.limit, 1)) / TMDB_PAGE_SIZE), pages);
+        const wanted = Math.min(Math.ceil((offset + Math.max(window.limit, 1)) / TMDB_PAGE_SIZE), pages);
+        const last = Math.min(wanted, first + TMDB_PAGES_PER_CALL - 1);
         const rest = await mapLimit(
             Array.from({ length: Math.max(last - first, 0) }, (_, i) => first + 1 + i),
             TMDB_PAGE_READS,
@@ -907,7 +910,7 @@ export class SeerrAdapter
             .slice(skip, skip + window.limit)
             .filter((r): r is RawSearchResult & { id: number } => typeof r.id === 'number')
             .map(r => this.#toHit(r, kind));
-        return { items, total };
+        return { items, total, ...(last < wanted ? { cut: true as const } : {}) };
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {
