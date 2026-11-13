@@ -58,7 +58,8 @@ type Harness = ReturnType<typeof buildHarness>;
 function buildHarness(
     opts: {
         permissions?: Partial<Record<ServiceId, AnyServiceConfig>>;
-        plan?: WritePlan;
+        plan?: WritePlan | (() => Promise<WritePlan>);
+        route?: (args: { id: string }) => string;
         apply?: () => Promise<unknown>;
         tier?: 'safe' | 'destructive';
         caller?: string;
@@ -70,7 +71,8 @@ function buildHarness(
     const confirm = new ConfirmTokens();
     const invalidate = vi.fn();
     const apply = vi.fn(opts.apply ?? (() => Promise.resolve({ ok: true })));
-    const plan = vi.fn(() => Promise.resolve(opts.plan ?? PLAN));
+    const planned = opts.plan;
+    const plan = vi.fn(typeof planned === 'function' ? planned : () => Promise.resolve(planned ?? PLAN));
 
     const { server, call } = fakeServer();
     registerWriteTool(
@@ -88,7 +90,7 @@ function buildHarness(
             title: 'Delete a film or series',
             description: 'Deletes a film.',
             inputSchema: z.object({ id: z.string() }),
-            service: 'radarr',
+            service: opts.route ?? 'radarr',
             operation: 'delete_movie',
             tier: opts.tier ?? 'destructive',
             plan,
@@ -366,6 +368,51 @@ describe('write tool harness — the audit trail', () => {
         const oauth = buildHarness({ caller: 'oauth:desktop-client' });
         await oauth.call('delete_media', { id: '5', dry_run: true });
         expect((oauth.audit.recent() as { caller: string | null }[])[0]?.caller).toBe('oauth:desktop-client');
+    });
+
+    it('records a refusal thrown by the plan, with the argument as given', async () => {
+        const refusing = buildHarness({
+            plan: () => Promise.reject(new ServiceError('NotFound', 'radarr', 'no movie 5'))
+        });
+        await expect(refusing.call('delete_media', { id: '5' })).rejects.toThrow(/no movie 5/);
+
+        const rows = refusing.audit.recent() as { outcome: string; target: string; service: string; detail: string | null }[];
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({ outcome: 'denied', target: '5', service: 'radarr' });
+        expect(rows[0]?.detail).toContain('no movie 5');
+    });
+
+    it('records a plan refusal on a confirm call too', async () => {
+        let refuse = false;
+        const drifting = buildHarness({
+            plan: () => (refuse ? Promise.reject(new ServiceError('NotFound', 'radarr', 'gone')) : Promise.resolve(PLAN))
+        });
+        const first = await drifting.call('delete_media', { id: '5' });
+        refuse = true;
+        await expect(
+            drifting.call('delete_media', { id: '5', confirm: first.structuredContent.confirm_token })
+        ).rejects.toThrow(/gone/);
+        expect(outcomes(drifting)).toEqual(['unconfirmed', 'denied']);
+    });
+
+    it('records nothing for a dry run whose plan refuses', async () => {
+        const refusing = buildHarness({
+            plan: () => Promise.reject(new ServiceError('NotFound', 'radarr', 'no movie 5'))
+        });
+        await expect(refusing.call('delete_media', { id: '5', dry_run: true })).rejects.toThrow(/no movie 5/);
+        expect(refusing.audit.recent()).toHaveLength(0);
+    });
+
+    it('records a refusal thrown while routing to an instance', async () => {
+        const routing = buildHarness({
+            route: () => {
+                throw new ServiceError('NotFound', 'radarr', 'several radarr instances and none named');
+            }
+        });
+        await expect(routing.call('delete_media', { id: '5' })).rejects.toThrow(/none named/);
+        expect(routing.plan).not.toHaveBeenCalled();
+        const rows = routing.audit.recent() as { outcome: string; target: string }[];
+        expect(rows[0]).toMatchObject({ outcome: 'denied', target: '5' });
     });
 
     it('records the resolved target, not the argument the caller typed', async () => {

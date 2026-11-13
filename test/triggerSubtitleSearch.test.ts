@@ -238,6 +238,14 @@ describe('trigger_subtitle_search outside the wanted list', () => {
         expect(h.bazarrFetch.patches()[0]?.query).toMatchObject({ radarrid: '9999', language: 'nl' });
     });
 
+    it('refuses an id that is not a number, rather than sending NaN', async () => {
+        const h = harness();
+        await expect(
+            h.call({ service: 'bazarr', kind: 'movie', id: 'abc', language: 'nl', search_anyway: true })
+        ).rejects.toThrow(/"abc" is not a bazarr movie id/);
+        expect(h.bazarrFetch.patches()).toHaveLength(0);
+    });
+
     it('needs series_id for an episode outside the list, and refuses before writing', async () => {
         const h = harness();
         await expect(
