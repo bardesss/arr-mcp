@@ -353,6 +353,7 @@ export function registerGrabRelease(
             if ((outcome as { alreadyPresent?: string }).alreadyPresent === undefined) return undefined;
             return `Nothing added: ${plan.target.replace(/^([^:]+):(.*)$/, '$1 already has torrent $2')}. It is in get_queue.`;
         },
+        landed: outcome => (outcome as { alreadyPresent?: string }).alreadyPresent === undefined,
 
         async apply(plan, { service, instance, guid, indexer_id, magnet }) {
             if (magnet !== undefined) {

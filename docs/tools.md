@@ -1823,7 +1823,7 @@ names the hash.
 It skips the *arrs entirely, and the preview says what that means: nothing
 vetted the release (no indexer, no quality profile) and nothing will import it
 into your library afterwards. A torrent the client already has is reported as a
-duplicate rather than an error.
+duplicate rather than an error, with `applied: false`.
 
 ## `request_media`
 
@@ -2570,7 +2570,11 @@ survives a restart of arr-mcp. Resume starts only the marked torrents and
 removes the mark; a torrent stopped any other way, at its ratio limit or by
 hand, stays stopped. The client reads as paused while any torrent carries the
 mark, and a pause is a no-op only when nothing is running, so a torrent an
-\*arr sent after the first pause is stopped by a second. A client without
+\*arr sent after the first pause is stopped by a second. The confirm token is
+bound to the torrents the preview counted: if one starts or stops before the
+confirm, the token is refused and a fresh preview comes back. On qBittorrent
+the empty tag is deleted once no torrent carries it. `get_queue` leaves the
+mark out of a torrent's tags. A client without
 labels or tags (Transmission before 3.0, qBittorrent before 4.2) refuses a
 whole-client pause or resume; one torrent at a time with `id` still works.
 Transmission torrent ids are info hashes, as `get_queue` reports them; the

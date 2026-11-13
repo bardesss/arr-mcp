@@ -1,9 +1,11 @@
+import { createHash } from 'node:crypto';
 import { resolveInstance } from './resolveInstance.ts';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { DOWNLOAD_CLIENTS, type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { hasPause, hasSpeedLimit, type PauseState, type QueueHold, type ServiceAdapter } from '../services/types.ts';
+import { turtleModeRefusal } from '../services/transmission.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 import { targetInput, serviceTarget } from './serviceTarget.ts';
 
@@ -88,6 +90,16 @@ const HOLD_TEXT: Readonly<Record<QueueHold, (client: string) => { noop: string; 
 
 const torrentCount = (n: number): string => (n === 1 ? '1 torrent' : `${n} torrents`);
 
+/** The torrents a whole-client pause or resume acts on, folded into its token:
+ *  one an *arr sends between preview and confirm voids it, and the fresh
+ *  preview names it, rather than the confirm stopping it unannounced. A digest
+ *  keeps the audit row short on a client with hundreds. */
+const setOf = (ids: readonly string[]): string =>
+    createHash('sha256')
+        .update([...ids].sort().join('\n'))
+        .digest('hex')
+        .slice(0, 16);
+
 /**
  * A whole-client pause on a torrent client, which has no client-wide flag:
  * pause stops and marks the running torrents, resume starts the marked ones.
@@ -100,7 +112,7 @@ function torrentPlan(
     paused: boolean,
     t: NonNullable<PauseState['torrents']>
 ): WritePlan {
-    const args = { action: paused ? 'pause' : 'resume' };
+    const args = { action: paused ? 'pause' : 'resume', torrents: setOf(paused ? t.runningIds : t.markedIds) };
     if (paused) {
         if (t.running === 0) {
             return {
@@ -183,13 +195,8 @@ export function registerPauseDownloads(
                         noop: true
                     };
                 }
-                // Transmission keeps the normal limit behind turtle mode, so
-                // setting it would report a change that does nothing yet.
-                if (current.alternative) {
-                    throw new Error(
-                        `${client.id} is in alternative speed (turtle) mode, capped at ${current.kbps} KiB/s, which overrides any normal limit. Turn turtle mode off in Transmission first.`
-                    );
-                }
+                // The adapter refuses this write too; refusing here means no token is issued for it.
+                if (current.alternative) throw turtleModeRefusal(client.id, current.kbps);
 
                 return {
                     target,

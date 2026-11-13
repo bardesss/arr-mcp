@@ -117,6 +117,15 @@ describe('Transmission speed limit', () => {
         });
     });
 
+    // Turtle mode overrides the normal limit, so a write there would change nothing yet.
+    it.each([500, undefined])('refuses to set %s while turtle mode is on, whoever calls it', async kbps => {
+        const { impl, sent } = recording(() =>
+            jsonResponse({ result: 'success', arguments: { 'alt-speed-enabled': true, 'alt-speed-down': 100 } })
+        );
+        await expect(new TransmissionAdapter(clientConfig, impl).setSpeedLimit(kbps)).rejects.toThrow(/turtle\) mode, capped at 98 KiB\/s/);
+        expect(sent.map(s => (JSON.parse(s.body ?? '{}') as { method?: string }).method)).not.toContain('session-set');
+    });
+
     it('sets the number and the flag together', async () => {
         const { impl, sent } = recording(() => jsonResponse({ result: 'success' }));
         await new TransmissionAdapter(clientConfig, impl).setSpeedLimit(500);
@@ -154,8 +163,8 @@ describe('Transmission speed limit', () => {
     it('zeroes the number when clearing, not just the flag', async () => {
         const { impl, sent } = recording(() => jsonResponse({ result: 'success' }));
         await new TransmissionAdapter(clientConfig, impl).setSpeedLimit(undefined);
-        // Clearing needs no unit, so it does not read the session first.
-        expect(sent.map(s => (JSON.parse(s.body ?? '{}') as { method?: string }).method)).toEqual(['session-set']);
+        // Clearing needs no unit, but reads the session for turtle mode all the same.
+        expect(sent.map(s => (JSON.parse(s.body ?? '{}') as { method?: string }).method)).toEqual(['session-get', 'session-set']);
         expect(JSON.parse(sent.at(-1)?.body ?? '{}')).toMatchObject({
             arguments: { 'speed-limit-down': 0, 'speed-limit-down-enabled': false }
         });
