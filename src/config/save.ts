@@ -3,7 +3,7 @@ import { isMap, parseDocument, type Document } from 'yaml';
 import * as z from 'zod/v4';
 import { writeFileAtomic } from '../core/atomicFile.ts';
 import { serial } from '../core/serial.ts';
-import { configPath } from './load.ts';
+import { configPath, parseConfigValue } from './load.ts';
 import { ConfigSchema, type Config } from './schema.ts';
 
 /**
@@ -73,10 +73,11 @@ export class ConfigRejectedError extends Error {}
  * Compared through the schema, not by service name: the name check saw a
  * service added or removed and nothing else, so a hand-edited `api_key`, or
  * anything under `auth`, passed it and was then overwritten. A file that no
- * longer parses has certainly changed.
+ * longer parses has certainly changed. Read as the loader reads it, so a file
+ * with no `auth` block is the unclaimed config it loaded as.
  */
 function driftedFrom(doc: Document, expected: Config): boolean {
-    const onDisk = ConfigSchema.safeParse(doc.toJS());
+    const onDisk = parseConfigValue(doc.toJS());
     if (!onDisk.success) return true;
     return stableJson(onDisk.data) !== stableJson(expected);
 }
@@ -151,7 +152,8 @@ async function writeConfig(configDir: string, next: Config, opts: { expected?: C
     // that remain, and their comments, in place.
     //
     // Top-level keys the schema has never heard of are untouched, since nothing
-    // iterates them. They do nothing either way; the loader strips them.
+    // iterates them. The loader refuses a file holding one, and with `expected`
+    // the drift check above refuses it first.
     const blocks = value as Record<string, unknown>;
     for (const key of Object.keys(ConfigSchema.shape)) mergeInto(doc, [key], blocks[key]);
 

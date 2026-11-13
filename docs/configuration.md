@@ -36,7 +36,9 @@ client it came from.
 
 A misspelled key, an unknown service, or an `api_key` on a torrent client or
 NZBGet **fails at startup with the offending field named**, rather than being silently
-ignored.
+ignored. That holds at the top level too since 2.0: `service:` for `services:`
+starts the repair page with `Unrecognized top-level key "service" (did you mean
+services?)`. Rename or remove the key.
 
 Both credential fields are optional on either torrent client and on NZBGet:
 Transmission's RPC is often unauthenticated on a LAN, qBittorrent can bypass

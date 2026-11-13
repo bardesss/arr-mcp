@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -46,15 +46,11 @@ let audit: WriteAudit;
  * `release` comes first because `beforeEach` has already opened a claimed
  * fixture by the time this runs.
  */
-const seedUnclaimed = async () => {
+const seedUnclaimed = async (text = `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  allowed_hosts: []\nservices: {}\n`) => {
     await release();
 
     dir = await mkdtemp(join(tmpdir(), 'arr-mcp-ui-'));
-    await writeFile(
-        join(dir, 'config.yaml'),
-        `auth:\n  bearer_token: ${BEARER}\n  username: admin\n  allowed_hosts: []\nservices: {}\n`,
-        'utf8'
-    );
+    await writeFile(join(dir, 'config.yaml'), text, 'utf8');
 
     const { config } = await loadConfig(dir);
     audit = WriteAudit.ephemeral();
@@ -2212,6 +2208,30 @@ describe('an unclaimed instance', () => {
         expect(res.status).toBe(400);
         expect(res.headers.get('set-cookie')).toBeNull();
         expect(runtime.config.auth.password_hash).toBeUndefined();
+    });
+
+    // The loader reads a missing `auth` block as unclaimed, and the save's
+    // drift check did not, so the claim failed silently and setup came back.
+    it('claims a hand-written file with no auth block', async () => {
+        await seedUnclaimed('services: {}\n');
+        const res = await claim(GOOD);
+
+        expect(res.status).toBe(302);
+        expect(res.headers.get('location')).toBe('/ui');
+        expect(res.headers.get('set-cookie')).toContain('arr_mcp_session=');
+        expect(await readFile(join(dir, 'config.yaml'), 'utf8')).toContain('password_hash');
+    });
+
+    // Only a drift means someone else claimed it. Anything else redirected to
+    // login, which sent the operator straight back here with no reason given.
+    it('says so when the claim cannot be saved', async () => {
+        await rm(join(dir, 'config.yaml'));
+        await mkdir(join(dir, 'config.yaml'));
+        const res = await claim(GOOD);
+
+        expect(res.status).toBe(400);
+        expect(await res.text()).toContain('could not be saved');
+        expect(res.headers.get('set-cookie')).toBeNull();
     });
 
     it('survives a restart as an unclaimed instance rather than repairing itself', async () => {

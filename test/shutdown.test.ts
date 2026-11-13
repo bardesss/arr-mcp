@@ -1,6 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { once } from 'node:events';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -94,9 +94,10 @@ const children: ChildProcessWithoutNullStreams[] = [];
 const dirs: string[] = [];
 const outputs = new WeakMap<Readable, string>();
 
-async function start(args: string[]): Promise<ChildProcessWithoutNullStreams> {
-    const dir = await mkdtemp(join(tmpdir(), 'arr-mcp-shutdown-'));
-    dirs.push(dir);
+async function start(args: string[], sub = ''): Promise<ChildProcessWithoutNullStreams> {
+    const root = await mkdtemp(join(tmpdir(), 'arr-mcp-shutdown-'));
+    dirs.push(root);
+    const dir = join(root, sub);
     const child = spawn(process.execPath, ['src/index.ts', ...args], {
         cwd: ROOT,
         env: { ...process.env, ARR_MCP_CONFIG_DIR: dir, ARR_MCP_PORT: '0', LOG_LEVEL: 'info' }
@@ -150,5 +151,17 @@ describe('the server process', () => {
         const [code] = await once(child, 'exit');
         expect(code).toBe(0);
         expect(err(child)).toContain('shut down cleanly');
+    }, BANNER_MS + 15_000);
+
+    // The stores open their databases before the loader that would create the
+    // directory runs, so a first start outside Docker died in better-sqlite3.
+    it('creates a config directory that does not exist yet', async () => {
+        const sub = join('not', 'yet', 'here');
+        const child = await start(['--stdio'], sub);
+        await waitFor(child.stderr, 'arr-mcp serving MCP over stdio', BANNER_MS);
+        child.stdin.end();
+        const [code] = await once(child, 'exit');
+        expect(code).toBe(0);
+        expect(await readFile(join(dirs[dirs.length - 1] ?? '', sub, 'config.yaml'), 'utf8')).toContain('auth:');
     }, BANNER_MS + 15_000);
 });
