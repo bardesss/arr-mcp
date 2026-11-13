@@ -10,6 +10,11 @@ import { repeat } from './helpers/bigFixture.ts';
 import { expectWithinBudget } from './helpers/budget.ts';
 import { serving } from './helpers/serve.ts';
 
+/** Nothing listening: every request fails the way a stopped service does. */
+const refused = (async () => {
+    throw new TypeError('fetch failed', { cause: Object.assign(new Error('refused'), { code: 'ECONNREFUSED' }) });
+}) as unknown as typeof fetch;
+
 const TICKS = 10_000_000;
 const USER_ID = 'f137a2dd21bbc1b99aa5c0f6bf02a805';
 const GUEST_ID = '0d8bc4b2ad1c4f6e8b7a3c9d5e1f2a3b';
@@ -173,6 +178,14 @@ describe('get_playback', () => {
 
         expect(result.items).toEqual([]);
         expect(result.degraded).toEqual(['jellyfin']);
+    });
+
+    it('degrades when Jellyfin is down before the user lookup', async () => {
+        const config = jellyfinConfig();
+        const adapter = new JellyfinAdapter(config, refused);
+        const result = await buildGetPlayback(adapter, new IdentityResolver(adapter, config), { detail: 'standard', limit: 50 });
+        expect(result.degraded).toEqual(['jellyfin']);
+        expect(result.items).toEqual([]);
     });
 
     it('reports truncation honestly', async () => {
@@ -362,6 +375,14 @@ const seerr = (over: Partial<MultiUserServiceConfig> = {}, routes: Record<string
 };
 
 describe('get_requests', () => {
+    it('degrades when Seerr is down before the user lookup', async () => {
+        const config = seerrConfig();
+        const adapter = new SeerrAdapter(config, refused);
+        const result = await buildGetRequests(adapter, new IdentityResolver(adapter, config), { detail: 'standard', limit: 50 });
+        expect(result.degraded).toEqual(['seerr']);
+        expect(result.items).toEqual([]);
+    });
+
     it('maps numeric statuses to words', async () => {
         const { adapter, resolver } = seerr();
         const result = await buildGetRequests(adapter, resolver, { detail: 'full', limit: 50, user: 'bartus' });
@@ -485,5 +506,30 @@ describe('get_requests', () => {
         urls.length = 0;
         await adapter.getRequests({ status: 'declined' });
         expect(urls[0]).not.toContain('filter=');
+    });
+
+    it('names failed and completed requests and pushes those filters down', async () => {
+        const rows = {
+            results: [4, 5].map(status => ({ id: status, status, media: { tmdbId: status, mediaType: 'movie' }, requestedBy: { id: 1 } }))
+        };
+        const urls: string[] = [];
+        const impl = (async (input: string | URL | Request) => {
+            urls.push(input instanceof Request ? input.url : String(input));
+            return new Response(JSON.stringify(rows), { status: 200, headers: { 'content-type': 'application/json' } });
+        }) as unknown as typeof fetch;
+        const adapter = new SeerrAdapter(seerrConfig(), impl);
+
+        expect((await adapter.getRequests({})).map(r => r.status)).toEqual(['failed', 'completed']);
+
+        urls.length = 0;
+        expect((await adapter.getRequests({ status: 'completed' })).map(r => r.id)).toEqual([5]);
+        expect(urls[0]).toContain('filter=completed');
+
+        urls.length = 0;
+        expect((await adapter.getRequests({ status: 'failed' })).map(r => r.id)).toEqual([4]);
+        expect(urls[0]).toContain('filter=failed');
+
+        // Seerr's `approved` excludes completed, and so does this one.
+        expect(await adapter.getRequests({ status: 'approved' })).toEqual([]);
     });
 });

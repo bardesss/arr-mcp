@@ -59,6 +59,12 @@ async function withValidationMessages(error: ServiceError, response: Response): 
     }
 }
 
+/** A refusal from a service that is up: any 4xx but a timeout (408) or a throttle (429). */
+const answered = (err: ServiceError): boolean =>
+    err.kind === 'NotFound' ||
+    err.kind === 'AuthFailed' ||
+    (err.status !== undefined && err.status >= 400 && err.status < 500 && err.status !== 408 && err.status !== 429);
+
 const REDIRECTS = new Set([301, 302, 303, 307, 308]);
 const MAX_REDIRECTS = 5;
 
@@ -331,9 +337,13 @@ export class ServiceHttp {
      * answered, so it counts as a success here, which is what stops five
      * missing-id lookups in a row making a healthy Radarr unreachable for the
      * whole cooldown, calls that would have worked included.
+     *
+     * The same holds for every other 4xx but 408 and 429: a 400 on a refused
+     * write or a 401 on a wrong key is the service answering, and a breaker
+     * opened by them would hide the adapter's own, more useful message.
      */
     #record(err: unknown, admission: 'closed' | 'trial'): void {
-        if (err instanceof ServiceError && err.kind === 'NotFound') this.#recordSuccess();
+        if (err instanceof ServiceError && answered(err)) this.#recordSuccess();
         else this.#recordFailure(admission);
     }
 

@@ -4,7 +4,7 @@ import type { FilmOrSeries, MergedItem } from '../src/core/resolver.ts';
 import { NzbgetAdapter } from '../src/services/nzbget.ts';
 import { SabnzbdAdapter } from '../src/services/sabnzbd.ts';
 import type { HistoryEntry, QueueItem, SubtitleGap } from '../src/services/types.ts';
-import { buildChain as chain, queueRowsFor, releaseMentions, type Diagnosis, type Evidence } from '../src/tools/diagnose/chain.ts';
+import { buildChain as chain, queueRowsFor, releaseMentions, wholeRemoval, type Diagnosis, type Evidence } from '../src/tools/diagnose/chain.ts';
 import { servingModes } from './helpers/serve.ts';
 
 /**
@@ -135,6 +135,16 @@ describe('buildChain — each stage blocking in isolation', () => {
         });
         expect(d.verdict.stage).toBe('request');
         expect(d.verdict.summary).toMatch(/declined/i);
+    });
+
+    it('stops at request when Seerr could not hand it on, and says so', () => {
+        const d = buildChain('some film', {
+            ...healthy(),
+            item: item({ acquisition: undefined, presence: 'unknown' }),
+            request: { status: 'failed' }
+        });
+        expect(d.verdict.stage).toBe('request');
+        expect(stepFor(d, 'request')?.detail).toMatch(/could not hand it to Radarr or Sonarr/);
     });
 
     it('reports a pending request as the blockage, not the missing file', () => {
@@ -3003,8 +3013,9 @@ describe('buildChain: a request Radarr has moved past', () => {
     };
     const monitoredNoFile = item({ acquisition: { service: 'radarr', id: '5', monitored: true, hasFile: false }, presence: 'arr_only', playback: undefined });
 
-    it.each<['declined' | 'unknown', RegExp]>([
+    it.each<['declined' | 'failed' | 'unknown', RegExp]>([
         ['declined', /the Seerr request was declined, but Radarr monitors it anyway/],
+        ['failed', /the Seerr request failed, but Radarr monitors it anyway/],
         ['unknown', /the Seerr request is in an indeterminate state, but Radarr monitors it anyway/]
     ])('lets the download in progress speak over a %s request', (status, aside) => {
         const d = buildChain('some film', healthy({ item: monitoredNoFile, request: { status }, queue: { items: [downloading], partial: [] } }));
@@ -3215,5 +3226,16 @@ describe('buildChain: indexer failures weighed against the indexers enabled', ()
     it('keeps a failure the verdict when the indexers could not be counted', () => {
         const d = buildChain('some film', healthy({ item: noFile, rejections: [fail('One')] }));
         expect(d.verdict.stage).toBe('indexers');
+    });
+});
+
+describe('wholeRemoval', () => {
+    const removal = { at: '2026-11-02T02:00:05.500Z', kind: 'movie' as const, scope: 'movie', title: 'x', operation: 'delete' as const, rules: [] };
+    const status = { service: 'reclaimerr', candidates: [], protections: [], removals: [removal] };
+
+    // As strings `05Z` sorts after `05.500Z`, which read the import as the later of the two.
+    it('compares times as instants, so an import half a second earlier does not hide the removal', () => {
+        expect(wholeRemoval(status, '2026-11-02T02:00:05Z')).toBe(removal);
+        expect(wholeRemoval(status, '2026-11-02T02:00:06Z')).toBeUndefined();
     });
 });

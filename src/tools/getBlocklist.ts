@@ -3,6 +3,7 @@ import * as z from 'zod/v4';
 import { INSTANCE_PARAM_DESCRIPTION } from './resolveInstance.ts';
 import { type ServiceId, serviceOf } from '../config/schema.ts';
 import { gather } from '../core/gather.ts';
+import { newestFirst } from '../core/instant.ts';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, windowEnd, type DetailLevel, unreachableTail } from '../core/shape.ts';
 import { hasBlocklist, type BlocklistEntry, type ServiceAdapter } from '../services/types.ts';
 import { readTargets, serviceTarget } from './serviceTarget.ts';
@@ -65,7 +66,7 @@ export async function buildGetBlocklist(
 
     // Newest first: a blocklist is read to explain something that just went
     // wrong, and the row that explains it is almost always the last one added.
-    const sorted = [...items].sort((a, b) => b.at.localeCompare(a.at));
+    const sorted = [...items].sort(newestFirst);
     const shaped = applyLimit(sorted, opts.limit, opts.offset, total);
     return { ...shaped, items: shaped.items.map(i => project(i, opts.detail)), degraded, counts };
 }

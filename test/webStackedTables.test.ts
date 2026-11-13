@@ -45,7 +45,7 @@ const dashboard = (failures: HealthCheck[]): string =>
         plaintextOnDisk: [],
         now: new Date(),
         writeCounts: { applied: 0, denied: 0, total: 0 },
-        disks: [{ service: 'sonarr', label: '/data', freeSpace: 1, totalSpace: 2 }],
+        disks: [{ services: ['sonarr'], mounts: ['sonarr /data'], freeSpace: 1, totalSpace: 2 }],
         failures,
         scans: [{ service: 'sonarr', running: false, lastCompleted: '2026-09-09T05:00:00Z' }]
     });

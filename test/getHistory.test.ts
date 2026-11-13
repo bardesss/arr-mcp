@@ -56,6 +56,13 @@ describe('get_history', () => {
         expect(result.items.map(i => i.id)).toEqual(['3', '2', '1']);
     });
 
+    it('sorts by instant when the services write times differently', async () => {
+        // As strings `11:00:00Z` sorts after `11:00:00.500Z`; in time it is half a second earlier.
+        const later = { records: [{ ...SONARR_HISTORY.records[0], date: '2026-08-01T11:00:00.500Z' }] };
+        const result = await buildGetHistory([radarr(), sonarr(later)], opts);
+        expect(result.items.map(i => i.id)).toEqual(['3', '2', '1']);
+    });
+
     it('reports each service under its own count', async () => {
         const result = await buildGetHistory([radarr(), sonarr()], opts);
         expect(result.counts).toEqual({ radarr: 2, sonarr: 1 });

@@ -1175,6 +1175,13 @@ export function configPage(opts: {
                 value: opts.config.auth.allowed_hosts.join(', '),
                 note: 'Leave empty to accept any Host, which is right for a LAN container reached by IP. Applies immediately; pin the wrong name and you will lock yourself out until you edit config.yaml by hand.'
             })}
+            ${field({
+                id: 'auth.trusted_proxies',
+                name: 'auth.trusted_proxies',
+                label: 'Trusted proxies (comma separated)',
+                value: (opts.config.auth.trusted_proxies ?? []).join(', '),
+                note: "Addresses or ranges (172.18.0.0/16) of your reverse proxy. Only these may name the client in X-Forwarded-For, which gives each client its own sign-in throttle. Empty: everyone behind a proxy shares the proxy's."
+            })}
             ${checkbox(
                 'auth.allow_token_in_url',
                 'auth.allow_token_in_url',

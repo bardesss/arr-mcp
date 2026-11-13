@@ -223,6 +223,10 @@ export async function buildGetProfileIssues(
     const notes: string[] = [];
 
     if (targeted.length === 0) notes.push(NO_MATCHING_INSTANCE_NOTE);
+    const wanted = opts.profile?.toLowerCase();
+    // Every profile name an instance that answered holds, for the note when none is `profile`.
+    const seenNames = new Set<string>();
+    let profileFound = false;
 
     await Promise.all(
         targeted.map(async adapter => {
@@ -238,8 +242,10 @@ export async function buildGetProfileIssues(
             // Built per instance, never shared: Radarr and Sonarr do not agree
             // on language ids.
             const languages: LanguageNames = new Map(data.languages.map(l => [l.id, l.name]));
-            const profiles =
-                opts.profile === undefined ? data.profiles : data.profiles.filter(p => p.name === opts.profile);
+            // A name typed with other casing must not read as a clean profile.
+            const profiles = wanted === undefined ? data.profiles : data.profiles.filter(p => p.name.toLowerCase() === wanted);
+            for (const p of data.profiles) seenNames.add(p.name);
+            if (profiles.length > 0) profileFound = true;
 
             for (const profile of profiles) {
                 const findings = [
@@ -263,6 +269,10 @@ export async function buildGetProfileIssues(
             }
         })
     );
+
+    if (opts.profile !== undefined && seenNames.size > 0 && !profileFound) {
+        notes.push(`No instance checked has a quality profile named "${opts.profile}", so this empty result says nothing about it. The profiles are: ${[...seenNames].sort().join(', ')}.`);
+    }
 
     if (profilarr === undefined) {
         notes.push(DRIFT_NOT_CHECKED_NOTE);

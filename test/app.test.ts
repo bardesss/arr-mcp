@@ -1,10 +1,11 @@
 import { SignJWT, createLocalJWKSet, exportJWK, generateKeyPair } from 'jose';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { buildApp, instructionsFor } from '../src/app.ts';
 import { ConfigSchema, ServiceIdSchema, type Config, type ServiceId } from '../src/config/schema.ts';
 import { WriteAudit } from '../src/core/audit.ts';
 import { attachLogStore, detachLogStore } from '../src/core/logger.ts';
 import { LogStore } from '../src/core/logs.ts';
+import { LogLimiter } from '../src/core/logLimiter.ts';
 import { Runtime } from '../src/core/runtime.ts';
 import { hashPassword } from '../src/core/session.ts';
 import { LidarrAdapter } from '../src/services/lidarr.ts';
@@ -367,6 +368,7 @@ describe('the advertised tool surface', () => {
         description?: string;
         inputSchema?: { properties?: Record<string, unknown> };
         annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean };
+        outputSchema?: { properties?: Record<string, unknown>; required?: string[] };
     };
 
     const listToolsOf = async (a: ReturnType<typeof appWith>): Promise<Advertised[]> => {
@@ -515,6 +517,25 @@ describe('the advertised tool surface', () => {
     it(`keeps all tool descriptions together under ${DESCRIPTIONS_TOTAL_CAP} characters`, async () => {
         const total = (await listTools()).reduce((n, t) => n + (t.description ?? '').length, 0);
         expect(total).toBeLessThanOrEqual(DESCRIPTIONS_TOTAL_CAP);
+    });
+
+    /**
+     * The whole of `tools/list`, schemas included: what every session pays
+     * before its first call. 113,867 bytes when this was set (130,045 before
+     * the write output schema and the shared parameter text were cut); raising
+     * it is a decision, as above.
+     */
+    const SURFACE_BYTES_CAP = 116_000;
+
+    it(`keeps the whole tool list under ${SURFACE_BYTES_CAP} bytes`, async () => {
+        expect(Buffer.byteLength(JSON.stringify(await listTools()))).toBeLessThanOrEqual(SURFACE_BYTES_CAP);
+    });
+
+    /** Sent with every write tool; the conditional fields arrive in `structuredContent` all the same. */
+    it('declares only the fields every write result carries', async () => {
+        const writes = (await listTools()).filter(t => t.annotations?.readOnlyHint === false);
+        expect(writes.length).toBeGreaterThan(20);
+        for (const t of writes) expect(Object.keys(t.outputSchema?.properties ?? {}).sort(), t.name).toEqual([...(t.outputSchema?.required ?? [])].sort());
     });
 
     it('never sends a description scope marker', async () => {
@@ -1692,6 +1713,75 @@ describe('what a refused /mcp request records', () => {
         expect(fields.forwardedFor).toBe('10.0.0.9');
         expect(fields.ip).not.toBe('10.0.0.9');
     });
+
+    // Anyone who reaches the port can cause this line, and each one lands in
+    // the ring the config UI reads, pushing real lines out.
+    it('logs one line per peer per minute, however many requests it refuses', async () => {
+        const logs = LogStore.ephemeral();
+        attachLogStore(logs);
+        try {
+            const app = buildApp({
+                runtime: Runtime.fromConfig(config, audit(), { adapters: [] }),
+                audit: audit(),
+                logs
+            });
+            for (let i = 0; i < 20; i++) {
+                expect((await app.request('http://localhost:6060/mcp', rpc(toolsList))).status).toBe(401);
+            }
+            expect(logs.recent().filter(r => r.msg === 'rejected unauthenticated MCP request')).toHaveLength(1);
+        } finally {
+            detachLogStore();
+            logs.close();
+        }
+    });
+});
+
+// The SDK's own warning went to stderr as plain text, the one non-JSON line in
+// `docker logs`, and named an option this app does not use.
+describe('the startup line about Host names', () => {
+    const build = (allowed_hosts: string[]) => {
+        const logs = LogStore.ephemeral();
+        attachLogStore(logs);
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        try {
+            buildApp({
+                runtime: Runtime.fromConfig({ ...config, auth: { ...config.auth, allowed_hosts } }, audit(), { adapters: [] }),
+                audit: audit(),
+                logs
+            });
+            return { warned: warn.mock.calls.length, lines: logs.recent().map(r => r.msg) };
+        } finally {
+            warn.mockRestore();
+            detachLogStore();
+            logs.close();
+        }
+    };
+
+    it('goes through the logger and names auth.allowed_hosts', () => {
+        const { warned, lines } = build([]);
+        expect(warned).toBe(0);
+        expect(lines.some(l => l.includes('auth.allowed_hosts'))).toBe(true);
+    });
+
+    it('is not written once hosts are pinned', () => {
+        const { warned, lines } = build(['arr.example.com']);
+        expect(warned).toBe(0);
+        expect(lines.some(l => l.includes('auth.allowed_hosts'))).toBe(false);
+    });
+});
+
+describe('LogLimiter', () => {
+    it('lets the first line through, drops the rest of the window, then reports the count', () => {
+        let now = 0;
+        const limiter = new LogLimiter(60_000, () => now);
+        expect(limiter.admit('a')).toBe(0);
+        expect(limiter.admit('a')).toBeUndefined();
+        expect(limiter.admit('a')).toBeUndefined();
+        expect(limiter.admit('b')).toBe(0);
+        now = 60_000;
+        expect(limiter.admit('a')).toBe(2);
+        expect(limiter.admit('a')).toBeUndefined();
+    });
 });
 
 const OAUTH = {
@@ -1907,7 +1997,7 @@ describe('OAuth tokens at /mcp', () => {
     // get_stack_health's permissions list is what a model plans from, so it has
     // to show the same ceiling the gate enforces.
     it('reports permissions capped to the token in get_stack_health', async () => {
-        const stackHealth = { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'get_stack_health', arguments: {} } };
+        const stackHealth = { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'get_stack_health', arguments: { detail: 'full' } } };
         const permissionsFor = async (bearer: string) => {
             const res = await oauthApp(permissiveRadarr(), [deletableRadarr()]).request(
                 'http://localhost:6060/mcp',
@@ -2033,7 +2123,7 @@ describe('named tokens at /mcp', () => {
         return { app, trail };
     };
 
-    const stackHealth = { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'get_stack_health', arguments: {} } };
+    const stackHealth = { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'get_stack_health', arguments: { detail: 'full' } } };
 
     it('accepts a named token and refuses an unknown one', async () => {
         const app = appWith(withTokens([{ name: 'phone', tier: 'read', token: PHONE }]));

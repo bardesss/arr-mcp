@@ -536,7 +536,7 @@ describe('GrimmoryAdapter history', () => {
         const by = (raw: string) => items.filter(i => i.rawEvent === raw);
         const fenced = (text: string) => fenceText(text, { service: 'grimmory', field: 'description' });
         expect(by('BOOK_DELETED')).toEqual([
-            { service: 'grimmory', id: String(deleted.id), at: `${deleted.createdAt}Z`, event: 'deleted', rawEvent: 'BOOK_DELETED', title: fenced(deleted.description) }
+            { service: 'grimmory', id: String(deleted.id), at: new Date(`${deleted.createdAt}Z`).toISOString(), event: 'deleted', rawEvent: 'BOOK_DELETED', title: fenced(deleted.description) }
         ]);
         expect(by('METADATA_UPDATED').map(r => [r.event, r.mediaId, r.title])).toEqual([
             ['metadata', '58', fenced('Example audit entry 5')],
@@ -612,15 +612,15 @@ describe('GrimmoryAdapter history', () => {
         expect(out.items.map(i => i.id)).toEqual(['1']);
     });
 
-    it('reads a createdAt with no offset as UTC', async () => {
+    it('reads a createdAt with no offset as UTC, and folds any offset into toISOString', async () => {
         const { adapter } = serve({
             BOOK_DELETED: page([row(1, 'BOOK_DELETED', '2026-11-07T10:00:00'), row(2, 'BOOK_DELETED', '2026-11-07T09:00:00.123456'), row(3, 'BOOK_DELETED', '2026-11-07T08:00:00+02:00')])
         });
         const out = (await adapter.readHistory({ eventType: 'deleted', want: 10 })) as Out;
         expect(out.items.map(i => [i.id, i.at])).toEqual([
-            ['1', '2026-11-07T10:00:00Z'],
-            ['2', '2026-11-07T09:00:00.123456Z'],
-            ['3', '2026-11-07T08:00:00+02:00']
+            ['1', '2026-11-07T10:00:00.000Z'],
+            ['2', '2026-11-07T09:00:00.123Z'],
+            ['3', '2026-11-07T06:00:00.000Z']
         ]);
     });
 

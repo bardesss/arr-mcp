@@ -77,7 +77,6 @@ export function calendarLine(entry: CalendarEntry): string {
     const facts = [`${entry.service}:${entry.id}`];
     // An album's `hasFile` is the whole album, so one with some tracks is not "no file".
     if (!entry.hasFile) facts.push(entry.kind === 'album' ? 'incomplete' : 'no file');
-    if (!entry.monitored) facts.push('unmonitored');
 
     return `${entry.date}: ${name} (${facts.join(', ')})`;
 }
@@ -88,8 +87,11 @@ export async function buildGetCalendar(
 ): Promise<GetCalendarResult> {
     // The clock is injected so tests are not time-dependent.
     const at = (opts.now ?? (() => new Date()))();
+    // Back from the start of today (UTC), not from this moment: `days_back: 0`
+    // still means today, including what aired this morning.
+    const today = Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate());
     const range = {
-        start: new Date(at.getTime() - opts.daysBack * 86_400_000),
+        start: new Date(today - opts.daysBack * 86_400_000),
         end: new Date(at.getTime() + opts.daysAhead * 86_400_000)
     };
 
@@ -150,7 +152,7 @@ export function registerGetCalendar(server: McpServer, adapters: readonly Servic
             title: 'Upcoming releases',
             annotations: READ_ONLY,
             description:
-                'Films, episodes and albums due in a date window, merged from {{and: radarr=Radarr; sonarr=Sonarr; whisparr=Whisparr; lidarr=Lidarr; else=the *arrs}}, sorted by date. Covers both upcoming releases and recently aired items, with whether each already has a file. What is already overdue is get_wanted.',
+                'Monitored films, episodes and albums due in a date window, merged from {{and: radarr=Radarr; sonarr=Sonarr; whisparr=Whisparr; lidarr=Lidarr; else=the *arrs}}, sorted by date: upcoming and recently aired, with whether each has a file. What is already overdue is get_wanted.',
             outputSchema: GetCalendarOutput,
             inputSchema: GetCalendarInput
         },

@@ -265,6 +265,13 @@ describe('CleanuparrAdapter history', () => {
         expect(items[0]?.title).toContain('Example.Show.S01E01.1080p');
     });
 
+    it('hands over times as toISOString, so they sort with the other services', async () => {
+        const adapter = new CleanuparrAdapter(config, stub({ '/api/events': fixture('events') }));
+        const { items } = (await adapter.readHistory({})) as { items: HistoryEntry[] };
+        // Sent as `2026-10-09T13:12:20+00:00`.
+        expect(items[0]?.at).toBe('2026-10-09T13:12:20.000Z');
+    });
+
     // Constructed: the captured events have no SeekerCycleCompleted, and test both kinds side by side here.
     it('leaves out Seeker searches and cycles, which are about no download, and keeps the rest', async () => {
         const event = (id: string, eventType: string) => ({ id, eventType, timestamp: `2026-11-09T0${id}:00:00+00:00`, message: 'm', severity: 'Information', itemTitle: 'Example.Title.1', itemHash: 'aaaa1111' });

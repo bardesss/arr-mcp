@@ -7,6 +7,7 @@ import {
     hasRequestCreate,
     hasRequestLookup,
     hasRequests,
+    type MediaRequest,
     type RequestCreateCapable,
     type ServiceAdapter,
     type TitleRequests
@@ -130,11 +131,24 @@ export function registerRequestMedia(
                 lookup = { requests: [found] };
             }
 
-            // The request that describes the title: one waiting on somebody
-            // first, otherwise the newest.
-            const existing =
-                lookup.requests.find(r => r.status === 'pending') ??
-                [...lookup.requests].sort((a, b) => b.id - a.id)[0];
+            // A declined or failed request covers nothing, and a series request
+            // covers only its own seasons, so neither stops a new one. The rest
+            // make it a no-op: one waiting on somebody first, otherwise the newest.
+            const live = lookup.requests.filter(r => r.status !== 'declined' && r.status !== 'failed');
+            const covered = live.flatMap(r => r.seasons ?? []);
+            // A request with no seasons on record is taken to cover them all,
+            // as is "every season" asked of a series whose seasons Seerr does
+            // not list. Specials count only when asked for: Seerr's own
+            // "every season" leaves them out.
+            const wanted = media_type === 'movie' ? [] : (seasons ?? lookup.media?.seasons?.filter(n => n > 0));
+            const coversAll =
+                media_type === 'movie' ||
+                wanted === undefined ||
+                live.some(r => r.seasons === undefined) ||
+                wanted.every(n => covered.includes(n));
+            const existing = coversAll
+                ? (live.find(r => r.status === 'pending') ?? [...live].sort((a, b) => b.id - a.id)[0])
+                : undefined;
             const media = lookup.media;
             // Creating for a title that has none means a wrong id, and a token
             // for it applies as a 500.
@@ -149,15 +163,22 @@ export function registerRequestMedia(
                 media === undefined
                     ? `${media_type === 'movie' ? 'movie' : 'series'} ${media_id} (title unavailable)`
                     : titled(media.title, media.year);
+            const by = (r: MediaRequest): string => fenceText(r.requestedBy, { service: adapter.id, field: 'user' });
 
             if (existing !== undefined) {
                 return {
                     target: `seerr:${media_type}:${media_id}`,
-                    summary: `${label} has already been requested by ${fenceText(existing.requestedBy, { service: adapter.id, field: 'user' })} (currently ${existing.status}).`,
+                    summary: `${label} has already been requested by ${by(existing)} (currently ${existing.status}).`,
                     effects: [],
                     noop: true
                 };
             }
+
+            // Said in the preview, so a second request is a choice rather than a surprise.
+            const earlier = [...lookup.requests]
+                .sort((a, b) => b.id - a.id)
+                .slice(0, 3)
+                .map(r => `${r.status} by ${by(r)}${r.seasons === undefined ? '' : ` (seasons ${r.seasons.join(', ')})`}`);
 
             const scope =
                 media_type === 'movie'
@@ -170,6 +191,7 @@ export function registerRequestMedia(
                 target: `seerr:${media_type}:${media_id}`,
                 summary: `Request ${label}${scope} from Seerr as ${requester.name}.`,
                 effects: [
+                    ...(earlier.length === 0 ? [] : [`Already on record for ${label}: ${earlier.join('; ')}.`]),
                     `Creates a Seerr request in ${requester.name}'s name, counting against their quota and appearing in their request history.`,
                     'If Seerr auto-approves it, Radarr or Sonarr starts searching immediately. That uses disk space and bandwidth.',
                     'The request can be withdrawn again with delete_request.'

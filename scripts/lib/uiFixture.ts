@@ -18,7 +18,8 @@
 import { readFileSync } from 'node:fs';
 import type { Config } from '../../src/config/schema.ts';
 import type { LogRow } from '../../src/core/logs.ts';
-import type { ConnectionDiagnosis, DiskSpace, HealthCheck, ScanState } from '../../src/services/types.ts';
+import { groupDisks, type DiskGroup } from '../../src/core/disks.ts';
+import type { ConnectionDiagnosis, HealthCheck, ScanState } from '../../src/services/types.ts';
 import type { AuditRow } from '../../src/core/audit.ts';
 import { hashToken } from '../../src/core/secrets.ts';
 import type { MediaCards } from '../../src/ui/mediaCards.ts';
@@ -88,13 +89,13 @@ export const FAILURES: HealthCheck[] = [
     }
 ];
 
-/** Two services reporting one filesystem, so the grouping the page does is
- *  visible rather than implied. */
-export const DISKS: DiskSpace[] = [
+/** Two services reporting one filesystem, grouped the way `buildStackHealth`
+ *  hands them to the page, so the folding is visible rather than implied. */
+export const DISKS: DiskGroup[] = groupDisks([
     { service: 'radarr', label: 'media', freeSpace: 4_812_364_546_048, totalSpace: 20_000_588_955_648 },
     { service: 'sonarr', label: 'media', freeSpace: 4_812_369_395_712, totalSpace: 20_000_588_955_648 },
     { service: 'transmission', label: 'downloads', freeSpace: 812_364_546_048 }
-];
+]);
 
 export const SCANS: ScanState[] = [
     { service: 'jellyfin', lastCompleted: '2026-08-12T03:14:07', running: false },

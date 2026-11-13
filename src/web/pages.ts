@@ -4,8 +4,8 @@ import { unfence } from '../core/fence.ts';
 import { logFields, type LogRow } from '../core/logs.ts';
 import { expiringSoon, isExpired, type StoredToken } from '../core/mcpTokens.ts';
 import type { DatasetStatus } from '../metadata/imdbDataset.ts';
-import type { ConnectionDiagnosis, DiskSpace, HealthCheck, HistoryEntry, ScanState, Window } from '../services/types.ts';
-import { groupDisks, humanBytes } from '../core/disks.ts';
+import type { ConnectionDiagnosis, HealthCheck, HistoryEntry, ScanState, Window } from '../services/types.ts';
+import { humanBytes, type DiskGroup } from '../core/disks.ts';
 import { esc, html, raw, shortTime, type SafeHtml } from './html.ts';
 import { LOGO, serviceIcon } from './icons.ts';
 
@@ -248,7 +248,8 @@ export function dashboardPage(opts: {
     /** Absent when the IMDb dataset is not configured, in which case the
      *  panel is not rendered at all rather than rendered as "off". */
     imdb?: DatasetStatus | undefined;
-    disks: DiskSpace[];
+    /** Already one row per filesystem: `buildStackHealth` groups them. */
+    disks: DiskGroup[];
     failures: HealthCheck[];
     scans: ScanState[];
     theme?: Theme | undefined;
@@ -304,7 +305,7 @@ export function dashboardPage(opts: {
                   </tbody>
               </table>`;
 
-    const grouped = groupDisks(opts.disks);
+    const grouped = opts.disks;
     const disks =
         grouped.length === 0
             ? html`<p class="note">No service reported disk space.</p>`

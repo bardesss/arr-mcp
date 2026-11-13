@@ -32,7 +32,8 @@ type WriteOutcome =
     | 'attempted'
     | 'applied'
     | 'dry_run'
-    /** Refused by the permission tier; the service was never called. */
+    /** Refused before anything was written: by the permission tier, or by a
+     *  plan that could not resolve the arguments. */
     | 'denied'
     /** Previewed because no valid confirmation token was presented. */
     | 'unconfirmed'

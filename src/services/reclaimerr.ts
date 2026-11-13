@@ -3,6 +3,7 @@ import { apiKeyHeader } from '../core/auth.ts';
 import { SHORT_READ_TTL_MS, cached } from '../core/cache.ts';
 import { ServiceError } from '../core/errors.ts';
 import { fenceText, fencer } from '../core/fence.ts';
+import { isoInstant, newestFirst } from '../core/instant.ts';
 import { logger } from '../core/logger.ts';
 import { ServiceHttp } from '../core/http.ts';
 import {
@@ -59,6 +60,8 @@ type RawStats = {
     auto_delete_task_enabled?: boolean;
 };
 type RawPage<T> = { items?: T[]; total?: number; total_pages?: number };
+/** `capped`: the list ran past `MAX_PAGES` and only its first pages are in `items`. */
+type ListRead<T> = { items: T[]; total: number; capped: boolean };
 type RawRule = { id?: number; name?: string; media_type?: string; target_scope?: string; outcome?: string; enabled?: boolean };
 export type RawCandidate = {
     id?: number;
@@ -196,7 +199,7 @@ export class ReclaimerrAdapter implements ServiceAdapter, HealthCheckCapable, Hi
         }
 
         if (scopes.has('candidates:read')) {
-            const candidates = await this.#candidates();
+            const { items: candidates } = await this.#candidates();
             for (const c of candidates) {
                 const error = text(c.last_delete_error);
                 if (error !== undefined) {
@@ -216,7 +219,7 @@ export class ReclaimerrAdapter implements ServiceAdapter, HealthCheckCapable, Hi
             scopes.has('candidates:read') ? this.#candidates() : undefined,
             scopes.has('protections:read') ? this.#readAll<RawProtection>(`${RECLAIMERR_API}/protections?active_only=true`) : undefined
         ]);
-        const sorted = candidates?.map(c => this.#candidateOf(c, rules)).sort(soonestFirst);
+        const sorted = candidates?.items.map(c => this.#candidateOf(c, rules)).sort(soonestFirst);
         const going = sorted?.filter(c => isGoing(c.state));
         const firstAt = going?.map(c => c.eligibleAt).filter((d): d is string => d !== undefined).sort()[0];
         return {
@@ -236,19 +239,23 @@ export class ReclaimerrAdapter implements ServiceAdapter, HealthCheckCapable, Hi
                       }
                   }),
             ...(rules === undefined ? {} : { rules: [...rules.values()].map(r => this.#ruleOf(r)) }),
-            ...(sorted === undefined ? {} : { candidates: { items: sorted.slice(0, Math.max(0, want)), total: sorted.length } }),
+            ...(sorted === undefined || candidates === undefined
+                ? {}
+                : { candidates: { items: sorted.slice(0, Math.max(0, want)), total: candidates.total } }),
             ...(going === undefined ? {} : { going: { count: going.length, ...(firstAt === undefined ? {} : { firstAt }) } }),
-            ...(protections === undefined ? {} : { protections: protections.length })
+            ...(protections === undefined ? {} : { protections: protections.total }),
+            ...(candidates?.capped === true ? { capped: true as const } : {})
         };
     }
 
     async readCleanupStatus(kind: 'movie' | 'series', tmdbId: number): Promise<CleanupStatus> {
         const scopes = await this.#grantedScopes();
         const rules = scopes.has('rules:read') ? this.#ruleMap() : Promise.resolve(undefined);
-        const [candidates, protections, removals] = await Promise.all([
-            scopes.has('candidates:read') ? this.#readAll<RawCandidate>(`${RECLAIMERR_API}/candidates?media_type=${kind}&tmdb_id=${tmdbId}`) : [],
+        const none = { items: [], total: 0, capped: false };
+        const [{ items: candidates }, { items: protections }, removals] = await Promise.all([
+            scopes.has('candidates:read') ? this.#readAll<RawCandidate>(`${RECLAIMERR_API}/candidates?media_type=${kind}&tmdb_id=${tmdbId}`) : none,
             // No tmdb filter on protections, and there are few: read them all.
-            scopes.has('protections:read') ? this.#readAll<RawProtection>(`${RECLAIMERR_API}/protections?media_type=${kind}&active_only=true`) : [],
+            scopes.has('protections:read') ? this.#readAll<RawProtection>(`${RECLAIMERR_API}/protections?media_type=${kind}&active_only=true`) : none,
             scopes.has('events:read') ? this.#recentRemovals() : []
         ]);
         const ruleMap = await rules;
@@ -259,7 +266,7 @@ export class ReclaimerrAdapter implements ServiceAdapter, HealthCheckCapable, Hi
             removals: removals
                 .filter(e => e.payload?.candidate?.tmdb_id === tmdbId && kindOf(e.payload.candidate.media_type) === kind)
                 .map(e => this.#removalOf(e, ruleMap))
-                .sort((a, b) => b.at.localeCompare(a.at))
+                .sort(newestFirst)
         };
     }
 
@@ -283,7 +290,7 @@ export class ReclaimerrAdapter implements ServiceAdapter, HealthCheckCapable, Hi
             const last = i === windows.length - 1;
             if (last || opts.want === undefined || items.length >= opts.want) break;
         }
-        items.sort((a, b) => b.at.localeCompare(a.at));
+        items.sort(newestFirst);
         return { items, total: items.length };
     }
 
@@ -429,16 +436,23 @@ export class ReclaimerrAdapter implements ServiceAdapter, HealthCheckCapable, Hi
         return { events, capped: true };
     }
 
-    async #readAll<T>(path: string): Promise<T[]> {
+    /**
+     * Every page up to `MAX_PAGES`. Past that the rest is left unread, so the
+     * read says so: `total` is the service's own count, and it is logged.
+     */
+    async #readAll<T>(path: string): Promise<ListRead<T>> {
         const out: T[] = [];
         const join = path.includes('?') ? '&' : '?';
+        let total: number | undefined;
         for (let page = 1; page <= MAX_PAGES; page += 1) {
             const body = await this.#http.get<RawPage<T>>(`${path}${join}page=${page}&per_page=${PAGE_SIZE}`);
             out.push(...(body.items ?? []));
+            total = body.total;
             const pages = Number.isFinite(body.total_pages) ? (body.total_pages as number) : 1;
-            if (page >= pages || (body.items ?? []).length === 0) break;
+            if (page >= pages || (body.items ?? []).length === 0) return { items: out, total: out.length, capped: false };
         }
-        return out;
+        logger.warn({ service: this.id, path, read: out.length, total }, 'list over the page cap; the rest is not read');
+        return { items: out, total: Math.max(out.length, total ?? 0), capped: true };
     }
 
     async #readRules(): Promise<Map<number, RawRule>> {
@@ -460,10 +474,15 @@ export class ReclaimerrAdapter implements ServiceAdapter, HealthCheckCapable, Hi
     }
 }
 
-/** Reclaimerr stores UTC but serialises some timestamps without an offset; say so, or they read as local time. */
+/**
+ * Reclaimerr stores UTC but serialises some timestamps without an offset; say
+ * so, or they read as local time. Any offset it does send is folded into
+ * `toISOString()`, so these sort and compare with every other service's times.
+ */
 function utc(v: string | null | undefined): string {
     if (typeof v !== 'string' || v === '') return '';
-    return /(?:Z|[+-]\d{2}:?\d{2})$/.test(v) ? v : `${v}Z`;
+    const zoned = /(?:Z|[+-]\d{2}:?\d{2})$/.test(v) ? v : `${v}Z`;
+    return isoInstant(zoned) ?? zoned;
 }
 
 function optionalNum<K extends string>(key: K, v: number | null | undefined): Partial<Record<K, number>> {

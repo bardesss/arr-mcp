@@ -388,6 +388,8 @@ export type QueueItem = {
     /** The download client's own id for this grab: what `import_download`'s
      *  `import` action is addressed with. */
     downloadId?: string;
+    /** On an *arr row below `detail: "full"`: the download client whose own row of this grab `get_queue` folded into it. */
+    client?: string;
     /** Why Radarr, Sonarr, Whisparr or Lidarr will not import it, one line per reason. */
     statusMessages?: string[];
     /** ISO 8601, when the item arrived. Grimmory's Bookdrop rows only. */
@@ -686,6 +688,8 @@ export type CleanupOverview = {
     /** Eligible or scheduled, counted over every candidate, not only the ones `candidates` returns. */
     going?: { count: number; firstAt?: string };
     protections?: number;
+    /** More candidates than one read takes: `going` and `items` cover only the ones read. */
+    capped?: true;
 };
 
 /** One title's standing, for `get_media_details` and `diagnose_media`. */
@@ -1092,8 +1096,8 @@ export type CalendarEntry = {
     episode?: number;
     /** ISO 8601. When the item becomes available, whatever the service calls it. */
     date: string;
+    /** No `monitored` beside it: an *arr calendar lists only monitored items unless sent `unmonitored=true`, which this never sends. */
     hasFile: boolean;
-    monitored: boolean;
 };
 
 export interface CalendarCapable {
@@ -1132,7 +1136,8 @@ export type PlaybackEntry = {
     device?: string;
 };
 
-export type RequestStatus = 'pending' | 'approved' | 'declined';
+/** `failed`: Seerr could not hand the approved request to Radarr or Sonarr. `completed`: it was fulfilled. */
+export type RequestStatus = 'pending' | 'approved' | 'declined' | 'failed' | 'completed';
 
 export type MediaRequest = {
     service: string;
@@ -1156,7 +1161,12 @@ export const hasRequests = (a: ServiceAdapter): a is ServiceAdapter & RequestCap
     typeof (a as Partial<RequestCapable>).getRequests === 'function';
 
 /** What one title's requests look like: the title when Seerr names it, and every request made for it. */
-export type TitleRequests = { media?: { title: string; year?: number }; requests: MediaRequest[] };
+export type TitleRequests = {
+    /** `seasons`: a series' season numbers, specials included, when Seerr lists them. */
+    media?: { title: string; year?: number; seasons?: number[] };
+    /** `seasons`: the season numbers a series request asked for, when Seerr lists them. */
+    requests: (MediaRequest & { seasons?: number[] })[];
+};
 
 export interface RequestLookupCapable {
     /** One request by id; `undefined` when there is none or the id is not a number. */
@@ -2404,13 +2414,19 @@ export interface BookReadStatusCapable {
 export const hasBookReadStatus = (a: ServiceAdapter): a is ServiceAdapter & BookReadStatusCapable =>
     typeof (a as Partial<BookReadStatusCapable>).setBookReadStatus === 'function';
 
+/** The slice of a discover list a caller wants, as `offset` and `limit` in rows. */
+export type DiscoverWindow = { offset: number; limit: number };
+
 export interface DiscoverCapable {
-    discover(opts: {
-        mediaType: 'movie' | 'tv';
-        genre?: string;
-        year?: number;
-        minRating?: number;
-    }): Promise<SearchHit[]>;
+    discover(
+        opts: {
+            mediaType: 'movie' | 'tv';
+            genre?: string;
+            year?: number;
+            minRating?: number;
+        },
+        window?: DiscoverWindow
+    ): Promise<Window<SearchHit>>;
 }
 
 /**

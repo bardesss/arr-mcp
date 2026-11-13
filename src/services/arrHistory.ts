@@ -1,5 +1,6 @@
 import { sanitizeGuid, fencer } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
+import { newestFirst } from '../core/instant.ts';
 import type { ArrKind } from '../core/resolver.ts';
 import { ARR_PAGE_SIZE, pageIsNewestFirst, pageSizeFor, readArrPages, readTotal, type ArrRead } from './arrPaging.ts';
 import { mediaIdOf, mediaIdsParam, type ArrHistoryScope } from './arrRecord.ts';
@@ -116,14 +117,20 @@ export async function readArrHistory(
     const code = opts.eventType === undefined ? undefined : EVENT_CODE[kind][opts.eventType];
     if (opts.eventType !== undefined && opts.eventType !== 'unknown' && code === undefined) return { items: [], total: 0 };
     if (opts.id !== undefined && scope === 'seriesEndpoint') return readSeriesHistory(http, service, kind, opts, opts.id);
-    let pages = await readHistoryPages(http, service, kind, opts, code);
+    let pages = await readHistoryPages(http, service, kind, opts, code, false);
     // Radarr 4 filters history through `filterKey`/`filterValue` and ignores a
     // bare `eventType`, so a filter sent upstream is checked, not trusted.
+    let sent = code;
     if (code !== undefined && pages.entries.some(e => e.event !== opts.eventType)) {
-        pages = await readHistoryPages(http, service, kind, opts, undefined);
+        sent = undefined;
+        pages = await readHistoryPages(http, service, kind, opts, undefined, false);
     }
+    // Radarr binds `movieIds` from 5.2 on and drops it before, answering every
+    // film's rows, so a scoped read is checked the same way.
+    const foreign = (e: HistoryEntry): boolean => opts.id !== undefined && e.mediaId !== undefined && e.mediaId !== opts.id;
+    if (pages.entries.some(foreign)) pages = await readHistoryPages(http, service, kind, opts, sent, true);
 
-    const items = opts.eventType === undefined ? pages.entries : pages.entries.filter(e => e.event === opts.eventType);
+    const items = pages.entries.filter(e => (opts.eventType === undefined || e.event === opts.eventType) && !foreign(e));
     // Exact when the walk reached the end, an upper bound when a locally
     // filtered walk stopped early.
     const total = pages.windowed ? readTotal(pages.read, items.length) : items.length;
@@ -147,7 +154,7 @@ async function readSeriesHistory(
     const records = await http.get<RawHistory[]>(`${http.apiRoot}/history/series?seriesId=${encodeURIComponent(id)}`);
     const items = toEntries(Array.isArray(records) ? records : [], service, kind, opts.since)
         .filter(e => opts.eventType === undefined || e.event === opts.eventType)
-        .sort((a, b) => b.at.localeCompare(a.at));
+        .sort(newestFirst);
     return { items, total: items.length };
 }
 
@@ -156,7 +163,8 @@ async function readHistoryPages(
     service: string,
     kind: ArrKind,
     opts: HistoryQuery,
-    code: number | readonly number[] | undefined
+    code: number | readonly number[] | undefined,
+    idHere: boolean
 ): Promise<{ entries: HistoryEntry[]; read: ArrRead<unknown>; windowed: boolean; filteredHere: boolean }> {
     // Confirmed live: /api/v3/history/movie?movieId=<id> answers a bare
     // HistoryResource[], not the {records, totalRecords} envelope pageArr
@@ -171,7 +179,7 @@ async function readHistoryPages(
     // by default is not the same as asking for it.
     const sort = 'sortKey=date&sortDirection=descending';
     const query = [
-        ...(opts.id === undefined ? [] : [`${scoped}=${encodeURIComponent(opts.id)}`]),
+        ...(opts.id === undefined || idHere ? [] : [`${scoped}=${encodeURIComponent(opts.id)}`]),
         ...(code === undefined ? [] : [code].flat().map(c => `eventType=${c}`)),
         sort
     ].join('&');
@@ -183,7 +191,9 @@ async function readHistoryPages(
     // The filter only happens here when no code was sent upstream. A sparse
     // type over an unfiltered list needs whole pages, and the walk stops on
     // the rows that match, not the rows read.
-    const filterHere = opts.eventType !== undefined && code === undefined;
+    const eventHere = opts.eventType !== undefined && code === undefined;
+    const filterHere = eventHere || idHere;
+    const id = idHere ? opts.id : undefined;
     let matched = 0;
 
     const read = await readArrPages<RawHistory>(http, `${http.apiRoot}/history`, query, {
@@ -191,7 +201,10 @@ async function readHistoryPages(
         stopWhen: (page, kept) => {
             if (filterHere) {
                 matched += page.filter(
-                    r => typeof r.id === 'number' && (EVENT[r.eventType ?? ''] ?? 'unknown') === opts.eventType
+                    r =>
+                        typeof r.id === 'number' &&
+                        (!eventHere || (EVENT[r.eventType ?? ''] ?? 'unknown') === opts.eventType) &&
+                        (id === undefined || String(mediaIdOf(r, kind) ?? id) === id)
                 ).length;
             }
             // Trust an early exit only when this page is actually newest-first.

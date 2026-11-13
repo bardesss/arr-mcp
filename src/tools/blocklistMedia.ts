@@ -132,7 +132,9 @@ async function planSeerr(seerr: SeerrAdapter, input: Input): Promise<WritePlan> 
             remedy: 'Pass kind: "movie" or kind: "series" with the TMDB id.'
         });
     }
-    const tmdbId = Number(id);
+    // Digits only: `Number()` also reads `0x10`, `1e3` and ` 12 ` as integers,
+    // and removal deletes the title's requests and issues.
+    const tmdbId = /^\d+$/.test(String(id)) ? Number(id) : NaN;
     if (!Number.isInteger(tmdbId) || tmdbId <= 0) {
         throw new ServiceError('NotFound', seerr.id, `"${id}" is not a TMDB id`, { remedy: 'Seerr takes a TMDB id, a positive integer: `ids.tmdb`.' });
     }

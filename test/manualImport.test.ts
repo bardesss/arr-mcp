@@ -814,6 +814,23 @@ describe('importing with a mapping', () => {
         ]);
     });
 
+    // Merged by position: a short answer or a row without its verdict would
+    // otherwise pass the mapped file as importable, never judged.
+    it.each([
+        ['answers fewer rows than were sent', []],
+        ['answers a row without rejections', [{ path: '/downloads/Good.Boy.2025/Good.Boy.2025.mkv' }]],
+        ['answers something other than a list', { message: 'error' }]
+    ])('refuses the mapping when the reprocess %s', async (_case, answer) => {
+        const s = mappingStack(BLOCKED);
+        const impl = (async (input: string | URL | Request, init?: RequestInit) =>
+            new URL(String(input)).pathname === '/api/v3/manualimport' && init?.method === 'POST'
+                ? jsonResponse(answer)
+                : s.impl(input, init)) as unknown as typeof fetch;
+        await expect(
+            new RadarrAdapter(keyed(7878), impl).listImportCandidates('nzo_gb', [{ path: 'Good.Boy.2025.mkv', movieId: 42 }])
+        ).rejects.toThrow(/did not judge every mapped file/);
+    });
+
     it('leaves a file the mapping does not name on the service match', async () => {
         const s = mappingStack(BLOCKED);
         const rows = await new RadarrAdapter(keyed(7878), s.impl).listImportCandidates('nzo_gb', [

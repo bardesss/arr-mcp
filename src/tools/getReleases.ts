@@ -140,7 +140,7 @@ const GetReleasesInput = toolInput({
         .min(1)
         .optional()
         .describe(
-            '[[sonarr: Sonarr only: one episode id, as an integer string (from get_media_details with episodes). Searches that episode alone, far faster than a season. Mutually exclusive with `season`.]]'
+            '[[sonarr|whisparr: {{and: sonarr=Sonarr; whisparr=Whisparr}} only: one {{or: sonarr=episode; whisparr=scene}} id from get_media_details with episodes, as an integer string. Searches it alone, far faster than a season. Not with `season`.]]'
         ),
     album: z
         .string()

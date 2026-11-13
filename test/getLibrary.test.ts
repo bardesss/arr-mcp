@@ -7,6 +7,7 @@ import { ImdbDataset } from '../src/metadata/imdbDataset.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
 import { buildGetLibrary, libraryLine, registerGetLibrary, withoutEmpty } from '../src/tools/getLibrary.ts';
 import { fenceText } from '../src/core/fence.ts';
+import { ServiceError } from '../src/core/errors.ts';
 import { PlexAdapter } from '../src/services/plex.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
 import { repeat } from './helpers/bigFixture.ts';
@@ -138,6 +139,34 @@ describe('get_library filters', () => {
         // Absent watch state is not evidence of watching, and `watched: false`
         // must not silently exclude everything Jellyfin has never seen.
         expect((await buildGetLibrary(loaderOf([film()]), { ...base, watched: false })).total).toBe(1);
+    });
+
+    describe('with the media server unread', () => {
+        const down = {
+            ...jellyfinStub(),
+            listUserLibrary: async () => {
+                throw new Error('down');
+            }
+        } as unknown as ServiceAdapter;
+
+        it('refuses watched rather than calling the whole library unwatched', async () => {
+            const loader = new LibraryLoader([stub('radarr', [film()]), down], healthyJellyfinIdentity);
+            await expect(buildGetLibrary(loader, { ...base, watched: false })).rejects.toThrow("watched needs jellyfin's watch state, and jellyfin could not be read");
+            await expect(buildGetLibrary(loader, { ...base, kind: 'movie', watched: true })).rejects.toThrow(/could not be read/);
+        });
+
+        it('refuses it when no user resolved, with the reason', async () => {
+            const noUser = { resolve: async () => Promise.reject(new ServiceError('NotFound', 'jellyfin', 'none')), hasDefaultUser: false, serviceId: 'jellyfin' } as unknown as IdentityResolver;
+            const loader = new LibraryLoader([stub('radarr', [film()]), jellyfinStub()], noUser);
+            await expect(buildGetLibrary(loader, { ...base, watched: false })).rejects.toThrow(/default_user/);
+        });
+
+        it('still answers without watched', async () => {
+            const loader = new LibraryLoader([stub('radarr', [film()]), down], healthyJellyfinIdentity);
+            const result = await buildGetLibrary(loader, base);
+            expect(result.total).toBe(1);
+            expect(result.degraded).toContain('jellyfin');
+        });
     });
 
     it('filters films by quality', async () => {
@@ -1073,6 +1102,14 @@ describe('books from Grimmory', () => {
         expect(no.items.filter(i => i.kind === 'book').map(i => i.acquisition?.id)).toEqual(['2']);
     });
 
+    it('watched on books still answers with the media server down, and the refusal says how', async () => {
+        const down = { ...jellyfinStub(), listUserLibrary: async () => Promise.reject(new Error('down')) } as unknown as ServiceAdapter;
+        const loader = new LibraryLoader([stub('radarr', [film()]), grimmoryStub([read(book(1), true), read(book(2), false)]), down], healthyJellyfinIdentity);
+        const no = await buildGetLibrary(loader, { ...base, kind: 'book', watched: false });
+        expect(no.items.map(i => i.acquisition?.id)).toEqual(['2']);
+        await expect(buildGetLibrary(loader, { ...base, watched: false })).rejects.toThrow('ask with kind: "book"');
+    });
+
     it('user still refuses books', async () => {
         const run = buildGetLibrary(bookLoader([book(58)]), { ...base, kind: 'book', watched_by: 'Someone' });
         await expect(run).rejects.toThrow(/watched_by/);
@@ -1172,6 +1209,11 @@ describe('books from Grimmory', () => {
         expect(line).toContain('in ');
         expect(line).toContain('Comics');
         expect(libraryLine({ ...book(1), presence: 'unknown' })).not.toContain(', in ');
+    });
+
+    it('prints no year for a film Radarr dates 0, its "unknown"', () => {
+        const line = libraryLine({ kind: 'movie', title: 'Untitled', year: 0, ids: { tmdb: 1 }, acquisition: { service: 'radarr', id: '5' } });
+        expect(line).toBe('Untitled: movie, radarr:5, tmdb:1');
     });
 
     it('without kind, books are listed and never counted missing from a media server', async () => {

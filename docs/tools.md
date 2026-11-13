@@ -172,7 +172,9 @@ you. Pair `offset` with `sort` when the order matters: without one the order is
 whatever the services returned, and an item can move between pages.
 
 `get_stack_health` is the exception and takes no `offset`. One `limit` budget spans
-its two lists, spent on failures before disks. The
+its two lists, spent on failures before disks. A disk row is one filesystem:
+the mounts every service sees it through are folded into its `mounts` and
+`services`, named by path only at `detail: "full"`. The
 Reclaimerr candidates under `cleanup`, at `detail: "full"`, take their own
 `limit` rather than sharing that budget.
 
@@ -201,6 +203,11 @@ rather than a list. With several instances of a service configured it also takes
 **Every answer comes twice: a summary and a structure.** The text block is for
 a reader; `structuredContent` is the contract, and every tool declares its
 shape as an `outputSchema` so a client knows what it will get before it calls.
+A write tool declares only the fields every write result carries (`applied`,
+`dry_run`, `tool`, `service`, `operation`, `tier`, `target`, `summary`,
+`effects`, `noop` and `permission.allowed`);
+`confirm_token`, `warnings`, `next_steps` and the other conditional fields
+arrive in `structuredContent` all the same.
 Read `total` from there rather than parsing it out of "50 of 243 item(s)",
 that sentence is prose and may be reworded.
 
@@ -244,8 +251,9 @@ torrents does not need the whole queue back: `category` (any of the client
 categories given), `status` (a prefix, so `seeding` also matches `seeding (no
 peers)`), and four that read Cleanuparr: `over_limit`, `struck`,
 `due_within_days` and `unmatched`. Those four read Cleanuparr at any `detail`,
-and each takes `false` for the opposite set. `total` counts the matching rows;
-`cleanuparrDue` and `counts` still describe the whole queue. A download that has
+and each takes `false` for the opposite set. `total` counts the matching rows
+and `counts` splits them by service; `cleanuparrDue` still describes the whole
+queue. A download that has
 not finished carries no `seeding`, so no Cleanuparr filter matches it.
 
 ### Seed time per tracker
@@ -626,13 +634,16 @@ With more than one instance of a service, each is reported separately. With
 Plex and Jellyfin both configured, `primaryMediaServer` names the one the tools
 default to.
 
-It also reports `endpoints`: `instance`, `service` and `baseUrl` for every
-configured instance, so a script knows where each one lives. It never carries a
-key: **no tool in this server returns an API key**, because anything a tool
-returns passes through a model's context. A script that needs credentials runs
-beside `config.yaml` and imports `loadConfig`.
+The `service` of each `services` row is the instance id other tools take as
+`instance`.
 
-`endpoints` is absent at `detail: "minimal"`, alongside `permissions`.
+At `detail: "full"` it also reports `permissions`, what each instance may do,
+and `endpoints`: `instance`, `service` and `baseUrl` for every configured
+instance, so a script knows where each one lives. Both are static config, the
+same on every call, so `minimal` and `standard` leave them out. `endpoints`
+never carries a key: **no tool in this server returns an API key**, because
+anything a tool returns passes through a model's context. A script that needs
+credentials runs beside `config.yaml` and imports `loadConfig`.
 
 ### Which services report health checks
 
@@ -655,7 +666,7 @@ in `degraded` rather than in `failures`.
 
 ### Profiles, root folders and tags: `get_instance_options`
 
-`get_instance_options` takes optional `service` and `instance` (an id as `get_stack_health`'s `permissions`
+`get_instance_options` takes optional `service` and `instance` (an id as `get_stack_health`'s `services`
 lists it); an `instance` that does not exist is refused with the ones that do.
 
 It lists, per Radarr, Sonarr, Whisparr or Lidarr instance, the
@@ -1377,8 +1388,15 @@ reports `unknown` for everything.
 Each Radarr, Sonarr, Whisparr or Lidarr row carries `downloadId`, the download
 client's own id for that grab. On Radarr, Sonarr and Lidarr it is what
 `import_download` takes (Whisparr has no manual import). SABnzbd
-and NZBGet rows carry the same id, so a client's row and the *arr's row of one
-grab match (below).
+and NZBGet rows carry the same id, and a torrent row has it as its `id`, so a
+client's row and the *arr's row of one grab match (below).
+
+Below `detail: "full"` a grab is listed once: a client row whose grab an *arr
+row also lists is left out, and that *arr row names the client in `client`.
+`total` counts the rows after that, and `counts` says how many of them each
+service lists, so it adds up to `total`. At `full` both rows are listed, since the client row is where the
+seed state and the client's own error are. A filter is applied first, so a
+client row only it matches (`status: "seeding"`, say) is still returned.
 
 **Unverified live** (qBittorrent): the torrent list, the seed limits and `by_tracker`; only login and health have met a real server.
 
@@ -1395,7 +1413,8 @@ Lidarr rows carry `statusMessages` the same way, and `orphaned` when Lidarr
 matched the download to no artist: the artist was deleted, or the release was
 never matched.
 
-A row stuck at `importBlocked` gets an `import_download` step in `next_steps`.
+A row stuck at `importBlocked` gets an `import_download` step in `next_steps`,
+at most three of them; `next_steps_more` counts the ones left out.
 On Radarr and Sonarr an `orphaned` one does too, since it may be a release the
 service never matched: its `why` asks for a `mapping` naming what each file is.
 Lidarr's import takes no mapping, so an orphaned Lidarr row gets none.
@@ -2632,8 +2651,15 @@ tier; see [writes.md](writes.md).
 
 `similar_to` takes a TMDB numeric id and answers from Seerr's
 recommendations. Combining it with `genre`/`year`/`min_rating` is refused.
-With no Seerr configured there is no fallback, and the response carries a
-`note` instead of a bare empty list.
+With no Seerr configured, `genre`, `year` and `min_rating` are answered from
+the local IMDb dataset (`metadata.imdb.enabled`), where the rating is IMDb's
+and `genre` must be a name such as "Crime", not a TMDB id. `similar_to` has no
+fallback, since the dataset holds no similarity data. When neither can answer,
+the response carries a `note` instead of a bare empty list.
+
+Seerr serves TMDB's list 20 to a page, and only the pages that `offset` and
+`limit` cover are read. `total` is the size of the whole list, up to 10,000:
+TMDB serves no page past 500.
 
 ## `trigger_subtitle_search`
 

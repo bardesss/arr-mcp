@@ -162,16 +162,12 @@ export type WriteContext = {
 const DryRunSchema = z
     .boolean()
     .default(false)
-    .describe(
-        'Preview without a confirm token, for "what would happen if" questions; not the first step of a real change.'
-    );
+    .describe('Preview only, no token issued: for "what if" questions, not the first step of a change.');
 
 const ConfirmSchema = z
     .string()
     .optional()
-    .describe(
-        'The token from this tool\'s preview, passed back verbatim to apply it. Single-use and bound to the previewed arguments.'
-    );
+    .describe('The token from this tool\'s preview; pass it back to apply.');
 
 /**
  * What every write answers with, declared for the same reason the read
@@ -186,41 +182,26 @@ const ConfirmSchema = z
  *
  * Loose, like the read envelope: a validation failure here would fail the call
  * *after* the write had already landed, reporting a completed deletion as an
- * error. The optional fields are genuinely conditional; a token is issued only
- * when there is something to confirm.
+ * error.
+ *
+ * Only the fields every write result carries are declared. This schema goes
+ * to the client with each of the twenty-odd write tools on every session, and
+ * the conditional ones (`confirm_token`, `warnings`, `next_steps`, ...) still
+ * arrive in `structuredContent`, which a loose object lets through; the text
+ * says the same, and `WriteToolResult` below documents them.
  */
 const WriteOutputSchema = z.looseObject({
     applied: z.boolean().describe('Whether the change actually happened. False on every preview, refusal and no-op.'),
-    dry_run: z.boolean().describe('Whether this was an explicit preview.'),
+    dry_run: z.boolean(),
     tool: z.string(),
     service: z.string(),
     operation: z.string(),
     tier: z.enum(['safe', 'destructive']),
-    target: z.string().describe('The resolved id the write acts on: what the confirmation token is bound to.'),
-    summary: z.string().describe('One sentence, safe to show a human.'),
-    effects: z.array(z.string()).describe('Itemised consequences, most severe first. Empty is legitimate for a no-op.'),
-    noop: z.boolean().describe('True when the request resolved but there was nothing to do: already monitored, already approved.'),
-    permission: z.looseObject({
-        allowed: z.boolean(),
-        reason: z.string().optional(),
-        remedy: z.string().optional()
-    }),
-    confirm_token: z.string().optional().describe('Present when a preview is awaiting confirmation. Single-use, expiring, bound to this exact operation and arguments.'),
-    confirm_error: z.string().optional().describe('Why a presented token was rejected. Present only when one was presented.'),
-    result: z.unknown().optional().describe('Whatever the service returned, on a write that landed.'),
-    audit_id: z.number().optional().describe('The audit row this call wrote. Every branch writes one, including previews and refusals.'),
-    warnings: z
-        .array(z.string())
-        .optional()
-        .describe('Present on a preview when another service has something to say about this change. Tell the user before confirming.'),
-    unchecked: z
-        .array(z.string())
-        .optional()
-        .describe('Present when a service could not be asked, so its absence from `warnings` means nothing.'),
-    next_steps: z
-        .array(z.looseObject({ tool: z.string(), arguments: z.looseObject({}), why: z.string() }))
-        .optional()
-        .describe('Present on an applied write when another call is worth offering. Offer it to the person; do not run it.')
+    target: z.string(),
+    summary: z.string(),
+    effects: z.array(z.string()),
+    noop: z.boolean(),
+    permission: z.looseObject({ allowed: z.boolean() })
 });
 
 export type WriteToolResult = {
@@ -235,11 +216,13 @@ export type WriteToolResult = {
     effects: string[];
     noop: boolean;
     permission: { allowed: boolean; reason?: string; remedy?: string };
+    /** On a preview awaiting confirmation: single-use, expiring, bound to this operation and its arguments. */
     confirm_token?: string;
     /** Why a presented token was rejected. Present only when one was presented. */
     confirm_error?: string;
     /** Whatever `apply` returned, on a real write. */
     result?: unknown;
+    /** The audit row this call wrote. Absent on a dry run above the token's tier. */
     audit_id?: number;
     /** Other services' findings, on a preview. Omitted when there are none. */
     warnings?: string[];
@@ -344,6 +327,13 @@ export function registerWriteTool<
             // audit names and the token binds to. Deriving it later, from the
             // plan, say, would let the three disagree.
             const tier = typeof spec.tier === 'function' ? spec.tier(args) : spec.tier;
+            // An argument the plan or router refused, or a title it could not
+            // find. A dry run that fails to plan records nothing, as before.
+            const refused = (named: string, err: unknown): void => {
+                if (dryRun) return;
+                const id = audit.begin({ tool: spec.name, service: named, operation: spec.operation, tier, target: rawTarget(args), args: {}, caller });
+                audit.settle(id, 'denied', err instanceof Error ? err.message : String(err));
+            };
             let service: string;
             let adapter: Adapter & ServiceAdapter;
             if (spec.target !== undefined) {
@@ -351,14 +341,24 @@ export function registerWriteTool<
                 try {
                     adapter = resolveTarget(spec.target.adapters, spec.target.to, type, instance);
                 } catch (err) {
-                    // Refused before anything else ran, and recorded like any other refusal.
-                    const id = audit.begin({ tool: spec.name, service: type, operation: spec.operation, tier, target: rawTarget(args), args: {}, caller });
-                    audit.settle(id, 'denied', err instanceof Error ? err.message : String(err));
+                    // Refused before anything else ran, and recorded like any other
+                    // refusal, except a dry run the token could never apply (see `quiet`).
+                    if (!(dryRun && permissions.permits?.(tier, type) === false)) {
+                        const id = audit.begin({ tool: spec.name, service: type, operation: spec.operation, tier, target: rawTarget(args), args: {}, caller });
+                        audit.settle(id, 'denied', err instanceof Error ? err.message : String(err));
+                    }
                     throw err;
                 }
                 service = adapter.id;
             } else {
-                service = typeof spec.service === 'function' ? spec.service(args) : spec.service;
+                try {
+                    service = typeof spec.service === 'function' ? spec.service(args) : spec.service;
+                } catch (err) {
+                    // A router resolves the instance, so its refusal is the
+                    // `target` refusal above by another route.
+                    refused(String((args as { service?: unknown }).service ?? ''), err);
+                    throw err;
+                }
                 adapter = undefined as unknown as Adapter & ServiceAdapter;
             }
 
@@ -370,6 +370,11 @@ export function registerWriteTool<
             const permission: WriteToolResult['permission'] = verdict.allowed
                 ? { allowed: true }
                 : { allowed: false, reason: verdict.reason, remedy: verdict.remedy };
+            // A preview from a credential whose tier refuses this write writes no
+            // audit row. It changes nothing and the token can never apply it, so
+            // a row per call would only let a read token grow the permanent
+            // audit table as fast as it can ask.
+            const quiet = permissions.permits?.(tier, service) === false;
 
             if (!verdict.allowed && !dryRun) {
                 const given = rawTarget(args);
@@ -391,7 +396,13 @@ export function registerWriteTool<
                 );
             }
 
-            const plan = await spec.plan(args, adapter);
+            let plan: WritePlan<Bound>;
+            try {
+                plan = await spec.plan(args, adapter);
+            } catch (err) {
+                refused(service, err);
+                throw err;
+            }
 
             const record = {
                 tool: spec.name,
@@ -453,10 +464,10 @@ export function registerWriteTool<
 
             // --- 1. Nothing to do -------------------------------------------------
             if (plan.noop === true) {
-                const id = audit.begin(record);
-                audit.settle(id, 'dry_run', 'no-op: already in the requested state');
+                const id = quiet ? undefined : audit.begin(record);
+                if (id !== undefined) audit.settle(id, 'dry_run', 'no-op: already in the requested state');
                 return respond(
-                    preview({ audit_id: id }),
+                    preview(id === undefined ? {} : { audit_id: id }),
                     `Nothing to do: ${plan.summary} No change was made and no confirmation is needed.`
                 );
             }
@@ -470,11 +481,11 @@ export function registerWriteTool<
             // unanswerable. The verdict rides along in `permission` instead, so
             // the model learns the write would be refused and can say so.
             if (dryRun) {
-                const id = audit.begin(record);
-                audit.settle(id, 'dry_run', verdict.allowed ? undefined : verdict.reason);
+                const id = quiet ? undefined : audit.begin(record);
+                if (id !== undefined) audit.settle(id, 'dry_run', verdict.allowed ? undefined : verdict.reason);
                 const advice = await advise();
                 return respond(
-                    preview({ audit_id: id, ...advice.fields }),
+                    preview({ ...(id === undefined ? {} : { audit_id: id }), ...advice.fields }),
                     `Dry run: nothing was changed. ${plan.summary}` +
                         (advice.block === '' ? ' ' : `\n\n${advice.block}\n\n`) +
                         (verdict.allowed

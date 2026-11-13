@@ -1,5 +1,6 @@
 import { DOWNLOAD_CLIENTS, type ServiceId } from '../../config/schema.ts';
 import { servicesOnly } from '../../core/gather.ts';
+import { instantOf } from '../../core/instant.ts';
 import type { NextStep } from '../../core/nextStep.ts';
 import { unfenced } from '../../core/titleMatch.ts';
 import { ARR_KIND, ARR_NAMES, type MergedItem } from '../../core/resolver.ts';
@@ -345,9 +346,17 @@ function requestStep(ev: Evidence, item: MergedItem): Step {
     if (ev.request.status === 'pending') {
         return { stage: 'request', service: 'seerr', status: 'blocked', detail: 'The request is still awaiting approval.' };
     }
+    if (ev.request.status === 'failed') {
+        return {
+            stage: 'request',
+            service: 'seerr',
+            status: 'blocked',
+            detail: 'Seerr approved the request but could not hand it to Radarr or Sonarr.'
+        };
+    }
     if (ev.request.status === 'unknown') {
-        // Seerr answered, but not with a status this module recognises as a
-        // success, e.g. Overseerr's own FAILED. Reporting that as `ok`
+        // Seerr answered, but not with a status this module recognises.
+        // Reporting that as `ok`
         // ("The request is unknown.") would be green on a request that never
         // went anywhere.
         return {
@@ -1534,7 +1543,7 @@ export function buildChain(query: string, ev: Evidence, byWords: boolean): Diagn
     // exclusion applies only where the signal it depends on is actually
     // unambiguous: movies.
     const excludeRequestManaged = hasCopy && item.kind === 'movie';
-    // A declined or indeterminate request says nothing about an item an *arr
+    // A declined, failed or indeterminate request says nothing about an item an *arr
     // monitors anyway (added by hand, or requested again since), or a series
     // the media server already has with nothing managing it: the file, the
     // queue or that copy decide, and the request is only mentioned. A pending
@@ -1545,7 +1554,9 @@ export function buildChain(query: string, ev: Evidence, byWords: boolean): Diagn
         ev.request?.status !== 'pending' &&
         (acquisition?.monitored === true || unmanagedOnServer);
     const requestAside = staleRequest
-        ? ` (Also: the Seerr request ${ev.request?.status === 'declined' ? 'was declined' : 'is in an indeterminate state'}, but ${
+        ? ` (Also: the Seerr request ${
+              ev.request?.status === 'declined' ? 'was declined' : ev.request?.status === 'failed' ? 'failed' : 'is in an indeterminate state'
+          }, but ${
               unmanagedOnServer ? `it is in ${ev.mediaServer} anyway` : `${arrOf(item)} monitors it anyway`
           }, so the request does not hold it up.)`
         : '';
@@ -1816,7 +1827,7 @@ function nextStepsFor(
  */
 export function wholeRemoval(cleanup: CleanupStatus | null | undefined, lastImportAt: string | undefined): CleanupRemoval | undefined {
     const latest = cleanup?.removals.find(r => r.scope === 'movie' || r.scope === 'version' || r.scope === 'series');
-    return latest === undefined || (lastImportAt !== undefined && lastImportAt > latest.at) ? undefined : latest;
+    return latest === undefined || (lastImportAt !== undefined && instantOf(lastImportAt) > instantOf(latest.at)) ? undefined : latest;
 }
 
 /**

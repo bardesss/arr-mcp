@@ -72,6 +72,14 @@ const INCLUDE_UNKNOWN = {
     artist: 'includeUnknownArtistItems=true'
 } as const;
 
+/**
+ * The default order is time left, which changes between two page reads, so a
+ * queue longer than one page could list a row twice and skip another. `added`
+ * does not change. `id` would not do: Radarr 6 and Sonarr 4 ignore it on the
+ * queue and fall back to time left (checked live).
+ */
+const QUEUE_SORT = 'sortKey=added&sortDirection=ascending';
+
 /** `kind` is passed in because `service` may be an instance id like `radarr/hd`. */
 export async function readArrQueue(
     http: ServiceHttp,
@@ -81,7 +89,7 @@ export async function readArrQueue(
     // Off upstream by default, which hides records whose movie, series or
     // artist was deleted: stuck at importBlocked forever, and invisible here.
     const includeUnknown = INCLUDE_UNKNOWN[kind];
-    const records = await pageArr<RawQueueRecord>(http, `${http.apiRoot}/queue`, includeUnknown);
+    const records = await pageArr<RawQueueRecord>(http, `${http.apiRoot}/queue`, `${includeUnknown}&${QUEUE_SORT}`);
 
     return records
         .filter((r): r is RawQueueRecord & { id: number } => typeof r.id === 'number')
@@ -182,14 +190,30 @@ type RawCalendarMovie = {
 };
 
 /**
- * A film has up to three dates, and the useful one is the earliest you could
- * actually watch it: digital, then physical, then cinema. A row with none of
- * the three is dropped: an undated calendar entry is noise.
+ * A film has up to three dates, and Radarr lists it when any one falls in the
+ * window. The date shown is the earliest of those inside the window, so a film
+ * in cinemas this week is not dated by a digital release months away. With
+ * none inside (no range given, or a build that matched differently) it is the
+ * first of digital, physical, cinema. A row with none of the three is
+ * dropped: an undated calendar entry is noise.
  */
-export function readRadarrCalendar(movies: RawCalendarMovie[], service: string): CalendarEntry[] {
+export function readRadarrCalendar(
+    movies: RawCalendarMovie[],
+    service: string,
+    range?: { start: Date; end: Date }
+): CalendarEntry[] {
+    const inside = (date: string | undefined): date is string => {
+        const t = Date.parse(date ?? '');
+        return range !== undefined && t >= range.start.getTime() && t <= range.end.getTime();
+    };
+    const dated = (m: RawCalendarMovie): string | undefined =>
+        [m.digitalRelease, m.physicalRelease, m.inCinemas].filter(inside).sort((a, b) => Date.parse(a) - Date.parse(b))[0] ??
+        m.digitalRelease ??
+        m.physicalRelease ??
+        m.inCinemas;
     return movies
         .filter((m): m is RawCalendarMovie & { id: number } => typeof m.id === 'number')
-        .map(m => ({ m, date: m.digitalRelease ?? m.physicalRelease ?? m.inCinemas }))
+        .map(m => ({ m, date: dated(m) }))
         .filter((row): row is { m: RawCalendarMovie & { id: number }; date: string } => typeof row.date === 'string')
         .map(({ m, date }) => ({
             service,
@@ -197,8 +221,7 @@ export function readRadarrCalendar(movies: RawCalendarMovie[], service: string):
             id: m.id,
             title: fenceText(m.title ?? '', { service, field: 'title' }),
             date,
-            hasFile: m.hasFile ?? false,
-            monitored: m.monitored ?? false
+            hasFile: m.hasFile ?? false
         }));
 }
 
@@ -242,8 +265,7 @@ export function readSonarrCalendar(
             ...(e.seasonNumber === undefined ? {} : { season: e.seasonNumber }),
             ...(e.episodeNumber === undefined ? {} : { episode: e.episodeNumber }),
             date: e[dateField] as string,
-            hasFile: e.hasFile ?? false,
-            monitored: e.monitored ?? false
+            hasFile: e.hasFile ?? false
         }));
 }
 
@@ -300,8 +322,7 @@ export function readLidarrCalendar(albums: RawCalendarAlbum[], service: string):
                 ? { artist: fenceText(a.artist.artistName, { service, field: 'artist.artistName' }) }
                 : {}),
             date,
-            hasFile: albumComplete(a.statistics),
-            monitored: a.monitored ?? false
+            hasFile: albumComplete(a.statistics)
         }));
 }
 

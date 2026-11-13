@@ -17,7 +17,7 @@ export function setImdb(config: Config, enabled: boolean): Config {
 /** An omitted field is left as it is. */
 export function setMcpEndpoint(
     config: Config,
-    opts: { allowedHosts?: readonly string[]; allowTokenInUrl?: boolean }
+    opts: { allowedHosts?: readonly string[]; allowTokenInUrl?: boolean; trustedProxies?: readonly string[] }
 ): Config {
     const urlToken = opts.allowTokenInUrl ?? config.auth.allow_token_in_url;
     // The schema refuses this too, but as a union error nobody can read.
@@ -31,7 +31,22 @@ export function setMcpEndpoint(
             ? config.auth.allowed_hosts
             : opts.allowedHosts.map(h => h.trim()).filter(h => h !== '');
 
-    return { ...config, auth: { ...config.auth, allow_token_in_url: urlToken, allowed_hosts: hosts } };
+    // Empty drops the key, so a config that never used it stays as it was.
+    const proxies =
+        opts.trustedProxies === undefined
+            ? config.auth.trusted_proxies
+            : opts.trustedProxies.map(p => p.trim()).filter(p => p !== '');
+    const { trusted_proxies: _dropped, ...auth } = config.auth;
+
+    return {
+        ...config,
+        auth: {
+            ...auth,
+            allow_token_in_url: urlToken,
+            allowed_hosts: hosts,
+            ...(proxies === undefined || proxies.length === 0 ? {} : { trusted_proxies: proxies })
+        }
+    };
 }
 
 export function addManagementKey(

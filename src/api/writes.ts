@@ -23,6 +23,7 @@ const ImdbBody = z.strictObject({
 
 const McpBody = z.strictObject({
     allowedHosts: z.array(z.string()).optional(),
+    trustedProxies: z.array(z.string()).optional(),
     allowTokenInUrl: z.boolean().optional(),
     oauthConfigured: z.unknown().optional()
 });
@@ -78,10 +79,15 @@ export function registerWrites(app: Hono, deps: ApiDeps): void {
         const body = parseWith(c, McpBody, raw);
         if (body instanceof Response) return body;
         const config = await applyWrite(c, deps, 'MCP endpoint settings', current => {
-            // Read-only here: the pin also gates the config UI, so a leaked key could lock the owner out.
-            const hosts = current.auth.allowed_hosts;
-            if (body.allowedHosts !== undefined && (body.allowedHosts.length !== hosts.length || body.allowedHosts.some((h, i) => h !== hosts[i]))) {
+            // Read-only here: the pin also gates the config UI, so a leaked key could lock the owner out,
+            // and one that could name a trusted proxy could let a client rotate its way past the sign-in throttle.
+            const differs = (given: readonly string[] | undefined, stored: readonly string[]): boolean =>
+                given !== undefined && (given.length !== stored.length || given.some((h, i) => h !== stored[i]));
+            if (differs(body.allowedHosts, current.auth.allowed_hosts)) {
                 throw new ConfigEditError('allowedHosts can only be changed on the config page.');
+            }
+            if (differs(body.trustedProxies, current.auth.trusted_proxies ?? [])) {
+                throw new ConfigEditError('trustedProxies can only be changed on the config page.');
             }
             return setMcpEndpoint(current, body.allowTokenInUrl === undefined ? {} : { allowTokenInUrl: body.allowTokenInUrl });
         });

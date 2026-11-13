@@ -215,7 +215,7 @@ export class SabnzbdAdapter
      * run out of space on either.
      */
     async getDiskSpace(): Promise<DiskSpace[]> {
-        const body = await this.#http.get<RawQueue>('/api?mode=queue&output=json');
+        const body = await this.#read<RawQueue>('/api?mode=queue&output=json');
         // `string | undefined` rather than optional: exactOptionalPropertyTypes
         // treats "absent" and "present but undefined" as different types, and
         // these fields are always present here, sometimes holding undefined.
@@ -249,7 +249,7 @@ export class SabnzbdAdapter
      * language, so nothing here matches on it.
      */
     async getFailedHealthChecks(): Promise<HealthCheck[]> {
-        const body = await this.#http.get<RawWarnings>('/api?mode=warnings&output=json');
+        const body = await this.#read<RawWarnings>('/api?mode=warnings&output=json');
         if (!Array.isArray(body.warnings)) {
             throw new ServiceError('UpstreamError', this.id, 'mode=warnings returned no warnings list');
         }
@@ -286,7 +286,7 @@ export class SabnzbdAdapter
     }
 
     async getQueue(): Promise<QueueItem[]> {
-        const body = await this.#http.get<RawQueue>('/api?mode=queue&output=json');
+        const body = await this.#read<RawQueue>('/api?mode=queue&output=json');
         const holdOf = sabHolds(body.queue);
         return (body.queue?.slots ?? [])
             .filter((s): s is RawSlot & { nzo_id: string } => typeof s.nzo_id === 'string')
@@ -330,9 +330,10 @@ export class SabnzbdAdapter
 
         if (body.status !== true) {
             throw new ServiceError('UpstreamError', this.id, `queue delete of ${id} was refused`, {
-                remedy:
-                    body.error ??
+                remedy: this.#refusal(
+                    body.error,
                     'SABnzbd reported no failure reason. Check the item is still in the queue. Take a current id from get_queue.'
+                )
             });
         }
     }
@@ -345,7 +346,7 @@ export class SabnzbdAdapter
      * same response says what else holds it.
      */
     async readPauseState(id?: string): Promise<PauseState> {
-        const body = await this.#http.get<RawQueue>('/api?mode=queue&output=json');
+        const body = await this.#read<RawQueue>('/api?mode=queue&output=json');
 
         if (id === undefined) {
             return { paused: body.queue?.paused === true, scope: 'the SABnzbd queue' };
@@ -382,9 +383,10 @@ export class SabnzbdAdapter
                 this.id,
                 `${paused ? 'pause' : 'resume'} was refused`,
                 {
-                    remedy:
-                        body.error ??
+                    remedy: this.#refusal(
+                        body.error,
                         'SABnzbd reported no failure reason. Check the queue is reachable. Call get_queue.'
+                    )
                 }
             );
         }
@@ -397,7 +399,7 @@ export class SabnzbdAdapter
      * absolute value means no cap.
      */
     async readSpeedLimit(): Promise<SpeedLimit> {
-        const body = await this.#http.get<RawQueue>('/api?mode=queue&output=json');
+        const body = await this.#read<RawQueue>('/api?mode=queue&output=json');
         const bytes = Number(body.queue?.speedlimit_abs ?? '');
         if (!Number.isFinite(bytes) || bytes <= 0) return { service: this.id };
         return { service: this.id, kbps: Math.round(bytes / 1024) };
@@ -415,7 +417,7 @@ export class SabnzbdAdapter
 
         if (body.status !== true) {
             throw new ServiceError('UpstreamError', this.id, 'the speed limit was refused', {
-                remedy: body.error ?? 'SABnzbd reported no failure reason. Check it is reachable. Call get_queue.'
+                remedy: this.#refusal(body.error, 'SABnzbd reported no failure reason. Check it is reachable. Call get_queue.')
             });
         }
     }
@@ -437,7 +439,7 @@ export class SabnzbdAdapter
             });
         }
 
-        const body = await this.#http.get<RawHistory>('/api?mode=history&limit=100&output=json');
+        const body = await this.#read<RawHistory>('/api?mode=history&limit=100&output=json');
 
         return (body.history?.slots ?? [])
             .filter((s): s is RawHistorySlot & { nzo_id: string } => typeof s.nzo_id === 'string')
@@ -473,7 +475,7 @@ export class SabnzbdAdapter
      * the match is always made here.
      */
     async #queueSlot(id: string): Promise<RawSlot | undefined> {
-        const body = await this.#http.get<RawQueue>(`/api?mode=queue&nzo_ids=${encodeURIComponent(id)}&output=json`);
+        const body = await this.#read<RawQueue>(`/api?mode=queue&nzo_ids=${encodeURIComponent(id)}&output=json`);
         return (body.queue?.slots ?? []).find(s => s.nzo_id === id);
     }
 
@@ -482,12 +484,36 @@ export class SabnzbdAdapter
      * `nzo_ids`, and a limit would hide an older failure from it.
      */
     async #historySlot(id: string): Promise<RawHistorySlot | undefined> {
-        const body = await this.#http.get<RawHistory>(`/api?mode=history&nzo_ids=${encodeURIComponent(id)}&output=json`);
+        const body = await this.#read<RawHistory>(`/api?mode=history&nzo_ids=${encodeURIComponent(id)}&output=json`);
         return (body.history?.slots ?? []).find(s => s.nzo_id === id);
     }
 
     #fence(value: string, field: string): string {
         return fenceText(value, { service: this.id, field });
+    }
+
+    /**
+     * A read whose body may be a refusal: SABnzbd can answer 200 with
+     * `{"status": false, "error": ...}`, which otherwise reads as an empty
+     * queue, no disks or no history.
+     */
+    async #read<T>(path: string): Promise<T> {
+        const body = await this.#http.get<T & { status?: unknown; error?: unknown }>(path);
+        if (body.status === false) {
+            const mode = /mode=(\w+)/.exec(path)?.[1] ?? 'read';
+            throw new ServiceError('UpstreamError', this.id, `mode=${mode} was refused`, {
+                remedy:
+                    typeof body.error === 'string' && body.error !== ''
+                        ? this.#fence(body.error, 'error')
+                        : 'SABnzbd reported no failure reason. Check the API key and that SABnzbd is running.'
+            });
+        }
+        return body;
+    }
+
+    /** A write's refusal text, fenced, or `fallback` when SABnzbd gave none. */
+    #refusal(error: string | undefined, fallback: string): string {
+        return error ? this.#fence(error, 'error') : fallback;
     }
 
     /**
@@ -697,6 +723,11 @@ export class SabnzbdAdapter
     }
 
     async testConnection(): Promise<ConnectionDiagnosis> {
-        return diagnoseConnection(this.id, this.type, () => this.getVersion());
+        return diagnoseConnection(this.id, this.type, async () => {
+            const version = await this.getVersion();
+            // `mode=version` answers without a key, so a wrong one passes it.
+            await this.#read<RawQueue>('/api?mode=queue&limit=1&output=json');
+            return version;
+        });
     }
 }
