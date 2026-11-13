@@ -76,6 +76,13 @@ export function registerTriggerSubtitleSearch(
             search_anyway,
             series_id
         }, adapter): Promise<WritePlan> {
+            // Bazarr's ids are integers. Anything else would reach it as NaN
+            // under `search_anyway`, which skips the wanted list.
+            if (!/^\d+$/.test(id)) {
+                throw new ServiceError('NotFound', adapter.id, `"${id}" is not a ${adapter.id} ${kind} id`, {
+                    remedy: 'Pass the id as digits, as get_subtitles reports it.'
+                });
+            }
 
             // The wanted list is both the preview's source of a real title and
             // the only place an episode's series id is offered.

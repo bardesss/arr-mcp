@@ -9,6 +9,7 @@ import { RadarrAdapter } from '../src/services/radarr.ts';
 import { SonarrAdapter } from '../src/services/sonarr.ts';
 import type { ServiceAdapter } from '../src/services/types.ts';
 import type { LibraryLoader } from '../src/tools/library.ts';
+import { chooseOne, PROFILE_MATCH } from '../src/tools/chooseOne.ts';
 import { registerUpdateMedia } from '../src/tools/updateMedia.ts';
 import type { WriteToolResult } from '../src/tools/write.ts';
 import { jsonResponse } from './helpers/serve.ts';
@@ -298,6 +299,31 @@ describe('update_media refusals', () => {
         ).rejects.toThrow(/HD-1080p/);
     });
 
+    it('refuses an empty tag rather than matching the only one there is', async () => {
+        const s = stack('movie', MOVIE);
+        const oneTag = (async (input: string | URL | Request, init?: RequestInit) =>
+            new URL(input instanceof Request ? input.url : String(input)).pathname === '/api/v3/tag'
+                ? jsonResponse([TAGS[0]])
+                : s.impl(input, init)) as unknown as typeof fetch;
+        const h = harness({ adapters: [new RadarrAdapter(keyed(7878), oneTag)] });
+        await expect(Promise.resolve().then(() => h.call({ service: 'radarr', id: '15', tags: [''] }))).rejects.toThrow(/too_small/);
+        expect(s.sent.some(x => x.method === 'PUT')).toBe(false);
+    });
+
+    it('refuses an empty profile or root folder', async () => {
+        const h = harness();
+        await expect(Promise.resolve().then(() => h.call({ service: 'radarr', id: '15', quality_profile: '', dry_run: true }))).rejects.toThrow(/too_small/);
+        await expect(Promise.resolve().then(() => h.call({ service: 'radarr', id: '15', root_folder: '', dry_run: true }))).rejects.toThrow(/too_small/);
+    });
+
+    it('reads a repeated tag as one, so it does not pass for a set of two', async () => {
+        const s = stack('movie', { ...MOVIE, tags: [1, 2] });
+        const h = harness({ adapters: [new RadarrAdapter(keyed(7878), s.impl)] });
+        const { structuredContent } = await apply(h, { service: 'radarr', id: '15', tags: ['4k', '4k'] });
+        expect(structuredContent.applied).toBe(true);
+        expect(s.sent.find(x => x.method === 'PUT')?.body).toMatchObject({ tags: [1], applyTags: 'replace' });
+    });
+
     it('refuses an ambiguous tag rather than picking one', async () => {
         const h = harness();
         await expect(h.call({ service: 'radarr', id: '15', tags: ['nope'], dry_run: true })).rejects.toThrow(/4k/);
@@ -317,5 +343,15 @@ describe('update_media refusals', () => {
         await expect(h.call({ service: 'jellyfin', id: '15', monitored: false, dry_run: true })).rejects.toThrow(
             /cannot update media/i
         );
+    });
+});
+
+describe('chooseOne', () => {
+    it('refuses a blank request rather than letting it match every name', () => {
+        for (const blank of ['', '  ']) {
+            expect(() =>
+                chooseOne([{ id: 4, name: 'HD-1080p', display: 'HD-1080p' }], blank, PROFILE_MATCH, p => p.name, 'quality profile', 'radarr')
+            ).toThrow(/empty quality profile/);
+        }
     });
 });

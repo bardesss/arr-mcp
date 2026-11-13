@@ -36,6 +36,13 @@ export function chooseOne<T>(
     }
 
     if (requested !== undefined) {
+        // Every name contains "", so a loose match on it would pick the only
+        // option, or refuse as ambiguous for the wrong reason.
+        if (requested.trim() === '') {
+            throw new ServiceError('NotFound', service, `an empty ${what} matches nothing on ${service}`, {
+                remedy: `Name one, or leave it out. Available: ${options.map(describe).join('; ')}.`
+            });
+        }
         const exact = options.filter(o => match.exact(o, requested));
         if (exact.length === 1) return exact[0]!;
 

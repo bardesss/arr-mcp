@@ -344,6 +344,13 @@ export function registerWriteTool<
             // audit names and the token binds to. Deriving it later, from the
             // plan, say, would let the three disagree.
             const tier = typeof spec.tier === 'function' ? spec.tier(args) : spec.tier;
+            // An argument the plan or router refused, or a title it could not
+            // find. A dry run that fails to plan records nothing, as before.
+            const refused = (named: string, err: unknown): void => {
+                if (dryRun) return;
+                const id = audit.begin({ tool: spec.name, service: named, operation: spec.operation, tier, target: rawTarget(args), args: {}, caller });
+                audit.settle(id, 'denied', err instanceof Error ? err.message : String(err));
+            };
             let service: string;
             let adapter: Adapter & ServiceAdapter;
             if (spec.target !== undefined) {
@@ -358,7 +365,14 @@ export function registerWriteTool<
                 }
                 service = adapter.id;
             } else {
-                service = typeof spec.service === 'function' ? spec.service(args) : spec.service;
+                try {
+                    service = typeof spec.service === 'function' ? spec.service(args) : spec.service;
+                } catch (err) {
+                    // A router resolves the instance, so its refusal is the
+                    // `target` refusal above by another route.
+                    refused(String((args as { service?: unknown }).service ?? ''), err);
+                    throw err;
+                }
                 adapter = undefined as unknown as Adapter & ServiceAdapter;
             }
 
@@ -391,7 +405,13 @@ export function registerWriteTool<
                 );
             }
 
-            const plan = await spec.plan(args, adapter);
+            let plan: WritePlan<Bound>;
+            try {
+                plan = await spec.plan(args, adapter);
+            } catch (err) {
+                refused(service, err);
+                throw err;
+            }
 
             const record = {
                 tool: spec.name,
