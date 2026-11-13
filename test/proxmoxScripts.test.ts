@@ -12,7 +12,7 @@ import { describe, expect, it } from 'vitest';
  *
  * Nobody here would notice. The scripts run on someone else's Proxmox host,
  * days later, and the first symptom is a container that boots onto a closed
- * port or dies at startup on a directory that was never created.
+ * port or dies at startup on a directory it may not create.
  *
  * So this asserts each restatement against the thing it restates. It cannot
  * say the scripts work — that needs a real PVE host and is tracked separately.
@@ -116,10 +116,9 @@ describe('the Proxmox LXC installer', () => {
 
         expect(configDir).toBe(/ARR_MCP_CONFIG_DIR=(\S+)/.exec(dockerfile)?.[1]);
         expect(configDir).toBe(serverDefault('ARR_MCP_CONFIG_DIR'));
-        // LogStore and WriteAudit open SQLite files in here as the first thing
-        // index.ts does — before the config loader that would have created it.
-        // Absent, that is SQLITE_CANTOPEN at startup, which the Docker
-        // entrypoint avoids by creating the directory; so must this.
+        // The server creates a missing directory itself, but as the service
+        // user, which cannot create one under /. The installer makes it so
+        // the chown can hand it over.
         expect(install).toContain(`mkdir -p ${configDir}`);
         expect(json.install_methods[0]!.config_path.startsWith(`${configDir}/`)).toBe(true);
     });
@@ -286,18 +285,24 @@ describe('the Proxmox LXC installer', () => {
             expect(read('SECURITY.md')).toContain(sha!);
         });
 
-        it('exports the pin and fetches build.func from it', () => {
+        // These run the snippet with whatever `bash` is on PATH. On Windows that
+        // is usually the WSL launcher in System32, which fails with "execvpe(/bin/bash)
+        // failed" when no distro carries bash, and takes seconds to start when
+        // one does. The scripts only ever run on Linux, and CI runs these there.
+        const withBash = it.skipIf(process.platform === 'win32');
+
+        withBash('exports the pin and fetches build.func from it', () => {
             expect(resolve()).toBe(pin);
             expect(ct).toContain('"${COMMUNITY_SCRIPTS_CORE_URL}/core/build.func"');
         });
 
-        it('repins an empty value and any ref of the official repository, as baked into /usr/bin/update', () => {
+        withBash('repins an empty value and any ref of the official repository, as baked into /usr/bin/update', () => {
             expect(resolve('')).toBe(pin);
             expect(resolve(`${OFFICIAL}/main`)).toBe(pin);
             expect(resolve(`${OFFICIAL}/${'a'.repeat(40)}`)).toBe(pin);
         });
 
-        it('keeps an override that points at another repository', () => {
+        withBash('keeps an override that points at another repository', () => {
             for (const fork of [
                 'https://raw.githubusercontent.com/someone/core/main',
                 `${OFFICIAL}-fork/main`,

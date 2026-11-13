@@ -550,7 +550,7 @@ auth:
   username: admin
   password_hash: "…"         # scrypt; written by the setup page, never by you
   allowed_hosts: []          # empty accepts any Host, right for a LAN container
-  trusted_proxies: []        # reverse proxies whose X-Forwarded-For is believed
+  trusted_proxies: []        # reverse proxies whose forwarded headers are believed
   tokens:                    # named MCP tokens; see MCP tokens below
     - name: claude-desktop
       tier: destructive
@@ -588,18 +588,31 @@ auth:
     - 192.168.1.5
 ```
 
-It decides one thing: which address a failed config UI sign-in counts against.
-Without it, every request counts against the address that connected, so behind
-a proxy all your clients share the proxy's counter, and five wrong passwords
-from anywhere delay the next sign-in for everyone. With the proxy listed, each
-client gets its own counter, taken from the last `X-Forwarded-For` hop the proxy
-added. `X-Forwarded-For` from an address not on the list is ignored, so a
-client cannot pick its own counter by sending the header.
+It decides two things.
 
-Absent or empty is the default, and safe: setting it only changes whose counter
-a failure lands on. Set it on the config page, under MCP endpoint, or here. An
-entry that is not an address or a range fails at startup. Repair mode ignores it
-and counts per connecting address.
+Which address a failed config UI sign-in counts against. Without the list,
+every request counts against the address that connected, so behind a proxy all
+your clients share the proxy's counter, and five wrong passwords from anywhere
+delay the next sign-in for everyone. With the proxy listed, each client gets its
+own counter, taken from the last `X-Forwarded-For` hop the proxy added, or from
+the last `for=` of the standard `Forwarded` header when the proxy sends only
+that. Both headers are ignored from an address not on the list, so a client
+cannot pick its own counter by sending them. When both arrive, `X-Forwarded-For`
+wins: nginx and Traefik append to it but pass `Forwarded` through as the client
+wrote it.
+
+Whose word on https is taken. arr-mcp marks the session cookie Secure, and
+builds the OAuth metadata URL it hands MCP clients, from the scheme the browser
+used. Behind a TLS-terminating proxy that scheme arrives as `X-Forwarded-Proto`
+(or the `proto=` of `Forwarded`). While the list is empty, `X-Forwarded-Proto`
+is believed from any peer, as before the setting existed, so an existing proxy
+setup keeps working. Once the list is set, both are believed only from the
+listed proxies, and a request from anywhere else is read as plain http.
+
+Absent or empty is the default. Set it on the config page, under MCP endpoint,
+or here. An entry that is not an address or a range fails at startup. Repair
+mode ignores it: it counts per connecting address and takes
+`X-Forwarded-Proto` from any peer.
 
 ### MCP tokens
 

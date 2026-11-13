@@ -102,6 +102,10 @@ async function start(args: string[], sub = ''): Promise<ChildProcessWithoutNullS
         cwd: ROOT,
         env: { ...process.env, ARR_MCP_CONFIG_DIR: dir, ARR_MCP_PORT: '0', LOG_LEVEL: 'info' }
     });
+    return track(child);
+}
+
+function track(child: ChildProcessWithoutNullStreams): ChildProcessWithoutNullStreams {
     children.push(child);
     for (const stream of [child.stdout, child.stderr]) {
         outputs.set(stream, '');
@@ -113,9 +117,17 @@ async function start(args: string[], sub = ''): Promise<ChildProcessWithoutNullS
 const out = (child: ChildProcessWithoutNullStreams): string => outputs.get(child.stdout) ?? '';
 const err = (child: ChildProcessWithoutNullStreams): string => outputs.get(child.stderr) ?? '';
 
-async function waitFor(stream: Readable, text: string, ms: number): Promise<void> {
+/**
+ * Waits for `text` on one of the child's streams. A child that exits first
+ * fails the wait at once with what it printed, rather than leaving a crash at
+ * startup to run out the banner timeout.
+ */
+async function waitFor(child: ChildProcessWithoutNullStreams, stream: Readable, text: string, ms: number): Promise<void> {
     const until = Date.now() + ms;
     while (!(outputs.get(stream) ?? '').includes(text)) {
+        if (child.exitCode !== null || child.signalCode !== null) {
+            throw new Error(`exited (${child.exitCode ?? child.signalCode}) before "${text}"; stdout: ${out(child)} stderr: ${err(child)}`);
+        }
         if (Date.now() > until) throw new Error(`timed out waiting for "${text}"; saw: ${outputs.get(stream)}`);
         await new Promise(r => setTimeout(r, 25));
     }
@@ -132,9 +144,16 @@ afterEach(async () => {
 const BANNER_MS = 60_000;
 
 describe('the server process', () => {
+    it('fails a wait at once when the process exits before printing', async () => {
+        const child = track(spawn(process.execPath, ['-e', 'process.exit(3)']));
+        const started = Date.now();
+        await expect(waitFor(child, child.stdout, 'never printed', BANNER_MS)).rejects.toThrow('exited (3)');
+        expect(Date.now() - started).toBeLessThan(10_000);
+    }, 20_000);
+
     it.skipIf(process.platform === 'win32')('exits 0 promptly on SIGTERM', async () => {
         const child = await start([]);
-        await waitFor(child.stdout, 'arr-mcp listening', BANNER_MS);
+        await waitFor(child, child.stdout, 'arr-mcp listening', BANNER_MS);
         const sent = Date.now();
         child.kill('SIGTERM');
         const [code] = await once(child, 'exit');
@@ -146,7 +165,7 @@ describe('the server process', () => {
     // Runs on Windows too: closing stdin goes through the same shutdown.
     it('exits 0 promptly when a stdio client closes stdin', async () => {
         const child = await start(['--stdio']);
-        await waitFor(child.stderr, 'arr-mcp serving MCP over stdio', BANNER_MS);
+        await waitFor(child, child.stderr, 'arr-mcp serving MCP over stdio', BANNER_MS);
         child.stdin.end();
         const [code] = await once(child, 'exit');
         expect(code).toBe(0);
@@ -158,7 +177,7 @@ describe('the server process', () => {
     it('creates a config directory that does not exist yet', async () => {
         const sub = join('not', 'yet', 'here');
         const child = await start(['--stdio'], sub);
-        await waitFor(child.stderr, 'arr-mcp serving MCP over stdio', BANNER_MS);
+        await waitFor(child, child.stderr, 'arr-mcp serving MCP over stdio', BANNER_MS);
         child.stdin.end();
         const [code] = await once(child, 'exit');
         expect(code).toBe(0);

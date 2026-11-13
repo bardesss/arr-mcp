@@ -345,6 +345,23 @@ describe('access control', () => {
         expect(proxied.headers.get('set-cookie')).toContain('Secure');
     });
 
+    it('takes the forwarded https only from a trusted proxy once the list is set', async () => {
+        await seed('', '  trusted_proxies:\n    - 172.18.0.0/16\n');
+        const right = form({ username: 'admin', password: PASSWORD });
+        const signInFrom = (peer: string, headers: Record<string, string>) =>
+            app.request(
+                'http://localhost:6060/ui/login',
+                { ...right, headers: { ...(right.headers as Record<string, string>), ...headers } },
+                { incoming: { socket: { remoteAddress: peer, remoteFamily: 'IPv4' } } }
+            );
+        const cookieFrom = async (peer: string, headers: Record<string, string>) =>
+            (await signInFrom(peer, headers)).headers.get('set-cookie') ?? '';
+
+        expect(await cookieFrom('192.168.1.50', { 'x-forwarded-proto': 'https' })).not.toContain('Secure');
+        expect(await cookieFrom('172.18.0.5', { 'x-forwarded-proto': 'https' })).toContain('Secure');
+        expect(await cookieFrom('172.18.0.5', { forwarded: 'for=203.0.113.9;proto=https' })).toContain('Secure');
+    });
+
     describe('whose counter a failed sign-in lands on', () => {
         /** A sign-in from a given socket peer, optionally claiming to forward for someone. */
         const from = (peer: string, forwardedFor?: string) => {
@@ -389,6 +406,21 @@ describe('access control', () => {
             await seed('', '  trusted_proxies:\n    - 172.18.0.5\n');
             await exhaust('172.18.0.5', '203.0.113.9');
             expect((await from('172.18.0.5', '198.51.100.1, 203.0.113.9')).status).toBe(429);
+        });
+
+        it('reads the Forwarded header from a trusted proxy that sends no X-Forwarded-For', async () => {
+            await seed('', '  trusted_proxies:\n    - 172.18.0.0/16\n');
+            const fromForwarded = (forwarded: string) => {
+                const wrong = form({ username: 'admin', password: 'wrong' });
+                return app.request(
+                    'http://localhost:6060/ui/login',
+                    { ...wrong, headers: { ...(wrong.headers as Record<string, string>), forwarded } },
+                    { incoming: { socket: { remoteAddress: '172.18.0.5', remoteFamily: 'IPv4' } } }
+                );
+            };
+            for (let i = 0; i < FREE_ATTEMPTS; i++) expect((await fromForwarded('for=203.0.113.9')).status).toBe(401);
+            expect((await fromForwarded('for=203.0.113.9')).status).toBe(429);
+            expect((await fromForwarded('for="203.0.113.10:4711"')).status).toBe(401);
         });
 
         it('takes the trusted list from the config page', async () => {

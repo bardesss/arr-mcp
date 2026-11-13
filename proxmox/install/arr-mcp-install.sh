@@ -31,10 +31,9 @@ $STD npm prune --omit=dev
 msg_ok "Built arr-mcp"
 
 msg_info "Creating Service"
-# Created here rather than left to the server: it opens its log and audit
-# databases in this directory as the first thing it does, before the config
-# loader that would have created it runs. A missing /config is SQLITE_CANTOPEN
-# at startup, not a first-run mkdir.
+# The server creates a missing config directory itself, but as the user it
+# runs as, and that user cannot create anything under /. Made here so the
+# chown below can hand it to that user.
 mkdir -p /config
 # The service runs as its own user rather than root: it holds API keys for a
 # dozen services and serves a web UI, so a bug in it should not be a root shell

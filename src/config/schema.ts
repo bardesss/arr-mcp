@@ -611,9 +611,11 @@ export const AuthSchema = z.strictObject({
      */
     allowed_hosts: z.array(z.string()).default([]),
     /**
-     * Peers whose `X-Forwarded-For` is believed, as addresses or CIDR ranges.
-     * Absent means none: the sign-in throttle then counts every request
-     * against the address that connected, which behind a proxy is the proxy.
+     * Peers whose `X-Forwarded-For`, `Forwarded` and `X-Forwarded-Proto` are
+     * believed, as addresses or CIDR ranges. Absent means none: the sign-in
+     * throttle then counts every request against the address that connected,
+     * which behind a proxy is the proxy, and `X-Forwarded-Proto` is taken from
+     * any peer.
      */
     trusted_proxies: z
         .array(z.string().trim().refine(isAddressOrCidr, { message: 'must be an IP address or a CIDR range such as 172.18.0.0/16' }))

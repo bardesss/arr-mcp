@@ -1817,6 +1817,32 @@ describe('RFC 9728 protected resource metadata', () => {
         expect(res.headers.get('www-authenticate')).toContain('resource_metadata=');
     });
 
+    describe('the scheme of the metadata URL', () => {
+        const peer = (address: string) => ({ incoming: { socket: { remoteAddress: address, remoteFamily: 'IPv4' } } });
+        const metadataFrom = async (cfg: Config, address: string, headers: Record<string, string>) =>
+            (await appWith(cfg).request('/mcp', rpc(toolsList, { Authorization: `Bearer ${WRONG}`, ...headers }), peer(address))).headers.get(
+                'www-authenticate'
+            );
+
+        it('takes X-Forwarded-Proto from any peer while no trusted proxies are set', async () => {
+            const header = await metadataFrom(configWith({ oauth: OAUTH }), '192.168.1.50', { 'x-forwarded-proto': 'https' });
+            expect(header).toContain('resource_metadata="https://');
+        });
+
+        it('takes it only from a listed proxy once trusted proxies are set', async () => {
+            const cfg = configWith({ oauth: OAUTH, trusted_proxies: ['172.18.0.0/16'] });
+            expect(await metadataFrom(cfg, '192.168.1.50', { 'x-forwarded-proto': 'https' })).toContain('resource_metadata="http://');
+            expect(await metadataFrom(cfg, '172.18.0.5', { 'x-forwarded-proto': 'https' })).toContain('resource_metadata="https://');
+        });
+
+        it("reads Forwarded's proto from a listed proxy", async () => {
+            const cfg = configWith({ oauth: OAUTH, trusted_proxies: ['172.18.0.0/16'] });
+            const forwarded = { forwarded: 'for=203.0.113.9;proto=https' };
+            expect(await metadataFrom(cfg, '172.18.0.5', forwarded)).toContain('resource_metadata="https://');
+            expect(await metadataFrom(cfg, '192.168.1.50', forwarded)).toContain('resource_metadata="http://');
+        });
+    });
+
     it('leaves the 401 unchanged for a deployment with no oauth block', async () => {
         const res = await app().request('/mcp', rpc(toolsList, { Authorization: `Bearer ${WRONG}` }));
         expect(res.status).toBe(401);
