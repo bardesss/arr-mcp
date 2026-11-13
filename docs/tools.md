@@ -360,14 +360,17 @@ when the item carries a tmdb, tvdb or imdb id, as a film or a show does.
 
 A title the media server shows and nothing manages is `playable`: the summary
 says nothing will upgrade or replace it, and there is no step to add it, which
-would only download a second copy. For a film, that copy also outranks a
-request. When a title has several Seerr requests, a pending one speaks for it,
+would only download a second copy. Its `managed` step is a `warning` that says
+the same. For a film, that copy also outranks a request; for a series, it
+outranks a declined request, or one in a state Seerr does not name, which the
+summary mentions, while a pending one stays the verdict, since it may ask for
+episodes the copy lacks. When a title has several Seerr requests, a pending one speaks for it,
 or else the newest. A declined request, or one in a state Seerr does not name,
 does not stop a title an *arr monitors: the verdict goes on to the file and the
 queue, and the summary mentions the request.
 
-Remedies name the *arr that manages the item. For one nothing manages, the
-`managed` remedy names the *arrs configured here that could manage it (of its
+Remedies name the *arr that manages the item. For one nothing manages and the
+media server does not show, the `managed` remedy names the *arrs configured here that could manage it (of its
 kind, or, when its kind is not known, by the same rule), or says that none is;
 for one an *arr has but does not monitor, it names that *arr. The step that
 approves a Seerr request names Radarr for a film and Sonarr for a series, the
@@ -424,6 +427,28 @@ not send, asks you to check its download clients. A message on an *arr's row
 that is not in trouble (NZBGet's PAR status on a finished download, "qBittorrent
 is downloading metadata") is not read as a fault; a row still on its way shows
 it after "Still downloading".
+
+A finished download waiting on its import is read by the *arr's own import
+state (`importState` in get_queue). At `importBlocked` the *arr stopped and does
+not try again, so the remedy says to fix what it reports and the step imports
+it. While the *arr says it is importing it, the stage says so and offers no
+import, which would only race it, and no remedy unless the *arr gave reasons.
+Without a state, the remedy says to check the *arr's history and the step
+imports it, as before. The reasons the *arr gives on its row (`statusMessages`,
+such as "Not an upgrade for existing movie file") follow the queue stage's
+detail, at most three, with the count of the rest that get_queue lists.
+
+A series or an artist reads `playable` once any episode or track is on disk, so
+a blocked queue step beside it, even a download in progress or a release held
+back, is added to the summary as possibly an episode or album you do not have
+yet. A film's file is the whole film, so a grab beside it is only mentioned when
+it has a remedy.
+
+An indexer failure that mentions the title is the verdict only when the failing
+indexers are more than half of those enabled across every Prowlarr, which are
+counted only then. Fewer make the `indexers` step a `warning`: a missing file
+stays the verdict, with its search step, and the summary names the failures.
+When the indexers could not be counted, a failure stays the verdict.
 
 With no row from the client in the grab, only the *arr's row says whether a
 torrent has finished, and it cannot tell one missing its files from a finished
@@ -569,7 +594,7 @@ hold ids, `download_id`, and, for a lookup, the words you gave as `query`.
 | `managed`, in Lidarr | `update_media` with the artist `id` and `monitored: true`: the artist flag only, each album keeps its own |
 | `managed` or `resolve`, nothing manages it | `search_media` with `source: "discover"` with your `query`, only when you diagnosed by title, and for `managed` not while an *arr of its kind (any *arr, for a media server's id with no kind) could not be read; an artist comes back among Lidarr's hits, each with the MusicBrainz id `add_media` takes as `ids.mbid` |
 | `request`, pending | `respond_to_request` with `verdict: "approve"`, only if you may act on that request (it is yours, or `allow_other_users` is on) |
-| `queue`, import pending, including a torrent stopped after it finished | `import_download` with the `download_id` of the *arr's row, on Radarr, Sonarr or Lidarr |
+| `queue`, import pending, including a torrent stopped after it finished | `import_download` with the `download_id` of the *arr's row, on Radarr, Sonarr or Lidarr, unless the *arr says it is importing it itself (`importPending`, `importing`, `imported`) |
 | `queue`, failed, a warning or a state it does not know | `remove_queue_item` with the row's service and id; it deletes partial data and does not blocklist, and for a warning on the *arr's own row its `why` says to add `blocklist: true` if the release itself is bad |
 | `queue`, paused or stopped before it finished, with the client's own row in the queue, paused too, and no paused queue holding it but SABnzbd's wait for post-processing | `pause_downloads` with `action: "resume"` and that row's service and id |
 | `queue`, paused, with the SABnzbd or NZBGet row in the queue held by that client's paused queue, other than SABnzbd's wait for post-processing, whether the row is paused itself or not | `pause_downloads` with `action: "resume"` and that client's service, no `id` |

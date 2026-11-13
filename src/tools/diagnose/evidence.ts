@@ -32,7 +32,7 @@ import type { WebhookEvents } from '../../core/webhookEvents.ts';
 import { EVENT_LOG_SOURCE } from '../getHistory.ts';
 import { RECENT_REJECTION_WINDOW } from '../getIndexers.ts';
 import { resolveInstance } from '../resolveInstance.ts';
-import { queueRowsFor, releaseMentions, type Evidence } from './chain.ts';
+import { mentions, queueRowsFor, releaseMentions, type Evidence } from './chain.ts';
 
 export type DiagnoseTarget = { query?: string; service?: ServiceId; id?: string; instance?: string; user?: string };
 
@@ -433,6 +433,16 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
                       : lists.flat().sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
               );
 
+        // How many indexers there are, only when a failure mentions the item: one
+        // rate-limited indexer of ten is rarely why a title is missing. Every
+        // Prowlarr counts, since each syncs its indexers to the *arrs.
+        const enabledIndexersP: Promise<number | undefined> = rejectionsP.then(async rows => {
+            if (item === undefined || !rows?.some(r => r.query !== undefined && mentions(r.query, item))) return undefined;
+            if (prowlarrDegraded.length > 0) return undefined;
+            const lists = await Promise.all(prowlarrs.map(p => probe(`${p.id}:indexers`, degraded, () => p.getIndexers())));
+            return lists.every(l => l !== undefined) ? lists.reduce((sum, l) => sum + l.filter(i => i.enabled).length, 0) : undefined;
+        });
+
         const scanP: Promise<ScanState | undefined> =
             !resolved || scanAdapter === undefined
                 ? Promise.resolve(undefined)
@@ -471,10 +481,11 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
                       albumsAdapter.getMediaDetails(albumsId, { includeEpisodes: true, episodeLimit: 500 })
                   ).then(details => (details?.albums === undefined ? undefined : { list: details.albums, truncated: details.albumsTruncated === true }));
 
-        const [requests, queueGathered, rejections, scan, subtitles, albums] = await Promise.all([
+        const [requests, queueGathered, rejections, enabledIndexers, scan, subtitles, albums] = await Promise.all([
             requestsP,
             queueP,
             rejectionsP,
+            enabledIndexersP,
             scanP,
             subtitlesP,
             albumsP
@@ -614,6 +625,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
             rejections,
             prowlarrConfigured,
             prowlarrDegraded: prowlarrDegraded.sort(),
+            ...(enabledIndexers === undefined ? {} : { enabledIndexers }),
             scan,
             ...(mediaServer === undefined ? {} : { mediaServer }),
             scanCapable: scanAdapter !== undefined,
