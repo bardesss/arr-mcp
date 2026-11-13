@@ -1,9 +1,10 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import type { IdentityResolver } from '../core/identity.ts';
+import { isOutage } from '../core/errors.ts';
 import { logger } from '../core/logger.ts';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
-import { NO_MEDIA_SERVER_NOTE, type MediaServerAdapter, type PlaybackEntry } from '../services/types.ts';
+import { NO_MEDIA_SERVER_NOTE, type MediaServerAdapter, type PlaybackEntry, type ServiceUser } from '../services/types.ts';
 import { bothIds, byMediaServers, pickMediaServer, serviceInput, withBoth, type MediaServers } from './mediaServers.ts';
 import { episodeCode } from '../core/labels.ts';
 
@@ -69,11 +70,18 @@ export async function buildGetPlayback(
         };
     }
 
-    // Deliberately outside the try: an authorization or configuration failure
-    // must reach the caller as an error, not be flattened into `degraded`.
-    // A model told "Jellyfin is down" when it was actually refused will retry
-    // forever; one told it was refused will not.
-    const user = await resolver.resolve(opts.user);
+    // An authorization or configuration failure must reach the caller as an
+    // error, not be flattened into `degraded`. A model told "Jellyfin is down"
+    // when it was actually refused will retry forever; one told it was refused
+    // will not. A server that is simply down degrades like the read below.
+    let user: ServiceUser;
+    try {
+        user = await resolver.resolve(opts.user);
+    } catch (err) {
+        if (!isOutage(err)) throw err;
+        logger.warn({ service: adapter.id, err }, 'playback user lookup failed; degrading');
+        return { items: [], total: 0, returned: 0, offset: 0, truncated: false, degraded: [adapter.id] };
+    }
 
     const scope = opts.scope ?? 'active';
     const read =

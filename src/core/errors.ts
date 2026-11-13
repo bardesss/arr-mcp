@@ -70,6 +70,15 @@ export class ServiceError extends Error {
     }
 }
 
+const OUTAGE_KINDS: ReadonlySet<ServiceErrorKind> = new Set(['Unreachable', 'Timeout', 'RateLimited', 'UpstreamError']);
+
+/**
+ * A service that did not answer, as opposed to one that refused or a config
+ * that names nobody. A read degrades on the first; the second reaches the
+ * caller as an error, since retrying a refusal changes nothing.
+ */
+export const isOutage = (err: unknown): boolean => err instanceof ServiceError && OUTAGE_KINDS.has(err.kind);
+
 /** Origin only: a redirect target's path or query can carry anything. */
 export function redirectedElsewhere(service: string, origin: string): ServiceError {
     return new ServiceError('UpstreamError', service, `redirected to another host (${origin})`, {

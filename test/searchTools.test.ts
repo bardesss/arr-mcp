@@ -925,6 +925,39 @@ describe('get_media_details', () => {
         expect(out.content[0]!.text).toContain('book from grimmory');
         expect(out.content[0]!.text).toContain('Example Library 1');
         expect(out.content[0]!.text).toContain('formats: EPUB, PDF');
+        expect(out.content[0]!.text).toContain('book, grimmory:58');
+    });
+
+    it('get_media_details by title carries the record and each candidate in its text', async () => {
+        const dune = (id: string, year: number, tmdb: number, over: Record<string, unknown> = {}) => ({
+            kind: 'movie' as const,
+            title: 'Dune',
+            year,
+            ids: { tmdb },
+            acquisition: { service: 'radarr', id, monitored: true, hasFile: true, quality: 'Bluray-1080p' },
+            ...over
+        });
+        const radarr = {
+            id: 'radarr',
+            type: 'radarr',
+            testConnection: async () => ({ ok: true }),
+            getVersion: async () => '5',
+            listLibrary: async () => [dune('1', 2021, 438631), dune('2', 1984, 841, { acquisition: { service: 'radarr', id: '2', monitored: false, hasFile: false } })]
+        } as unknown as ServiceAdapter;
+        let handler: ((a: Record<string, unknown>, e: unknown) => Promise<{ content: { text: string }[] }>) | undefined;
+        const server = {
+            registerTool: (_n: string, _cfg: never, h: never) => {
+                handler = h;
+            }
+        } as unknown as McpServer;
+        registerGetMediaDetails(server, [radarr], new LibraryLoader([radarr], undefined), undefined, undefined, false);
+
+        const lines = (await handler!({ query: 'Dune', detail: 'standard', limit: 50 }, {})).content[0]!.text.split('\n');
+        expect(lines).toHaveLength(3);
+        expect(lines[1]).toMatch(/^Dune \(\d{4}\): movie, radarr:\d, tmdb:\d+/);
+        expect(lines[2]).toMatch(/^also matched Dune \(\d{4}\): movie, radarr:\d, tmdb:\d+/);
+        expect(lines.join('\n')).toContain('radarr:1, tmdb:438631, monitored, Bluray-1080p');
+        expect(lines.join('\n')).toContain('radarr:2, tmdb:841');
     });
 
 });

@@ -5,7 +5,9 @@ import { serviceOf, type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
 import { servicesOnly } from '../core/gather.ts';
 import { filmOrSeriesMatch, isFilmOrSeries, type FilmOrSeries } from '../core/resolver.ts';
-import { DetailSchema, LimitSchema, READ_ONLY, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, READ_ONLY, listText, toolInput, type DetailLevel } from '../core/shape.ts';
+import { titled } from '../core/labels.ts';
+import { libraryLine } from './getLibrary.ts';
 import { logger } from '../core/logger.ts';
 import { enrichWithImdb } from '../metadata/enrich.ts';
 import { SeerrAdapter } from '../services/seerr.ts';
@@ -334,6 +336,30 @@ export async function resolveMediaDetails(
     return withCleanup(adapters, await withSeerrRatings(adapters, resolved));
 }
 
+/**
+ * The record as one line, for a client that shows only the text block (#234):
+ * the `service:id` the write tools take, and the file and monitoring state a
+ * caller checks before one. The rest stays in `structuredContent`.
+ */
+function recordLine(result: MediaDetails | ResolvedMediaDetails): string {
+    const blocklisted = 'seerrBlocklisted' in result && result.seerrBlocklisted === true ? ['blocklisted in Seerr'] : [];
+    if ('presence' in result) {
+        const a = result.acquisition;
+        const extra = a === undefined ? [] : [a.monitored ? 'monitored' : 'unmonitored', ...(result.kind === 'movie' && a.quality !== undefined ? [a.quality] : [])];
+        return [libraryLine(result), ...extra, ...blocklisted].join(', ');
+    }
+    const facts: string[] = [result.kind, `${result.service}:${result.id}`];
+    for (const source of ['tmdb', 'tvdb', 'imdb', 'mbid'] as const) {
+        const id = result.ids[source];
+        if (id !== undefined) facts.push(`${source}:${id}`);
+    }
+    if (result.hasFile === false) facts.push('no file');
+    // A book's `monitored` is always false: Grimmory monitors nothing.
+    if (result.monitored !== undefined && result.kind !== 'book') facts.push(result.monitored ? 'monitored' : 'unmonitored');
+    if (result.quality !== undefined) facts.push(result.quality);
+    return `${titled(result.title, result.year)}: ${[...facts, ...blocklisted].join(', ')}`;
+}
+
 const GetMediaDetailsInput = toolInput({
     query: z
         .string()
@@ -437,8 +463,10 @@ export function registerGetMediaDetails(
                 ? await cardFromDetails(result, 'presence' in result ? (await loader.load()).index : undefined, adapters)
                 : undefined;
             const answer = 'display' in result ? withoutDisplay(result) : result;
+            const others = 'candidates' in result ? (result.candidates ?? []) : [];
+            const text = listText(summary + cleanupNote, [recordLine(result), ...others.map(c => `also matched ${libraryLine(c)}`)], line => line);
 
-            return withCards({ content: [{ type: 'text' as const, text: summary + cleanupNote }], structuredContent: answer }, cards);
+            return withCards({ content: [{ type: 'text' as const, text }], structuredContent: answer }, cards);
         }
     );
 }

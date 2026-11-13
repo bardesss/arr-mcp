@@ -1,11 +1,12 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import type { IdentityResolver } from '../core/identity.ts';
+import { isOutage } from '../core/errors.ts';
 import { logger } from '../core/logger.ts';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
 import { fenceText } from '../core/fence.ts';
 import type { SeerrAdapter } from '../services/seerr.ts';
-import type { MediaIssue, MediaRequest, RequestStatus } from '../services/types.ts';
+import type { MediaIssue, MediaRequest, RequestStatus, ServiceUser } from '../services/types.ts';
 
 type GetRequestsResult = {
     items: MediaRequest[];
@@ -63,9 +64,16 @@ export async function buildGetRequests(
         return { items: [], total: 0, returned: 0, offset: 0, truncated: false, degraded: [] };
     }
 
-    // Outside the try, for the same reason as get_playback: a refusal must
-    // reach the model as a refusal, not as an outage.
-    const user = await resolver.resolve(opts.user);
+    // As in get_playback: a refusal must reach the model as a refusal, and
+    // only an outage degrades.
+    let user: ServiceUser;
+    try {
+        user = await resolver.resolve(opts.user);
+    } catch (err) {
+        if (!isOutage(err)) throw err;
+        logger.warn({ service: adapter.id, err }, 'request user lookup failed; degrading');
+        return { items: [], total: 0, returned: 0, offset: 0, truncated: false, degraded: [adapter.id] };
+    }
 
     let requests: MediaRequest[];
     try {
