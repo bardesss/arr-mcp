@@ -90,11 +90,11 @@ describe('discover_media speaks the vocabulary it answers in', () => {
 
 describe('get_library names a Jellyfin user the way every other tool does', () => {
     it('accepts `user`, as get_playback and get_requests already did', async () => {
-        await expect(callLibrary({ user: 'Someone', watched: true })).resolves.toBeDefined();
+        await expect(callLibrary({ user: 'Someone' })).resolves.toBeDefined();
     });
 
     it('still accepts the older watched_by spelling', async () => {
-        await expect(callLibrary({ watched_by: 'Someone', watched: true })).resolves.toBeDefined();
+        await expect(callLibrary({ watched_by: 'Someone' })).resolves.toBeDefined();
     });
 
     it('refuses a request naming two different users', async () => {

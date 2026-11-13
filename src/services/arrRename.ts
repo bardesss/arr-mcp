@@ -3,6 +3,7 @@ import { fenceText } from '../core/fence.ts';
 import type { ServiceHttp } from '../core/http.ts';
 import { logger } from '../core/logger.ts';
 import { awaitArrCommand, postArrCommand, renamedCount } from './arrCommands.ts';
+import type { HealthCheck } from './types.ts';
 
 /**
  * Renaming a set of files whose names are each other's.
@@ -222,6 +223,27 @@ const FORMAT_LABEL: Record<string, string> = {
     dailyEpisodeFormat: 'Daily Episode Format',
     animeEpisodeFormat: 'Anime Episode Format'
 };
+
+/**
+ * A naming format still carrying the marker, as a health warning. Without it
+ * the marker is only found by the next rotated rename, and until then every
+ * episode Sonarr imports is named with it. One config read; never fixed here,
+ * because get_stack_health only reads.
+ */
+export async function namingMarkerChecks(http: ServiceHttp, service: string): Promise<HealthCheck[]> {
+    const naming = await http.get<RawNaming>(`${http.apiRoot}/config/naming`);
+    return Object.entries(FORMAT_LABEL)
+        .filter(([key]) => {
+            const live = naming[key];
+            return typeof live === 'string' && live.endsWith(RENAME_MARKER);
+        })
+        .map(([, label]) => ({
+            service,
+            source: 'arr-mcp',
+            type: 'warning',
+            message: `${label} still ends in "${RENAME_MARKER.trim()}" from an interrupted remap rename, so every episode imported now is named with it. Remove it in Settings → Media Management, or let the next remap rename put it back.`
+        }));
+}
 
 /**
  * Puts the real format back, retrying once. Left marked, every episode

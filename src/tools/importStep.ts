@@ -32,6 +32,24 @@ export function importStepFor(row: QueueItem, fallback?: string): NextStep | und
     };
 }
 
+/**
+ * Finished, and the *arr will not or cannot import it: `importBlocked`, or
+ * `importPending` with reasons. A live Sonarr 4.0.20 reports a download it
+ * finds nothing importable in the second way, retrying every cycle with the
+ * same result, so `importPending` alone does not mean it is coping.
+ */
+export const importFailing = (row: QueueItem): boolean =>
+    row.importState === 'importBlocked' || (row.importState === 'importPending' && (row.statusMessages?.length ?? 0) > 0);
+
+/** The import for a row the *arr keeps failing on by itself: the preview shows what it finds and why each file is refused. */
+export function retriedImportStepFor(row: QueueItem, fallback?: string): NextStep | undefined {
+    const step = importStepFor(row, fallback);
+    const importer = importerFor(row, fallback);
+    return step === undefined || importer === undefined
+        ? undefined
+        : { ...step, why: `${importer} keeps failing to import it by itself; the preview shows what it finds and why each file is refused.` };
+}
+
 /** The importers whose import_download takes a `mapping`. Lidarr's does not. */
 const MAPPERS: readonly string[] = ['radarr', 'sonarr'];
 

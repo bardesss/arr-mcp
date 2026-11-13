@@ -219,8 +219,18 @@ export class ReclaimerrAdapter implements ServiceAdapter, HealthCheckCapable, Hi
             scopes.has('candidates:read') ? this.#candidates() : undefined,
             scopes.has('protections:read') ? this.#readAll<RawProtection>(`${RECLAIMERR_API}/protections?active_only=true`) : undefined
         ]);
-        const sorted = candidates?.items.map(c => this.#candidateOf(c, rules)).sort(soonestFirst);
-        const going = sorted?.filter(c => isGoing(c.state));
+        // Reclaimerr lists newest-created first and has no sort, so a capped read can miss the soonest
+        // deletion. Its state filter can: read what is set to go on its own, which is usually far fewer.
+        const goingReads =
+            candidates?.capped === true
+                ? await Promise.all((['eligible', 'scheduled'] as const).map(s => this.#readAll<RawCandidate>(`${RECLAIMERR_API}/candidates?auto_delete_state=${s}`)))
+                : undefined;
+        const read = candidates?.items.map(c => this.#candidateOf(c, rules));
+        const going = (goingReads === undefined ? read?.filter(c => isGoing(c.state)) : goingReads.flatMap(r => r.items).map(c => this.#candidateOf(c, rules)))?.sort(
+            soonestFirst
+        );
+        const goingCapped = goingReads === undefined ? candidates?.capped === true : goingReads.some(r => r.capped);
+        const sorted = goingReads === undefined || going === undefined ? read?.sort(soonestFirst) : [...going, ...(read ?? []).filter(c => !isGoing(c.state)).sort(soonestFirst)];
         const firstAt = going?.map(c => c.eligibleAt).filter((d): d is string => d !== undefined).sort()[0];
         return {
             service: this.id,
@@ -242,7 +252,9 @@ export class ReclaimerrAdapter implements ServiceAdapter, HealthCheckCapable, Hi
             ...(sorted === undefined || candidates === undefined
                 ? {}
                 : { candidates: { items: sorted.slice(0, Math.max(0, want)), total: candidates.total } }),
-            ...(going === undefined ? {} : { going: { count: going.length, ...(firstAt === undefined ? {} : { firstAt }) } }),
+            ...(going === undefined
+                ? {}
+                : { going: { count: going.length, ...(firstAt === undefined ? {} : { firstAt }), ...(goingCapped ? { capped: true as const } : {}) } }),
             ...(protections === undefined ? {} : { protections: protections.total }),
             ...(candidates?.capped === true ? { capped: true as const } : {})
         };

@@ -443,8 +443,10 @@ export function cleanupLine(cleanup: CleanupOverview | undefined): string {
     const off = cleanup.autoDelete?.enabled === false ? ' Its automatic deletion is off, so nothing goes on its own.' : '';
     if (candidates.total === 0) return ` ${cleanup.service} has nothing set to be deleted.${off}`;
     // Counted by the adapter before `limit` cut the list.
-    const going = cleanup.going ?? { count: 0 };
-    return ` ${cleanup.service}: ${candidates.total} cleanup candidate(s), ${cleanup.capped === true ? 'at least ' : ''}${going.count} set to go${going.firstAt === undefined ? '' : `, the first on ${going.firstAt.slice(0, 10)}`}.${off}`;
+    const going: NonNullable<CleanupOverview['going']> = cleanup.going ?? { count: 0 };
+    const capped = going.capped === true;
+    const first = going.firstAt === undefined ? '' : `, the first ${capped ? 'on or before' : 'on'} ${going.firstAt.slice(0, 10)}`;
+    return ` ${cleanup.service}: ${candidates.total} cleanup candidate(s), ${capped ? 'at least ' : ''}${going.count} set to go${first}.${off}`;
 }
 
 /**

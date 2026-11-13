@@ -443,8 +443,9 @@ state (`importState` in get_queue). At `importBlocked` the *arr stopped and does
 not try again, so the remedy says to fix what it reports and the step imports
 it. At `importPending` with reasons the *arr tried and could not, and tries
 again with the same result (a live Sonarr reports a download with no importable
-file this way), so the stage says it could not import it and offers no import,
-which would meet the same reasons. While the *arr is importing it, the stage
+file this way), so the stage says it could not import it and offers the import,
+whose preview shows what the *arr finds and why each file is refused, as
+get_queue does. While the *arr is importing it, the stage
 says so and offers no import, which would only race it, and no remedy unless the
 *arr gave reasons.
 Without a state, the remedy says to check the *arr's history and the step
@@ -660,6 +661,11 @@ Dispatcharr and Shelfmark their own status (see [Dispatcharr](#dispatcharr) and
 [Shelfmark](#shelfmark) below). Grimmory reports unreachable libraries, old
 Bookdrop files and a newer release (see [Grimmory](#grimmory) below).
 
+Sonarr adds one of its own: a warning, from one read of its naming config, when
+an episode format still ends in ` [arr-mcp-remap]`. That marker is left by a
+remap rename that was interrupted, and every episode imported meanwhile is named
+with it.
+
 SABnzbd reports the warnings and errors from its log, and only those from the
 last 24 hours, since its list keeps every row until a restart or a clear. Rows
 from the same source are collapsed into one, with the newest text and a count of
@@ -862,7 +868,11 @@ protections, `totals` gives the reclaimable and reclaimed bytes, and
 off, nothing is deleted on its own whatever the dates say. The candidate list
 takes the call's `limit`; `total` is always the full count. `going` counts the
 `eligible` and `scheduled` ones over every candidate, not only the ones
-returned, with `firstAt` the soonest date; the summary line quotes it.
+returned, with `firstAt` the soonest date; the summary line quotes it. With more
+candidates than one read takes (5,000), they are read again filtered to those
+two states, since Reclaimerr lists newest-created first and has no sort; if even
+that runs past the cap, `going.capped` is set, `count` is a floor, and the
+summary says the first goes on or before `firstAt`.
 
 ### Dispatcharr
 
@@ -1419,8 +1429,10 @@ Lidarr rows carry `statusMessages` the same way, and `orphaned` when Lidarr
 matched the download to no artist: the artist was deleted, or the release was
 never matched.
 
-A row stuck at `importBlocked` gets an `import_download` step in `next_steps`,
-at most three of them; `next_steps_more` counts the ones left out.
+A row stuck at `importBlocked`, or at `importPending` with `statusMessages` (the
+*arr retries it every cycle and fails the same way), gets an `import_download`
+step in `next_steps`, at most three of them; `next_steps_more` counts the ones
+left out.
 On Radarr and Sonarr an `orphaned` one does too, since it may be a release the
 service never matched: its `why` asks for a `mapping` naming what each file is.
 Lidarr's import takes no mapping, so an orphaned Lidarr row gets none.
@@ -2128,7 +2140,9 @@ Finds the series and films whose media-server metadata disagrees with their
 files, for `fix_metadata` to repair. Covers films and series, and Grimmory books
 in a sweep of their own (see [Books that need a repair](#books-that-need-a-repair)
 below). Films cost one request for the whole library; series cost one each,
-which is why this is not folded into `get_library`.
+which is why this is not folded into `get_library`. The series reads stop after
+45 seconds: those not reached are counted in `notSwept`, and the summary says
+nothing is claimed about them.
 
 It works on Jellyfin and Plex. A film's year may drift by two without a
 finding, and a matched film whose year agrees is not flagged on its title alone.
@@ -2691,8 +2705,10 @@ fallback, since the dataset holds no similarity data. When neither can answer,
 the response carries a `note` instead of a bare empty list.
 
 Seerr serves TMDB's list 20 to a page, and only the pages that `offset` and
-`limit` cover are read. `total` is the size of the whole list, up to 10,000:
-TMDB serves no page past 500.
+`limit` cover are read, at most five a call (Seerr asks TMDB for each). A
+window past that comes back short, with a `note` naming the `offset` that
+continues it. `total` is the size of the whole list, up to 10,000: TMDB serves
+no page past 500.
 
 ## `trigger_subtitle_search`
 

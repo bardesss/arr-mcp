@@ -146,6 +146,20 @@ describe('get_metadata_issues', () => {
         expect(result.degraded).toEqual(['jellyfin']);
     });
 
+    it('stops at its time budget and counts the series it did not reach', async () => {
+        const base = adapterWith({ DTF: [unmatched(4)], Slow1: [healthy(1)], Slow2: [healthy(1)], Slow3: [healthy(1)], Slow4: [healthy(1)], Late: [unmatched(4)] });
+        const slow = {
+            ...base,
+            readEpisodeMetadata: async (u: unknown, itemId: string) =>
+                itemId.startsWith('item-Slow') ? new Promise<never>(() => {}) : (base as unknown as { readEpisodeMetadata: (u: unknown, id: string) => Promise<EpisodeRecord[]> }).readEpisodeMetadata(u, itemId)
+        } as unknown as ServiceAdapter;
+        const result = await buildGetMetadataIssues([slow], identity, { detail: 'full', limit: 50, offset: 0, budgetMs: 50 });
+        expect(result.items.map(i => i.title)).toEqual(['DTF']);
+        expect(result.itemsScanned).toBe(1);
+        expect(result.notSwept).toBe(5);
+        expect(metadataIssuesSummary(result)).toContain('5 series were not swept within the 45 s time budget');
+    });
+
     it('drops the detail but never the answer at minimal', async () => {
         const result = await buildGetMetadataIssues([adapterWith({ DTF: [unmatched(4)] })], identity, {
             detail: 'minimal',

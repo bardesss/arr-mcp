@@ -161,6 +161,12 @@ describe('get_library filters', () => {
             await expect(buildGetLibrary(loader, { ...base, watched: false })).rejects.toThrow(/default_user/);
         });
 
+        it('refuses watched when no media server is configured at all', async () => {
+            const loader = new LibraryLoader([stub('radarr', [film()])], healthyJellyfinIdentity);
+            await expect(buildGetLibrary(loader, { ...base, watched: false })).rejects.toThrow(/none is configured, so every film and series would look unwatched/);
+            expect((await buildGetLibrary(loader, base)).total).toBe(1);
+        });
+
         it('still answers without watched', async () => {
             const loader = new LibraryLoader([stub('radarr', [film()]), down], healthyJellyfinIdentity);
             const result = await buildGetLibrary(loader, base);
@@ -357,8 +363,9 @@ describe('get_library shaping', () => {
         const loader = {
             load: async (user?: string) => {
                 asked.push(user);
-                return { index: LibraryIndex.build([]), degraded: [], counts: {} };
-            }
+                return { index: LibraryIndex.build([]), degraded: [], counts: {}, playbackFrom: 'jellyfin' };
+            },
+            primaryMediaServerId: 'jellyfin'
         } as unknown as LibraryLoader;
 
         await buildGetLibrary(loader, { ...base, watched: true, watched_by: 'Other' });
