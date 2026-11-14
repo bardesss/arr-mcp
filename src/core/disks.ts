@@ -68,8 +68,9 @@ function sameSize(a: number, b: number): boolean {
  * against a false merge and folds in the torrent clients, which report free
  * space with no total to contradict.
  *
- * Paths are dropped: which mount is `/storage` is a container-mapping
- * question, and this table answers whether anything is running out of room.
+ * A path survives only as part of a group's `mounts`, and only when the
+ * caller passes it: which mount is `/storage` is a container-mapping
+ * question, so `get_stack_health` strips paths below `detail: "full"`.
  */
 export function groupDisks(disks: readonly Mount[]): DiskGroup[] {
     const groups: DiskGroup[] = [];
