@@ -214,8 +214,6 @@ export function loginPage(opts: { version: string; error?: string | undefined; t
     });
 }
 
-/** One filesystem, and every instance that can see it. */
-
 /**
  * The IMDb dataset's state, when one is configured.
  *

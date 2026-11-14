@@ -71,7 +71,6 @@ function render(value: unknown): string {
     return esc(value);
 }
 
-
 /** An ISO timestamp as something scannable in a log table. */
 export function shortTime(iso: string): string {
     return iso.replace('T', ' ').replace(/\.\d+Z?$/, '').replace('Z', '');
