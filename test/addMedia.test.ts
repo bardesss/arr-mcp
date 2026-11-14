@@ -609,6 +609,17 @@ describe('add_media across two Radarr instances', () => {
         ).rejects.toThrow(/`name: 4k` entry under `services.radarr`/);
     });
 
+    it('names the instance in the summary, for an add and for a title already there', async () => {
+        const fresh = harness({ adapters: twoRadarrs(stack().impl), instances: bothInstances(true, true) });
+        const add = await fresh.call({ service: 'radarr', instance: '4k', external_id: '603' });
+        expect(add.structuredContent.summary).toMatch(/ to radarr\/4k\.$/);
+
+        const there = harness({ adapters: twoRadarrs(stack({ lookup: EXISTING_MOVIE }).impl), instances: bothInstances(true, true) });
+        const same = await there.call({ service: 'radarr', instance: '4k', external_id: '603' });
+        expect(same.structuredContent.noop).toBe(true);
+        expect(same.structuredContent.summary).toMatch(/ is already in radarr\/4k \(id \d+\)\.$/);
+    });
+
     it('names the instance in the audit row, so two Radarrs stay distinguishable', async () => {
         const s = stack();
         const h = harness({ adapters: twoRadarrs(s.impl), instances: bothInstances(true, true) });

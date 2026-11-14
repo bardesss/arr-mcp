@@ -526,6 +526,15 @@ describe('delete_media', () => {
         expect(structuredContent.tier).toBe('destructive');
     });
 
+    it('names the instance in the summary, not only the service', async () => {
+        const namedRadarr = { ...tiered(false, true), name: '4k' } as never;
+        const fetched = recordingFetch({ '/api/v3/movie/412': MOVIE, '/api/v3/queue': ARR_QUEUE });
+        const h = harness(registerDeleteMedia, { adapters: [new RadarrAdapter(namedRadarr, fetched.impl)], permissions: { radarr: namedRadarr } });
+        const { structuredContent } = await h.call({ service: 'radarr', instance: '4k', id: '412', dry_run: true });
+
+        expect(structuredContent.summary).toMatch(/ from radarr\/4k, leaving its files on disk\.$/);
+    });
+
     it('says plainly that files stay when delete_files is false', async () => {
         const h = harness(registerDeleteMedia);
         const { structuredContent } = await h.call({ service: 'radarr', id: '412', dry_run: true });
@@ -1381,6 +1390,35 @@ describe('delete_episode_files', () => {
         });
         const preview = await call({ service: 'sonarr', id: '7', season: 2 });
         expect(preview.structuredContent.effects.join(' ')).not.toMatch(/could not be established|truncated/i);
+    });
+
+    it('names the instance in the summary, for a delete and for a no-op', async () => {
+        const named = { ...tiered(false, true), name: '4k' } as never;
+        const call = (files: unknown) =>
+            harness(registerDeleteEpisodeFiles, {
+                permissions: { sonarr: named },
+                adapters: [new SonarrAdapter(named, recordingFetch({ ...routes, '/api/v3/episodefile?seriesId=7': files }).impl)]
+            }).call;
+
+        const preview = await call(EPISODE_FILES)({ service: 'sonarr', instance: '4k', id: '7', season: 2 });
+        expect(preview.structuredContent.summary).toMatch(/^Delete 2 episode file\(s\) from season 2 of .* in sonarr\/4k, 8\.4 GB from disk\.$/);
+        const empty = await call(EPISODE_FILES.filter(f => f.seasonNumber !== 1))({ service: 'sonarr', instance: '4k', id: '7', season: 1 });
+        expect(empty.structuredContent.noop).toBe(true);
+        expect(empty.structuredContent.summary).toMatch(/^season 1 of .* in sonarr\/4k has no files on disk\.$/);
+    });
+
+    it('counts the episodes it looked at in a no-op for episodes with no file', async () => {
+        const noFiles = EPISODES_S2.map(e => ({ ...e, hasFile: false, episodeFileId: 0 }));
+        const { call } = harness(registerDeleteEpisodeFiles, {
+            permissions: { sonarr: tiered(false, true) },
+            adapters: [new SonarrAdapter(keyed(8989), recordingFetch({ ...routes, '/api/v3/episode?seriesId=7': noFiles }).impl)]
+        });
+
+        const both = await call({ service: 'sonarr', id: '7', episodes: ['11', '12'] });
+        expect(both.structuredContent.noop).toBe(true);
+        expect(both.structuredContent.summary).toMatch(/^2 episode\(s\) of .* in sonarr have no files on disk\.$/);
+        const one = await call({ service: 'sonarr', id: '7', episodes: ['11'] });
+        expect(one.structuredContent.summary).toMatch(/^1 episode\(s\) of .* in sonarr has no files on disk\.$/);
     });
 
     it('is a no-op for a season with no files on disk', async () => {

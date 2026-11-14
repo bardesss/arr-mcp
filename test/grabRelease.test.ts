@@ -62,6 +62,8 @@ function harness(
         item?: Record<string, unknown>;
         /** An item read that never answers. */
         itemHangs?: boolean;
+        /** Names the Radarr instance, as one entry of a list does. */
+        radarrName?: string;
     } = {}
 ) {
     const grabbed: unknown[] = [];
@@ -92,6 +94,7 @@ function harness(
     };
 
     const audit = WriteAudit.ephemeral();
+    const radarr = opts.radarrName === undefined ? keyed(7878) : { ...keyed(7878), name: opts.radarrName };
     registerGrabRelease(
         server as never,
         {
@@ -103,7 +106,7 @@ function harness(
             library: { invalidate: vi.fn() } as unknown as LibraryLoader,
             ...(opts.crossChecks === undefined ? {} : { crossChecks: opts.crossChecks })
         },
-        [new RadarrAdapter(keyed(7878), impl), new SonarrAdapter(keyed(8989), impl), new WhisparrAdapter(keyed(6969), impl)]
+        [new RadarrAdapter(radarr, impl), new SonarrAdapter(keyed(8989), impl), new WhisparrAdapter(keyed(6969), impl)]
     );
 
     return { call: (a: Record<string, unknown>) => call(a), grabbed, searched, audit, reads };
@@ -119,6 +122,13 @@ describe('grab_release', () => {
         expect(structuredContent.applied).toBe(false);
         expect(structuredContent.confirm_token).toBeDefined();
         expect(h.grabbed).toHaveLength(0);
+    });
+
+    it('names the instance in the summary, not only the service', async () => {
+        const h = harness({ radarrName: '4k', permissions: { radarr: { ...keyed(7878), permissions: { safe_write: true, destructive: false }, name: '4k' } as unknown as AnyServiceConfig } });
+        const { structuredContent } = await h.call({ ...ARGS, instance: '4k' });
+
+        expect(structuredContent.summary).toMatch(/ for radarr\/4k\.$/);
     });
 
     it('grabs once the token comes back', async () => {

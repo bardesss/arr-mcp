@@ -297,6 +297,18 @@ describe('update_media on Lidarr', () => {
         expect(done.structuredContent.next_steps?.[0]?.arguments).toEqual({ service: 'lidarr', instance: 'two', id: '101' });
     });
 
+    it('names the instance in the summary, for a change and for a no-op', async () => {
+        const named = { ...config(8686), permissions: { safe_write: true, destructive: true }, name: 'two' } as unknown as AnyServiceConfig;
+        const { adapter } = lidarr({}, named as KeyedServiceConfig);
+        const call = updateMedia([adapter], true, { lidarr: named });
+
+        const change = await call({ service: 'lidarr', instance: 'two', id: '101', metadata_profile: 'None' });
+        expect(change.structuredContent.summary).toMatch(/ in lidarr\/two\.$/);
+        const same = await call({ service: 'lidarr', instance: 'two', id: '101', metadata_profile: 'Standard' });
+        expect(same.structuredContent.noop).toBe(true);
+        expect(same.structuredContent.summary).toMatch(/ is already set that way in lidarr\/two\.$/);
+    });
+
     // The refresh rescans the root folders, which can drop the records of
     // files that have not reached the new folder yet.
     it('offers no refresh after a move_files: false change in the same call, and says why', async () => {

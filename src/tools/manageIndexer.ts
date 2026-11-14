@@ -237,7 +237,7 @@ async function planEdit(adapter: Adapter, id: number | undefined, args: Settings
 
     const target = `${adapter.id}:${id}`;
     if (changes.length === 0) {
-        return { target, summary: `${indexer.name} already has those settings.`, effects: [], noop: true };
+        return { target, summary: `${indexer.name} in ${adapter.id} already has those settings.`, effects: [], noop: true };
     }
 
     const newTags = settings.tags ?? indexer.tags;

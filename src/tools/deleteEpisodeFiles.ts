@@ -95,6 +95,9 @@ export function registerDeleteEpisodeFiles(
             // `episodefile`, so deleting episode 11's file can also remove
             // episode 12's without episode 12 ever being asked for.
             let collateral: EpisodeSummary[] = [];
+            // The requested episodes the series has. With no file to delete none
+            // of them loses one, so the no-op counts these.
+            let targeted: EpisodeSummary[] = [];
 
             if (season !== undefined) {
                 fileIds = all.filter(f => f.season === season).map(f => f.id);
@@ -103,7 +106,7 @@ export function registerDeleteEpisodeFiles(
                 const allEpisodes = details.episodes ?? [];
 
                 const requestedIdSet = new Set(requested);
-                const targeted = allEpisodes.filter(e => requestedIdSet.has(String(e.id)));
+                targeted = allEpisodes.filter(e => requestedIdSet.has(String(e.id)));
                 const rawFileIds = targeted
                     .map(e => e.episodeFileId)
                     .filter((f): f is number => typeof f === 'number' && f > 0);
@@ -120,13 +123,13 @@ export function registerDeleteEpisodeFiles(
 
             const bytes = all.filter(f => fileIds.includes(f.id)).reduce((sum, f) => sum + (f.sizeBytes ?? 0), 0);
             const size = humanSize(bytes);
-            const episodeCount = season !== undefined ? fileIds.length : episodesLosingFiles.length;
-            const scope = season !== undefined ? `season ${season} of ${label}` : `${episodeCount} episode(s) of ${label}`;
+            const episodeCount = fileIds.length === 0 ? targeted.length : episodesLosingFiles.length;
+            const scope = `${season !== undefined ? `season ${season}` : `${episodeCount} episode(s)`} of ${label} in ${adapter.id}`;
 
             if (fileIds.length === 0) {
                 return {
                     target: `${adapter.id}:${id}:${season !== undefined ? `s${season}` : 'e'}`,
-                    summary: `${scope} has no files on disk.`,
+                    summary: `${scope} ${season === undefined && episodeCount !== 1 ? 'have' : 'has'} no files on disk.`,
                     effects: [],
                     noop: true
                 };
