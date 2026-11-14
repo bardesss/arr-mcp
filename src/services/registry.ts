@@ -1,5 +1,6 @@
 import { listInstances, type ServiceInstance } from '../config/instances.ts';
 import type { Config } from '../config/schema.ts';
+import { resolveSecrets } from '../config/secretSources.ts';
 import { BazarrAdapter } from './bazarr.ts';
 import { CleanuparrAdapter } from './cleanuparr.ts';
 import { DispatcharrAdapter } from './dispatcharr.ts';
@@ -48,7 +49,10 @@ import type { ServiceAdapter } from './types.ts';
  * compile, including `seerr` for `plex` and `transmission` for `qbittorrent`.
  */
 export function buildAdapters(config: Config): ServiceAdapter[] {
-    return listInstances(config).map(buildAdapter);
+    // Resolved here and nowhere longer-lived (#636): the config every other
+    // reader holds keeps `api_key_file` and `${NAME}` as written, so a save
+    // from the config UI cannot write a resolved secret into config.yaml.
+    return listInstances(resolveSecrets(config)).map(buildAdapter);
 }
 
 function buildAdapter(instance: ServiceInstance): ServiceAdapter {

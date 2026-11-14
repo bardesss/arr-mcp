@@ -1,6 +1,7 @@
 import { configEtag } from '../config/etag.ts';
 import { listInstances, type ServiceInstance } from '../config/instances.ts';
 import { isMultiInstance } from '../config/instances.ts';
+import { describeSource, secretSource } from '../config/secretSources.ts';
 import {
     MediaServerIdSchema,
     mediaServersIn,
@@ -125,6 +126,8 @@ const field = (opts: {
      *  Rendered empty for the client to fill; without scripting the field is
      *  simply a text box. */
     usersFor?: string;
+    /** Set from a file or the environment (#636): shown, never editable here. */
+    readOnly?: boolean;
 }): SafeHtml => html`<div class="field"${
     opts.only === undefined ? raw('') : html` data-only="${opts.only.join(' ')}"`
 }>
@@ -135,7 +138,7 @@ const field = (opts: {
         type="${opts.secret === true ? 'text' : (opts.type ?? 'text')}"
         value="${opts.value ?? ''}"
         placeholder="${opts.placeholder ?? ''}"
-        ${opts.usersFor === undefined ? raw('') : html`list="${opts.id}.options" data-users-for="${opts.usersFor}" `}${IGNORE}
+        ${opts.readOnly === true ? raw('readonly ') : raw('')}${opts.usersFor === undefined ? raw('') : html`list="${opts.id}.options" data-users-for="${opts.usersFor}" `}${IGNORE}
     >
     ${opts.usersFor === undefined ? raw('') : html`<datalist id="${opts.id}.options"></datalist>`}
     ${opts.note === undefined ? raw('') : html`<p class="note" id="${opts.id}.note">${opts.note}</p>`}
@@ -175,25 +178,33 @@ function serviceFields(instance: ServiceInstance, prefix: string): SafeHtml {
     const type = instance.type;
     const service = instance.config as AnyService;
     const { fields, required } = serviceTraits(type);
+    const secret = secretFieldOf(type);
+    // A reference set in config.yaml is shown as one and cannot be typed
+    // over: the save keeps it, and the edit would be refused anyway (#636).
+    const source = secretSource(service, secret);
+    const secretInput = (label: string, keep: string) =>
+        source === undefined
+            ? field({
+                  id: `${prefix}.${secret}`,
+                  name: secret,
+                  label,
+                  secret: true,
+                  placeholder: 'unchanged',
+                  note: `Leave blank to keep the current ${keep}. A new host, port or scheme needs it entered again.`
+              })
+            : field({
+                  id: `${prefix}.${secret}`,
+                  name: secret,
+                  label,
+                  readOnly: true,
+                  placeholder: source.kind === 'file' ? 'set from file' : 'set from environment',
+                  note: `This ${keep} is ${describeSource(source, secret)}. Change it there; arr-mcp reads it when it starts.`
+              });
 
-    return html`${secretFieldOf(type) === 'password'
+    return html`${secret === 'password'
         ? html`${field({ id: `${prefix}.username`, name: 'username', label: required.has('username') ? 'Username' : 'Username (optional)', value: service.username ?? '' })}
-          ${field({
-              id: `${prefix}.password`,
-              name: 'password',
-              label: 'Password',
-              secret: true,
-              placeholder: 'unchanged',
-              note: 'Leave blank to keep the current password. A new host, port or scheme needs it entered again.'
-          })}`
-        : field({
-              id: `${prefix}.api_key`,
-              name: 'api_key',
-              label: 'API key',
-              secret: true,
-              placeholder: 'unchanged',
-              note: 'Leave blank to keep the current key. A new host, port or scheme needs it entered again.'
-          })}
+          ${secretInput('Password', 'password')}`
+        : secretInput('API key', 'key')}
     ${fields.has('default_user')
         ? html`${field({
               id: `${prefix}.default_user`,

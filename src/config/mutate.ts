@@ -1,6 +1,7 @@
 import { expiresIn, generateMcpToken, type ExpiryChoice, type TokenTier } from '../core/mcpTokens.ts';
 import { hashToken } from '../core/secrets.ts';
 import { instanceId, isMultiInstance } from './instances.ts';
+import { describeSource, isEnvReference, secretSource, type SecretField, type SecretSource } from './secretSources.ts';
 import {
     ConfigSchema,
     MediaServerIdSchema,
@@ -47,8 +48,13 @@ export class ConfigEditError extends Error {}
 export class CredentialWouldMoveError extends ConfigEditError {
     readonly target: string;
 
-    constructor(target: string, secret: string) {
-        super(`The URL points somewhere new, so enter the ${secret} again.`);
+    constructor(target: string, secret: SecretField, source?: SecretSource) {
+        super(
+            source === undefined
+                ? `The URL points somewhere new, so enter the ${secret} again.`
+                : `The URL points somewhere new, and the ${secret} is ${describeSource(source, secret)}. ` +
+                      'Change the URL in config.yaml, together with that reference, if it really moved.'
+        );
         this.target = target;
     }
 }
@@ -133,16 +139,33 @@ function applyFields(type: ServiceId, base: Entry, fields: InstanceFields): Entr
     const secret = secretFieldOf(type);
     const stored = (base as Record<string, unknown>)[secret];
     const given = fields[secret];
+    // A file or environment reference is the operator's, set in config.yaml
+    // (#636). Typing over it here would put a plain secret beside the
+    // reference, which the schema refuses, or replace the reference, which
+    // the operator chose against. So the form says where to change it.
+    const source = secretSource(base, secret);
+    if (source !== undefined && given !== undefined && given !== '') {
+        throw new ConfigEditError(
+            `The ${secret === 'password' ? 'password' : 'API key'} is ${describeSource(source, secret)}, so change it there rather than here.`
+        );
+    }
+    // A reference is written in config.yaml only. From a form or the API it
+    // would read any environment variable the process has (an MCP token, a
+    // cloud key) and, with a URL of the sender's choosing, Test would send it
+    // to them as the key.
+    if (given !== undefined && isEnvReference(given)) {
+        throw new ConfigEditError('A ${NAME} reference can only be written in config.yaml. Enter the credential itself here.');
+    }
+    const hasStored = source !== undefined || (typeof stored === 'string' && stored !== '');
     // An unparseable url is left for the schema to name.
     if (
-        typeof stored === 'string' &&
-        stored !== '' &&
+        hasStored &&
         (given === undefined || given === '') &&
         fields.url !== undefined &&
         URL.canParse(fields.url) &&
         new URL(fields.url).origin !== new URL((base as { url: string }).url).origin
     ) {
-        throw new CredentialWouldMoveError(new URL(fields.url).origin, secret);
+        throw new CredentialWouldMoveError(new URL(fields.url).origin, secret, source);
     }
 
     if (fields.url !== undefined && fields.url !== '') next.url = fields.url;

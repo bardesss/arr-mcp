@@ -43,6 +43,10 @@ const SERVICE_FIELDS: Record<string, { read: string[]; write: string[] }> = {
     safe_write: { read: ['safeWrite'], write: ['safeWrite'] },
     destructive: { read: ['destructive'], write: ['destructive'] },
     api_key: { read: ['apiKeySet'], write: ['apiKey'] },
+    // A file reference is set in config.yaml only (#636). GET shows it as
+    // apiKeySet plus apiKeyFrom, which appears only when one is set.
+    api_key_file: { read: ['apiKeySet'], write: [] },
+    password_file: { read: ['passwordSet'], write: [] },
     name: { read: ['name'], write: ['name'] },
     default_user: { read: ['defaultUser'], write: ['defaultUser'] },
     allow_other_users: { read: ['allowOtherUsers'], write: ['allowOtherUsers'] },

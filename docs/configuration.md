@@ -54,6 +54,51 @@ that times out is retried once. A few calls known to be slow on a healthy stack,
 an interactive release search and a metadata repair, carry their own longer
 limit and ignore this one.
 
+## Secrets from files or the environment
+
+A service's `api_key` or `password` can stay out of `config.yaml`. Name a file
+with `api_key_file` or `password_file`, the way Docker, Podman and systemd
+secrets are mounted, or write the whole value as `${NAME}` to read environment
+variable `NAME`:
+
+```yaml
+services:
+  radarr:
+    url: http://radarr:7878
+    api_key_file: /run/secrets/radarr_api_key
+  sabnzbd:
+    url: http://sabnzbd:8080
+    api_key: ${SABNZBD_API_KEY}
+  qbittorrent:
+    url: http://qbittorrent:8081
+    username: admin
+    password_file: /run/secrets/qbittorrent_password
+```
+
+- A file is read as it is, minus one trailing newline.
+- `${NAME}` has to be the whole value. `abc${NAME}` is the literal key
+  `abc${NAME}`.
+- Setting both `api_key` and `api_key_file` is an error.
+- References are written in `config.yaml` only. The config UI and the
+  management API refuse a `${NAME}` typed as a key or password, since that
+  would let anyone using them read the server's environment.
+- A file that is missing, unreadable or empty, or a variable that is unset or
+  empty, starts arr-mcp in [repair mode](#when-config-yaml-will-not-load) with
+  the instance and field named, for example
+  `services.radarr.api_key_file: the file could not be read (ENOENT)`.
+- Both are read when arr-mcp starts and again whenever the config is saved. A
+  changed secret file or variable takes effect on the next restart.
+
+This covers every service credential, Plex's token included (it is the
+`api_key` field). The `auth` and `webhooks` secrets are not covered yet.
+
+The config UI shows such a field as set from file or set from environment and
+never writes the secret into `config.yaml`: a save keeps the reference. It
+cannot change the credential either, since the file or variable is where it
+lives, and it refuses a new URL on another host for that instance, as it does
+for any stored credential. Test uses the resolved value. In the
+[management API](api.md) the instance shows `apiKeyFrom` or `passwordFrom`.
+
 ## Services behind a URL base
 
 If a service runs under a subpath (the arr apps call it "URL Base"), put that
