@@ -2712,7 +2712,9 @@ services: {}
         await signIn();
         const page = await (await call('/ui')).text();
         expect(page).not.toContain('id="bearer"');
-        expect(page).toMatch(/1 token · <a href="\/ui\/config\?tab=access#tokens">Manage<\/a>/);
+        expect(page).toContain('<a href="/ui/config?tab=access#tokens">Manage</a>');
+        const list = /<ul class="tokens">([\s\S]*?)<\/ul>/.exec(page)?.[1] ?? '';
+        expect(list.match(/<li>/g)).toHaveLength(1);
     });
 
     it('prompts for a first token when there are none', async () => {

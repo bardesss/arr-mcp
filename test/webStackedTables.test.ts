@@ -67,16 +67,16 @@ describe('stacked tables', () => {
         expect(logTable(ROWS).value).toContain('<table class="stacked">');
     });
 
-    it('marks the dashboard problems table, which has the same shape', () => {
-        expect(dashboard(FAILURES)).toContain('<table class="stacked">');
+    // The dashboard lists problems as one entry each under Needs attention,
+    // which reads on a phone without stacking, so it draws no stacked table.
+    it('lists dashboard problems as entries rather than a stacked table', () => {
+        const page = dashboard(FAILURES);
+        expect(page.match(/<div class="alert">/g)).toHaveLength(FAILURES.length);
+        expect(page).not.toContain('stacked');
     });
 
-    // Disks and scans are three short columns each. If a later edit stacks
-    // every table, this is what says that was not the deal.
-    it('leaves the short tables alone', () => {
-        const plain = dashboard([]);
-        expect(plain).toContain('<table>');
-        expect(plain).not.toContain('stacked');
+    it('says so when nothing needs attention', () => {
+        expect(dashboard([])).toContain('Nothing needs attention.');
     });
 
     /**

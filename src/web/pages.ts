@@ -225,48 +225,91 @@ export function loginPage(opts: { version: string; error?: string | undefined; t
  * from a broken download, and the user would reasonably conclude the feature
  * does not work.
  */
-const imdbPanel = (status: DatasetStatus): SafeHtml => html`<h2>IMDb dataset</h2>
-    <div class="panel">
+const imdbPanel = (status: DatasetStatus): SafeHtml => html`<section class="box">
+    <div class="box-h"><h2>IMDb dataset</h2></div>
+    <div class="box-b">
         ${status.ingestedAt === undefined
             ? html`<p class="note">
-                  Enabled, still downloading. Every tool answers exactly as it did before until the first
-                  ingest finishes. Nothing is broken while this says so, but <strong>IMDb ratings for
-                  series are not available yet</strong>, because this is the only thing that supplies them.
-                  It runs again weekly.
+                  Enabled, still downloading. Tools answer as before until the first ingest finishes, and
+                  <strong>IMDb ratings for series are not available yet</strong>: this is their only source.
               </p>`
             : html`<p class="note">
-                      A fallback for ratings when Seerr is not configured or not answering, and the only
-                      source of an <strong>IMDb rating for a series</strong>, which no service in this stack
-                      reports. Refreshed weekly, about 223 MB down, roughly 81 MB on disk. Nothing here is
-                      sent anywhere.
-                  </p>
-                  <table>
-                      <thead><tr><th>Last ingested</th><th>Titles</th><th>Rated</th></tr></thead>
-                      <tbody>
-                          <tr>
-                              <td class="mono">${shortTime(status.ingestedAt)}</td>
-                              <td>${status.titles.toLocaleString('en')}</td>
-                              <td>${status.ratings.toLocaleString('en')}</td>
-                          </tr>
-                      </tbody>
-                  </table>`}
-    </div>`;
+                  Ratings fallback and the only source of an IMDb rating for a series. Refreshed weekly.
+              </p>
+              <dl class="kv">
+                  <dt>Last ingested</dt><dd class="mono">${shortTime(status.ingestedAt)}</dd>
+                  <dt>Titles</dt><dd>${status.titles.toLocaleString('en')}</dd>
+                  <dt>Rated</dt><dd>${status.ratings.toLocaleString('en')}</dd>
+              </dl>`}
+    </div>
+</section>`;
 
-const statusDot = (d: ConnectionDiagnosis): SafeHtml =>
-    html`<span class="dot ${d.ok ? 'ok' : 'bad'}" title="${d.ok ? 'reachable' : 'unreachable'}"></span>`;
+/** Write permission per instance, as the Services page sets it. */
+export type Tier = 'read' | 'safe' | 'destructive';
+
+const TIER_LABEL: Record<Tier, string> = { read: 'read-only', safe: 'safe write', destructive: 'destructive' };
+
+/** Short enough for a status column; the detail and remedy say the rest. */
+const KIND_LABEL: Record<NonNullable<ConnectionDiagnosis['error']>['kind'], string> = {
+    Unreachable: 'Down',
+    AuthFailed: 'Auth failed',
+    NotFound: 'Not found',
+    RateLimited: 'Rate limited',
+    Timeout: 'Timeout',
+    VersionUnsupported: 'Unsupported',
+    PermissionDenied: 'Denied',
+    UpstreamError: 'Error'
+};
 
 /**
- * A card per service, showing the *diagnosis* rather than a tick or a cross.
+ * Groups for the services table, by what a service does in the stack, in the
+ * order a request travels through it. An id the list does not know lands in
+ * Other rather than disappearing.
+ */
+const GROUPS: { label: string; types: readonly string[] }[] = [
+    { label: 'Library', types: ['sonarr', 'radarr', 'lidarr', 'whisparr', 'bazarr', 'shelfmark', 'grimmory'] },
+    { label: 'Downloads', types: ['sabnzbd', 'nzbget', 'transmission', 'qbittorrent'] },
+    { label: 'Indexers and profiles', types: ['prowlarr', 'profilarr'] },
+    { label: 'Media and requests', types: ['jellyfin', 'plex', 'seerr'] },
+    { label: 'Other', types: [] }
+];
+
+const groupOf = (id: string): string => {
+    const type = id.split('/')[0] ?? '';
+    return GROUPS.find(g => g.types.includes(type))?.label ?? 'Other';
+};
+
+/** `radarr/4k` with the instance name dimmed, so a column of them scans by service. */
+const serviceName = (id: string): SafeHtml => {
+    const [type, name] = id.split('/');
+    return name === undefined ? html`${id}` : html`${type ?? ''}<span class="dim">/${name}</span>`;
+};
+
+const DAY = 86_400_000;
+
+function daysLeft(expires: string | undefined, now: Date): string {
+    if (expires === undefined) return 'no expiry';
+    const days = Math.ceil((Date.parse(`${expires}T23:59:59Z`) - now.getTime()) / DAY);
+    if (days < 0) return 'expired';
+    return days === 1 ? '1 day left' : `${days} days left`;
+}
+
+/**
+ * Every service tested live, with what is wrong at the top.
  *
  * A connection test that returns true/false tells you nothing about what to
- * fix. `testConnection` already returns kind, detail and remedy; this is the
- * first surface that shows all three to a human.
+ * fix: `testConnection` returns kind, detail and remedy, and a failing service
+ * shows all three under Needs attention. The table below it is one line per
+ * instance, because on a healthy stack it should cost one glance, not a screen
+ * of identical cards.
  */
 export function dashboardPage(opts: {
     csrf: string;
     version: string;
     diagnoses: ConnectionDiagnosis[];
     configured: string[];
+    /** Absent for an instance the page has no permissions for, which then shows none. */
+    tiers?: Readonly<Record<string, Tier>> | undefined;
     tokens: readonly StoredToken[];
     /** Names of tokens config.yaml still holds in plaintext. */
     plaintextOnDisk: readonly string[];
@@ -274,6 +317,8 @@ export function dashboardPage(opts: {
     /** Absent when the request carried no usable `Host`; see `origin.ts`. */
     mcpUrl?: string | undefined;
     writeCounts: { applied: number; denied: number; total: number };
+    /** The latest few, newest first. */
+    recentWrites?: readonly AuditRow[] | undefined;
     /** Absent when the IMDb dataset is not configured, in which case the
      *  panel is not rendered at all rather than rendered as "off". */
     imdb?: DatasetStatus | undefined;
@@ -283,159 +328,208 @@ export function dashboardPage(opts: {
     scans: ScanState[];
     theme?: Theme | undefined;
 }): string {
-    const cards =
+    const down = opts.diagnoses.filter(d => !d.ok);
+    const up = opts.diagnoses.length - down.length;
+    const expiring = opts.tokens.filter(t => isExpired(t.expires, opts.now) || expiringSoon(t.expires, opts.now));
+
+    const stat = (href: string, label: string, value: SafeHtml, sub: string, warn: boolean): SafeHtml =>
+        html`<a class="stat" href="${href}">
+            <span class="stat-k">${label}</span>
+            <span class="stat-v">${value}</span>
+            <span class="stat-s${warn ? ' warn' : ''}">${sub}</span>
+        </a>`;
+
+    const strip = html`<div class="strip">
+        ${stat(
+            '/ui/config?tab=services',
+            'Services',
+            html`${up} <small>/ ${opts.diagnoses.length} up</small>`,
+            down.length === 0 ? 'all reachable' : `${down.length} need attention`,
+            down.length > 0
+        )}
+        ${stat(
+            '#attention',
+            'Health checks',
+            html`${opts.failures.length}`,
+            opts.failures.length === 0 ? 'nothing reported' : `from ${[...new Set(opts.failures.map(f => f.service))].join(', ')}`,
+            opts.failures.length > 0
+        )}
+        ${stat(
+            '/ui/config?tab=access#tokens',
+            'MCP tokens',
+            html`${opts.tokens.length}`,
+            expiring.length === 0 ? 'none expiring' : `${expiring.length} expired or expiring`,
+            expiring.length > 0 || opts.tokens.length === 0
+        )}
+        ${stat(
+            '/ui/audit',
+            'Writes',
+            html`${opts.writeCounts.total}`,
+            `${opts.writeCounts.applied} applied, ${opts.writeCounts.denied} refused`,
+            false
+        )}
+    </div>`;
+
+    const alerts = [
+        ...down.map(
+            d => html`<div class="alert">
+                <span class="sev bad">${d.error === undefined ? 'Down' : KIND_LABEL[d.error.kind]}</span>
+                <div class="alert-what">${serviceName(d.service)}${d.error === undefined
+                    ? raw('')
+                    : html` <span class="mono dim">${unfence(d.error.detail)}</span>`}</div>
+                ${d.error?.remedy === undefined ? raw('') : html`<div class="alert-fix">${unfence(d.error.remedy)}</div>`}
+                <a class="button ghost alert-act" href="/ui/config?tab=services">Edit</a>
+            </div>`
+        ),
+        ...opts.failures.map(
+            f => html`<div class="alert">
+                <span class="sev ${f.type === 'error' ? 'bad' : 'warn'}">${f.type === 'error' ? 'Error' : 'Warn'}</span>
+                <div class="alert-what">${serviceName(f.service)} <span class="mono dim">${unfence(f.source)}</span></div>
+                <div class="alert-fix">${unfence(f.message)}</div>
+            </div>`
+        )
+    ];
+
+    const attention = html`<section class="box" id="attention">
+        <div class="box-h"><h2>Needs attention</h2><a href="/ui/logs?stream=problems">Problems log</a></div>
+        ${alerts.length === 0 ? html`<p class="box-b note">Nothing needs attention.</p>` : html`${alerts}`}
+    </section>`;
+
+    const byGroup = GROUPS.map(g => ({
+        label: g.label,
+        rows: opts.diagnoses.filter(d => groupOf(d.service) === g.label)
+    })).filter(g => g.rows.length > 0);
+
+    const services =
         opts.diagnoses.length === 0
-            ? html`<p class="note">
-                  No services configured yet. Add one on the
-                  <a href="/ui/config">Configuration</a> page.
+            ? html`<p class="box-b note">
+                  No services configured yet. <a href="/ui/config?tab=services">Add one</a>.
               </p>`
-            : html`<div class="grid">
-                  ${opts.diagnoses.map(
-                      d => html`<div class="card">
-                          <h3>${serviceIcon(d.service)} ${d.service} ${statusDot(d)}</h3>
-                          <dl>
-                              <dt>Status</dt>
-                              <dd>${d.ok ? 'Reachable' : (d.error?.kind ?? 'Unreachable')}</dd>
-                              <dt>Latency</dt>
-                              <dd>${d.latency_ms} ms</dd>
-                              ${d.version === undefined ? raw('') : html`<dt>Version</dt><dd>${d.version}</dd>`}
-                          </dl>
-                          ${d.ok || d.error === undefined
-                              ? raw('')
-                              : html`<div class="remedy">
-                                    <strong>${unfence(d.error.detail)}</strong>
-                                    ${d.error.remedy === undefined ? raw('') : html`<br>${unfence(d.error.remedy)}`}
-                                </div>`}
-                      </div>`
+            : html`<table class="svc-table">
+                  <thead><tr><th scope="col">Service</th><th scope="col" class="opt">Version</th><th scope="col" class="opt">Latency</th><th scope="col">Writes</th><th scope="col">Status</th></tr></thead>
+                  ${byGroup.map(
+                      g => html`<tbody>
+                          <tr class="group"><th scope="colgroup" colspan="5">${g.label}</th></tr>
+                          ${g.rows.map(d => {
+                              const tier = opts.tiers?.[d.service];
+                              return html`<tr class="${d.ok ? '' : 'fail'}">
+                                  <th scope="row"><span class="svc-name">${serviceIcon(d.service)}${serviceName(d.service)}</span></th>
+                                  <td class="opt mono dim">${d.version ?? ''}</td>
+                                  <td class="opt mono dim">${d.latency_ms} ms</td>
+                                  <td>${tier === undefined ? raw('') : html`<span class="tier ${tier}">${TIER_LABEL[tier]}</span>`}</td>
+                                  <td><span class="st ${d.ok ? 'ok' : 'bad'}"><i></i>${d.ok
+                                      ? 'Up'
+                                      : d.error === undefined
+                                        ? 'Down'
+                                        : KIND_LABEL[d.error.kind]}</span></td>
+                              </tr>`;
+                          })}
+                      </tbody>`
                   )}
-              </div>`;
-
-    /**
-     * The four things `get_stack_health` answers, on the page rather than only
-     * through a tool. Reachability alone is a dashboard that calls a service
-     * healthy while its disk is full and its library has not been scanned for
-     * a day, which is exactly the gap `diagnose_media` exists to explain after the
-     * fact.
-     */
-    const problems =
-        opts.failures.length === 0
-            ? html`<p class="note">Nothing is reporting a problem.</p>`
-            : html`<table class="stacked">
-                  <thead><tr><th>Service</th><th>Source</th><th>Type</th><th>Message</th></tr></thead>
-                  <tbody>
-                      ${opts.failures.map(
-                          f => html`<tr>
-                              <td>${f.service}</td>
-                              <td>${unfence(f.source)}</td>
-                              <td>${f.type}</td>
-                              <td>${unfence(f.message)}</td>
-                          </tr>`
-                      )}
-                  </tbody>
               </table>`;
 
-    const grouped = opts.disks;
-    const disks =
-        grouped.length === 0
-            ? html`<p class="note">No service reported disk space.</p>`
-            : html`<table>
-                  <thead><tr><th>Free</th><th>Total</th><th>Seen by</th></tr></thead>
-                  <tbody>
-                      ${grouped.map(
-                          d => html`<tr>
-                              <td>${humanBytes(d.freeSpace)}</td>
-                              <td>${d.totalSpace === undefined ? '' : humanBytes(d.totalSpace)}</td>
-                              <td>${d.services.join(', ')}</td>
-                          </tr>`
-                      )}
-                  </tbody>
-              </table>`;
-
-    const scans =
-        opts.scans.length === 0
-            ? html`<p class="note">No service reported a library scan.</p>`
-            : html`<table>
-                  <thead><tr><th>Service</th><th>Last completed</th><th>Running now</th></tr></thead>
-                  <tbody>
-                      ${opts.scans.map(
-                          s => html`<tr>
-                              <td>${s.service}</td>
-                              <td class="mono">${s.lastCompleted === undefined ? 'unknown' : shortTime(s.lastCompleted)}</td>
-                              <td>${s.running === true ? 'yes' : 'no'}</td>
-                          </tr>`
-                      )}
-                  </tbody>
-              </table>`;
-
-    const body = html`<h2>Services</h2>
-        <p class="note">
-            Tested live, just now. A failure shows what to fix rather than only that it failed.
-        </p>
-        ${cards}
-
-        <h2>Problems</h2>
-        <div class="panel">${problems}</div>
-
-        ${opts.imdb === undefined ? raw('') : imdbPanel(opts.imdb)}
-
-        <h2>Disk space</h2>
-        <div class="panel">
-            <p class="note">
-                One row per filesystem, not per mount: services in one stack share the same disks, and
-                listing every path they see them through says the same thing several times over.
-            </p>
-            ${disks}
-        </div>
-
-        <h2>Library scans</h2>
-        <div class="panel">
-            <p class="note">
-                A library that has not been scanned recently is the usual reason something downloaded is
-                still not playable.
-            </p>
-            ${scans}
-        </div>
-
-        <h2>MCP endpoint</h2>
-        <div class="panel">
-            <p class="note">
-                Point your MCP client at this URL with one of your MCP tokens. A token is shown once, when
-                you create it.
-            </p>
+    const connect = html`<section class="box">
+        <div class="box-h"><h2>Connect a client</h2><a href="/ui/config?tab=access#tokens">Manage</a></div>
+        <div class="box-b">
             ${opts.mcpUrl === undefined
-                ? html`<p class="note">
-                      Use <span class="mono">/mcp</span> on this host (the address you reached this
-                      page on).
-                  </p>`
-                : html`<div class="token">
-                      <input id="mcp-url" type="text" value="${opts.mcpUrl}" readonly>
-                      <button class="ghost" type="button" data-copy="mcp-url">Copy</button>
-                  </div>`}
+                ? html`<p class="note">Use <span class="mono">/mcp</span> on the address you reached this page on.</p>`
+                : html`<label for="mcp-url">MCP endpoint</label>
+                      <div class="token">
+                          <input id="mcp-url" type="text" value="${opts.mcpUrl}" readonly>
+                          <button class="ghost" type="button" data-copy="mcp-url">Copy</button>
+                      </div>`}
             ${opts.tokens.length === 0
-                ? html`<p><strong>No MCP tokens yet. Create one to connect a client.</strong> <a class="button" href="/ui/config?tab=access#tokens">Create a token</a></p>`
-                : html`<p>${opts.tokens.length} ${opts.tokens.length === 1 ? 'token' : 'tokens'} · <a href="/ui/config?tab=access#tokens">Manage</a></p>`}
-            ${opts.tokens
-                .filter(t => isExpired(t.expires, opts.now) || expiringSoon(t.expires, opts.now))
-                .map(
-                    t => html`<p class="note"><strong>${isExpired(t.expires, opts.now)
-                        ? `token '${t.name}' expired on ${t.expires}`
-                        : `token '${t.name}' expires on ${t.expires}`}.</strong> Create a new one and revoke this one.</p>`
-                )}
+                ? html`<p><strong>No MCP tokens yet. Create one to connect a client.</strong></p>`
+                : html`<ul class="tokens">
+                      ${opts.tokens.map(
+                          t => html`<li>
+                              <span>${t.name}</span>
+                              <span class="${isExpired(t.expires, opts.now) || expiringSoon(t.expires, opts.now) ? 'warn' : 'dim'}">${daysLeft(t.expires, opts.now)}</span>
+                          </li>`
+                      )}
+                  </ul>`}
+            ${expiring.map(
+                t => html`<p class="note"><strong>${isExpired(t.expires, opts.now)
+                    ? `token '${t.name}' expired on ${t.expires}`
+                    : `token '${t.name}' expires on ${t.expires}`}.</strong> Create a new one and revoke this one.</p>`
+            )}
             ${opts.plaintextOnDisk.length === 0
                 ? raw('')
                 : html`<p class="note"><strong>Still plaintext in config.yaml:</strong> ${opts.plaintextOnDisk.join(', ')}. arr-mcp could not rewrite the file. The tokens work, but replace them with hashes or revoke them.</p>`}
+            <a class="button" href="/ui/config?tab=access#tokens">New token</a>
         </div>
+    </section>`;
 
-        <h2>Writes</h2>
-        <div class="panel">
-            <p class="note">
-                Every write attempt is recorded, including the ones that were refused.
-                <a href="/ui/audit">See the full trail</a>.
-            </p>
-            <div class="row">
-                <span><strong>${opts.writeCounts.applied}</strong> applied</span>
-                <span><strong>${opts.writeCounts.denied}</strong> refused</span>
-                <span><strong>${opts.writeCounts.total}</strong> recorded in total</span>
+    const disks = html`<section class="box">
+        <div class="box-h"><h2>Disk space</h2></div>
+        <div class="box-b">
+            ${opts.disks.length === 0
+                ? html`<p class="note">No service reported disk space.</p>`
+                : opts.disks.map(d => {
+                      const share = d.totalSpace === undefined || d.totalSpace === 0 ? undefined : 1 - d.freeSpace / d.totalSpace;
+                      return html`<div class="disk">
+                          <div class="disk-l"><span>${humanBytes(d.freeSpace)} free</span>${d.totalSpace === undefined
+                              ? raw('')
+                              : html`<span class="dim">of ${humanBytes(d.totalSpace)}</span>`}</div>
+                          ${share === undefined
+                              ? raw('')
+                              : html`<div class="bar"><b class="${share > 0.85 ? 'warn' : ''}" style="width:${Math.round(share * 100)}%"></b></div>`}
+                          <span class="dim small">${d.services.join(', ')}</span>
+                      </div>`;
+                  })}
+        </div>
+    </section>`;
+
+    const writes = html`<section class="box">
+        <div class="box-h"><h2>Recent writes</h2><a href="/ui/audit">All writes</a></div>
+        <div class="box-b">
+            ${(opts.recentWrites ?? []).length === 0
+                ? html`<p class="note">Nothing has tried to write yet.</p>`
+                : html`<ul class="feed">
+                      ${(opts.recentWrites ?? []).map(
+                          r => html`<li>
+                              <span class="badge ${r.outcome}">${r.outcome}</span>
+                              <span>${r.tool}</span>
+                              <time class="mono dim">${shortTime(r.at)}</time>
+                              <span class="feed-sub dim">${r.service} · ${r.target}</span>
+                          </li>`
+                      )}
+                  </ul>`}
+        </div>
+    </section>`;
+
+    const scans = html`<section class="box">
+        <div class="box-h"><h2>Library scans</h2></div>
+        <div class="box-b">
+            ${opts.scans.length === 0
+                ? html`<p class="note">No service reported a library scan.</p>`
+                : html`<ul class="feed">
+                      ${opts.scans.map(
+                          s => html`<li>
+                              <span class="badge">${s.running === true ? 'running' : 'done'}</span>
+                              <span>${s.service}</span>
+                              <time class="mono dim">${s.lastCompleted === undefined ? 'unknown' : shortTime(s.lastCompleted)}</time>
+                          </li>`
+                      )}
+                  </ul>`}
+        </div>
+    </section>`;
+
+    const body = html`${strip}
+        <div class="dash">
+            <div class="dash-main">
+                ${attention}
+                <section class="box">
+                    <div class="box-h"><h2>Services</h2><a href="/ui/config?tab=services">Manage</a></div>
+                    ${services}
+                </section>
+            </div>
+            <div class="dash-side">
+                ${connect}
+                ${disks}
+                ${writes}
+                ${scans}
+                ${opts.imdb === undefined ? raw('') : imdbPanel(opts.imdb)}
             </div>
         </div>`;
 
