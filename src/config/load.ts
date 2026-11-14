@@ -5,6 +5,7 @@ import * as z from 'zod/v4';
 import { writeFileAtomic } from '../core/atomicFile.ts';
 import { logger } from '../core/logger.ts';
 import { AuthSchema, ConfigSchema, tokensNeedingRewrite, type Config } from './schema.ts';
+import { resolveSecrets, SecretSourceError } from './secretSources.ts';
 
 const CONFIG_FILENAME = 'config.yaml';
 
@@ -120,7 +121,19 @@ export function validateConfigText(raw: string): ConfigTextResult {
 
     const obj = withDefaultAuth(parsed as Record<string, unknown>);
     const result = ConfigSchema.safeParse(obj);
-    if (result.success) return { ok: true, config: result.data };
+    if (result.success) {
+        // A credential read from a file or the environment that is not there
+        // fails here, with the schema's errors, so the server lands in repair
+        // mode rather than starting with a service it cannot authenticate to.
+        // The resolved copy is dropped: the config keeps the references (#636).
+        try {
+            resolveSecrets(result.data);
+        } catch (err) {
+            if (!(err instanceof SecretSourceError)) throw err;
+            return { ok: false, detail: err.message, auth: salvageAuth(obj.auth) };
+        }
+        return { ok: true, config: result.data };
+    }
 
     // Unrefined *and* unstrict on purpose: this runs precisely when the rest
     // of the file is already broken, and neither the auth refinements nor an
@@ -135,15 +148,19 @@ export function validateConfigText(raw: string): ConfigTextResult {
     // back through a re-read YAML document rather than through this object.
     // ConfigSchema's own `auth` field stays strict, so a typo anywhere in it
     // is still a startup failure.
-    const authOnly = z
-        .object(AuthSchema.shape)
-        .omit({ oauth: true, tokens: true, bearer_token: true, management_key: true, management_keys: true, trusted_proxies: true })
-        .safeParse(obj.auth);
     return {
         ok: false,
         detail: z.prettifyError(result.error),
-        auth: authOnly.success ? authOnly.data : undefined
+        auth: salvageAuth(obj.auth)
     };
+}
+
+function salvageAuth(auth: unknown): SalvagedAuth | undefined {
+    const authOnly = z
+        .object(AuthSchema.shape)
+        .omit({ oauth: true, tokens: true, bearer_token: true, management_key: true, management_keys: true, trusted_proxies: true })
+        .safeParse(auth);
+    return authOnly.success ? authOnly.data : undefined;
 }
 
 /**

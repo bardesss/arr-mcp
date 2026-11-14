@@ -8,7 +8,9 @@ import { withoutCredentials } from '../tools/stackHealth.ts';
 const readOnly = {
     id: z.unknown().optional(),
     apiKeySet: z.unknown().optional(),
-    passwordSet: z.unknown().optional()
+    apiKeyFrom: z.unknown().optional(),
+    passwordSet: z.unknown().optional(),
+    passwordFrom: z.unknown().optional()
 };
 
 const fields = {
@@ -46,7 +48,9 @@ export const TestAppBody = z.strictObject({
     ...fields,
     id: z.string().optional(),
     apiKeySet: z.unknown().optional(),
+    apiKeyFrom: z.unknown().optional(),
     passwordSet: z.unknown().optional(),
+    passwordFrom: z.unknown().optional(),
     type: ServiceIdSchema.optional(),
     name: z.string().min(1).nullable().optional(),
     renameExistingTo: z.string().min(1).optional()

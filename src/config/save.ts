@@ -5,6 +5,7 @@ import { writeFileAtomic } from '../core/atomicFile.ts';
 import { serial } from '../core/serial.ts';
 import { configPath, parseConfigValue } from './load.ts';
 import { ConfigSchema, type Config } from './schema.ts';
+import { resolveSecrets, SecretSourceError } from './secretSources.ts';
 
 /**
  * Write `value` into `doc` at `path`, one key at a time.
@@ -124,6 +125,15 @@ async function writeConfig(configDir: string, next: Config, opts: { expected?: C
         throw new ConfigRejectedError(`that configuration is not valid:\n${z.prettifyError(parsed.error)}`);
     }
     const value = parsed.data;
+    // The loader also resolves every file and environment reference (#636),
+    // so a reference that does not resolve would be written and then refuse
+    // to load. Checked here, and the resolved copy dropped.
+    try {
+        resolveSecrets(value);
+    } catch (err) {
+        if (err instanceof SecretSourceError) throw new ConfigRejectedError(`that configuration is not valid:\n${err.message}`);
+        throw err;
+    }
 
     const path = configPath(configDir);
     const doc = parseDocument(await readFile(path, 'utf8'));

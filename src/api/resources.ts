@@ -1,6 +1,7 @@
 import { instanceId, listInstances, type ServiceInstance } from '../config/instances.ts';
 import { configuredMediaServers } from '../config/edits.ts';
 import { secretFieldOf, ServiceIdSchema, serviceTraits, type Config, type ServiceId } from '../config/schema.ts';
+import { secretSource } from '../config/secretSources.ts';
 import { isExpired } from '../core/mcpTokens.ts';
 import { fingerprint } from '../core/secrets.ts';
 import type { ImdbDataset } from '../metadata/imdbDataset.ts';
@@ -16,8 +17,11 @@ type AppResource = {
     safeWrite: boolean;
     destructive: boolean;
     apiKeySet?: boolean;
+    /** Present only when the key is a reference in config.yaml rather than the key itself (#636). */
+    apiKeyFrom?: 'file' | 'environment';
     username?: string | null;
     passwordSet?: boolean;
+    passwordFrom?: 'file' | 'environment';
     defaultUser?: string | null;
     allowOtherUsers?: boolean;
     allowMetadataRepair?: boolean;
@@ -46,13 +50,21 @@ export function appResource(instance: ServiceInstance): AppResource {
         safeWrite: c.permissions.safe_write,
         destructive: c.permissions.destructive
     };
+    const source = secretSource(c, secretFieldOf(instance.type));
+    const from = source === undefined ? undefined : source.kind === 'file' ? 'file' : 'environment';
     if (secretFieldOf(instance.type) === 'password') {
-        return { ...base, username: c.username ?? null, passwordSet: (c.password ?? '') !== '' };
+        return {
+            ...base,
+            username: c.username ?? null,
+            passwordSet: source !== undefined || (c.password ?? '') !== '',
+            ...(from === undefined ? {} : { passwordFrom: from })
+        };
     }
     const { fields } = serviceTraits(instance.type);
     return {
         ...base,
-        apiKeySet: (c.api_key ?? '') !== '',
+        apiKeySet: source !== undefined || (c.api_key ?? '') !== '',
+        ...(from === undefined ? {} : { apiKeyFrom: from }),
         ...(fields.has('default_user') ? { defaultUser: c.default_user ?? null, allowOtherUsers: c.allow_other_users ?? false } : {}),
         ...(fields.has('allow_metadata_repair') ? { allowMetadataRepair: c.allow_metadata_repair ?? true } : {})
     };

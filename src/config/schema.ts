@@ -279,6 +279,43 @@ type ServiceTraits = {
     readonly required: ReadonlySet<string>;
 };
 
+/**
+ * Where a credential can come from instead of the file itself (#636): a
+ * `<field>_file` beside it naming a file to read, or the whole value written as
+ * `${NAME}` to read environment variable NAME. Both are resolved by
+ * `resolveSecrets`, never here, so the parsed config keeps the reference and a
+ * save from the config UI writes the reference back rather than the secret.
+ *
+ * The block's own schema still says whether the credential is required, so
+ * `serviceTraits` reads the same as before; the parsing schema makes the field
+ * optional, adds the `_file` key, and puts the requirement back as "exactly
+ * one of the two" (or "at most one" where the credential was optional).
+ */
+const SecretFileSchema = z.string().min(1, 'must name a file');
+
+/**
+ * Typed as the block it came from. Every reader of a credential that runs
+ * against the stored form (the API's `apiKeySet`, the form's edit rules) reads
+ * it as possibly absent already, and the adapters only ever see a resolved
+ * config, where the type is true again. Typing the optional field honestly
+ * would ripple through every adapter's constructor for no reader that needs it.
+ */
+const withSecretSources = <B extends z.ZodObject>(block: B) => {
+    const field = 'api_key' in block.shape ? 'api_key' : 'password';
+    const fileKey = `${field}_file`;
+    const original = block.shape[field] as z.ZodType;
+    const required = !original.safeParse(undefined).success;
+    const parsing = block.extend({ [field]: original.optional(), [fileKey]: SecretFileSchema.optional() }) as unknown as B;
+    const rule = (entry: Record<string, unknown>, ctx: z.RefinementCtx): void => {
+        if (entry[field] !== undefined && entry[fileKey] !== undefined) {
+            ctx.addIssue({ code: 'custom', path: [fileKey], message: `cannot be set together with ${field}; keep one of them` });
+        } else if (required && entry[field] === undefined && entry[fileKey] === undefined) {
+            ctx.addIssue({ code: 'custom', path: [field], message: `is required (or name a file with ${fileKey})` });
+        }
+    };
+    return { parsing, rule };
+};
+
 const traitsOf = (block: z.ZodObject, multiInstance: boolean, readOnly: boolean): ServiceTraits => {
     const fields = Object.entries(block.shape) as [string, z.ZodType][];
     return {
@@ -290,16 +327,19 @@ const traitsOf = (block: z.ZodObject, multiInstance: boolean, readOnly: boolean)
 };
 
 /** The list form: the same block, named, and no two names alike. */
-const multi = <Shape extends z.core.$ZodShape>(block: z.ZodObject<Shape, z.core.$strict>) => ({
-    schema: listOrBlock(
-        block,
-        z
-            .array(block.extend({ name: InstanceNameSchema }))
-            .min(1, 'list at least one instance, or use a single block instead of a list')
-            .superRefine((list, ctx) => uniqueNames(list as { name: string }[], ctx))
-    ),
-    traits: traitsOf(block, true, false)
-});
+const multi = <Shape extends z.core.$ZodShape>(block: z.ZodObject<Shape, z.core.$strict>) => {
+    const { parsing, rule } = withSecretSources(block);
+    return {
+        schema: listOrBlock(
+            parsing.superRefine(rule),
+            z
+                .array(parsing.extend({ name: InstanceNameSchema }).superRefine(rule))
+                .min(1, 'list at least one instance, or use a single block instead of a list')
+                .superRefine((list, ctx) => uniqueNames(list as { name: string }[], ctx))
+        ),
+        traits: traitsOf(block, true, false)
+    };
+};
 
 /**
  * Refuses a list, and says which services take one.
@@ -320,16 +360,22 @@ const singleOnly = <T extends z.ZodType>(schema: T) =>
         })
         .pipe(schema);
 
-const single = <B extends z.ZodObject>(block: B) => ({ schema: singleOnly(block), traits: traitsOf(block, false, false) });
+const single = <B extends z.ZodObject>(block: B) => {
+    const { parsing, rule } = withSecretSources(block);
+    return { schema: singleOnly(parsing.superRefine(rule)), traits: traitsOf(block, false, false) };
+};
 
 /**
  * Write flags on a service nothing writes to would be reported as granted
  * while granting nothing, so they are read as off whatever the file says.
  */
-const readOnly = <B extends z.ZodObject>(block: B) => ({
-    schema: singleOnly(block.transform(c => ({ ...c, permissions: { safe_write: false, destructive: false } }))),
-    traits: traitsOf(block, false, true)
-});
+const readOnly = <B extends z.ZodObject>(block: B) => {
+    const { parsing, rule } = withSecretSources(block);
+    return {
+        schema: singleOnly(parsing.superRefine(rule).transform(c => ({ ...c, permissions: { safe_write: false, destructive: false } }))),
+        traits: traitsOf(block, false, true)
+    };
+};
 
 /**
  * Every service, and which may appear more than once.

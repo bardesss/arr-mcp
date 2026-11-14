@@ -76,6 +76,9 @@ refused request as `name#fingerprint`.
   checked.
 - Secrets never come back. A service's API key or password appears only as
   `apiKeySet` or `passwordSet`, and the key hashes are not returned at all.
+  A credential read from a file or an environment variable (see
+  [configuration](configuration.md#secrets-from-files-or-the-environment))
+  also has `apiKeyFrom` or `passwordFrom`, set to `file` or `environment`.
 - An instance id such as `radarr/hd` is `id` on `/app` but `app` on `/health`,
   `/log` and in the `/app/test` answer, because on `/log` the value isn't
   always an instance id (it can be a source such as `jellyfin:seasons`).
@@ -115,6 +118,10 @@ GET the app, change what you want, PUT the whole object back.
   a 400, and an empty string means unchanged. A `url` on another scheme, host
   or port is a 400 unless a new `apiKey` or `password` comes with it, so the
   stored one is never sent somewhere new. This applies to `POST /app/test` too.
+- A credential with `apiKeyFrom` or `passwordFrom` cannot be replaced here: a
+  new `apiKey` or `password` is a 400 naming where it comes from. Change it
+  in that file or variable, or in config.yaml. A `url` on another scheme, host
+  or port is a 400 for these too.
 - `apiKey`, `username` and `defaultUser` are trimmed. `password` is sent as is.
 - `url: ""` means unchanged.
 - GET shows a URL that carried credentials without them, and with a trailing
@@ -123,7 +130,7 @@ GET the app, change what you want, PUT the whole object back.
   any other different `url` replaces the stored one, credentials included.
 - `timeoutMs` is a whole number from 1 to 2147483647.
 - Send `safeWrite` or `destructive` on its own and the other keeps its value.
-- Read-only fields from GET (`id`, `apiKeySet`, `passwordSet`, `type`, `name`)
+- Read-only fields from GET (`id`, `apiKeySet`, `apiKeyFrom`, `passwordSet`, `passwordFrom`, `type`, `name`)
   are accepted and ignored. Any other unknown field is a 400.
 - A field that does not apply to the app's type, such as `password` on Radarr,
   is accepted and ignored for now.

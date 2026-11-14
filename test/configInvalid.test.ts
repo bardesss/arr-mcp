@@ -95,7 +95,7 @@ describe('validateConfigText', () => {
         expect(result.ok).toBe(false);
         if (result.ok) return;
         expect(result.detail).toContain('→ at services.lidarr.api_key');
-        expect(result.detail).toContain('expected string, received undefined');
+        expect(result.detail).toContain('is required (or name a file with api_key_file)');
     });
 
     it('accepts a config with no tokens', () => {
