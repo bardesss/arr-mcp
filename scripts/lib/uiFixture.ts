@@ -23,6 +23,7 @@ import type { ConnectionDiagnosis, HealthCheck, ScanState } from '../../src/serv
 import type { AuditRow } from '../../src/core/audit.ts';
 import { hashToken } from '../../src/core/secrets.ts';
 import type { MediaCards } from '../../src/ui/mediaCards.ts';
+import type { Tier } from '../../src/web/pages.ts';
 
 /** Frozen like the rest; the expiring token is dated relative to it. */
 export const NOW = new Date('2026-08-13T09:45:00Z');
@@ -105,6 +106,12 @@ export const SCANS: ScanState[] = [
 export const IMDB = { ingestedAt: '2026-08-10T04:02:55', titles: 11_842_309, ratings: 1_574_882 };
 
 export const WRITE_COUNTS = { applied: 47, denied: 3, total: 50 };
+
+/** A mix of write permissions, so the dashboard's Writes column shows all three. */
+const SAFE = new Set(['radarr', 'sonarr', 'seerr', 'sabnzbd']);
+export const TIERS: Record<string, Tier> = Object.fromEntries(
+    DIAGNOSES.map(d => [d.service, d.service === 'transmission' ? 'destructive' : SAFE.has(d.service) ? 'safe' : 'read'] as const)
+);
 
 export const MCP_URL = `http://${HOST}:6060/mcp`;
 

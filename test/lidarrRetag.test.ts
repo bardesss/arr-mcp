@@ -252,6 +252,14 @@ describe('fix_metadata on a Lidarr artist', () => {
         expect(structuredContent.summary).toContain('leaves out a file linked to several tracks or to none');
     });
 
+    it('names the instance in the summary, for a retag and for a no-op', async () => {
+        const retag = await fixMetadata(lidarr({ name: 'flac' }).adapter)({ id: 'lidarr/flac:101' });
+        expect(retag.structuredContent.summary).toMatch(/^Rewrite the embedded tags in 3 of .*'s files from lidarr\/flac's metadata /);
+        const same = await fixMetadata(lidarr({ name: 'flac', previews: [[]] }).adapter)({ id: 'lidarr/flac:101' });
+        expect(same.structuredContent.noop).toBe(true);
+        expect(same.structuredContent.summary).toMatch(/^lidarr\/flac's retag preview lists no file under .* whose tags differ /);
+    });
+
     it('retags exactly the previewed files and checks them with a fresh preview', async () => {
         // Preview, the confirm's own plan, then the check after the retag.
         const { adapter, sent } = lidarr({ previews: [RETAG, RETAG, []] });

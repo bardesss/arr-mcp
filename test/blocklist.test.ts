@@ -180,10 +180,13 @@ function harness(
         permissions?: Partial<Record<ServiceId, AnyServiceConfig>>;
         lidarr?: boolean;
         ignoresBlocklist?: boolean;
+        /** Names the Radarr instance, as one entry of a list does. */
+        name?: string;
     } = {}
 ) {
     const { impl, deleted } = serving(opts.rows ?? [radarrRow()]);
-    const adapter = opts.lidarr === true ? new LidarrAdapter(keyed(8686), impl) : new RadarrAdapter(keyed(7878), impl);
+    const radarr = opts.name === undefined ? keyed(7878) : { ...keyed(7878), name: opts.name };
+    const adapter = opts.lidarr === true ? new LidarrAdapter(keyed(8686), impl) : new RadarrAdapter(radarr, impl);
     if (opts.ignoresBlocklist === true) Object.defineProperty(adapter, 'supportsBlocklist', { value: false });
     const adapters: ServiceAdapter[] = [adapter];
 
@@ -257,6 +260,13 @@ describe('remove_blocklist_item', () => {
 
         expect(structuredContent.summary).toContain('Creed.III');
         expect(structuredContent.effects.join(' ')).toContain('could not be completed');
+    });
+
+    it('names the instance in the summary, not only the service', async () => {
+        const h = harness({ name: '4k', permissions: { radarr: { ...keyed(7878), name: '4k' } as unknown as AnyServiceConfig } });
+        const { structuredContent } = await h.call({ ...ARGS, instance: '4k' });
+
+        expect(structuredContent.summary).toMatch(/ on radarr\/4k\.$/);
     });
 
     it('offers remove_queue_item to blocklist it again only where remove_queue_item can', async () => {

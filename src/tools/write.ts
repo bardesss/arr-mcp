@@ -32,7 +32,7 @@ export type WritePlan<Bound extends Record<string, unknown> = Record<string, unk
     /** The resolved id the write will act on. The confirmation token binds to
      *  this, so a token cannot survive re-resolving a title to a different film. */
     target: string;
-    /** One sentence, safe to show a human: "Delete Alien (1979) from Radarr, leaving files on disk." */
+    /** One sentence, safe to show a human: "Delete Alien (1979) from radarr/4k, leaving its files on disk." */
     summary: string;
     /** Itemised consequences, most severe first. Empty is legitimate for a
      *  no-op; see the `noop` field. */

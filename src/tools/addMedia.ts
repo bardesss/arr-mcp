@@ -538,7 +538,7 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
             if (candidate.existingId !== undefined) {
                 return {
                     target: `${adapter.id}:${external_id}`,
-                    summary: `${label} is already in ${service} (id ${candidate.existingId}).`,
+                    summary: `${label} is already in ${adapter.id} (id ${candidate.existingId}).`,
                     effects: [],
                     noop: true
                 };
@@ -635,7 +635,7 @@ export function registerAddMedia(server: McpServer, context: WriteContext, adapt
 
             return {
                 target: `${adapter.id}:${external_id}`,
-                summary: `Add ${label} to ${service}.`,
+                summary: `Add ${label} to ${adapter.id}.`,
                 effects,
                 // The resolved profile and folder, not the strings asked for:
                 // the token must commit to what will actually happen, so a

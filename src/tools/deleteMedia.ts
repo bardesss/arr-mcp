@@ -17,7 +17,7 @@ import { requireSeerr, requireSeerrWrite, seerrMediaType } from './blocklistMedi
  *
  * Which is why `plan` reads the item first and reports the size on disk. "Delete
  * radarr:412" is not something anyone can meaningfully approve; "Delete Alien
- * (1979) from Radarr, deleting 24.1 GB from disk" is.
+ * (1979) from radarr, deleting 24.1 GB from disk" is.
  */
 
 const GIB = 1024 ** 3;
@@ -213,7 +213,7 @@ export function registerDeleteMedia(
             return {
                 target: `${adapter.id}:${id}`,
                 summary:
-                    `Delete ${label} from ${service}` +
+                    `Delete ${label} from ${adapter.id}` +
                     (delete_files
                         ? `, deleting ${size ?? 'its files'} from disk.`
                         : ', leaving its files on disk.'),

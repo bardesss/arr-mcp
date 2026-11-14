@@ -297,6 +297,13 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                 version,
                 diagnoses: health.services,
                 configured: snapshot.adapters.map(a => a.id),
+                tiers: Object.fromEntries(
+                    listInstances(snapshot.config).map(i => [
+                        i.id,
+                        i.config.permissions.destructive ? 'destructive' : i.config.permissions.safe_write ? 'safe' : 'read'
+                    ] as const)
+                ),
+                recentWrites: audit.recent(3),
                 tokens: snapshot.config.auth.tokens,
                 plaintextOnDisk: runtime.plaintextOnDisk,
                 now: new Date(),

@@ -448,7 +448,7 @@ export function registerUpdateMedia(
             if (effects.length === 0) {
                 return {
                     target,
-                    summary: `${label} is already set that way in ${service}.`,
+                    summary: `${label} is already set that way in ${adapter.id}.`,
                     effects: [],
                     noop: true
                 };
@@ -456,7 +456,7 @@ export function registerUpdateMedia(
 
             return {
                 target,
-                summary: `Change the ${changes.join(', ')} of ${label} in ${service}.`,
+                summary: `Change the ${changes.join(', ')} of ${label} in ${adapter.id}.`,
                 effects,
                 // The resolved ids and raw paths, never the requested strings:
                 // the token has to commit to what was previewed, and a fenced

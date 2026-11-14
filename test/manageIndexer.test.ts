@@ -129,6 +129,8 @@ function harness(
         syncFails?: boolean;
         profiles?: unknown[];
         tool?: 'manage_indexer' | 'delete_indexer';
+        /** Names the Prowlarr instance, as one entry of a list does. */
+        name?: string;
     } = {}
 ) {
     const writes: { method: string; path: string; body?: unknown }[] = [];
@@ -161,7 +163,7 @@ function harness(
         return jsonResponse({ message: 'not found' }, 404);
     }) as unknown as typeof fetch;
 
-    const config = keyed(opts.destructive ?? true);
+    const config = opts.name === undefined ? keyed(opts.destructive ?? true) : { ...keyed(opts.destructive ?? true), name: opts.name };
     const adapters = [new ProwlarrAdapter(config, impl)];
     const calls: Record<string, Call> = {};
     const server = {
@@ -421,6 +423,13 @@ describe('manage_indexer edit', () => {
         const { structuredContent } = await h.call({ id: 21, action: 'edit', priority: 25, minimum_seeders: 1 });
         expect(structuredContent.noop).toBe(true);
         expect(structuredContent.confirm_token).toBeUndefined();
+    });
+
+    it('names the instance in the no-op summary', async () => {
+        const h = harness({ name: 'two' });
+        const { structuredContent } = await h.call({ id: 21, action: 'edit', priority: 25, minimum_seeders: 1 });
+        expect(structuredContent.noop).toBe(true);
+        expect(structuredContent.summary).toMatch(/ in prowlarr\/two already has those settings\.$/);
     });
 
     it('refuses a tag or profile that does not exist, rather than creating one', async () => {

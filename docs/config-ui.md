@@ -17,7 +17,7 @@
 
 ## The dashboard
 
-<img src="../screenshots/dashboard-dark.png" alt="The dashboard: a card per service with status, latency and version, above a table of reported problems" width="880">
+<img src="../screenshots/dashboard-dark.png" alt="The dashboard: four summary tiles, a Needs attention list of failing services and health checks, and one row per service grouped by role, beside the MCP endpoint, tokens, disk space and recent writes" width="880">
 
 **Connection tests diagnose rather than pass or fail.** A service that is down
 says what is wrong and what to do about it (the same `kind`, `detail` and

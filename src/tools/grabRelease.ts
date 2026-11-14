@@ -335,7 +335,7 @@ export function registerGrabRelease(
 
             return {
                 target: `${adapter.id}:${match.guid}`,
-                summary: `Grab ${match.title} from ${match.indexer} for ${service}.`,
+                summary: `Grab ${match.title} from ${match.indexer} for ${adapter.id}.`,
                 effects,
                 // Both, because both decide what apply() sends. A token that
                 // bound only the guid would carry across a different indexer.

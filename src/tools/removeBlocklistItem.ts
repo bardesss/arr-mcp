@@ -57,7 +57,7 @@ export function registerRemoveBlocklistItem(
 
             return {
                 target: `${adapter.id}:${id}`,
-                summary: `Un-blocklist ${entry.title} on ${service}.`,
+                summary: `Un-blocklist ${entry.title} on ${adapter.id}.`,
                 effects: [
                     `${service} may grab this release again the next time it searches.`,
                     `It was blocklisted ${entry.at || 'at an unrecorded time'}${entry.reason === undefined ? '' : `: ${entry.reason}`}`,

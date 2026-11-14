@@ -198,7 +198,7 @@ async function planRetag(adapter: Lidarr, artistId: string, files: readonly numb
     if (selected.length === 0) {
         return {
             target,
-            summary: `Lidarr's retag preview lists no file under ${artist.title} whose tags differ from its metadata. It leaves out a file linked to several tracks or to none, or that it cannot read.`,
+            summary: `${adapter.id}'s retag preview lists no file under ${artist.title} whose tags differ from its metadata. It leaves out a file linked to several tracks or to none, or that it cannot read.`,
             effects: [],
             noop: true
         };
@@ -209,7 +209,7 @@ async function planRetag(adapter: Lidarr, artistId: string, files: readonly numb
     const changes = selected.reduce((sum, f) => sum + f.changes.length, 0);
     return {
         target,
-        summary: `Rewrite the embedded tags in ${n} of ${artist.title}'s files from Lidarr's metadata (${changes} field${changes === 1 ? '' : 's'}).`,
+        summary: `Rewrite the embedded tags in ${n} of ${artist.title}'s files from ${adapter.id}'s metadata (${changes} field${changes === 1 ? '' : 's'}).`,
         effects: [
             ...(settings.scrubAudioTags === false
                 ? []
