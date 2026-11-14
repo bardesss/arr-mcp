@@ -95,6 +95,33 @@ gh pr merge <n> --squash --subject 'feat: what it adds (#83)'
 
 **Read the version on the release PR title before merging it**, every time.
 
+## Fixing release notes after a merge
+
+Don't edit the changelog on the release PR. Every merge to `main` rebuilds the
+release PR from the commits, and a hand edit is gone after the next one.
+
+Fix the merged PR instead. Add an override block to the end of its body:
+
+```text
+BEGIN_COMMIT_OVERRIDE
+fix(tools): what the changelog should say (#123)
+END_COMMIT_OVERRIDE
+```
+
+release-please reads it in place of that PR's squash message on every run
+after that, so the fix holds until the release ships. Use it for a behaviour
+change that landed as `refactor:` or `chore:`, a wrong type or scope, or a
+BREAKING CHANGE line that a later PR made out of date.
+
+- The block replaces the whole message. To change one line of a long
+  BREAKING CHANGE footer, copy the full message from `git log -1 --format=%B
+  <sha>` and edit it there.
+- For more than one entry, put a blank line and the next `type(scope):` header.
+  A `!` header doesn't start a new entry, so put a breaking one first.
+- Keep `(#123)` in each header, or the changelog entry loses its PR link.
+- It only takes effect when something next merges to `main`. Check the
+  release PR after that run.
+
 ## If the release PR is BLOCKED with nothing failing
 
 `main` requires the `check` and `docker` status checks, with `enforce_admins:
