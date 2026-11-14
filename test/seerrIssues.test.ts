@@ -254,6 +254,10 @@ describe('Seerr issue media identity (#577)', () => {
         const rows = await new SeerrAdapter(config, impl).getIssues({ limit: 50 });
         expect(rows).toHaveLength(10);
         expect(seen).toHaveLength(10);
+        // The cap throttles, it does not serialize: a run that never had
+        // two reads in flight would pass the upper bound while doing the
+        // work one title at a time.
+        expect(maxInFlight).toBeGreaterThan(1);
         expect(maxInFlight).toBeLessThanOrEqual(4);
         // The cap throttles, it does not drop: every title still resolves.
         for (const row of rows) expect(row.title).toContain('Film');
@@ -280,16 +284,21 @@ describe('Seerr issue media identity (#577)', () => {
         const page = {
             results: [
                 { id: 20, issueType: 1, status: 1, createdBy: { displayName: 'Someone' }, comments: [] },
-                // Media named but no tmdbId: nothing to resolve a title from,
-                // but the media that is named still reaches the caller.
+                // Media named but no tmdbId or tvdbId: nothing to resolve
+                // a title from, and a mediaType with no id to look it up
+                // by names nothing the caller can use, so it is dropped.
                 { id: 21, issueType: 1, status: 1, media: { id: 700, mediaType: 'movie' }, comments: [] },
                 // An unknown mediaType still names the ids, but no title can
                 // be resolved for it — and a null tmdbId names nothing at
                 // all. Neither may cost a detail call.
                 { id: 22, issueType: 1, status: 1, media: { id: 701, mediaType: 'music', tmdbId: 999 }, comments: [] },
-                { id: 23, issueType: 1, status: 1, media: { tmdbId: null }, comments: [] }
+                { id: 23, issueType: 1, status: 1, media: { tmdbId: null }, comments: [] },
+                // A tvdbId alone is still an id to look the media up by,
+                // so the mediaType stays even though no title can resolve
+                // (title resolution needs a tmdbId).
+                { id: 26, issueType: 1, status: 1, media: { id: 702, mediaType: 'tv', tvdbId: 789 }, comments: [] }
             ],
-            pageInfo: { pages: 1, page: 1, results: 4 }
+            pageInfo: { pages: 1, page: 1, results: 5 }
         };
         const impl = (async (input: string | URL | Request) => {
             const url = new URL(input instanceof Request ? input.url : String(input));
@@ -298,13 +307,14 @@ describe('Seerr issue media identity (#577)', () => {
             return jsonResponse({ message: 'not found' }, 404);
         }) as unknown as typeof fetch;
         const rows = await new SeerrAdapter(config, impl).getIssues({ limit: 50 });
-        expect(rows).toHaveLength(4);
+        expect(rows).toHaveLength(5);
         expect(rows[0]).toMatchObject({ id: '20', kind: 'video', status: 'open' });
         expect(rows[0]).not.toHaveProperty('title');
         expect(rows[0]).not.toHaveProperty('tmdbId');
-        expect(rows[1]).toMatchObject({ id: '21', mediaType: 'movie' });
+        expect(rows[1]).toMatchObject({ id: '21' });
         expect(rows[1]).not.toHaveProperty('title');
         expect(rows[1]).not.toHaveProperty('tmdbId');
+        expect(rows[1]).not.toHaveProperty('mediaType');
         // Unknown mediaType: the ids are still emitted, but there is no
         // title to resolve and no mediaType worth reporting.
         expect(rows[2]).toMatchObject({ id: '22', tmdbId: 999 });
@@ -316,6 +326,11 @@ describe('Seerr issue media identity (#577)', () => {
         expect(rows[3]).not.toHaveProperty('tmdbId');
         expect(rows[3]).not.toHaveProperty('tvdbId');
         expect(rows[3]).not.toHaveProperty('mediaType');
+        // A tvdbId alone keeps the mediaType: the caller can look the
+        // media up by it, even though no title resolves without a tmdbId.
+        expect(rows[4]).toMatchObject({ id: '26', mediaType: 'tv', tvdbId: 789 });
+        expect(rows[4]).not.toHaveProperty('title');
+        expect(rows[4]).not.toHaveProperty('tmdbId');
         expect(seen.filter(p => p.startsWith('/api/v1/movie') || p.startsWith('/api/v1/tv'))).toHaveLength(0);
     });
 

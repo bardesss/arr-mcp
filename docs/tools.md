@@ -1891,9 +1891,10 @@ and TVDB ids), and with its newest comments. The kind (`video`, `audio`,
 `subtitle`, `other`) and the state (`open`, `resolved`) are given as words.
 
 `issues` is a sibling list rather than a second kind of `items`. Comments are
-the users' own text and are fenced, and capped at the newest few per issue. Who reported an issue, and who made a request, is
-fenced too: Seerr users choose their own display names. Unlike the requests, issues are not scoped to one
-user: they are what the household has reported.
+the users' own text and are fenced, and capped at the newest few per issue.
+Who reported an issue, and who made a request, is fenced too: Seerr users
+choose their own display names. Unlike the requests, issues are not scoped
+to one user: they are what the household has reported.
 
 A Seerr that cannot answer for issues still answers for the requests, and does
 not report itself degraded for it.

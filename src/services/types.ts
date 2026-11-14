@@ -1203,7 +1203,7 @@ export type MediaIssue = {
     createdAt?: string;
     /** The media it is about, when Seerr knows a title for it. */
     title?: string;
-    /** `movie` | `tv`, when the issue payload names the media. */
+    /** `movie` | `tv`, when the issue payload names the media with an id to look it up by. */
     mediaType?: 'movie' | 'tv';
     /** TMDB id from the issue payload, when present. */
     tmdbId?: number;

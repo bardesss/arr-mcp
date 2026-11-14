@@ -455,7 +455,13 @@ export class SeerrAdapter
                 kind: ISSUE_TYPE[i.issueType ?? -1] ?? 'other',
                 status: ISSUE_STATUS[i.status ?? -1] ?? 'unknown',
                 ...(i.createdAt === undefined ? {} : { createdAt: i.createdAt }),
-                ...(mediaType === 'unknown' ? {} : { mediaType }),
+                // A mediaType with no id to look it up by names nothing
+                // the caller can resolve, so it is dropped rather than
+                // emitted on its own (follow-up to #578).
+                ...(mediaType === 'unknown' ||
+                (typeof i.media?.tmdbId !== 'number' && typeof i.media?.tvdbId !== 'number')
+                    ? {}
+                    : { mediaType }),
                 // Non-number ids are dropped, not emitted: the spec types
                 // them as numbers, but a payload that disagrees must not
                 // put `tmdbId: null` into a `tmdbId?: number` field.
