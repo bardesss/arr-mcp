@@ -1,7 +1,7 @@
 import { expiresIn, generateMcpToken, type ExpiryChoice, type TokenTier } from '../core/mcpTokens.ts';
 import { hashToken } from '../core/secrets.ts';
 import { instanceId, isMultiInstance } from './instances.ts';
-import { describeSource, secretSource, type SecretField, type SecretSource } from './secretSources.ts';
+import { describeSource, isEnvReference, secretSource, type SecretField, type SecretSource } from './secretSources.ts';
 import {
     ConfigSchema,
     MediaServerIdSchema,
@@ -148,6 +148,13 @@ function applyFields(type: ServiceId, base: Entry, fields: InstanceFields): Entr
         throw new ConfigEditError(
             `The ${secret === 'password' ? 'password' : 'API key'} is ${describeSource(source, secret)}, so change it there rather than here.`
         );
+    }
+    // A reference is written in config.yaml only. From a form or the API it
+    // would read any environment variable the process has (an MCP token, a
+    // cloud key) and, with a URL of the sender's choosing, Test would send it
+    // to them as the key.
+    if (given !== undefined && isEnvReference(given)) {
+        throw new ConfigEditError('A ${NAME} reference can only be written in config.yaml. Enter the credential itself here.');
     }
     const hasStored = source !== undefined || (typeof stored === 'string' && stored !== '');
     // An unparseable url is left for the schema to name.

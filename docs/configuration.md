@@ -79,6 +79,9 @@ services:
 - `${NAME}` has to be the whole value. `abc${NAME}` is the literal key
   `abc${NAME}`.
 - Setting both `api_key` and `api_key_file` is an error.
+- References are written in `config.yaml` only. The config UI and the
+  management API refuse a `${NAME}` typed as a key or password, since that
+  would let anyone using them read the server's environment.
 - A file that is missing, unreadable or empty, or a variable that is unset or
   empty, starts arr-mcp in [repair mode](#when-config-yaml-will-not-load) with
   the instance and field named, for example

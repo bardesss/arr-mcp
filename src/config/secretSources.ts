@@ -27,6 +27,8 @@ export type SecretSource = { kind: 'file'; path: string } | { kind: 'env'; name:
 
 const ENV_REFERENCE = /^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$/;
 
+export const isEnvReference = (value: string): boolean => ENV_REFERENCE.test(value);
+
 /** Where an entry's credential comes from, or undefined when it is written inline (or absent). */
 export function secretSource(entry: Readonly<Record<string, unknown>>, field: SecretField): SecretSource | undefined {
     const file = entry[`${field}_file`];

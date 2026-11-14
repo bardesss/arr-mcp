@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { appResource } from '../src/api/resources.ts';
 import { listInstances } from '../src/config/instances.ts';
 import { ConfigInvalidError, loadConfig, validateConfigText } from '../src/config/load.ts';
-import { ConfigEditError, CredentialWouldMoveError, updateInstance } from '../src/config/mutate.ts';
+import { addInstance, ConfigEditError, CredentialWouldMoveError, updateInstance } from '../src/config/mutate.ts';
 import { saveConfig } from '../src/config/save.ts';
 import { ConfigSchema, type Config } from '../src/config/schema.ts';
 import { resolveSecrets, secretSource, SecretSourceError } from '../src/config/secretSources.ts';
@@ -204,6 +204,16 @@ describe('editing and saving', () => {
         expect(() => updateInstance(referenced(), 'nzbget', { password: 'typed' })).toThrow(/The password is set from the file named in password_file/);
     });
 
+    it('refuses a reference typed into the form or sent to the API, so neither can read the environment', () => {
+        const inline = parse({ sonarr: { url: 'http://sonarr:8989', api_key: 'inline' } });
+        const refused = 'A ${NAME} reference can only be written in config.yaml. Enter the credential itself here.';
+        expect(() => updateInstance(inline, 'sonarr', { url: 'http://203.0.113.5:8989', api_key: '${ARR_MCP_TOKEN}' })).toThrow(refused);
+        expect(() => addInstance(inline, { type: 'radarr', fields: { url: 'http://203.0.113.5:7878', api_key: '${HOME}' } })).toThrow(refused);
+        expect(() => addInstance(inline, { type: 'nzbget', fields: { url: 'http://203.0.113.5:6789', password: '${HOME}' } })).toThrow(refused);
+        // Only the whole-value form is a reference, so a key that contains one is still a key.
+        expect(updateInstance(inline, 'sonarr', { api_key: 'a${HOME}' }).services.sonarr).toMatchObject({ api_key: 'a${HOME}' });
+    });
+
     it('does not let a referenced credential follow the instance to a new host', () => {
         expect(() => updateInstance(referenced(), 'radarr', { url: 'http://203.0.113.5:7878', api_key: '' })).toThrow(CredentialWouldMoveError);
         expect(() => updateInstance(referenced(), 'sabnzbd', { url: 'http://203.0.113.5:8080' })).toThrow(/points somewhere new/);
@@ -237,7 +247,8 @@ describe('saving a reference that does not resolve', () => {
         const original = `${AUTH_YAML}services:\n  sonarr:\n    url: http://sonarr:8989\n    api_key: inline\n`;
         await writeFile(join(dir, 'config.yaml'), original);
         const { config } = await loadConfig(dir, { persist: false });
-        const next = updateInstance(config, 'sonarr', { api_key: '${ARR_MCP_TEST_UNSET_636}' });
+        // Built by hand: the form and the API refuse a reference outright.
+        const next = { ...config, services: { sonarr: { ...config.services.sonarr, api_key: '${ARR_MCP_TEST_UNSET_636}' } } } as Config;
         await expect(saveConfig(dir, next, { expected: config })).rejects.toThrow(
             'services.sonarr.api_key: environment variable ARR_MCP_TEST_UNSET_636 is not set'
         );
