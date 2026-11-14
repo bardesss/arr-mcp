@@ -1,5 +1,75 @@
 # Changelog
 
+## [2.0.0](https://github.com/bardesss/arr-mcp/compare/v1.84.0...v2.0.0) (2026-11-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* **queue:** remove_queue_item with orphaned: true now lists the orphaned import-blocked downloads and removes nothing; remove each row with remove_queue_item and its id. remove_from_client and blocklist are refused with orphaned.
+* **config:** a config.yaml with a top-level key arr-mcp does not know no longer starts normally. The server serves the repair page with `Unrecognized top-level key "<key>"` (plus `did you mean <key>?` when a known key is close). Rename the key to the one meant, or remove it.
+* **tools:** these tools and parameters are removed. Each one names its replacement.
+    - `stack_health` and `diagnose`: use `get_stack_health` and `diagnose_media`, which take the same arguments. Their `arr://docs/stack_health` and `arr://docs/diagnose` pages are gone too.
+    - `lookup_media`: use `search_media` with `source: "discover"`.
+    - `clean_queue`: use `remove_queue_item` with `orphaned: true`.
+    - `trigger_scan` actions `import`, `remap` and `postprocess`, its `download_id`, `reassignments` and `mapping` parameters, `bookdrop` with an `id`, and `service: "nzbget"`: use `import_download`. `bookdrop` without an `id` still rescans the Bookdrop.
+    - `update_media` on Grimmory (`service: "grimmory"`, `title`, `authors`, `series`, `series_number`, `lock_fields`, `unlock_fields`): use `update_book`.
+    - `set_monitoring` at artist level (`level: "artist"`, `artists`, `monitor_new_items`): use `update_media`, with one artist `id` per call, or no `id` for every artist.
+    - `manage_indexer` `action: "delete"`: use `delete_indexer`.
+    - `get_stack_health` `options` at `detail: "full"`: use `get_instance_options`.
+    - `blocklist_media` `tmdb_id`: use `id`, which is now required.
+
+### Features
+
+* **import:** map Lidarr download files to an album in import_download ([#667](https://github.com/bardesss/arr-mcp/issues/667)) ([259d31a](https://github.com/bardesss/arr-mcp/commit/259d31aa9670045f47eb1e1c8e845aa4ef52891b))
+* **lidarr:** accept Lidarr webhooks in the library event log ([#639](https://github.com/bardesss/arr-mcp/issues/639)) ([991cf28](https://github.com/bardesss/arr-mcp/commit/991cf286f64726035dcd70f30307c96b654fad3e))
+* **lidarr:** check and fix quality profiles with get_profile_issues and fix_profile ([#635](https://github.com/bardesss/arr-mcp/issues/635)) ([82a440a](https://github.com/bardesss/arr-mcp/commit/82a440a0624684026cf8b1956821d9b779791446))
+* **lidarr:** check for a replacement album before retry_download ([#633](https://github.com/bardesss/arr-mcp/issues/633)) ([e0e46f3](https://github.com/bardesss/arr-mcp/commit/e0e46f3669eb6453680b3f99bbc11bc7e890794d))
+* **lidarr:** read indexer seeding rules for get_stack_health ([#634](https://github.com/bardesss/arr-mcp/issues/634)) ([f986bd1](https://github.com/bardesss/arr-mcp/commit/f986bd1b3bd991391cd4a1e1802a34498b4b6444))
+* **requests:** retry a failed Seerr request with respond_to_request ([#668](https://github.com/bardesss/arr-mcp/issues/668)) ([feb3ad1](https://github.com/bardesss/arr-mcp/commit/feb3ad116c25ed615f99bf2c6f617083817e4b2a))
+* **sonarr:** set a series' rule for new seasons in update_media and add_media ([#630](https://github.com/bardesss/arr-mcp/issues/630)) ([bc38e2b](https://github.com/bardesss/arr-mcp/commit/bc38e2b55c1965c89bae6129ddeab622fc372ff0))
+* **tools:** remove the aliases deprecated in 1.x ([#627](https://github.com/bardesss/arr-mcp/issues/627)) ([2a522d7](https://github.com/bardesss/arr-mcp/commit/2a522d7c991747f67af2cf094ded4cbd9605a3e7))
+* **ui:** sidebar shell, phone menu and new palette for the config UI ([#669](https://github.com/bardesss/arr-mcp/issues/669)) ([9adb82a](https://github.com/bardesss/arr-mcp/commit/9adb82acb11f09183ad4f72a91c8cd370d9957ea))
+* **ui:** v2 dashboard with attention list, grouped service rows and a connect panel ([#670](https://github.com/bardesss/arr-mcp/issues/670)) ([803f82f](https://github.com/bardesss/arr-mcp/commit/803f82fe11d4921578f2c2f1efb272f80ffda5a9))
+
+
+### Bug Fixes
+
+* **config:** refuse unknown top-level keys, and claim a file with no auth block ([#655](https://github.com/bardesss/arr-mcp/issues/655)) ([432fa91](https://github.com/bardesss/arr-mcp/commit/432fa9165bcb451dc70c05f492da77989f314e9a))
+* **deps:** bump @hono/node-server from 2.1.5 to 2.1.6 ([#648](https://github.com/bardesss/arr-mcp/issues/648)) ([2183ccf](https://github.com/bardesss/arr-mcp/commit/2183ccfda8db481c18b1954080467cecd77b48e5))
+* **deps:** bump hono from 4.13.14 to 4.13.18 ([#661](https://github.com/bardesss/arr-mcp/issues/661)) ([1de7204](https://github.com/bardesss/arr-mcp/commit/1de7204d75453abd940a21e7bc524fb252eb9954))
+* **diagnose:** let a managed download outrank a stale request, and a library copy outrank adding it ([#645](https://github.com/bardesss/arr-mcp/issues/645)) ([06648a1](https://github.com/bardesss/arr-mcp/commit/06648a1adcdcee596c6b043a4885e7db1ef5117e))
+* **diagnose:** match queue rows only from an *arr of the item's kind ([#638](https://github.com/bardesss/arr-mcp/issues/638)) ([2a65385](https://github.com/bardesss/arr-mcp/commit/2a65385771cbfce7ef6cbe1ac75d374440965dc0))
+* **diagnose:** name the *arrs the stack runs in the managed remedy ([#631](https://github.com/bardesss/arr-mcp/issues/631)) ([3960c82](https://github.com/bardesss/arr-mcp/commit/3960c82a6dd93c02fc6e340f22b03f56eab51af9))
+* **diagnose:** report the queue for series and the *arr's own import reasons ([#646](https://github.com/bardesss/arr-mcp/issues/646)) ([6d79274](https://github.com/bardesss/arr-mcp/commit/6d79274855afa3913ff4f25fb6e4ef014f5cd466))
+* **downloads:** bind a pause to the torrents it previewed, and tidy its mark ([#659](https://github.com/bardesss/arr-mcp/issues/659)) ([a55ddf0](https://github.com/bardesss/arr-mcp/commit/a55ddf0831b26c74bb53c034bb8095966d9c1f27))
+* **downloads:** resume only the torrents a pause stopped ([#643](https://github.com/bardesss/arr-mcp/issues/643)) ([cfabc6b](https://github.com/bardesss/arr-mcp/commit/cfabc6bd1c77c01785072ba4cd22aaa58222cb85))
+* **history:** compare times as instants, and tighten diagnose's reads ([#662](https://github.com/bardesss/arr-mcp/issues/662)) ([d02c56a](https://github.com/bardesss/arr-mcp/commit/d02c56afae38abada3b2d290abbaf2151416be17))
+* **history:** date and scope rows correctly ([#651](https://github.com/bardesss/arr-mcp/issues/651)) ([08ed19e](https://github.com/bardesss/arr-mcp/commit/08ed19e35acb2175c4263841b3807a1037e100c0))
+* **queue:** list orphaned downloads instead of removing them ([#665](https://github.com/bardesss/arr-mcp/issues/665)) ([97161ec](https://github.com/bardesss/arr-mcp/commit/97161ec23ea522d5ade8eff080213625a07a70de))
+* **queue:** name the *arr and client in the usenet rerun remedy ([#625](https://github.com/bardesss/arr-mcp/issues/625)) ([8155e97](https://github.com/bardesss/arr-mcp/commit/8155e97bc33c2535901dcea48d040a5c64bb7f53))
+* **queue:** read a paused download from the client's own row ([#632](https://github.com/bardesss/arr-mcp/issues/632)) ([968f8d0](https://github.com/bardesss/arr-mcp/commit/968f8d065cdbc41babcec9b293614ca779964e17))
+* **queue:** read post-processing and paused queues across the tools ([#640](https://github.com/bardesss/arr-mcp/issues/640)) ([a8c1579](https://github.com/bardesss/arr-mcp/commit/a8c15792453701640f038892ee5a21ff936a2f0f))
+* **queue:** stop calling unmatched downloads orphaned media ([#642](https://github.com/bardesss/arr-mcp/issues/642)) ([f25de5f](https://github.com/bardesss/arr-mcp/commit/f25de5f7dbad7c330b1716daf5d37923ae0b34f5))
+* **reads:** bound slow sweeps and page budgets, and offer imports Sonarr leaves pending ([#663](https://github.com/bardesss/arr-mcp/issues/663)) ([2dac85b](https://github.com/bardesss/arr-mcp/commit/2dac85b9ba2222ce6bba56503a0da98c6474f0a9))
+* **reads:** degrade instead of failing or misleading ([#653](https://github.com/bardesss/arr-mcp/issues/653)) ([81a9d99](https://github.com/bardesss/arr-mcp/commit/81a9d99727c3fe08a43e57cf1a25f02d1f0b71bf))
+* **reads:** page fully and say when a list is cut ([#652](https://github.com/bardesss/arr-mcp/issues/652)) ([9425558](https://github.com/bardesss/arr-mcp/commit/9425558479e9f5fcb61ffe56e647ea0ce29576c5))
+* **releases:** refuse a release search for a whole series ([#641](https://github.com/bardesss/arr-mcp/issues/641)) ([d37607f](https://github.com/bardesss/arr-mcp/commit/d37607fb1651103bf4cba8d15c34c553965b905a))
+* **seerr:** read every request status, encode searches strictly, and allow re-requests ([#649](https://github.com/bardesss/arr-mcp/issues/649)) ([263658c](https://github.com/bardesss/arr-mcp/commit/263658cffa1a948342a383deeac42f04987284db))
+* **services:** test the credential, and keep upstream errors intact ([#654](https://github.com/bardesss/arr-mcp/issues/654)) ([d326e9b](https://github.com/bardesss/arr-mcp/commit/d326e9bbfd652ca7d29870efbf0e51906ab82c06))
+* **set_watched:** count and refuse what Jellyfin would mark ([#644](https://github.com/bardesss/arr-mcp/issues/644)) ([cca1342](https://github.com/bardesss/arr-mcp/commit/cca1342c8519014f9f9f1bfbedc4a24e99147af6))
+* **tools:** correct tool text and schema edges left by 2.0 ([#637](https://github.com/bardesss/arr-mcp/issues/637)) ([03a141f](https://github.com/bardesss/arr-mcp/commit/03a141f8ff9156613dfcabc27dc01183bf130f9b))
+* **tools:** refuse empty and malformed inputs, and audit refusals ([#650](https://github.com/bardesss/arr-mcp/issues/650)) ([3ac0d0a](https://github.com/bardesss/arr-mcp/commit/3ac0d0aaa412ef3ce7da7b0a6db3e78efeb6bd93))
+* **tools:** scope the bookdrop action, and tidy calendar, queue and release text ([#658](https://github.com/bardesss/arr-mcp/issues/658)) ([ec2c36b](https://github.com/bardesss/arr-mcp/commit/ec2c36bac55b040ec4ff28d5199a897710c62c39))
+* **web:** close the repair-mode claim, trust forwarded headers only from set proxies, and bound unauthenticated noise ([#656](https://github.com/bardesss/arr-mcp/issues/656)) ([507b628](https://github.com/bardesss/arr-mcp/commit/507b628213af1379618eb6a3ce54d2965c4fa340))
+* **web:** read Forwarded and trust the forwarded scheme only from set proxies ([#664](https://github.com/bardesss/arr-mcp/issues/664)) ([7710dbb](https://github.com/bardesss/arr-mcp/commit/7710dbb34741af69b88e72b0d26debba5cd778f6))
+* **writes:** report a write that landed even when a later step fails ([#647](https://github.com/bardesss/arr-mcp/issues/647)) ([c2886f1](https://github.com/bardesss/arr-mcp/commit/c2886f18935430f5e43eeeb007294854706b58b1))
+* **writes:** report queued commands, audit consistently, and check what a write targets ([#660](https://github.com/bardesss/arr-mcp/issues/660)) ([c9d3b74](https://github.com/bardesss/arr-mcp/commit/c9d3b74c2ece05016c2c82f972de2f4ed7fc86a5))
+
+
+### Performance Improvements
+
+* **tools:** cut repeated schema text and duplicate output ([#657](https://github.com/bardesss/arr-mcp/issues/657)) ([47871d8](https://github.com/bardesss/arr-mcp/commit/47871d875c52013cdf5ef618295bfb4b84372f22))
+
 ## [1.84.0](https://github.com/bardesss/arr-mcp/compare/v1.83.1...v1.84.0) (2026-11-11)
 
 
