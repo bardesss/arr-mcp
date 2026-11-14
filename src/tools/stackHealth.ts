@@ -3,8 +3,9 @@ import * as z from 'zod/v4';
 import type { ServiceInstance } from '../config/instances.ts';
 import { ServiceIdSchema, serviceOf, type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
+import { instantOf } from '../core/instant.ts';
 import { logger } from '../core/logger.ts';
-import { DetailSchema, LimitSchema, READ_ONLY, TruncationSchema, applyLimit, listText, memoBy, toolInput, type DetailLevel } from '../core/shape.ts';
+import { DetailSchema, LimitSchema, READ_ONLY, TruncationSchema, applyLimit, listText, memoBy, toolInput, windowEnd, type DetailLevel } from '../core/shape.ts';
 import {
     hasCleanup,
     hasCleanuparrRemovals,
@@ -173,6 +174,29 @@ function project(result: StackHealthResult, detail: DetailLevel): StackHealthRes
 }
 
 /**
+ * One `limit` shared between the instances that have log rows: up to an equal
+ * share of each one's own newest rows, then the newest of the rest. `rows`
+ * come sorted newest first and stay so. The rule and its edge cases are in
+ * docs/tools.md, under the `logs` of `get_stack_health`.
+ */
+function shareLogLimit(rows: readonly LogEntry[], limit: number): Shaped<LogEntry> {
+    const budget = Math.min(rows.length, windowEnd(limit));
+    const byInstance = new Map<string, LogEntry[]>();
+    for (const row of rows) {
+        const own = byInstance.get(row.service);
+        if (own === undefined) byInstance.set(row.service, [row]);
+        else own.push(row);
+    }
+    const share = Math.floor(budget / Math.max(byInstance.size, 1));
+    const kept = new Set([...byInstance.values()].flatMap(own => own.slice(0, share)));
+    for (const row of rows) {
+        if (kept.size >= budget) break;
+        kept.add(row);
+    }
+    return applyLimit(rows.filter(row => kept.has(row)), budget, 0, rows.length);
+}
+
+/**
  * Composes per-service diagnoses into one answer. This tool must work
  * *especially* well when something is broken; a service
  * that is down contributes a diagnosis and a `degraded` entry, never an
@@ -320,8 +344,11 @@ export async function buildStackHealth(
     // a question about the most recent rows.
     commands.sort((a, b) => (b.queuedAt ?? '').localeCompare(a.queuedAt ?? ''));
     // As instants, not strings: the services write their times differently, and
-    // Bazarr's have no offset, so those sort as if in this server's zone.
-    logs.sort((a, b) => (Date.parse(b.lastSeen) || 0) - (Date.parse(a.lastSeen) || 0));
+    // Bazarr's have no offset when its zone is unknown, so those sort as if in
+    // this server's zone. Rows from the same moment go by instance id: the
+    // instances are read in parallel, so their rows arrive in the order they
+    // answered.
+    logs.sort((a, b) => instantOf(b.lastSeen) - instantOf(a.lastSeen) || a.service.localeCompare(b.service));
     logLines.sort((a, b) => a.service.localeCompare(b.service));
     degraded.sort();
 
@@ -387,9 +414,10 @@ export async function buildStackHealth(
             ...(hasSeedingRules ? { seedingRules } : {}),
             ...(cleanup === undefined ? {} : { cleanup }),
             ...(cleanuparrRemovals === undefined ? {} : { cleanuparrRemovals }),
-            // Its own `limit` budget: a log line is not
-            // competing with a failing health check for the same rows.
-            ...(opts.detail === 'full' ? { logs: { ...applyLimit(logs, opts.limit), lines: logLines } } : {}),
+            // Its own `limit` budget, so a log line does not compete with a
+            // failing health check for the same rows, shared between the
+            // instances that have rows by `shareLogLimit`.
+            ...(opts.detail === 'full' ? { logs: { ...shareLogLimit(logs, opts.limit), lines: logLines } } : {}),
             ...(opts.detail === 'minimal' ? {} : { commands }),
             ...(primaryMediaServer === undefined ? {} : { primaryMediaServer }),
             degraded
