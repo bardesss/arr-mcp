@@ -301,7 +301,13 @@ export function addToken(
     }
     const plaintext = generateMcpToken();
     const expires = expiresIn(opts.expiry, now);
-    const token = { name: opts.name, tier: opts.tier, hash: hashToken(plaintext), ...(expires === undefined ? {} : { expires }) };
+    const token = {
+        name: opts.name,
+        tier: opts.tier,
+        hash: hashToken(plaintext),
+        created: now.toISOString().slice(0, 10),
+        ...(expires === undefined ? {} : { expires })
+    };
     const parsed = ConfigSchema.safeParse({ ...config, auth: { ...config.auth, tokens: [...config.auth.tokens, token] } });
     if (!parsed.success) {
         throw new ConfigEditError('Token names must be letters, digits, dashes or underscores, starting with one.');

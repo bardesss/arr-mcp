@@ -3,7 +3,9 @@ import type { Context } from 'hono';
 import { findByHash, fingerprint } from './secrets.ts';
 
 export type ManagementKeyTier = 'read' | 'admin';
-export type StoredManagementKey = { name: string; tier: ManagementKeyTier; hash: string; created: string };
+/** Not exported: the config page reads these off `Config`, which carries the
+ *  parsed shape already. */
+type StoredManagementKey = { name: string; tier: ManagementKeyTier; hash: string; created: string };
 
 export const generateManagementKey = (): string => `amk_${randomBytes(32).toString('hex')}`;
 

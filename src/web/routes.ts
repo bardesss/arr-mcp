@@ -486,11 +486,17 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         const session = guard(c);
         if (session === undefined) return c.redirect(entry(), 302);
         c.header('cache-control', 'no-store');
+        // Matched exactly against the stored caller, which the token table on
+        // the Access page builds from the same two fields it renders. An
+        // unknown value simply matches nothing, which is the honest answer for
+        // a token that has never written.
+        const caller = c.req.query('caller');
         return c.html(
             auditPage({
                 csrf: runtime.sessions.csrfFor(session),
                 version,
-                rows: audit.recent(300),
+                rows: audit.recent(300, caller === '' ? undefined : caller),
+                ...(caller === undefined || caller === '' ? {} : { caller }),
                 theme: theme()
             })
         );
@@ -600,6 +606,19 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     };
     const viewRun = async (): Promise<RunState | undefined> => withVersions(await discovery.view(runtime.config));
 
+    /**
+     * The two addresses the Access tab hands out, derived from the request that
+     * asked for the page. Passed on every config render rather than only on the
+     * one that reveals a token, because the card shows them whether or not
+     * anything was just created.
+     */
+    const endpoints = (c: Context): { mcpUrl?: string; apiUrl?: string } => {
+        const proto = forwardedProtoOf(c, runtime.config.auth.trusted_proxies ?? []);
+        const mcpUrl = mcpEndpoint(c.req.url, proto);
+        const apiUrl = apiEndpoint(c.req.url, proto);
+        return { ...(mcpUrl === undefined ? {} : { mcpUrl }), ...(apiUrl === undefined ? {} : { apiUrl }) };
+    };
+
     app.get('/ui/config', async c => {
         const session = guard(c);
         if (session === undefined) return c.redirect(entry(), 302);
@@ -616,6 +635,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                 config: runtime.config,
                 csrf: runtime.sessions.csrfFor(session),
                 plaintextOnDisk: runtime.plaintextOnDisk,
+                ...endpoints(c),
                 ...discoveryOpts(run),
                 ...(prefill === undefined ? {} : { addPrefill: prefill, openAdd: true })
             })
@@ -705,6 +725,10 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                 /** The outcome belongs under the OAuth card, which the post
                  *  scrolls to, and a refusal keeps what was typed. */
                 oauthCard?: boolean;
+                /** The same, for the management key card: it is anchored too,
+                 *  and a refusal from it used to render in a banner the
+                 *  fragment had already scrolled past. */
+                keyCard?: boolean;
             } = {}
         ): ((c: Context) => Promise<Response>) =>
         async (c: Context) => {
@@ -742,6 +766,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                         config: runtime.config,
                         csrf: runtime.sessions.csrfFor(activeSession),
                         plaintextOnDisk: runtime.plaintextOnDisk,
+                        ...endpoints(c),
                         ...(touched === undefined ? {} : { openInstance: touched }),
                         ...(opts.reopensAdd === true && status !== 200 ? { openAdd: true } : {}),
                         ...(opts.oauthCard === true
@@ -754,7 +779,9 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                               }
                             : message === undefined
                               ? {}
-                              : { message }),
+                              : opts.keyCard === true
+                                ? { keyMessage: message }
+                                : { message }),
                         ...extra
                     }),
                     status
@@ -834,23 +861,10 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                 { kind: 'ok', text: `${what} Applied immediately; no restart needed.` },
                 200,
                 {
-                    ...(reveal === undefined
-                        ? {}
-                        : {
-                              revealed: {
-                                  ...reveal,
-                                  mcpUrl: mcpEndpoint(c.req.url, forwardedProtoOf(c, runtime.config.auth.trusted_proxies ?? [])),
-                                  urlToken: runtime.config.auth.allow_token_in_url
-                              }
-                          }),
-                    ...(revealKey === undefined
-                        ? {}
-                        : {
-                              revealedKey: {
-                                  key: revealKey,
-                                  apiUrl: apiEndpoint(c.req.url, forwardedProtoOf(c, runtime.config.auth.trusted_proxies ?? []))
-                              }
-                          })
+                    // The endpoint and the base URL come from `endpoints`
+                    // above, on every render rather than only on this one.
+                    ...(reveal === undefined ? {} : { revealed: reveal }),
+                    ...(revealKey === undefined ? {} : { revealedKey: revealKey })
                 }
             );
         };
@@ -947,22 +961,30 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
 
     app.post(
         '/ui/config/api-keys/add',
-        configMutation('Management API key created.', form => {
+        configMutation(
+            'Management API key created.',
+            form => {
             const tier = str(form['api-key.tier']);
             if (tier !== 'read' && tier !== 'admin') throw new ConfigEditError('Pick a tier.');
             const name = str(form['api-key.name']).trim();
-            const { config, plaintext } = addManagementKey(runtime.config, { name, tier }, new Date());
-            return { config, revealKey: plaintext };
-        })
+                const { config, plaintext } = addManagementKey(runtime.config, { name, tier }, new Date());
+                return { config, revealKey: plaintext };
+            },
+            { keyCard: true }
+        )
     );
 
     app.post(
         '/ui/config/api-keys/revoke',
-        configMutation('Management API key revoked.', form => {
-            const name = str(form.key);
-            if (str(form.confirm) !== 'yes') return { askKeyRevoke: name };
-            return revokeManagementKey(runtime.config, name);
-        })
+        configMutation(
+            'Management API key revoked.',
+            form => {
+                const name = str(form.key);
+                if (str(form.confirm) !== 'yes') return { askKeyRevoke: name };
+                return revokeManagementKey(runtime.config, name);
+            },
+            { keyCard: true }
+        )
     );
 
     app.post(
@@ -1331,10 +1353,25 @@ function addCandidateFrom(
  * `test/configUi.test.ts` holds one test per way of getting that wrong.
  */
 
-/** The Config UI's own credentials. Owns `username` and `password_hash`. */
+/**
+ * The Config UI's own credentials. Owns `username` and `password_hash`.
+ *
+ * A new password has to be countersigned with the current one. A live session
+ * is enough to reach this form, and a session is what an unlocked browser
+ * hands to whoever walks up to it; knowing the password is the one thing that
+ * separates the account's owner from someone merely sitting at it. The check is
+ * skipped for a username edit, which is not a credential change.
+ */
 async function buildAccountConfig(current: Config, form: Record<string, unknown>): Promise<Config> {
     const username = str(form['auth.username']).trim();
     const password = str(form['auth.password']);
+
+    if (password !== '') {
+        const confirmed =
+            current.auth.password_hash !== undefined &&
+            (await verifyPassword(str(form['auth.current_password']), current.auth.password_hash));
+        if (!confirmed) throw new ConfigEditError('The current password is wrong. The password was not changed.');
+    }
 
     // Refused rather than carried forward as `undefined`. Since `password_hash`
     // became optional this assignment type-checks either way, so nothing but
@@ -1463,7 +1500,7 @@ function parseOAuthDraft(form: Record<string, unknown>): OAuthConfig {
 function buildOAuthConfig(current: Config, form: Record<string, unknown>): Config {
     if (current.auth.allow_token_in_url) {
         throw new Error(
-            "Turn off 'Accept the token in the URL' on the MCP endpoint card first. A JWT in the URL reaches every proxy log."
+            "Turn off 'Accept the token in the URL' on the Host and proxy card first. A JWT in the URL reaches every proxy log."
         );
     }
     return { ...current, auth: { ...current.auth, oauth: parseOAuthDraft(form) } };
