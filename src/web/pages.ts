@@ -347,8 +347,9 @@ export function dashboardPage(opts: {
         : opts.diagnoses.map(diagnosis => ({ service: diagnosis.service, diagnosis }));
     const outstanding = rows.length - opts.diagnoses.length;
 
-    const stat = (href: string, label: string, value: SafeHtml, sub: string, warn: boolean): SafeHtml =>
-        html`<a class="stat" href="${href}">
+    /** `key` is how app.js finds a count to update as the rows settle. */
+    const stat = (href: string, key: string, label: string, value: SafeHtml, sub: string, warn: boolean): SafeHtml =>
+        html`<a class="stat" href="${href}" data-stat="${key}">
             <span class="stat-k">${label}</span>
             <span class="stat-v">${value}</span>
             <span class="stat-s${warn ? ' warn' : ''}">${sub}</span>
@@ -357,6 +358,7 @@ export function dashboardPage(opts: {
     const strip = html`<div class="strip">
         ${stat(
             '/ui/config?tab=services',
+            'services',
             'Services',
             html`${up} <small>/ ${rows.length} up</small>`,
             outstanding > 0 ? `${outstanding} still checking` : down.length === 0 ? 'all reachable' : `${down.length} need attention`,
@@ -364,6 +366,7 @@ export function dashboardPage(opts: {
         )}
         ${stat(
             '#attention',
+            'health',
             'Health checks',
             html`${opts.failures.length}`,
             opts.failures.length === 0 ? 'nothing reported' : `from ${[...new Set(opts.failures.map(f => f.service))].join(', ')}`,
@@ -371,6 +374,7 @@ export function dashboardPage(opts: {
         )}
         ${stat(
             '/ui/config?tab=access#tokens',
+            'tokens',
             'MCP tokens',
             html`${opts.tokens.length}`,
             expiring.length === 0 ? 'none expiring' : `${expiring.length} expired or expiring`,
@@ -378,6 +382,7 @@ export function dashboardPage(opts: {
         )}
         ${stat(
             '/ui/audit',
+            'writes',
             'Writes',
             html`${opts.writeCounts.total}`,
             `${opts.writeCounts.applied} applied, ${opts.writeCounts.denied} refused`,
@@ -405,9 +410,9 @@ export function dashboardPage(opts: {
         )
     ];
 
-    const attention = html`<section class="box" id="attention">
+    const attention = html`<section class="box" id="attention" data-alerts>
         <div class="box-h"><h2>Needs attention</h2><a href="/ui/logs?stream=problems">Problems log</a></div>
-        ${alerts.length === 0 ? html`<p class="box-b note">Nothing needs attention.</p>` : html`${alerts}`}
+        ${alerts.length === 0 ? html`<p class="box-b note" data-empty>Nothing needs attention.</p>` : html`${alerts}`}
     </section>`;
 
     const byGroup = GROUPS.map(g => ({
@@ -432,11 +437,11 @@ export function dashboardPage(opts: {
                                   ? html` data-health-for="${r.service}"`
                                   : raw('')}>
                                   <th scope="row"><span class="svc-name">${serviceIcon(r.service)}${serviceName(r.service)}</span></th>
-                                  <td class="opt mono dim">${d?.version ?? ''}</td>
-                                  <td class="opt mono dim">${d === undefined ? '' : `${d.latency_ms} ms`}</td>
+                                  <td class="opt mono dim" data-cell="version">${d?.version ?? ''}</td>
+                                  <td class="opt mono dim" data-cell="latency">${d === undefined ? '' : `${d.latency_ms} ms`}</td>
                                   <td>${tier === undefined ? raw('') : html`<span class="tier ${tier}">${TIER_LABEL[tier]}</span>`}</td>
-                                  <td>${d === undefined
-                                      ? html`<span class="st wait"><i></i>Checking</span>`
+                                  <td data-cell="status">${d === undefined
+                                      ? html`<span class="st wait"><i></i><span data-label>Checking</span></span>`
                                       : html`<span class="st ${d.ok ? 'ok' : 'bad'}"><i></i>${d.ok
                                             ? 'Up'
                                             : d.error === undefined
@@ -482,9 +487,9 @@ export function dashboardPage(opts: {
 
     const disks = html`<section class="box">
         <div class="box-h"><h2>Disk space</h2></div>
-        <div class="box-b">
+        <div class="box-b" data-disks>
             ${opts.disks.length === 0
-                ? html`<p class="note">No service reported disk space.</p>`
+                ? html`<p class="note" data-empty>No service reported disk space.</p>`
                 : opts.disks.map(d => {
                       const share = d.totalSpace === undefined || d.totalSpace === 0 ? undefined : 1 - d.freeSpace / d.totalSpace;
                       return html`<div class="disk">
@@ -520,9 +525,9 @@ export function dashboardPage(opts: {
 
     const scans = html`<section class="box">
         <div class="box-h"><h2>Library scans</h2></div>
-        <div class="box-b">
+        <div class="box-b" data-scans>
             ${opts.scans.length === 0
-                ? html`<p class="note">No service reported a library scan.</p>`
+                ? html`<p class="note" data-empty>No service reported a library scan.</p>`
                 : html`<ul class="feed">
                       ${opts.scans.map(
                           s => html`<li>
@@ -535,7 +540,16 @@ export function dashboardPage(opts: {
         </div>
     </section>`;
 
-    const body = html`${strip}
+    /**
+     * With scripting off nothing fills the rows in, so the reader is sent to
+     * the same page built the other way: the server waits on the services and
+     * renders their status. Same convention as the scan reload in `layout`.
+     */
+    const noscript = opts.pending
+        ? raw('<noscript><meta http-equiv="refresh" content="0; url=/ui?health=blocking"></noscript>')
+        : raw('');
+
+    const body = html`${noscript}${strip}
         <div class="dash">
             <div class="dash-main">
                 ${attention}
@@ -738,7 +752,7 @@ export function logsPage(opts: {
  * the first refresh replaces the table.
  */
 /** One dashboard row's health, as the strings it shows. */
-export type HealthRowView = {
+type HealthRowView = {
     service: string;
     ok: boolean;
     /** `Up`, or the word the table already uses for this kind of failure. */

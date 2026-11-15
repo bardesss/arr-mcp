@@ -800,4 +800,152 @@ if (document.querySelector('[data-users-for]')) {
     } catch { /* the field stays as rendered */ }
   })();
 }
+
+// Each dashboard row asks for its own health once the page is up, so a service
+// at an address that answers nothing costs that one row its cap instead of
+// holding the whole page. Every string shown here was built by healthRowView on
+// the server, so this table and the one the server renders cannot come to
+// disagree about what a row says, and each is set as text rather than as
+// markup: a health check message carries whatever the service put in it.
+const healthRows = document.querySelectorAll('[data-health-for]');
+if (healthRows.length > 0) {
+  (async () => {
+    // Under the six connections a browser opens per origin on HTTP/1.1, so the
+    // rows cannot starve the page's own stylesheet and script.
+    const LANES = 4;
+
+    const el = (tag, cls, text) => {
+      const node = document.createElement(tag);
+      if (cls) node.className = cls;
+      if (text) node.textContent = text;
+      return node;
+    };
+    const dropEmpty = host => {
+      const note = host && host.querySelector('[data-empty]');
+      if (note) note.remove();
+    };
+
+    const total = healthRows.length;
+    let up = 0;
+    let down = 0;
+    let checks = 0;
+    let left = total;
+
+    const counts = () => {
+      const value = document.querySelector('[data-stat="services"] .stat-v');
+      if (value) value.replaceChildren(document.createTextNode(up + ' '), el('small', '', '/ ' + total + ' up'));
+      const sub = document.querySelector('[data-stat="services"] .stat-s');
+      if (sub) sub.textContent = left > 0 ? left + ' still checking' : down === 0 ? 'all reachable' : down + ' need attention';
+      const found = document.querySelector('[data-stat="health"] .stat-v');
+      if (found) found.textContent = String(checks);
+      const note = document.querySelector('[data-stat="health"] .stat-s');
+      if (note && checks > 0) note.textContent = checks === 1 ? '1 reported' : checks + ' reported';
+    };
+
+    // No 'ok' means the row never got an answer: no colour, rather than a green
+    // or a red the server never said.
+    const settle = (row, view) => {
+      const pill = row.querySelector('[data-cell="status"] .st');
+      if (pill) pill.className = view.ok === undefined ? 'st' : 'st ' + (view.ok ? 'ok' : 'bad');
+      const label = row.querySelector('[data-cell="status"] [data-label]');
+      if (label) label.textContent = view.status;
+      const version = row.querySelector('[data-cell="version"]');
+      if (version) version.textContent = view.version || '';
+      const latency = row.querySelector('[data-cell="latency"]');
+      if (latency) latency.textContent = view.latency || '';
+    };
+
+    const addAlert = a => {
+      const host = document.querySelector('[data-alerts]');
+      if (!host) return;
+      dropEmpty(host);
+      const box = el('div', 'alert');
+      box.appendChild(el('span', 'sev ' + (a.sev || 'bad'), a.label));
+      box.appendChild(el('div', 'alert-what', a.what));
+      if (a.detail) box.appendChild(el('div', 'alert-fix', a.detail));
+      if (a.fix) box.appendChild(el('div', 'alert-fix', a.fix));
+      host.appendChild(box);
+    };
+
+    const addDisk = d => {
+      const host = document.querySelector('[data-disks]');
+      if (!host) return;
+      dropEmpty(host);
+      const box = el('div', 'disk');
+      const line = el('div', 'disk-l');
+      line.appendChild(el('span', '', d.free));
+      if (d.total) line.appendChild(el('span', 'dim', d.total));
+      box.appendChild(line);
+      if (typeof d.pct === 'number') {
+        const bar = el('div', 'bar');
+        const fill = el('b', d.warn ? 'warn' : '');
+        fill.setAttribute('style', 'width:' + d.pct + '%');
+        bar.appendChild(fill);
+        box.appendChild(bar);
+      }
+      box.appendChild(el('span', 'dim small', d.services));
+      host.appendChild(box);
+    };
+
+    const addScan = s => {
+      const host = document.querySelector('[data-scans]');
+      if (!host) return;
+      dropEmpty(host);
+      let list = host.querySelector('ul.feed');
+      if (!list) {
+        list = el('ul', 'feed');
+        host.appendChild(list);
+      }
+      const line = el('li');
+      line.appendChild(el('span', 'badge', s.badge));
+      line.appendChild(el('span', '', s.service));
+      line.appendChild(el('time', 'mono dim', s.time));
+      list.appendChild(line);
+    };
+
+    const unknown = { status: 'Unknown', version: '', latency: '' };
+    let stopped = false;
+
+    const one = async row => {
+      let view;
+      try {
+        const res = await fetch('/ui/health.json?instance=' + encodeURIComponent(row.dataset.healthFor), {
+          headers: { accept: 'application/json' }
+        });
+        // The session ended while the rows were being filled. Every row left
+        // would answer the same way, so stop asking.
+        if (res.status === 401) {
+          stopped = true;
+          return;
+        }
+        if (res.ok) view = (await res.json()).view;
+      } catch { /* an unreachable arr-mcp leaves the row unknown, like a 404 */ }
+
+      left -= 1;
+      if (!view) {
+        settle(row, unknown);
+        counts();
+        return;
+      }
+
+      settle(row, view);
+      if (view.ok) up += 1;
+      else down += 1;
+      if (view.alert) addAlert({ sev: 'bad', label: view.alert.label, what: view.alert.what, detail: view.alert.detail, fix: view.alert.fix });
+      for (const f of view.failures || []) {
+        checks += 1;
+        addAlert({ sev: f.sev, label: f.label, what: f.what, detail: f.source, fix: f.message });
+      }
+      for (const d of view.disks || []) addDisk(d);
+      for (const s of view.scans || []) addScan(s);
+      counts();
+    };
+
+    const queue = Array.prototype.slice.call(healthRows);
+    const lane = async () => {
+      while (queue.length > 0 && !stopped) await one(queue.shift());
+    };
+    await Promise.all(Array.from({ length: Math.min(LANES, queue.length) }, lane));
+  })();
+}
 `;

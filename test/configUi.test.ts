@@ -3877,6 +3877,16 @@ describe('dashboard rendering', () => {
         expect(body).toContain('class="st');
     });
 
+    // With no scripting nothing fills the rows in, so the page sends the
+    // reader to the render that waits on the services instead.
+    it('sends a reader with no scripting to the blocking render', async () => {
+        await seed('  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n');
+        await signIn();
+
+        const body = await (await call('/ui')).text();
+        expect(body).toContain('<noscript><meta http-equiv="refresh" content="0; url=/ui?health=blocking">');
+    });
+
     it('reads as reachable rather than still checking with no services configured', async () => {
         await signIn();
         const body = await (await call('/ui')).text();
