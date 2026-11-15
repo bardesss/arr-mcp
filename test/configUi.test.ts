@@ -2066,6 +2066,47 @@ describe('access settings', () => {
         expect((await call('/ui/login', form({ username: 'admin', password: 'a-new-password' }))).status).toBe(302);
     });
 
+    it('refuses a new password without the current one, and changes nothing', async () => {
+        await signIn();
+        const res = await call(
+            '/ui/config/account',
+            form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'auth.current_password': 'not-it', 'auth.password': 'a-new-password' })
+        );
+
+        expect(res.status).toBe(400);
+        expect(await res.text()).toContain('The current password is wrong.');
+
+        cookie = '';
+        expect((await call('/ui/login', form({ username: 'admin', password: PASSWORD }))).status).toBe(302);
+    });
+
+    /**
+     * The field is reachable with a session alone, so without this it is a
+     * password oracle at full speed for anyone holding a stolen cookie, while
+     * the front door counts every attempt.
+     */
+    it('counts a wrong current password against the sign-in throttle', async () => {
+        await signIn();
+        for (let i = 0; i < FREE_ATTEMPTS; i++) {
+            await call(
+                '/ui/config/account',
+                form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'auth.current_password': 'not-it', 'auth.password': 'a-new-password' })
+            );
+        }
+
+        const blocked = await (
+            await call(
+                '/ui/config/account',
+                form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'auth.current_password': 'not-it', 'auth.password': 'a-new-password' })
+            )
+        ).text();
+        expect(blocked).toContain('Too many failed attempts.');
+
+        // And the sign-in shares the bucket, which is the point of sharing it.
+        cookie = '';
+        expect((await call('/ui/login', form({ username: 'admin', password: PASSWORD }))).status).toBe(429);
+    });
+
     it('leaves the password alone when the field is blank', async () => {
         await signIn();
         await call('/ui/config/account', form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'auth.password': '' }));

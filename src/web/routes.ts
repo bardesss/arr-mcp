@@ -714,7 +714,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     const configMutation =
         (
             what: string,
-            next: (form: Record<string, unknown>) => MutationResult | Promise<MutationResult>,
+            next: (form: Record<string, unknown>, c: Context) => MutationResult | Promise<MutationResult>,
             opts: {
                 /** The add form is a dialog, so a refusal has to bring it back:
                  *  a message about a form nobody can see explains nothing. */
@@ -811,7 +811,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
             let reveal: { name: string; token: string } | undefined;
             let revealKey: string | undefined;
             try {
-                const result = await next(form);
+                const result = await next(form, c);
                 // Not an error: the removal is waiting for a second click.
                 if ('ask' in result) return render(undefined, 200, { confirmingRemoval: result.ask });
                 if ('askRevoke' in result) return render(undefined, 200, { confirmingRevoke: result.askRevoke });
@@ -893,15 +893,58 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         })
     );
 
+    /**
+     * The current password, countersigning a new one.
+     *
+     * On the same throttle and the same key as `/ui/login`, because it is the
+     * same question asked from inside a session. Without it, someone holding a
+     * stolen cookie could guess the password here at full speed while the front
+     * door counted every attempt. Reserved before the hash for the reason the
+     * sign-in reserves: a burst of concurrent posts all read a clear bucket
+     * before any of them resolves `verifyPassword`.
+     */
+    const confirmCurrentPassword = async (c: Context, password: string): Promise<void> => {
+        const key = throttleKey(c, runtime.config.auth.trusted_proxies ?? []);
+        const waitMs = loginThrottle.blockedFor(key);
+        if (waitMs > 0) {
+            throw new ConfigEditError(
+                `Too many failed attempts. Try again in ${Math.ceil(waitMs / 1000)}s. The password was not changed.`
+            );
+        }
+
+        if (loginThrottle.recordFailure(key)) {
+            const seconds = Math.ceil(loginThrottle.blockedFor(key) / 1000);
+            logger.warn({ ...originOf(c), seconds }, 'throttled config UI password change');
+        }
+
+        const hash = runtime.config.auth.password_hash;
+        if (hash === undefined || !(await verifyPassword(password, hash))) {
+            logger.warn({ ...originOf(c) }, 'rejected a config UI password change: wrong current password');
+            throw new ConfigEditError('The current password is wrong. The password was not changed.');
+        }
+
+        // Proving the password clears the bucket, exactly as signing in does.
+        loginThrottle.recordSuccess(key);
+    };
+
     // One route per card, matching one form per card. A single `/access` route
     // taking all three was what let the page grow a button that looked global.
     app.post(
         '/ui/config/account',
-        configMutation('Config UI sign-in saved.', form => buildAccountConfig(runtime.config, form), {
-            // Only when the password field was actually filled in: a username
-            // edit is not a credential change.
-            endsSessions: form => str(form['auth.password']) !== ''
-        })
+        configMutation(
+            'Config UI sign-in saved.',
+            async (form, c) => {
+                if (str(form['auth.password']) !== '') {
+                    await confirmCurrentPassword(c, str(form['auth.current_password']));
+                }
+                return buildAccountConfig(runtime.config, form);
+            },
+            {
+                // Only when the password field was actually filled in: a username
+                // edit is not a credential change.
+                endsSessions: form => str(form['auth.password']) !== ''
+            }
+        )
     );
 
     app.post(
@@ -1356,22 +1399,13 @@ function addCandidateFrom(
 /**
  * The Config UI's own credentials. Owns `username` and `password_hash`.
  *
- * A new password has to be countersigned with the current one. A live session
- * is enough to reach this form, and a session is what an unlocked browser
- * hands to whoever walks up to it; knowing the password is the one thing that
- * separates the account's owner from someone merely sitting at it. The check is
- * skipped for a username edit, which is not a credential change.
+ * A new password is countersigned with the current one before this runs, in
+ * `confirmCurrentPassword`, which lives in the route because the check belongs
+ * on the sign-in throttle.
  */
 async function buildAccountConfig(current: Config, form: Record<string, unknown>): Promise<Config> {
     const username = str(form['auth.username']).trim();
     const password = str(form['auth.password']);
-
-    if (password !== '') {
-        const confirmed =
-            current.auth.password_hash !== undefined &&
-            (await verifyPassword(str(form['auth.current_password']), current.auth.password_hash));
-        if (!confirmed) throw new ConfigEditError('The current password is wrong. The password was not changed.');
-    }
 
     // Refused rather than carried forward as `undefined`. Since `password_hash`
     // became optional this assignment type-checks either way, so nothing but
