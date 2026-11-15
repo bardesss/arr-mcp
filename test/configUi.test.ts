@@ -3833,6 +3833,59 @@ describe('finding services', () => {
 });
 
 /**
+ * The dashboard itself: it has to come back before any service has answered.
+ *
+ * The second and third cases are guards rather than drivers. They hold true
+ * today and have to keep holding: a reader with no scripting still gets the
+ * whole page, and a stack with nothing configured never reads as though it
+ * were waiting on something.
+ */
+describe('dashboard rendering', () => {
+    const realFetch = globalThis.fetch;
+
+    afterEach(() => {
+        globalThis.fetch = realFetch;
+    });
+
+    it('renders the dashboard without calling any service', async () => {
+        const paths: string[] = [];
+        globalThis.fetch = (async (input: string | URL | Request) => {
+            paths.push(new URL(String(input)).pathname);
+            return new Response('{}', { headers: { 'content-type': 'application/json' } });
+        }) as typeof fetch;
+
+        await seed('  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n');
+        await signIn();
+
+        const res = await call('/ui');
+        expect(res.status).toBe(200);
+        const body = await res.text();
+        expect(body).toContain('data-health-for="radarr"');
+        expect(body).toContain('still checking');
+        expect(paths).toEqual([]);
+    });
+
+    it('still renders health server-side for a reader with no scripting', async () => {
+        globalThis.fetch = (async () =>
+            new Response(JSON.stringify({ version: '5.14.0' }), { headers: { 'content-type': 'application/json' } })) as typeof fetch;
+
+        await seed('  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n');
+        await signIn();
+
+        const body = await (await call('/ui?health=blocking')).text();
+        expect(body).not.toContain('data-health-for');
+        expect(body).toContain('class="st');
+    });
+
+    it('reads as reachable rather than still checking with no services configured', async () => {
+        await signIn();
+        const body = await (await call('/ui')).text();
+        expect(body).not.toContain('still checking');
+        expect(body).toContain('No services configured yet');
+    });
+});
+
+/**
  * One row of the dashboard at a time. The page renders before any of these
  * answer, so each one has to stand on its own: its own status, its own rows,
  * and its own cap when the address behind it answers nothing.
@@ -3860,10 +3913,12 @@ describe('per-instance health', () => {
 
         const res = await call('/ui/health.json?instance=radarr');
         expect(res.status).toBe(200);
-        const body = await res.json();
-        expect(body.diagnosis.service).toBe('radarr');
-        expect(body.diagnosis.ok).toBe(true);
-        expect(Array.isArray(body.disks)).toBe(true);
+        expect(await res.json()).toMatchObject({
+            diagnosis: { service: 'radarr', ok: true },
+            disks: expect.any(Array),
+            failures: expect.any(Array),
+            scans: expect.any(Array)
+        });
     });
 
     it('refuses without a session rather than redirecting', async () => {
@@ -3888,7 +3943,7 @@ describe('per-instance health', () => {
 
         const res = await call(`/ui/health.json?instance=${encodeURIComponent('radarr/4k')}`);
         expect(res.status).toBe(200);
-        expect((await res.json()).diagnosis.service).toBe('radarr/4k');
+        expect(await res.json()).toMatchObject({ diagnosis: { service: 'radarr/4k' } });
     });
 
     // The whole point of the endpoint: a wrong address costs one row its cap,
@@ -3903,9 +3958,7 @@ describe('per-instance health', () => {
         try {
             const pending = call('/ui/health.json?instance=radarr');
             await vi.advanceTimersByTimeAsync(10_000);
-            const body = await (await pending).json();
-            expect(body.diagnosis.ok).toBe(false);
-            expect(body.diagnosis.error.kind).toBe('Timeout');
+            expect(await (await pending).json()).toMatchObject({ diagnosis: { ok: false, error: { kind: 'Timeout' } } });
         } finally {
             vi.useRealTimers();
         }

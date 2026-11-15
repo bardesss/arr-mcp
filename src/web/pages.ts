@@ -320,6 +320,13 @@ export function dashboardPage(opts: {
     /** Absent when the IMDb dataset is not configured, in which case the
      *  panel is not rendered at all rather than rendered as "off". */
     imdb?: DatasetStatus | undefined;
+    /**
+     * No service has been probed yet: render a row per entry in `configured`
+     * with its status still to come, and let app.js settle each one as its
+     * own probe answers. False renders the table from `diagnoses`, which is
+     * what a reader with no scripting gets from `/ui?health=blocking`.
+     */
+    pending: boolean;
     /** Already one row per filesystem: `buildStackHealth` groups them. */
     disks: DiskGroup[];
     failures: HealthCheck[];
@@ -329,6 +336,16 @@ export function dashboardPage(opts: {
     const down = opts.diagnoses.filter(d => !d.ok);
     const up = opts.diagnoses.length - down.length;
     const expiring = opts.tokens.filter(t => isExpired(t.expires, opts.now) || expiringSoon(t.expires, opts.now));
+
+    /**
+     * One row per service either way, so the table has the shape it will keep
+     * once the probes answer: a row without a diagnosis is one still being
+     * checked, and app.js fills it in where it stands.
+     */
+    const rows: { service: string; diagnosis?: ConnectionDiagnosis }[] = opts.pending
+        ? opts.configured.map(service => ({ service }))
+        : opts.diagnoses.map(diagnosis => ({ service: diagnosis.service, diagnosis }));
+    const outstanding = rows.length - opts.diagnoses.length;
 
     const stat = (href: string, label: string, value: SafeHtml, sub: string, warn: boolean): SafeHtml =>
         html`<a class="stat" href="${href}">
@@ -341,8 +358,8 @@ export function dashboardPage(opts: {
         ${stat(
             '/ui/config?tab=services',
             'Services',
-            html`${up} <small>/ ${opts.diagnoses.length} up</small>`,
-            down.length === 0 ? 'all reachable' : `${down.length} need attention`,
+            html`${up} <small>/ ${rows.length} up</small>`,
+            outstanding > 0 ? `${outstanding} still checking` : down.length === 0 ? 'all reachable' : `${down.length} need attention`,
             down.length > 0
         )}
         ${stat(
@@ -395,11 +412,11 @@ export function dashboardPage(opts: {
 
     const byGroup = GROUPS.map(g => ({
         label: g.label,
-        rows: opts.diagnoses.filter(d => groupOf(d.service) === g.label)
+        rows: rows.filter(r => groupOf(r.service) === g.label)
     })).filter(g => g.rows.length > 0);
 
     const services =
-        opts.diagnoses.length === 0
+        rows.length === 0
             ? html`<p class="box-b note">
                   No services configured yet. <a href="/ui/config?tab=services">Add one</a>.
               </p>`
@@ -408,18 +425,23 @@ export function dashboardPage(opts: {
                   ${byGroup.map(
                       g => html`<tbody>
                           <tr class="group"><th scope="colgroup" colspan="5">${g.label}</th></tr>
-                          ${g.rows.map(d => {
-                              const tier = opts.tiers?.[d.service];
-                              return html`<tr class="${d.ok ? '' : 'fail'}">
-                                  <th scope="row"><span class="svc-name">${serviceIcon(d.service)}${serviceName(d.service)}</span></th>
-                                  <td class="opt mono dim">${d.version ?? ''}</td>
-                                  <td class="opt mono dim">${d.latency_ms} ms</td>
+                          ${g.rows.map(r => {
+                              const d = r.diagnosis;
+                              const tier = opts.tiers?.[r.service];
+                              return html`<tr class="${d !== undefined && !d.ok ? 'fail' : ''}"${d === undefined
+                                  ? html` data-health-for="${r.service}"`
+                                  : raw('')}>
+                                  <th scope="row"><span class="svc-name">${serviceIcon(r.service)}${serviceName(r.service)}</span></th>
+                                  <td class="opt mono dim">${d?.version ?? ''}</td>
+                                  <td class="opt mono dim">${d === undefined ? '' : `${d.latency_ms} ms`}</td>
                                   <td>${tier === undefined ? raw('') : html`<span class="tier ${tier}">${TIER_LABEL[tier]}</span>`}</td>
-                                  <td><span class="st ${d.ok ? 'ok' : 'bad'}"><i></i>${d.ok
-                                      ? 'Up'
-                                      : d.error === undefined
-                                        ? 'Down'
-                                        : KIND_LABEL[d.error.kind]}</span></td>
+                                  <td>${d === undefined
+                                      ? html`<span class="st wait"><i></i>Checking</span>`
+                                      : html`<span class="st ${d.ok ? 'ok' : 'bad'}"><i></i>${d.ok
+                                            ? 'Up'
+                                            : d.error === undefined
+                                              ? 'Down'
+                                              : KIND_LABEL[d.error.kind]}</span>`}</td>
                               </tr>`;
                           })}
                       </tbody>`

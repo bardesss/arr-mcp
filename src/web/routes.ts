@@ -282,20 +282,30 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
 
         const snapshot = runtime.current;
 
-        // Through `buildStackHealth`, the same function `get_stack_health` answers
-        // from. Two implementations of "is the stack healthy" is how the page
-        // and the tool come to disagree.
-        // It is live, not cached: a dashboard showing cached status is one
-        // that tells you a dead service is fine, and it degrades rather than
-        // failing when a service is unreachable.
-        const health = await buildStackHealth(snapshot.adapters, { detail: 'standard', limit: 50 });
+        /**
+         * The page does not wait on the stack: each row asks
+         * `/ui/health.json` for itself once the page is up, so one service at
+         * an address that answers nothing costs that row its cap instead of
+         * costing the whole page.
+         *
+         * `?health=blocking` is the same page built the other way, for a
+         * reader with no scripting, which the `<noscript>` in the dashboard
+         * sends them to. It goes through `buildStackHealth`, the function
+         * `get_stack_health` answers from, so the page and the tool cannot
+         * come to disagree about what healthy means. It is live, not cached:
+         * a dashboard showing cached status is one that tells you a dead
+         * service is fine.
+         */
+        const blocking = c.req.query('health') === 'blocking';
+        const health = blocking ? await buildStackHealth(snapshot.adapters, { detail: 'standard', limit: 50 }) : undefined;
 
         return c.html(
             dashboardPage({
                 csrf: runtime.sessions.csrfFor(session),
                 theme: theme(),
                 version,
-                diagnoses: health.services,
+                pending: !blocking,
+                diagnoses: health?.services ?? [],
                 configured: snapshot.adapters.map(a => a.id),
                 tiers: Object.fromEntries(
                     listInstances(snapshot.config).map(i => [
@@ -309,9 +319,9 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                 now: new Date(),
                 mcpUrl: mcpEndpoint(c.req.url, forwardedProtoOf(c, runtime.config.auth.trusted_proxies ?? [])),
                 ...(runtime.dataset === undefined ? {} : { imdb: runtime.dataset.status() }),
-                disks: health.disks.items,
-                failures: health.failures.items,
-                scans: health.scans,
+                disks: health?.disks.items ?? [],
+                failures: health?.failures.items ?? [],
+                scans: health?.scans ?? [],
                 writeCounts: audit.counts()
             })
         );

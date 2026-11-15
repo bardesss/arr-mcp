@@ -345,6 +345,16 @@ p.box-b { margin: 0; }
 .st { display: inline-flex; align-items: center; gap: .45rem; font-weight: 500; }
 .st i { width: .5rem; height: .5rem; border-radius: 50%; background: currentColor; }
 .st.ok { color: var(--ok); } .st.bad { color: var(--bad); }
+/* A row whose probe has not answered yet. The ring spins rather than filling,
+   so a service still being checked never reads as one reporting a colour. */
+.st.wait { color: var(--dim); }
+.st.wait i {
+  width: .6rem; height: .6rem; background: none;
+  border: 2px solid currentColor; border-top-color: transparent;
+  animation: st-spin .7s linear infinite;
+}
+@keyframes st-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .st.wait i { animation: none; } }
 ul.tokens, ul.feed { list-style: none; margin: .75rem 0; padding: 0; }
 .tokens li { display: flex; justify-content: space-between; gap: .75rem; padding: .45rem 0; border-top: 1px solid var(--line); font-size: .87rem; }
 .tokens .warn, .warn { color: var(--warn); }

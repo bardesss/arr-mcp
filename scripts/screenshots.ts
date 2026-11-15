@@ -47,6 +47,8 @@ const PAGES: { name: string; html: string }[] = [
         html: dashboardPage({
             csrf: SCREENSHOT_CSRF,
             version: fixture.VERSION,
+            // The settled table: a screenshot of spinners shows nothing.
+            pending: false,
             diagnoses: fixture.DIAGNOSES,
             configured: fixture.CONFIGURED,
             tokens: fixture.CONFIG.auth.tokens,
