@@ -71,6 +71,12 @@ a { color: var(--accent); }
 .side {
   flex: 0 0 220px; box-sizing: border-box; background: var(--side); border-right: 1px solid var(--line);
   display: flex; flex-direction: column; gap: .25rem; padding: 1.1rem .75rem;
+  /* Six links and a foot, so the menu never needs the height of a long page:
+     it stays in view while the page scrolls past. align-self stops the flex
+     item stretching to the content height, which would leave sticky nothing
+     to move within, and overflow-y gives the menu a scrollbar of its own on a
+     viewport too short to hold it. */
+  position: sticky; top: 0; align-self: flex-start; height: 100vh; overflow-y: auto;
 }
 .side-top { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .2rem .6rem 1.1rem; }
 .side-nav { display: flex; flex-direction: column; gap: 2px; }
@@ -376,7 +382,12 @@ dl.kv dt { color: var(--dim); } dl.kv dd { margin: 0; }
    page starts right under it; open, the menu and its links drop down in the
    bar, as the sidebar they are on a wide screen. */
 @media (max-width: 800px) {
-  .side { flex: 1 1 100%; border-right: 0; border-bottom: 1px solid var(--line); padding: .5rem .75rem; }
+  .side {
+    flex: 1 1 100%; border-right: 0; border-bottom: 1px solid var(--line); padding: .5rem .75rem;
+    /* A bar across the top scrolls away with the page: open, the menu is as
+       tall as a phone screen, and pinning it would cover the page it links to. */
+    position: static; align-self: auto; height: auto; overflow: visible;
+  }
   .side-top { padding: 0 0 0 .25rem; }
   .burger { display: inline-flex; }
   .side-nav, .side-foot { display: none; }
