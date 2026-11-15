@@ -190,7 +190,9 @@ describe('diagnose', () => {
             stub('prowlarr/private', { getIndexers: async () => [], getRecentRejections: async () => [rejection('prowlarr/private', 'i2')] })
         ];
         const d = await buildDiagnose({ adapters, library: new LibraryLoader(adapters, undefined) }, { query: 'some film' });
-        expect(d.steps.find(s => s.stage === 'indexers')?.detail).toContain('most recently i2 on prowlarr/private: HTTP 429.');
+        // Both answered, so i2 is the newest by the tie-break rather than the only one.
+        expect(d.degraded).toEqual([]);
+        expect(d.steps.find(s => s.stage === 'indexers')?.detail).toMatch(/^2 recent failure\(s\) .*, most recently i2 on prowlarr\/private: HTTP 429\.$/);
     });
 
     it('degrades a failing service into unknown rather than failing the call', async () => {

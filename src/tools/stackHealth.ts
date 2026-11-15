@@ -184,7 +184,9 @@ const FAILURE_RANK = new Map([
     ['warning', 1],
     ['notice', 2]
 ]);
-const failureRank = (type: string): number => FAILURE_RANK.get(type) ?? FAILURE_RANK.size;
+/** After every type the map names, however its ranks are numbered. */
+const OTHER_RANK = Math.max(...FAILURE_RANK.values()) + 1;
+const failureRank = (type: string): number => FAILURE_RANK.get(type) ?? OTHER_RANK;
 
 /**
  * One `limit` shared between the instances that have log rows: up to an equal
