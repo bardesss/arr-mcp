@@ -327,7 +327,11 @@ export function dashboardPage(opts: {
      * what a reader with no scripting gets from `/ui?health=blocking`.
      */
     pending: boolean;
-    /** Already one row per filesystem: `buildStackHealth` groups them. */
+    /**
+     * Already one row per filesystem: `buildStackHealth` groups them. Empty
+     * while `pending`, where the panel is filled from `/ui/disks.json` once
+     * the rows have settled, since grouping needs the whole stack at once.
+     */
     disks: DiskGroup[];
     failures: HealthCheck[];
     scans: ScanState[];
@@ -751,6 +755,31 @@ export function logsPage(opts: {
  * go through this, so a row cannot change its wording or its time format when
  * the first refresh replaces the table.
  */
+/** A grouped filesystem as the strings the disk panel shows. */
+type DiskRowView = { free: string; total: string; pct?: number | undefined; warn: boolean; services: string };
+
+/**
+ * The disk panel's rows, prepared on the server.
+ *
+ * Grouped across the whole stack rather than per service, because services in
+ * one stack report the same host filesystem several times over and the rule
+ * that folds them (`groupDisks`) compares free space with a tolerance rather
+ * than for equality. That rule cannot be reduced to a key the browser could
+ * match on, so the grouping and the wording both stay here.
+ */
+export function diskRowsView(groups: readonly DiskGroup[]): DiskRowView[] {
+    return groups.map(x => {
+        const share = x.totalSpace === undefined || x.totalSpace === 0 ? undefined : 1 - x.freeSpace / x.totalSpace;
+        return {
+            free: `${humanBytes(x.freeSpace)} free`,
+            total: x.totalSpace === undefined ? '' : `of ${humanBytes(x.totalSpace)}`,
+            pct: share === undefined ? undefined : Math.round(share * 100),
+            warn: share !== undefined && share > 0.85,
+            services: x.services.join(', ')
+        };
+    });
+}
+
 /** One dashboard row's health, as the strings it shows. */
 type HealthRowView = {
     service: string;
@@ -762,7 +791,6 @@ type HealthRowView = {
     /** Absent for a reachable service: nothing to report under "needs attention". */
     alert?: { label: string; what: string; detail: string; fix: string };
     failures: { sev: 'bad' | 'warn'; label: string; what: string; source: string; message: string }[];
-    disks: { free: string; total: string; pct?: number | undefined; warn: boolean; services: string }[];
     scans: { badge: string; service: string; time: string }[];
 };
 
@@ -780,7 +808,6 @@ type HealthRowView = {
  */
 export function healthRowView(opts: {
     diagnosis: ConnectionDiagnosis;
-    disks: DiskGroup[];
     failures: HealthCheck[];
     scans: ScanState[];
 }): HealthRowView {
@@ -810,16 +837,6 @@ export function healthRowView(opts: {
             source: unfence(f.source),
             message: unfence(f.message)
         })),
-        disks: opts.disks.map(x => {
-            const share = x.totalSpace === undefined || x.totalSpace === 0 ? undefined : 1 - x.freeSpace / x.totalSpace;
-            return {
-                free: `${humanBytes(x.freeSpace)} free`,
-                total: x.totalSpace === undefined ? '' : `of ${humanBytes(x.totalSpace)}`,
-                pct: share === undefined ? undefined : Math.round(share * 100),
-                warn: share !== undefined && share > 0.85,
-                services: x.services.join(', ')
-            };
-        }),
         scans: opts.scans.map(s => ({
             badge: s.running === true ? 'running' : 'done',
             service: s.service,

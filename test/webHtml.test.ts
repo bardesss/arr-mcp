@@ -4,7 +4,7 @@ import type { DiskSpace } from '../src/services/types.ts';
 import { JS } from '../src/web/assets.ts';
 import { groupDisks, humanBytes } from '../src/core/disks.ts';
 import { esc, html, raw, shortTime } from '../src/web/html.ts';
-import { auditPage, healthRowView, loginPage } from '../src/web/pages.ts';
+import { auditPage, diskRowsView, healthRowView, loginPage } from '../src/web/pages.ts';
 
 describe('escaping', () => {
     it('neutralises the characters that end a tag or an attribute', () => {
@@ -498,7 +498,11 @@ describe('the dashboard fill-in', () => {
         ...over
     });
 
-    const start = (answer: (id: string) => { status: number; body?: unknown; hold?: boolean }, ids = ['radarr', 'sonarr']) => {
+    const start = (
+        answer: (id: string) => { status: number; body?: unknown; hold?: boolean },
+        ids = ['radarr', 'sonarr'],
+        stackDisks: unknown[] = []
+    ) => {
         const rows = ids.map(rowStub);
         const boxes = { alerts: node('section'), disks: node('div'), scans: node('div') };
         const counts = {
@@ -536,7 +540,12 @@ describe('the dashboard fill-in', () => {
             querySelectorAll: (sel: string) => (sel === '[data-health-for]' ? rows.map(r => r.row) : [])
         };
         const fetch = async (url: string) => {
-            const id = decodeURIComponent(String(url).split('instance=')[1] ?? '');
+            const text = String(url);
+            if (text.includes('/ui/disks.json')) {
+                asked.push(`disks?${text.split('?')[1] ?? ''}`);
+                return { ok: true, status: 200, json: async () => ({ disks: stackDisks }) };
+            }
+            const id = decodeURIComponent(text.split('instance=')[1] ?? '');
             asked.push(id);
             const { status, body, hold } = answer(id);
             if (hold === true) await new Promise(() => {});
@@ -559,7 +568,7 @@ describe('the dashboard fill-in', () => {
         expect(page.rows[0]?.cells.latency.textContent).toBe('48 ms');
         expect(page.rows[0]?.cells.label.textContent).toBe('Up');
         expect(page.rows[0]?.cells.pill.className).toBe('st ok');
-        expect(page.asked).toEqual(['radarr', 'sonarr']);
+        expect(page.asked.filter(a => !a.startsWith('disks?'))).toEqual(['radarr', 'sonarr']);
     });
 
     it('counts the services that answered, and says how many are still out', async () => {
@@ -651,22 +660,57 @@ describe('the dashboard fill-in', () => {
         expect(texts).toContain(hostile);
     });
 
-    it('appends the disk and scan rows a service reports', async () => {
+    it('appends the scan rows a service reports', async () => {
         const page = start(id => ({
             status: 200,
-            body: {
-                view: viewOf(
-                    id === 'radarr'
-                        ? { disks: [{ free: '500 GB free', total: 'of 1 TB', pct: 50, warn: false, services: 'radarr' }], scans: [{ badge: 'running', service: 'radarr', time: 'unknown' }] }
-                        : {}
-                )
-            }
+            body: { view: viewOf(id === 'radarr' ? { scans: [{ badge: 'running', service: 'radarr', time: 'unknown' }] } : {}) }
         }));
 
-        await vi.waitFor(() => expect(page.boxes.disks.children.length).toBe(1));
-        expect(page.boxes.scans.children.length).toBe(1);
-        expect(page.empties.disks.gone).toBe(true);
+        await vi.waitFor(() => expect(page.boxes.scans.children.length).toBe(1));
         expect(page.empties.scans.gone).toBe(true);
+    });
+
+    /**
+     * Disks are the stack's, not a row's: the same filesystem reported by six
+     * services has to fold into one line, which needs every answer in one
+     * place. So it is one request at the end, naming the services that
+     * answered so a dead one is not waited on twice.
+     */
+    it('asks for the stack disks once the rows have settled', async () => {
+        const page = start(() => ({ status: 200, body: { view: viewOf() } }), ['radarr', 'sonarr'], [
+            { free: '500 GB free', total: 'of 1 TB', pct: 50, warn: false, services: 'radarr, sonarr' }
+        ]);
+
+        await vi.waitFor(() => expect(page.boxes.disks.children.length).toBe(1));
+        expect(page.asked.filter(a => a.startsWith('disks?'))).toEqual(['disks?up=radarr%2Csonarr']);
+        expect(page.empties.disks.gone).toBe(true);
+    });
+
+    it('leaves a service that did not answer out of the disk request', async () => {
+        const page = start(id => (id === 'sonarr' ? { status: 404 } : { status: 200, body: { view: viewOf() } }), ['radarr', 'sonarr'], []);
+
+        await vi.waitFor(() => expect(page.asked.some(a => a.startsWith('disks?'))).toBe(true));
+        expect(page.asked.filter(a => a.startsWith('disks?'))).toEqual(['disks?up=radarr']);
+    });
+
+    it('does not ask for disks when the session has gone', async () => {
+        const page = start(() => ({ status: 401, body: { error: 'unauthorized' } }));
+
+        await vi.waitFor(() => expect(page.location.reload).toHaveBeenCalled());
+        expect(page.asked.some(a => a.startsWith('disks?'))).toBe(false);
+    });
+});
+
+describe('diskRowsView', () => {
+    it('works out the share of a disk that is used, and flags a full one', () => {
+        const rows = diskRowsView([
+            { freeSpace: 500, totalSpace: 1000, services: ['radarr', 'sonarr'], mounts: ['/data'] },
+            { freeSpace: 10, totalSpace: 1000, services: ['radarr'], mounts: ['/full'] },
+            { freeSpace: 42, services: ['radarr'], mounts: ['/unknown'] }
+        ]);
+        expect(rows[0]).toMatchObject({ pct: 50, warn: false, services: 'radarr, sonarr' });
+        expect(rows[1]).toMatchObject({ pct: 99, warn: true });
+        expect(rows[2]).toMatchObject({ pct: undefined, total: '' });
     });
 });
 
@@ -676,7 +720,7 @@ describe('the dashboard fill-in', () => {
  * fills in must not come to disagree about what a row says.
  */
 describe('healthRowView', () => {
-    const empty = { disks: [], failures: [], scans: [] };
+    const empty = { failures: [], scans: [] };
 
     it('prepares what a reachable row shows', () => {
         const view = healthRowView({
@@ -704,26 +748,9 @@ describe('healthRowView', () => {
         expect(view.alert).toMatchObject({ label: 'Timeout', what: 'radarr', detail: 'no response from radarr', fix: 'Check the address.' });
     });
 
-    it('works out the share of a disk that is used, and flags a full one', () => {
-        const view = healthRowView({
-            diagnosis: { ok: true, service: 'radarr', latency_ms: 1 },
-            disks: [
-                { freeSpace: 500, totalSpace: 1000, services: ['radarr', 'sonarr'], mounts: ['/data'] },
-                { freeSpace: 10, totalSpace: 1000, services: ['radarr'], mounts: ['/full'] },
-                { freeSpace: 42, services: ['radarr'], mounts: ['/unknown'] }
-            ],
-            failures: [],
-            scans: []
-        });
-        expect(view.disks[0]).toMatchObject({ pct: 50, warn: false, services: 'radarr, sonarr' });
-        expect(view.disks[1]).toMatchObject({ pct: 99, warn: true });
-        expect(view.disks[2]).toMatchObject({ pct: undefined, total: '' });
-    });
-
     it('sorts a failing health check into an error or a warning', () => {
         const view = healthRowView({
             diagnosis: { ok: true, service: 'radarr', latency_ms: 1 },
-            disks: [],
             failures: [
                 { service: 'radarr', source: 'ImportListStatusCheck', type: 'error', message: 'List unavailable' },
                 { service: 'radarr', source: 'UpdateCheck', type: 'warning', message: 'New version' }
@@ -737,7 +764,6 @@ describe('healthRowView', () => {
     it('says whether a scan is running and when it last finished', () => {
         const view = healthRowView({
             diagnosis: { ok: true, service: 'radarr', latency_ms: 1 },
-            disks: [],
             failures: [],
             scans: [
                 { service: 'radarr', running: true, lastCompleted: '2026-11-15T10:00:00.000Z' },

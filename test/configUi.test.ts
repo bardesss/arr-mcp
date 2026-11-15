@@ -3896,6 +3896,77 @@ describe('dashboard rendering', () => {
 });
 
 /**
+ * Disk space is the one panel that cannot be filled a row at a time: services
+ * in one stack report the same host filesystem over and over, and folding
+ * those together needs every service's answer in one place. So it is asked for
+ * once, after the rows have settled.
+ */
+describe('stack disk space', () => {
+    const realFetch = globalThis.fetch;
+
+    /** Two services, one host filesystem, reported identically by both. */
+    const stubStack = () => {
+        const asked: string[] = [];
+        globalThis.fetch = (async (input: string | URL | Request) => {
+            const url = new URL(String(input));
+            asked.push(`${url.port}${url.pathname}`);
+            const body = url.pathname.endsWith('/system/status')
+                ? { version: '5.14.0' }
+                : url.pathname.endsWith('/diskspace')
+                  ? [{ path: '/data', label: 'data', freeSpace: 500, totalSpace: 1000 }]
+                  : [];
+            return new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } });
+        }) as typeof fetch;
+        return asked;
+    };
+
+    const two = '  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n  sonarr:\n    url: http://192.0.2.10:8989\n    api_key: k\n';
+
+    afterEach(() => {
+        globalThis.fetch = realFetch;
+    });
+
+    it('folds one filesystem reported by two services into a single row', async () => {
+        stubStack();
+        await seed(two);
+        await signIn();
+
+        const res = await call('/ui/disks.json');
+        expect(res.status).toBe(200);
+        expect(await res.json()).toMatchObject({
+            disks: [{ free: expect.any(String), total: expect.any(String), pct: 50, warn: false, services: 'radarr, sonarr' }]
+        });
+    });
+
+    it('reads only the services it is told answered', async () => {
+        const asked = stubStack();
+        await seed(two);
+        await signIn();
+
+        await call('/ui/disks.json?up=radarr');
+        expect(asked.some(a => a.startsWith('7878'))).toBe(true);
+        expect(asked.some(a => a.startsWith('8989'))).toBe(false);
+    });
+
+    it('refuses without a session rather than redirecting', async () => {
+        cookie = '';
+        expect((await call('/ui/disks.json')).status).toBe(401);
+    });
+
+    // An id that is not configured is simply not read, rather than being an
+    // error: the page may have been rendered before a service was removed.
+    it('ignores an id it does not have', async () => {
+        stubStack();
+        await seed(two);
+        await signIn();
+
+        const res = await call('/ui/disks.json?up=nope');
+        expect(res.status).toBe(200);
+        expect(await res.json()).toMatchObject({ disks: [] });
+    });
+});
+
+/**
  * One row of the dashboard at a time. The page renders before any of these
  * answer, so each one has to stand on its own: its own status, its own rows,
  * and its own cap when the address behind it answers nothing.

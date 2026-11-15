@@ -26,7 +26,8 @@ import {
 } from '../core/session.ts';
 import { randomBytes } from 'node:crypto';
 import { buildAdapters } from '../services/registry.ts';
-import { hasUserDirectory } from '../services/types.ts';
+import { groupDisks } from '../core/disks.ts';
+import { hasDiskSpace, hasUserDirectory } from '../services/types.ts';
 import { buildStackHealth } from '../tools/stackHealth.ts';
 import { CSS, JS } from './assets.ts';
 import { MARK_SVG } from './icons.ts';
@@ -45,10 +46,11 @@ import { configPage, configTabForPost, configTabNamed, defaultUserNote, offerabl
 import { isLoopbackHost, probeJwks } from './jwksProbe.ts';
 import { apiEndpoint, forwardedProtoOf, mcpEndpoint, peerAddress, requestIsHttps, sameOrigin } from './origin.ts';
 import type { WebhookEvents } from '../core/webhookEvents.ts';
-import type { ConnectionDiagnosis, HistoryEntry, Window } from '../services/types.ts';
+import type { ConnectionDiagnosis, DiskSpace, HistoryEntry, Window } from '../services/types.ts';
 import {
     auditPage,
     dashboardPage,
+    diskRowsView,
     eventLogPage,
     healthRowView,
     loginPage,
@@ -382,6 +384,45 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
 
         const row = { diagnosis, disks: health.disks.items, failures: health.failures.items, scans: health.scans };
         return c.json({ ...row, view: healthRowView(row) }, 200, NO_STORE);
+    });
+
+    /**
+     * The whole stack's disk space, in one answer.
+     *
+     * The one panel that cannot be filled a row at a time: several services
+     * report the same host filesystem, and `groupDisks` folds those together
+     * with a tolerance rather than an equality, because SABnzbd's rounded
+     * gigabytes land a few megabytes from the byte count an *arr gives for the
+     * same disk. Asked for once, after the rows have settled, so the page is
+     * already usable by the time it runs.
+     *
+     * `up` names the instances that answered, so a service already known to be
+     * unreachable is not waited on a second time. An id that is not configured
+     * is skipped rather than refused: the page may have been rendered before
+     * someone removed it.
+     */
+    app.get('/ui/disks.json', async c => {
+        if (guard(c) === undefined) return c.json({ error: 'unauthorized' }, 401, NO_STORE);
+
+        const up = c.req.query('up');
+        const wanted = up === undefined || up === '' ? undefined : new Set(up.split(','));
+        const reading = runtime.current.adapters.filter(hasDiskSpace).filter(a => wanted === undefined || wanted.has(a.id));
+
+        const mounts: DiskSpace[] = [];
+        await Promise.all(
+            reading.map(async adapter => {
+                try {
+                    const read = await withTimeout(adapter.getDiskSpace(), healthCapFor(adapter.id));
+                    if (read !== TIMED_OUT) mounts.push(...read);
+                } catch (err) {
+                    logger.warn({ service: adapter.id, err }, 'diskspace read failed for the dashboard panel');
+                }
+            })
+        );
+
+        // Paths are dropped: which mount is `/storage` is a container-mapping
+        // question, and the panel names the services rather than the paths.
+        return c.json({ disks: diskRowsView(groupDisks(mounts.map(({ path: _path, ...rest }) => rest))) }, 200, NO_STORE);
     });
 
     // --- logs -----------------------------------------------------------

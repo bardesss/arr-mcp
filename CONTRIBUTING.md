@@ -556,7 +556,11 @@ loud:
   `textContent`.** Not `innerHTML`: that surface carries indexer text on a
   timer, and building nodes makes an XSS impossible. The default-user suggestions work the
   same way: they arrive from `/ui/config/users.json` as JSON and are built with
-  `option.value` and `textContent`, and the field works unscripted.
+  `option.value` and `textContent`, and the field works unscripted. So does the
+  dashboard: each service row is filled from `/ui/health.json?instance=<id>`
+  after the page loads, and every string it shows was built by `healthRowView`
+  on the server, so the table the server renders and the one the script fills
+  cannot drift apart. A test asserts the script assigns no `innerHTML`.
 - **A secret is never rendered back.** API keys, the NZBGet and torrent-client
   passwords and the UI password all render as empty fields meaning *unchanged*. That is also
   why an empty field can never mean "clear this": clearing is expressed by

@@ -31,7 +31,16 @@ something downloaded is still not playable.
 **Disk space is listed per filesystem, not per mount.** Services in one stack
 report the same host disks several times over, so the dashboard groups them
 and names the instances that can
-see each one, emptiest first.
+see each one, emptiest first. The panel is read once, after the service rows
+have settled, because grouping needs every service's answer in one place.
+
+**The page arrives before the services do.** Opening the dashboard renders it
+at once, with each service row still being checked, and the rows settle one by
+one as each service answers. A service at an address where nothing is
+listening costs its own row up to its configured `timeout_ms` and nothing
+else, instead of holding the whole page. With scripting off there is nothing to
+fill the rows in, so the page redirects to `/ui?health=blocking`, which waits
+for every service and renders their status server-side.
 
 **It gives you the whole MCP connection.** The endpoint is shown as an absolute
 URL, built from the address you reached the page on, so it is already correct

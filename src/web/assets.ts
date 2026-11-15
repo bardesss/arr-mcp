@@ -881,10 +881,7 @@ if (healthRows.length > 0) {
       host.appendChild(box);
     };
 
-    const addDisk = d => {
-      const host = document.querySelector('[data-disks]');
-      if (!host) return;
-      dropEmpty(host);
+    const diskRow = d => {
       const box = el('div', 'disk');
       const line = el('div', 'disk-l');
       line.appendChild(el('span', '', d.free));
@@ -898,7 +895,27 @@ if (healthRows.length > 0) {
         box.appendChild(bar);
       }
       box.appendChild(el('span', 'dim small', d.services));
-      host.appendChild(box);
+      return box;
+    };
+
+    // Disk space belongs to the stack, not to a row: the same filesystem is
+    // reported by every service that can see it, and folding those together
+    // needs all of their answers at once, with a rule that lives on the
+    // server. So it is one request after the rows have settled, naming the
+    // services that answered so an unreachable one is not waited on twice.
+    const stackDisks = async answered => {
+      const host = document.querySelector('[data-disks]');
+      if (!host || answered.length === 0) return;
+      try {
+        const res = await fetch('/ui/disks.json?up=' + encodeURIComponent(answered.join(',')), {
+          headers: { accept: 'application/json' }
+        });
+        if (!res.ok) return;
+        const rows = (await res.json()).disks || [];
+        if (rows.length === 0) return;
+        dropEmpty(host);
+        host.replaceChildren(...rows.map(diskRow));
+      } catch { /* the panel keeps whatever it already said */ }
     };
 
     const addScan = s => {
@@ -918,6 +935,7 @@ if (healthRows.length > 0) {
     };
 
     const unknown = { status: 'Unknown', version: '', latency: '' };
+    const answered = [];
     let stopped = false;
 
     const one = async row => {
@@ -948,14 +966,17 @@ if (healthRows.length > 0) {
       }
 
       settle(row, view);
-      if (view.ok) up += 1;
-      else down += 1;
+      if (view.ok) {
+        up += 1;
+        // The row's own id, not the one echoed back: this row is what was
+        // asked for, whatever the answer calls itself.
+        answered.push(row.dataset.healthFor);
+      } else down += 1;
       if (view.alert) addAlert({ sev: 'bad', label: view.alert.label, what: view.alert.what, detail: view.alert.detail, fix: view.alert.fix, act: true });
       for (const f of view.failures || []) {
         checks += 1;
         addAlert({ sev: f.sev, label: f.label, what: f.what, detail: f.source, fix: f.message });
       }
-      for (const d of view.disks || []) addDisk(d);
       for (const s of view.scans || []) addScan(s);
       counts();
     };
@@ -965,6 +986,7 @@ if (healthRows.length > 0) {
       while (queue.length > 0 && !stopped) await one(queue.shift());
     };
     await Promise.all(Array.from({ length: Math.min(LANES, queue.length) }, lane));
+    if (!stopped) await stackDisks(answered);
   })();
 }
 `;
