@@ -193,8 +193,10 @@ half is missing.
 
 `get_indexers` does the same across instances of one service: it merges every
 configured Prowlarr, each row naming the instance it came from, and one
-unreachable instance degrades by name rather than emptying the answer. At `detail: "full"` it reads the newest 50
-rejections across every Prowlarr, whatever `limit` is; `limit` pages the indexers only.
+unreachable instance degrades by name rather than emptying the answer. At
+`detail: "full"` it reads the newest 50 rejections across every Prowlarr,
+whatever `limit` is; `limit` pages the indexers only. Rejections from the same
+moment are ordered by instance id, here and in `diagnose_media`'s indexer step.
 
 `diagnose_media` takes a title, or an exact `service` plus `id`, and returns a verdict
 rather than a list. With several instances of a service configured it also takes
@@ -678,6 +680,11 @@ qBittorrent, Transmission, Plex, Jellyfin, Seerr and Profilarr have no health
 report this server reads. They appear in `services` with their version and
 connection state, and a fault in one of them shows up as a failed connection
 in `degraded` rather than in `failures`.
+
+`failures` lists errors first, then warnings, then notices, then any other
+type, and each of those by instance id, keeping each instance's own order, so
+the order does not depend on which instance answers first. A `limit` that cuts
+the list drops any other type first, then notices, then warnings, then errors.
 
 ### Profiles, root folders and tags: `get_instance_options`
 

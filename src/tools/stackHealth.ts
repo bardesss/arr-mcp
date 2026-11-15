@@ -174,6 +174,19 @@ function project(result: StackHealthResult, detail: DetailLevel): StackHealthRes
 }
 
 /**
+ * Where a failing check sorts in `failures`: errors, warnings and notices in
+ * that order, then any other `type` (Radarr, Sonarr, Whisparr, Lidarr and
+ * Prowlarr pass on whatever the service sends). A `limit` that cuts the list
+ * drops any other type first, then notices, then warnings, then errors.
+ */
+const FAILURE_RANK = new Map([
+    ['error', 0],
+    ['warning', 1],
+    ['notice', 2]
+]);
+const failureRank = (type: string): number => FAILURE_RANK.get(type) ?? FAILURE_RANK.size;
+
+/**
  * One `limit` shared between the instances that have log rows: up to an equal
  * share of each one's own newest rows, then the newest of the rest. `rows`
  * come sorted newest first and stay so. The rule and its edge cases are in
@@ -350,6 +363,10 @@ export async function buildStackHealth(
     // answered.
     logs.sort((a, b) => instantOf(b.lastSeen) - instantOf(a.lastSeen) || a.service.localeCompare(b.service));
     logLines.sort((a, b) => a.service.localeCompare(b.service));
+    // Most severe first, then by instance id, since the checks arrive in the
+    // order the instances answered. `sort` is stable, so each instance's own
+    // order is kept within a type.
+    failures.sort((a, b) => failureRank(a.type) - failureRank(b.type) || a.service.localeCompare(b.service));
     degraded.sort();
 
     // One budget across both lists, spent on failures first: a failing health

@@ -1,11 +1,16 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
+import { newestFirst } from '../core/instant.ts';
 import { logger } from '../core/logger.ts';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
 import type { IndexerCapable, IndexerRejection, IndexerSummary, ServiceAdapter } from '../services/types.ts';
 
 /** How many recent rejections are read, whatever `limit` pages the indexers; `diagnose_media` reads the same window. */
 export const RECENT_REJECTION_WINDOW = 50;
+
+/** Newest first, rejections from the same moment by instance id; `diagnose_media` reads its most recent rejection in the same order. */
+export const newestRejectionFirst = (a: IndexerRejection, b: IndexerRejection): number =>
+    newestFirst(a, b) || a.service.localeCompare(b.service);
 
 type GetIndexersResult = {
     items: IndexerSummary[];
@@ -115,9 +120,10 @@ export async function buildGetIndexers(
 
     // Rejections are time-ordered; each instance answers its own newest-first,
     // but as they settle in whatever order the promises resolve. Re-sort the
-    // merge, and re-apply the window that bounded each instance alone.
+    // merge, rows from the same moment by instance id, and re-apply the window
+    // that bounded each instance alone.
     const mergedRejections = rejections
-        .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
+        .sort(newestRejectionFirst)
         .slice(0, RECENT_REJECTION_WINDOW)
         .map(({ indexerId: _, ...r }) => r);
 

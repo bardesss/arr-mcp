@@ -31,7 +31,7 @@ import type { IdentityResolver } from '../../core/identity.ts';
 import { mayManageRequest } from '../manageRequests.ts';
 import type { WebhookEvents } from '../../core/webhookEvents.ts';
 import { EVENT_LOG_SOURCE } from '../getHistory.ts';
-import { RECENT_REJECTION_WINDOW } from '../getIndexers.ts';
+import { newestRejectionFirst, RECENT_REJECTION_WINDOW } from '../getIndexers.ts';
 import { resolveInstance } from '../resolveInstance.ts';
 import { indexerKey, mentions, queueRowsFor, releaseMentions, type Evidence } from './chain.ts';
 
@@ -418,10 +418,10 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
         // name instead of erasing the rejections another returned.
         const prowlarrDegraded: string[] = [];
         // `undefined` keeps meaning every instance failed, which is what the
-        // stage's total-failure branch reads. Flattened lists are re-sorted
-        // newest-first: each instance answers in its own order, but the merge
-        // settles in whatever order the promises resolve, and `mine[0]` below is
-        // read as the most recent rejection overall.
+        // stage's total-failure branch reads. The flattened lists are re-sorted
+        // as get_indexers lists them, newest first and rejections from the same
+        // moment by instance id: chain.ts's indexer step reads `mine[0]` as the
+        // most recent rejection overall.
         const rejectionsP: Promise<IndexerRejection[] | undefined> = !resolved || !prowlarrConfigured
             ? Promise.resolve(undefined)
             : Promise.all(
@@ -433,7 +433,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
               ).then(lists =>
                   prowlarrDegraded.length === prowlarrs.length
                       ? undefined
-                      : lists.flat().sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
+                      : lists.flat().sort(newestRejectionFirst)
               );
 
         // How many indexers there are, only when a failure mentions the item: one

@@ -14,6 +14,7 @@ import type {
 import type { ServiceInstance } from '../src/config/instances.ts';
 import { buildStackHealth, registerStackHealth } from '../src/tools/stackHealth.ts';
 import { buildInstanceOptions, registerGetInstanceOptions } from '../src/tools/instanceOptions.ts';
+import { afterTicks } from './helpers/ticks.ts';
 
 /** What `ArrAdapter` used to name, now spelled as the capabilities it is. */
 type ArrLike = ServiceAdapter & DiskSpaceCapable & HealthCheckCapable;
@@ -585,6 +586,61 @@ describe('get_stack_health', () => {
     it('registers without throwing', () => {
         const server = new McpServer({ name: 'test', version: '0.0.0' });
         expect(() => registerStackHealth(server, [])).not.toThrow();
+    });
+});
+
+describe('get_stack_health failures order', () => {
+    const check = (service: string, source: string, type: string): HealthCheck => ({ service, source, type, message: `${source} failed` });
+    const named = (items: readonly HealthCheck[]) => items.map(f => `${f.service} ${f.source}`);
+
+    /** An instance whose checks arrive after `ticks` microtasks, so a test sets which instance answers first. */
+    const answering = (id: string, ticks: number, checks: HealthCheck[]): ArrLike => ({
+        ...fakeArr({
+            diagnosis: { ...healthy, service: id },
+            getFailedHealthChecks: async () => {
+                await afterTicks(ticks);
+                return checks;
+            }
+        }),
+        id,
+        type: id as ServiceAdapter['type']
+    });
+
+    /** The same Radarr and Sonarr twice, each listed first and answering first once, so neither order can decide. */
+    const bothWays = async (radarr: HealthCheck[], sonarr: HealthCheck[], limit: number) => {
+        const radarrFirst = await buildStackHealth([answering('radarr', 0, radarr), answering('sonarr', 20, sonarr)], { detail: 'standard', limit });
+        const sonarrFirst = await buildStackHealth([answering('sonarr', 0, sonarr), answering('radarr', 20, radarr)], { detail: 'standard', limit });
+        return [radarrFirst, sonarrFirst];
+    };
+
+    it('lists errors, then warnings, notices and any other type, each by instance id, whichever instance answers first', async () => {
+        const results = await bothWays(
+            // A3 before A4 in Radarr's own list: the unknown type goes after the notice by rank, not by order.
+            [check('radarr', 'A1', 'warning'), check('radarr', 'A2', 'error'), check('radarr', 'A3', 'unknown'), check('radarr', 'A4', 'notice')],
+            // B3 before B2: Sonarr's own order, which the sort keeps within a type.
+            [check('sonarr', 'B1', 'error'), check('sonarr', 'B3', 'warning'), check('sonarr', 'B2', 'warning')],
+            50
+        );
+        for (const result of results) {
+            expect(named(result.failures.items)).toEqual(['radarr A2', 'sonarr B1', 'radarr A1', 'sonarr B3', 'sonarr B2', 'radarr A4', 'radarr A3']);
+        }
+    });
+
+    it('keeps the same check when limit: 1 cuts, whichever instance answers first', async () => {
+        const results = await bothWays(
+            [check('radarr', 'A1', 'warning'), check('radarr', 'A2', 'warning')],
+            [check('sonarr', 'B1', 'warning'), check('sonarr', 'B2', 'warning')],
+            1
+        );
+        for (const result of results) {
+            expect(named(result.failures.items)).toEqual(['radarr A1']);
+            expect(result.failures).toMatchObject({ total: 4, returned: 1, truncated: true });
+        }
+    });
+
+    it('keeps an error over the warnings of an instance that sorts before it', async () => {
+        const results = await bothWays([check('radarr', 'A1', 'warning'), check('radarr', 'A2', 'warning')], [check('sonarr', 'B1', 'error')], 1);
+        for (const result of results) expect(named(result.failures.items)).toEqual(['sonarr B1']);
     });
 });
 

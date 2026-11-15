@@ -5,6 +5,7 @@ import { RECENT_REJECTION_WINDOW, buildGetIndexers, summarizeIndexers } from '..
 import { repeat } from './helpers/bigFixture.ts';
 import { expectWithinBudget } from './helpers/budget.ts';
 import { serving } from './helpers/serve.ts';
+import { afterTicks } from './helpers/ticks.ts';
 
 const config: KeyedServiceConfig = {
     url: 'http://192.0.2.10:9696',
@@ -311,6 +312,40 @@ describe('several Prowlarrs', () => {
         );
 
         expect(result.recentRejections?.map(r => r.at)).toEqual(['2025-01-01T00:00:00Z', '2020-01-01T00:00:00Z']);
+    });
+
+    it('orders rejections from the same moment by instance id, whichever instance answers first', async () => {
+        // More rows than the window, all from one moment, so only the tie-break
+        // decides which rows are kept.
+        const sameMoment = {
+            ...routes,
+            '/api/v1/history': {
+                records: Array.from({ length: RECENT_REJECTION_WINDOW }, () => ({ indexerId: 1, date: '2026-08-04T22:10:00Z', successful: false, data: { query: 'q', reason: 'r' } }))
+            }
+        };
+        /** Every request of this instance answers after `ticks` microtasks. */
+        const answering = (name: string, ticks: number) =>
+            new ProwlarrAdapter({ ...config, name }, (async (input: string) => {
+                await afterTicks(ticks);
+                return serving(sameMoment)(input);
+            }) as unknown as typeof fetch);
+
+        const publicFirst = await buildGetIndexers([answering('public', 0), answering('private', 20)], { detail: 'full', limit: 50 });
+        const privateFirst = await buildGetIndexers([answering('public', 20), answering('private', 0)], { detail: 'full', limit: 50 });
+        for (const result of [publicFirst, privateFirst]) {
+            expect(result.recentRejections?.map(r => r.service)).toEqual(Array<string>(RECENT_REJECTION_WINDOW).fill('prowlarr/private'));
+        }
+    });
+
+    it('sorts a rejection whose time does not parse as the oldest', async () => {
+        const rejections = {
+            ...routes,
+            '/api/v1/history': {
+                records: ['not a time', '2026-08-04T22:10:00Z'].map(date => ({ indexerId: 1, date, successful: false, data: { query: 'q', reason: 'r' } }))
+            }
+        };
+        const result = await buildGetIndexers([named('public', rejections)], { detail: 'full', limit: 50 });
+        expect(result.recentRejections?.map(r => r.at)).toEqual(['2026-08-04T22:10:00Z', 'not a time']);
     });
 
     it('reports rejections from a fixed window, whatever limit pages the indexers', async () => {

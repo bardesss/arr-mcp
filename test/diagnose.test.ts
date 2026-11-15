@@ -180,6 +180,19 @@ describe('diagnose', () => {
         });
     });
 
+    it('names the rejection get_indexers lists first when two Prowlarrs have one from the same moment', async () => {
+        // Listed against id order, the order adapters normally come in, so the tie
+        // is settled by the sort and not by the list.
+        const rejection = (service: string, indexer: string) => ({ service, indexer, at: '2026-08-05T02:00:00Z', reason: 'HTTP 429', query: 'Some Film' });
+        const adapters = [
+            stub('radarr', { listLibrary: async () => [FILM], getQueue: async () => [] }),
+            stub('prowlarr/public', { getIndexers: async () => [], getRecentRejections: async () => [rejection('prowlarr/public', 'i1')] }),
+            stub('prowlarr/private', { getIndexers: async () => [], getRecentRejections: async () => [rejection('prowlarr/private', 'i2')] })
+        ];
+        const d = await buildDiagnose({ adapters, library: new LibraryLoader(adapters, undefined) }, { query: 'some film' });
+        expect(d.steps.find(s => s.stage === 'indexers')?.detail).toContain('most recently i2 on prowlarr/private: HTTP 429.');
+    });
+
     it('degrades a failing service into unknown rather than failing the call', async () => {
         const adapters = [
             stub('radarr', { listLibrary: async () => [FILM], getQueue: async () => [] }),
