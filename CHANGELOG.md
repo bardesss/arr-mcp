@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.1.0](https://github.com/bardesss/arr-mcp/compare/v2.0.0...v2.1.0) (2026-11-15)
+
+
+### Features
+
+* **ui:** render the dashboard before the services answer ([#684](https://github.com/bardesss/arr-mcp/issues/684)) ([b676965](https://github.com/bardesss/arr-mcp/commit/b676965606de025afa86c4897b04543eb5bae7ee))
+
+
+### Bug Fixes
+
+* **ui:** group Shelfmark with the downloaders on the dashboard ([#680](https://github.com/bardesss/arr-mcp/issues/680)) ([fdc2b33](https://github.com/bardesss/arr-mcp/commit/fdc2b331b1a82008e0da9dc2ef84ff200f344818))
+* **ui:** keep the side menu in view while a long page scrolls ([#682](https://github.com/bardesss/arr-mcp/issues/682)) ([fb250ee](https://github.com/bardesss/arr-mcp/commit/fb250eea59b92376ef66cc370ca417318395a311))
+
 ## [2.0.0](https://github.com/bardesss/arr-mcp/compare/v1.84.0...v2.0.0) (2026-11-15)
 
 
