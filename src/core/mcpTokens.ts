@@ -5,7 +5,16 @@ import { findByHash, fingerprint } from './secrets.ts';
 
 export type TokenTier = 'read' | 'write' | 'destructive';
 export type ExpiryChoice = '30' | '90' | 'never';
-export type StoredToken = { name: string; tier: TokenTier; hash: string; expires?: string | undefined };
+export type StoredToken = {
+    name: string;
+    tier: TokenTier;
+    hash: string;
+    expires?: string | undefined;
+    /** The day it was made, `YYYY-MM-DD`. Absent on tokens created before this
+     *  was recorded, and on any hand-written into config.yaml, so the table
+     *  shows a dash rather than inventing one. */
+    created?: string | undefined;
+};
 
 const DAY_MS = 86_400_000;
 const SOON_DAYS = 7;
@@ -27,6 +36,20 @@ export const isExpired = (expires: string | undefined, now: Date): boolean =>
 
 export const expiringSoon = (expires: string | undefined, now: Date): boolean =>
     expires !== undefined && !isExpired(expires, now) && startOf(expires) - now.getTime() < SOON_DAYS * DAY_MS;
+
+/**
+ * How long a token has left, in words.
+ *
+ * Lives here rather than in the page that first needed it: the dashboard said
+ * "4 days left" while the Access page, the page you would act on it from,
+ * showed the bare date. One function, both pages.
+ */
+export function daysLeft(expires: string | undefined, now: Date): string {
+    if (expires === undefined) return 'no expiry';
+    const days = Math.ceil((Date.parse(`${expires}T23:59:59Z`) - now.getTime()) / DAY_MS);
+    if (days < 0) return 'expired';
+    return days === 1 ? '1 day left' : `${days} days left`;
+}
 
 export function expiresIn(choice: ExpiryChoice, now: Date): string | undefined {
     if (choice === 'never') return undefined;

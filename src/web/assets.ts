@@ -135,6 +135,17 @@ h2 {
   color: var(--dim); margin: 2rem 0 .75rem;
 }
 h2:first-child { margin-top: 0; }
+/* A config card's own heading. These were h3 directly under the page's h1 with
+   no h2 anywhere between, so the outline skipped a level on every tab. Same
+   size and weight they already had, one level up. The .login h2 rule comes after
+   this on purpose: equal specificity, so it still wins for the sign-in panel. */
+.panel h2 {
+  font-size: 1.17em; font-weight: 700; text-transform: none; letter-spacing: 0;
+  color: var(--text); margin: 0 0 .75rem;
+}
+/* The create form under a credential table. It had no heading at all, so a bare
+   "Name" field sat directly under the last row and read as an edit of it. */
+.panel h3 { font-size: 1em; font-weight: 600; color: var(--text); margin: 1.4rem 0 .6rem; }
 .login h2 { font-size: 1.1rem; text-transform: none; letter-spacing: 0; color: var(--text); }
 p.note { color: var(--dim); font-size: .9rem; margin: .35rem 0 1rem; }
 .panel {
@@ -216,7 +227,15 @@ button, a.button {
   cursor: pointer; text-decoration: none;
 }
 button.ghost, a.button.ghost { background: var(--panel-2); color: var(--text); border-color: var(--line); }
+/* Revoke, and Remove. Both were .ghost, which is also what Test is: the two
+   controls that cut a client off looked exactly like the one that runs a probe
+   and changes nothing. */
+button.danger, a.button.danger {
+  background: var(--panel-2); color: var(--bad);
+  border-color: color-mix(in srgb, var(--bad) 45%, transparent);
+}
 button:hover, a.button:hover { filter: brightness(1.1); }
+button.danger:hover { background: color-mix(in srgb, var(--bad) 14%, transparent); filter: none; }
 .row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
 /* From tokens, so the colours follow the theme picked in Settings as well as
    the OS's. They used to sit under prefers-color-scheme alone, which put a
@@ -458,7 +477,20 @@ dl.kv dt { color: var(--dim); } dl.kv dd { margin: 0; }
   /* A release name beside the last column, on the library events table: as long
      as any message, and half the spare width stops either starving the other. */
   .stacked th.prose, .stacked td.prose { white-space: normal; width: 50%; }
+  /* The credential tables have no prose column: their last cell is a button.
+     The rule above hands the last column every spare pixel, which left the two
+     Revoke buttons stranded mid-row with the names crushed against the left.
+     The fingerprint takes the slack instead and the buttons line up right. */
+  .creds th:last-child, .creds td:last-child { width: 1%; white-space: nowrap; }
+  .creds th:nth-child(5), .creds td:nth-child(5) { width: 100%; }
 }
+
+/* "still plaintext in config.yaml" was a dim span inside the fingerprint cell.
+   On a phone the cell renders inline, so it ran on from the fingerprint and
+   read as part of it. Its own line, in the colour of the warning it is. */
+.flag { display: block; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; font-size: .78rem; color: var(--warn); }
+/* The one-time reveal, nested in the card whose credential it belongs to. */
+.reveal { background: var(--panel-2); margin-bottom: 1rem; }
 `;
 
 /**
@@ -502,15 +534,23 @@ document.addEventListener('click', async (e) => {
   }
 });
 
-// Assembled in the browser from the one-time reveal panel on the config page,
-// so the token is never rendered into the HTML as readable JSON.
+// Assembled in the browser, so a token is never rendered into the HTML as
+// readable JSON. #bearer exists only in the response that revealed a new token;
+// every other render gets the placeholder, because a client config you can only
+// copy during one response is a client config you cannot copy.
+const PLACEHOLDER = 'PASTE-YOUR-TOKEN';
+const secretNow = () => {
+  const token = document.getElementById('bearer');
+  return token ? token.value : PLACEHOLDER;
+};
+
 document.addEventListener('click', async (e) => {
   const btn = e.target.closest('[data-copy-config]');
   if (!btn) return;
   const box = document.getElementById(btn.dataset.copyConfig);
   const url = document.getElementById('mcp-url');
-  const token = document.getElementById('bearer');
-  if (!box || !url || !token) return;
+  if (!box || !url) return;
+  const token = { value: secretNow() };
 
   const config = JSON.stringify({
     mcpServers: {
@@ -534,16 +574,16 @@ document.addEventListener('click', async (e) => {
   }
 });
 
-// Assembled here for the same reason as the client config: from the reveal panel.
+// Assembled here for the same reason as the client config, and with the same
+// placeholder when no token is on screen.
 document.addEventListener('click', async (e) => {
   const btn = e.target.closest('[data-copy-url-token]');
   if (!btn) return;
   const url = document.getElementById(btn.dataset.copyUrlToken);
-  const token = document.getElementById('bearer');
   const box = document.getElementById('mcp-url-token');
-  if (!url || !token || !box) return;
+  if (!url || !box) return;
 
-  const value = url.value + '?token=' + encodeURIComponent(token.value);
+  const value = url.value + '?token=' + encodeURIComponent(secretNow());
   try {
     await navigator.clipboard.writeText(value);
     flash(btn, 'Copied');

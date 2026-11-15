@@ -16,6 +16,7 @@ import { attachLogStore, detachLogStore, logger } from '../src/core/logger.ts';
 import { hashPassword } from '../src/core/session.ts';
 import * as session from '../src/core/session.ts';
 import { hashToken } from '../src/core/secrets.ts';
+import { bearerCaller, type StoredToken } from '../src/core/mcpTokens.ts';
 import { CONFIG_TABS, configTabForPost } from '../src/web/configPage.ts';
 import { isLoopbackHost } from '../src/web/jwksProbe.ts';
 import { buildMcpConfig } from '../src/web/routes.ts';
@@ -750,8 +751,8 @@ describe('the configuration tabs', () => {
         const access = await (await call('/ui/config?tab=access')).text();
         expect(onTab(access, 'access')).toBe(true);
         expect(access).toContain('id="tokens"');
-        // Five columns with a button in the last: letter-by-letter on a phone otherwise.
-        expect(access).toContain('<table class="stacked">');
+        // Six columns with a button in the last: letter-by-letter on a phone otherwise.
+        expect(access).toContain('<table class="stacked creds">');
         expect(access).not.toContain('name="metadata.imdb"');
         expect(access).not.toContain('id="add-service"');
     });
@@ -2057,12 +2058,53 @@ describe('access settings', () => {
         await signIn();
         await call(
             '/ui/config/account',
-            form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'auth.password': 'a-new-password' })
+            form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'auth.current_password': PASSWORD, 'auth.password': 'a-new-password' })
         );
 
         cookie = '';
         expect((await call('/ui/login', form({ username: 'admin', password: PASSWORD }))).status).toBe(401);
         expect((await call('/ui/login', form({ username: 'admin', password: 'a-new-password' }))).status).toBe(302);
+    });
+
+    it('refuses a new password without the current one, and changes nothing', async () => {
+        await signIn();
+        const res = await call(
+            '/ui/config/account',
+            form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'auth.current_password': 'not-it', 'auth.password': 'a-new-password' })
+        );
+
+        expect(res.status).toBe(400);
+        expect(await res.text()).toContain('The current password is wrong.');
+
+        cookie = '';
+        expect((await call('/ui/login', form({ username: 'admin', password: PASSWORD }))).status).toBe(302);
+    });
+
+    /**
+     * The field is reachable with a session alone, so without this it is a
+     * password oracle at full speed for anyone holding a stolen cookie, while
+     * the front door counts every attempt.
+     */
+    it('counts a wrong current password against the sign-in throttle', async () => {
+        await signIn();
+        for (let i = 0; i < FREE_ATTEMPTS; i++) {
+            await call(
+                '/ui/config/account',
+                form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'auth.current_password': 'not-it', 'auth.password': 'a-new-password' })
+            );
+        }
+
+        const blocked = await (
+            await call(
+                '/ui/config/account',
+                form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'auth.current_password': 'not-it', 'auth.password': 'a-new-password' })
+            )
+        ).text();
+        expect(blocked).toContain('Too many failed attempts.');
+
+        // And the sign-in shares the bucket, which is the point of sharing it.
+        cookie = '';
+        expect((await call('/ui/login', form({ username: 'admin', password: PASSWORD }))).status).toBe(429);
     });
 
     it('leaves the password alone when the field is blank', async () => {
@@ -2125,7 +2167,10 @@ describe('MCP tokens', () => {
         await signIn();
         const only = runtime.config.auth.tokens[0]?.name as string;
         const asked = await (await call('/ui/config/tokens/revoke', form({ csrf: await csrfFrom(), token: only }))).text();
-        expect(asked).toContain('every MCP client will be refused until you create a new token');
+        expect(asked).toContain('every MCP client will be refused until you create a new one');
+        // Both credential cards say how to back out of the confirmation. Only
+        // the OAuth card used to.
+        expect(asked).toContain('Reload to cancel.');
     });
 
     it('marks expired tokens and plaintext still on disk', async () => {
@@ -2153,6 +2198,151 @@ describe('MCP tokens', () => {
         expect(page).toMatch(/>old<\/td>[\s\S]*?<strong>expired<\/strong> 2020-01-01/);
         expect(page).toContain('still plaintext in config.yaml');
         expect(page).not.toContain('y'.repeat(40));
+    });
+});
+
+/**
+ * The Access tab's shape.
+ *
+ * Each of these is something the page used to get wrong rather than a
+ * restatement of the markup: the endpoint lived on the dashboard only, the
+ * client config could be copied during one response in a hundred, the two
+ * credential tables disagreed about their own columns, one revoke said how to
+ * cancel and the other did not, and the management card's refusals rendered in
+ * a banner its own anchor had already scrolled past.
+ */
+describe('the Access tab', () => {
+    const accessTab = async (): Promise<string> => (await call('/ui/config?tab=access')).text();
+
+    /** A config with credentials in it. `seed` writes a `bearer_token`, which
+     *  the schema refuses alongside named tokens. */
+    const withCredentials = async (authExtra: string) => {
+        await seed();
+        await writeFile(
+            join(dir, 'config.yaml'),
+            `auth:\n  username: admin\n  password_hash: ${PASSWORD_HASH}\n  allowed_hosts: []\n${authExtra}services: {}\n`,
+            'utf8'
+        );
+        const { config } = await loadConfig(dir);
+        logs.close();
+        audit.close();
+        audit = WriteAudit.ephemeral();
+        logs = LogStore.ephemeral();
+        runtime = Runtime.fromConfig(config, audit, { configDir: dir });
+        app = buildApp({ runtime, audit, logs });
+        await signIn();
+    };
+
+    const TOKEN = `  tokens:\n    - { name: phone, tier: read, hash: '${hashToken('z'.repeat(40))}' }\n`;
+    const KEY = `  management_keys:\n    - { name: nzb360, tier: read, hash: '${hashToken('q'.repeat(40))}', created: '2026-01-01' }\n`;
+
+    it('carries the MCP endpoint and the client config button with no token just created', async () => {
+        await signIn();
+        const page = await accessTab();
+
+        expect(page).toContain('http://localhost:6060/mcp');
+        expect(page).toContain('data-copy-config="mcp-config"');
+        expect(page).toContain('id="mcp-config"');
+        // The management card gets the same treatment on the same page.
+        expect(page).toContain('http://localhost:6060/api/v1');
+        expect(page).toContain('data-copy="api-url"');
+    });
+
+    it('renders an https endpoint behind a TLS-terminating proxy', async () => {
+        await signIn();
+        const page = await (await call('/ui/config?tab=access', { headers: { 'x-forwarded-proto': 'https' } })).text();
+        expect(page).toContain('https://localhost:6060/mcp');
+        expect(page).toContain('https://localhost:6060/api/v1');
+    });
+
+    it('gives both credential tables the same columns', async () => {
+        await withCredentials(TOKEN + KEY);
+        const headers = [...(await accessTab()).matchAll(/<table class="stacked creds">\s*<thead>\s*<tr>([\s\S]*?)<\/tr>/g)].map(
+            m => m[1]
+        );
+
+        expect(headers).toHaveLength(2);
+        expect(headers[0]).toBe(headers[1]);
+        expect(headers[0]).toContain('<th>Created</th>');
+        expect(headers[0]).toContain('<th>Expires</th>');
+    });
+
+    it('counts down an expiry inside the week, the way the dashboard does', async () => {
+        const soon = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10);
+        await withCredentials(`  tokens:\n    - { name: phone, tier: read, hash: '${hashToken('z'.repeat(40))}', expires: '${soon}' }\n`);
+        const page = await accessTab();
+
+        expect(page).toContain('days left)');
+        expect(page).toContain('class="warn"');
+    });
+
+    it('records the day a token was created, and says so when it has none', async () => {
+        await withCredentials(TOKEN);
+        expect(await accessTab()).toContain('<span class="dim">unknown</span>');
+
+        await call('/ui/config/tokens/add', form({ csrf: await csrfFrom(), 'token.name': 'laptop', 'token.tier': 'read', 'token.expiry': '90' }));
+        const made = runtime.config.auth.tokens.find(t => t.name === 'laptop');
+        expect(made?.created).toBe(new Date().toISOString().slice(0, 10));
+    });
+
+    it('links a token fingerprint to its own writes, and the filter holds', async () => {
+        await withCredentials(TOKEN);
+        const token = runtime.config.auth.tokens[0] as StoredToken;
+        const caller = bearerCaller(token);
+
+        expect(await accessTab()).toContain(`/ui/audit?caller=${encodeURIComponent(caller)}`);
+
+        // One row for this caller and one for another, so the filter has to choose.
+        const row = { tool: 'add_media', service: 'radarr', operation: 'add', tier: 'safe', target: 'Dune', args: {} } as const;
+        audit.begin({ ...row, caller });
+        audit.begin({ ...row, target: 'Arrival', caller: 'bearer:other#deadbeef' });
+
+        const filtered = await (await call(`/ui/audit?caller=${encodeURIComponent(caller)}`)).text();
+        expect(filtered).toContain('Dune');
+        expect(filtered).not.toContain('Arrival');
+        expect(filtered).toContain('Show every caller');
+
+        const all = await (await call('/ui/audit')).text();
+        expect(all).toContain('Dune');
+        expect(all).toContain('Arrival');
+    });
+
+    it('says how to cancel both revoke confirmations, and marks both buttons destructive', async () => {
+        await withCredentials(TOKEN + KEY);
+
+        const token = await (await call('/ui/config/tokens/revoke', form({ csrf: await csrfFrom(), token: 'phone' }))).text();
+        const key = await (await call('/ui/config/api-keys/revoke', form({ csrf: await csrfFrom(), key: 'nzb360' }))).text();
+
+        for (const page of [token, key]) {
+            expect(page).toContain('Reload to cancel.');
+            expect(page).toContain('name="confirm" value="yes" class="danger"');
+        }
+    });
+
+    it('shows a refused key on the card its anchor scrolls to, not in the page banner', async () => {
+        await withCredentials(KEY);
+
+        const page = (
+            await (
+                await call('/ui/config/api-keys/add', form({ csrf: await csrfFrom(), 'api-key.name': 'nzb360', 'api-key.tier': 'read' }))
+            ).text()
+        ).replaceAll('&quot;', '"');
+
+        expect(page).toContain('There is already a key named "nzb360".');
+        const card = page.indexOf('id="management-api"');
+        expect(card).toBeGreaterThan(-1);
+        expect(page.indexOf('There is already a key named')).toBeGreaterThan(card);
+    });
+
+    it('puts the card headings one level under the page heading', async () => {
+        await withCredentials(TOKEN + KEY);
+        const page = await accessTab();
+
+        expect([...page.matchAll(/<h1[ >]/g)]).toHaveLength(1);
+        // One per card, with the create forms under them as h3.
+        expect([...page.matchAll(/<h2[ >]/g)].length).toBeGreaterThanOrEqual(5);
+        expect(page).toContain('<h3>New token</h3>');
+        expect(page).toContain('<h3>New key</h3>');
     });
 });
 
@@ -2525,7 +2715,7 @@ describe('ending sessions', () => {
         const before = cookie;
         await call(
             '/ui/config/account',
-            form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'auth.password': 'a-new-password-1234' })
+            form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'auth.current_password': PASSWORD, 'auth.password': 'a-new-password-1234' })
         );
 
         // A cookie captured before the change no longer opens the dashboard.
@@ -2537,7 +2727,7 @@ describe('ending sessions', () => {
         await signIn();
         await call(
             '/ui/config/account',
-            form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'auth.password': 'a-new-password-1234' })
+            form({ csrf: await csrfFrom(), 'auth.username': 'admin', 'auth.current_password': PASSWORD, 'auth.password': 'a-new-password-1234' })
         );
 
         // `call` follows the Set-Cookie the save issued.
@@ -2869,12 +3059,15 @@ describe('the OAuth card', async () => {
         mode = 'ok';
     });
 
-    it('sits in the Access section after the MCP endpoint card, anchored as #oauth', async () => {
+    it('sits in the Access section with the credentials, before Host and proxy, anchored as #oauth', async () => {
         await signIn();
         const page = await everyConfigTab();
 
         expect(page).toContain('id="oauth"');
-        expect(page.indexOf('id="oauth"')).toBeGreaterThan(page.indexOf('/ui/config/mcp'));
+        // The three credential cards come first and the plumbing after them,
+        // which is the order someone setting this up needs them in.
+        expect(page.indexOf('id="oauth"')).toBeGreaterThan(page.indexOf('id="management-api"'));
+        expect(page.indexOf('id="oauth"')).toBeLessThan(page.indexOf('/ui/config/mcp'));
         expect(page).toContain('/ui/config/oauth');
         // Nothing to remove yet.
         expect(page).not.toContain('/ui/config/oauth/remove');
@@ -2982,12 +3175,12 @@ describe('the OAuth card', async () => {
 
         expect(res.status).toBe(400);
         expect(await decoded(res)).toContain(
-            "Turn off 'Accept the token in the URL' on the MCP endpoint card first. A JWT in the URL reaches every proxy log."
+            "Turn off 'Accept the token in the URL' on the Host and proxy card first. A JWT in the URL reaches every proxy log."
         );
         expect(runtime.config.auth.oauth).toBeUndefined();
     });
 
-    it('points the MCP endpoint card at the OAuth card rather than config.yaml', async () => {
+    it('points the Host and proxy card at the OAuth card rather than config.yaml', async () => {
         await signIn();
         await post('/ui/config/oauth', fields());
 

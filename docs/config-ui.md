@@ -10,7 +10,7 @@
 | --- | --- |
 | Dashboard | Every service tested live, plus disk space, failed health checks, library scan staleness, and how many MCP tokens exist, with a warning for any that expire soon |
 | Services | Add, edit, test and remove service instances one at a time; change credentials |
-| Access | MCP tokens, the MCP endpoint, management API keys, OAuth and your sign-in |
+| Access | MCP tokens, management API keys, OAuth, which hosts and proxies are answered, and your sign-in |
 | Logs | All activity, problems only, one service, or library events |
 | Writes | Every write attempt: applied, previewed, refused or failed |
 | Settings | Appearance, media servers, the IMDb dataset and the library event log |
@@ -110,6 +110,26 @@ is the permission key, the audit column, and what your agent passes. Removing an
 instance asks once before it goes, because its API key is not recovered by
 re-adding it.
 
+## Access
+
+Four ways in, and they do not overlap: a **token** for MCP clients, a
+**management key** for companion apps, **OAuth** for tokens an identity provider
+issues, and the **sign-in** for this page. A fifth card, **Host and proxy**,
+decides which requests are answered at all, before any credential is looked at.
+Each card is saved on its own, and a Save writes only its own card.
+
+**MCP tokens** carry the endpoint to point a client at, with a **Copy** button
+and a **Copy client config** button that writes a ready `mcpServers` block. Both
+are there on every visit: while a newly created token is on screen the config
+carries it, and otherwise it carries a `PASTE-YOUR-TOKEN` placeholder. A token's
+plaintext is shown in the one response that creates it and never again.
+
+The table lists each token's name, tier, creation date, expiry and fingerprint.
+An expiry inside a week is coloured and counted down, the same warning the
+dashboard gives. The fingerprint is a link: it opens [Writes](#logs-and-the-write-audit)
+filtered to that token, which is the credential the write trail records. Tokens
+created before 2.2.0 have no creation date and show `unknown`.
+
 **OAuth** has its own card under Access, for when an identity provider issues
 your clients' tokens. Fill in the issuer, audience, JWKS URI and the three scope
 names (pre-filled with the defaults), and **Test** fetches the key set as typed
@@ -120,11 +140,18 @@ status only, without its target. Remove asks once
 first. Named MCP tokens keep working whatever this card says. See
 [`auth.oauth`](configuration.md#authoauth) for what each field means.
 
-**The Management API** has its own card under Access, for companion apps. Pick a
-name and a tier, and **Create key** shows the key once, with a copy button and the
-base URL. `read` is the default and can only look; `admin` can also make changes.
-**Revoke** asks once before it stops a key, and says so when it is the last one,
-since that turns the API off. See [Management API](api.md).
+**The Management API** has its own card under Access, for companion apps. The
+card carries the base URL with a copy button. Pick a name and a tier, and
+**Create key** shows the key once. `read` is the default and can only look;
+`admin` can also make changes. Keys never expire, so **Revoke** is the only way
+to withdraw one; it asks once first, and says so when it is the last key, since
+that turns the API off. What a key did appears in the Logs rather than in
+Writes, because its writes go to `config.yaml` and not through the write trail.
+See [Management API](api.md).
+
+**Revoking** anything asks twice, on both credential cards and for a service.
+The second button is the confirmation, it says what revoking costs, and
+reloading the page cancels it.
 
 ## Finding services
 

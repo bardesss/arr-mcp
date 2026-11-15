@@ -255,7 +255,9 @@ describe('tokens', () => {
     it('adds a hashed token and returns the plaintext once', () => {
         const { config, plaintext } = addToken(base, { name: 'phone', tier: 'read', expiry: '90' }, NOW);
         expect(plaintext).toMatch(/^amcp_[0-9a-f]{64}$/);
-        expect(config.auth.tokens).toEqual([{ name: 'phone', tier: 'read', hash: hashToken(plaintext), expires: '2026-12-28' }]);
+        expect(config.auth.tokens).toEqual([
+            { name: 'phone', tier: 'read', hash: hashToken(plaintext), created: '2026-09-29', expires: '2026-12-28' }
+        ]);
     });
 
     it('omits expires for never', () => {

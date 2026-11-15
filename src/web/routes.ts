@@ -486,11 +486,17 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         const session = guard(c);
         if (session === undefined) return c.redirect(entry(), 302);
         c.header('cache-control', 'no-store');
+        // Matched exactly against the stored caller, which the token table on
+        // the Access page builds from the same two fields it renders. An
+        // unknown value simply matches nothing, which is the honest answer for
+        // a token that has never written.
+        const caller = c.req.query('caller');
         return c.html(
             auditPage({
                 csrf: runtime.sessions.csrfFor(session),
                 version,
-                rows: audit.recent(300),
+                rows: audit.recent(300, caller === '' ? undefined : caller),
+                ...(caller === undefined || caller === '' ? {} : { caller }),
                 theme: theme()
             })
         );
@@ -600,6 +606,19 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     };
     const viewRun = async (): Promise<RunState | undefined> => withVersions(await discovery.view(runtime.config));
 
+    /**
+     * The two addresses the Access tab hands out, derived from the request that
+     * asked for the page. Passed on every config render rather than only on the
+     * one that reveals a token, because the card shows them whether or not
+     * anything was just created.
+     */
+    const endpoints = (c: Context): { mcpUrl?: string; apiUrl?: string } => {
+        const proto = forwardedProtoOf(c, runtime.config.auth.trusted_proxies ?? []);
+        const mcpUrl = mcpEndpoint(c.req.url, proto);
+        const apiUrl = apiEndpoint(c.req.url, proto);
+        return { ...(mcpUrl === undefined ? {} : { mcpUrl }), ...(apiUrl === undefined ? {} : { apiUrl }) };
+    };
+
     app.get('/ui/config', async c => {
         const session = guard(c);
         if (session === undefined) return c.redirect(entry(), 302);
@@ -616,6 +635,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                 config: runtime.config,
                 csrf: runtime.sessions.csrfFor(session),
                 plaintextOnDisk: runtime.plaintextOnDisk,
+                ...endpoints(c),
                 ...discoveryOpts(run),
                 ...(prefill === undefined ? {} : { addPrefill: prefill, openAdd: true })
             })
@@ -694,7 +714,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
     const configMutation =
         (
             what: string,
-            next: (form: Record<string, unknown>) => MutationResult | Promise<MutationResult>,
+            next: (form: Record<string, unknown>, c: Context) => MutationResult | Promise<MutationResult>,
             opts: {
                 /** The add form is a dialog, so a refusal has to bring it back:
                  *  a message about a form nobody can see explains nothing. */
@@ -705,6 +725,10 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                 /** The outcome belongs under the OAuth card, which the post
                  *  scrolls to, and a refusal keeps what was typed. */
                 oauthCard?: boolean;
+                /** The same, for the management key card: it is anchored too,
+                 *  and a refusal from it used to render in a banner the
+                 *  fragment had already scrolled past. */
+                keyCard?: boolean;
             } = {}
         ): ((c: Context) => Promise<Response>) =>
         async (c: Context) => {
@@ -742,6 +766,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                         config: runtime.config,
                         csrf: runtime.sessions.csrfFor(activeSession),
                         plaintextOnDisk: runtime.plaintextOnDisk,
+                        ...endpoints(c),
                         ...(touched === undefined ? {} : { openInstance: touched }),
                         ...(opts.reopensAdd === true && status !== 200 ? { openAdd: true } : {}),
                         ...(opts.oauthCard === true
@@ -754,7 +779,9 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                               }
                             : message === undefined
                               ? {}
-                              : { message }),
+                              : opts.keyCard === true
+                                ? { keyMessage: message }
+                                : { message }),
                         ...extra
                     }),
                     status
@@ -784,7 +811,7 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
             let reveal: { name: string; token: string } | undefined;
             let revealKey: string | undefined;
             try {
-                const result = await next(form);
+                const result = await next(form, c);
                 // Not an error: the removal is waiting for a second click.
                 if ('ask' in result) return render(undefined, 200, { confirmingRemoval: result.ask });
                 if ('askRevoke' in result) return render(undefined, 200, { confirmingRevoke: result.askRevoke });
@@ -834,23 +861,10 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                 { kind: 'ok', text: `${what} Applied immediately; no restart needed.` },
                 200,
                 {
-                    ...(reveal === undefined
-                        ? {}
-                        : {
-                              revealed: {
-                                  ...reveal,
-                                  mcpUrl: mcpEndpoint(c.req.url, forwardedProtoOf(c, runtime.config.auth.trusted_proxies ?? [])),
-                                  urlToken: runtime.config.auth.allow_token_in_url
-                              }
-                          }),
-                    ...(revealKey === undefined
-                        ? {}
-                        : {
-                              revealedKey: {
-                                  key: revealKey,
-                                  apiUrl: apiEndpoint(c.req.url, forwardedProtoOf(c, runtime.config.auth.trusted_proxies ?? []))
-                              }
-                          })
+                    // The endpoint and the base URL come from `endpoints`
+                    // above, on every render rather than only on this one.
+                    ...(reveal === undefined ? {} : { revealed: reveal }),
+                    ...(revealKey === undefined ? {} : { revealedKey: revealKey })
                 }
             );
         };
@@ -879,15 +893,58 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         })
     );
 
+    /**
+     * The current password, countersigning a new one.
+     *
+     * On the same throttle and the same key as `/ui/login`, because it is the
+     * same question asked from inside a session. Without it, someone holding a
+     * stolen cookie could guess the password here at full speed while the front
+     * door counted every attempt. Reserved before the hash for the reason the
+     * sign-in reserves: a burst of concurrent posts all read a clear bucket
+     * before any of them resolves `verifyPassword`.
+     */
+    const confirmCurrentPassword = async (c: Context, password: string): Promise<void> => {
+        const key = throttleKey(c, runtime.config.auth.trusted_proxies ?? []);
+        const waitMs = loginThrottle.blockedFor(key);
+        if (waitMs > 0) {
+            throw new ConfigEditError(
+                `Too many failed attempts. Try again in ${Math.ceil(waitMs / 1000)}s. The password was not changed.`
+            );
+        }
+
+        if (loginThrottle.recordFailure(key)) {
+            const seconds = Math.ceil(loginThrottle.blockedFor(key) / 1000);
+            logger.warn({ ...originOf(c), seconds }, 'throttled config UI password change');
+        }
+
+        const hash = runtime.config.auth.password_hash;
+        if (hash === undefined || !(await verifyPassword(password, hash))) {
+            logger.warn({ ...originOf(c) }, 'rejected a config UI password change: wrong current password');
+            throw new ConfigEditError('The current password is wrong. The password was not changed.');
+        }
+
+        // Proving the password clears the bucket, exactly as signing in does.
+        loginThrottle.recordSuccess(key);
+    };
+
     // One route per card, matching one form per card. A single `/access` route
     // taking all three was what let the page grow a button that looked global.
     app.post(
         '/ui/config/account',
-        configMutation('Config UI sign-in saved.', form => buildAccountConfig(runtime.config, form), {
-            // Only when the password field was actually filled in: a username
-            // edit is not a credential change.
-            endsSessions: form => str(form['auth.password']) !== ''
-        })
+        configMutation(
+            'Config UI sign-in saved.',
+            async (form, c) => {
+                if (str(form['auth.password']) !== '') {
+                    await confirmCurrentPassword(c, str(form['auth.current_password']));
+                }
+                return buildAccountConfig(runtime.config, form);
+            },
+            {
+                // Only when the password field was actually filled in: a username
+                // edit is not a credential change.
+                endsSessions: form => str(form['auth.password']) !== ''
+            }
+        )
     );
 
     app.post(
@@ -947,22 +1004,30 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
 
     app.post(
         '/ui/config/api-keys/add',
-        configMutation('Management API key created.', form => {
+        configMutation(
+            'Management API key created.',
+            form => {
             const tier = str(form['api-key.tier']);
             if (tier !== 'read' && tier !== 'admin') throw new ConfigEditError('Pick a tier.');
             const name = str(form['api-key.name']).trim();
-            const { config, plaintext } = addManagementKey(runtime.config, { name, tier }, new Date());
-            return { config, revealKey: plaintext };
-        })
+                const { config, plaintext } = addManagementKey(runtime.config, { name, tier }, new Date());
+                return { config, revealKey: plaintext };
+            },
+            { keyCard: true }
+        )
     );
 
     app.post(
         '/ui/config/api-keys/revoke',
-        configMutation('Management API key revoked.', form => {
-            const name = str(form.key);
-            if (str(form.confirm) !== 'yes') return { askKeyRevoke: name };
-            return revokeManagementKey(runtime.config, name);
-        })
+        configMutation(
+            'Management API key revoked.',
+            form => {
+                const name = str(form.key);
+                if (str(form.confirm) !== 'yes') return { askKeyRevoke: name };
+                return revokeManagementKey(runtime.config, name);
+            },
+            { keyCard: true }
+        )
     );
 
     app.post(
@@ -1331,7 +1396,13 @@ function addCandidateFrom(
  * `test/configUi.test.ts` holds one test per way of getting that wrong.
  */
 
-/** The Config UI's own credentials. Owns `username` and `password_hash`. */
+/**
+ * The Config UI's own credentials. Owns `username` and `password_hash`.
+ *
+ * A new password is countersigned with the current one before this runs, in
+ * `confirmCurrentPassword`, which lives in the route because the check belongs
+ * on the sign-in throttle.
+ */
 async function buildAccountConfig(current: Config, form: Record<string, unknown>): Promise<Config> {
     const username = str(form['auth.username']).trim();
     const password = str(form['auth.password']);
@@ -1463,7 +1534,7 @@ function parseOAuthDraft(form: Record<string, unknown>): OAuthConfig {
 function buildOAuthConfig(current: Config, form: Record<string, unknown>): Config {
     if (current.auth.allow_token_in_url) {
         throw new Error(
-            "Turn off 'Accept the token in the URL' on the MCP endpoint card first. A JWT in the URL reaches every proxy log."
+            "Turn off 'Accept the token in the URL' on the Host and proxy card first. A JWT in the URL reaches every proxy log."
         );
     }
     return { ...current, auth: { ...current.auth, oauth: parseOAuthDraft(form) } };
