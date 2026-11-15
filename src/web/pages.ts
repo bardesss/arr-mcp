@@ -2,7 +2,7 @@ import type { Theme } from '../config/schema.ts';
 import { BEARER_CALLER, BEARER_CALLER_PREFIX, NO_CLIENT_ID, OAUTH_CALLER_PREFIX, type AuditRow } from '../core/audit.ts';
 import { unfence } from '../core/fence.ts';
 import { logFields, type LogRow } from '../core/logs.ts';
-import { expiringSoon, isExpired, type StoredToken } from '../core/mcpTokens.ts';
+import { daysLeft, expiringSoon, isExpired, type StoredToken } from '../core/mcpTokens.ts';
 import type { DatasetStatus } from '../metadata/imdbDataset.ts';
 import type { ConnectionDiagnosis, HealthCheck, HistoryEntry, ScanState, Window } from '../services/types.ts';
 import { humanBytes, type DiskGroup } from '../core/disks.ts';
@@ -282,15 +282,6 @@ const serviceName = (id: string): SafeHtml => {
     const [type, name] = id.split('/');
     return name === undefined ? html`${id}` : html`${type ?? ''}<span class="dim">/${name}</span>`;
 };
-
-const DAY = 86_400_000;
-
-function daysLeft(expires: string | undefined, now: Date): string {
-    if (expires === undefined) return 'no expiry';
-    const days = Math.ceil((Date.parse(`${expires}T23:59:59Z`) - now.getTime()) / DAY);
-    if (days < 0) return 'expired';
-    return days === 1 ? '1 day left' : `${days} days left`;
-}
 
 /**
  * Every service tested live, with what is wrong at the top.
@@ -950,6 +941,16 @@ function argFields(args: string): SafeHtml {
  * `oauth:` value is a client id someone chose, so that alone is set in `mono`,
  * with the prefix dropped since the label already says whose it is.
  */
+/** `callerField` without the `<dd>`, for the filter line above the trail. */
+function callerLabel(caller: string): SafeHtml {
+    if (caller.startsWith(BEARER_CALLER_PREFIX)) {
+        const [name, fp] = caller.slice(BEARER_CALLER_PREFIX.length).split('#');
+        return html`<span class="mono">${name ?? ''} · ${fp ?? ''}</span>`;
+    }
+    const id = caller.startsWith(OAUTH_CALLER_PREFIX) ? caller.slice(OAUTH_CALLER_PREFIX.length) : caller;
+    return html`<span class="mono">${id}</span>`;
+}
+
 function callerField(caller: string | null): SafeHtml {
     if (caller === null) return html`<dd class="dim">not recorded (written before callers were logged)</dd>`;
     if (caller === BEARER_CALLER) return html`<dd class="dim">the static bearer token (before named tokens)</dd>`;
@@ -987,14 +988,39 @@ function auditEntry(r: AuditRow): SafeHtml {
     </article>`;
 }
 
-export function auditPage(opts: { csrf: string; version: string; rows: AuditRow[]; theme?: Theme | undefined }): string {
+/**
+ * Every write, or one credential's.
+ *
+ * The filter exists for the token table on the Access page: its Fingerprint
+ * column is exactly the second half of the caller recorded here, and until now
+ * it was an eight-character string with nothing to do and no way to find out
+ * what the token it names had been up to.
+ */
+export function auditPage(opts: {
+    csrf: string;
+    version: string;
+    rows: AuditRow[];
+    /** The exact `caller` the rows were filtered by, as the link that arrived here set it. */
+    caller?: string | undefined;
+    theme?: Theme | undefined;
+}): string {
+    const filtered = opts.caller !== undefined && opts.caller !== '';
+
     const body = html`<p class="note">
             Every write attempt, including previews and refusals. An entry still reading
             <span class="mono">attempted</span> means arr-mcp stopped mid-write.
         </p>
 
+        ${filtered
+            ? html`<p class="note filter">
+                  Showing one caller: ${callerLabel(opts.caller ?? '')}. <a href="/ui/audit">Show every caller</a>
+              </p>`
+            : raw('')}
+
         ${opts.rows.length === 0
-            ? html`<p class="note">Nothing has tried to write yet.</p>`
+            ? html`<p class="note">${filtered
+                  ? 'That credential has not tried to write anything.'
+                  : 'Nothing has tried to write yet.'}</p>`
             : html`<div class="trail">${opts.rows.map(auditEntry)}</div>`}`;
 
     return layout({ title: 'Writes', nav: 'audit', csrf: opts.csrf, version: opts.version, body, theme: opts.theme });

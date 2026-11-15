@@ -603,7 +603,10 @@ const McpTokenSchema = z.strictObject({
     tier: z.enum(['read', 'write', 'destructive']),
     hash: z.string().regex(HASH_PATTERN, 'hash must be sha256:<64 hex>').optional(),
     token: z.string().optional(),
-    expires: z.iso.date().optional()
+    expires: z.iso.date().optional(),
+    /** Optional, unlike a management key's: tokens predate the field and one
+     *  hand-written into config.yaml has no reason to carry it. */
+    created: z.iso.date().optional()
 });
 
 type RawToken = z.infer<typeof McpTokenSchema>;

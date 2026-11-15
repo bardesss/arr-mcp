@@ -188,6 +188,7 @@ export class WriteAudit {
     readonly #insert: Statement;
     readonly #settle: Statement;
     readonly #recent: Statement;
+    readonly #recentByCaller: Statement;
     readonly #counts: Statement;
     /** Per caller and tool; see `refusedAboveCeiling`. */
     readonly #ceilingRefusals: LogLimiter;
@@ -202,6 +203,10 @@ export class WriteAudit {
         );
         this.#settle = db.prepare(`UPDATE write_audit SET outcome = ?, detail = ?, settled_at = ? WHERE id = ?`);
         this.#recent = db.prepare(`SELECT * FROM write_audit ORDER BY id DESC LIMIT ?`);
+        // Exact match, not a LIKE: the caller is `bearer:<name>#<fingerprint>`
+        // and the token table links to it with the string it rendered, so a
+        // token renamed to a prefix of another cannot borrow its rows.
+        this.#recentByCaller = db.prepare(`SELECT * FROM write_audit WHERE caller = ? ORDER BY id DESC LIMIT ?`);
         this.#counts = db.prepare(`SELECT outcome, COUNT(*) AS n FROM write_audit GROUP BY outcome`);
     }
 
@@ -286,9 +291,11 @@ ${record.tool}`);
         return id;
     }
 
-    /** Newest first. */
-    recent(limit = 50): AuditRow[] {
-        return this.#recent.all(limit) as AuditRow[];
+    /** Newest first, for every caller or for one named exactly. */
+    recent(limit = 50, caller?: string): AuditRow[] {
+        return caller === undefined
+            ? (this.#recent.all(limit) as AuditRow[])
+            : (this.#recentByCaller.all(caller, limit) as AuditRow[]);
     }
 
     /**

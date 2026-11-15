@@ -298,6 +298,10 @@ either way. The control is visibility before the fact, not impossibility.
   listed proxies are believed about https. Cookies are scoped to the
   hostname, not the port, so use one scheme per hostname, or a plain-http
   sign-in after an https one can bounce back to the login page.
+- Changing the config UI password needs the current one. A session is enough to
+  reach that form, and a session is what an unlocked browser hands to whoever
+  walks up to it. The check shares the sign-in throttle below and its key, so it
+  cannot be used to guess the password faster than the front door allows.
 - `/ui/login` throttles itself after 5 free failed attempts, then delays each
   further one with a growing backoff capped at 5 minutes. The counter is kept
   per socket peer, which cannot be forged, so behind a reverse proxy everyone

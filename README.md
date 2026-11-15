@@ -117,7 +117,8 @@ that will not parse does not take the container down: arr-mcp serves a repair
 page with the error and an editor instead.
 
 Your MCP client goes to `http://<host>:6060/mcp` with an MCP token. Create one on
-the config page; it is shown once, so copy it into your client straight away.
+the **Access** page, which also carries that address and a ready client config to
+copy; the token itself is shown once, so copy it into your client straight away.
 Each token has its own tier and expiry, see
 [MCP tokens](docs/configuration.md#mcp-tokens). A client that can only be given a
 URL, not a header, can carry the token as `?token=` instead; see

@@ -14,12 +14,11 @@ import {
     type ServiceId,
     type Theme
 } from '../config/schema.ts';
-import type { StoredManagementKey } from '../core/managementKey.ts';
 import { unfence } from '../core/fence.ts';
 import { UNDISCOVERABLE } from '../discovery/catalog.ts';
 import type { ResultRow } from '../discovery/match.ts';
 import type { RunState } from '../discovery/run.ts';
-import { isExpired, type StoredToken } from '../core/mcpTokens.ts';
+import { bearerCaller, daysLeft, expiringSoon, isExpired } from '../core/mcpTokens.ts';
 import { fingerprint } from '../core/secrets.ts';
 import { WEBHOOK_SERVICES, WEBHOOK_USERNAME } from '../services/arrWebhook.ts';
 import type { ConnectionDiagnosis } from '../services/types.ts';
@@ -306,10 +305,10 @@ function instanceCard(
                  already configured. -->
             <button type="submit" formaction="/ui/config/test" formnovalidate class="ghost">Test</button>
             ${pendingRemoval
-                ? html`<button type="submit" formaction="/ui/config/remove" name="confirm" value="yes" class="ghost">
+                ? html`<button type="submit" formaction="/ui/config/remove" name="confirm" value="yes" class="danger">
                           Yes, remove ${instance.id}
                       </button>`
-                : html`<button type="submit" formaction="/ui/config/remove" class="ghost">Remove</button>`}
+                : html`<button type="submit" formaction="/ui/config/remove" class="danger">Remove</button>`}
         </div>
         ${pendingRemoval
             ? html`<p class="note" style="margin-top:.5rem">
@@ -322,68 +321,176 @@ function instanceCard(
     </form>`;
 }
 
-function tokenList(opts: {
-    tokens: readonly StoredToken[];
+/* --- credentials -------------------------------------------------------
+ *
+ * An MCP token and a management API key are one thing under two names: a named
+ * credential with a tier, a fingerprint, and a button that withdraws it. They
+ * were written twice and drifted, and the drift was most of what this page felt
+ * like to use. The two tables disagreed on columns. One confirmation told you
+ * how to back out and the other left you to guess. One card showed its own
+ * errors and the other posted them to a banner at the top of a page its own
+ * anchor had already scrolled four screens past.
+ *
+ * So: one table, one revoke form, one card shape, and the next change to any of
+ * it lands on both.
+ */
+
+type CredentialRow = {
+    name: string;
+    tier: string;
+    /** Absent on a token made before the field existed, or hand-written into config.yaml. */
+    created: string | undefined;
+    expires: SafeHtml;
+    /** Linked where the credential appears in the write trail, plain where it cannot. */
+    fingerprint: SafeHtml;
+    /** Its own line under the fingerprint, in the warning colour. */
+    flag?: string | undefined;
+    revoke: SafeHtml;
+};
+
+const credentialTable = (rows: readonly CredentialRow[]): SafeHtml => html`<table class="stacked creds">
+    <thead>
+        <tr><th>Name</th><th>Tier</th><th>Created</th><th>Expires</th><th>Fingerprint</th><th></th></tr>
+    </thead>
+    <tbody>
+        ${rows.map(
+            r => html`<tr>
+                <td class="mono">${r.name}</td>
+                <td>${r.tier}</td>
+                <td>${r.created === undefined ? html`<span class="dim">unknown</span>` : r.created}</td>
+                <td>${r.expires}</td>
+                <td class="mono">${r.fingerprint}${r.flag === undefined
+                    ? raw('')
+                    : html`<span class="flag">${r.flag}</span>`}</td>
+                <td>${r.revoke}</td>
+            </tr>`
+        )}
+    </tbody>
+</table>`;
+
+/**
+ * Revoke, confirm, and a way out of the confirmation.
+ *
+ * The second click is a second button rather than a `confirm()` call, for the
+ * reason the service removal is: with scripting off, a scripted confirmation
+ * revokes on the first click. The sentence says how to cancel because the OAuth
+ * card said it and these two did not, leaving a button whose only exit was a
+ * reload you had to think of yourself.
+ */
+function revokeForm(opts: {
+    action: string;
+    field: string;
+    name: string;
     keys: SafeHtml;
-    confirming: string | undefined;
-    plaintextOnDisk: readonly string[];
-    now: Date;
+    confirming: boolean;
+    /** What revoking this one costs, which differs when it is the last of its kind. */
+    consequence: string;
 }): SafeHtml {
-    if (opts.tokens.length === 0) {
-        return html`<p class="note">No MCP tokens yet. Every MCP client is refused until you create one.</p>`;
-    }
-    const last = opts.tokens.length === 1;
-    return html`<table class="stacked">
-        <thead><tr><th>Name</th><th>Tier</th><th>Expires</th><th>Fingerprint</th><th></th></tr></thead>
-        <tbody>
-            ${opts.tokens.map(
-                t => html`<tr>
-                    <td class="mono">${t.name}</td>
-                    <td>${t.tier}</td>
-                    <td>${t.expires === undefined
-                        ? 'never'
-                        : isExpired(t.expires, opts.now)
-                          ? html`<strong>expired</strong> ${t.expires}`
-                          : t.expires}</td>
-                    <td class="mono">${fingerprint(t.hash)}${opts.plaintextOnDisk.includes(t.name)
-                        ? html` <span class="dim">still plaintext in config.yaml</span>`
-                        : raw('')}</td>
-                    <td>
-                        <form method="post" action="/ui/config/tokens/revoke" ${IGNORE_FORM}>
-                            ${opts.keys}
-                            <input type="hidden" name="token" value="${t.name}">
-                            ${opts.confirming === t.name
-                                ? html`<button type="submit" name="confirm" value="yes" class="ghost">Yes, revoke ${t.name}</button>
-                                      <p class="note">${last
-                                          ? 'This is the last token: every MCP client will be refused until you create a new token.'
-                                          : 'Clients using it are refused from the next request.'}</p>`
-                                : html`<button type="submit" class="ghost">Revoke</button>`}
-                        </form>
-                    </td>
-                </tr>`
-            )}
-        </tbody>
-    </table>`;
+    return html`<form method="post" action="${opts.action}" ${IGNORE_FORM}>
+        ${opts.keys}
+        <input type="hidden" name="${opts.field}" value="${opts.name}">
+        ${opts.confirming
+            ? html`<button type="submit" name="confirm" value="yes" class="danger">Yes, revoke ${opts.name}</button>
+                  <p class="note">${opts.consequence} Reload to cancel.</p>`
+            : html`<button type="submit" class="danger">Revoke</button>`}
+    </form>`;
 }
 
-type Revealed = { name: string; token: string; mcpUrl: string | undefined; urlToken: boolean };
+/**
+ * How long a credential has left, in the words the dashboard uses.
+ *
+ * The dashboard coloured "4 days left" and said to rotate it. This page, the
+ * one carrying the Revoke button and the create form, printed the date and
+ * nothing else, so the warning appeared everywhere except where you act on it.
+ */
+function expiryCell(expires: string | undefined, now: Date): SafeHtml {
+    if (expires === undefined) return html`<span class="dim">never</span>`;
+    if (isExpired(expires, now)) return html`<span class="warn"><strong>expired</strong> ${expires}</span>`;
+    if (expiringSoon(expires, now)) return html`<span class="warn">${expires} (${daysLeft(expires, now)})</span>`;
+    return html`${expires}`;
+}
 
-// The ids are the ones the copy handlers in assets.ts read.
-const revealPanel = (r: Revealed): SafeHtml => html`<div class="panel">
-    <p><strong>Copy this token now.</strong> It is shown once and cannot be read back.</p>
+/**
+ * The address a client is pointed at, with the button that copies it.
+ *
+ * Both credential cards carry one. The MCP endpoint used to be on the dashboard
+ * only, and the client config could be copied during exactly one response: the
+ * one that revealed a new token. Anyone adding a second client a month later
+ * opened the page that manages tokens and found neither.
+ */
+const endpointRow = (opts: {
+    id: string;
+    label: string;
+    url: string | undefined;
+    absent: SafeHtml;
+    extras?: SafeHtml | undefined;
+}): SafeHtml =>
+    opts.url === undefined
+        ? opts.absent
+        : html`<label for="${opts.id}">${opts.label}</label>
+              <div class="token">
+                  <input id="${opts.id}" type="text" value="${opts.url}" readonly ${IGNORE}>
+                  <button class="ghost" type="button" data-copy="${opts.id}">Copy</button>
+              </div>
+              ${opts.extras ?? raw('')}`;
+
+/**
+ * The shape both credential cards take, in the order the questions get asked:
+ * what this is, what just happened to it, where to point a client, what exists
+ * already, and how to make another.
+ *
+ * `message` is rendered inside the card rather than in the page banner because
+ * both cards are anchored and their posts carry the fragment, so the answer
+ * lands on the card. A refusal in a banner four screens above the control that
+ * caused it is a refusal nobody reads.
+ */
+function credentialCard(opts: {
+    id: string;
+    title: string;
+    message: { kind: 'ok' | 'err'; text: string } | undefined;
+    reveal: SafeHtml;
+    note: SafeHtml;
+    endpoint: SafeHtml;
+    rows: SafeHtml;
+    formTitle: string;
+    form: SafeHtml;
+}): SafeHtml {
+    return html`<section class="panel" id="${opts.id}">
+        <h2>${opts.title}</h2>
+        ${opts.message === undefined ? raw('') : html`<div class="msg ${opts.message.kind}">${opts.message.text}</div>`}
+        ${opts.reveal}
+        ${opts.note}
+        ${opts.endpoint}
+        ${opts.rows}
+        <h3>${opts.formTitle}</h3>
+        ${opts.form}
+    </section>`;
+}
+
+type Revealed = { name: string; token: string };
+
+/**
+ * The one response a token's plaintext exists in.
+ *
+ * The buttons that assemble a client config live in the endpoint row above and
+ * read this field while it is present, so the page has one set of them rather
+ * than one set here and nothing at all afterwards.
+ */
+const revealPanel = (r: Revealed): SafeHtml => html`<div class="panel reveal">
+    <p><strong>Copy the token for ${r.name} now.</strong> It is shown once and cannot be read back.</p>
     <div class="token">
         <input id="bearer" type="text" value="${r.token}" readonly ${IGNORE}>
         <button class="ghost" type="button" data-copy="bearer">Copy</button>
     </div>
-    ${r.mcpUrl === undefined
-        ? raw('')
-        : html`<input id="mcp-url" type="hidden" value="${r.mcpUrl}">
-              <button class="ghost" type="button" data-copy-config="mcp-config">Copy client config</button>
-              <textarea id="mcp-config" class="mono" rows="9" readonly hidden></textarea>`}
-    ${r.mcpUrl === undefined || !r.urlToken
-        ? raw('')
-        : html`<button class="ghost" type="button" data-copy-url-token="mcp-url">Copy URL with token</button>
-              <input id="mcp-url-token" type="text" readonly hidden>`}
+</div>`;
+
+/** The same panel for a management key, revealed the same way and once. */
+const revealKeyPanel = (key: string): SafeHtml => html`<div class="panel reveal">
+    <p><strong>Copy this key now.</strong> It is shown once and cannot be read back.</p>
+    <div class="token">
+        <input id="management-key" type="text" value="${key}" readonly ${IGNORE}>
+        <button class="ghost" type="button" data-copy="management-key">Copy</button>
+    </div>
 </div>`;
 
 const TIERS: readonly { key: string; label: string }[] = [
@@ -398,7 +505,7 @@ const EXPIRIES: readonly { key: string; label: string }[] = [
     { key: 'never', label: 'Never' }
 ];
 
-const tokenCreateForm = (keys: SafeHtml): SafeHtml => html`<form method="post" action="/ui/config/tokens/add" ${IGNORE_FORM}>
+const tokenCreateForm = (keys: SafeHtml): SafeHtml => html`<form method="post" action="/ui/config/tokens/add#tokens" ${IGNORE_FORM}>
     ${keys}
     ${field({ id: 'token.name', name: 'token.name', label: 'Name', placeholder: 'phone' })}
     <div class="field">
@@ -424,79 +531,19 @@ const KEY_TIERS: readonly { key: string; label: string }[] = [
     { key: 'admin', label: 'admin: can change services, settings and MCP tokens' }
 ];
 
-function managementKeyTable(apiKeys: readonly StoredManagementKey[], keys: SafeHtml, confirming: string | undefined): SafeHtml {
-    const last = apiKeys.length === 1;
-    return html`<table class="stacked">
-        <thead><tr><th>Name</th><th>Tier</th><th>Created</th><th>Fingerprint</th><th></th></tr></thead>
-        <tbody>
-            ${apiKeys.map(
-                k => html`<tr>
-                    <td class="mono">${k.name}</td>
-                    <td>${k.tier}</td>
-                    <td>${k.created}</td>
-                    <td class="mono">${fingerprint(k.hash)}</td>
-                    <td>
-                        <form method="post" action="/ui/config/api-keys/revoke#management-api" ${IGNORE_FORM}>
-                            ${keys}
-                            <input type="hidden" name="key" value="${k.name}">
-                            ${confirming === k.name
-                                ? html`<button type="submit" name="confirm" value="yes" class="ghost">Yes, revoke ${k.name}</button>
-                                      <p class="note">${last
-                                          ? 'This is the last key: the management API turns off until you create a new one.'
-                                          : 'Apps using it are refused from the next request.'}</p>`
-                                : html`<button type="submit" class="ghost">Revoke</button>`}
-                        </form>
-                    </td>
-                </tr>`
-            )}
-        </tbody>
-    </table>`;
-}
-
-function managementKeyCard(opts: {
-    config: Config;
-    keys: SafeHtml;
-    revealed: { key: string; apiUrl: string | undefined } | undefined;
-    confirmingRevoke: string | undefined;
-}): SafeHtml {
-    const apiKeys = opts.config.auth.management_keys ?? [];
-    return html`<div class="panel">
-        <h3 id="management-api" style="margin:0 0 .75rem">Management API</h3>
-        ${opts.revealed === undefined
-            ? raw('')
-            : html`<div class="panel">
-                  <p><strong>Copy this key now.</strong> It is shown once and cannot be read back.</p>
-                  <div class="token">
-                      <input id="management-key" type="text" value="${opts.revealed.key}" readonly ${IGNORE}>
-                      <button class="ghost" type="button" data-copy="management-key">Copy</button>
-                  </div>
-                  ${opts.revealed.apiUrl === undefined
-                      ? raw('')
-                      : html`<p class="note">Base URL: <span class="mono">${opts.revealed.apiUrl}</span></p>`}
-              </div>`}
-        <p class="note">
-            For companion apps that look at arr-mcp the way they look at Sonarr. Give each app its own key, sent as
-            <span class="mono">X-Api-Key</span>. An admin key can manage services, the IMDb dataset, the MCP endpoint
-            and MCP tokens. No key can touch this sign-in, OAuth or the management keys.
-        </p>
-        ${apiKeys.length === 0
-            ? html`<p class="note">Off. Nothing answers under <span class="mono">/api/v1</span> until you create a key.</p>`
-            : managementKeyTable(apiKeys, opts.keys, opts.confirmingRevoke)}
-        <form method="post" action="/ui/config/api-keys/add#management-api" ${IGNORE_FORM}>
-            ${opts.keys}
-            ${field({ id: 'api-key.name', name: 'api-key.name', label: 'Name', placeholder: 'nzb360' })}
-            <div class="field">
-                <label for="api-key.tier">Tier</label>
-                <select id="api-key.tier" name="api-key.tier">
-                    ${KEY_TIERS.map(t => html`<option value="${t.key}" ${t.key === 'read' ? raw('selected') : raw('')}>${t.label}</option>`)}
-                </select>
-            </div>
-            <div class="row" style="margin-top:1rem">
-                <button type="submit">Create key</button>
-            </div>
-        </form>
-    </div>`;
-}
+const keyCreateForm = (keys: SafeHtml): SafeHtml => html`<form method="post" action="/ui/config/api-keys/add#management-api" ${IGNORE_FORM}>
+    ${keys}
+    ${field({ id: 'api-key.name', name: 'api-key.name', label: 'Name', placeholder: 'nzb360' })}
+    <div class="field">
+        <label for="api-key.tier">Tier</label>
+        <select id="api-key.tier" name="api-key.tier">
+            ${KEY_TIERS.map(t => html`<option value="${t.key}" ${t.key === 'read' ? raw('selected') : raw('')}>${t.label}</option>`)}
+        </select>
+    </div>
+    <div class="row" style="margin-top:1rem">
+        <button type="submit">Create key</button>
+    </div>
+</form>`;
 
 /**
  * The add form, in a dialog behind a button.
@@ -533,7 +580,7 @@ function addDialog(
     return html`<dialog id="add-service"${open ? raw(' open') : raw('')}>
         <form method="post" action="/ui/config/add" class="panel" ${IGNORE_FORM}>
             ${keys}
-            <h3 style="margin:0 0 .75rem">Add a service</h3>
+            <h2>Add a service</h2>
 
             <div class="field">
                 <label for="add.type">Service</label>
@@ -683,7 +730,7 @@ function oauthCard(config: Config, keys: SafeHtml, state: OAuthCardState): SafeH
 
     return html`<form id="oauth" method="post" action="/ui/config/oauth#oauth" class="panel" ${IGNORE_FORM}>
         ${keys}
-        <h3 style="margin:0 0 .75rem">OAuth</h3>
+        <h2>OAuth</h2>
         <p class="note">
             arr-mcp only verifies access tokens: your identity provider issues them, and this is where to
             tell arr-mcp which ones to trust. Named MCP tokens keep working whatever is set here.
@@ -700,8 +747,8 @@ function oauthCard(config: Config, keys: SafeHtml, state: OAuthCardState): SafeH
             ${current === undefined
                 ? raw('')
                 : confirming
-                  ? html`<button type="submit" formaction="/ui/config/oauth/remove#oauth" formnovalidate name="confirm" value="yes" class="ghost">Yes, remove OAuth</button>`
-                  : html`<button type="submit" formaction="/ui/config/oauth/remove#oauth" formnovalidate class="ghost">Remove</button>`}
+                  ? html`<button type="submit" formaction="/ui/config/oauth/remove#oauth" formnovalidate name="confirm" value="yes" class="danger">Yes, remove OAuth</button>`
+                  : html`<button type="submit" formaction="/ui/config/oauth/remove#oauth" formnovalidate class="danger">Remove</button>`}
         </div>
         ${confirming
             ? html`<p class="note" style="margin-top:.5rem">
@@ -744,7 +791,7 @@ function webhooksCard(config: Config, keys: SafeHtml, confirmingNewSecret: boole
 
     return html`<form method="post" action="/ui/config/webhooks" class="panel" ${IGNORE_FORM}>
         ${keys}
-        <h3 id="webhooks" style="margin:0 0 .75rem">Library event log</h3>
+        <h2 id="webhooks">Library event log</h2>
         ${checkbox('webhooks.enabled', 'webhooks.enabled', 'Keep a log of library events', webhooks?.enabled === true)}
         <p class="note">
             Keeps a log of what Radarr, Sonarr and Lidarr report: grabs, imports, renames and deletes. The services
@@ -809,7 +856,7 @@ function webhooksCard(config: Config, keys: SafeHtml, confirmingNewSecret: boole
                           >${REGENERATE}</button>
                       </div>
                       ${confirmingNewSecret
-                          ? html`<button type="submit" form="webhooks-new-secret" name="confirm" value="yes" class="ghost">
+                          ? html`<button type="submit" form="webhooks-new-secret" name="confirm" value="yes" class="danger">
                                     Yes, replace the password
                                 </button>
                                 <p class="note" style="margin-top:.5rem">
@@ -878,7 +925,7 @@ function discoveryPanel(run: RunState, keys: SafeHtml, refreshing: boolean): Saf
     const reload = html`<a href="/ui/config?tab=services">Reload</a>`;
     return html`<div class="panel" id="discovery"${refreshing ? raw(` data-reload="${DISCOVERY_REFRESH_SECONDS}"`) : raw('')}>
         <div class="row" style="justify-content:space-between;margin:0 0 .75rem">
-            <h3 style="margin:0">Found services</h3>
+            <h2 style="margin:0">Found services</h2>
             ${run.running
                 ? raw('')
                 : html`<form method="post" action="/ui/config/discover/clear" ${IGNORE_FORM}>
@@ -1004,8 +1051,16 @@ export function configPage(opts: {
     /** The token whose Revoke button was pressed but not yet confirmed. */
     confirmingRevoke?: string | undefined;
     /** A key just generated: shown in this one response only. */
-    revealedKey?: { key: string; apiUrl: string | undefined } | undefined;
+    revealedKey?: string | undefined;
     confirmingKeyRevoke?: string | undefined;
+    /** The management key card's own outcome, rendered on the card. Its posts
+     *  carry `#management-api`, so a banner at the top of the page arrives
+     *  already scrolled off screen. */
+    keyMessage?: { kind: 'ok' | 'err'; text: string } | undefined;
+    /** The absolute MCP endpoint and management API base, derived from the
+     *  request that asked for this page. Absent when it carried no usable Host. */
+    mcpUrl?: string | undefined;
+    apiUrl?: string | undefined;
     /** The event log's new-password button was pressed but not yet confirmed. */
     confirmingNewSecret?: boolean;
     plaintextOnDisk?: readonly string[];
@@ -1068,17 +1123,39 @@ export function configPage(opts: {
 
     const savedAlone = html`<p class="note">Each card is saved on its own. A Save writes only its own card.</p>`;
 
+    /**
+     * What the five cards below are for, before the first of them.
+     *
+     * The slot used to hold `savedAlone` alone, which answers a question about
+     * the Save buttons to someone who has not yet worked out which card they
+     * need. There are four separate ways in on this page and nothing said so.
+     */
+    const accessIntro = html`<p class="note">
+            Four ways in, and they do not overlap: a <strong>token</strong> for MCP clients, a
+            <strong>management key</strong> for companion apps, <strong>OAuth</strong> for tokens an
+            identity provider issues, and the <strong>sign-in</strong> for this page. Each card is
+            saved on its own.
+        </p>`;
+
     const signIn = html`<form method="post" action="/ui/config/account" class="panel" ${IGNORE_FORM}>
             ${keys}
-            <h3 style="margin:0 0 .75rem">Config UI sign-in</h3>
+            <h2>Config UI sign-in</h2>
+            <p class="note">The password for this page, and nothing else. MCP clients and companion apps never use it.</p>
             ${field({ id: 'auth.username', name: 'auth.username', label: 'Username', value: opts.config.auth.username })}
+            ${field({
+                id: 'auth.current_password',
+                name: 'auth.current_password',
+                label: 'Current password',
+                secret: true,
+                note: 'Needed only to change the password below. A live session is not enough on its own.'
+            })}
             ${field({
                 id: 'auth.password',
                 name: 'auth.password',
                 label: 'New password',
                 secret: true,
                 placeholder: 'unchanged',
-                note: 'Leave blank to keep the current password. Only a hash is stored, so it cannot be read back.'
+                note: 'Leave blank to keep the current password. Only a hash is stored, so it cannot be read back. Saving a new one signs out every other session; this one stays.'
             })}
             <div class="row" style="margin-top:1rem">
                 <button type="submit">Save sign-in</button>
@@ -1087,7 +1164,7 @@ export function configPage(opts: {
 
     const appearance = html`<form method="post" action="/ui/config/appearance" class="panel" ${IGNORE_FORM}>
             ${keys}
-            <h3 style="margin:0 0 .75rem">Appearance</h3>
+            <h2>Appearance</h2>
             <div class="field">
                 <label for="ui.theme">Theme</label>
                 <select id="ui.theme" name="ui.theme">
@@ -1109,7 +1186,7 @@ export function configPage(opts: {
     const mediaServers = bothMediaServers
             ? html`<form method="post" action="/ui/config/media-servers" class="panel" ${IGNORE_FORM}>
                   ${keys}
-                  <h3 style="margin:0 0 .75rem">Media servers</h3>
+                  <h2>Media servers</h2>
                   <div class="field">
                       <label for="primary_media_server">Primary</label>
                       <select id="primary_media_server" name="primary_media_server">
@@ -1123,7 +1200,7 @@ export function configPage(opts: {
 
     const imdb = html`<form method="post" action="/ui/config/imdb" class="panel" ${IGNORE_FORM}>
             ${keys}
-            <h3 style="margin:0 0 .75rem">IMDb dataset</h3>
+            <h2>IMDb dataset</h2>
             ${checkbox(
                 'metadata.imdb',
                 'metadata.imdb',
@@ -1163,71 +1240,168 @@ export function configPage(opts: {
             </div>
         </form>`;
 
-    const tokens = html`<div class="panel">
-            <h3 id="tokens" style="margin:0 0 .75rem">MCP tokens</h3>
-            ${opts.revealed === undefined ? raw('') : revealPanel(opts.revealed)}
-            ${tokenList({
-                tokens: opts.config.auth.tokens,
-                keys,
-                confirming: opts.confirmingRevoke,
-                plaintextOnDisk: opts.plaintextOnDisk ?? [],
-                now: opts.now ?? new Date()
-            })}
-            ${tokenCreateForm(keys)}
-        </div>`;
+    const now = opts.now ?? new Date();
+    const plaintextOnDisk = opts.plaintextOnDisk ?? [];
+    const lastToken = opts.config.auth.tokens.length === 1;
 
-    const mcpEndpoint = html`<form method="post" action="/ui/config/mcp" class="panel" ${IGNORE_FORM}>
+    const tokenRows = opts.config.auth.tokens.map(
+        (t): CredentialRow => ({
+            name: t.name,
+            tier: t.tier,
+            created: t.created,
+            expires: expiryCell(t.expires, now),
+            // The write trail records `bearer:<name>#<fingerprint>`, so this
+            // column is the one thing on the page that can answer "what has
+            // this token been doing". Unlinked, it was eight characters with
+            // nothing to do.
+            fingerprint: html`<a href="/ui/audit?caller=${encodeURIComponent(bearerCaller(t))}">${fingerprint(t.hash)}</a>`,
+            ...(plaintextOnDisk.includes(t.name) ? { flag: 'still plaintext in config.yaml' } : {}),
+            revoke: revokeForm({
+                action: '/ui/config/tokens/revoke#tokens',
+                field: 'token',
+                name: t.name,
+                keys,
+                confirming: opts.confirmingRevoke === t.name,
+                consequence: lastToken
+                    ? 'This is the last token: every MCP client will be refused until you create a new one.'
+                    : 'Clients using it are refused from the next request.'
+            })
+        })
+    );
+
+    const tokens = credentialCard({
+        id: 'tokens',
+        title: 'MCP tokens',
+        message: undefined,
+        reveal: opts.revealed === undefined ? raw('') : revealPanel(opts.revealed),
+        note: html`<p class="note">What an MCP client signs in with, as a <span class="mono">Bearer</span> header.</p>`,
+        endpoint: endpointRow({
+            id: 'mcp-url',
+            label: 'Endpoint',
+            url: opts.mcpUrl,
+            absent: html`<p class="note">Use <span class="mono">/mcp</span> on the address you reached this page on.</p>`,
+            // The handlers fill in a token while the reveal panel is on screen
+            // and a placeholder when it is not, so both buttons are worth
+            // having on every render rather than on one response in a hundred.
+            extras: html`<div class="row" style="margin-bottom:1rem">
+                <button class="ghost" type="button" data-copy-config="mcp-config">Copy client config</button>
+                ${opts.config.auth.allow_token_in_url
+                    ? html`<button class="ghost" type="button" data-copy-url-token="mcp-url">Copy URL with token</button>`
+                    : raw('')}
+            </div>
+            <textarea id="mcp-config" class="mono" rows="9" readonly hidden></textarea>
+            <input id="mcp-url-token" type="text" readonly hidden>`
+        }),
+        rows:
+            tokenRows.length === 0
+                ? html`<p class="note">No MCP tokens yet. Every MCP client is refused until you create one.</p>`
+                : credentialTable(tokenRows),
+        formTitle: 'New token',
+        form: tokenCreateForm(keys)
+    });
+
+    const managementKeys = opts.config.auth.management_keys ?? [];
+    const lastKey = managementKeys.length === 1;
+
+    const keyRows = managementKeys.map(
+        (k): CredentialRow => ({
+            name: k.name,
+            tier: k.tier,
+            created: k.created,
+            // Not a column the data can fill: management keys have no expiry.
+            // Saying so in the table beats leaving the reader to infer it from
+            // a missing column, which is how it read before.
+            expires: html`<span class="dim">never</span>`,
+            // No link: a key's writes go to config.yaml, not through the write
+            // trail, so what it did is in the Logs. The card says so.
+            fingerprint: html`${fingerprint(k.hash)}`,
+            revoke: revokeForm({
+                action: '/ui/config/api-keys/revoke#management-api',
+                field: 'key',
+                name: k.name,
+                keys,
+                confirming: opts.confirmingKeyRevoke === k.name,
+                consequence: lastKey
+                    ? 'This is the last key: the management API turns off until you create a new one.'
+                    : 'Apps using it are refused from the next request.'
+            })
+        })
+    );
+
+    const managementApi = credentialCard({
+        id: 'management-api',
+        title: 'Management API',
+        message: opts.keyMessage,
+        reveal: opts.revealedKey === undefined ? raw('') : revealKeyPanel(opts.revealedKey),
+        note: html`<p class="note">
+                For companion apps that read arr-mcp the way they read Sonarr. Give each app its own, sent as
+                <span class="mono">X-Api-Key</span>. No key can touch this sign-in, OAuth or the keys
+                themselves, and what one did is in the <a href="/ui/logs">Logs</a> rather than in Writes.
+            </p>`,
+        endpoint: endpointRow({
+            id: 'api-url',
+            label: 'Base URL',
+            url: opts.apiUrl,
+            absent: html`<p class="note">Use <span class="mono">/api/v1</span> on the address you reached this page on.</p>`
+        }),
+        rows:
+            keyRows.length === 0
+                ? html`<p class="note">Off. Nothing answers under <span class="mono">/api/v1</span> until you create a key.</p>`
+                : credentialTable(keyRows),
+        formTitle: 'New key',
+        form: keyCreateForm(keys)
+    });
+
+    const hostAndProxy = html`<form method="post" action="/ui/config/mcp" class="panel" ${IGNORE_FORM}>
             ${keys}
-            <h3 style="margin:0 0 .75rem">MCP endpoint</h3>
+            <h2>Host and proxy</h2>
+            <p class="note">Which requests this server answers at all, before any token is looked at.</p>
             ${field({
                 id: 'auth.allowed_hosts',
                 name: 'auth.allowed_hosts',
                 label: 'Allowed hosts (comma separated)',
                 value: opts.config.auth.allowed_hosts.join(', '),
-                note: 'Leave empty to accept any Host, which is right for a LAN container reached by IP. Applies immediately; pin the wrong name and you will lock yourself out until you edit config.yaml by hand.'
+                note: 'Empty accepts any Host, which is right for a LAN container reached by IP. Pin the wrong name and you lock yourself out until you edit config.yaml by hand.'
             })}
             ${field({
                 id: 'auth.trusted_proxies',
                 name: 'auth.trusted_proxies',
                 label: 'Trusted proxies (comma separated)',
                 value: (opts.config.auth.trusted_proxies ?? []).join(', '),
-                note: "Addresses or ranges (172.18.0.0/16) of your reverse proxy. Only these may name the client in X-Forwarded-For, which gives each client its own sign-in throttle. Empty: everyone behind a proxy shares the proxy's."
+                note: "Addresses or ranges (172.18.0.0/16) of your reverse proxy, so each client gets its own sign-in throttle rather than sharing the proxy's."
             })}
             ${checkbox(
                 'auth.allow_token_in_url',
                 'auth.allow_token_in_url',
-                'Accept the token in the URL (?token=…)',
+                'Accept the token in the URL (?token=\u2026)',
                 opts.config.auth.allow_token_in_url,
                 opts.config.auth.oauth !== undefined
             )}
             ${opts.config.auth.oauth === undefined
-                ? raw('')
+                ? html`<p class="note">
+                      For clients that can only be given a URL and no headers. The token then travels in the
+                      address, where a proxy's access log will keep it.
+                      <a href="https://github.com/bardesss/arr-mcp/blob/main/docs/configuration.md#allow_token_in_url" target="_blank" rel="noreferrer">What this costs</a>.
+                  </p>`
                 : html`<p class="note">
                       Unavailable while OAuth is configured: an access token in the address would reach every
-                      proxy log, which is worse than the static token this flag was written for. Remove OAuth on
-                      the <a href="#oauth">OAuth card</a> below to use it.
+                      proxy log. Remove OAuth on the <a href="#oauth">OAuth card</a> below to use it.
                   </p>`}
-            <p class="note">
-                For clients that can only be given a URL and no headers. The token then travels in the
-                address, so a reverse proxy's access log or the client's own logs will hold a working
-                credential; revoke it above and create a new one if that happens. This does not make Home Assistant work on
-                its own: its MCP client also needs the older SSE transport, which this server does not
-                serve.
-            </p>
             <div class="row" style="margin-top:1rem">
-                <button type="submit">Save MCP settings</button>
+                <button type="submit">Save host and proxy</button>
             </div>
         </form>`;
 
-    // Tokens first: the page a new token is revealed on opens with it on screen.
+    /**
+     * Tokens first: the response that reveals one opens with it on screen. Then
+     * the other two credentials, then what the server will answer at all, then
+     * the password for this page. Credentials before plumbing, in the order
+     * someone setting this up needs them.
+     */
     const sections: Record<ConfigTab, () => SafeHtml> = {
         services: () => services,
-        access: () => html`${savedAlone}${tokens}${mcpEndpoint}${managementKeyCard({
-            config: opts.config,
-            keys,
-            revealed: opts.revealedKey,
-            confirmingRevoke: opts.confirmingKeyRevoke
-        })}${oauthCard(opts.config, keys, opts.oauth ?? {})}${signIn}`,
+        access: () =>
+            html`${accessIntro}${tokens}${managementApi}${oauthCard(opts.config, keys, opts.oauth ?? {})}${hostAndProxy}${signIn}`,
         settings: () =>
             html`${savedAlone}${appearance}${mediaServers}${imdb}${webhooksCard(opts.config, keys, opts.confirmingNewSecret === true)}`
     };
