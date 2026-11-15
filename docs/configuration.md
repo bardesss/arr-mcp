@@ -542,6 +542,10 @@ services:
     api_key: "…"
 ```
 
+In a service that takes a list, a single block takes no `name`. One that carries
+it is refused, and the refusal says to write the service as a list or remove
+`name`.
+
 **Reads span every instance.** `get_stack_health` reports each separately, and a
 library question answers from all of them at once. Every row says which
 instance it came from, as `radarr/4k`.

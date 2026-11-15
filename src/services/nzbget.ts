@@ -1124,7 +1124,7 @@ export class NzbgetAdapter
                     id: target.id,
                     state: 'downloading',
                     status: status(itself ? 'paused' : queueStatus(queued.Status)),
-                    ...(held ? { queuePaused: true as const } : {}),
+                    ...withHold(held ? 'queue' : undefined),
                     ...(itself ? { pausedItself: true as const } : {})
                 };
             }

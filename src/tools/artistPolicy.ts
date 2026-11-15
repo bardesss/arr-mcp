@@ -3,20 +3,32 @@ import type { ArtistMonitorCapable, ArtistMonitorNewItems, ArtistMonitorPolicy, 
 import { instancesOfType } from './resolveInstance.ts';
 import type { WritePlan } from './write.ts';
 
+/**
+ * How many artists sit at each new-album policy, in the order first met, and
+ * how many carry the artist-level monitor flag. The artist-level preview and
+ * `arr://lidarr/monitoring` both count with this.
+ */
+export function countArtistPolicies(policies: readonly ArtistMonitorPolicy[]): { byPolicy: Map<ArtistMonitorPolicy['monitorNewItems'], number>; monitored: number } {
+    const byPolicy = new Map<ArtistMonitorPolicy['monitorNewItems'], number>();
+    let monitored = 0;
+    for (const p of policies) {
+        byPolicy.set(p.monitorNewItems, (byPolicy.get(p.monitorNewItems) ?? 0) + 1);
+        if (p.monitored) monitored += 1;
+    }
+    return { byPolicy, monitored };
+}
+
 /** How many artists sit at each new-album policy and each monitor flag, so a
  *  preview says what the library holds rather than only what it is about to
  *  become. The monitor-flag half is the "is this stable" read; the policy half
  *  is the "can it stop being stable again" read, and they are different
  *  questions with different answers. */
 const tally = (policies: readonly ArtistMonitorPolicy[]): string => {
-    const items = new Map<string, number>();
+    const { byPolicy: items, monitored } = countArtistPolicies(policies);
     const flags = new Map<string, number>();
-    for (const p of policies) {
-        items.set(p.monitorNewItems, (items.get(p.monitorNewItems) ?? 0) + 1);
-        const flag = p.monitored ? 'monitored' : 'unmonitored';
-        flags.set(flag, (flags.get(flag) ?? 0) + 1);
-    }
-    const group = (counts: Map<string, number>) =>
+    if (monitored > 0) flags.set('monitored', monitored);
+    if (policies.length > monitored) flags.set('unmonitored', policies.length - monitored);
+    const group = (counts: ReadonlyMap<string, number>) =>
         [...counts.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([value, count]) => `${count} ${value}`).join(', ');
 
     // `artists`, not `albums`: the counts come from each artist's own monitor

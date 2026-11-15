@@ -1619,8 +1619,8 @@ export type RetryOutcome = {
     state: 'downloading' | 'processing' | 'finished';
     status: string; // fenced
     event?: HistoryEventType; // when state is 'finished'
-    /** A job in the queue that the client's paused queue holds, so it is not downloading yet. */
-    queuePaused?: true;
+    /** What holds a job in the queue besides its own pause: the client's paused queue, or SABnzbd's wait for post-processing, which ends by itself. */
+    heldBy?: PauseState['heldBy'];
     /** A job in the queue that the client pauses itself, which needs its own resume. */
     pausedItself?: true;
 };
@@ -1630,6 +1630,12 @@ export type RetryOutcome = {
  * covers SABnzbd's wait for post-processing, which ends by itself.
  */
 export const RESUME_HELD_QUEUE = 'resume the queue with pause_downloads (`action: "resume"` without an `id`) if it stays paused.';
+
+/** SABnzbd's switch that pauses its queue while it post-processes. */
+export const SAB_WAIT_SWITCH = '"Pause Downloading During Post-Processing"';
+
+/** SABnzbd's wait for post-processing, as pause_downloads and retry_download word it (`sabWaiting`). */
+export const sabWaits = (client: string): string => `${client} pauses its queue while it post-processes (${SAB_WAIT_SWITCH})`;
 
 export interface RetryCapable {
     /** Refuses anything that did not fail. `hasPassword` only decides whether an encrypted queue job is a target. */

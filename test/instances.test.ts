@@ -139,6 +139,22 @@ describe('a refusal names the field, in either form', () => {
         ]);
     });
 
+    const NAME_IN_BLOCK = '`name` only goes on an instance in a list: write this service as a list (`- name: main`), or remove `name`';
+
+    it.each(MULTI_INSTANCE)('says where `name` goes when a single %s block carries one', type => {
+        expect(refusals({ [type]: { ...block(type), name: 'hd' } })).toEqual([`services.${type}: ${NAME_IN_BLOCK}`]);
+    });
+
+    it('still names any other unknown key beside `name` in a block, and leaves a list to zod', () => {
+        expect(refusals({ radarr: { ...block('radarr'), name: 'hd', extra: true, other: 1 } })).toEqual([
+            `services.radarr: ${NAME_IN_BLOCK}`,
+            'services.radarr: Unrecognized keys: "extra", "other"'
+        ]);
+        expect(refusals({ radarr: { ...block('radarr'), name: 'hd', extra: true } })).toEqual([`services.radarr: ${NAME_IN_BLOCK}`, 'services.radarr: Unrecognized key: "extra"']);
+        expect(refusals({ radarr: { ...block('radarr'), extra: true } })).toEqual(['services.radarr: Unrecognized key: "extra"']);
+        expect(refusals({ radarr: [{ ...instanceOf('radarr', 'hd', 7878), extra: true }] })).toEqual(['services.radarr.0: Unrecognized key: "extra"']);
+    });
+
     it.each(MULTI_INSTANCE)('names the entry and the field in a %s list', type => {
         const { url: _u, ...noUrl } = instanceOf(type, '4k', 7879);
         expect(refusals({ [type]: [instanceOf(type, 'hd', 7878), noUrl] })).toEqual([

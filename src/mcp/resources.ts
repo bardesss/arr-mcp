@@ -4,6 +4,7 @@ import { logger } from '../core/logger.ts';
 import { hasArtistMonitor } from '../services/types.ts';
 import type { ArtistMonitorCapable, ArtistMonitorPolicy, ServiceAdapter } from '../services/types.ts';
 import type { ToolContext } from '../tools/register.ts';
+import { countArtistPolicies } from '../tools/artistPolicy.ts';
 import { buildGetLibrary } from '../tools/getLibrary.ts';
 import { buildStackHealth } from '../tools/stackHealth.ts';
 import { toolListed } from '../tools/register.ts';
@@ -80,22 +81,17 @@ const lidarrsWithPolicies = (adapters: readonly ServiceAdapter[]): (ServiceAdapt
 
 /** The counts the monitoring resource reports, for one instance or for all of them. */
 const policyCounts = (policies: readonly ArtistMonitorPolicy[]) => {
-    const byPolicy: Record<string, number> = {};
-    let flagged = 0;
-    for (const p of policies) {
-        byPolicy[p.monitorNewItems] = (byPolicy[p.monitorNewItems] ?? 0) + 1;
-        if (p.monitored) flagged += 1;
-    }
+    const { byPolicy, monitored: flagged } = countArtistPolicies(policies);
 
     // `unknown` counts against stability on purpose. A policy that could not
     // be read is not a policy that is off, and calling it settled is the
     // confidently-wrong answer this file keeps refusing to give.
-    const autoMonitoring = (byPolicy['all'] ?? 0) + (byPolicy['new'] ?? 0) + (byPolicy['unknown'] ?? 0);
+    const autoMonitoring = (byPolicy.get('all') ?? 0) + (byPolicy.get('new') ?? 0) + (byPolicy.get('unknown') ?? 0);
 
     return {
         counts: {
             artists: policies.length,
-            monitor_new_items: byPolicy,
+            monitor_new_items: Object.fromEntries(byPolicy),
             artist_flag: { monitored: flagged, unmonitored: policies.length - flagged },
             // An empty artist list is stable in the only sense this field
             // reports: nothing in it can grow the wanted list by itself.

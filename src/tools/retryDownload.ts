@@ -4,6 +4,8 @@ import {
     hasDownloadTrace,
     hasRetry,
     RESUME_HELD_QUEUE,
+    sabWaits,
+    withHold,
     type DownloadTrace,
     type RetryMethod,
     type RetryOutcome,
@@ -112,20 +114,31 @@ const importable = (outcome: Pick<RetryOutcome, 'state' | 'event'>) =>
 const describeTarget = (target: RetryTarget, client: string) =>
     `${target.title} is ${target.status} in ${client}'s ${target.where}${target.reason === undefined ? '' : `: ${target.reason}`}.`;
 
-/** A job back in the queue that something still holds: the client paused it itself, its whole queue, or both. */
-function heldText(outcome: Pick<RetryOutcome, 'id' | 'status' | 'queuePaused' | 'pausedItself'>, client: string): string | undefined {
+/**
+ * A job back in the queue that something still holds: the client paused it
+ * itself, its whole queue, or both; or SABnzbd's wait for another download's
+ * post-processing, which ends by itself, with or without its own pause.
+ */
+function heldText(outcome: Pick<RetryOutcome, 'id' | 'status' | 'heldBy' | 'pausedItself'>, client: string): string | undefined {
     const resumeIt = `pause_downloads (\`action: "resume"\` and \`id\` "${outcome.id}")`;
-    if (outcome.pausedItself === true && outcome.queuePaused === true) {
+    if (outcome.pausedItself === true && outcome.heldBy === 'queue') {
         return `It is in ${client}'s queue (${outcome.status}), but paused itself, and the whole queue is paused too: resume it with ${resumeIt}, and ${RESUME_HELD_QUEUE}`;
     }
+    if (outcome.pausedItself === true && outcome.heldBy === 'postProcessing') {
+        return `It is in ${client}'s queue (${outcome.status}), but paused itself, and ${sabWaits(client)}: resume it with ${resumeIt}, and it starts once that ends; ${RESUME_HELD_QUEUE}`;
+    }
     if (outcome.pausedItself === true) return `It is in ${client}'s queue (${outcome.status}), but paused itself: resume it with ${resumeIt}.`;
-    if (outcome.queuePaused === true) return `It is in ${client}'s queue (${outcome.status}), but the whole queue is paused, so it waits there: ${RESUME_HELD_QUEUE}`;
+    if (outcome.heldBy === 'queue') return `It is in ${client}'s queue (${outcome.status}), but the whole queue is paused, so it waits there: ${RESUME_HELD_QUEUE}`;
+    if (outcome.heldBy === 'postProcessing') return `It is in ${client}'s queue (${outcome.status}), and ${sabWaits(client)}, so the job starts once that ends; ${RESUME_HELD_QUEUE}`;
     return undefined;
 }
 
+/** The result field that says what holds a job back in the queue, which `applied` reads back. */
+const HOLD_FIELD = { queue: 'queue_paused', postProcessing: 'post_processing_wait' } as const;
+
 /** Where it ended up, in words. A finished rerun with no event is one an *arr
  *  already took out of the client's history, not a failure. */
-const describeOutcome = (outcome: Pick<RetryOutcome, 'id' | 'state' | 'status' | 'event' | 'queuePaused' | 'pausedItself'>, client: string) => {
+const describeOutcome = (outcome: Pick<RetryOutcome, 'id' | 'state' | 'status' | 'event' | 'heldBy' | 'pausedItself'>, client: string) => {
     if (outcome.state === 'downloading') return heldText(outcome, client) ?? `It is downloading again (${outcome.status}).`;
     if (outcome.state === 'processing') return `It is being processed (${outcome.status}).`;
     if (outcome.event === undefined) {
@@ -210,7 +223,7 @@ export function registerRetryDownload(server: McpServer, context: WriteContext, 
                 status: outcome.status,
                 ...(outcome.event === undefined ? {} : { event: outcome.event }),
                 // Only a job back in the queue waits on what holds it; the outcome text reads these for that state alone.
-                ...(outcome.state === 'downloading' && outcome.queuePaused === true ? { queue_paused: true } : {}),
+                ...(outcome.state === 'downloading' && outcome.heldBy !== undefined ? { [HOLD_FIELD[outcome.heldBy]]: true } : {}),
                 ...(outcome.state === 'downloading' && outcome.pausedItself === true ? { paused_itself: true } : {}),
                 ...(view === undefined ? {} : { tracked_by: view.traces.map(t => t.service) })
             };
@@ -222,6 +235,7 @@ export function registerRetryDownload(server: McpServer, context: WriteContext, 
                 previous_id?: string;
                 download_id: string;
                 queue_paused?: true;
+                post_processing_wait?: true;
                 paused_itself?: true;
             };
             const view = views.get(plan);
@@ -229,7 +243,11 @@ export function registerRetryDownload(server: McpServer, context: WriteContext, 
             if (r.previous_id !== undefined) lines.push(`Its id is now ${r.id}.`);
             lines.push(
                 describeOutcome(
-                    { ...r, ...(r.queue_paused === true ? { queuePaused: true } : {}), ...(r.paused_itself === true ? { pausedItself: true } : {}) },
+                    {
+                        ...r,
+                        ...withHold((['queue', 'postProcessing'] as const).find(hold => r[HOLD_FIELD[hold]] === true)),
+                        ...(r.paused_itself === true ? { pausedItself: true } : {})
+                    },
                     r.service
                 )
             );

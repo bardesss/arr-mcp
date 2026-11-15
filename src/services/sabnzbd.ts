@@ -8,6 +8,7 @@ import { fenceText } from '../core/fence.ts';
 import {
     diagnoseConnection,
     RESUME_HELD_QUEUE,
+    sabWaits,
     withHold,
     type ConnectionDiagnosis,
     type DiskSpace,
@@ -109,6 +110,14 @@ const sabHolds = (queue: RawQueue['queue']): ((slot: RawSlot) => PauseState['hel
     if (sabWaiting(queue)) return () => 'postProcessing';
     return slot => (slot.priority === 'Force' ? undefined : 'queue');
 };
+
+/** For an encrypted job that is not paused itself: there is nothing to unlock, and this is what, if anything, holds it. */
+function notPausedRemedy(heldBy: PauseState['heldBy']): string {
+    const nothing = 'It is not paused itself, so there is nothing to unlock';
+    if (heldBy === 'postProcessing') return `${nothing}; ${sabWaits('SABnzbd')}, so the job starts once that ends; ${RESUME_HELD_QUEUE}`;
+    if (heldBy === 'queue') return `${nothing}, but SABnzbd's whole queue is paused, so it waits there: ${RESUME_HELD_QUEUE}`;
+    return 'It is already running in SABnzbd, so there is nothing to unlock. Check its progress with get_queue.';
+}
 
 const BYTES_PER_MB = 1024 ** 2;
 
@@ -479,15 +488,37 @@ export class SabnzbdAdapter
     }
 
     /**
-     * One queue slot by id, and whether the queue's `paused` flag holds it
-     * (`sabHolds`). `nzo_ids` filters server-side from 4.x on, but 3.0.0's
-     * `_api_queue_default` ignores it and answers the whole queue, so the match
-     * is always made here.
+     * One queue slot by id, and the queue it was read from. `nzo_ids` filters
+     * server-side from 4.x on, but 3.0.0's `_api_queue_default` ignores it and
+     * answers the whole queue, so the match is always made here.
      */
-    async #queueSlot(id: string): Promise<{ slot?: RawSlot; held: boolean }> {
+    async #queueSlot(id: string): Promise<{ slot: RawSlot | undefined; queue: RawQueue['queue'] }> {
         const body = await this.#read<RawQueue>(`/api?mode=queue&nzo_ids=${encodeURIComponent(id)}&output=json`);
-        const slot = (body.queue?.slots ?? []).find(s => s.nzo_id === id);
-        return slot === undefined ? { held: false } : { slot, held: sabHolds(body.queue)(slot) !== undefined };
+        return { slot: (body.queue?.slots ?? []).find(s => s.nzo_id === id), queue: body.queue };
+    }
+
+    /**
+     * What holds a queue slot while the queue's `paused` flag is set
+     * (`sabHolds`). Telling the wait for post-processing from a pause takes
+     * every slot (`sabWaiting`), and a 4.x read by id has the one, so a queue
+     * that reads paused is read once more, whole, unless the read by id
+     * already decides: it answered other slots too (3.x ignores `nzo_ids`),
+     * or the slot reads Queued, which no slot does during the wait. A failed
+     * or empty read is read as a pause by hand, which a Force job downloads through and
+     * whose remedy for any other also covers the wait ("if it stays paused"),
+     * so a retry that has already landed is not reported as failed.
+     */
+    async #holding(slot: RawSlot, queue: RawQueue['queue']): Promise<PauseState['heldBy']> {
+        if (queue?.paused !== true) return undefined;
+        const decided = (queue.slots ?? []).length > 1 || (slot.status ?? '').toLowerCase() === 'queued';
+        const whole = decided
+            ? queue
+            : await this.#read<RawQueue>('/api?mode=queue&output=json').then(
+                  body => body.queue,
+                  () => undefined
+              );
+        // A failed or empty read has no slots to show the wait, so `sabHolds` reads a pause by hand.
+        return sabHolds(whole ?? { paused: true, slots: [] })(slot);
     }
 
     /**
@@ -533,7 +564,7 @@ export class SabnzbdAdapter
      * password (`unlock`). Anything else is refused before a write is offered.
      */
     async findRetryTarget(id: string, opts: { hasPassword: boolean }): Promise<RetryTarget> {
-        const { slot: queued, held } = await this.#queueSlot(id);
+        const { slot: queued, queue } = await this.#queueSlot(id);
         if (queued !== undefined) {
             const base = {
                 id,
@@ -549,11 +580,8 @@ export class SabnzbdAdapter
                 // and the label stays. A running job has nothing to unlock,
                 // and a watch on it would "succeed" without any write landing.
                 if (!paused) {
-                    throw new ServiceError('NotFound', this.id, `download ${id} is encrypted but not paused`, {
-                        remedy: held
-                            ? `It is not paused itself, so there is nothing to unlock, but SABnzbd's whole queue is paused, so it waits there: ${RESUME_HELD_QUEUE}`
-                            : 'It is already running in SABnzbd, so there is nothing to unlock. Check its progress with get_queue.'
-                    });
+                    const remedy = notPausedRemedy(await this.#holding(queued, queue));
+                    throw new ServiceError('NotFound', this.id, `download ${id} is encrypted but not paused`, { remedy });
                 }
                 if (!opts.hasPassword) {
                     throw new ServiceError('NotFound', this.id, `download ${id} is paused because it is encrypted`, {
@@ -711,16 +739,18 @@ export class SabnzbdAdapter
      * an unlock, a slot still `Paused` is not proof.
      */
     async #whereNow(target: RetryTarget, id: string, pausedIsPending = false): Promise<RetryOutcome | undefined> {
-        const { slot: queued, held } = await this.#queueSlot(id);
+        const { slot: queued, queue } = await this.#queueSlot(id);
         if (queued !== undefined) {
             const raw = queued.status ?? 'unknown';
             if (pausedIsPending && raw.toLowerCase() === 'paused') return undefined;
+            if (PROCESSING_STATUSES.has(raw.toLowerCase())) return { target, id, state: 'processing', status: this.#fence(raw, 'status') };
+            const heldBy = await this.#holding(queued, queue);
             return {
                 target,
                 id,
-                state: PROCESSING_STATUSES.has(raw.toLowerCase()) ? 'processing' : 'downloading',
+                state: 'downloading',
                 status: this.#fence(raw, 'status'),
-                ...(held ? { queuePaused: true as const } : {}),
+                ...withHold(heldBy),
                 ...(raw.toLowerCase() === 'paused' ? { pausedItself: true as const } : {})
             };
         }

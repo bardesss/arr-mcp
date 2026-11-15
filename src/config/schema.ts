@@ -132,6 +132,9 @@ const uniqueNames = (list: readonly { name: string }[], ctx: z.RefinementCtx): v
     });
 };
 
+/** What a single block with `name` in it is told (`listOrBlock`). */
+const NAME_IN_BLOCK = '`name` only goes on an instance in a list: write this service as a list (`- name: main`), or remove `name`';
+
 /**
  * One block, as before, or a list of named ones. A union rather than a new key,
  * so every config that parses today parses unchanged; there is no migration
@@ -147,6 +150,12 @@ const uniqueNames = (list: readonly { name: string }[], ctx: z.RefinementCtx): v
  *
  * Each issue is re-added as `custom` so the pipe stops there: it goes on past an
  * `unrecognized_keys` issue, into the union.
+ *
+ * `name` in a single block is the list form's key written in the block form,
+ * so that one key is answered with where it goes rather than "Unrecognized
+ * key". Any other unknown key beside it is still named, in zod's words. A list
+ * entry takes `name`, and no field of a block is an object that refuses an
+ * unknown key, so an unknown `name` is always the block's own.
  */
 const listOrBlock = <B extends z.ZodType, L extends z.ZodType>(block: B, list: L) =>
     z
@@ -154,7 +163,17 @@ const listOrBlock = <B extends z.ZodType, L extends z.ZodType>(block: B, list: L
         .superRefine((value, ctx) => {
             const result = (Array.isArray(value) ? list : block).safeParse(value);
             if (result.success) return;
-            for (const issue of result.error.issues) ctx.addIssue({ code: 'custom', message: issue.message, path: issue.path });
+            for (const issue of result.error.issues) {
+                if (issue.code !== 'unrecognized_keys' || !issue.keys.includes('name')) {
+                    ctx.addIssue({ code: 'custom', message: issue.message, path: issue.path });
+                    continue;
+                }
+                ctx.addIssue({ code: 'custom', message: NAME_IN_BLOCK, path: issue.path });
+                const rest = issue.keys.filter(key => key !== 'name');
+                if (rest.length > 0) {
+                    ctx.addIssue({ code: 'custom', message: `Unrecognized key${rest.length === 1 ? '' : 's'}: ${rest.map(key => `"${key}"`).join(', ')}`, path: issue.path });
+                }
+            }
         })
         .pipe(z.union([block, list]));
 

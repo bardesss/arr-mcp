@@ -40,18 +40,29 @@ export async function arrDiskSpace(http: ServiceHttp, id: string): Promise<DiskS
     }));
 }
 
+/** `HealthCheckResult` by its enum value (Lidarr's `HealthCheck.cs`, and the other *arrs'). */
+const HEALTH_RESULTS = ['ok', 'notice', 'warning', 'error'];
+
+/**
+ * A health check's `type` as a name. Coerced: upstream has been seen sending
+ * a non-string here, and `HealthCheck.type` is declared `string`. A number is
+ * read as the enum value it stands for, so it is filtered or ranked like that
+ * name.
+ */
+const healthCheckType = (raw: unknown): string =>
+    typeof raw === 'number' ? (HEALTH_RESULTS[raw] ?? String(raw)) : String(raw ?? 'warning');
+
 export async function arrFailedHealthChecks(http: ServiceHttp, id: string): Promise<HealthCheck[]> {
     const all = await http.getArray<RawHealthCheck>(`${http.apiRoot}/health`);
     // These services generally return only entries worth surfacing, but some
     // versions include `ok` rows: filter rather than trust.
     return all
+        .map(c => ({ ...c, type: healthCheckType(c.type) }))
         .filter(c => c.type !== 'ok')
         .map(c => ({
             service: id,
             source: c.source ?? 'unknown',
-            // Coerced: upstream has been seen sending a non-string here, and
-            // `HealthCheck.type` is declared `string`.
-            type: String(c.type ?? 'warning'),
+            type: c.type,
             // Health text quotes indexer, list and client names, and their errors.
             message: fenceText(c.message ?? '', { service: id, field: 'message' })
         }));
