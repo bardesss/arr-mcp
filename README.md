@@ -14,7 +14,7 @@
 [![Platforms](https://img.shields.io/badge/platforms-amd64%20%C2%B7%20arm64-555?style=flat-square)](https://github.com/bardesss/arr-mcp/pkgs/container/arr-mcp)
 [![Licence](https://img.shields.io/badge/licence-MIT-green?style=flat-square)](LICENSE)
 
-<img src="screenshots/dashboard-dark.png" alt="The arr-mcp dashboard: every configured service tested live, one row each with version, latency, write permission and status" width="880">
+<img src="screenshots/dashboard-dark.png" alt="The arr-mcp dashboard: tiles for services, health checks, tokens and writes, a Needs attention list, one row per service grouped by role with version, latency, write permission and status, and the MCP endpoint ready to copy" width="880">
 
 </div>
 
@@ -50,6 +50,7 @@ check rather than guessing across the hole.
 | ✋ **Writes are opt-in, previewed, recorded** | Off until you turn them on, per service. Every write shows you exactly what it would do and waits for confirmation, and lands in an audit trail either way. |
 | 🖥️ **A config page that diagnoses** | Add services from a browser, see what is broken *and what to do about it*, read the logs and the write audit. No YAML required. |
 | 📚 **Forty-four tools, one vocabulary** | Every list pages the same way and answers readably whether or not your client reads `structuredContent`, every error names the config key that would fix it, every write takes ids rather than titles. |
+| 🪶 **It is careful with your context** | Nineteen services behind one server, and a four-service stack still lists 36 tools for about 20,700 tokens. Tools your stack cannot use, kinds it does not hold and sentences about services you do not run are never sent. |
 
 ## Quick start: about two minutes
 
@@ -108,9 +109,12 @@ username and a password of at least 12 characters.
 
 **3. Add your services**: **Add a service**, paste its URL and API key (for Plex,
 its `X-Plex-Token`; for NZBGet, Transmission, qBittorrent and Grimmory, its username and password; a Shelfmark with no authentication needs no key), save. It applies immediately; there is
-no restart. Configure only what you run. A config file that will not parse does
-not take the container down: arr-mcp serves a repair page with the error and an
-editor instead.
+no restart. Configure only what you run. **Find services**, next to it, looks
+for them first: this host on each service's default port, the usual container
+names, and, if you ask for it, a sweep of the address range around you. It
+fills in the service and its address, and leaves the key to you. A config file
+that will not parse does not take the container down: arr-mcp serves a repair
+page with the error and an editor instead.
 
 Your MCP client goes to `http://<host>:6060/mcp` with an MCP token. Create one on
 the config page; it is shown once, so copy it into your client straight away.
@@ -161,6 +165,7 @@ Forty-four tools, but you never name them. You ask, and the model picks:
 > *"This profile says it wants Dutch but keeps grabbing English, why?"*
 > *"Has anything in Radarr drifted from what Profilarr set?"*
 > *"Why is the TV guide empty, and is my IPTV subscription about to run out?"*
+> *"Did that book ever get imported, or is it still waiting in the Bookdrop?"*
 > *"Which of my shows have metadata that does not match the files?"*
 > *"These episode titles are wrong for the files. Fix them."*
 > *"Unmonitor season 5 and delete its files."* Previewed first, always.
@@ -191,6 +196,31 @@ is not model context, and are only built for a client that says it renders MCP
 Apps, or one that says nothing (stateless HTTP). `tools.media_cards: false` turns
 them off. The cards are read-only for now.
 
+## What it costs your context
+
+One server in front of nineteen services is the whole idea, and it would be a
+poor trade if it arrived as a wall of text. Every tool's name, description and
+schemas sit in your client's context from the moment it connects, so that bill
+is measured and capped rather than left to grow:
+
+- **Forty-four tools, and a forty-fifth fails the build.** Accuracy drops
+  measurably past roughly forty of them, so new capability extends a tool
+  wherever it fits.
+- **A description stays under 1,000 characters**, and 29,000 for all of them
+  together. It says what the tool is for and what makes a call go wrong; the
+  field-by-field reference is a resource, read only when a client asks for it.
+- **Your stack decides what is sent.** A write tool for a service you do not
+  run is never listed, nor a kind nothing in your library holds, nor a sentence
+  about Lidarr on a stack with no Lidarr. Radarr, Sonarr, SABnzbd and Jellyfin
+  come to 36 tools and roughly 20,700 tokens, against 28,000 with everything
+  listed.
+- **The answers are shaped the same way.** The default `detail` is the cheap
+  one, every list is paged and says when it was cut, and the poster cards ride
+  in `_meta` rather than in the model's context.
+
+[What a session costs](docs/tools.md#what-a-session-costs) has the figures per
+stack and everything that is trimmed.
+
 ## Documentation
 
 | | |
@@ -198,7 +228,7 @@ them off. The cards are read-only for now.
 | **[Tools](docs/tools.md)** | All forty-four, what each answers, and the fields whose meaning is not obvious |
 | **[Writes](docs/writes.md)** | Turning them on, the two tiers, and the preview-and-confirm handshake |
 | **[Configuration](docs/configuration.md)** | `config.yaml`, the nine services that take a list, Jellyfin's `default_user`, running Plex and Jellyfin side by side |
-| **[Config UI](docs/config-ui.md)** | The four pages, and what each does that is not obvious |
+| **[Config UI](docs/config-ui.md)** | The six pages, and what each does that is not obvious |
 | **[Management API](docs/api.md)** | JSON API for companion apps to see and manage services, settings and tokens, with named read or admin keys you create on the config page |
 | **[IMDb ratings](docs/imdb.md)** | The only way to get an IMDb score for a series, and what it costs |
 | **[Security](docs/security.md)** | The threat model, walked against the OWASP MCP Top 10, including what it does not solve |
@@ -262,9 +292,13 @@ behind a reverse proxy with TLS if it needs to leave the LAN, and pin
 
 Beyond the network: writes are off until you enable them, every write is
 previewed and confirmed before it acts, and everything a service returns is
-fenced as data rather than instruction. [Security](docs/security.md) walks all
-of it against the OWASP MCP Top 10, and is equally explicit about what it does
-not solve. Found something? [SECURITY.md](SECURITY.md).
+fenced as data rather than instruction. Service credentials need not sit in
+`config.yaml` either: `api_key_file` and `password_file` read a Docker, Podman
+or systemd secret, and `${NAME}` reads an environment variable
+([secrets from files or the environment](docs/configuration.md#secrets-from-files-or-the-environment)).
+[Security](docs/security.md) walks all of it against the OWASP MCP Top 10, and
+is equally explicit about what it does not solve. Found something?
+[SECURITY.md](SECURITY.md).
 
 ## Contributors
 

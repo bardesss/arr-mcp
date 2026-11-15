@@ -140,7 +140,7 @@ have more than one instance shows one with a note.
 
 ## Logs and the write audit
 
-<img src="../screenshots/logs-dark.png" alt="The logs page: three stream tabs above a live-refreshing table of time, level, service and message, with each line's recorded fields underneath the message" width="880">
+<img src="../screenshots/logs-dark.png" alt="The logs page: tabs for all activity, problems, one service and library events above a live-refreshing table of time, level, service and message, with each line's recorded fields underneath the message" width="880">
 
 <img src="../screenshots/audit-dark.png" alt="The write audit: one entry per write attempt, showing tool, target, tier and outcome" width="880">
 
@@ -175,9 +175,10 @@ the wrong theme, and it works with scripting off.
 
 ## On a phone
 
-The navigation becomes a full-width row of its own under the title rather than
-wrapping into it, form fields are large enough that iOS does not zoom the page
-in when you tap one, and no table pushes the page sideways.
+The sidebar becomes a bar across the top with a menu button: closed, the page
+starts right under it; open, the links drop down in the bar. Form fields are
+large enough that iOS does not zoom the page in when you tap one, and no table
+pushes the page sideways.
 
 **The logs and the dashboard's problems stack into cards** below 700px: time,
 level and service on one line, the message and its fields underneath. The
