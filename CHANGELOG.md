@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.2.0](https://github.com/bardesss/arr-mcp/compare/v2.1.0...v2.2.0) (2026-11-15)
+
+
+### Features
+
+* **ui:** give the Access page one shape ([#686](https://github.com/bardesss/arr-mcp/issues/686)) ([031302f](https://github.com/bardesss/arr-mcp/commit/031302f44278912a62fb63105f5a9b7797b59e6a))
+
+
+### Bug Fixes
+
+* name SABnzbd's post-processing wait in retry_download, and smaller follow-ups ([#685](https://github.com/bardesss/arr-mcp/issues/685)) ([83cd526](https://github.com/bardesss/arr-mcp/commit/83cd5264ab3e1dce76e64b346014c8cc06dbf295))
+
 ## [2.1.0](https://github.com/bardesss/arr-mcp/compare/v2.0.0...v2.1.0) (2026-11-15)
 
 
