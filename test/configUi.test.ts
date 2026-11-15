@@ -3969,6 +3969,29 @@ describe('per-instance health', () => {
         expect(await res.json()).toMatchObject({ diagnosis: { service: 'radarr/4k' } });
     });
 
+    /**
+     * A service given a longer timeout_ms is one its owner expects to be slow.
+     * A fixed cap would show it in red as timed out while get_stack_health,
+     * which honours the setting, called it up at the same moment.
+     */
+    it('caps a probe by that instance timeout, not by a fixed one', async () => {
+        globalThis.fetch = (() => new Promise(() => {})) as unknown as typeof fetch;
+        await seed('  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n    timeout_ms: 2000\n');
+        await signIn();
+
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+        try {
+            const pending = call('/ui/health.json?instance=radarr');
+            await vi.advanceTimersByTimeAsync(3000);
+            expect(await (await pending).json()).toMatchObject({
+                diagnosis: { latency_ms: 3000, error: { kind: 'Timeout' } },
+                view: { status: 'Timeout' }
+            });
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
     // The whole point of the endpoint: a wrong address costs one row its cap,
     // not the page. Without this the row would wait for the probe's own
     // timeout and then its retry.
@@ -3980,7 +4003,9 @@ describe('per-instance health', () => {
         vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
         try {
             const pending = call('/ui/health.json?instance=radarr');
-            await vi.advanceTimersByTimeAsync(10_000);
+            // The default timeout_ms of 10s, plus the margin that leaves the
+            // service's own deadline to fire first.
+            await vi.advanceTimersByTimeAsync(11_000);
             expect(await (await pending).json()).toMatchObject({
                 diagnosis: { ok: false, error: { kind: 'Timeout' } },
                 view: { ok: false, status: 'Timeout' }

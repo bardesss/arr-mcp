@@ -332,38 +332,53 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
      * One dashboard row's health, so the page can render before any service
      * has answered and settle each row as its own probe comes back.
      *
-     * Capped at the probe's own budget rather than that budget doubled by the
-     * retry in `ServiceHttp.get`: an address with nothing behind it drops
-     * packets instead of refusing, so the row would otherwise sit for twice
-     * the configured timeout. A row that misses the cap says it timed out,
-     * which is the honest answer and the one the page can draw.
+     * Capped at that instance's own `timeout_ms` plus a margin, rather than at
+     * that budget doubled by the retry in `ServiceHttp.get`: an address with
+     * nothing behind it drops packets instead of refusing, so the row would
+     * otherwise sit for twice the configured timeout. The margin leaves the
+     * service's own deadline to fire first, so a slow service reports what went
+     * wrong rather than being cut off here; a service given a longer timeout
+     * because it is known to be slow keeps it, and is not shown as timed out
+     * while `get_stack_health` calls it up.
      */
-    const HEALTH_PROBE_MS = 10_000;
+    const HEALTH_MARGIN_MS = 1_000;
+    const healthCapFor = (instance: string): number => {
+        const found = listInstances(runtime.config).find(i => i.id === instance);
+        return (found?.config.timeout_ms ?? 10_000) + HEALTH_MARGIN_MS;
+    };
 
     app.get('/ui/health.json', async c => {
-        if (guard(c) === undefined) return c.json({ error: 'unauthorized' }, 401);
+        if (guard(c) === undefined) return c.json({ error: 'unauthorized' }, 401, NO_STORE);
 
         const instance = c.req.query('instance') ?? '';
         const adapters = runtime.current.adapters;
         // Matched on the id the page rendered, exactly. `selectAdapters` also
         // accepts an instance name, which would let two services answer one
         // row.
-        if (!adapters.some(a => a.id === instance)) return c.json({ error: 'unknown instance' }, 404);
+        // A 404 is heuristically cacheable, so it carries no-store like the
+        // answers do: a row for an instance that is added back must not keep
+        // reading Unknown out of something in between.
+        if (!adapters.some(a => a.id === instance)) return c.json({ error: 'unknown instance' }, 404, NO_STORE);
 
-        const health = await withTimeout(buildStackHealth(adapters, { detail: 'standard', limit: 50, instance }), HEALTH_PROBE_MS);
+        const capMs = healthCapFor(instance);
+        const health = await withTimeout(buildStackHealth(adapters, { detail: 'standard', limit: 50, instance }), capMs);
         if (health === TIMED_OUT) {
             const diagnosis: ConnectionDiagnosis = {
                 ok: false,
                 service: instance,
-                latency_ms: HEALTH_PROBE_MS,
-                error: { kind: 'Timeout', detail: `the probe did not answer within ${HEALTH_PROBE_MS / 1000}s` }
+                latency_ms: capMs,
+                error: { kind: 'Timeout', detail: `the probe did not answer within ${capMs / 1000}s` }
             };
             const timedOut = { diagnosis, disks: [], failures: [], scans: [] };
             return c.json({ ...timedOut, view: healthRowView(timedOut) }, 200, NO_STORE);
         }
 
-        const diagnosis = health.services[0];
-        if (diagnosis === undefined) return c.json({ error: 'unknown instance' }, 404);
+        // Found by id rather than taken as the first row: `selectAdapters`
+        // also matches an instance name, so a config where one adapter's name
+        // equals another's id could otherwise answer a row with the wrong
+        // service's health.
+        const diagnosis = health.services.find(s => s.service === instance);
+        if (diagnosis === undefined) return c.json({ error: 'unknown instance' }, 404, NO_STORE);
 
         const row = { diagnosis, disks: health.disks.items, failures: health.failures.items, scans: health.scans };
         return c.json({ ...row, view: healthRowView(row) }, 200, NO_STORE);

@@ -343,6 +343,18 @@ describe('the client script', () => {
         expect(() => new Function(JS)).not.toThrow();
     });
 
+    /**
+     * The behavioural tests above cannot catch this: a stub node has no
+     * innerHTML, so an edit that started assigning it would pass them all.
+     * app.js is one of the surfaces CONTRIBUTING names by hand.
+     */
+    it('never builds page content out of markup', () => {
+        // Use, not the word: one comment in here says "never innerHTML".
+        expect(JS).not.toMatch(/\.(inner|outer)HTML\s*(=[^=]|\+=)/);
+        expect(JS).not.toMatch(/insertAdjacentHTML\s*\(/);
+        expect(JS).not.toMatch(/document\s*\.\s*write\s*\(/);
+    });
+
     // The specific one that got through: a remedy is printed under its detail,
     // so the separator has to reach the browser as an escape sequence, not as
     // the line break that ends the string it lives in.
@@ -425,7 +437,7 @@ describe('the dashboard fill-in', () => {
         dataset: Record<string, string>;
         children: Stub[];
         gone: boolean;
-        style: Record<string, string>;
+        attrs: Record<string, string>;
         append: (...kids: Stub[]) => void;
         appendChild: (kid: Stub) => Stub;
         replaceChildren: (...kids: Stub[]) => void;
@@ -442,7 +454,7 @@ describe('the dashboard fill-in', () => {
             dataset: {},
             children: [],
             gone: false,
-            style: {},
+            attrs: {},
             append: (...kids) => void self.children.push(...kids),
             appendChild: kid => {
                 self.children.push(kid);
@@ -450,11 +462,14 @@ describe('the dashboard fill-in', () => {
             },
             replaceChildren: (...kids) => void (self.children = kids),
             remove: () => void (self.gone = true),
-            setAttribute: (name, value) => void (self.style[name] = value),
+            setAttribute: (name, value) => void (self.attrs[name] = value),
             querySelector: () => null
         };
         return self;
     };
+
+    /** Every node in a built subtree, so a test can look for one by attribute. */
+    const flatten = (root: Stub): Stub[] => [root, ...root.children.flatMap(flatten)];
 
     /** A pending row, with the four things the script writes into. */
     const rowStub = (id: string) => {
@@ -528,8 +543,9 @@ describe('the dashboard fill-in', () => {
             return { ok: status >= 200 && status < 300, status, json: async () => body };
         };
 
-        new Function('document', 'location', 'setTimeout', 'fetch', JS)(document, { reload: () => {} }, setTimeout, fetch);
-        return { rows, boxes, counts, empties, asked };
+        const location = { reload: vi.fn() };
+        new Function('document', 'location', 'setTimeout', 'fetch', JS)(document, location, setTimeout, fetch);
+        return { rows, boxes, counts, empties, asked, location };
     };
 
     it('settles each row from its own answer', async () => {
@@ -586,6 +602,53 @@ describe('the dashboard fill-in', () => {
         await vi.waitFor(() => expect(page.asked.length).toBe(4));
         expect(page.asked).toEqual(ids.slice(0, 4));
         expect(page.rows[7]?.cells.label.textContent).toBe('');
+    });
+
+    // A row that never got an answer is not a reachable service. Saying "all
+    // reachable" over a row reading Unknown is the page telling you the stack
+    // is fine when one service did not answer at all.
+    it('does not call the stack all reachable while a row is unknown', async () => {
+        const page = start(id => (id === 'sonarr' ? { status: 404, body: { error: 'unknown instance' } } : { status: 200, body: { view: viewOf() } }));
+
+        await vi.waitFor(() => expect(page.rows[1]?.cells.label.textContent).toBe('Unknown'));
+        expect(page.counts.servicesSub.textContent).not.toBe('all reachable');
+        expect(page.counts.servicesSub.textContent).toBe('1 need attention');
+    });
+
+    // Leaving every remaining row spinning for ever is the thing the unknown
+    // row exists to avoid, and it never tells you that you are signed out.
+    it('reloads to the sign-in page when the session has gone', async () => {
+        const page = start(() => ({ status: 401, body: { error: 'unauthorized' } }));
+
+        await vi.waitFor(() => expect(page.location.reload).toHaveBeenCalled());
+    });
+
+    // The alert for a service that is down is the one place the page offers to
+    // fix it. The server-rendered table has this link; so must this one.
+    it('offers the way to fix a service that is down', async () => {
+        const page = start(() => ({
+            status: 200,
+            body: { view: viewOf({ ok: false, status: 'Timeout', alert: { label: 'Timeout', what: 'radarr', detail: 'no answer', fix: 'Check the address.' } }) }
+        }));
+
+        await vi.waitFor(() => expect(page.boxes.alerts.children.length).toBeGreaterThan(0));
+        const links = page.boxes.alerts.children.flatMap(flatten).filter(n => n.attrs.href !== undefined);
+        expect(links.map(n => n.attrs.href)).toContain('/ui/config?tab=services');
+        expect(links.map(n => n.textContent)).toContain('Edit');
+    });
+
+    // Release names and health check messages carry whatever the service put
+    // in them. They reach the page as text or not at all.
+    it('puts a hostile error detail in as text, not as markup', async () => {
+        const hostile = '<img src=x onerror="alert(1)"> and a " quote';
+        const page = start(() => ({
+            status: 200,
+            body: { view: viewOf({ ok: false, status: 'Error', alert: { label: 'Error', what: 'radarr', detail: hostile, fix: '' } }) }
+        }));
+
+        await vi.waitFor(() => expect(page.boxes.alerts.children.length).toBeGreaterThan(0));
+        const texts = page.boxes.alerts.children.flatMap(flatten).map(n => n.textContent);
+        expect(texts).toContain(hostile);
     });
 
     it('appends the disk and scan rows a service reports', async () => {

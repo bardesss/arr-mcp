@@ -828,6 +828,11 @@ if (healthRows.length > 0) {
     const total = healthRows.length;
     let up = 0;
     let down = 0;
+    // A row that got no answer at all. Counted apart from the down ones,
+    // because it is not a service reporting a failure, but it is not reachable
+    // either: left out of both it would let the tile read "all reachable" over
+    // a row that says Unknown.
+    let unsure = 0;
     let checks = 0;
     let left = total;
 
@@ -835,7 +840,8 @@ if (healthRows.length > 0) {
       const value = document.querySelector('[data-stat="services"] .stat-v');
       if (value) value.replaceChildren(document.createTextNode(up + ' '), el('small', '', '/ ' + total + ' up'));
       const sub = document.querySelector('[data-stat="services"] .stat-s');
-      if (sub) sub.textContent = left > 0 ? left + ' still checking' : down === 0 ? 'all reachable' : down + ' need attention';
+      const short = down + unsure;
+      if (sub) sub.textContent = left > 0 ? left + ' still checking' : short === 0 ? 'all reachable' : short + ' need attention';
       const found = document.querySelector('[data-stat="health"] .stat-v');
       if (found) found.textContent = String(checks);
       const note = document.querySelector('[data-stat="health"] .stat-s');
@@ -864,6 +870,14 @@ if (healthRows.length > 0) {
       box.appendChild(el('div', 'alert-what', a.what));
       if (a.detail) box.appendChild(el('div', 'alert-fix', a.detail));
       if (a.fix) box.appendChild(el('div', 'alert-fix', a.fix));
+      // The one place the page offers to fix an unreachable service, as the
+      // server-rendered alert does. A failing health check has no such action:
+      // it is the service's own complaint, not an address to correct.
+      if (a.act) {
+        const edit = el('a', 'button ghost alert-act', 'Edit');
+        edit.setAttribute('href', '/ui/config?tab=services');
+        box.appendChild(edit);
+      }
       host.appendChild(box);
     };
 
@@ -913,9 +927,13 @@ if (healthRows.length > 0) {
           headers: { accept: 'application/json' }
         });
         // The session ended while the rows were being filled. Every row left
-        // would answer the same way, so stop asking.
+        // would answer the same way, so stop asking and reload: the guard on
+        // /ui sends them to the sign-in page. Leaving the rows spinning would
+        // never say why they had stopped, and there is no typed state here to
+        // lose.
         if (res.status === 401) {
           stopped = true;
+          location.reload();
           return;
         }
         if (res.ok) view = (await res.json()).view;
@@ -923,6 +941,7 @@ if (healthRows.length > 0) {
 
       left -= 1;
       if (!view) {
+        unsure += 1;
         settle(row, unknown);
         counts();
         return;
@@ -931,7 +950,7 @@ if (healthRows.length > 0) {
       settle(row, view);
       if (view.ok) up += 1;
       else down += 1;
-      if (view.alert) addAlert({ sev: 'bad', label: view.alert.label, what: view.alert.what, detail: view.alert.detail, fix: view.alert.fix });
+      if (view.alert) addAlert({ sev: 'bad', label: view.alert.label, what: view.alert.what, detail: view.alert.detail, fix: view.alert.fix, act: true });
       for (const f of view.failures || []) {
         checks += 1;
         addAlert({ sev: f.sev, label: f.label, what: f.what, detail: f.source, fix: f.message });
