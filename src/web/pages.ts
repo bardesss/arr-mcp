@@ -737,6 +737,83 @@ export function logsPage(opts: {
  * go through this, so a row cannot change its wording or its time format when
  * the first refresh replaces the table.
  */
+/** One dashboard row's health, as the strings it shows. */
+export type HealthRowView = {
+    service: string;
+    ok: boolean;
+    /** `Up`, or the word the table already uses for this kind of failure. */
+    status: string;
+    version: string;
+    latency: string;
+    /** Absent for a reachable service: nothing to report under "needs attention". */
+    alert?: { label: string; what: string; detail: string; fix: string };
+    failures: { sev: 'bad' | 'warn'; label: string; what: string; source: string; message: string }[];
+    disks: { free: string; total: string; pct?: number | undefined; warn: boolean; services: string }[];
+    scans: { badge: string; service: string; time: string }[];
+};
+
+/**
+ * Health as display strings rather than as numbers and kinds.
+ *
+ * The same reasoning as `logRowView` below: the row the server renders and the
+ * row app.js fills in after the page loads are two paths to one piece of
+ * markup, and a label worked out separately in each is how they come to
+ * disagree. Every string the browser shows is built here, so the two cannot.
+ *
+ * The plain id is the service's name here, not `serviceName`, which is markup:
+ * the client sets text, and the name column it never rewrites is already
+ * rendered.
+ */
+export function healthRowView(opts: {
+    diagnosis: ConnectionDiagnosis;
+    disks: DiskGroup[];
+    failures: HealthCheck[];
+    scans: ScanState[];
+}): HealthRowView {
+    const d = opts.diagnosis;
+    const label = d.error === undefined ? 'Down' : KIND_LABEL[d.error.kind];
+
+    return {
+        service: d.service,
+        ok: d.ok,
+        status: d.ok ? 'Up' : label,
+        version: d.version ?? '',
+        latency: `${d.latency_ms} ms`,
+        ...(d.ok
+            ? {}
+            : {
+                  alert: {
+                      label,
+                      what: d.service,
+                      detail: d.error === undefined ? '' : unfence(d.error.detail),
+                      fix: d.error?.remedy === undefined ? '' : unfence(d.error.remedy)
+                  }
+              }),
+        failures: opts.failures.map(f => ({
+            sev: f.type === 'error' ? ('bad' as const) : ('warn' as const),
+            label: f.type === 'error' ? 'Error' : 'Warn',
+            what: f.service,
+            source: unfence(f.source),
+            message: unfence(f.message)
+        })),
+        disks: opts.disks.map(x => {
+            const share = x.totalSpace === undefined || x.totalSpace === 0 ? undefined : 1 - x.freeSpace / x.totalSpace;
+            return {
+                free: `${humanBytes(x.freeSpace)} free`,
+                total: x.totalSpace === undefined ? '' : `of ${humanBytes(x.totalSpace)}`,
+                pct: share === undefined ? undefined : Math.round(share * 100),
+                warn: share !== undefined && share > 0.85,
+                services: x.services.join(', ')
+            };
+        }),
+        scans: opts.scans.map(s => ({
+            badge: s.running === true ? 'running' : 'done',
+            service: s.service,
+            time: s.lastCompleted === undefined ? 'unknown' : shortTime(s.lastCompleted)
+        }))
+    };
+}
+
 export function logRowView(r: LogRow): LogRow & { time: string; detail: [string, string][] } {
     return {
         ...r,

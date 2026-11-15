@@ -3921,6 +3921,19 @@ describe('per-instance health', () => {
         });
     });
 
+    // The row's words come from the server, so the table it renders and the
+    // one app.js fills in cannot disagree. See healthRowView.
+    it('carries the strings the row will show', async () => {
+        stubArr();
+        await seed('  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n');
+        await signIn();
+
+        const res = await call('/ui/health.json?instance=radarr');
+        expect(await res.json()).toMatchObject({
+            view: { service: 'radarr', ok: true, status: 'Up', version: '5.14.0', latency: expect.any(String) }
+        });
+    });
+
     it('refuses without a session rather than redirecting', async () => {
         cookie = '';
         expect((await call('/ui/health.json?instance=radarr')).status).toBe(401);
@@ -3958,7 +3971,10 @@ describe('per-instance health', () => {
         try {
             const pending = call('/ui/health.json?instance=radarr');
             await vi.advanceTimersByTimeAsync(10_000);
-            expect(await (await pending).json()).toMatchObject({ diagnosis: { ok: false, error: { kind: 'Timeout' } } });
+            expect(await (await pending).json()).toMatchObject({
+                diagnosis: { ok: false, error: { kind: 'Timeout' } },
+                view: { ok: false, status: 'Timeout' }
+            });
         } finally {
             vi.useRealTimers();
         }

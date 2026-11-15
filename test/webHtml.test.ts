@@ -4,7 +4,7 @@ import type { DiskSpace } from '../src/services/types.ts';
 import { JS } from '../src/web/assets.ts';
 import { groupDisks, humanBytes } from '../src/core/disks.ts';
 import { esc, html, raw, shortTime } from '../src/web/html.ts';
-import { auditPage, loginPage } from '../src/web/pages.ts';
+import { auditPage, healthRowView, loginPage } from '../src/web/pages.ts';
 
 describe('escaping', () => {
     it('neutralises the characters that end a tag or an attribute', () => {
@@ -407,5 +407,84 @@ describe('the scan reload', () => {
         page.tick();
         expect(page.location.reload).not.toHaveBeenCalled();
         expect(page.paused.hidden).toBe(false);
+    });
+});
+
+/**
+ * One row's health as the strings it will show. Prepared on the server for the
+ * same reason `logRowView` is: the table the server renders and the one app.js
+ * fills in must not come to disagree about what a row says.
+ */
+describe('healthRowView', () => {
+    const empty = { disks: [], failures: [], scans: [] };
+
+    it('prepares what a reachable row shows', () => {
+        const view = healthRowView({
+            diagnosis: { ok: true, service: 'radarr', latency_ms: 48, version: '5.14.0' },
+            ...empty
+        });
+        expect(view).toMatchObject({ service: 'radarr', ok: true, status: 'Up', version: '5.14.0', latency: '48 ms' });
+        expect(view.alert).toBeUndefined();
+    });
+
+    // 'Down' would be a lie for a service that answered the wrong thing, and
+    // the kind is the word the server-rendered table already uses.
+    it('names the failure kind and carries the detail and the remedy', () => {
+        const view = healthRowView({
+            diagnosis: {
+                ok: false,
+                service: 'radarr',
+                latency_ms: 10_000,
+                error: { kind: 'Timeout', detail: 'no response from radarr', remedy: 'Check the address.' }
+            },
+            ...empty
+        });
+        expect(view.status).toBe('Timeout');
+        expect(view.version).toBe('');
+        expect(view.alert).toMatchObject({ label: 'Timeout', what: 'radarr', detail: 'no response from radarr', fix: 'Check the address.' });
+    });
+
+    it('works out the share of a disk that is used, and flags a full one', () => {
+        const view = healthRowView({
+            diagnosis: { ok: true, service: 'radarr', latency_ms: 1 },
+            disks: [
+                { freeSpace: 500, totalSpace: 1000, services: ['radarr', 'sonarr'], mounts: ['/data'] },
+                { freeSpace: 10, totalSpace: 1000, services: ['radarr'], mounts: ['/full'] },
+                { freeSpace: 42, services: ['radarr'], mounts: ['/unknown'] }
+            ],
+            failures: [],
+            scans: []
+        });
+        expect(view.disks[0]).toMatchObject({ pct: 50, warn: false, services: 'radarr, sonarr' });
+        expect(view.disks[1]).toMatchObject({ pct: 99, warn: true });
+        expect(view.disks[2]).toMatchObject({ pct: undefined, total: '' });
+    });
+
+    it('sorts a failing health check into an error or a warning', () => {
+        const view = healthRowView({
+            diagnosis: { ok: true, service: 'radarr', latency_ms: 1 },
+            disks: [],
+            failures: [
+                { service: 'radarr', source: 'ImportListStatusCheck', type: 'error', message: 'List unavailable' },
+                { service: 'radarr', source: 'UpdateCheck', type: 'warning', message: 'New version' }
+            ],
+            scans: []
+        });
+        expect(view.failures[0]).toMatchObject({ sev: 'bad', label: 'Error', source: 'ImportListStatusCheck', message: 'List unavailable' });
+        expect(view.failures[1]).toMatchObject({ sev: 'warn', label: 'Warn' });
+    });
+
+    it('says whether a scan is running and when it last finished', () => {
+        const view = healthRowView({
+            diagnosis: { ok: true, service: 'radarr', latency_ms: 1 },
+            disks: [],
+            failures: [],
+            scans: [
+                { service: 'radarr', running: true, lastCompleted: '2026-11-15T10:00:00.000Z' },
+                { service: 'sonarr' }
+            ]
+        });
+        expect(view.scans[0]).toMatchObject({ badge: 'running', service: 'radarr', time: '2026-11-15 10:00:00' });
+        expect(view.scans[1]).toMatchObject({ badge: 'done', time: 'unknown' });
     });
 });

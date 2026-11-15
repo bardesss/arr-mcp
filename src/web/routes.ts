@@ -45,11 +45,12 @@ import { configPage, configTabForPost, configTabNamed, defaultUserNote, offerabl
 import { isLoopbackHost, probeJwks } from './jwksProbe.ts';
 import { apiEndpoint, forwardedProtoOf, mcpEndpoint, peerAddress, requestIsHttps, sameOrigin } from './origin.ts';
 import type { WebhookEvents } from '../core/webhookEvents.ts';
-import type { HistoryEntry, Window } from '../services/types.ts';
+import type { ConnectionDiagnosis, HistoryEntry, Window } from '../services/types.ts';
 import {
     auditPage,
     dashboardPage,
     eventLogPage,
+    healthRowView,
     loginPage,
     logRowView,
     logsPage,
@@ -351,27 +352,21 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
 
         const health = await withTimeout(buildStackHealth(adapters, { detail: 'standard', limit: 50, instance }), HEALTH_PROBE_MS);
         if (health === TIMED_OUT) {
-            return c.json(
-                {
-                    diagnosis: {
-                        ok: false,
-                        service: instance,
-                        latency_ms: HEALTH_PROBE_MS,
-                        error: { kind: 'Timeout', detail: `the probe did not answer within ${HEALTH_PROBE_MS / 1000}s` }
-                    },
-                    disks: [],
-                    failures: [],
-                    scans: []
-                },
-                200,
-                NO_STORE
-            );
+            const diagnosis: ConnectionDiagnosis = {
+                ok: false,
+                service: instance,
+                latency_ms: HEALTH_PROBE_MS,
+                error: { kind: 'Timeout', detail: `the probe did not answer within ${HEALTH_PROBE_MS / 1000}s` }
+            };
+            const timedOut = { diagnosis, disks: [], failures: [], scans: [] };
+            return c.json({ ...timedOut, view: healthRowView(timedOut) }, 200, NO_STORE);
         }
 
         const diagnosis = health.services[0];
         if (diagnosis === undefined) return c.json({ error: 'unknown instance' }, 404);
 
-        return c.json({ diagnosis, disks: health.disks.items, failures: health.failures.items, scans: health.scans }, 200, NO_STORE);
+        const row = { diagnosis, disks: health.disks.items, failures: health.failures.items, scans: health.scans };
+        return c.json({ ...row, view: healthRowView(row) }, 200, NO_STORE);
     });
 
     // --- logs -----------------------------------------------------------
