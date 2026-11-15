@@ -246,6 +246,63 @@ that a write takes two calls. It is the only documentation every client sees.
 **An argument a tool does not have is refused, and the refusal lists the ones it
 does have**, so an answer is never mistaken for one where it had been honoured.
 
+## What a session costs
+
+Every tool's name, description and schemas sit in the client's context from the
+moment it connects, before anyone has asked anything. One server in front of
+nineteen services could spend that budget carelessly, so the bill is measured
+(`node scripts/measure-tool-surface.ts` prints it per stack) and capped by the
+tests:
+
+| Stack | Tools listed | `tools/list` | Roughly |
+| --- | --- | --- | --- |
+| Nothing configured yet | 44 | 113,613 bytes | 28,000 tokens |
+| Radarr, Sonarr, SABnzbd, Jellyfin | 36 | 82,962 bytes | 20,700 tokens |
+| Those four, plus Lidarr, Prowlarr, Bazarr and Seerr | 42 | 103,048 bytes | 25,800 tokens |
+
+Four limits hold it there, each one asserted in `test/app.test.ts`:
+
+- **Forty-four tools, and a forty-fifth fails the build.** Accuracy drops
+  measurably past roughly forty, so new capability extends a tool wherever it
+  fits. Raising the ceiling is a decision a pull request argues for rather than
+  a way to make a test pass; see
+  [the tool surface](../CONTRIBUTING.md#the-tool-surface-is-the-public-api).
+- **Every description under 1,000 characters**, and 29,000 for all of them
+  together. A description says what the tool is for, when to pick it over its
+  neighbour, and what makes a call go wrong. Field-by-field detail is a
+  resource instead, `arr://docs/<tool>`, read only when a client asks for it.
+- **The whole list under 116,000 bytes.** Declaring only the fields every write
+  result carries, and cutting the parameter text that each tool repeated, took
+  it from 130,045 bytes to 113,613.
+- **Nothing in it that does not apply to your stack.** The rest of this section
+  is what that means.
+
+The tailoring happens once, when the tools are registered, and only changes
+what a client reads. Validation still accepts every service id, so a wrong one
+gets the tool's own refusal with the remedy in it. Left out:
+
+- `$schema`, the same dialect URL repeated on every schema;
+- the bounds zod writes on a bare integer, which read like real limits;
+- field descriptions on output schemas, which the results and
+  `arr://docs/<tool>` carry anyway and some clients never show a model;
+- kinds no configured service holds: no `book` without Shelfmark or Grimmory,
+  no `artist` without Lidarr;
+- enum values, and the services a `service` field offers, for what you do not
+  run;
+- sentences about a service you do not run, down to the clause;
+- write tools none of whose services is configured, and with
+  [`tools.hide_unusable`](configuration.md#the-tools-a-client-sees) the reads
+  too. With nothing configured yet, everything is listed.
+
+**Answers are shaped the same way.** `detail: "standard"` is the default and
+the cheap one: `get_stack_health` reports permissions and endpoints only at
+`full`, `get_queue` folds a download client's row into the *arr row it belongs
+to below `full`, and a release search keeps the rejection text for `full`
+alone. Every list takes `limit` and says `truncated` rather than cutting
+quietly, the poster cards ride in `_meta` rather than in the model's context,
+and the four resources are there so a client can attach a fact once instead of
+asking for it again.
+
 ## Filtering the queue
 
 `get_queue` takes filters, combined with AND, so a question about a few
@@ -3305,13 +3362,19 @@ people actually ask are rarely one call.
 
 **Five prompts**, which most clients surface as slash commands:
 
-| Prompt | Asks |
+| Prompt | Shown as |
 | --- | --- |
-| `why_not_playable` | Why isn't this playable? |
-| `whats_wrong` | What needs my attention right now? |
-| `what_to_watch` | What should I watch tonight? |
-| `best_in_library` | What's the best thing I own? |
+| `why_not_playable` | Why is this not playable? |
+| `whats_wrong` | What needs my attention? |
+| `what_to_watch` | What should I watch? |
+| `best_in_library` | What is the best thing I own? |
 | `whats_new` | What happened this week? |
+
+`what_to_watch` and `best_in_library` take an optional `kind` (films or
+series), `whats_new` an optional `days` (7 by default), and `why_not_playable`
+the title to explain. The sweeps name only tools your stack can answer with:
+a step whose tool `hide_unusable` removed drops out of the numbered list
+rather than sending the model to a call that is not there.
 
 **Four data resources**, which a client can attach once rather than re-fetch, and field references for the longer tools:
 

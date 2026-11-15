@@ -83,7 +83,7 @@ services:
   management API refuse a `${NAME}` typed as a key or password, since that
   would let anyone using them read the server's environment.
 - A file that is missing, unreadable or empty, or a variable that is unset or
-  empty, starts arr-mcp in [repair mode](#when-config-yaml-will-not-load) with
+  empty, starts arr-mcp in [repair mode](#when-configyaml-will-not-load) with
   the instance and field named, for example
   `services.radarr.api_key_file: the file could not be read (ENOENT)`.
 - Both are read when arr-mcp starts and again whenever the config is saved. A
@@ -1015,7 +1015,9 @@ wherever you sign in from.
 
 ## The tools a client sees
 
-arr-mcp sends a client only the tool text that applies to your stack:
+arr-mcp sends a client only the tool text that applies to your stack. [What a
+session costs](tools.md#what-a-session-costs) measures the whole bill and
+lists everything that is trimmed; the short version:
 
 - a tool's `service` field lists only the services it takes that you have
   configured;
@@ -1056,5 +1058,5 @@ tools:
   media_cards: false   # default true
 ```
 
-That also removes the `_meta.ui` key from those four tools and the
+That also removes the `_meta.ui` key from those three tools and the
 `ui://arr-mcp/media-cards.html` resource.

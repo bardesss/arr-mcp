@@ -149,7 +149,7 @@ it on.
 ```json
 {
   "appName": "arr-mcp",
-  "version": "1.51.0",
+  "version": "2.0.0",
   "mcpUrl": "http://arr-mcp:6060/mcp"
 }
 ```
