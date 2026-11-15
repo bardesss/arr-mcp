@@ -4,7 +4,7 @@ import type { DiskSpace } from '../src/services/types.ts';
 import { JS } from '../src/web/assets.ts';
 import { groupDisks, humanBytes } from '../src/core/disks.ts';
 import { esc, html, raw, shortTime } from '../src/web/html.ts';
-import { auditPage, loginPage } from '../src/web/pages.ts';
+import { auditPage, diskRowsView, healthRowView, loginPage } from '../src/web/pages.ts';
 
 describe('escaping', () => {
     it('neutralises the characters that end a tag or an attribute', () => {
@@ -343,6 +343,18 @@ describe('the client script', () => {
         expect(() => new Function(JS)).not.toThrow();
     });
 
+    /**
+     * The behavioural tests above cannot catch this: a stub node has no
+     * innerHTML, so an edit that started assigning it would pass them all.
+     * app.js is one of the surfaces CONTRIBUTING names by hand.
+     */
+    it('never builds page content out of markup', () => {
+        // Use, not the word: one comment in here says "never innerHTML".
+        expect(JS).not.toMatch(/\.(inner|outer)HTML\s*(=[^=]|\+=)/);
+        expect(JS).not.toMatch(/insertAdjacentHTML\s*\(/);
+        expect(JS).not.toMatch(/document\s*\.\s*write\s*\(/);
+    });
+
     // The specific one that got through: a remedy is printed under its detail,
     // so the separator has to reach the browser as an escape sequence, not as
     // the line break that ends the string it lives in.
@@ -364,6 +376,9 @@ describe('the scan reload', () => {
         const document = {
             addEventListener: (type: string, fn: (e: unknown) => void) => (listeners[type] ??= []).push(fn),
             getElementById: () => null,
+            // The dashboard fill-in asks for its rows at the top level. This
+            // page is not the dashboard, so there are none.
+            querySelectorAll: () => [],
             querySelector: (sel: string) => {
                 if (sel === '[data-reload]') return { dataset: { reload: '2' } };
                 if (sel === '[data-paused]') return paused;
@@ -407,5 +422,355 @@ describe('the scan reload', () => {
         page.tick();
         expect(page.location.reload).not.toHaveBeenCalled();
         expect(page.paused.hidden).toBe(false);
+    });
+});
+
+/**
+ * The dashboard filling itself in, run against a stand-in document: enough of
+ * one for the script's top level, with the rows and the counts it reaches for.
+ */
+describe('the dashboard fill-in', () => {
+    type Stub = {
+        tagName: string;
+        className: string;
+        textContent: string;
+        dataset: Record<string, string>;
+        children: Stub[];
+        gone: boolean;
+        attrs: Record<string, string>;
+        append: (...kids: Stub[]) => void;
+        appendChild: (kid: Stub) => Stub;
+        replaceChildren: (...kids: Stub[]) => void;
+        remove: () => void;
+        setAttribute: (name: string, value: string) => void;
+        querySelector: (sel: string) => Stub | null;
+    };
+
+    const node = (tagName = 'div'): Stub => {
+        const self: Stub = {
+            tagName,
+            className: '',
+            textContent: '',
+            dataset: {},
+            children: [],
+            gone: false,
+            attrs: {},
+            append: (...kids) => void self.children.push(...kids),
+            appendChild: kid => {
+                self.children.push(kid);
+                return kid;
+            },
+            replaceChildren: (...kids) => void (self.children = kids),
+            remove: () => void (self.gone = true),
+            setAttribute: (name, value) => void (self.attrs[name] = value),
+            querySelector: () => null
+        };
+        return self;
+    };
+
+    /** Every node in a built subtree, so a test can look for one by attribute. */
+    const flatten = (root: Stub): Stub[] => [root, ...root.children.flatMap(flatten)];
+
+    /** A pending row, with the four things the script writes into. */
+    const rowStub = (id: string) => {
+        const cells = { version: node('td'), latency: node('td'), pill: node('span'), label: node('span') };
+        const row = node('tr');
+        row.dataset.healthFor = id;
+        const map: Record<string, Stub> = {
+            '[data-cell="version"]': cells.version,
+            '[data-cell="latency"]': cells.latency,
+            '[data-cell="status"] .st': cells.pill,
+            '[data-cell="status"] [data-label]': cells.label
+        };
+        row.querySelector = sel => map[sel] ?? null;
+        return { row, cells };
+    };
+
+    const viewOf = (over: Record<string, unknown> = {}) => ({
+        service: 'radarr',
+        ok: true,
+        status: 'Up',
+        version: '5.14.0',
+        latency: '48 ms',
+        failures: [],
+        disks: [],
+        scans: [],
+        ...over
+    });
+
+    const start = (
+        answer: (id: string) => { status: number; body?: unknown; hold?: boolean },
+        ids = ['radarr', 'sonarr'],
+        stackDisks: unknown[] = []
+    ) => {
+        const rows = ids.map(rowStub);
+        const boxes = { alerts: node('section'), disks: node('div'), scans: node('div') };
+        const counts = {
+            servicesValue: node('span'),
+            servicesSub: node('span'),
+            healthValue: node('span'),
+            healthSub: node('span')
+        };
+        const empties = { alerts: node('p'), disks: node('p'), scans: node('p') };
+        boxes.alerts.querySelector = sel => (sel === '[data-empty]' ? empties.alerts : null);
+        boxes.disks.querySelector = sel => (sel === '[data-empty]' ? empties.disks : null);
+        boxes.scans.querySelector = sel => (sel === '[data-empty]' ? empties.scans : null);
+
+        const found: Record<string, Stub> = {
+            '[data-alerts]': boxes.alerts,
+            '[data-disks]': boxes.disks,
+            '[data-scans]': boxes.scans,
+            '[data-stat="services"] .stat-v': counts.servicesValue,
+            '[data-stat="services"] .stat-s': counts.servicesSub,
+            '[data-stat="health"] .stat-v': counts.healthValue,
+            '[data-stat="health"] .stat-s': counts.healthSub
+        };
+
+        const asked: string[] = [];
+        const document = {
+            addEventListener: () => {},
+            getElementById: () => null,
+            createElement: (tag: string) => node(tag),
+            createTextNode: (text: string) => {
+                const n = node('#text');
+                n.textContent = text;
+                return n;
+            },
+            querySelector: (sel: string) => found[sel] ?? null,
+            querySelectorAll: (sel: string) => (sel === '[data-health-for]' ? rows.map(r => r.row) : [])
+        };
+        const fetch = async (url: string) => {
+            const text = String(url);
+            if (text.includes('/ui/disks.json')) {
+                asked.push(`disks?${text.split('?')[1] ?? ''}`);
+                return { ok: true, status: 200, json: async () => ({ disks: stackDisks }) };
+            }
+            const id = decodeURIComponent(text.split('instance=')[1] ?? '');
+            asked.push(id);
+            const { status, body, hold } = answer(id);
+            if (hold === true) await new Promise(() => {});
+            return { ok: status >= 200 && status < 300, status, json: async () => body };
+        };
+
+        const location = { reload: vi.fn() };
+        new Function('document', 'location', 'setTimeout', 'fetch', JS)(document, location, setTimeout, fetch);
+        return { rows, boxes, counts, empties, asked, location };
+    };
+
+    it('settles each row from its own answer', async () => {
+        const page = start(id => ({
+            status: 200,
+            body: { view: viewOf(id === 'sonarr' ? { service: 'sonarr', version: '4.0.1', latency: '12 ms' } : {}) }
+        }));
+
+        await vi.waitFor(() => expect(page.rows[1]?.cells.version.textContent).toBe('4.0.1'));
+        expect(page.rows[0]?.cells.version.textContent).toBe('5.14.0');
+        expect(page.rows[0]?.cells.latency.textContent).toBe('48 ms');
+        expect(page.rows[0]?.cells.label.textContent).toBe('Up');
+        expect(page.rows[0]?.cells.pill.className).toBe('st ok');
+        expect(page.asked.filter(a => !a.startsWith('disks?'))).toEqual(['radarr', 'sonarr']);
+    });
+
+    it('counts the services that answered, and says how many are still out', async () => {
+        const page = start(id =>
+            id === 'sonarr' ? { status: 200, hold: true } : { status: 200, body: { view: viewOf() } }
+        );
+
+        await vi.waitFor(() => expect(page.counts.servicesSub.textContent).toBe('1 still checking'));
+        expect(page.counts.servicesValue.children.length).toBeGreaterThan(0);
+    });
+
+    it('shows a service that answered badly as what it answered, not as up', async () => {
+        const page = start(() => ({
+            status: 200,
+            body: { view: viewOf({ ok: false, status: 'Timeout', version: '', latency: '10000 ms', alert: { label: 'Timeout', what: 'radarr', detail: 'no answer', fix: 'Check the address.' } }) }
+        }));
+
+        await vi.waitFor(() => expect(page.rows[0]?.cells.pill.className).toBe('st bad'));
+        expect(page.rows[0]?.cells.label.textContent).toBe('Timeout');
+        expect(page.boxes.alerts.children.length).toBeGreaterThan(0);
+        expect(page.empties.alerts.gone).toBe(true);
+    });
+
+    // A service edited away between the render and the fetch. Leaving the row
+    // spinning for ever would be a worse answer than saying so.
+    it('marks a row whose service is gone as unknown rather than leaving it spinning', async () => {
+        const page = start(() => ({ status: 404, body: { error: 'unknown instance' } }));
+
+        await vi.waitFor(() => expect(page.rows[0]?.cells.label.textContent).toBe('Unknown'));
+        expect(page.rows[0]?.cells.pill.className).toBe('st');
+    });
+
+    // Eight rows against four lanes: the four in flight have been asked, and a
+    // 401 has to stop the four that have not. Every one of them would answer
+    // the same way, and a signed-out dashboard should not ask eight times.
+    it('stops asking once a row comes back unauthorized', async () => {
+        const ids = ['radarr', 'sonarr', 'lidarr', 'bazarr', 'prowlarr', 'seerr', 'jellyfin', 'sabnzbd'];
+        const page = start(() => ({ status: 401, body: { error: 'unauthorized' } }), ids);
+
+        await vi.waitFor(() => expect(page.asked.length).toBe(4));
+        expect(page.asked).toEqual(ids.slice(0, 4));
+        expect(page.rows[7]?.cells.label.textContent).toBe('');
+    });
+
+    // A row that never got an answer is not a reachable service. Saying "all
+    // reachable" over a row reading Unknown is the page telling you the stack
+    // is fine when one service did not answer at all.
+    it('does not call the stack all reachable while a row is unknown', async () => {
+        const page = start(id => (id === 'sonarr' ? { status: 404, body: { error: 'unknown instance' } } : { status: 200, body: { view: viewOf() } }));
+
+        await vi.waitFor(() => expect(page.rows[1]?.cells.label.textContent).toBe('Unknown'));
+        expect(page.counts.servicesSub.textContent).not.toBe('all reachable');
+        expect(page.counts.servicesSub.textContent).toBe('1 need attention');
+    });
+
+    // Leaving every remaining row spinning for ever is the thing the unknown
+    // row exists to avoid, and it never tells you that you are signed out.
+    it('reloads to the sign-in page when the session has gone', async () => {
+        const page = start(() => ({ status: 401, body: { error: 'unauthorized' } }));
+
+        await vi.waitFor(() => expect(page.location.reload).toHaveBeenCalled());
+    });
+
+    // The alert for a service that is down is the one place the page offers to
+    // fix it. The server-rendered table has this link; so must this one.
+    it('offers the way to fix a service that is down', async () => {
+        const page = start(() => ({
+            status: 200,
+            body: { view: viewOf({ ok: false, status: 'Timeout', alert: { label: 'Timeout', what: 'radarr', detail: 'no answer', fix: 'Check the address.' } }) }
+        }));
+
+        await vi.waitFor(() => expect(page.boxes.alerts.children.length).toBeGreaterThan(0));
+        const links = page.boxes.alerts.children.flatMap(flatten).filter(n => n.attrs.href !== undefined);
+        expect(links.map(n => n.attrs.href)).toContain('/ui/config?tab=services');
+        expect(links.map(n => n.textContent)).toContain('Edit');
+    });
+
+    // Release names and health check messages carry whatever the service put
+    // in them. They reach the page as text or not at all.
+    it('puts a hostile error detail in as text, not as markup', async () => {
+        const hostile = '<img src=x onerror="alert(1)"> and a " quote';
+        const page = start(() => ({
+            status: 200,
+            body: { view: viewOf({ ok: false, status: 'Error', alert: { label: 'Error', what: 'radarr', detail: hostile, fix: '' } }) }
+        }));
+
+        await vi.waitFor(() => expect(page.boxes.alerts.children.length).toBeGreaterThan(0));
+        const texts = page.boxes.alerts.children.flatMap(flatten).map(n => n.textContent);
+        expect(texts).toContain(hostile);
+    });
+
+    it('appends the scan rows a service reports', async () => {
+        const page = start(id => ({
+            status: 200,
+            body: { view: viewOf(id === 'radarr' ? { scans: [{ badge: 'running', service: 'radarr', time: 'unknown' }] } : {}) }
+        }));
+
+        await vi.waitFor(() => expect(page.boxes.scans.children.length).toBe(1));
+        expect(page.empties.scans.gone).toBe(true);
+    });
+
+    /**
+     * Disks are the stack's, not a row's: the same filesystem reported by six
+     * services has to fold into one line, which needs every answer in one
+     * place. So it is one request at the end, naming the services that
+     * answered so a dead one is not waited on twice.
+     */
+    it('asks for the stack disks once the rows have settled', async () => {
+        const page = start(() => ({ status: 200, body: { view: viewOf() } }), ['radarr', 'sonarr'], [
+            { free: '500 GB free', total: 'of 1 TB', pct: 50, warn: false, services: 'radarr, sonarr' }
+        ]);
+
+        await vi.waitFor(() => expect(page.boxes.disks.children.length).toBe(1));
+        expect(page.asked.filter(a => a.startsWith('disks?'))).toEqual(['disks?up=radarr%2Csonarr']);
+        expect(page.empties.disks.gone).toBe(true);
+    });
+
+    it('leaves a service that did not answer out of the disk request', async () => {
+        const page = start(id => (id === 'sonarr' ? { status: 404 } : { status: 200, body: { view: viewOf() } }), ['radarr', 'sonarr'], []);
+
+        await vi.waitFor(() => expect(page.asked.some(a => a.startsWith('disks?'))).toBe(true));
+        expect(page.asked.filter(a => a.startsWith('disks?'))).toEqual(['disks?up=radarr']);
+    });
+
+    it('does not ask for disks when the session has gone', async () => {
+        const page = start(() => ({ status: 401, body: { error: 'unauthorized' } }));
+
+        await vi.waitFor(() => expect(page.location.reload).toHaveBeenCalled());
+        expect(page.asked.some(a => a.startsWith('disks?'))).toBe(false);
+    });
+});
+
+describe('diskRowsView', () => {
+    it('works out the share of a disk that is used, and flags a full one', () => {
+        const rows = diskRowsView([
+            { freeSpace: 500, totalSpace: 1000, services: ['radarr', 'sonarr'], mounts: ['/data'] },
+            { freeSpace: 10, totalSpace: 1000, services: ['radarr'], mounts: ['/full'] },
+            { freeSpace: 42, services: ['radarr'], mounts: ['/unknown'] }
+        ]);
+        expect(rows[0]).toMatchObject({ pct: 50, warn: false, services: 'radarr, sonarr' });
+        expect(rows[1]).toMatchObject({ pct: 99, warn: true });
+        expect(rows[2]).toMatchObject({ pct: undefined, total: '' });
+    });
+});
+
+/**
+ * One row's health as the strings it will show. Prepared on the server for the
+ * same reason `logRowView` is: the table the server renders and the one app.js
+ * fills in must not come to disagree about what a row says.
+ */
+describe('healthRowView', () => {
+    const empty = { failures: [], scans: [] };
+
+    it('prepares what a reachable row shows', () => {
+        const view = healthRowView({
+            diagnosis: { ok: true, service: 'radarr', latency_ms: 48, version: '5.14.0' },
+            ...empty
+        });
+        expect(view).toMatchObject({ service: 'radarr', ok: true, status: 'Up', version: '5.14.0', latency: '48 ms' });
+        expect(view.alert).toBeUndefined();
+    });
+
+    // 'Down' would be a lie for a service that answered the wrong thing, and
+    // the kind is the word the server-rendered table already uses.
+    it('names the failure kind and carries the detail and the remedy', () => {
+        const view = healthRowView({
+            diagnosis: {
+                ok: false,
+                service: 'radarr',
+                latency_ms: 10_000,
+                error: { kind: 'Timeout', detail: 'no response from radarr', remedy: 'Check the address.' }
+            },
+            ...empty
+        });
+        expect(view.status).toBe('Timeout');
+        expect(view.version).toBe('');
+        expect(view.alert).toMatchObject({ label: 'Timeout', what: 'radarr', detail: 'no response from radarr', fix: 'Check the address.' });
+    });
+
+    it('sorts a failing health check into an error or a warning', () => {
+        const view = healthRowView({
+            diagnosis: { ok: true, service: 'radarr', latency_ms: 1 },
+            failures: [
+                { service: 'radarr', source: 'ImportListStatusCheck', type: 'error', message: 'List unavailable' },
+                { service: 'radarr', source: 'UpdateCheck', type: 'warning', message: 'New version' }
+            ],
+            scans: []
+        });
+        expect(view.failures[0]).toMatchObject({ sev: 'bad', label: 'Error', source: 'ImportListStatusCheck', message: 'List unavailable' });
+        expect(view.failures[1]).toMatchObject({ sev: 'warn', label: 'Warn' });
+    });
+
+    it('says whether a scan is running and when it last finished', () => {
+        const view = healthRowView({
+            diagnosis: { ok: true, service: 'radarr', latency_ms: 1 },
+            failures: [],
+            scans: [
+                { service: 'radarr', running: true, lastCompleted: '2026-11-15T10:00:00.000Z' },
+                { service: 'sonarr' }
+            ]
+        });
+        expect(view.scans[0]).toMatchObject({ badge: 'running', service: 'radarr', time: '2026-11-15 10:00:00' });
+        expect(view.scans[1]).toMatchObject({ badge: 'done', time: 'unknown' });
     });
 });

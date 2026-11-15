@@ -26,7 +26,8 @@ import {
 } from '../core/session.ts';
 import { randomBytes } from 'node:crypto';
 import { buildAdapters } from '../services/registry.ts';
-import { hasUserDirectory } from '../services/types.ts';
+import { groupDisks } from '../core/disks.ts';
+import { hasDiskSpace, hasUserDirectory } from '../services/types.ts';
 import { buildStackHealth } from '../tools/stackHealth.ts';
 import { CSS, JS } from './assets.ts';
 import { MARK_SVG } from './icons.ts';
@@ -45,11 +46,13 @@ import { configPage, configTabForPost, configTabNamed, defaultUserNote, offerabl
 import { isLoopbackHost, probeJwks } from './jwksProbe.ts';
 import { apiEndpoint, forwardedProtoOf, mcpEndpoint, peerAddress, requestIsHttps, sameOrigin } from './origin.ts';
 import type { WebhookEvents } from '../core/webhookEvents.ts';
-import type { HistoryEntry, Window } from '../services/types.ts';
+import type { ConnectionDiagnosis, DiskSpace, HistoryEntry, Window } from '../services/types.ts';
 import {
     auditPage,
     dashboardPage,
+    diskRowsView,
     eventLogPage,
+    healthRowView,
     loginPage,
     logRowView,
     logsPage,
@@ -282,20 +285,30 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
 
         const snapshot = runtime.current;
 
-        // Through `buildStackHealth`, the same function `get_stack_health` answers
-        // from. Two implementations of "is the stack healthy" is how the page
-        // and the tool come to disagree.
-        // It is live, not cached: a dashboard showing cached status is one
-        // that tells you a dead service is fine, and it degrades rather than
-        // failing when a service is unreachable.
-        const health = await buildStackHealth(snapshot.adapters, { detail: 'standard', limit: 50 });
+        /**
+         * The page does not wait on the stack: each row asks
+         * `/ui/health.json` for itself once the page is up, so one service at
+         * an address that answers nothing costs that row its cap instead of
+         * costing the whole page.
+         *
+         * `?health=blocking` is the same page built the other way, for a
+         * reader with no scripting, which the `<noscript>` in the dashboard
+         * sends them to. It goes through `buildStackHealth`, the function
+         * `get_stack_health` answers from, so the page and the tool cannot
+         * come to disagree about what healthy means. It is live, not cached:
+         * a dashboard showing cached status is one that tells you a dead
+         * service is fine.
+         */
+        const blocking = c.req.query('health') === 'blocking';
+        const health = blocking ? await buildStackHealth(snapshot.adapters, { detail: 'standard', limit: 50 }) : undefined;
 
         return c.html(
             dashboardPage({
                 csrf: runtime.sessions.csrfFor(session),
                 theme: theme(),
                 version,
-                diagnoses: health.services,
+                pending: !blocking,
+                diagnoses: health?.services ?? [],
                 configured: snapshot.adapters.map(a => a.id),
                 tiers: Object.fromEntries(
                     listInstances(snapshot.config).map(i => [
@@ -309,12 +322,107 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
                 now: new Date(),
                 mcpUrl: mcpEndpoint(c.req.url, forwardedProtoOf(c, runtime.config.auth.trusted_proxies ?? [])),
                 ...(runtime.dataset === undefined ? {} : { imdb: runtime.dataset.status() }),
-                disks: health.disks.items,
-                failures: health.failures.items,
-                scans: health.scans,
+                disks: health?.disks.items ?? [],
+                failures: health?.failures.items ?? [],
+                scans: health?.scans ?? [],
                 writeCounts: audit.counts()
             })
         );
+    });
+
+    /**
+     * One dashboard row's health, so the page can render before any service
+     * has answered and settle each row as its own probe comes back.
+     *
+     * Capped at that instance's own `timeout_ms` plus a margin, rather than at
+     * that budget doubled by the retry in `ServiceHttp.get`: an address with
+     * nothing behind it drops packets instead of refusing, so the row would
+     * otherwise sit for twice the configured timeout. The margin leaves the
+     * service's own deadline to fire first, so a slow service reports what went
+     * wrong rather than being cut off here; a service given a longer timeout
+     * because it is known to be slow keeps it, and is not shown as timed out
+     * while `get_stack_health` calls it up.
+     */
+    const HEALTH_MARGIN_MS = 1_000;
+    const healthCapFor = (instance: string): number => {
+        const found = listInstances(runtime.config).find(i => i.id === instance);
+        return (found?.config.timeout_ms ?? 10_000) + HEALTH_MARGIN_MS;
+    };
+
+    app.get('/ui/health.json', async c => {
+        if (guard(c) === undefined) return c.json({ error: 'unauthorized' }, 401, NO_STORE);
+
+        const instance = c.req.query('instance') ?? '';
+        const adapters = runtime.current.adapters;
+        // Matched on the id the page rendered, exactly. `selectAdapters` also
+        // accepts an instance name, which would let two services answer one
+        // row.
+        // A 404 is heuristically cacheable, so it carries no-store like the
+        // answers do: a row for an instance that is added back must not keep
+        // reading Unknown out of something in between.
+        if (!adapters.some(a => a.id === instance)) return c.json({ error: 'unknown instance' }, 404, NO_STORE);
+
+        const capMs = healthCapFor(instance);
+        const health = await withTimeout(buildStackHealth(adapters, { detail: 'standard', limit: 50, instance }), capMs);
+        if (health === TIMED_OUT) {
+            const diagnosis: ConnectionDiagnosis = {
+                ok: false,
+                service: instance,
+                latency_ms: capMs,
+                error: { kind: 'Timeout', detail: `the probe did not answer within ${capMs / 1000}s` }
+            };
+            const timedOut = { diagnosis, disks: [], failures: [], scans: [] };
+            return c.json({ ...timedOut, view: healthRowView(timedOut) }, 200, NO_STORE);
+        }
+
+        // Found by id rather than taken as the first row: `selectAdapters`
+        // also matches an instance name, so a config where one adapter's name
+        // equals another's id could otherwise answer a row with the wrong
+        // service's health.
+        const diagnosis = health.services.find(s => s.service === instance);
+        if (diagnosis === undefined) return c.json({ error: 'unknown instance' }, 404, NO_STORE);
+
+        const row = { diagnosis, disks: health.disks.items, failures: health.failures.items, scans: health.scans };
+        return c.json({ ...row, view: healthRowView(row) }, 200, NO_STORE);
+    });
+
+    /**
+     * The whole stack's disk space, in one answer.
+     *
+     * The one panel that cannot be filled a row at a time: several services
+     * report the same host filesystem, and `groupDisks` folds those together
+     * with a tolerance rather than an equality, because SABnzbd's rounded
+     * gigabytes land a few megabytes from the byte count an *arr gives for the
+     * same disk. Asked for once, after the rows have settled, so the page is
+     * already usable by the time it runs.
+     *
+     * `up` names the instances that answered, so a service already known to be
+     * unreachable is not waited on a second time. An id that is not configured
+     * is skipped rather than refused: the page may have been rendered before
+     * someone removed it.
+     */
+    app.get('/ui/disks.json', async c => {
+        if (guard(c) === undefined) return c.json({ error: 'unauthorized' }, 401, NO_STORE);
+
+        const up = c.req.query('up');
+        const wanted = up === undefined || up === '' ? undefined : new Set(up.split(','));
+        const reading = runtime.current.adapters.filter(hasDiskSpace).filter(a => wanted === undefined || wanted.has(a.id));
+
+        const mounts: DiskSpace[] = [];
+        await Promise.all(
+            reading.map(async adapter => {
+                try {
+                    const read = await withTimeout(adapter.getDiskSpace(), healthCapFor(adapter.id));
+                    if (read !== TIMED_OUT) mounts.push(...read);
+                } catch (err) {
+                    logger.warn({ service: adapter.id, err }, 'diskspace read failed for the dashboard panel');
+                }
+            })
+        );
+
+        // Paths are dropped: which mount is `/storage` is a container-mapping
+        // question, and the panel names the services rather than the paths.
+        return c.json({ disks: diskRowsView(groupDisks(mounts.map(({ path: _path, ...rest }) => rest))) }, 200, NO_STORE);
     });
 
     // --- logs -----------------------------------------------------------

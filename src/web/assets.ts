@@ -345,6 +345,16 @@ p.box-b { margin: 0; }
 .st { display: inline-flex; align-items: center; gap: .45rem; font-weight: 500; }
 .st i { width: .5rem; height: .5rem; border-radius: 50%; background: currentColor; }
 .st.ok { color: var(--ok); } .st.bad { color: var(--bad); }
+/* A row whose probe has not answered yet. The ring spins rather than filling,
+   so a service still being checked never reads as one reporting a colour. */
+.st.wait { color: var(--dim); }
+.st.wait i {
+  width: .6rem; height: .6rem; background: none;
+  border: 2px solid currentColor; border-top-color: transparent;
+  animation: st-spin .7s linear infinite;
+}
+@keyframes st-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .st.wait i { animation: none; } }
 ul.tokens, ul.feed { list-style: none; margin: .75rem 0; padding: 0; }
 .tokens li { display: flex; justify-content: space-between; gap: .75rem; padding: .45rem 0; border-top: 1px solid var(--line); font-size: .87rem; }
 .tokens .warn, .warn { color: var(--warn); }
@@ -788,6 +798,195 @@ if (document.querySelector('[data-users-for]')) {
         if (note && typeof entry.note === 'string') note.textContent = entry.note;
       }
     } catch { /* the field stays as rendered */ }
+  })();
+}
+
+// Each dashboard row asks for its own health once the page is up, so a service
+// at an address that answers nothing costs that one row its cap instead of
+// holding the whole page. Every string shown here was built by healthRowView on
+// the server, so this table and the one the server renders cannot come to
+// disagree about what a row says, and each is set as text rather than as
+// markup: a health check message carries whatever the service put in it.
+const healthRows = document.querySelectorAll('[data-health-for]');
+if (healthRows.length > 0) {
+  (async () => {
+    // Under the six connections a browser opens per origin on HTTP/1.1, so the
+    // rows cannot starve the page's own stylesheet and script.
+    const LANES = 4;
+
+    const el = (tag, cls, text) => {
+      const node = document.createElement(tag);
+      if (cls) node.className = cls;
+      if (text) node.textContent = text;
+      return node;
+    };
+    const dropEmpty = host => {
+      const note = host && host.querySelector('[data-empty]');
+      if (note) note.remove();
+    };
+
+    const total = healthRows.length;
+    let up = 0;
+    let down = 0;
+    // A row that got no answer at all. Counted apart from the down ones,
+    // because it is not a service reporting a failure, but it is not reachable
+    // either: left out of both it would let the tile read "all reachable" over
+    // a row that says Unknown.
+    let unsure = 0;
+    let checks = 0;
+    let left = total;
+
+    const counts = () => {
+      const value = document.querySelector('[data-stat="services"] .stat-v');
+      if (value) value.replaceChildren(document.createTextNode(up + ' '), el('small', '', '/ ' + total + ' up'));
+      const sub = document.querySelector('[data-stat="services"] .stat-s');
+      const short = down + unsure;
+      if (sub) sub.textContent = left > 0 ? left + ' still checking' : short === 0 ? 'all reachable' : short + ' need attention';
+      const found = document.querySelector('[data-stat="health"] .stat-v');
+      if (found) found.textContent = String(checks);
+      const note = document.querySelector('[data-stat="health"] .stat-s');
+      if (note && checks > 0) note.textContent = checks === 1 ? '1 reported' : checks + ' reported';
+    };
+
+    // No 'ok' means the row never got an answer: no colour, rather than a green
+    // or a red the server never said.
+    const settle = (row, view) => {
+      const pill = row.querySelector('[data-cell="status"] .st');
+      if (pill) pill.className = view.ok === undefined ? 'st' : 'st ' + (view.ok ? 'ok' : 'bad');
+      const label = row.querySelector('[data-cell="status"] [data-label]');
+      if (label) label.textContent = view.status;
+      const version = row.querySelector('[data-cell="version"]');
+      if (version) version.textContent = view.version || '';
+      const latency = row.querySelector('[data-cell="latency"]');
+      if (latency) latency.textContent = view.latency || '';
+    };
+
+    const addAlert = a => {
+      const host = document.querySelector('[data-alerts]');
+      if (!host) return;
+      dropEmpty(host);
+      const box = el('div', 'alert');
+      box.appendChild(el('span', 'sev ' + (a.sev || 'bad'), a.label));
+      box.appendChild(el('div', 'alert-what', a.what));
+      if (a.detail) box.appendChild(el('div', 'alert-fix', a.detail));
+      if (a.fix) box.appendChild(el('div', 'alert-fix', a.fix));
+      // The one place the page offers to fix an unreachable service, as the
+      // server-rendered alert does. A failing health check has no such action:
+      // it is the service's own complaint, not an address to correct.
+      if (a.act) {
+        const edit = el('a', 'button ghost alert-act', 'Edit');
+        edit.setAttribute('href', '/ui/config?tab=services');
+        box.appendChild(edit);
+      }
+      host.appendChild(box);
+    };
+
+    const diskRow = d => {
+      const box = el('div', 'disk');
+      const line = el('div', 'disk-l');
+      line.appendChild(el('span', '', d.free));
+      if (d.total) line.appendChild(el('span', 'dim', d.total));
+      box.appendChild(line);
+      if (typeof d.pct === 'number') {
+        const bar = el('div', 'bar');
+        const fill = el('b', d.warn ? 'warn' : '');
+        fill.setAttribute('style', 'width:' + d.pct + '%');
+        bar.appendChild(fill);
+        box.appendChild(bar);
+      }
+      box.appendChild(el('span', 'dim small', d.services));
+      return box;
+    };
+
+    // Disk space belongs to the stack, not to a row: the same filesystem is
+    // reported by every service that can see it, and folding those together
+    // needs all of their answers at once, with a rule that lives on the
+    // server. So it is one request after the rows have settled, naming the
+    // services that answered so an unreachable one is not waited on twice.
+    const stackDisks = async answered => {
+      const host = document.querySelector('[data-disks]');
+      if (!host || answered.length === 0) return;
+      try {
+        const res = await fetch('/ui/disks.json?up=' + encodeURIComponent(answered.join(',')), {
+          headers: { accept: 'application/json' }
+        });
+        if (!res.ok) return;
+        const rows = (await res.json()).disks || [];
+        if (rows.length === 0) return;
+        dropEmpty(host);
+        host.replaceChildren(...rows.map(diskRow));
+      } catch { /* the panel keeps whatever it already said */ }
+    };
+
+    const addScan = s => {
+      const host = document.querySelector('[data-scans]');
+      if (!host) return;
+      dropEmpty(host);
+      let list = host.querySelector('ul.feed');
+      if (!list) {
+        list = el('ul', 'feed');
+        host.appendChild(list);
+      }
+      const line = el('li');
+      line.appendChild(el('span', 'badge', s.badge));
+      line.appendChild(el('span', '', s.service));
+      line.appendChild(el('time', 'mono dim', s.time));
+      list.appendChild(line);
+    };
+
+    const unknown = { status: 'Unknown', version: '', latency: '' };
+    const answered = [];
+    let stopped = false;
+
+    const one = async row => {
+      let view;
+      try {
+        const res = await fetch('/ui/health.json?instance=' + encodeURIComponent(row.dataset.healthFor), {
+          headers: { accept: 'application/json' }
+        });
+        // The session ended while the rows were being filled. Every row left
+        // would answer the same way, so stop asking and reload: the guard on
+        // /ui sends them to the sign-in page. Leaving the rows spinning would
+        // never say why they had stopped, and there is no typed state here to
+        // lose.
+        if (res.status === 401) {
+          stopped = true;
+          location.reload();
+          return;
+        }
+        if (res.ok) view = (await res.json()).view;
+      } catch { /* an unreachable arr-mcp leaves the row unknown, like a 404 */ }
+
+      left -= 1;
+      if (!view) {
+        unsure += 1;
+        settle(row, unknown);
+        counts();
+        return;
+      }
+
+      settle(row, view);
+      if (view.ok) {
+        up += 1;
+        // The row's own id, not the one echoed back: this row is what was
+        // asked for, whatever the answer calls itself.
+        answered.push(row.dataset.healthFor);
+      } else down += 1;
+      if (view.alert) addAlert({ sev: 'bad', label: view.alert.label, what: view.alert.what, detail: view.alert.detail, fix: view.alert.fix, act: true });
+      for (const f of view.failures || []) {
+        checks += 1;
+        addAlert({ sev: f.sev, label: f.label, what: f.what, detail: f.source, fix: f.message });
+      }
+      for (const s of view.scans || []) addScan(s);
+      counts();
+    };
+
+    const queue = Array.prototype.slice.call(healthRows);
+    const lane = async () => {
+      while (queue.length > 0 && !stopped) await one(queue.shift());
+    };
+    await Promise.all(Array.from({ length: Math.min(LANES, queue.length) }, lane));
+    if (!stopped) await stackDisks(answered);
   })();
 }
 `;

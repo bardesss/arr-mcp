@@ -3831,3 +3831,258 @@ describe('finding services', () => {
         expect(lines.some(l => l.includes('192.168.1.0/24') && l.includes('ip'))).toBe(true);
     });
 });
+
+/**
+ * The dashboard itself: it has to come back before any service has answered.
+ *
+ * The second and third cases are guards rather than drivers. They hold true
+ * today and have to keep holding: a reader with no scripting still gets the
+ * whole page, and a stack with nothing configured never reads as though it
+ * were waiting on something.
+ */
+describe('dashboard rendering', () => {
+    const realFetch = globalThis.fetch;
+
+    afterEach(() => {
+        globalThis.fetch = realFetch;
+    });
+
+    it('renders the dashboard without calling any service', async () => {
+        const paths: string[] = [];
+        globalThis.fetch = (async (input: string | URL | Request) => {
+            paths.push(new URL(String(input)).pathname);
+            return new Response('{}', { headers: { 'content-type': 'application/json' } });
+        }) as typeof fetch;
+
+        await seed('  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n');
+        await signIn();
+
+        const res = await call('/ui');
+        expect(res.status).toBe(200);
+        const body = await res.text();
+        expect(body).toContain('data-health-for="radarr"');
+        expect(body).toContain('still checking');
+        expect(paths).toEqual([]);
+    });
+
+    it('still renders health server-side for a reader with no scripting', async () => {
+        globalThis.fetch = (async () =>
+            new Response(JSON.stringify({ version: '5.14.0' }), { headers: { 'content-type': 'application/json' } })) as typeof fetch;
+
+        await seed('  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n');
+        await signIn();
+
+        const body = await (await call('/ui?health=blocking')).text();
+        expect(body).not.toContain('data-health-for');
+        expect(body).toContain('class="st');
+    });
+
+    // With no scripting nothing fills the rows in, so the page sends the
+    // reader to the render that waits on the services instead.
+    it('sends a reader with no scripting to the blocking render', async () => {
+        await seed('  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n');
+        await signIn();
+
+        const body = await (await call('/ui')).text();
+        expect(body).toContain('<noscript><meta http-equiv="refresh" content="0; url=/ui?health=blocking">');
+    });
+
+    it('reads as reachable rather than still checking with no services configured', async () => {
+        await signIn();
+        const body = await (await call('/ui')).text();
+        expect(body).not.toContain('still checking');
+        expect(body).toContain('No services configured yet');
+    });
+});
+
+/**
+ * Disk space is the one panel that cannot be filled a row at a time: services
+ * in one stack report the same host filesystem over and over, and folding
+ * those together needs every service's answer in one place. So it is asked for
+ * once, after the rows have settled.
+ */
+describe('stack disk space', () => {
+    const realFetch = globalThis.fetch;
+
+    /** Two services, one host filesystem, reported identically by both. */
+    const stubStack = () => {
+        const asked: string[] = [];
+        globalThis.fetch = (async (input: string | URL | Request) => {
+            const url = new URL(String(input));
+            asked.push(`${url.port}${url.pathname}`);
+            const body = url.pathname.endsWith('/system/status')
+                ? { version: '5.14.0' }
+                : url.pathname.endsWith('/diskspace')
+                  ? [{ path: '/data', label: 'data', freeSpace: 500, totalSpace: 1000 }]
+                  : [];
+            return new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } });
+        }) as typeof fetch;
+        return asked;
+    };
+
+    const two = '  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n  sonarr:\n    url: http://192.0.2.10:8989\n    api_key: k\n';
+
+    afterEach(() => {
+        globalThis.fetch = realFetch;
+    });
+
+    it('folds one filesystem reported by two services into a single row', async () => {
+        stubStack();
+        await seed(two);
+        await signIn();
+
+        const res = await call('/ui/disks.json');
+        expect(res.status).toBe(200);
+        expect(await res.json()).toMatchObject({
+            disks: [{ free: expect.any(String), total: expect.any(String), pct: 50, warn: false, services: 'radarr, sonarr' }]
+        });
+    });
+
+    it('reads only the services it is told answered', async () => {
+        const asked = stubStack();
+        await seed(two);
+        await signIn();
+
+        await call('/ui/disks.json?up=radarr');
+        expect(asked.some(a => a.startsWith('7878'))).toBe(true);
+        expect(asked.some(a => a.startsWith('8989'))).toBe(false);
+    });
+
+    it('refuses without a session rather than redirecting', async () => {
+        cookie = '';
+        expect((await call('/ui/disks.json')).status).toBe(401);
+    });
+
+    // An id that is not configured is simply not read, rather than being an
+    // error: the page may have been rendered before a service was removed.
+    it('ignores an id it does not have', async () => {
+        stubStack();
+        await seed(two);
+        await signIn();
+
+        const res = await call('/ui/disks.json?up=nope');
+        expect(res.status).toBe(200);
+        expect(await res.json()).toMatchObject({ disks: [] });
+    });
+});
+
+/**
+ * One row of the dashboard at a time. The page renders before any of these
+ * answer, so each one has to stand on its own: its own status, its own rows,
+ * and its own cap when the address behind it answers nothing.
+ */
+describe('per-instance health', () => {
+    const realFetch = globalThis.fetch;
+
+    /** An *arr that answers its version and nothing else of interest. */
+    const stubArr = (version = '5.14.0') => {
+        globalThis.fetch = (async (input: string | URL | Request) => {
+            const path = new URL(String(input)).pathname;
+            const body = path.endsWith('/system/status') ? { version } : [];
+            return new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } });
+        }) as typeof fetch;
+    };
+
+    afterEach(() => {
+        globalThis.fetch = realFetch;
+    });
+
+    it('returns one instance and its rows', async () => {
+        stubArr();
+        await seed('  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n');
+        await signIn();
+
+        const res = await call('/ui/health.json?instance=radarr');
+        expect(res.status).toBe(200);
+        expect(await res.json()).toMatchObject({
+            diagnosis: { service: 'radarr', ok: true },
+            disks: expect.any(Array),
+            failures: expect.any(Array),
+            scans: expect.any(Array)
+        });
+    });
+
+    // The row's words come from the server, so the table it renders and the
+    // one app.js fills in cannot disagree. See healthRowView.
+    it('carries the strings the row will show', async () => {
+        stubArr();
+        await seed('  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n');
+        await signIn();
+
+        const res = await call('/ui/health.json?instance=radarr');
+        expect(await res.json()).toMatchObject({
+            view: { service: 'radarr', ok: true, status: 'Up', version: '5.14.0', latency: expect.any(String) }
+        });
+    });
+
+    it('refuses without a session rather than redirecting', async () => {
+        cookie = '';
+        expect((await call('/ui/health.json?instance=radarr')).status).toBe(401);
+    });
+
+    // Asserted on the body, not only the status: Hono answers 404 for a route
+    // that does not exist at all, so a status alone would pass before the
+    // endpoint was written.
+    it('answers 404 for an instance that is not configured', async () => {
+        await signIn();
+        const res = await call('/ui/health.json?instance=nope');
+        expect(res.status).toBe(404);
+        expect(await res.json()).toEqual({ error: 'unknown instance' });
+    });
+
+    it('round-trips an instance id containing a slash', async () => {
+        stubArr();
+        await seed('  radarr:\n    - name: 4k\n      url: http://192.0.2.10:7878\n      api_key: k\n');
+        await signIn();
+
+        const res = await call(`/ui/health.json?instance=${encodeURIComponent('radarr/4k')}`);
+        expect(res.status).toBe(200);
+        expect(await res.json()).toMatchObject({ diagnosis: { service: 'radarr/4k' } });
+    });
+
+    /**
+     * A service given a longer timeout_ms is one its owner expects to be slow.
+     * A fixed cap would show it in red as timed out while get_stack_health,
+     * which honours the setting, called it up at the same moment.
+     */
+    it('caps a probe by that instance timeout, not by a fixed one', async () => {
+        globalThis.fetch = (() => new Promise(() => {})) as unknown as typeof fetch;
+        await seed('  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n    timeout_ms: 2000\n');
+        await signIn();
+
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+        try {
+            const pending = call('/ui/health.json?instance=radarr');
+            await vi.advanceTimersByTimeAsync(3000);
+            expect(await (await pending).json()).toMatchObject({
+                diagnosis: { latency_ms: 3000, error: { kind: 'Timeout' } },
+                view: { status: 'Timeout' }
+            });
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    // The whole point of the endpoint: a wrong address costs one row its cap,
+    // not the page. Without this the row would wait for the probe's own
+    // timeout and then its retry.
+    it('reports a timeout rather than waiting on a probe that never answers', async () => {
+        globalThis.fetch = (() => new Promise(() => {})) as unknown as typeof fetch;
+        await seed('  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n');
+        await signIn();
+
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+        try {
+            const pending = call('/ui/health.json?instance=radarr');
+            // The default timeout_ms of 10s, plus the margin that leaves the
+            // service's own deadline to fire first.
+            await vi.advanceTimersByTimeAsync(11_000);
+            expect(await (await pending).json()).toMatchObject({
+                diagnosis: { ok: false, error: { kind: 'Timeout' } },
+                view: { ok: false, status: 'Timeout' }
+            });
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+});

@@ -39,6 +39,7 @@ const dashboard = (failures: HealthCheck[]): string =>
     dashboardPage({
         csrf: 'test',
         version: '0.0.0-test',
+        pending: false,
         diagnoses: [],
         configured: [],
         tokens: [],

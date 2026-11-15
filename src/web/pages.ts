@@ -320,7 +320,18 @@ export function dashboardPage(opts: {
     /** Absent when the IMDb dataset is not configured, in which case the
      *  panel is not rendered at all rather than rendered as "off". */
     imdb?: DatasetStatus | undefined;
-    /** Already one row per filesystem: `buildStackHealth` groups them. */
+    /**
+     * No service has been probed yet: render a row per entry in `configured`
+     * with its status still to come, and let app.js settle each one as its
+     * own probe answers. False renders the table from `diagnoses`, which is
+     * what a reader with no scripting gets from `/ui?health=blocking`.
+     */
+    pending: boolean;
+    /**
+     * Already one row per filesystem: `buildStackHealth` groups them. Empty
+     * while `pending`, where the panel is filled from `/ui/disks.json` once
+     * the rows have settled, since grouping needs the whole stack at once.
+     */
     disks: DiskGroup[];
     failures: HealthCheck[];
     scans: ScanState[];
@@ -330,8 +341,19 @@ export function dashboardPage(opts: {
     const up = opts.diagnoses.length - down.length;
     const expiring = opts.tokens.filter(t => isExpired(t.expires, opts.now) || expiringSoon(t.expires, opts.now));
 
-    const stat = (href: string, label: string, value: SafeHtml, sub: string, warn: boolean): SafeHtml =>
-        html`<a class="stat" href="${href}">
+    /**
+     * One row per service either way, so the table has the shape it will keep
+     * once the probes answer: a row without a diagnosis is one still being
+     * checked, and app.js fills it in where it stands.
+     */
+    const rows: { service: string; diagnosis?: ConnectionDiagnosis }[] = opts.pending
+        ? opts.configured.map(service => ({ service }))
+        : opts.diagnoses.map(diagnosis => ({ service: diagnosis.service, diagnosis }));
+    const outstanding = rows.length - opts.diagnoses.length;
+
+    /** `key` is how app.js finds a count to update as the rows settle. */
+    const stat = (href: string, key: string, label: string, value: SafeHtml, sub: string, warn: boolean): SafeHtml =>
+        html`<a class="stat" href="${href}" data-stat="${key}">
             <span class="stat-k">${label}</span>
             <span class="stat-v">${value}</span>
             <span class="stat-s${warn ? ' warn' : ''}">${sub}</span>
@@ -340,13 +362,15 @@ export function dashboardPage(opts: {
     const strip = html`<div class="strip">
         ${stat(
             '/ui/config?tab=services',
+            'services',
             'Services',
-            html`${up} <small>/ ${opts.diagnoses.length} up</small>`,
-            down.length === 0 ? 'all reachable' : `${down.length} need attention`,
+            html`${up} <small>/ ${rows.length} up</small>`,
+            outstanding > 0 ? `${outstanding} still checking` : down.length === 0 ? 'all reachable' : `${down.length} need attention`,
             down.length > 0
         )}
         ${stat(
             '#attention',
+            'health',
             'Health checks',
             html`${opts.failures.length}`,
             opts.failures.length === 0 ? 'nothing reported' : `from ${[...new Set(opts.failures.map(f => f.service))].join(', ')}`,
@@ -354,6 +378,7 @@ export function dashboardPage(opts: {
         )}
         ${stat(
             '/ui/config?tab=access#tokens',
+            'tokens',
             'MCP tokens',
             html`${opts.tokens.length}`,
             expiring.length === 0 ? 'none expiring' : `${expiring.length} expired or expiring`,
@@ -361,6 +386,7 @@ export function dashboardPage(opts: {
         )}
         ${stat(
             '/ui/audit',
+            'writes',
             'Writes',
             html`${opts.writeCounts.total}`,
             `${opts.writeCounts.applied} applied, ${opts.writeCounts.denied} refused`,
@@ -388,18 +414,18 @@ export function dashboardPage(opts: {
         )
     ];
 
-    const attention = html`<section class="box" id="attention">
+    const attention = html`<section class="box" id="attention" data-alerts>
         <div class="box-h"><h2>Needs attention</h2><a href="/ui/logs?stream=problems">Problems log</a></div>
-        ${alerts.length === 0 ? html`<p class="box-b note">Nothing needs attention.</p>` : html`${alerts}`}
+        ${alerts.length === 0 ? html`<p class="box-b note" data-empty>Nothing needs attention.</p>` : html`${alerts}`}
     </section>`;
 
     const byGroup = GROUPS.map(g => ({
         label: g.label,
-        rows: opts.diagnoses.filter(d => groupOf(d.service) === g.label)
+        rows: rows.filter(r => groupOf(r.service) === g.label)
     })).filter(g => g.rows.length > 0);
 
     const services =
-        opts.diagnoses.length === 0
+        rows.length === 0
             ? html`<p class="box-b note">
                   No services configured yet. <a href="/ui/config?tab=services">Add one</a>.
               </p>`
@@ -408,18 +434,23 @@ export function dashboardPage(opts: {
                   ${byGroup.map(
                       g => html`<tbody>
                           <tr class="group"><th scope="colgroup" colspan="5">${g.label}</th></tr>
-                          ${g.rows.map(d => {
-                              const tier = opts.tiers?.[d.service];
-                              return html`<tr class="${d.ok ? '' : 'fail'}">
-                                  <th scope="row"><span class="svc-name">${serviceIcon(d.service)}${serviceName(d.service)}</span></th>
-                                  <td class="opt mono dim">${d.version ?? ''}</td>
-                                  <td class="opt mono dim">${d.latency_ms} ms</td>
+                          ${g.rows.map(r => {
+                              const d = r.diagnosis;
+                              const tier = opts.tiers?.[r.service];
+                              return html`<tr class="${d !== undefined && !d.ok ? 'fail' : ''}"${d === undefined
+                                  ? html` data-health-for="${r.service}"`
+                                  : raw('')}>
+                                  <th scope="row"><span class="svc-name">${serviceIcon(r.service)}${serviceName(r.service)}</span></th>
+                                  <td class="opt mono dim" data-cell="version">${d?.version ?? ''}</td>
+                                  <td class="opt mono dim" data-cell="latency">${d === undefined ? '' : `${d.latency_ms} ms`}</td>
                                   <td>${tier === undefined ? raw('') : html`<span class="tier ${tier}">${TIER_LABEL[tier]}</span>`}</td>
-                                  <td><span class="st ${d.ok ? 'ok' : 'bad'}"><i></i>${d.ok
-                                      ? 'Up'
-                                      : d.error === undefined
-                                        ? 'Down'
-                                        : KIND_LABEL[d.error.kind]}</span></td>
+                                  <td data-cell="status">${d === undefined
+                                      ? html`<span class="st wait"><i></i><span data-label>Checking</span></span>`
+                                      : html`<span class="st ${d.ok ? 'ok' : 'bad'}"><i></i>${d.ok
+                                            ? 'Up'
+                                            : d.error === undefined
+                                              ? 'Down'
+                                              : KIND_LABEL[d.error.kind]}</span>`}</td>
                               </tr>`;
                           })}
                       </tbody>`
@@ -460,9 +491,9 @@ export function dashboardPage(opts: {
 
     const disks = html`<section class="box">
         <div class="box-h"><h2>Disk space</h2></div>
-        <div class="box-b">
+        <div class="box-b" data-disks>
             ${opts.disks.length === 0
-                ? html`<p class="note">No service reported disk space.</p>`
+                ? html`<p class="note" data-empty>No service reported disk space.</p>`
                 : opts.disks.map(d => {
                       const share = d.totalSpace === undefined || d.totalSpace === 0 ? undefined : 1 - d.freeSpace / d.totalSpace;
                       return html`<div class="disk">
@@ -498,9 +529,9 @@ export function dashboardPage(opts: {
 
     const scans = html`<section class="box">
         <div class="box-h"><h2>Library scans</h2></div>
-        <div class="box-b">
+        <div class="box-b" data-scans>
             ${opts.scans.length === 0
-                ? html`<p class="note">No service reported a library scan.</p>`
+                ? html`<p class="note" data-empty>No service reported a library scan.</p>`
                 : html`<ul class="feed">
                       ${opts.scans.map(
                           s => html`<li>
@@ -513,7 +544,16 @@ export function dashboardPage(opts: {
         </div>
     </section>`;
 
-    const body = html`${strip}
+    /**
+     * With scripting off nothing fills the rows in, so the reader is sent to
+     * the same page built the other way: the server waits on the services and
+     * renders their status. Same convention as the scan reload in `layout`.
+     */
+    const noscript = opts.pending
+        ? raw('<noscript><meta http-equiv="refresh" content="0; url=/ui?health=blocking"></noscript>')
+        : raw('');
+
+    const body = html`${noscript}${strip}
         <div class="dash">
             <div class="dash-main">
                 ${attention}
@@ -715,6 +755,96 @@ export function logsPage(opts: {
  * go through this, so a row cannot change its wording or its time format when
  * the first refresh replaces the table.
  */
+/** A grouped filesystem as the strings the disk panel shows. */
+type DiskRowView = { free: string; total: string; pct?: number | undefined; warn: boolean; services: string };
+
+/**
+ * The disk panel's rows, prepared on the server.
+ *
+ * Grouped across the whole stack rather than per service, because services in
+ * one stack report the same host filesystem several times over and the rule
+ * that folds them (`groupDisks`) compares free space with a tolerance rather
+ * than for equality. That rule cannot be reduced to a key the browser could
+ * match on, so the grouping and the wording both stay here.
+ */
+export function diskRowsView(groups: readonly DiskGroup[]): DiskRowView[] {
+    return groups.map(x => {
+        const share = x.totalSpace === undefined || x.totalSpace === 0 ? undefined : 1 - x.freeSpace / x.totalSpace;
+        return {
+            free: `${humanBytes(x.freeSpace)} free`,
+            total: x.totalSpace === undefined ? '' : `of ${humanBytes(x.totalSpace)}`,
+            pct: share === undefined ? undefined : Math.round(share * 100),
+            warn: share !== undefined && share > 0.85,
+            services: x.services.join(', ')
+        };
+    });
+}
+
+/** One dashboard row's health, as the strings it shows. */
+type HealthRowView = {
+    service: string;
+    ok: boolean;
+    /** `Up`, or the word the table already uses for this kind of failure. */
+    status: string;
+    version: string;
+    latency: string;
+    /** Absent for a reachable service: nothing to report under "needs attention". */
+    alert?: { label: string; what: string; detail: string; fix: string };
+    failures: { sev: 'bad' | 'warn'; label: string; what: string; source: string; message: string }[];
+    scans: { badge: string; service: string; time: string }[];
+};
+
+/**
+ * Health as display strings rather than as numbers and kinds.
+ *
+ * The same reasoning as `logRowView` below: the row the server renders and the
+ * row app.js fills in after the page loads are two paths to one piece of
+ * markup, and a label worked out separately in each is how they come to
+ * disagree. Every string the browser shows is built here, so the two cannot.
+ *
+ * The plain id is the service's name here, not `serviceName`, which is markup:
+ * the client sets text, and the name column it never rewrites is already
+ * rendered.
+ */
+export function healthRowView(opts: {
+    diagnosis: ConnectionDiagnosis;
+    failures: HealthCheck[];
+    scans: ScanState[];
+}): HealthRowView {
+    const d = opts.diagnosis;
+    const label = d.error === undefined ? 'Down' : KIND_LABEL[d.error.kind];
+
+    return {
+        service: d.service,
+        ok: d.ok,
+        status: d.ok ? 'Up' : label,
+        version: d.version ?? '',
+        latency: `${d.latency_ms} ms`,
+        ...(d.ok
+            ? {}
+            : {
+                  alert: {
+                      label,
+                      what: d.service,
+                      detail: d.error === undefined ? '' : unfence(d.error.detail),
+                      fix: d.error?.remedy === undefined ? '' : unfence(d.error.remedy)
+                  }
+              }),
+        failures: opts.failures.map(f => ({
+            sev: f.type === 'error' ? ('bad' as const) : ('warn' as const),
+            label: f.type === 'error' ? 'Error' : 'Warn',
+            what: f.service,
+            source: unfence(f.source),
+            message: unfence(f.message)
+        })),
+        scans: opts.scans.map(s => ({
+            badge: s.running === true ? 'running' : 'done',
+            service: s.service,
+            time: s.lastCompleted === undefined ? 'unknown' : shortTime(s.lastCompleted)
+        }))
+    };
+}
+
 export function logRowView(r: LogRow): LogRow & { time: string; detail: [string, string][] } {
     return {
         ...r,
