@@ -5,7 +5,6 @@ import { RECENT_REJECTION_WINDOW, buildGetIndexers, summarizeIndexers } from '..
 import { repeat } from './helpers/bigFixture.ts';
 import { expectWithinBudget } from './helpers/budget.ts';
 import { serving } from './helpers/serve.ts';
-import { afterTicks } from './helpers/ticks.ts';
 
 const config: KeyedServiceConfig = {
     url: 'http://192.0.2.10:9696',
@@ -323,16 +322,45 @@ describe('several Prowlarrs', () => {
                 records: Array.from({ length: RECENT_REJECTION_WINDOW }, () => ({ indexerId: 1, date: '2026-08-04T22:10:00Z', successful: false, data: { query: 'q', reason: 'r' } }))
             }
         };
-        /** Every request of this instance answers after `ticks` microtasks. */
-        const answering = (name: string, ticks: number) =>
-            new ProwlarrAdapter({ ...config, name }, (async (input: string) => {
-                await afterTicks(ticks);
-                return serving(sameMoment)(input);
-            }) as unknown as typeof fetch);
+        const flush = () => new Promise<void>(resolve => setImmediate(resolve));
+        /** A Prowlarr whose rejections, once read, wait on a gate the test opens; `answered` settles when they are handed over. */
+        const gated = (name: string) => {
+            const adapter = new ProwlarrAdapter({ ...config, name }, serving(sameMoment));
+            const read = adapter.getRecentRejections.bind(adapter);
+            let release!: () => void;
+            const gate = new Promise<void>(resolve => (release = resolve));
+            let answer!: () => void;
+            const answered = new Promise<void>(resolve => (answer = resolve));
+            adapter.getRecentRejections = async limit => {
+                try {
+                    const rows = await read(limit);
+                    await gate;
+                    return rows;
+                } finally {
+                    answer();
+                }
+            };
+            return { adapter, release, answered };
+        };
+        type Gated = ReturnType<typeof gated>;
+        /** Lists the instances as `listed` has them; `first` answers, and its rows are added to the list, before `second` is let go. */
+        const inOrder = async (first: Gated, second: Gated, listed: Gated[]) => {
+            const result = buildGetIndexers(listed.map(g => g.adapter), { detail: 'full', limit: 50 });
+            first.release();
+            await first.answered;
+            await flush();
+            second.release();
+            return result;
+        };
 
-        const publicFirst = await buildGetIndexers([answering('public', 0), answering('private', 20)], { detail: 'full', limit: 50 });
-        const privateFirst = await buildGetIndexers([answering('public', 20), answering('private', 0)], { detail: 'full', limit: 50 });
+        const [publicA, privateA] = [gated('public'), gated('private')];
+        const publicFirst = await inOrder(publicA, privateA, [publicA, privateA]);
+        const [publicB, privateB] = [gated('public'), gated('private')];
+        const privateFirst = await inOrder(privateB, publicB, [publicB, privateB]);
         for (const result of [publicFirst, privateFirst]) {
+            // Both answered, so the private rows won the window rather than being all there was.
+            expect(result).toMatchObject({ degraded: [] });
+            expect(result.rejectionsUnavailable).toBeUndefined();
             expect(result.recentRejections?.map(r => r.service)).toEqual(Array<string>(RECENT_REJECTION_WINDOW).fill('prowlarr/private'));
         }
     });
