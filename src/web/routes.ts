@@ -317,6 +317,53 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
         );
     });
 
+    /**
+     * One dashboard row's health, so the page can render before any service
+     * has answered and settle each row as its own probe comes back.
+     *
+     * Capped at the probe's own budget rather than that budget doubled by the
+     * retry in `ServiceHttp.get`: an address with nothing behind it drops
+     * packets instead of refusing, so the row would otherwise sit for twice
+     * the configured timeout. A row that misses the cap says it timed out,
+     * which is the honest answer and the one the page can draw.
+     */
+    const HEALTH_PROBE_MS = 10_000;
+
+    app.get('/ui/health.json', async c => {
+        if (guard(c) === undefined) return c.json({ error: 'unauthorized' }, 401);
+
+        const instance = c.req.query('instance') ?? '';
+        const adapters = runtime.current.adapters;
+        // Matched on the id the page rendered, exactly. `selectAdapters` also
+        // accepts an instance name, which would let two services answer one
+        // row.
+        if (!adapters.some(a => a.id === instance)) return c.json({ error: 'unknown instance' }, 404);
+
+        const health = await withTimeout(buildStackHealth(adapters, { detail: 'standard', limit: 50, instance }), HEALTH_PROBE_MS);
+        if (health === TIMED_OUT) {
+            return c.json(
+                {
+                    diagnosis: {
+                        ok: false,
+                        service: instance,
+                        latency_ms: HEALTH_PROBE_MS,
+                        error: { kind: 'Timeout', detail: `the probe did not answer within ${HEALTH_PROBE_MS / 1000}s` }
+                    },
+                    disks: [],
+                    failures: [],
+                    scans: []
+                },
+                200,
+                NO_STORE
+            );
+        }
+
+        const diagnosis = health.services[0];
+        if (diagnosis === undefined) return c.json({ error: 'unknown instance' }, 404);
+
+        return c.json({ diagnosis, disks: health.disks.items, failures: health.failures.items, scans: health.scans }, 200, NO_STORE);
+    });
+
     // --- logs -----------------------------------------------------------
 
     app.get('/ui/logs', c => {

@@ -3831,3 +3831,83 @@ describe('finding services', () => {
         expect(lines.some(l => l.includes('192.168.1.0/24') && l.includes('ip'))).toBe(true);
     });
 });
+
+/**
+ * One row of the dashboard at a time. The page renders before any of these
+ * answer, so each one has to stand on its own: its own status, its own rows,
+ * and its own cap when the address behind it answers nothing.
+ */
+describe('per-instance health', () => {
+    const realFetch = globalThis.fetch;
+
+    /** An *arr that answers its version and nothing else of interest. */
+    const stubArr = (version = '5.14.0') => {
+        globalThis.fetch = (async (input: string | URL | Request) => {
+            const path = new URL(String(input)).pathname;
+            const body = path.endsWith('/system/status') ? { version } : [];
+            return new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } });
+        }) as typeof fetch;
+    };
+
+    afterEach(() => {
+        globalThis.fetch = realFetch;
+    });
+
+    it('returns one instance and its rows', async () => {
+        stubArr();
+        await seed('  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n');
+        await signIn();
+
+        const res = await call('/ui/health.json?instance=radarr');
+        expect(res.status).toBe(200);
+        const body = await res.json();
+        expect(body.diagnosis.service).toBe('radarr');
+        expect(body.diagnosis.ok).toBe(true);
+        expect(Array.isArray(body.disks)).toBe(true);
+    });
+
+    it('refuses without a session rather than redirecting', async () => {
+        cookie = '';
+        expect((await call('/ui/health.json?instance=radarr')).status).toBe(401);
+    });
+
+    // Asserted on the body, not only the status: Hono answers 404 for a route
+    // that does not exist at all, so a status alone would pass before the
+    // endpoint was written.
+    it('answers 404 for an instance that is not configured', async () => {
+        await signIn();
+        const res = await call('/ui/health.json?instance=nope');
+        expect(res.status).toBe(404);
+        expect(await res.json()).toEqual({ error: 'unknown instance' });
+    });
+
+    it('round-trips an instance id containing a slash', async () => {
+        stubArr();
+        await seed('  radarr:\n    - name: 4k\n      url: http://192.0.2.10:7878\n      api_key: k\n');
+        await signIn();
+
+        const res = await call(`/ui/health.json?instance=${encodeURIComponent('radarr/4k')}`);
+        expect(res.status).toBe(200);
+        expect((await res.json()).diagnosis.service).toBe('radarr/4k');
+    });
+
+    // The whole point of the endpoint: a wrong address costs one row its cap,
+    // not the page. Without this the row would wait for the probe's own
+    // timeout and then its retry.
+    it('reports a timeout rather than waiting on a probe that never answers', async () => {
+        globalThis.fetch = (() => new Promise(() => {})) as unknown as typeof fetch;
+        await seed('  radarr:\n    url: http://192.0.2.10:7878\n    api_key: k\n');
+        await signIn();
+
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+        try {
+            const pending = call('/ui/health.json?instance=radarr');
+            await vi.advanceTimersByTimeAsync(10_000);
+            const body = await (await pending).json();
+            expect(body.diagnosis.ok).toBe(false);
+            expect(body.diagnosis.error.kind).toBe('Timeout');
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+});
