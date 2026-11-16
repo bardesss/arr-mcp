@@ -114,6 +114,8 @@ function track(child: ChildProcessWithoutNullStreams): ChildProcessWithoutNullSt
     return child;
 }
 
+// Read once the child has emitted 'close', not 'exit': its output can still be
+// unread at 'exit'.
 const out = (child: ChildProcessWithoutNullStreams): string => outputs.get(child.stdout) ?? '';
 const err = (child: ChildProcessWithoutNullStreams): string => outputs.get(child.stderr) ?? '';
 
@@ -138,6 +140,29 @@ afterEach(async () => {
     for (const dir of dirs.splice(0)) await rm(dir, { recursive: true, force: true }).catch(() => {});
 });
 
+describe('onStopSignals', () => {
+    // As when SIGTERM follows the listening line at once: the process has
+    // caught it but not yet run a listener when the shutdown takes over. A
+    // signal a process sends itself is caught before process.kill returns, so
+    // it is pending when setStop runs. This covers the helper; the server
+    // tests below run index.ts, which uses it. Skipped on Windows, where
+    // process.kill ends the process outright.
+    it.skipIf(process.platform === 'win32')('hands a signal caught before the stop is replaced to the new stop', async () => {
+        const script = [
+            "import { onStopSignals } from './src/shutdown.ts';",
+            "const lost = setTimeout(() => console.log('none'), 5000);",
+            'const stop = name => reason => { clearTimeout(lost); console.log(`${name} ${reason}`); };',
+            "const setStop = onStopSignals(stop('first'));",
+            "process.kill(process.pid, 'SIGTERM');",
+            "setStop(stop('second'));"
+        ].join('\n');
+        const child = track(spawn(process.execPath, ['--input-type=module', '-e', script], { cwd: ROOT }));
+        const [code] = await once(child, 'close');
+        expect(code, err(child)).toBe(0);
+        expect(out(child), err(child)).toBe('second SIGTERM\n');
+    }, 20_000);
+});
+
 // Startup takes about two seconds alone, but a full parallel run on a loaded
 // Windows machine has pushed it past 15 s. Neither test measures startup, so
 // the banner wait is generous; only the shutdown is held to a time.
@@ -156,7 +181,7 @@ describe('the server process', () => {
         await waitFor(child, child.stdout, 'arr-mcp listening', BANNER_MS);
         const sent = Date.now();
         child.kill('SIGTERM');
-        const [code] = await once(child, 'exit');
+        const [code] = await once(child, 'close');
         expect(code).toBe(0);
         expect(Date.now() - sent).toBeLessThan(3000);
         expect(out(child)).toContain('shut down cleanly');
@@ -167,7 +192,7 @@ describe('the server process', () => {
         const child = await start(['--stdio']);
         await waitFor(child, child.stderr, 'arr-mcp serving MCP over stdio', BANNER_MS);
         child.stdin.end();
-        const [code] = await once(child, 'exit');
+        const [code] = await once(child, 'close');
         expect(code).toBe(0);
         expect(err(child)).toContain('shut down cleanly');
     }, BANNER_MS + 15_000);
@@ -179,7 +204,7 @@ describe('the server process', () => {
         const child = await start(['--stdio'], sub);
         await waitFor(child, child.stderr, 'arr-mcp serving MCP over stdio', BANNER_MS);
         child.stdin.end();
-        const [code] = await once(child, 'exit');
+        const [code] = await once(child, 'close');
         expect(code).toBe(0);
         expect(await readFile(join(dirs[dirs.length - 1] ?? '', sub, 'config.yaml'), 'utf8')).toContain('auth:');
     }, BANNER_MS + 15_000);

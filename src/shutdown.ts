@@ -9,6 +9,8 @@ const DRAIN_GRACE_MS = 5_000;
 
 export type ShutdownStep = { name: string; run: () => void | Promise<void> };
 
+type Stop = (reason: string) => void;
+
 /**
  * One shutdown for every way the process is asked to stop. The steps run in
  * order and a failing one is logged without skipping the rest: a stuck HTTP
@@ -43,6 +45,21 @@ export function createShutdown(
         logger.info('shut down cleanly');
         exit(0);
     })());
+}
+
+/**
+ * Listens for SIGTERM and SIGINT for the whole run and calls whichever stop is
+ * current, which the returned function replaces. Swapping the listeners instead
+ * loses a signal caught just before the swap: removing a signal's last listener
+ * closes its watcher with the signal still pending, so neither listener runs
+ * and the process keeps going.
+ */
+export function onStopSignals(first: Stop): (next: Stop) => void {
+    let stop = first;
+    for (const signal of ['SIGTERM', 'SIGINT'] as const) process.on(signal, () => stop(signal));
+    return next => {
+        stop = next;
+    };
 }
 
 /**
