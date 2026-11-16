@@ -164,6 +164,16 @@ describe('findArrReleases', () => {
         expect(release?.indexerId).toBe(18);
     });
 
+    it('preserves long Sonarr release identifiers, including distinct suffixes', async () => {
+        const prefix = `https://indexer.example/release/${'a'.repeat(600)}`;
+        const guids = [`${prefix}?id=1`, `${prefix}?id=2`];
+        const releases = await findArrReleases(
+            http(async () => json(guids.map(guid => ({ guid, indexerId: 3 })))),
+            'sonarr', 'series', { id: '15', season: 3 }
+        );
+        expect(releases.map(r => r.guid)).toEqual(guids);
+    });
+
     it('returns a rejected release marked rejected, with its reasons, rather than dropping it', async () => {
         const [release] = await findArrReleases(
             http(async () =>

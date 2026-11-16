@@ -131,7 +131,7 @@ async function readReleases(http: ServiceHttp, service: string, query: string): 
             // Not fenced: a future grab tool needs this verbatim (its
             // own type comment says as much), but it is still an indexer-chosen
             // string, stripped of the code points that let one render as
-            // something it is not, and length-capped.
+            // something it is not.
             guid: sanitizeGuid(r.guid),
             indexerId: r.indexerId,
             indexer: fence(r.indexer ?? '', 'indexer'),

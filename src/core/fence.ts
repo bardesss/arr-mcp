@@ -66,20 +66,15 @@ const cut = (value: string, length: number): string => {
     return last >= 0xd800 && last <= 0xdbff ? out.slice(0, -1) : out;
 };
 
-/** Long enough for any real guid (usually a URL); short enough to bound a
- *  hostile one. */
-export const GUID_MAX_LENGTH = 500;
-
 /**
  * For a guid: opaque-id-shaped text a later grab tool needs verbatim, so it
  * is never fenced or escaped like prose. It still reaches model context from
  * an indexer nobody vetted, so the same dangerous code points `fenceText`
- * strips (bidi overrides, C1 controls) come out here too, and the length
- * is capped so one hostile row cannot blow the token budget on its own.
+ * strips (bidi overrides, C1 controls) come out here too. Do not cap its
+ * length: a shortened identifier no longer names the release at the indexer.
  */
 export function sanitizeGuid(value: string): string {
-    const clean = stripDangerous(value);
-    return clean.length > GUID_MAX_LENGTH ? cut(clean, GUID_MAX_LENGTH) : clean;
+    return stripDangerous(value);
 }
 
 /** Printable ASCII with no space, and none of the characters a fence or a
