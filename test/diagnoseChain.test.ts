@@ -1676,16 +1676,23 @@ describe('buildChain — each queue state is worded for what it is', () => {
     it('asks to wait, with no resume, while SABnzbd pauses its queue for post-processing', async () => {
         const d = behindRadarr(await sabRow('Downloading', { paused: true }));
         expect(d.verdict.remedy).toBe(
-            'sabnzbd pauses its queue while it post-processes (its "Pause Downloading During Post-Processing" switch), and resumes by itself: wait for it. If it stays paused, resume the queue with pause_downloads (`action: "resume"` without an `id`) on sabnzbd.'
+            'sabnzbd pauses its queue while it post-processes ("Pause Downloading During Post-Processing"), and resumes by itself: wait for it. If it stays paused, resume the queue with pause_downloads (`action: "resume"` without an `id`) on sabnzbd.'
         );
         expect(d.verdict.next_steps).toBeUndefined();
     });
 
-    it('asks to resume only the download paused itself during that wait', async () => {
+    // Its own resume is the one step; the wait ends by itself, so it is named, not resumed.
+    it('asks to resume only the download paused itself during that wait, and says it starts once the wait ends', async () => {
         const d = behindRadarr(await sabRow('Paused', { paused: true, others: [WAITING] }));
-        expect(d.verdict.remedy).toBe('Resume it with pause_downloads (`action: "resume"` and its `id`) on sabnzbd, or in sabnzbd itself.');
+        expect(d.verdict.remedy).toBe(
+            'It is paused in sabnzbd, and sabnzbd pauses its queue while it post-processes ("Pause Downloading During Post-Processing"): resume it with pause_downloads (`action: "resume"` and its `id`) on sabnzbd, and it starts once that ends. If the queue stays paused, resume the queue with pause_downloads (`action: "resume"` without an `id`) on sabnzbd.'
+        );
         expect(d.verdict.next_steps).toEqual([
-            { tool: 'pause_downloads', arguments: { service: 'sabnzbd', action: 'resume', id: 'SABnzbd_nzo_ab12' }, why: 'Resumes this one download in sabnzbd.' }
+            {
+                tool: 'pause_downloads',
+                arguments: { service: 'sabnzbd', action: 'resume', id: 'SABnzbd_nzo_ab12' },
+                why: "Resumes this one download in sabnzbd; it starts once sabnzbd's post-processing ends."
+            }
         ]);
     });
 

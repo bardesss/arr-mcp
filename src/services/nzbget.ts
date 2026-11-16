@@ -1094,6 +1094,9 @@ export class NzbgetAdapter
         const nzbId = row.NZBID ?? row.ID;
         const status = (raw: string) => fenceText(raw, { service: this.id, field: 'Status' });
         let started = false;
+        // Seen done with post-processing: once it leaves the queue, history says how it ended.
+        let finishing: Pick<RetryOutcome, 'status' | 'stage'> | undefined;
+        const last = POST_PROCESS_POLLS - 1;
         for (let poll = 0; poll < POST_PROCESS_POLLS; poll++) {
             if (poll > 0) await delay(POST_PROCESS_POLL_MS);
             const [messages, groups] = await Promise.all([
@@ -1111,6 +1114,31 @@ export class NzbgetAdapter
                 if (m.Text === `${RETRY_STARTED} ${name}`) started = true;
             }
             const queued = groups.find(group => group.NZBID === nzbId);
+            if (queued === undefined && finishing !== undefined) break;
+            // A group already in a post stage is being processed, not
+            // downloading: with nothing left to fetch it moves on through
+            // post-processing, and can be filed again between polls (below).
+            if (queued !== undefined && inPostProcessing(queued)) {
+                // PP_FINISHED is done but not yet filed: wait for history, which
+                // says whether it succeeded, as a rerun's watch does, unless time is up.
+                if (stageOf(queued) === 'PP_FINISHED' && poll !== last) {
+                    finishing = { status: status(queueStatus(queued.Status)), stage: stagePhrase(queued) };
+                    continue;
+                }
+                // What holds it there, as the rows read it (`nzbgetHold`); a failed read leaves that unsaid.
+                const hold = await this.#status().then(
+                    read => nzbgetHold(read, queued),
+                    () => undefined
+                );
+                return {
+                    target,
+                    id: target.id,
+                    state: 'processing',
+                    status: status(queueStatus(queued.Status)),
+                    stage: stagePhrase(queued),
+                    ...withHold(hold)
+                };
+            }
             if (queued !== undefined) {
                 // One more read, once: whether the paused queue holds it. The retry
                 // has landed, so a failed read only leaves that unsaid.
@@ -1130,13 +1158,23 @@ export class NzbgetAdapter
             }
         }
 
-        // With nothing left to fetch it can be filed again between polls.
-        if (started) {
-            const filed = objectsIn<RawHistory>(await this.#rpc<unknown[]>('history', [false], isArray)).find(r => r.ID === row.ID);
+        // With nothing left to fetch it can be filed again between polls. Once
+        // it was seen finishing, the retry has run: no row there means an *arr
+        // took it out again, and a failed read leaves it where it was last seen.
+        if (started || finishing !== undefined) {
+            let rows: unknown[];
+            try {
+                rows = await this.#rpc<unknown[]>('history', [false], isArray);
+            } catch (err) {
+                if (finishing === undefined) throw err;
+                return { target, id: target.id, state: 'processing', ...finishing };
+            }
+            const filed = objectsIn<RawHistory>(rows).find(r => r.ID === row.ID);
             if (filed !== undefined && typeof filed.HistoryTime === 'number' && filed.HistoryTime > (row.HistoryTime ?? 0)) {
                 const raw = filed.Status ?? 'unknown';
                 return { target, id: target.id, state: 'finished', event: historyEvent(raw), status: status(raw) };
             }
+            if (finishing !== undefined) return { target, id: target.id, state: 'finished', status: 'removed' };
         }
         throw new ServiceError('UpstreamError', this.id, `NZBGet accepted the retry of download ${target.id}, but it never appeared in the queue`, {
             remedy: "It was not reported as retried. The usual cause is that the download's folder no longer exists; NZBGet's Messages page says for certain."

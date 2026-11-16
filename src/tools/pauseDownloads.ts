@@ -4,7 +4,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { DOWNLOAD_CLIENTS, type ServiceId } from '../config/schema.ts';
 import { ServiceError } from '../core/errors.ts';
-import { hasPause, hasSpeedLimit, SAB_WAIT_SWITCH, sabWaits, type PauseState, type ServiceAdapter } from '../services/types.ts';
+import { hasPause, hasSpeedLimit, NZBGET_POST_HOLDS, SAB_WAIT_SWITCH, sabWaits, type PauseState, type ServiceAdapter } from '../services/types.ts';
 import { turtleModeRefusal } from '../services/transmission.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
 import { targetInput, serviceTarget } from './serviceTarget.ts';
@@ -69,8 +69,8 @@ const PauseDownloadsInput = z.object({
  * What else holds one SABnzbd or NZBGet item, for its resume preview and for
  * the no-op of an item not paused itself: its client's paused queue, which this
  * tool resumes without an `id`, or SABnzbd's wait for post-processing, which
- * ends by itself, though its rows can look like it under a manual pause
- * (`sabWaiting`).
+ * ends by itself, though a manual pause can read like it (`sabWaiting`,
+ * `#waitOn`).
  */
 const HOLD_TEXT: Readonly<Record<NonNullable<PauseState['heldBy']>, (client: string) => { noop: string; effect: string }>> = {
     queue: client => ({
@@ -84,16 +84,18 @@ const HOLD_TEXT: Readonly<Record<NonNullable<PauseState['heldBy']>, (client: str
 };
 
 /**
- * SABnzbd's whole queue while its rows show the wait for post-processing
- * (`sabWaiting`), worded as what the rows show, since they can hide a manual
- * pause. A pause is sent, so the queue stays paused once the wait ends; a
- * resume is sent too, though it does not end the wait.
+ * SABnzbd's whole queue while it reads as waiting for post-processing, from
+ * its rows or from its switch and history (`sabWaiting`, `#waitOn`), worded as
+ * how it reads, since a manual pause can lie behind the wait. A pause is sent,
+ * so the queue stays paused once the wait ends, unless a Queued row shows it
+ * paused by hand already; a resume is sent too, though it does not end the
+ * wait.
  */
 const WAIT_TEXT = {
     pause: (scope: string, client: string) =>
-        `Pauses ${scope} on ${client} by hand. Its rows show it waiting on post-processing (${SAB_WAIT_SWITCH}), after which it would resume by itself; this keeps it paused after.`,
+        `Pauses ${scope} on ${client} by hand. ${client} reads as waiting on post-processing (${SAB_WAIT_SWITCH}), after which it would resume by itself; this keeps it paused after.`,
     resume: (client: string) =>
-        `If ${client} is only waiting on post-processing (${SAB_WAIT_SWITCH}), as its rows show, this does not end that, and downloading starts once it ends.`
+        `If ${client} is waiting on post-processing (${SAB_WAIT_SWITCH}), this does not end that, and downloading starts once it ends.`
 };
 
 /** The first line of a resume preview: what restarts, and what still holds it. */
@@ -250,8 +252,8 @@ export function registerPauseDownloads(
             // repair asks for (`RequestMorePars`), so a pause or resume here would only fight it.
             if (state.postProcessing !== undefined) {
                 const holds = [
-                    ...(state.heldBy === 'queue' ? [`${adapter.id}'s whole queue is paused, which holds the repair files it asked for: resume that with this tool and no \`id\`.`] : []),
-                    ...(state.postProcessing.paused ? [`${adapter.id}'s post-processing is paused: resume that in ${adapter.id}.`] : [])
+                    ...(state.heldBy === 'queue' ? [NZBGET_POST_HOLDS.queue(adapter.id, 'with this tool and no `id`')] : []),
+                    ...(state.postProcessing.paused ? [NZBGET_POST_HOLDS.postPaused(adapter.id)] : [])
                 ];
                 return {
                     target,
@@ -263,14 +265,15 @@ export function registerPauseDownloads(
                     noop: true
                 };
             }
-            // During SABnzbd's wait the rows can hide a manual pause, so a whole-queue resume is sent, not refused.
+            // A manual pause can lie behind SABnzbd's wait, so a whole-queue resume is sent, not refused.
             const waiting = whole && state.heldBy === 'postProcessing';
 
             if (id === undefined && state.torrents !== undefined) return torrentPlan(adapter.id, target, paused, state.torrents);
 
             // Asking someone to confirm a no-op teaches them to confirm
             // without reading.
-            if (!waiting && state.paused === paused) {
+            // A queue paused by hand that the wait also holds: a second pause does nothing, a resume ends one of the two.
+            if ((!waiting || paused) && state.paused === paused) {
                 // A held item that is not paused itself is not running either.
                 const held = paused ? undefined : state.heldBy;
                 return {

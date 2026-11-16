@@ -2,6 +2,7 @@ import { instanceId } from '../config/instances.ts';
 import { instantOf } from '../core/instant.ts';
 import type { ConfigByService, ServiceId } from '../config/schema.ts';
 import { queryParamKey } from '../core/auth.ts';
+import { SHORT_READ_TTL_MS, cached } from '../core/cache.ts';
 import { ServiceError } from '../core/errors.ts';
 import { ServiceHttp } from '../core/http.ts';
 import { fenceText } from '../core/fence.ts';
@@ -56,6 +57,11 @@ type RawQueue = {
     };
 };
 type RawHistory = { history?: { slots?: RawHistorySlot[] } };
+/**
+ * `get_config` for one keyword: `{ config: { misc: { pause_on_post_processing: 0 } } }`. `OptionBool`
+ * stores 0 or 1 before SABnzbd 4.4.0, and a bool from it on (`bool_conv`), so the switch reads 1 or true.
+ */
+type RawWaitSwitch = { config?: { misc?: { pause_on_post_processing?: unknown } } };
 /** SABnzbd 4.x and 5.x send objects; `time` is unix seconds. */
 type RawWarning = { type?: unknown; text?: unknown; time?: unknown; origin?: unknown };
 type RawWarnings = { warnings?: unknown };
@@ -66,6 +72,8 @@ type RawHistorySlot = {
     fail_message?: string;
     /** Unix seconds. */
     completed?: number;
+    /** The job SABnzbd's post-processor is working on now (`pp_active`), which sets the wait as it starts. */
+    loaded?: boolean;
 };
 
 type RawSlot = {
@@ -84,6 +92,9 @@ type RawSlot = {
     labels?: string[];
 };
 
+/** A slot reads Queued: under the queue's `paused` flag, a pause by hand (`sabWaiting`). */
+const anyQueued = (queue: RawQueue['queue']): boolean => (queue?.slots ?? []).some(s => (s.status ?? '').toLowerCase() === 'queued');
+
 /**
  * Whether the queue's `paused` flag is the wait for post-processing, which a
  * resume does not end (`Downloader`), rather than a manual pause, which it
@@ -96,19 +107,37 @@ type RawSlot = {
  * included (`Downloader.run`). So the wait is read from such a slot not at
  * Force priority, with none reading Queued, and then holds every slot; the
  * remedies built on it still say to resume the queue if it stays paused.
+ * Where no slot shows it, `#waitOn` reads the switch and the history instead.
  */
 const sabWaiting = (queue: RawQueue['queue']): boolean => {
     if (queue?.paused !== true) return false;
-    const slots = queue.slots ?? [];
     const status = (slot: RawSlot): string => (slot.status ?? '').toLowerCase();
-    return !slots.some(s => status(s) === 'queued') && slots.some(s => s.priority !== 'Force' && ['downloading', 'propagating'].includes(status(s)));
+    return !anyQueued(queue) && (queue.slots ?? []).some(s => s.priority !== 'Force' && ['downloading', 'propagating'].includes(status(s)));
 };
 
-/** What holds each slot while the queue's `paused` flag is set (`sabWaiting`). */
-const sabHolds = (queue: RawQueue['queue']): ((slot: RawSlot) => PauseState['heldBy']) => {
+/**
+ * Whether the queue reads paused and its slots leave the wait unknown where it
+ * would change the answer for `slots`: no slot shows the wait, and either none
+ * reads Queued or one of `slots` is at Force, which the wait holds and a pause
+ * by hand does not.
+ */
+const waitUnknown = (queue: RawQueue['queue'], slots: readonly RawSlot[]): boolean =>
+    queue?.paused === true && !sabWaiting(queue) && (!anyQueued(queue) || slots.some(s => s.priority === 'Force'));
+
+/**
+ * What holds each slot while the queue's `paused` flag is set (`sabWaiting`).
+ * `waitOn` is the wait as `#waitOn` read it where the slots cannot tell: then
+ * it holds a Force slot, and every slot when none reads Queued; with one that
+ * does, a pause by hand holds the rest too.
+ */
+const sabHolds = (queue: RawQueue['queue'], waitOn = false): ((slot: RawSlot) => PauseState['heldBy']) => {
     if (queue?.paused !== true) return () => undefined;
     if (sabWaiting(queue)) return () => 'postProcessing';
-    return slot => (slot.priority === 'Force' ? undefined : 'queue');
+    const byHand = anyQueued(queue);
+    return slot => {
+        if (waitOn && (slot.priority === 'Force' || !byHand)) return 'postProcessing';
+        return slot.priority === 'Force' ? undefined : 'queue';
+    };
 };
 
 /** For an encrypted job that is not paused itself: there is nothing to unlock, and this is what, if anything, holds it. */
@@ -182,6 +211,7 @@ const plainName = (filename: string | undefined): string =>
 /** Queue statuses SABnzbd shows while post-processing rather than downloading. */
 const PROCESSING_STATUSES = new Set(['verifying', 'repairing', 'extracting', 'moving', 'running']);
 
+
 /**
  * How far back a warning still counts as failing. `mode=warnings` is a log
  * kept until restart or until someone clears it, not a current state: a live
@@ -209,6 +239,10 @@ export class SabnzbdAdapter
     readonly instance: string | undefined;
     readonly id: string;
     readonly #http: ServiceHttp;
+    /** SABnzbd's "Pause Downloading During Post-Processing" switch, the one setting `#waitOn` reads. */
+    readonly #waitSwitch = cached(SHORT_READ_TTL_MS, () =>
+        this.#read<RawWaitSwitch>('/api?mode=get_config&section=misc&keyword=pause_on_post_processing&output=json')
+    );
 
     constructor(config: ConfigByService['sabnzbd'], fetchImpl: typeof fetch = fetch) {
         this.instance = config.name;
@@ -302,8 +336,9 @@ export class SabnzbdAdapter
 
     async getQueue(): Promise<QueueItem[]> {
         const body = await this.#read<RawQueue>('/api?mode=queue&output=json');
-        const holdOf = sabHolds(body.queue);
-        return (body.queue?.slots ?? [])
+        const slots = body.queue?.slots ?? [];
+        const holdOf = slots.length === 0 ? () => undefined : await this.#holdsOf(body.queue, slots);
+        return slots
             .filter((s): s is RawSlot & { nzo_id: string } => typeof s.nzo_id === 'string')
             .map(s => {
                 const size = megabytesToBytes(s.mb);
@@ -355,8 +390,9 @@ export class SabnzbdAdapter
 
     /**
      * The queue-wide paused flag is read directly, unless the rows show the
-     * wait for post-processing (`sabWaiting`): the queue then reads as not
-     * paused by hand, and held by that wait.
+     * wait for post-processing (`sabWaiting`), or the switch and the history
+     * do (`#waitOn`): the queue is then held by that wait, and paused by hand
+     * too only where a Queued row shows that.
      *
      * With an id, the answer comes from that slot's own status, and a slot
      * that is no longer in the queue is refused, not reported as paused. The
@@ -367,7 +403,10 @@ export class SabnzbdAdapter
 
         if (id === undefined) {
             const scope = 'the SABnzbd queue';
-            return sabWaiting(body.queue) ? { paused: false, scope, heldBy: 'postProcessing' } : { paused: body.queue?.paused === true, scope };
+            if (sabWaiting(body.queue)) return { paused: false, scope, heldBy: 'postProcessing' };
+            const paused = body.queue?.paused === true;
+            // Where the rows cannot tell, and beside the pause by hand a Queued row proves, which the wait can lie behind too.
+            return paused && (await this.#waitOn()) ? { paused: anyQueued(body.queue), scope, heldBy: 'postProcessing' } : { paused, scope };
         }
 
         const slot = (body.queue?.slots ?? []).find(s => s.nzo_id === id);
@@ -379,7 +418,7 @@ export class SabnzbdAdapter
         return {
             paused: (slot.status ?? '').toLowerCase() === 'paused',
             scope: `queue item ${id}`,
-            ...withHold(sabHolds(body.queue)(slot))
+            ...withHold((await this.#holdsOf(body.queue, [slot]))(slot))
         };
     }
 
@@ -504,9 +543,10 @@ export class SabnzbdAdapter
      * that reads paused is read once more, whole, unless the read by id
      * already decides: it answered other slots too (3.x ignores `nzo_ids`),
      * or the slot reads Queued, which no slot does during the wait. A failed
-     * or empty read is read as a pause by hand, which a Force job downloads through and
-     * whose remedy for any other also covers the wait ("if it stays paused"),
-     * so a retry that has already landed is not reported as failed.
+     * or empty read leaves the switch and history to tell, and reads as a
+     * pause by hand where they do not either (a Force job downloads through
+     * one, and the remedy for any other also covers the wait, "if it stays
+     * paused"), so a retry that has already landed is not reported as failed.
      */
     async #holding(slot: RawSlot, queue: RawQueue['queue']): Promise<PauseState['heldBy']> {
         if (queue?.paused !== true) return undefined;
@@ -517,8 +557,39 @@ export class SabnzbdAdapter
                   body => body.queue,
                   () => undefined
               );
-        // A failed or empty read has no slots to show the wait, so `sabHolds` reads a pause by hand.
-        return sabHolds(whole ?? { paused: true, slots: [] })(slot);
+        // A failed or empty read has no slots to show the wait, so `#holdsOf` reads the switch and history.
+        return (await this.#holdsOf(whole ?? { paused: true, slots: [] }, [slot]))(slot);
+    }
+
+    /** What holds each of `slots` (`sabHolds`), with the wait read from the switch and history where the slots cannot tell. */
+    async #holdsOf(queue: RawQueue['queue'], slots: readonly RawSlot[]): Promise<(slot: RawSlot) => PauseState['heldBy']> {
+        return sabHolds(queue, waitUnknown(queue, slots) && (await this.#waitOn()));
+    }
+
+    /**
+     * Whether SABnzbd waits for post-processing, read where its slots cannot
+     * tell (`waitUnknown`), and for the whole queue beside a Queued row, which
+     * the wait can hold as well: its "Pause Downloading During Post-Processing"
+     * switch is on and its post-processor is working on a download, which
+     * sets the wait as it starts it (`PostProcessor.run`: `pp_active`, then
+     * `wait_for_postproc`, both cleared as it ends), and which the history
+     * marks `loaded`. A job only queued for post-processing, as one is while
+     * post-processing is paused, does not. Only that one setting is asked
+     * for: `get_config` with no keyword answers every setting, the API and NZB
+     * keys among them. It changes rarely, so it is shared for a few seconds,
+     * as a stack health pass shares its reads. The history lists the
+     * downloads in post-processing first. A read that fails answers no, which
+     * leaves the slots' own reading.
+     */
+    async #waitOn(): Promise<boolean> {
+        try {
+            const on = (await this.#waitSwitch()).config?.misc?.pause_on_post_processing;
+            if (on !== 1 && on !== true) return false;
+            const history = await this.#read<RawHistory>('/api?mode=history&limit=10&output=json');
+            return (history.history?.slots ?? []).some(s => s.loaded === true);
+        } catch {
+            return false;
+        }
     }
 
     /**

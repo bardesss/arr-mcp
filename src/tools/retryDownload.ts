@@ -3,10 +3,12 @@ import * as z from 'zod/v4';
 import {
     hasDownloadTrace,
     hasRetry,
+    NZBGET_POST_HOLDS,
     RESUME_HELD_QUEUE,
     sabWaits,
     withHold,
     type DownloadTrace,
+    type QueueHold,
     type RetryMethod,
     type RetryOutcome,
     type RetryTarget,
@@ -133,14 +135,40 @@ function heldText(outcome: Pick<RetryOutcome, 'id' | 'status' | 'heldBy' | 'paus
     return undefined;
 }
 
-/** The result field that says what holds a job back in the queue, which `applied` reads back. */
-const HOLD_FIELD = { queue: 'queue_paused', postProcessing: 'post_processing_wait' } as const;
+/**
+ * A job in post-processing: where it is, and what holds it there, which only
+ * NZBGet says: a paused queue holding the repair files it asked for, paused
+ * post-processing, or both, worded as pause_downloads words them.
+ */
+function processingText(outcome: Pick<RetryOutcome, 'status' | 'stage' | 'heldBy'>, client: string): string {
+    const where = outcome.stage === undefined ? `It is being processed (${outcome.status}).` : `It is ${outcome.stage}.`;
+    const queue = NZBGET_POST_HOLDS.queue(client, 'with pause_downloads (`action: "resume"` without an `id`)');
+    const post = NZBGET_POST_HOLDS.postPaused(client);
+    const holds: Readonly<Record<QueueHold, readonly string[]>> = { queue: [queue], postPaused: [post], queueAndPostPaused: [queue, post], postProcessing: [] };
+    return [where, ...(outcome.heldBy === undefined ? [] : holds[outcome.heldBy])].join(' ');
+}
+
+/** The holds the outcome text reads in each state, the only ones its result carries. */
+const HOLDS_READ: Readonly<Record<'downloading' | 'processing', ReadonlySet<QueueHold>>> = {
+    downloading: new Set(['queue', 'postProcessing']),
+    processing: new Set(['queue', 'postPaused', 'queueAndPostPaused'])
+};
+
+/** The result fields that say what holds a job, in `HOLD_FLAGS` order, which `applied` reads back. */
+const HOLD_FIELDS: Readonly<Record<QueueHold, readonly HoldFlag[]>> = {
+    queue: ['queue_paused'],
+    postProcessing: ['post_processing_wait'],
+    postPaused: ['post_processing_paused'],
+    queueAndPostPaused: ['queue_paused', 'post_processing_paused']
+};
+const HOLD_FLAGS = ['queue_paused', 'post_processing_wait', 'post_processing_paused'] as const;
+type HoldFlag = (typeof HOLD_FLAGS)[number];
 
 /** Where it ended up, in words. A finished rerun with no event is one an *arr
  *  already took out of the client's history, not a failure. */
-const describeOutcome = (outcome: Pick<RetryOutcome, 'id' | 'state' | 'status' | 'event' | 'heldBy' | 'pausedItself'>, client: string) => {
+const describeOutcome = (outcome: Pick<RetryOutcome, 'id' | 'state' | 'status' | 'stage' | 'event' | 'heldBy' | 'pausedItself'>, client: string) => {
     if (outcome.state === 'downloading') return heldText(outcome, client) ?? `It is downloading again (${outcome.status}).`;
-    if (outcome.state === 'processing') return `It is being processed (${outcome.status}).`;
+    if (outcome.state === 'processing') return processingText(outcome, client);
     if (outcome.event === undefined) {
         return `It ran and is no longer in ${client}'s history; an *arr usually imported it and removed it there.`;
     }
@@ -222,22 +250,25 @@ export function registerRetryDownload(server: McpServer, context: WriteContext, 
                 state: outcome.state,
                 status: outcome.status,
                 ...(outcome.event === undefined ? {} : { event: outcome.event }),
-                // Only a job back in the queue waits on what holds it; the outcome text reads these for that state alone.
-                ...(outcome.state === 'downloading' && outcome.heldBy !== undefined ? { [HOLD_FIELD[outcome.heldBy]]: true } : {}),
+                ...(outcome.state === 'processing' && outcome.stage !== undefined ? { stage: outcome.stage } : {}),
+                // Only the holds the outcome text reads in this state.
+                ...(outcome.state !== 'finished' && outcome.heldBy !== undefined && HOLDS_READ[outcome.state].has(outcome.heldBy)
+                    ? Object.fromEntries(HOLD_FIELDS[outcome.heldBy].map(flag => [flag, true]))
+                    : {}),
                 ...(outcome.state === 'downloading' && outcome.pausedItself === true ? { paused_itself: true } : {}),
                 ...(view === undefined ? {} : { tracked_by: view.traces.map(t => t.service) })
             };
         },
 
         applied(result, plan) {
-            const r = result as Pick<RetryOutcome, 'id' | 'state' | 'status' | 'event'> & {
-                service: string;
-                previous_id?: string;
-                download_id: string;
-                queue_paused?: true;
-                post_processing_wait?: true;
-                paused_itself?: true;
-            };
+            const r = result as Pick<RetryOutcome, 'id' | 'state' | 'status' | 'stage' | 'event'> &
+                Partial<Record<HoldFlag, true>> & {
+                    service: string;
+                    previous_id?: string;
+                    download_id: string;
+                    paused_itself?: true;
+                };
+            const flags = HOLD_FLAGS.filter(flag => r[flag] === true).join();
             const view = views.get(plan);
             const lines = [`Applied. ${plan.summary}`];
             if (r.previous_id !== undefined) lines.push(`Its id is now ${r.id}.`);
@@ -245,7 +276,7 @@ export function registerRetryDownload(server: McpServer, context: WriteContext, 
                 describeOutcome(
                     {
                         ...r,
-                        ...withHold((['queue', 'postProcessing'] as const).find(hold => r[HOLD_FIELD[hold]] === true)),
+                        ...withHold((Object.keys(HOLD_FIELDS) as QueueHold[]).find(hold => HOLD_FIELDS[hold].join() === flags)),
                         ...(r.paused_itself === true ? { pausedItself: true } : {})
                     },
                     r.service
