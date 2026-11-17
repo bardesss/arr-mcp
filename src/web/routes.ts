@@ -46,6 +46,7 @@ import { configPage, configTabForPost, configTabNamed, defaultUserNote, offerabl
 import { isLoopbackHost, probeJwks } from './jwksProbe.ts';
 import { apiEndpoint, forwardedProtoOf, mcpEndpoint, peerAddress, requestIsHttps, sameOrigin } from './origin.ts';
 import type { WebhookEvents } from '../core/webhookEvents.ts';
+import type { PlayHistory, PlayRecord, PlaySummary } from '../core/playHistory.ts';
 import type { ConnectionDiagnosis, DiskSpace, HistoryEntry, Window } from '../services/types.ts';
 import {
     auditPage,
@@ -56,6 +57,7 @@ import {
     loginPage,
     logRowView,
     logsPage,
+    playsPage,
     setupPage,
     LOG_STREAMS,
     type LogStreamKey
@@ -77,6 +79,8 @@ type WebDeps = {
     audit: WriteAudit;
     logs: LogStore;
     events: WebhookEvents;
+    /** Absent in tests that build the app without one; the Plays tab then says it could not be read. */
+    plays?: PlayHistory;
     version: string;
     discovery: DiscoveryService;
 };
@@ -90,7 +94,7 @@ type WebDeps = {
  * stream and copies a freshly created token.
  */
 export function registerWebRoutes(app: Hono, deps: WebDeps): void {
-    const { runtime, audit, logs, events, version, discovery } = deps;
+    const { runtime, audit, logs, events, plays, version, discovery } = deps;
 
     // --- assets ---------------------------------------------------------
     //
@@ -427,10 +431,52 @@ export function registerWebRoutes(app: Hono, deps: WebDeps): void {
 
     // --- logs -----------------------------------------------------------
 
+    const PLAY_ROWS_SHOWN = 50;
+
+    const renderPlays = (session: string, extra: { confirming?: boolean; message?: { kind: 'ok' | 'err'; text: string } }) => {
+        let read: { summary: PlaySummary[]; syncs: Record<string, string>; recent: PlayRecord[] } | undefined;
+        try {
+            read = plays === undefined ? undefined : { summary: plays.summary(), syncs: plays.syncs(), recent: plays.recent(PLAY_ROWS_SHOWN) };
+        } catch (err) {
+            logger.warn({ err }, 'could not read the play store');
+        }
+        const { primary, secondary } = runtime.current.tools.mediaServers;
+        return playsPage({
+            csrf: runtime.sessions.csrfFor(session),
+            theme: theme(),
+            version,
+            read,
+            mediaServers: [primary, secondary].flatMap(m => (m === undefined ? [] : [m.adapter.id])),
+            ...extra
+        });
+    };
+
+    app.post('/ui/logs/plays/clear', async c => {
+        const session = guard(c);
+        if (session === undefined) return c.redirect(entry(), 302);
+        c.header('cache-control', 'no-store');
+        const form = await c.req.parseBody();
+        if (!runtime.sessions.csrfValid(session, str(form.csrf))) {
+            logger.warn({ ...originOf(c) }, 'rejected clearing the play store with a bad CSRF token');
+            return c.html(renderPlays(session, { message: { kind: 'err', text: 'That form was stale. Reload the page and try again.' } }), 403);
+        }
+        if (str(form.confirm) !== 'yes') return c.html(renderPlays(session, { confirming: true }));
+        try {
+            plays?.clear();
+        } catch (err) {
+            logger.error({ err }, 'could not clear the play store');
+            return c.html(renderPlays(session, { message: { kind: 'err', text: 'The play store could not be cleared. The Problems tab has the error.' } }), 500);
+        }
+        logger.info({ ...originOf(c) }, 'play store cleared from the config UI');
+        return c.html(renderPlays(session, { message: { kind: 'ok', text: 'Cleared. The next sync starts filling it again.' } }));
+    });
+
     app.get('/ui/logs', c => {
         const session = guard(c);
         if (session === undefined) return c.redirect(entry(), 302);
         c.header('cache-control', 'no-store');
+
+        if (c.req.query('stream') === 'plays') return c.html(renderPlays(session, {}));
 
         if (c.req.query('stream') === 'events') {
             let read: Window<HistoryEntry> | undefined;

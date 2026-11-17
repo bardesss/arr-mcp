@@ -4,7 +4,9 @@ import { unfence } from '../core/fence.ts';
 import { logFields, type LogRow } from '../core/logs.ts';
 import { daysLeft, expiringSoon, isExpired, type StoredToken } from '../core/mcpTokens.ts';
 import type { DatasetStatus } from '../metadata/imdbDataset.ts';
-import type { ConnectionDiagnosis, HealthCheck, HistoryEntry, ScanState, Window } from '../services/types.ts';
+import type { ConnectionDiagnosis, HealthCheck, HistoryEntry, PlaybackEntry, ScanState, Window } from '../services/types.ts';
+import { episodeCode } from '../core/labels.ts';
+import type { PlayRecord, PlaySummary } from '../core/playHistory.ts';
 import { humanBytes, type DiskGroup } from '../core/disks.ts';
 import { esc, html, raw, shortTime, type SafeHtml } from './html.ts';
 import { LOGO, NAV_ICONS, serviceIcon } from './icons.ts';
@@ -607,15 +609,131 @@ const tabBar = (tabs: readonly { href: string; label: string; on: boolean }[]): 
     </nav>`;
 
 /** The event log's tab is not in `LOG_STREAMS`, because those are filters over log lines. */
-const logTabs = (stream: LogStreamKey | 'events', selectedService: string): SafeHtml =>
+const logTabs = (stream: LogStreamKey | 'events' | 'plays', selectedService: string): SafeHtml =>
     tabBar([
         ...LOG_STREAMS.map(s => ({
             href: `/ui/logs?stream=${s.key}${s.key === 'service' && selectedService !== '' ? `&service=${encodeURIComponent(selectedService)}` : ''}`,
             label: s.label,
             on: s.key === stream
         })),
-        { href: '/ui/logs?stream=events', label: 'Library events', on: stream === 'events' }
+        { href: '/ui/logs?stream=events', label: 'Library events', on: stream === 'events' },
+        { href: '/ui/logs?stream=plays', label: 'Plays', on: stream === 'plays' }
     ]);
+
+/**
+ * What the play store holds, so a household can see that arr-mcp keeps its
+ * watch history and empty it. Counts and the newest plays only: the whole
+ * list is what get_playback is for.
+ *
+ * Clearing asks twice on the server, like removing a service: a scripted
+ * confirmation would clear on the first click with scripting off.
+ */
+export function playsPage(opts: {
+    csrf: string;
+    version: string;
+    /** Undefined when the store could not be read. */
+    read: { summary: PlaySummary[]; syncs: Record<string, string>; recent: PlayRecord[] } | undefined;
+    mediaServers: readonly string[];
+    confirming?: boolean;
+    message?: { kind: 'ok' | 'err'; text: string };
+    theme?: Theme | undefined;
+}): string {
+    const read = opts.read;
+    const plain = (value: string | undefined): string => (value === undefined ? '' : unfence(value));
+    const total = read?.summary.reduce((n, s) => n + s.plays, 0) ?? 0;
+
+    const message = opts.message === undefined ? raw('') : html`<div class="msg ${opts.message.kind}">${opts.message.text}</div>`;
+
+    const status =
+        read === undefined
+            ? html`<div class="msg err">The play store could not be read. The Problems tab has the error.</div>`
+            : opts.mediaServers.length === 0
+              ? html`<p class="note">No media server is configured, so nothing is being recorded.</p>`
+              : total === 0
+                ? html`<p class="note">Nothing stored yet. The first sync runs a minute after start.</p>`
+                : raw('');
+
+    const syncs =
+        read === undefined || opts.mediaServers.length === 0
+            ? raw('')
+            : html`<p class="note">
+                  ${opts.mediaServers.map((id, i) => {
+                      const at = read.syncs[id];
+                      return html`${i === 0 ? raw('') : raw('; ')}${id}: ${at === undefined ? 'not synced yet' : html`last synced ${shortTime(at)}`}`;
+                  })}.
+              </p>`;
+
+    const counts =
+        read === undefined || read.summary.length === 0
+            ? raw('')
+            : html`<div class="scroll">
+                  <table class="stacked">
+                      <thead><tr><th>Media server</th><th>User</th><th>Plays</th><th>Last played</th></tr></thead>
+                      <tbody>
+                          ${read.summary.map(
+                              s => html`<tr>
+                                  <td>${s.server}</td>
+                                  <td>${s.user}</td>
+                                  <td>${String(s.plays)} plays</td>
+                                  <td class="mono">${s.lastPlayed === undefined ? '' : shortTime(s.lastPlayed)}</td>
+                              </tr>`
+                          )}
+                      </tbody>
+                  </table>
+              </div>`;
+
+    const name = (e: PlaybackEntry): string =>
+        e.seriesTitle === undefined
+            ? plain(e.title)
+            : `${plain(e.seriesTitle)}${e.season === undefined || e.episode === undefined ? '' : ` ${episodeCode(e.season, e.episode)}`} ${plain(e.title)}`;
+
+    const recent =
+        read === undefined || read.recent.length === 0
+            ? raw('')
+            : html`<h2>Newest plays</h2>
+                  <div class="scroll">
+                      <table class="stacked">
+                          <thead><tr><th>Played</th><th>Media server</th><th>User</th><th class="prose">Title</th><th>Note</th></tr></thead>
+                          <tbody>
+                              ${read.recent.map(
+                                  r => html`<tr>
+                                      <td class="mono">${r.entry.lastPlayed === undefined ? '' : shortTime(r.entry.lastPlayed)}</td>
+                                      <td>${r.entry.service}</td>
+                                      <td>${r.entry.user}</td>
+                                      <td class="prose">${name(r.entry)}</td>
+                                      <td>${r.entry.removedFromLibrary === true ? 'removed from library' : ''}</td>
+                                  </tr>`
+                              )}
+                          </tbody>
+                      </table>
+                  </div>`;
+
+    const clear =
+        read === undefined || total === 0
+            ? raw('')
+            : html`<form method="post" action="/ui/logs/plays/clear">
+                  <input type="hidden" name="csrf" value="${opts.csrf}">
+                  ${opts.confirming === true
+                      ? html`<button type="submit" name="confirm" value="yes" class="danger">Yes, clear ${String(total)} plays</button>
+                            <p class="note">Plays the media server has already forgotten are gone for good. Reload to cancel.</p>`
+                      : html`<button type="submit" class="danger">Clear stored plays</button>`}
+              </form>`;
+
+    const body = html`${logTabs('plays', '')}
+        <p class="note">
+            Every play your media servers report, kept in <code>plays.db</code> after the server forgets it, so
+            get_playback history still lists titles deleted since. Read hourly for each media server's default user,
+            and whenever someone's history is read.
+        </p>
+        ${message}
+        ${status}
+        ${syncs}
+        ${counts}
+        ${recent}
+        ${clear}`;
+
+    return layout({ title: 'Logs', nav: 'logs', csrf: opts.csrf, version: opts.version, body, theme: opts.theme });
+}
 
 /**
  * Stored events rather than log lines, so its own columns and none of the log

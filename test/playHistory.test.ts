@@ -113,6 +113,27 @@ describe('PlayHistory', () => {
         expect(store.read('plex', 'u1').map(r => r.entry.title).sort()).toEqual(['Deleted one', 'Deleted two']);
     });
 
+    it('summarises per server and user, lists the newest plays, and clears', () => {
+        const store = PlayHistory.ephemeral();
+        store.record('jellyfin', user, [
+            record(film('a', 'Alpha', '2026-01-01T00:00:00.000Z')),
+            record(film('b', 'Beta', '2026-03-01T00:00:00.000Z'))
+        ]);
+        store.record('plex', user, [record({ ...film('c', 'Gamma', '2026-02-01T00:00:00.000Z'), service: 'plex' })]);
+        store.markSynced('jellyfin', '2026-03-02T00:00:00.000Z');
+
+        expect(store.summary()).toEqual([
+            { server: 'jellyfin', user: 'Sam', plays: 2, lastPlayed: '2026-03-01T00:00:00.000Z' },
+            { server: 'plex', user: 'Sam', plays: 1, lastPlayed: '2026-02-01T00:00:00.000Z' }
+        ]);
+        expect(store.recent(2).map(r => r.entry.itemId)).toEqual(['b', 'c']);
+        expect(store.syncs()).toEqual({ jellyfin: '2026-03-02T00:00:00.000Z' });
+
+        store.clear();
+        expect(store.summary()).toEqual([]);
+        expect(store.syncs()).toEqual({});
+    });
+
     it('survives a reopen of the same file', () => {
         const dir = mkdtempSync(join(tmpdir(), 'plays-'));
         try {

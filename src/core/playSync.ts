@@ -28,6 +28,7 @@ export async function syncPlays(servers: MediaServers, store: PlayHistory): Prom
             const [history, library] = await Promise.all([adapter.getWatchHistory(user), adapter.listUserLibrary(user)]);
             const plays = playsFrom(adapter.id, user, history, library);
             store.record(adapter.id, user, plays);
+            store.markSynced(adapter.id, new Date().toISOString());
             logger.debug({ service: adapter.id, plays: plays.length }, 'play history synced');
         } catch (err) {
             logger.warn({ service: adapter.id, err }, 'play history sync failed; trying again next hour');

@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS plays (
     server       TEXT NOT NULL,
     user_id      TEXT NOT NULL,
     item_key     TEXT NOT NULL,
+    user_name    TEXT NOT NULL,
     kind         TEXT NOT NULL,
     title        TEXT NOT NULL,
     series_title TEXT,
@@ -50,7 +51,19 @@ CREATE TABLE IF NOT EXISTS plays (
     record       TEXT NOT NULL,
     PRIMARY KEY (server, user_id, item_key)
 );
+CREATE TABLE IF NOT EXISTS syncs (
+    server TEXT PRIMARY KEY,
+    at     TEXT NOT NULL
+);
 `;
+
+/** What the config UI's Plays tab shows: counts, never the whole list. */
+export type PlaySummary = {
+    server: string;
+    user: string;
+    plays: number;
+    lastPlayed?: string;
+};
 
 /**
  * A row with no item id is a Plex history row for a deleted item, which keeps
@@ -98,8 +111,8 @@ export class PlayHistory {
         this.#select = db.prepare('SELECT record FROM plays WHERE server = ? AND user_id = ? AND item_key = ?');
         this.#upsert = db.prepare(
             `INSERT OR REPLACE INTO plays
-                (server, user_id, item_key, kind, title, series_title, year, tmdb, tvdb, imdb, last_played, record)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                (server, user_id, item_key, user_name, kind, title, series_title, year, tmdb, tvdb, imdb, last_played, record)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         );
         // Undated rows last: `NULLS LAST` reads the same in every SQLite this ships with.
         this.#read = db.prepare(
@@ -132,6 +145,7 @@ export class PlayHistory {
                     server,
                     user.id,
                     key,
+                    next.entry.user,
                     next.kind,
                     next.entry.title,
                     next.entry.seriesTitle ?? null,
@@ -149,6 +163,48 @@ export class PlayHistory {
     /** Newest first, undated last. */
     read(server: string, userId: string): PlayRecord[] {
         return (this.#read.all(server, userId) as { record: string }[]).map(row => JSON.parse(row.record) as PlayRecord);
+    }
+
+    /** When the hourly sync last finished for a server, so the UI can say it runs. */
+    markSynced(server: string, at: string): void {
+        this.#db.prepare('INSERT OR REPLACE INTO syncs (server, at) VALUES (?, ?)').run(server, at);
+    }
+
+    syncs(): Record<string, string> {
+        const rows = this.#db.prepare('SELECT server, at FROM syncs ORDER BY server').all() as { server: string; at: string }[];
+        return Object.fromEntries(rows.map(r => [r.server, r.at]));
+    }
+
+    /** One row per server and user. The user is the name last seen, since the id means nothing to a reader. */
+    summary(): PlaySummary[] {
+        const rows = this.#db
+            .prepare(
+                `SELECT server, MAX(user_name) AS user, COUNT(*) AS plays, MAX(last_played) AS lastPlayed
+                 FROM plays GROUP BY server, user_id ORDER BY server, user`
+            )
+            .all() as { server: string; user: string; plays: number; lastPlayed: string | null }[];
+        return rows.map(r => ({
+            server: r.server,
+            user: r.user,
+            plays: r.plays,
+            ...(r.lastPlayed === null ? {} : { lastPlayed: r.lastPlayed })
+        }));
+    }
+
+    /** The newest plays across every server and user. */
+    recent(limit: number): PlayRecord[] {
+        return (
+            this.#db
+                .prepare('SELECT record FROM plays ORDER BY last_played IS NULL, last_played DESC LIMIT ?')
+                .all(Math.max(0, Math.floor(limit))) as { record: string }[]
+        ).map(row => JSON.parse(row.record) as PlayRecord);
+    }
+
+    /** Everything, sync times included. The next sync starts filling it again. */
+    clear(): void {
+        this.#db.transaction(() => {
+            this.#db.exec('DELETE FROM plays; DELETE FROM syncs;');
+        })();
     }
 
     close(): void {

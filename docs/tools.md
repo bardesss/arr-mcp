@@ -1450,7 +1450,10 @@ server's default user. Any other user's plays are kept when their history is
 read. Films the library marks played are stored with their ids and year, and an
 episode with its series' ids, so they can still be matched once the item is
 gone. When the server and the store both have an item, the server's row is the
-one returned. A store that fails costs only the stored rows.
+one returned. A store that fails costs only the stored rows. The Plays tab on
+the Logs page of the config UI shows how many plays are kept per media server
+and user, when each server last synced and the newest plays, and can clear the
+store.
 
 Truncation is decided by `limit` (default 50) and reported through `truncated`.
 
