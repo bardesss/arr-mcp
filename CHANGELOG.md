@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.0](https://github.com/bardesss/arr-mcp/compare/v2.2.2...v2.3.0) (2026-11-17)
+
+
+### Features
+
+* **playback:** keep every play in a local store so history outlives the server ([#697](https://github.com/bardesss/arr-mcp/issues/697)) ([9704fb8](https://github.com/bardesss/arr-mcp/commit/9704fb8f54c50b1710aaeacd07ce7f35dc9fe1c5))
+
 ## [2.2.2](https://github.com/bardesss/arr-mcp/compare/v2.2.1...v2.2.2) (2026-11-17)
 
 
