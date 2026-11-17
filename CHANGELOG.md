@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.1](https://github.com/bardesss/arr-mcp/compare/v2.3.0...v2.3.1) (2026-11-17)
+
+
+### Performance Improvements
+
+* **queue:** share SABnzbd's history read while it shows post-processing, and smaller follow-ups ([#700](https://github.com/bardesss/arr-mcp/issues/700)) ([b7eabb3](https://github.com/bardesss/arr-mcp/commit/b7eabb397e025650e300a1cd3f8ddeaf0a099abc))
+
 ## [2.3.0](https://github.com/bardesss/arr-mcp/compare/v2.2.2...v2.3.0) (2026-11-17)
 
 
