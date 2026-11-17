@@ -402,20 +402,57 @@ describe('retry_download', () => {
     });
 
     // Only a job back in the queue waits on what holds it, so a processing one carries neither mark.
-    it.each(['queue', 'postProcessing'] as const)('leaves the queue marks off a job being processed (held by %s)', async heldBy => {
+    // A job being processed is past downloading, so neither its own pause nor SABnzbd's wait applies.
+    it('leaves the download marks off a job being processed', async () => {
         const h = harness();
-        h.run.mockResolvedValue({ target: FAILED, id: 'SABnzbd_nzo_new', state: 'processing', status: 'Extracting', heldBy, pausedItself: true });
+        h.run.mockResolvedValue({ target: FAILED, id: 'SABnzbd_nzo_new', state: 'processing', status: 'Extracting', heldBy: 'postProcessing', pausedItself: true });
         const preview = await h.call({ service: 'sabnzbd', id: 'SABnzbd_nzo_abc' });
         const applied = await h.call({ service: 'sabnzbd', id: 'SABnzbd_nzo_abc', confirm: preview.structuredContent.confirm_token });
 
         const text = applied.content[0]?.text ?? '';
         expect(text).toContain('It is being processed (Extracting).');
-        expect(text).not.toMatch(/whole queue is paused|paused itself|post-processes/);
+        expect(text).not.toMatch(/whole queue is paused|paused itself|post-processes|post-processing is paused/);
         const result = applied.structuredContent.result as Record<string, unknown>;
         expect(result).toMatchObject({ state: 'processing' });
         expect(result).not.toHaveProperty('queue_paused');
         expect(result).not.toHaveProperty('post_processing_wait');
+        expect(result).not.toHaveProperty('post_processing_paused');
         expect(result).not.toHaveProperty('paused_itself');
+    });
+
+    // An NZBGet download the retry finds in post-processing: its stage as pause_downloads words it, and each
+    // hold there, a paused queue holding the repair files it asked for and paused post-processing.
+    it.each<[RetryOutcome['heldBy'], string, string[]]>([
+        [undefined, 'It is queued for post-processing.', []],
+        [
+            'queue',
+            "It is queued for post-processing. nzbget's whole queue is paused, which holds the repair files it asked for: resume that with pause_downloads (`action: \"resume\"` without an `id`).",
+            ['queue_paused']
+        ],
+        ['postPaused', "It is queued for post-processing. nzbget's post-processing is paused: resume that in nzbget.", ['post_processing_paused']],
+        [
+            'queueAndPostPaused',
+            "It is queued for post-processing. nzbget's whole queue is paused, which holds the repair files it asked for: resume that with pause_downloads (`action: \"resume\"` without an `id`). nzbget's post-processing is paused: resume that in nzbget.",
+            ['queue_paused', 'post_processing_paused']
+        ]
+    ])('words an NZBGet download in post-processing by what holds it (%s)', async (heldBy, sentence, flags) => {
+        const h = harness({ client: 'nzbget' });
+        h.run.mockResolvedValue({
+            target: NZB_FAILED,
+            id: '4',
+            state: 'processing',
+            status: 'verifying',
+            stage: 'queued for post-processing',
+            ...(heldBy === undefined ? {} : { heldBy })
+        });
+        const preview = await h.call({ service: 'nzbget', id: '4' });
+        const applied = await h.call({ service: 'nzbget', id: '4', confirm: preview.structuredContent.confirm_token });
+
+        expect(applied.content[0]?.text ?? '').toContain(sentence);
+        expect(applied.content[0]?.text ?? '').not.toContain('being processed');
+        const result = applied.structuredContent.result as Record<string, unknown>;
+        expect(result).toMatchObject({ state: 'processing', status: 'verifying', stage: 'queued for post-processing' });
+        for (const flag of ['queue_paused', 'post_processing_wait', 'post_processing_paused']) expect(result[flag]).toBe(flags.includes(flag) ? true : undefined);
     });
 
     it('says no *arr recorded the download when none traced it', async () => {

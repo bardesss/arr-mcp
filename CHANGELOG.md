@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.2.1](https://github.com/bardesss/arr-mcp/compare/v2.2.0...v2.2.1) (2026-11-16)
+
+
+### Bug Fixes
+
+* keep a SIGTERM caught while startup swaps the signal handlers ([#690](https://github.com/bardesss/arr-mcp/issues/690)) ([2c75eaf](https://github.com/bardesss/arr-mcp/commit/2c75eaff7f8c178d20f93ef60d70a927bd97cfb8))
+* **queue:** read SABnzbd's wait from its switch and history, and NZBGet's post-processing after a retry ([#689](https://github.com/bardesss/arr-mcp/issues/689)) ([04024e8](https://github.com/bardesss/arr-mcp/commit/04024e80e860ff10489493cd490b4b6bad0bc597))
+
 ## [2.2.0](https://github.com/bardesss/arr-mcp/compare/v2.1.0...v2.2.0) (2026-11-15)
 
 

@@ -6,6 +6,7 @@ import { unfenced } from '../../core/titleMatch.ts';
 import { ARR_KIND, ARR_NAMES, SEERR_ARR, seerrMediaType, type MergedItem } from '../../core/resolver.ts';
 import { fenceText } from '../../core/fence.ts';
 import { isLidarrRow, PENDING_STATUSES, usenetRerun } from '../../services/arrRecord.ts';
+import { SAB_WAIT_SWITCH, sabWaits } from '../../services/types.ts';
 import type {
     AlbumSummary,
     CleanupRemoval,
@@ -624,11 +625,19 @@ function pausedResume(grab: readonly QueueItem[]): { remedy: string; next?: Next
         return { remedy: `${service} reports it as ${client.status}, a post-processing stage, and the *arr reads it as paused meanwhile: wait for it.` };
     }
     // SABnzbd's queue flag is also set while its "Pause Downloading During Post-Processing" switch waits on
-    // post-processing, which a resume does not end (`Downloader.resume`) and its rows do not always show (`sabHolds`).
+    // post-processing, which a resume does not end (`Downloader.resume`) and which can lie behind the pause by
+    // hand a Queued row shows (`sabHolds`).
     const sabWait =
         instanceArgs(service).service === 'sabnzbd'
-            ? ' (With its "Pause Downloading During Post-Processing" switch on, SABnzbd also pauses while it post-processes, and resumes by itself.)'
+            ? ` (With its ${SAB_WAIT_SWITCH} switch on, SABnzbd also pauses while it post-processes, and resumes by itself.)`
             : '';
+    // Paused itself while the wait holds the queue: its own resume, and then the wait, which ends by itself.
+    if (pausedInClient(client) && client.heldBy === 'postProcessing') {
+        return {
+            remedy: `It is paused in ${service}, and ${sabWaits(service)}: resume it with pause_downloads (\`action: "resume"\` and its \`id\`) on ${service}, and it starts once that ends. If the queue stays paused, resume the queue with ${queueResume}.`,
+            next: resume(client.id, `Resumes this one download in ${service}; it starts once ${service}'s post-processing ends.`)
+        };
+    }
     if (pausedInClient(client)) {
         return client.heldBy === 'queue'
             ? {
@@ -642,7 +651,7 @@ function pausedResume(grab: readonly QueueItem[]): { remedy: string; next?: Next
     }
     if (client.heldBy === 'postProcessing') {
         return {
-            remedy: `${service} pauses its queue while it post-processes (its "Pause Downloading During Post-Processing" switch), and resumes by itself: wait for it. If it stays paused, resume the queue with ${queueResume}.`
+            remedy: `${sabWaits(service)}, and resumes by itself: wait for it. If it stays paused, resume the queue with ${queueResume}.`
         };
     }
     if (client.heldBy === 'queue') {

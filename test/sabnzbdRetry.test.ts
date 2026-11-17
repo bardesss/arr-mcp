@@ -175,6 +175,19 @@ describe('sabnzbd findRetryTarget', () => {
         expect(writesIn(requests)).toHaveLength(0);
     });
 
+    it('names the wait for an encrypted Force job alone from the switch and the history', async () => {
+        const { adapter } = recording(params => {
+            const mode = params.get('mode');
+            if (mode === 'get_config') return { config: { misc: { pause_on_post_processing: 1 } } };
+            if (mode === 'history') return { history: { slots: [{ nzo_id: 'SABnzbd_nzo_cd34', status: 'Queued', loaded: true }] } };
+            return { queue: { paused: true, slots: [{ nzo_id: 'q1', filename: 'Show.S01E01', status: 'Downloading', priority: 'Force', labels: ['ENCRYPTED'] }] } };
+        });
+
+        const error = await caught(adapter.findRetryTarget('q1', { hasPassword: true }));
+
+        expect(error.remedy).toMatch(/^It is not paused itself, so there is nothing to unlock; SABnzbd pauses its queue while it post-processes/);
+    });
+
     // The label is translated: on a non-English UI a paused job may be
     // encrypted with no way to tell from the API.
     it('refuses a paused job it cannot confirm is encrypted, pointing at SABnzbd\'s own UI', async () => {
@@ -284,7 +297,7 @@ describe('sabnzbd runRetry', () => {
     // reads paused is read again, whole, unless the read by id already decides.
     describe('the queue around a retried job', () => {
         /** SABnzbd's queue: filtered by `nzo_ids` as 4.x does unless `filters` is false, and refused whole with `refuseWhole`. */
-        const around = (retried: Slot, others: Slot[], paused: boolean, opts: { filters?: boolean; refuseWhole?: boolean; emptyWhole?: boolean } = {}) => {
+        const around = (retried: Slot, others: Slot[], paused: boolean, opts: { filters?: boolean; refuseWhole?: boolean; emptyWhole?: boolean; switchOn?: boolean } = {}) => {
             let sent = false;
             return recording(params => {
                 const mode = params.get('mode');
@@ -299,7 +312,8 @@ describe('sabnzbd runRetry', () => {
                     if (only === null && opts.emptyWhole === true) return {};
                     return { queue: { paused, slots: only === null || opts.filters === false ? all : all.filter(s => s.nzo_id === only) } };
                 }
-                return { history: { slots: sent ? [] : [failed] } };
+                if (mode === 'get_config') return { config: { misc: { pause_on_post_processing: opts.switchOn === true ? 1 : 0 } } };
+                return { history: { slots: sent ? [{ nzo_id: 'SABnzbd_nzo_cd34', status: 'Extracting', loaded: true }] : [failed] } };
             });
         };
         const other = (status: string): Slot => ({ nzo_id: 'SABnzbd_nzo_other', status, priority: 'Normal' });
@@ -318,6 +332,23 @@ describe('sabnzbd runRetry', () => {
             expect(outcome.state).toBe('downloading');
             expect({ heldBy: outcome.heldBy, pausedItself: outcome.pausedItself }).toEqual({ heldBy: undefined, pausedItself: undefined, ...marks });
             expect(wholeReads(requests).length > 0).toBe(readsWhole);
+        });
+
+        // Alone in the queue, a Force job shows no wait: SABnzbd's switch and history do.
+        it('reads the wait for a Force job alone from the switch and the history', async () => {
+            const { adapter, requests } = recording(params => {
+                const mode = params.get('mode');
+                if (mode === 'retry') return { nzo_id: 'SABnzbd_nzo_new' };
+                if (mode === 'get_config') return { config: { misc: { pause_on_post_processing: 1 } } };
+                if (mode === 'history') {
+                    const retried = requests.some(r => r.params.get('mode') === 'retry');
+                    return { history: { slots: retried ? [{ nzo_id: 'SABnzbd_nzo_cd34', status: 'Extracting', loaded: true }] : [failed] } };
+                }
+                const retried = requests.some(r => r.params.get('mode') === 'retry');
+                return { queue: { paused: true, slots: retried ? [{ nzo_id: 'SABnzbd_nzo_new', filename: 'Some.Movie.2020', status: 'Downloading', priority: 'Force' }] : [] } };
+            });
+            const outcome = await adapter.runRetry('SABnzbd_nzo_old', { method: 'retry' });
+            expect(outcome).toMatchObject({ state: 'downloading', heldBy: 'postProcessing' });
         });
 
         // 3.0.0 ignores `nzo_ids`, so its answer already holds the other slots.
@@ -339,6 +370,12 @@ describe('sabnzbd runRetry', () => {
             const outcome = await adapter.runRetry('SABnzbd_nzo_old', { method: 'retry' });
             expect(outcome.state).toBe('downloading');
             expect(outcome.heldBy).toBe(held === true ? 'queue' : undefined);
+        });
+
+        // With the whole queue unread, the switch and history still tell the wait.
+        it('reads the wait from the switch and history when the whole queue cannot be read', async () => {
+            const { adapter } = around({ status: 'Downloading', priority: 'Force' }, [], true, { refuseWhole: true, switchOn: true });
+            await expect(adapter.runRetry('SABnzbd_nzo_old', { method: 'retry' })).resolves.toMatchObject({ state: 'downloading', heldBy: 'postProcessing' });
         });
 
         // Only a job that can still be waiting needs the other slots.
