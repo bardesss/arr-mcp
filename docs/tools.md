@@ -1851,7 +1851,7 @@ not zero, on a usenet result.
 default) trims all three, since a search can return hundreds of rejected rows.
 `minimal` keeps only `service`, `indexer`, `title`, `quality` and `rejected`.
 `guid` is never fenced, since a grab tool needs it verbatim, but it is still
-stripped of dangerous code points and length-capped. At `full`, each row's text line carries both too, next to the indexer
+stripped of dangerous code points. At `full`, each row's text line carries both too, next to the indexer
 (`V3X (Prowlarr) [indexer_id 5, guid …]`), so a client that never forwards
 the structured result can still pass them to `grab_release`. A guid shaped
 like an id (no whitespace, brackets or angle brackets) appears bare; any other

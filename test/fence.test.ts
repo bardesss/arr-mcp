@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FENCE_MAX_LENGTH, GUID_MAX_LENGTH, fenceText, guidForText, sanitizeGuid, stripDangerous, unfence } from '../src/core/fence.ts';
+import { FENCE_MAX_LENGTH, fenceText, guidForText, sanitizeGuid, stripDangerous, unfence } from '../src/core/fence.ts';
 
 const src = { service: 'prowlarr' as const, field: 'title' };
 
@@ -83,7 +83,6 @@ describe('fenceText', () => {
     it('does not cut an astral character in half at the cap', () => {
         const lone = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
         expect(fenceText(`${'a'.repeat(FENCE_MAX_LENGTH - 1)}\u{1F600}tail`, src)).not.toMatch(lone);
-        expect(sanitizeGuid(`${'a'.repeat(GUID_MAX_LENGTH - 1)}\u{1F600}tail`)).not.toMatch(lone);
     });
 
     it('leaves an empty string empty rather than fencing nothing', () => {
@@ -92,6 +91,22 @@ describe('fenceText', () => {
 
     it('names the field, so two fenced values from one service stay distinguishable', () => {
         expect(fenceText('x', { service: 'jellyfin', field: 'Overview' })).toContain('<<untrusted:jellyfin.Overview>>');
+    });
+});
+
+describe('sanitizeGuid', () => {
+    it.each([499, 500, 501, 2500])('preserves a guid of length %i', length => {
+        const guid = 'a'.repeat(length);
+        expect(sanitizeGuid(guid)).toBe(guid);
+    });
+
+    it('keeps astral characters and the suffix beyond the old cap', () => {
+        const guid = `${'a'.repeat(499)}\u{1F600}tail`;
+        expect(sanitizeGuid(guid)).toBe(guid);
+    });
+
+    it('still strips dangerous code points', () => {
+        expect(sanitizeGuid(`https://indexer.example/${RLO}release${NUL}${ZWSP}`)).toBe('https://indexer.example/release');
     });
 });
 

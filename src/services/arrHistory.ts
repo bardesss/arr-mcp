@@ -248,7 +248,7 @@ function toEntries(records: readonly RawHistory[], service: string, kind: ArrKin
                 // Not fenced: an opaque id pair a later release-grab tool needs
                 // verbatim, not prose reaching model context. Still an
                 // indexer-chosen string, so it is stripped of the same
-                // dangerous code points fenced text is, and length-capped.
+                // dangerous code points fenced text is.
                 ...(r.data?.guid === undefined ? {} : { guid: sanitizeGuid(r.data.guid) }),
                 ...(r.data?.indexerId === undefined ? {} : { indexerId: r.data.indexerId })
             };

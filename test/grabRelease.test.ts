@@ -140,6 +140,22 @@ describe('grab_release', () => {
         expect(h.grabbed).toEqual([{ guid: 'abc', indexerId: 3 }]);
     });
 
+    it.each(['guid', 'release_title'])('grabs a long Sonarr guid unchanged using %s', async form => {
+        const guid = `https://indexer.example/release/${'a'.repeat(600)}?id=season3`;
+        const row = release({ guid });
+        const h = harness({ releases: [row] });
+        const args = {
+            service: 'sonarr', id: '1', season: 3, indexer_id: 3,
+            ...(form === 'guid' ? { guid } : { release_title: row.title })
+        };
+        const preview = await h.call(args);
+        expect(h.grabbed).toHaveLength(0);
+        expect(preview.structuredContent.confirm_token).toBeDefined();
+        const applied = await h.call({ ...args, confirm: preview.structuredContent.confirm_token });
+        expect(applied.structuredContent.applied).toBe(true);
+        expect(h.grabbed).toEqual([{ guid, indexerId: 3 }]);
+    });
+
     it('narrows the confirming re-search to the episode or season it was given', async () => {
         const h = harness();
         await h.call({ ...ARGS, service: 'sonarr', episode: '901' });
