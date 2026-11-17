@@ -304,9 +304,12 @@ is equally explicit about what it does not solve. Found something?
 ## Contributors
 
 Everyone who has had a pull request merged into arr-mcp. The grid updates on its
-own as new contributors land.
+own as new contributors land, though it can take a few days to catch up.
 
 [![Contributors](https://contrib.rocks/image?repo=Bardesss/arr-mcp)](https://github.com/Bardesss/arr-mcp/graphs/contributors)
+
+The grid only shows commits tied to a GitHub account, so it misses
+[@itapai](https://github.com/itapai) ([#249](../../pull/249)).
 
 Testing counts as much as code here. Plex is verified because of [@Svnow132](https://github.com/Svnow132)
 ([#180](../../issues/180)) and [@davidgibbons](https://github.com/davidgibbons)
