@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.2](https://github.com/bardesss/arr-mcp/compare/v2.2.1...v2.2.2) (2026-11-17)
+
+
+### Bug Fixes
+
+* **releases:** preserve long release identifiers ([#692](https://github.com/bardesss/arr-mcp/issues/692)) ([eef8083](https://github.com/bardesss/arr-mcp/commit/eef80836069830840919d6c2655742b61665503d))
+
 ## [2.2.1](https://github.com/bardesss/arr-mcp/compare/v2.2.0...v2.2.1) (2026-11-16)
 
 
