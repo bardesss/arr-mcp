@@ -312,12 +312,46 @@ describe('sabnzbd pause', () => {
             expect((await adapter.getQueue()).map(row => row.heldBy)).toEqual(['queue', 'postProcessing']);
         });
 
-        it('shares the switch for a few seconds, and reads the history each time', async () => {
+        it('shares the switch, and a history that shows the wait, for a few seconds', async () => {
             const { adapter, seen } = sab([['Downloading', 'Force']]);
             await adapter.getQueue();
             await adapter.getQueue();
+            await adapter.readPauseState();
             expect(reads(seen, 'get_config')).toBe(1);
+            expect(reads(seen, 'history')).toBe(1);
+        });
+
+        it('reads the history again after a failed read, which answers no', async () => {
+            const opts: NonNullable<Parameters<typeof sab>[1]> = { refuse: 'history' };
+            const { adapter, seen } = sab([['Downloading', 'Force']], opts);
+            expect((await adapter.getQueue())[0]?.heldBy).toBeUndefined();
+            delete opts.refuse;
+            expect((await adapter.getQueue())[0]?.heldBy).toBe('postProcessing');
             expect(reads(seen, 'history')).toBe(2);
+        });
+
+        // Post-processing can start at any moment, so a history showing none is read again.
+        it('reads the history again while it shows nothing in post-processing', async () => {
+            const opts: NonNullable<Parameters<typeof sab>[1]> = { history: [['Completed', false]] };
+            const { adapter, seen } = sab([['Downloading', 'Force']], opts);
+            expect((await adapter.getQueue())[0]?.heldBy).toBeUndefined();
+            await expect(adapter.readPauseState()).resolves.toEqual({ scope: 'the SABnzbd queue', paused: true });
+            opts.history = [['Extracting', true], ['Completed', false]];
+            expect((await adapter.getQueue())[0]?.heldBy).toBe('postProcessing');
+            await expect(adapter.readPauseState()).resolves.toEqual({ scope: 'the SABnzbd queue', paused: false, heldBy: 'postProcessing' });
+            expect(reads(seen, 'history')).toBe(3);
+        });
+
+        it('previews a pause once the wait starts, though the queue read as paused by hand a moment before', async () => {
+            const opts: NonNullable<Parameters<typeof sab>[1]> = { history: [['Completed', false]] };
+            const { adapter } = sab([['Downloading', 'Force']], opts);
+            const pause = () => harness({ adapters: [adapter] }).call({ service: 'sabnzbd', action: 'pause' });
+            expect((await pause()).structuredContent.noop).toBe(true);
+            opts.history = [['Extracting', true], ['Completed', false]];
+            const { structuredContent } = await pause();
+            expect(structuredContent.noop).toBe(false);
+            expect(structuredContent.confirm_token).toBeDefined();
+            expect(structuredContent.effects[0]).toContain('reads as waiting on post-processing');
         });
 
         it('reads neither for an empty queue, which has no row to hold', async () => {

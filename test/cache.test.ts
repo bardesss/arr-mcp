@@ -312,4 +312,40 @@ describe('cached', () => {
         await expect(read()).resolves.toBe('second');
         expect(load).toHaveBeenCalledTimes(2);
     });
+
+    it('drops a read that keep refuses, so the next caller reads again', async () => {
+        const load = vi.fn<() => Promise<string>>().mockResolvedValueOnce('no').mockResolvedValue('yes');
+        const read = cached(1000, load, value => value === 'yes');
+        // Read again straight from the first caller's continuation: the drop has already happened.
+        expect(await read()).toBe('no');
+        expect(await read()).toBe('yes');
+        expect(await read()).toBe('yes');
+        expect(load).toHaveBeenCalledTimes(2);
+    });
+
+    it('keeps a newer read when an older one keep refuses resolves late', async () => {
+        let resolveFirst: (value: string) => void = () => {};
+        const load = vi
+            .fn<() => Promise<string>>()
+            .mockImplementationOnce(() => new Promise<string>(resolve => (resolveFirst = resolve)))
+            .mockResolvedValue('yes');
+        const read = cached(1000, load, value => value === 'yes');
+        const first = read();
+        read.clear();
+        await expect(read()).resolves.toBe('yes');
+        resolveFirst('no');
+        await expect(first).resolves.toBe('no');
+        await expect(read()).resolves.toBe('yes');
+        expect(load).toHaveBeenCalledTimes(2);
+    });
+
+    it('drops a read that keep throws on', async () => {
+        const load = vi.fn(async () => 'v');
+        const read = cached(1000, load, () => {
+            throw new Error('cannot judge');
+        });
+        await expect(read()).resolves.toBe('v');
+        await expect(read()).resolves.toBe('v');
+        expect(load).toHaveBeenCalledTimes(2);
+    });
 });

@@ -154,7 +154,7 @@ const HOLDS_READ: Readonly<Record<'downloading' | 'processing', ReadonlySet<Queu
     processing: new Set(['queue', 'postPaused', 'queueAndPostPaused'])
 };
 
-/** The result fields that say what holds a job, in `HOLD_FLAGS` order, which `applied` reads back. */
+/** The result fields that say what holds a job, which `applied` reads back. */
 const HOLD_FIELDS: Readonly<Record<QueueHold, readonly HoldFlag[]>> = {
     queue: ['queue_paused'],
     postProcessing: ['post_processing_wait'],
@@ -268,7 +268,6 @@ export function registerRetryDownload(server: McpServer, context: WriteContext, 
                     download_id: string;
                     paused_itself?: true;
                 };
-            const flags = HOLD_FLAGS.filter(flag => r[flag] === true).join();
             const view = views.get(plan);
             const lines = [`Applied. ${plan.summary}`];
             if (r.previous_id !== undefined) lines.push(`Its id is now ${r.id}.`);
@@ -276,7 +275,8 @@ export function registerRetryDownload(server: McpServer, context: WriteContext, 
                 describeOutcome(
                     {
                         ...r,
-                        ...withHold((Object.keys(HOLD_FIELDS) as QueueHold[]).find(hold => HOLD_FIELDS[hold].join() === flags)),
+                        // The hold whose fields are exactly the ones set, whatever their order.
+                        ...withHold((Object.keys(HOLD_FIELDS) as QueueHold[]).find(hold => HOLD_FLAGS.every(flag => (r[flag] === true) === HOLD_FIELDS[hold].includes(flag)))),
                         ...(r.paused_itself === true ? { pausedItself: true } : {})
                     },
                     r.service

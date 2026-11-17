@@ -124,6 +124,9 @@ const sabWaiting = (queue: RawQueue['queue']): boolean => {
 const waitUnknown = (queue: RawQueue['queue'], slots: readonly RawSlot[]): boolean =>
     queue?.paused === true && !sabWaiting(queue) && (!anyQueued(queue) || slots.some(s => s.priority === 'Force'));
 
+/** Whether the history shows SABnzbd's post-processor working on a download (`loaded`), as `#waitOn` reads it. */
+const inPostProcessing = (history: RawHistory): boolean => (history.history?.slots ?? []).some(s => s.loaded === true);
+
 /**
  * What holds each slot while the queue's `paused` flag is set (`sabWaiting`).
  * `waitOn` is the wait as `#waitOn` read it where the slots cannot tell: then
@@ -242,6 +245,12 @@ export class SabnzbdAdapter
     /** SABnzbd's "Pause Downloading During Post-Processing" switch, the one setting `#waitOn` reads. */
     readonly #waitSwitch = cached(SHORT_READ_TTL_MS, () =>
         this.#read<RawWaitSwitch>('/api?mode=get_config&section=misc&keyword=pause_on_post_processing&output=json')
+    );
+    /** The history's first ten rows, where `#waitOn` looks for the download in post-processing; kept only when they show one. */
+    readonly #waitHistory = cached(
+        SHORT_READ_TTL_MS,
+        () => this.#read<RawHistory>('/api?mode=history&limit=10&output=json'),
+        inPostProcessing
     );
 
     constructor(config: ConfigByService['sabnzbd'], fetchImpl: typeof fetch = fetch) {
@@ -576,17 +585,21 @@ export class SabnzbdAdapter
      * marks `loaded`. A job only queued for post-processing, as one is while
      * post-processing is paused, does not. Only that one setting is asked
      * for: `get_config` with no keyword answers every setting, the API and NZB
-     * keys among them. It changes rarely, so it is shared for a few seconds,
-     * as a stack health pass shares its reads. The history lists the
-     * downloads in post-processing first. A read that fails answers no, which
-     * leaves the slots' own reading.
+     * keys among them. It changes rarely, so it is shared for ten seconds, as
+     * a stack health pass shares its reads. The history lists the downloads in
+     * post-processing first. A read that shows one is shared the same way, so
+     * for up to ten seconds after the wait ends the queue can still read as
+     * held by it. A read that shows none is not kept: post-processing can
+     * start at any moment, and a stale no would have pause_downloads answer
+     * "already paused" for a queue the wait has just started holding, and send
+     * nothing. A failed read answers no, which leaves the slots' own reading,
+     * and the next call reads again.
      */
     async #waitOn(): Promise<boolean> {
         try {
             const on = (await this.#waitSwitch()).config?.misc?.pause_on_post_processing;
             if (on !== 1 && on !== true) return false;
-            const history = await this.#read<RawHistory>('/api?mode=history&limit=10&output=json');
-            return (history.history?.slots ?? []).some(s => s.loaded === true);
+            return inPostProcessing(await this.#waitHistory());
         } catch {
             return false;
         }
