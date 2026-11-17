@@ -6,6 +6,8 @@ import { logger } from './core/logger.ts';
 import { Runtime } from './core/runtime.ts';
 import type { Sessions } from './core/session.ts';
 import type { WebhookEvents } from './core/webhookEvents.ts';
+import type { PlayHistory } from './core/playHistory.ts';
+import { startPlaySync } from './core/playSync.ts';
 import { startRefresh } from './metadata/refresh.ts';
 import type { Transport } from '@modelcontextprotocol/server';
 
@@ -33,6 +35,8 @@ type StdioDeps = {
     configDir: string;
     audit: WriteAudit;
     events: WebhookEvents;
+    /** Kept by the entry point, which closes it. */
+    plays?: PlayHistory;
     sessions: Sessions;
     /** A transport to serve instead of the process's own stdin and stdout. For tests. */
     transport?: Transport;
@@ -50,7 +54,7 @@ type StdioDeps = {
  * registry, to see what it offers.
  */
 export async function serveOverStdio(deps: StdioDeps): Promise<{ close(): Promise<void> }> {
-    const { configDir, audit, events, sessions, transport } = deps;
+    const { configDir, audit, events, plays, sessions, transport } = deps;
     const runtime = await Runtime.start(configDir, audit, { refresh: dataset => startRefresh(dataset), sessions });
 
     logger.info({ adapters: runtime.current.adapters.map(a => a.id) }, 'arr-mcp serving MCP over stdio, read-only');
@@ -60,7 +64,7 @@ export async function serveOverStdio(deps: StdioDeps): Promise<{ close(): Promis
 
     let handle: StdioServerHandle;
     try {
-        handle = serveStdio(mcpServerFactory(runtime, events, stdioCeiling), {
+        handle = serveStdio(mcpServerFactory(runtime, events, stdioCeiling, plays), {
             ...(transport === undefined ? {} : { transport }),
             onerror: err => logger.error({ err }, 'stdio connection error')
         });
@@ -68,9 +72,13 @@ export async function serveOverStdio(deps: StdioDeps): Promise<{ close(): Promis
         await runtime.close();
         throw err;
     }
+    // Read-only means the services, not arr-mcp's own files: a stdio-only
+    // setup would otherwise keep only the plays someone happened to ask about.
+    const stopSync = plays === undefined ? undefined : startPlaySync(() => runtime.current.tools.mediaServers, plays);
     return {
         close: async () => {
             try {
+                await stopSync?.();
                 await handle.close();
             } finally {
                 await runtime.close();

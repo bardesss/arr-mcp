@@ -34,6 +34,7 @@ import { registerAllTools, type ToolContext } from './tools/register.ts';
 import { apiJsonBody } from './api/body.ts';
 import { registerApiRoutes } from './api/index.ts';
 import { WebhookEvents } from './core/webhookEvents.ts';
+import type { PlayHistory } from './core/playHistory.ts';
 import { Discovery } from './discovery/run.ts';
 import type { DiscoveryService } from './web/routes.ts';
 import { forwardedProtoOf } from './web/origin.ts';
@@ -226,7 +227,8 @@ function cappedTools(tools: ToolContext, ceiling: Ceiling): ToolContext {
 export function mcpServerFactory(
     runtime: Runtime,
     events: WebhookEvents,
-    ceilingFor: (oauth: OAuthConfig | undefined, authInfo: AuthInfo | undefined) => Ceiling
+    ceilingFor: (oauth: OAuthConfig | undefined, authInfo: AuthInfo | undefined) => Ceiling,
+    plays?: PlayHistory
 ): McpServerFactory {
     return ctx => {
         const snapshot = runtime.current;
@@ -236,7 +238,8 @@ export function mcpServerFactory(
         // with no authInfo is capped to reads.
         const tools: ToolContext = {
             ...cappedTools(snapshot.tools, ceilingFor(snapshot.config.auth.oauth, ctx.authInfo)),
-            eventLog: { store: events, enabled: snapshot.config.webhooks?.enabled === true }
+            eventLog: { store: events, enabled: snapshot.config.webhooks?.enabled === true },
+            ...(plays === undefined ? {} : { plays })
         };
         // Before any tool registers: trims what tools/list sends, and tailors
         // it and the instructions to the services this config has (#518).
@@ -292,11 +295,18 @@ export function mcpServerFactory(
     };
 }
 
-export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogStore; events?: WebhookEvents; discovery?: DiscoveryService }) {
+export function buildApp(opts: {
+    runtime: Runtime;
+    audit: WriteAudit;
+    logs: LogStore;
+    events?: WebhookEvents;
+    plays?: PlayHistory;
+    discovery?: DiscoveryService;
+}) {
     const { runtime, audit, logs } = opts;
     const events = opts.events ?? WebhookEvents.ephemeral();
 
-    const handler = createMcpHandler(mcpServerFactory(runtime, events, httpCeiling));
+    const handler = createMcpHandler(mcpServerFactory(runtime, events, httpCeiling, opts.plays));
     // Per peer, for the refusals anyone who reaches the port can cause.
     const rejections = new LogLimiter();
 
@@ -466,7 +476,7 @@ export function buildApp(opts: { runtime: Runtime; audit: WriteAudit; logs: LogS
 
     // After the Host allowlist, like everything else but /healthz.
     registerWebhookRoutes(app, { runtime, events });
-    registerWebRoutes(app, { runtime, audit, logs, events, version: VERSION, discovery: opts.discovery ?? new Discovery() });
+    registerWebRoutes(app, { runtime, audit, logs, events, ...(opts.plays === undefined ? {} : { plays: opts.plays }), version: VERSION, discovery: opts.discovery ?? new Discovery() });
     registerApiRoutes(app, { runtime, logs, version: VERSION });
 
     app.all('/mcp', async (c: Context) => {
