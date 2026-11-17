@@ -1438,9 +1438,19 @@ movies or episodes (live TV) are dropped. An item deleted since keeps its row,
 titled with the log entry's own sentence, which Jellyfin localises, and
 `removedFromLibrary: true`.
 
-Two limits. The log reaches back only `ActivityLogRetentionDays` (30 by
-default). And a play that left nothing in the log is invisible here. If the
-log read fails, history answers from the played list alone and logs a warning.
+The log reaches back only `ActivityLogRetentionDays` (30 by default), and a
+play that left nothing in the log is invisible to it. If the log read fails,
+history answers from the played list alone and logs a warning.
+
+arr-mcp keeps what it has seen in `plays.db` in the config directory, one row
+per item per user, so history also returns plays the server has stopped
+returning: a title deleted since, a play older than the log, a film past the
+newest 500 played. Every hour it reads the history and library of each media
+server's default user. Any other user's plays are kept when their history is
+read. Films the library marks played are stored with their ids and year, and an
+episode with its series' ids, so they can still be matched once the item is
+gone. When the server and the store both have an item, the server's row is the
+one returned. A store that fails costs only the stored rows.
 
 Truncation is decided by `limit` (default 50) and reported through `truncated`.
 

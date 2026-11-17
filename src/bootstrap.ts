@@ -7,6 +7,8 @@ import type { LogStore } from './core/logs.ts';
 import { Runtime } from './core/runtime.ts';
 import type { Sessions } from './core/session.ts';
 import type { WebhookEvents } from './core/webhookEvents.ts';
+import type { PlayHistory } from './core/playHistory.ts';
+import { startPlaySync } from './core/playSync.ts';
 import type { ImdbDataset } from './metadata/imdbDataset.ts';
 import { startRefresh } from './metadata/refresh.ts';
 import { buildRepairApp } from './repair.ts';
@@ -25,6 +27,8 @@ export type BootstrapDeps = {
     audit: WriteAudit;
     logs: LogStore;
     events?: WebhookEvents;
+    /** Kept by the entry point, which closes it; the hourly sync into it runs while an app is served. */
+    plays?: PlayHistory;
     sessions: Sessions;
     version: string;
     port: number;
@@ -47,9 +51,10 @@ type Booted = {
  * a repaired instance goes on serving the repair page forever.
  */
 export async function bootstrap(deps: BootstrapDeps): Promise<Booted> {
-    const { configDir, audit, logs, events, sessions, version, port } = deps;
+    const { configDir, audit, logs, events, plays, sessions, version, port } = deps;
     let app: Hono;
     let served: Runtime | undefined;
+    let stopSync: (() => Promise<void>) | undefined;
 
     const startNormally = async (): Promise<Hono> => {
         const runtime = await Runtime.start(configDir, audit, {
@@ -80,8 +85,16 @@ export async function bootstrap(deps: BootstrapDeps): Promise<Booted> {
                 );
             }
 
-            const built = buildApp({ runtime, audit, logs, ...(events === undefined ? {} : { events }) });
+            const built = buildApp({
+                runtime,
+                audit,
+                logs,
+                ...(events === undefined ? {} : { events }),
+                ...(plays === undefined ? {} : { plays })
+            });
             served = runtime;
+            // Last, so a start that fails above leaves no loop running.
+            if (plays !== undefined) stopSync = startPlaySync(() => runtime.current.tools.mediaServers, plays);
             return built;
         } catch (err) {
             // Started but never served: nothing else holds the dataset or its refresh.
@@ -132,6 +145,8 @@ export async function bootstrap(deps: BootstrapDeps): Promise<Booted> {
     return {
         fetch: (req, env) => app.fetch(req, env),
         close: async () => {
+            // Before the runtime and before the entry point closes the store.
+            await stopSync?.();
             await served?.close();
         }
     };

@@ -8,6 +8,7 @@ import { logger } from './core/logger.ts';
 import { LogStore } from './core/logs.ts';
 import { Sessions } from './core/session.ts';
 import { WebhookEvents } from './core/webhookEvents.ts';
+import { PlayHistory } from './core/playHistory.ts';
 import { listen } from './listen.ts';
 import { closeServer, createShutdown, onStopSignals, type ShutdownStep } from './shutdown.ts';
 import { serveOverStdio } from './stdio.ts';
@@ -45,6 +46,8 @@ const sessions = Sessions.open(CONFIG_DIR);
 
 const events = WebhookEvents.open(CONFIG_DIR);
 
+const plays = PlayHistory.open(CONFIG_DIR);
+
 // Node is PID 1 in the container (`exec gosu`), and PID 1 has no default signal
 // handling: without these handlers SIGTERM is ignored, and `docker stop` waited
 // its 10 s and then sent SIGKILL.
@@ -53,6 +56,7 @@ const setStop = onStopSignals(() => process.exit(0));
 
 const closeStores: ShutdownStep[] = [
     { name: 'events', run: () => events.close() },
+    { name: 'plays', run: () => plays.close() },
     { name: 'audit', run: () => audit.close() },
     {
         name: 'logs',
@@ -68,7 +72,7 @@ if (STDIO) {
     // config that will not parse is fatal here, with the reason on stderr.
     let handle: Awaited<ReturnType<typeof serveOverStdio>>;
     try {
-        handle = await serveOverStdio({ configDir: CONFIG_DIR, audit, events, sessions });
+        handle = await serveOverStdio({ configDir: CONFIG_DIR, audit, events, plays, sessions });
     } catch (err) {
         if (err instanceof ConfigInvalidError) logger.fatal({ detail: err.detail }, 'config.yaml is invalid. Fix it, then start again');
         else logger.fatal({ err }, 'could not start over stdio');
@@ -80,7 +84,7 @@ if (STDIO) {
     process.stdin.once('end', () => void shutdown('stdin closed'));
     setStop(reason => void shutdown(reason));
 } else {
-    const app = await bootstrap({ configDir: CONFIG_DIR, audit, logs, events, sessions, version: VERSION, port: PORT });
+    const app = await bootstrap({ configDir: CONFIG_DIR, audit, logs, events, plays, sessions, version: VERSION, port: PORT });
 
     let server: Server;
     try {

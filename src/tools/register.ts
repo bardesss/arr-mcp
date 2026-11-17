@@ -3,6 +3,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import type { Config } from '../config/schema.ts';
 import type { WriteAudit } from '../core/audit.ts';
 import type { ImdbDataset } from '../metadata/imdbDataset.ts';
+import type { PlayHistory } from '../core/playHistory.ts';
 import type { ConfirmTokens } from '../core/confirm.ts';
 import { IdentityResolver } from '../core/identity.ts';
 import type { ServiceInstance } from '../config/instances.ts';
@@ -88,6 +89,8 @@ export type ToolContext = {
     dataset: ImdbDataset | undefined;
     /** Added per request by the app, which owns the store and reads the setting from the current config. */
     eventLog?: EventLog;
+    /** Added per request by the app, which owns the store; the plays `get_playback` history keeps. */
+    plays?: PlayHistory;
     /** Every configured instance, as the config declares it; the source the
      *  write gate reads, so `get_stack_health` cannot report a different answer. */
     instances: readonly ServiceInstance[];
@@ -196,7 +199,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerGetReleases(server, adapters, library);
     registerGetBlocklist(server, adapters);
     registerGetCalendar(server, adapters);
-    registerGetPlayback(server, context.mediaServers);
+    registerGetPlayback(server, context.mediaServers, context.plays);
     registerGetRequests(server, seerr, seerrIdentity);
     registerGetMediaDetails(server, adapters, library, dataset, bothIds(context.mediaServers), context.mediaCards);
     registerGetMetadataIssues(server, context.mediaServers, write.permissions, library, adapters.find(hasBookMetadataIssues));

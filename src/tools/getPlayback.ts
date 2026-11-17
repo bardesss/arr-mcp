@@ -7,6 +7,7 @@ import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, 
 import { NO_MEDIA_SERVER_NOTE, type MediaServerAdapter, type PlaybackEntry, type ServiceUser } from '../services/types.ts';
 import { bothIds, byMediaServers, pickMediaServer, serviceInput, withBoth, type MediaServers } from './mediaServers.ts';
 import { episodeCode } from '../core/labels.ts';
+import { playKey, playsFrom, type PlayHistory } from '../core/playHistory.ts';
 
 type GetPlaybackResult = {
     items: PlaybackEntry[];
@@ -35,8 +36,8 @@ const ScopeSchema = z
     .describe(
         '`active` (default): now playing and what can be resumed. `next_up`: the next unwatched episode of every ' +
             "series this user has in progress, your media server's own answer to what to watch next. `history`: " +
-            'recently watched movies and episodes, newest first, on Jellyfin including plays its activity log holds ' +
-            'that never got marked played, such as an offline client syncing back.'
+            'watched movies and episodes, newest first, including ones the server has since forgotten, on Jellyfin ' +
+            'also plays its activity log holds that never got marked played, such as an offline client syncing back.'
     );
 
 const project = (e: PlaybackEntry, detail: DetailLevel): PlaybackEntry => {
@@ -56,7 +57,8 @@ const project = (e: PlaybackEntry, detail: DetailLevel): PlaybackEntry => {
 export async function buildGetPlayback(
     adapter: MediaServerAdapter | undefined,
     resolver: IdentityResolver | undefined,
-    opts: { detail: DetailLevel; limit: number; offset?: number; user?: string; scope?: PlaybackScope }
+    opts: { detail: DetailLevel; limit: number; offset?: number; user?: string; scope?: PlaybackScope },
+    plays?: PlayHistory
 ): Promise<GetPlaybackResult> {
     if (adapter === undefined || resolver === undefined) {
         return {
@@ -99,8 +101,35 @@ export async function buildGetPlayback(
         return { items: [], total: 0, returned: 0, offset: 0, truncated: false, degraded: [adapter.id] };
     }
 
+    if (scope === 'history' && plays !== undefined) entries = withStoredPlays(adapter.id, user, entries, plays);
+
     const shaped = applyLimit(entries, opts.limit, opts.offset);
     return { ...shaped, items: shaped.items.map(e => project(e, opts.detail)), degraded: [] };
+}
+
+/**
+ * The server's history, plus the plays it has stopped returning: a title
+ * deleted since, a play older than Jellyfin's activity log, or a film past the
+ * first 500 played. What was just read is recorded first, so any user's history
+ * read keeps their plays, not only the default user's hourly sync.
+ *
+ * A store that fails costs only the stored half: the server's own answer is
+ * still correct, and losing it over a supplementary read would not be.
+ */
+function withStoredPlays(server: string, user: ServiceUser, live: PlaybackEntry[], plays: PlayHistory): PlaybackEntry[] {
+    try {
+        plays.record(server, user, playsFrom(server, user, live, []));
+        const returned = new Set(live.map(playKey));
+        const stored = plays
+            .read(server, user.id)
+            .filter(r => !returned.has(playKey(r.entry)))
+            .map(r => ({ ...r.entry, user: user.name }));
+        // ISO-8601 UTC strings sort lexically; an entry with no date goes last.
+        return [...live, ...stored].sort((a, b) => (b.lastPlayed ?? '').localeCompare(a.lastPlayed ?? ''));
+    } catch (err) {
+        logger.warn({ service: server, err }, 'play history store failed; history is what the server returned');
+        return live;
+    }
 }
 
 /**
@@ -169,14 +198,14 @@ const GetPlaybackOutput = PagedOutputSchema.extend({
         )
 });
 
-export function registerGetPlayback(server: McpServer, servers: MediaServers): void {
+export function registerGetPlayback(server: McpServer, servers: MediaServers, plays?: PlayHistory): void {
     server.registerTool(
         'get_playback',
         {
             title: 'Playback activity',
             annotations: READ_ONLY,
             description:
-                'What a media-server user is watching, has next, or has watched; watch state exists only on the media server. `scope: "active"` (default): now playing and resumable, with position. `"next_up"`: the next unwatched episode of each series in progress. `"history"`: recent plays, newest first; [[jellyfin: on Jellyfin it includes plays from its activity log that were never marked played (an offline client syncing back), tagged `source: "activity_log"`, as far back as Jellyfin keeps the log (30 days by default).]] Defaults to the configured user; another needs allow_other_users. With no media server configured every scope is empty and `note` says why: report that rather than saying nothing is playing. Field reference: arr://docs/get_playback.' +
+                'What a media-server user is watching, has next, or has watched; watch state exists only on the media server. `scope: "active"` (default): now playing and resumable, with position. `"next_up"`: the next unwatched episode of each series in progress. `"history"`: plays newest first, kept by arr-mcp after the server forgets them (a deleted title, an old play); [[jellyfin: on Jellyfin also plays from its activity log never marked played (an offline client syncing back), tagged `source: "activity_log"`.]] Defaults to the configured user; another needs allow_other_users. With no media server configured every scope is empty and `note` says why: report that rather than saying nothing is playing. Field reference: arr://docs/get_playback.' +
                 withBoth(
                     bothIds(servers),
                     'With two media servers configured, `service` picks one; it defaults to the primary. Call once per server for everything playing everywhere.'
@@ -192,7 +221,7 @@ export function registerGetPlayback(server: McpServer, servers: MediaServers): v
                 offset,
                 scope,
                 ...(user === undefined ? {} : { user })
-            });
+            }, plays);
 
             return {
                 content: [{ type: 'text', text: listText(summarize(scope, result), result.items, playbackLine) }],
