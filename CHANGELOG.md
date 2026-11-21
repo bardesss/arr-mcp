@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.2](https://github.com/bardesss/arr-mcp/compare/v2.3.1...v2.3.2) (2026-11-21)
+
+
+### Bug Fixes
+
+* **playback:** read Plex's whole history once, keep deleted films' years, and leave music out of the play store ([#704](https://github.com/bardesss/arr-mcp/issues/704)) ([9cab70e](https://github.com/bardesss/arr-mcp/commit/9cab70e769f11dcdcb42bd569a10fb09c1eb7c3f))
+
 ## [2.3.1](https://github.com/bardesss/arr-mcp/compare/v2.3.0...v2.3.1) (2026-11-17)
 
 
