@@ -1144,6 +1144,12 @@ export type PlaybackEntry = {
     percentComplete?: number;
     lastPlayed?: string;
     device?: string;
+    /**
+     * A film history row's release year, for the play-history store only:
+     * Plex keeps it on a row whose item is deleted, when nothing else is left
+     * to match the film on. `get_playback` never returns it.
+     */
+    releaseYear?: number;
 };
 
 /** `failed`: Seerr could not hand the approved request to Radarr or Sonarr. `completed`: it was fulfilled. */
@@ -2387,7 +2393,12 @@ export const NO_MEDIA_SERVER_NOTE =
 export interface PlaybackCapable {
     getPlayback(user: ServiceUser): Promise<PlaybackEntry[]>;
     getNextUp(user: ServiceUser): Promise<PlaybackEntry[]>;
-    getWatchHistory(user: ServiceUser): Promise<PlaybackEntry[]>;
+    /**
+     * `full` reads the whole history instead of the newest rows, for the
+     * play-history store's one catch-up. A server whose history read is
+     * already bounded some other way ignores it.
+     */
+    getWatchHistory(user: ServiceUser, opts?: { full?: boolean }): Promise<PlaybackEntry[]>;
 }
 
 /**

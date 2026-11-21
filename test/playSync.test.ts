@@ -40,6 +40,29 @@ describe('syncPlays', () => {
         expect(store.read('plex', 'u1')).toHaveLength(1);
     });
 
+    it('reads the whole history on the first run only, and again after a failed first run', async () => {
+        const store = PlayHistory.ephemeral();
+        const flaky = choice('jellyfin', { fail: true });
+        await syncPlays({ primary: pick(flaky) }, store);
+        expect(store.needsBackfill('jellyfin', 'u1')).toBe(true);
+
+        const server = choice('jellyfin');
+        await syncPlays({ primary: pick(server) }, store);
+        await syncPlays({ primary: pick(server) }, store);
+        expect(server.getWatchHistory.mock.calls.map(c => (c as unknown[])[1])).toEqual([{ full: true }, {}]);
+    });
+
+    it("rebuilds a Plex server's rows from its full read, and keeps Jellyfin's", async () => {
+        const store = PlayHistory.ephemeral();
+        const stale = (id: string) => ({ entry: { service: id, kind: 'watched' as const, itemId: 'old', title: 'A Song', user: 'Sam' }, kind: 'episode' as const });
+        store.record('plex', user, [stale('plex')]);
+        store.record('jellyfin', user, [stale('jellyfin')]);
+
+        await syncPlays({ primary: pick(choice('jellyfin')), secondary: pick(choice('plex')) }, store);
+        expect(store.read('plex', 'u1').map(r => r.entry.itemId)).toEqual(['plex-1']);
+        expect(store.read('jellyfin', 'u1').map(r => r.entry.itemId).sort()).toEqual(['jellyfin-1', 'old']);
+    });
+
     it('skips a server with no identity config', async () => {
         const store = PlayHistory.ephemeral();
         const bare = choice('jellyfin');

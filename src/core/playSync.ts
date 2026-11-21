@@ -12,8 +12,10 @@ const FIRST_SYNC_MS = 60 * 1000;
 
 /**
  * Reads each media server's history and library for its default user and
- * records what was watched. A server that fails is logged and skipped: the
- * next run tries again, and nothing already stored is lost.
+ * records what was watched. The first run for a server and user reads the
+ * whole history; every later run reads only the newest rows. A server that
+ * fails is logged and skipped: the next run tries again, the full read too
+ * if that was the one that failed, and nothing already stored is lost.
  *
  * Only the default user: it is the one every tool answers for unless told
  * otherwise. Any other user's plays are recorded when `get_playback` reads
@@ -25,11 +27,21 @@ export async function syncPlays(servers: MediaServers, store: PlayHistory): Prom
         const { adapter, identity } = choice;
         try {
             const user = await identity.resolve();
-            const [history, library] = await Promise.all([adapter.getWatchHistory(user), adapter.listUserLibrary(user)]);
+            const full = store.needsBackfill(adapter.id, user.id);
+            const [history, library] = await Promise.all([
+                adapter.getWatchHistory(user, full ? { full: true } : {}),
+                adapter.listUserLibrary(user)
+            ]);
             const plays = playsFrom(adapter.id, user, history, library);
-            store.record(adapter.id, user, plays);
-            store.markSynced(adapter.id, new Date().toISOString());
-            logger.debug({ service: adapter.id, plays: plays.length }, 'play history synced');
+            // Plex's history keeps every play, so its full read stands in for
+            // what is stored, and rebuilding from it is what drops rows 2.3
+            // stored wrongly: music tracks, and a film stored twice around its
+            // deletion. Jellyfin's log forgets after 30 days, so its rows stay.
+            store.record(adapter.id, user, plays, { replace: full && adapter.type === 'plex' });
+            const at = new Date().toISOString();
+            if (full) store.markBackfilled(adapter.id, user.id, at);
+            store.markSynced(adapter.id, at);
+            logger.debug({ service: adapter.id, plays: plays.length, full }, 'play history synced');
         } catch (err) {
             logger.warn({ service: adapter.id, err }, 'play history sync failed; trying again next hour');
         }
