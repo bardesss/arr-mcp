@@ -628,6 +628,28 @@ const loggedItemsRoute = (ids: string[]) => `/Items?userId=u1&ids=${ids.join(','
 describe('Jellyfin.getWatchHistory with the activity log', () => {
     const someone = { id: 'u1', name: 'Someone' };
 
+    it('pages the played list and the whole activity log on a full read', async () => {
+        const played = Array.from({ length: 700 }, (_, i) => ({ Id: `p${i}`, Name: `Film ${i}`, Type: 'Movie', UserData: { Played: true } }));
+        const stops = Array.from({ length: 600 }, (_, i) => stopped(i < 599 ? `p${i}` : 'gone', '2026-10-16T12:18:42Z'));
+        const asked: string[] = [];
+        const fetchImpl = (async (input: string | URL | Request) => {
+            const url = new URL(input instanceof Request ? input.url : String(input));
+            asked.push(url.pathname);
+            const start = Number(url.searchParams.get('StartIndex') ?? '0');
+            const limit = Number(url.searchParams.get('Limit') ?? '500');
+            if (url.pathname === '/System/ActivityLog/Entries') return jsonResponse({ Items: stops.slice(start, start + limit) });
+            if (url.searchParams.has('ids')) return jsonResponse({ Items: [] });
+            return jsonResponse({ Items: played.slice(start, start + limit) });
+        }) as unknown as typeof fetch;
+
+        const entries = await new JellyfinAdapter(multi, fetchImpl).getWatchHistory(someone, { full: true });
+
+        // 700 played, plus the one logged play whose item is gone.
+        expect(entries).toHaveLength(701);
+        expect(entries.find(e => e.itemId === 'gone')).toMatchObject({ removedFromLibrary: true });
+        expect(asked.filter(p => p === '/System/ActivityLog/Entries')).toHaveLength(2);
+    });
+
     it('adds a logged play that never got IsPlayed, as watched, newest first', async () => {
         const routes = {
             [HISTORY_ROUTE]: HISTORY,

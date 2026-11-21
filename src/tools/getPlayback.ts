@@ -40,7 +40,8 @@ const ScopeSchema = z
             'also plays its activity log holds that never got marked played, such as an offline client syncing back.'
     );
 
-const project = (e: PlaybackEntry, detail: DetailLevel): PlaybackEntry => {
+const project = ({ releaseYear: _store, ...e }: PlaybackEntry, detail: DetailLevel): PlaybackEntry => {
+    // `releaseYear` is for the play store's matching, not an answer field.
     if (detail === 'full') return e;
     if (detail === 'minimal') {
         return { service: e.service, kind: e.kind, itemId: e.itemId, title: e.title, user: e.user };

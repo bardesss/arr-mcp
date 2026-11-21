@@ -405,6 +405,52 @@ describe('PlexAdapter', () => {
             expect(await adapter.getWatchHistory({ id: '1', name: 'Bartus' })).toEqual([]);
         });
 
+        it('leaves music out of the history, so a track is not read as an episode of its artist', async () => {
+            const history = {
+                MediaContainer: {
+                    Metadata: [
+                        { ratingKey: 'e1', type: 'episode', title: 'Pilot', grandparentTitle: 'A Show', accountID: 1 },
+                        { ratingKey: 't1', type: 'track', title: 'A Song', grandparentTitle: 'A Band', accountID: 1 }
+                    ]
+                }
+            };
+            const { adapter } = plex({ '/status/sessions/history/all': history });
+            const entries = await adapter.getWatchHistory({ id: '1', name: 'Bartus' });
+            expect(entries.map(e => e.itemId)).toEqual(['e1']);
+        });
+
+        it('keeps a deleted film its release year, which its history row still carries', async () => {
+            // A deleted item's history row has no ratingKey, guid or year,
+            // only title, type and originallyAvailableAt (seen on a live server).
+            const history = {
+                MediaContainer: {
+                    Metadata: [
+                        { type: 'movie', title: 'Gone Film', originallyAvailableAt: '2021-09-15', accountID: 1 },
+                        { type: 'episode', title: 'Gone Ep', grandparentTitle: 'A Show', originallyAvailableAt: '2019-01-01', accountID: 1 }
+                    ]
+                }
+            };
+            const { adapter } = plex({ '/status/sessions/history/all': history });
+            const [filmRow, episodeRow] = await adapter.getWatchHistory({ id: '1', name: 'Bartus' });
+            expect(filmRow).toMatchObject({ itemId: '', releaseYear: 2021 });
+            // An episode's date is its air date, not the series' year.
+            expect(episodeRow?.releaseYear).toBeUndefined();
+        });
+
+        it('reads past the bounded scan when asked for the full history', async () => {
+            const pages = 30;
+            const fetchImpl = (async (input: string | URL | Request) => {
+                const url = new URL(input instanceof Request ? input.url : String(input));
+                const page = Number(url.searchParams.get('X-Plex-Container-Start') ?? '0') / 500;
+                const rows = page >= pages ? [] : Array.from({ length: 500 }, (_, i) => ({ ratingKey: `m${page}_${i}`, accountID: 1 }));
+                return jsonResponse({ MediaContainer: { Metadata: rows } });
+            }) as unknown as typeof fetch;
+
+            const adapter = new PlexAdapter(config(), fetchImpl);
+            expect(await adapter.getWatchHistory({ id: '1', name: 'Bartus' })).toHaveLength(500);
+            expect(await adapter.getWatchHistory({ id: '1', name: 'Bartus' }, { full: true })).toHaveLength(pages * 500);
+        });
+
         it('reports onDeck rows with no viewOffset as next up', async () => {
             const onDeck = {
                 MediaContainer: {

@@ -149,6 +149,82 @@ describe('PlayHistory', () => {
     });
 });
 
+describe('PlayHistory across a deletion', () => {
+    const plexFilm = (itemId: string, title: string, lastPlayed: string): PlaybackEntry => ({ ...film(itemId, title, lastPlayed), service: 'plex' });
+    const episode = (itemId: string, lastPlayed: string): PlaybackEntry => ({
+        ...plexFilm(itemId, 'Pilot', lastPlayed),
+        seriesTitle: 'A Show',
+        season: 1,
+        episode: 1
+    });
+    const keys = (store: PlayHistory) => store.read('plex', 'u1').map(r => r.entry.itemId);
+
+    it('folds the title row of a deleted film into the row it had while it existed', () => {
+        const store = PlayHistory.ephemeral();
+        store.record('plex', user, [record(plexFilm('42', 'Dune', '2026-01-01T00:00:00.000Z'), { year: 2021, ids: { tmdb: 438631 } })]);
+        store.record('plex', user, [record(plexFilm('', 'Dune', '2026-02-01T00:00:00.000Z'), { year: 2021 })]);
+        const rows = store.read('plex', 'u1');
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({ year: 2021, ids: { tmdb: 438631 }, entry: { lastPlayed: '2026-02-01T00:00:00.000Z' } });
+    });
+
+    it('matches a year either side, since a release date and a library year can differ', () => {
+        const store = PlayHistory.ephemeral();
+        store.record('plex', user, [record(plexFilm('42', 'Dune', '2026-01-01T00:00:00.000Z'), { year: 2021 })]);
+        store.record('plex', user, [record(plexFilm('', 'Dune', '2026-02-01T00:00:00.000Z'), { year: 2020 })]);
+        expect(keys(store)).toHaveLength(1);
+    });
+
+    it('moves a title row onto the item id when the same film is seen live', () => {
+        const store = PlayHistory.ephemeral();
+        store.record('plex', user, [record(plexFilm('', 'Dune', '2026-01-01T00:00:00.000Z'), { year: 2021 })]);
+        store.record('plex', user, [record(plexFilm('42', 'Dune', '2026-02-01T00:00:00.000Z'), { year: 2021 })]);
+        expect(keys(store)).toEqual(['42']);
+    });
+
+    it('keeps a remake with the same title apart', () => {
+        const store = PlayHistory.ephemeral();
+        store.record('plex', user, [record(plexFilm('42', 'Dune', '2026-01-01T00:00:00.000Z'), { year: 1984 })]);
+        store.record('plex', user, [record(plexFilm('', 'Dune', '2026-02-01T00:00:00.000Z'), { year: 2021 })]);
+        expect(keys(store)).toHaveLength(2);
+    });
+
+    it('does not join a film with no year to anything, since that is a guess', () => {
+        const store = PlayHistory.ephemeral();
+        store.record('plex', user, [record(plexFilm('42', 'Dune', '2026-01-01T00:00:00.000Z'), { year: 2021 })]);
+        store.record('plex', user, [record(plexFilm('', 'Dune', '2026-02-01T00:00:00.000Z'))]);
+        expect(keys(store)).toHaveLength(2);
+    });
+
+    it('folds a deleted episode on its series, season and episode number', () => {
+        const store = PlayHistory.ephemeral();
+        store.record('plex', user, [record(episode('7', '2026-01-01T00:00:00.000Z'))]);
+        store.record('plex', user, [record(episode('', '2026-02-01T00:00:00.000Z'))]);
+        store.record('plex', user, [record({ ...episode('', '2026-02-01T00:00:00.000Z'), episode: 2 })]);
+        expect(keys(store)).toHaveLength(2);
+    });
+
+    it('replaces what a server and user hold when asked, and leaves other users alone', () => {
+        const store = PlayHistory.ephemeral();
+        const other = { id: 'u2', name: 'Kim' };
+        store.record('plex', user, [record(plexFilm('t1', 'A Song', '2026-01-01T00:00:00.000Z'))]);
+        store.record('plex', other, [record(plexFilm('k1', 'Hers', '2026-01-01T00:00:00.000Z'))]);
+        store.record('plex', user, [record(plexFilm('42', 'Dune', '2026-01-01T00:00:00.000Z'))], { replace: true });
+        expect(keys(store)).toEqual(['42']);
+        expect(store.read('plex', 'u2')).toHaveLength(1);
+    });
+
+    it('remembers the full read per server and user, and forgets it on clear', () => {
+        const store = PlayHistory.ephemeral();
+        expect(store.needsBackfill('plex', 'u1')).toBe(true);
+        store.markBackfilled('plex', 'u1', '2026-01-01T00:00:00.000Z');
+        expect(store.needsBackfill('plex', 'u1')).toBe(false);
+        expect(store.needsBackfill('plex', 'u2')).toBe(true);
+        store.clear();
+        expect(store.needsBackfill('plex', 'u1')).toBe(true);
+    });
+});
+
 describe('playsFrom', () => {
     const libraryFilm = (itemId: string, title: string, watched: boolean, extra: Partial<IndexInput> = {}): IndexInput => ({
         kind: 'movie',
@@ -162,6 +238,17 @@ describe('playsFrom', () => {
     it('takes a film play its ids and year from the library row with the same item id', () => {
         const [play] = playsFrom('jellyfin', user, [film('a', 'Alpha', '2026-01-01T00:00:00.000Z')], [libraryFilm('a', 'Alpha', true)]);
         expect(play).toMatchObject({ kind: 'movie', year: 1999, ids: { tmdb: 603, imdb: 'tt0133093' } });
+    });
+
+    it("gives a deleted film its history row's release year, and keeps that field out of the stored row", () => {
+        const [play] = playsFrom('plex', user, [{ ...film('', 'Gone'), releaseYear: 2021 }], []);
+        expect(play).toMatchObject({ kind: 'movie', year: 2021 });
+        expect(play?.entry).not.toHaveProperty('releaseYear');
+    });
+
+    it("prefers the library's year over the history row's", () => {
+        const [play] = playsFrom('jellyfin', user, [{ ...film('a', 'Alpha'), releaseYear: 2001 }], [libraryFilm('a', 'Alpha', true)]);
+        expect(play?.year).toBe(1999);
     });
 
     it("gives an episode its series' ids, matched on the series title", () => {

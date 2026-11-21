@@ -116,7 +116,12 @@ const ticksToSeconds = (ticks: number | undefined): number | undefined =>
  * as a lone stop and without the item ever getting `Played`. The log is kept
  * for `ActivityLogRetentionDays` (30 by default), so this reaches no further.
  */
-const ACTIVITY_LOG_ROUTE = '/System/ActivityLog/Entries?type=VideoPlaybackStopped&hasUserId=true&limit=500';
+const ACTIVITY_LOG_STOPS = '/System/ActivityLog/Entries?type=VideoPlaybackStopped&hasUserId=true';
+const ACTIVITY_LOG_ROUTE = `${ACTIVITY_LOG_STOPS}&limit=500`;
+const PLAYED_ITEMS = 'SortBy=DatePlayed&SortOrder=Descending&Filters=IsPlayed&IncludeItemTypes=Episode,Movie&Recursive=true';
+
+/** `/Items?ids=` reads in flight at once, so a full history read is not hundreds of requests at the same moment. */
+const LOGGED_ITEMS_PARALLEL = 5;
 
 /** Ids per `/Items?ids=` read, keeping the URL well short of proxy limits. */
 const LOGGED_ITEMS_CHUNK = 100;
@@ -369,17 +374,21 @@ export class JellyfinAdapter
      * ignores a query param it does not recognise. `Limit=500` matches
      * `getPlayback`'s resumable read: truncation is decided by `applyLimit`,
      * not an undocumented server page size.
+     *
+     * `full` pages both reads to the end instead, for the play store's one
+     * catch-up: every played item, and the whole activity log rather than the
+     * household's newest 500 stops.
      */
-    async getWatchHistory(user: ServiceUser): Promise<PlaybackEntry[]> {
-        const [page, logged] = await Promise.all([
-            this.#http.get<RawItemsPage>(
-                `/Items?userId=${encodeURIComponent(user.id)}&SortBy=DatePlayed&SortOrder=Descending` +
-                    '&Filters=IsPlayed&IncludeItemTypes=Episode,Movie&Recursive=true&Limit=500&Fields=UserData'
-            ),
-            this.#loggedStops(user)
+    async getWatchHistory(user: ServiceUser, opts: { full?: boolean } = {}): Promise<PlaybackEntry[]> {
+        const played = `/Items?userId=${encodeURIComponent(user.id)}&${PLAYED_ITEMS}`;
+        const [items, logged] = await Promise.all([
+            opts.full === true
+                ? this.#pagedItems<RawItem>(`${played}&Fields=UserData`)
+                : this.#http.get<RawItemsPage>(`${played}&Limit=500&Fields=UserData`).then(page => page.Items ?? []),
+            this.#loggedStops(user, opts.full === true)
         ]);
 
-        const marked: PlaybackEntry[] = (page.Items ?? []).map(item => ({
+        const marked: PlaybackEntry[] = items.map(item => ({
             ...this.#commonPlayback(user, item),
             kind: 'watched' as const,
             source: 'marked_played' as const,
@@ -399,10 +408,12 @@ export class JellyfinAdapter
      * than failing the history: the `IsPlayed` half is still a correct answer
      * to most questions, and losing it over a supplementary read would not be.
      */
-    async #loggedStops(user: ServiceUser): Promise<RawActivityEntry[]> {
+    async #loggedStops(user: ServiceUser, full: boolean): Promise<RawActivityEntry[]> {
         let entries: RawActivityEntry[];
         try {
-            entries = (await this.#http.get<{ Items?: RawActivityEntry[] }>(ACTIVITY_LOG_ROUTE)).Items ?? [];
+            entries = full
+                ? await this.#pagedItems<RawActivityEntry>(ACTIVITY_LOG_STOPS)
+                : ((await this.#http.get<{ Items?: RawActivityEntry[] }>(ACTIVITY_LOG_ROUTE)).Items ?? []);
         } catch (err) {
             logger.warn({ service: this.id, err }, 'activity log read failed; history covers marked-played items only');
             return [];
@@ -430,14 +441,16 @@ export class JellyfinAdapter
         if (stops.length === 0) return [];
 
         const ids = stops.map(e => e.ItemId as string);
-        const pages = await Promise.all(
-            Array.from({ length: Math.ceil(ids.length / LOGGED_ITEMS_CHUNK) }, (_, i) =>
-                this.#http.get<RawItemsPage>(
-                    `/Items?userId=${encodeURIComponent(user.id)}` +
-                        `&ids=${ids.slice(i * LOGGED_ITEMS_CHUNK, (i + 1) * LOGGED_ITEMS_CHUNK).join(',')}&Fields=UserData`
-                )
-            )
-        );
+        const read = (i: number) =>
+            this.#http.get<RawItemsPage>(
+                `/Items?userId=${encodeURIComponent(user.id)}` +
+                    `&ids=${ids.slice(i * LOGGED_ITEMS_CHUNK, (i + 1) * LOGGED_ITEMS_CHUNK).join(',')}&Fields=UserData`
+            );
+        const chunks = Array.from({ length: Math.ceil(ids.length / LOGGED_ITEMS_CHUNK) }, (_, i) => i);
+        const pages: RawItemsPage[] = [];
+        for (let at = 0; at < chunks.length; at += LOGGED_ITEMS_PARALLEL) {
+            pages.push(...(await Promise.all(chunks.slice(at, at + LOGGED_ITEMS_PARALLEL).map(read))));
+        }
         const byId = new Map(pages.flatMap(p => p.Items ?? []).map(item => [item.Id, item]));
 
         return stops.flatMap((stop): PlaybackEntry[] => {

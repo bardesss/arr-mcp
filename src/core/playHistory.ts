@@ -11,7 +11,9 @@ import type { PlaybackEntry, ServiceUser } from '../services/types.ts';
  * Jellyfin's activity log keeps 30 days by default and its played list is read
  * 500 at a time; Plex's history is read a bounded number of pages per call. A
  * title watched and then deleted drops out of all of them, and "have I seen
- * this?" can no longer be answered. This store is what still can.
+ * this?" can no longer be answered. This store is what still can. The first
+ * sync for a server and user reads the whole history once (`backfills`), so
+ * plays older than those bounds are in it too.
  *
  * One row per item per user, not per play: the question is whether something
  * was watched and when last, so the file grows with what a household has
@@ -55,6 +57,12 @@ CREATE TABLE IF NOT EXISTS syncs (
     server TEXT PRIMARY KEY,
     at     TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS backfills (
+    server  TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    at      TEXT NOT NULL,
+    PRIMARY KEY (server, user_id)
+);
 `;
 
 /** What the config UI's Plays tab shows: counts, never the whole list. */
@@ -71,6 +79,27 @@ export type PlaySummary = {
  */
 export const playKey = (e: PlaybackEntry): string =>
     e.itemId !== '' ? e.itemId : `title:${e.seriesTitle ?? ''}|${e.title}|${e.season ?? ''}|${e.episode ?? ''}`;
+
+/**
+ * The same play under the other kind of key: stored by item id while the item
+ * existed, seen by title once it was deleted, or the other way round. A film
+ * matches on title and a year either side, so a remake with the same title
+ * stays apart; with no year it does not match at all. An episode matches on
+ * series title, title, season and episode.
+ */
+const TWIN_SQL = `
+SELECT item_key, record FROM plays
+WHERE server = @server AND user_id = @user AND item_key <> @key
+  AND (item_key LIKE 'title:%') = @wantTitleKey
+  AND title = @title
+  AND (
+        (@kind = 'movie' AND kind = 'movie' AND series_title IS NULL AND ABS(year - @year) <= 1)
+     OR (@kind = 'episode' AND kind = 'episode' AND series_title = @seriesTitle
+         AND json_extract(record, '$.entry.season') IS @season
+         AND json_extract(record, '$.entry.episode') IS @episode)
+  )
+ORDER BY last_played IS NULL, last_played DESC
+LIMIT 1`;
 
 /** ISO-8601 UTC strings compare lexically. */
 const newest = (a: string | undefined, b: string | undefined): string | undefined =>
@@ -105,10 +134,12 @@ export class PlayHistory {
     readonly #select: Statement;
     readonly #upsert: Statement;
     readonly #read: Statement;
+    readonly #twin: Statement;
+    readonly #delete: Statement;
 
     private constructor(db: Db) {
         this.#db = db;
-        this.#select = db.prepare('SELECT record FROM plays WHERE server = ? AND user_id = ? AND item_key = ?');
+        this.#select = db.prepare('SELECT item_key, record FROM plays WHERE server = ? AND user_id = ? AND item_key = ?');
         this.#upsert = db.prepare(
             `INSERT OR REPLACE INTO plays
                 (server, user_id, item_key, user_name, kind, title, series_title, year, tmdb, tvdb, imdb, last_played, record)
@@ -118,6 +149,8 @@ export class PlayHistory {
         this.#read = db.prepare(
             'SELECT record FROM plays WHERE server = ? AND user_id = ? ORDER BY last_played IS NULL, last_played DESC'
         );
+        this.#twin = db.prepare(TWIN_SQL);
+        this.#delete = db.prepare('DELETE FROM plays WHERE server = ? AND user_id = ? AND item_key = ?');
     }
 
     static open(configDir: string): PlayHistory {
@@ -134,12 +167,28 @@ export class PlayHistory {
         return new PlayHistory(db);
     }
 
-    /** One transaction per batch: a sync of a few thousand rows is one write, not thousands. */
-    record(server: string, user: Pick<ServiceUser, 'id'>, plays: readonly PlayRecord[]): void {
+    /**
+     * One transaction per batch: a sync of a few thousand rows is one write,
+     * not thousands. `replace` drops what the store holds for this server and
+     * user first, in the same transaction, for a full history read that
+     * stands in for everything stored.
+     */
+    record(server: string, user: Pick<ServiceUser, 'id'>, plays: readonly PlayRecord[], opts: { replace?: boolean } = {}): void {
         this.#db.transaction(() => {
+            if (opts.replace === true) this.#db.prepare('DELETE FROM plays WHERE server = ? AND user_id = ?').run(server, user.id);
             for (const seen of plays) {
-                const key = playKey(seen.entry);
-                const row = this.#select.get(server, user.id, key) as { record: string } | undefined;
+                let key = playKey(seen.entry);
+                let row = this.#select.get(server, user.id, key) as { item_key: string; record: string } | undefined;
+                if (row === undefined) {
+                    const twin = this.#findTwin(server, user.id, key, seen);
+                    if (twin !== undefined) {
+                        // The item id is the better key while it lasts: keep
+                        // the row under it, or move a title row onto it.
+                        if (seen.entry.itemId === '') key = twin.item_key;
+                        else this.#delete.run(server, user.id, twin.item_key);
+                        row = twin;
+                    }
+                }
                 const next = row === undefined ? seen : merge(JSON.parse(row.record) as PlayRecord, seen);
                 this.#upsert.run(
                     server,
@@ -158,6 +207,32 @@ export class PlayHistory {
                 );
             }
         })();
+    }
+
+    #findTwin(server: string, userId: string, key: string, seen: PlayRecord): { item_key: string; record: string } | undefined {
+        if (seen.kind === 'unknown') return undefined;
+        if (seen.kind === 'movie' && seen.year === undefined) return undefined;
+        return this.#twin.get({
+            server,
+            user: userId,
+            key,
+            wantTitleKey: seen.entry.itemId === '' ? 0 : 1,
+            title: seen.entry.title,
+            kind: seen.kind,
+            year: seen.year ?? null,
+            seriesTitle: seen.entry.seriesTitle ?? null,
+            season: seen.entry.season ?? null,
+            episode: seen.entry.episode ?? null
+        }) as { item_key: string; record: string } | undefined;
+    }
+
+    /** Whether this server and user still need their one full history read. */
+    needsBackfill(server: string, userId: string): boolean {
+        return this.#db.prepare('SELECT 1 FROM backfills WHERE server = ? AND user_id = ?').get(server, userId) === undefined;
+    }
+
+    markBackfilled(server: string, userId: string, at: string): void {
+        this.#db.prepare('INSERT OR REPLACE INTO backfills (server, user_id, at) VALUES (?, ?, ?)').run(server, userId, at);
     }
 
     /** Newest first, undated last. */
@@ -200,10 +275,10 @@ export class PlayHistory {
         ).map(row => JSON.parse(row.record) as PlayRecord);
     }
 
-    /** Everything, sync times included. The next sync starts filling it again. */
+    /** Everything, sync and catch-up times included. The next sync fills it again, reading the history in full. */
     clear(): void {
         this.#db.transaction(() => {
-            this.#db.exec('DELETE FROM plays; DELETE FROM syncs;');
+            this.#db.exec('DELETE FROM plays; DELETE FROM syncs; DELETE FROM backfills;');
         })();
     }
 
@@ -251,15 +326,17 @@ export function playsFrom(
         };
     };
 
-    const fromHistory = history.map((entry): PlayRecord =>
+    const fromHistory = history.map(({ releaseYear, ...entry }): PlayRecord => {
         // Removed before it was ever stored: the log's sentence is all there
         // is, and it does not say film or episode.
-        entry.removedFromLibrary === true
-            ? { entry, kind: 'unknown' }
-            : entry.seriesTitle === undefined
-              ? { entry, kind: 'movie', ...matchOf(films.get(entry.itemId)) }
-              : { entry, kind: 'episode', ...matchOf(series.get(titleKey(entry.seriesTitle))) }
-    );
+        if (entry.removedFromLibrary === true) return { entry, kind: 'unknown' };
+        if (entry.seriesTitle !== undefined) return { entry, kind: 'episode', ...matchOf(series.get(titleKey(entry.seriesTitle))) };
+        // A deleted film has no library row; the history row's own release
+        // year is then all it can be matched on.
+        const match = matchOf(films.get(entry.itemId));
+        const year = match.year ?? releaseYear;
+        return { entry, kind: 'movie', ...match, ...(year === undefined ? {} : { year }) };
+    });
 
     const seen = new Set(history.map(e => e.itemId));
     const fromLibrary = [...films.values()].flatMap((row): PlayRecord[] => {

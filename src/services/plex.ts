@@ -50,6 +50,8 @@ export type RawPlexItem = {
     parentIndex?: number;
     index?: number;
     year?: number;
+    /** `YYYY-MM-DD`. A history row for a deleted film keeps this and not `year`. */
+    originallyAvailableAt?: string;
     summary?: string;
     duration?: number;
     viewOffset?: number;
@@ -103,6 +105,12 @@ export const msToSeconds = (ms: number | undefined): number | undefined =>
  */
 export const epochToIso = (seconds: number | undefined): string | undefined =>
     typeof seconds === 'number' && seconds > 0 ? new Date(seconds * 1000).toISOString() : undefined;
+
+/** The year of a `YYYY-MM-DD` date, or nothing for anything else. */
+export const yearOf = (date: string | undefined): number | undefined => {
+    const match = /^(\d{4})-\d{2}-\d{2}/.exec(date ?? '');
+    return match === null ? undefined : Number(match[1]);
+};
 
 /** Digits required, not just finiteness: `Number('')` is 0 and would join
  *  against every other item missing an id. */
@@ -415,7 +423,14 @@ export class PlexAdapter
      *  a user with little or no history of their own. See F4. */
     static readonly #MAX_HISTORY_PAGES = 20;
 
-    async getWatchHistory(user: ServiceUser): Promise<PlaybackEntry[]> {
+    /**
+     * Pages a full history read may make: 200,000 server-wide rows. The read
+     * runs once per server and user, in the background, so it can be long; the
+     * cap is only there so a server that never stops answering cannot hold it.
+     */
+    static readonly #MAX_FULL_HISTORY_PAGES = 400;
+
+    async getWatchHistory(user: ServiceUser, opts: { full?: boolean } = {}): Promise<PlaybackEntry[]> {
         // No accountID, no attribution: excluding is safer than guessing
         // whose watch this was.
         const isMine = (item: RawPlexItem): boolean => item.accountID !== undefined && String(item.accountID) === user.id;
@@ -436,18 +451,28 @@ export class PlexAdapter
         const rows = await this.#paged(
             start =>
                 `/status/sessions/history/all?X-Plex-Container-Start=${start}&X-Plex-Container-Size=${PAGE_SIZE}&sort=viewedAt:desc`,
-            { maxPages: PlexAdapter.#MAX_HISTORY_PAGES, stopEarly: collected => collected.filter(isMine).length >= PAGE_SIZE }
+            opts.full === true
+                ? { maxPages: PlexAdapter.#MAX_FULL_HISTORY_PAGES, stopEarly: () => false }
+                : { maxPages: PlexAdapter.#MAX_HISTORY_PAGES, stopEarly: collected => collected.filter(isMine).length >= PAGE_SIZE }
         );
 
-        return rows.filter(isMine).map(item => {
-            // viewedAt preferred: see the field comment on RawPlexItem.
-            const lastPlayed = epochToIso(item.viewedAt ?? item.lastViewedAt);
-            return {
-                ...this.#commonPlayback(user, item),
-                kind: 'watched' as const,
-                ...(lastPlayed === undefined ? {} : { lastPlayed })
-            };
-        });
+        // Music and other non-video plays share this history. A track carries
+        // its artist in `grandparentTitle`, so it would read as an episode.
+        const isVideo = (item: RawPlexItem): boolean => item.type === undefined || item.type === 'movie' || item.type === 'episode';
+
+        return rows
+            .filter(item => isMine(item) && isVideo(item))
+            .map(item => {
+                // viewedAt preferred: see the field comment on RawPlexItem.
+                const lastPlayed = epochToIso(item.viewedAt ?? item.lastViewedAt);
+                const releaseYear = item.type === 'movie' ? (item.year ?? yearOf(item.originallyAvailableAt)) : undefined;
+                return {
+                    ...this.#commonPlayback(user, item),
+                    kind: 'watched' as const,
+                    ...(lastPlayed === undefined ? {} : { lastPlayed }),
+                    ...(releaseYear === undefined ? {} : { releaseYear })
+                };
+            });
     }
 
     /**

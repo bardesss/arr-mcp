@@ -1449,11 +1449,17 @@ arr-mcp keeps what it has seen in `plays.db` in the config directory, one row
 per item per user, so history also returns plays the server has stopped
 returning: a title deleted since, a play older than the log, a film past the
 newest 500 played. Every hour it reads the history and library of each media
-server's default user. Any other user's plays are kept when their history is
-read. Films the library marks played are stored with their ids and year, and an
-episode with its series' ids, so they can still be matched once the item is
-gone. When the server and the store both have an item, the server's row is the
-one returned. A store that fails costs only the stored rows. The Plays tab on
+server's default user. The first of those reads takes the whole history, not
+only the newest rows; on Plex, which keeps every play, it also replaces what
+the store held for that user. Any other user's plays are kept when their
+history is read. Films the library marks played are stored with their ids and
+year, and an episode with its series' ids, so they can still be matched once
+the item is gone. A Plex film deleted before it was stored keeps the release
+year its history row carries. A play stored while its item existed and seen
+again after its deletion stays one row: a film matched on title and a year
+either side, an episode on series, title, season and episode. Plex music plays
+are left out. When the server and the store both have an item, the server's row
+is the one returned. A store that fails costs only the stored rows. The Plays tab on
 the Logs page of the config UI shows how many plays are kept per media server
 and user, when each server last synced and the newest plays, and can clear the
 store.
