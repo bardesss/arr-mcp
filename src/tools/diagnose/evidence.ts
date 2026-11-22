@@ -154,7 +154,7 @@ async function resolveItem(
         // error and remedy as get_media_details.
         if (!hasMediaDetails(adapter)) {
             throw new ServiceError('NotFound', target.service, `${target.service} cannot look up an item by id`, {
-                remedy: `Pass a service that holds media (radarr, sonarr, whisparr, lidarr, jellyfin or plex), or use diagnose_media by query instead.`
+                remedy: `Pass a service that holds media (radarr, sonarr, whisparr, lidarr, jellyfin, emby or plex), or use diagnose_media by query instead.`
             });
         }
 

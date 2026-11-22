@@ -3,6 +3,7 @@ import { listInstances, type ServiceInstance } from '../config/instances.ts';
 import { isMultiInstance } from '../config/instances.ts';
 import { describeSource, secretSource } from '../config/secretSources.ts';
 import {
+    MEDIA_SERVER_NAMES,
     MediaServerIdSchema,
     mediaServersIn,
     MULTI_INSTANCE,
@@ -67,12 +68,15 @@ const SERVICE_IDS_ALPHABETICAL: readonly ServiceId[] = [...SERVICE_IDS].sort();
 /**
  * The types the add dialog offers. A service that cannot have a second
  * instance and already has one is not a choice: offering it only to answer
- * "already configured" wastes the click. The multi-instance types are always
- * here, so this list is never empty.
+ * "already configured" wastes the click. Nor is a third media server beside
+ * two, which saving refuses. The multi-instance types are always here, so this
+ * list is never empty.
  */
 export function offerableTypes(config: Config): ServiceId[] {
     const configured = new Set(listInstances(config).map(i => i.type));
-    return SERVICE_IDS_ALPHABETICAL.filter(id => isMultiInstance(id) || !configured.has(id));
+    const mediaServersFull = mediaServersIn(config.services).length >= 2;
+    const isMediaServer = (id: ServiceId): boolean => MediaServerIdSchema.safeParse(id).success;
+    return SERVICE_IDS_ALPHABETICAL.filter(id => isMultiInstance(id) || !(configured.has(id) || (mediaServersFull && isMediaServer(id))));
 }
 
 /** The services that sign in with a username and password rather than an API key. */
@@ -158,8 +162,8 @@ const checkbox = (id: string, name: string, label: string, checked: boolean, dis
  */
 export function defaultUserNote(type: string, users: readonly string[] | undefined | 'pending'): string {
     const purpose =
-        type === 'jellyfin'
-            ? 'Optional. Without it, get_library returns the Radarr and Sonarr halves with Jellyfin marked degraded.'
+        type === 'jellyfin' || type === 'emby'
+            ? `Optional. Without it, get_library returns the Radarr and Sonarr halves with ${MEDIA_SERVER_NAMES[type]} marked degraded.`
             : 'Optional.';
 
     if (users === 'pending') {
@@ -593,12 +597,20 @@ function addDialog(
                     ? raw('')
                     : html`<p class="note">
                           ${(() => {
-                              const alreadyConfigured = SERVICE_IDS_ALPHABETICAL.filter(id => !offerable.includes(id));
+                              const alreadyConfigured = SERVICE_IDS_ALPHABETICAL.filter(id => !offerable.includes(id) && configured.has(id));
                               return alreadyConfigured.length === 0
                                   ? raw('')
                                   : html`Already configured, and limited to one instance:
                                         <span class="mono">${alreadyConfigured.join(', ')}</span>. Edit those on the
                                         card above. `;
+                          })()}
+                          ${(() => {
+                              const thirdServer = SERVICE_IDS_ALPHABETICAL.filter(id => !offerable.includes(id) && !configured.has(id));
+                              return thirdServer.length === 0
+                                  ? raw('')
+                                  : html`At most two of <span class="mono">${MediaServerIdSchema.options.join(', ')}</span> can
+                                        be configured together, so <span class="mono">${thirdServer.join(', ')}</span> is not
+                                        offered.`;
                           })()}
                       </p>`}
             </div>
@@ -1074,7 +1086,9 @@ export function configPage(opts: {
     addPrefill?: { type: ServiceId; url: string } | undefined;
 }): string {
     const instances = listInstances(opts.config);
-    const bothMediaServers = mediaServersIn(opts.config.services).length === MediaServerIdSchema.options.length;
+    // Two of the three at most (ConfigSchema), so two is both.
+    const configuredMediaServers = mediaServersIn(opts.config.services);
+    const bothMediaServers = configuredMediaServers.length === 2;
     // The etag is what lets a save tell that the config moved since this page was built.
     const keys = html`<input type="hidden" name="csrf" value="${opts.csrf}">
         <input type="hidden" name="etag" value="${configEtag(opts.config)}">`;
@@ -1190,7 +1204,7 @@ export function configPage(opts: {
                   <div class="field">
                       <label for="primary_media_server">Primary</label>
                       <select id="primary_media_server" name="primary_media_server">
-                          ${MediaServerIdSchema.options.map(id => html`<option value="${id}" ${opts.config.primary_media_server === id ? raw('selected') : raw('')}>${id}</option>`)}
+                          ${configuredMediaServers.map(id => html`<option value="${id}" ${opts.config.primary_media_server === id ? raw('selected') : raw('')}>${id}</option>`)}
                       </select>
                   </div>
                   <p class="note">The one every tool reads by default. The other still answers when a tool is given its name.</p>

@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { KINDS_KEY } from '../config/schema.ts';
+import { KINDS_KEY, MEDIA_SERVER_NAMES } from '../config/schema.ts';
 import type { LibraryKind, MergedItem } from '../core/resolver.ts';
 import {
     DetailSchema,
@@ -617,7 +617,13 @@ const getLibraryOutput = byMediaServers(ids => PagedOutputSchema.extend({
         .optional()
         .describe(
             'Present when a fact about the stack\'s config, not this call, needs stating: no media server configured at all, or one configured with no default_user.' +
-                withBoth(ids, 'Also when the secondary media server is not read because its default_user is missing (Jellyfin) or matches no user.')
+                withBoth(
+                    ids,
+                    `Also when the secondary media server is not read because its default_user is missing (${(['jellyfin', 'emby'] as const)
+                        .filter(id => ids?.includes(id) === true)
+                        .map(id => MEDIA_SERVER_NAMES[id])
+                        .join(' or ')}) or matches no user.`
+                )
         )
 }));
 

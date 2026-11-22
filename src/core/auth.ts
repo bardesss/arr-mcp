@@ -107,11 +107,14 @@ export function basicAuth(
     };
 }
 
-/** Jellyfin. The quoted form is what the server parses; bare tokens are rejected. */
-export function embyToken(key: string): AuthStrategy {
+/**
+ * Jellyfin and Emby. The quoted form is what the server parses; bare tokens
+ * are rejected. `keys` is where the server's own UI issues one.
+ */
+export function embyToken(key: string, keys: string): AuthStrategy {
     return {
         id: 'emby-token',
-        remedy: 'The API key is wrong. Create one under Dashboard → API Keys in Jellyfin.',
+        remedy: `The API key is wrong. Create one under ${keys}.`,
         apply(ctx) {
             ctx.headers.set('Authorization', `MediaBrowser Token="${key}"`);
         }

@@ -250,10 +250,12 @@ Every configured instance, in alphabetical order.
 ```
 
 Fields depend on the type. Transmission, qBittorrent and NZBGet have `username`
-and `passwordSet`. Everything else has `apiKeySet`. Jellyfin, Plex and Seerr add
-`defaultUser` and `allowOtherUsers`, and Plex alone adds `allowMetadataRepair`.
-Cleanuparr, Reclaimerr and Dispatcharr are read-only, so their `safeWrite` and `destructive` are always `false`,
-whatever was sent. Shelfmark alone can be added with no `apiKey`, for an install with no authentication. Any credentials in the URL are stripped.
+and `passwordSet`. Everything else has `apiKeySet`. Jellyfin, Emby, Plex and
+Seerr add `defaultUser` and `allowOtherUsers`, and Plex alone adds
+`allowMetadataRepair`. Cleanuparr, Reclaimerr and Dispatcharr are read-only, so
+their `safeWrite` and `destructive` are always `false`, whatever was sent.
+Shelfmark alone can be added with no `apiKey`, for an install with no
+authentication. Any credentials in the URL are stripped.
 
 ### `GET /app/{type}` and `GET /app/{type}/{name}`
 
@@ -334,9 +336,8 @@ A second instance of a type that allows several needs a `name`. If the first
 one has no name yet, also send `renameExistingTo` to name it, because its id
 changes. Answers 201 with the new app, shaped like an entry of `GET /app`.
 
-Adding Plex beside Jellyfin, or the other way round, keeps the one already
-there as primary. Change it with
-[`PUT /settings/media-servers`](#put-settingsmedia-servers).
+Adding a second media server keeps the one already there as primary. Change it
+with [`PUT /settings/media-servers`](#put-settingsmedia-servers).
 
 ```bash
 curl -X POST -H "X-Api-Key: $ARR_MCP_API_KEY" -H 'Content-Type: application/json' \
@@ -417,10 +418,10 @@ curl -X PUT -H "X-Api-Key: $ARR_MCP_API_KEY" -H 'Content-Type: application/json'
 
 ### `PUT /settings/media-servers`
 
-Sets `primary` to `jellyfin` or `plex`. It has to name a configured server, or
-it is a 400. `configured` from GET is accepted and ignored. With one server,
-naming it changes nothing. See
-[Plex and Jellyfin together](configuration.md#plex-and-jellyfin-together).
+Sets `primary` to `jellyfin`, `emby` or `plex`. It has to name a configured
+server, or it is a 400. `configured` from GET is accepted and ignored. With one
+server, naming it changes nothing. See
+[Two media servers](configuration.md#two-media-servers).
 
 Answers 200 with the same body as GET.
 

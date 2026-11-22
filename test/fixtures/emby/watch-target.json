@@ -1,0 +1,93 @@
+{
+  "Name": "Detour",
+  "OriginalTitle": "Detour",
+  "ServerId": "00000000000000000000000000000001",
+  "Id": "12",
+  "Etag": "00000000000000000000000000000030",
+  "DateCreated": "2024-01-02T12:48:31.348Z",
+  "DateModified": "2024-01-02T12:48:31.348Z",
+  "CanDelete": false,
+  "CanDownload": true,
+  "PresentationUniqueKey": "p-tmdb-Movie-20367-00000000000000000000000000000028",
+  "SupportsSync": true,
+  "Container": "mp4",
+  "SortName": "Detour",
+  "ForcedSortName": "Detour",
+  "PremiereDate": "1945-11-30T00:00:00.0000000Z",
+  "MediaSources": [
+    {
+      "Protocol": "File",
+      "Id": "mediasource_12",
+      "Path": "/media/movies/Detour (1945)/DetourPresentedByMoviePowder.mp4",
+      "Type": "Default",
+      "Container": "mp4",
+      "Size": 421690362,
+      "Name": "DetourPresentedByMoviePowder",
+      "IsRemote": false,
+      "HasMixedProtocols": false,
+      "RunTimeTicks": 40584240000,
+      "SupportsTranscoding": true,
+      "SupportsDirectStream": true,
+      "SupportsDirectPlay": true,
+      "IsInfiniteStream": false,
+      "RequiresOpening": false,
+      "RequiresClosing": false,
+      "RequiresLooping": false,
+      "SupportsProbing": true,
+      "Formats": [],
+      "Bitrate": 831239,
+      "RequiredHttpHeaders": {},
+      "AddApiKeyToDirectStreamUrl": false,
+      "ReadAtNativeFramerate": false,
+      "DefaultAudioStreamIndex": 1,
+      "ItemId": "12",
+      "MimeType": "video/mp4"
+    }
+  ],
+  "ProductionLocations": [
+    "United States of America"
+  ],
+  "Path": "/media/movies/Detour (1945)/DetourPresentedByMoviePowder.mp4",
+  "OfficialRating": "NR",
+  "Genres": [
+    "Drama",
+    "Thriller"
+  ],
+  "CommunityRating": 7.224,
+  "RunTimeTicks": 40584240000,
+  "Size": 421690362,
+  "FileName": "DetourPresentedByMoviePowder.mp4",
+  "Bitrate": 831239,
+  "ProductionYear": 1945,
+  "ProviderIds": {
+    "Tmdb": "20367",
+    "Imdb": "tt0037638",
+    "Tvdb": "9984"
+  },
+  "IsFolder": false,
+  "ParentId": "9",
+  "Type": "Movie",
+  "GenreItems": [
+    {
+      "Name": "Drama",
+      "Id": 106
+    },
+    {
+      "Name": "Thriller",
+      "Id": 107
+    }
+  ],
+  "TagItems": [],
+  "LocalTrailerCount": 0,
+  "UserData": {
+    "Played": false
+  },
+  "DisplayPreferencesId": "00000000000000000000000000000031",
+  "PartCount": 1,
+  "MediaType": "Video",
+  "MimeType": "video/mp4",
+  "LockedFields": [],
+  "LockData": false,
+  "Width": 640,
+  "Height": 480
+}

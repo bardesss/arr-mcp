@@ -47,6 +47,14 @@ export type EpisodeRecord = {
 };
 
 /**
+ * An item's locks in the server's own terms, kept only where a re-identify
+ * does not respect them (Emby): `item` is the lock on the whole item, and
+ * `fields` the server's names for the locked fields. Absent when the server
+ * did not report them.
+ */
+export type ItemLocks = { item: boolean; fields: readonly string[] };
+
+/**
  * Whether this episode's metadata comes from an id stored on the episode
  * itself, rather than being re-derived from the file each refresh.
  *
@@ -72,6 +80,8 @@ export type MovieRecord = {
     path?: string;
     providerIds?: Record<string, string>;
     lockedFields?: readonly string[];
+    /** The server's own locks, as it reported them: see `ItemLocks`. */
+    locks?: ItemLocks;
 };
 
 export type Mismatch = {

@@ -1,0 +1,29 @@
+{
+  "Items": [
+    {
+      "Name": "Detour",
+      "ServerId": "00000000000000000000000000000001",
+      "Id": "12",
+      "ForcedSortName": "Detour",
+      "Path": "/media/movies/Detour (1945)/DetourPresentedByMoviePowder.mp4",
+      "RunTimeTicks": 40584240000,
+      "ProductionYear": 1945,
+      "ProviderIds": {
+        "Tmdb": "20367",
+        "Imdb": "tt0037638"
+      },
+      "IsFolder": false,
+      "Type": "Movie",
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 1,
+        "IsFavorite": false,
+        "Played": true
+      },
+      "MediaType": "Video",
+      "LockedFields": [],
+      "LockData": false
+    }
+  ],
+  "TotalRecordCount": 1
+}

@@ -45,7 +45,7 @@ off until you turn them on; see [writes](writes.md).
 | `update_book` | Edit a Grimmory book's title, authors, series, categories and field locks |
 | `fix_metadata` | Repair one item whose metadata does not describe its files; on Grimmory, a book, from its metadata providers; on Lidarr, an artist's file tags |
 | `fix_profile` | Apply the fix for a quality profile whose minimum custom format score nothing can reach, or that sits exactly on the edge |
-| `set_watched` | Mark this watched or unwatched in Jellyfin; on Grimmory, mark a book read or unread |
+| `set_watched` | Mark this watched or unwatched in Jellyfin or Emby; on Grimmory, mark a book read or unread |
 | `sync_database` | Have Profilarr pull its database from git again |
 | `manage_indexer` | Add a public indexer, change its priority, profile, tags or seeding, or stop grabbing from it |
 | `delete_indexer` | Delete a Prowlarr indexer, and its copy in each app |
@@ -68,16 +68,16 @@ A write is listed only when one of these is configured, and a read too with `too
 | `get_releases` | Radarr, Sonarr, Whisparr, Lidarr, Shelfmark |
 | `get_blocklist` | Radarr, Sonarr, Whisparr, Lidarr |
 | `get_calendar` | Radarr, Sonarr, Whisparr, Lidarr |
-| `get_playback` | Jellyfin, Plex |
+| `get_playback` | Jellyfin, Emby, Plex |
 | `get_requests` | Seerr |
 | `get_media_details` | any stack |
-| `get_metadata_issues` | Jellyfin, Plex, Grimmory |
+| `get_metadata_issues` | Jellyfin, Emby, Plex, Grimmory |
 | `get_library` | any stack |
 | `get_profile_issues` | Radarr, Sonarr, Whisparr |
 | `search_media` | any stack |
 | `discover_media` | any stack |
 | `trigger_search` ✎ | Radarr, Sonarr, Whisparr, Lidarr |
-| `trigger_scan` ✎ | Radarr, Sonarr, Whisparr, Lidarr, Jellyfin, Plex, Grimmory, Prowlarr |
+| `trigger_scan` ✎ | Radarr, Sonarr, Whisparr, Lidarr, Jellyfin, Emby, Plex, Grimmory, Prowlarr |
 | `trigger_subtitle_search` ✎ | Bazarr |
 | `remove_queue_item` ✎ | Radarr, Sonarr, Whisparr, Lidarr, SABnzbd, NZBGet, Transmission, qBittorrent, Shelfmark, Grimmory |
 | `delete_media` ✎ | Radarr, Sonarr, Whisparr, Lidarr, Grimmory |
@@ -92,8 +92,8 @@ A write is listed only when one of these is configured, and a read too with `too
 | `pause_downloads` ✎ | SABnzbd, NZBGet, Transmission, qBittorrent |
 | `retry_download` ✎ | SABnzbd, NZBGet, Shelfmark |
 | `sync_database` ✎ | Profilarr |
-| `set_watched` ✎ | Jellyfin, Grimmory |
-| `fix_metadata` ✎ | Lidarr, Jellyfin, Plex, Grimmory |
+| `set_watched` ✎ | Jellyfin, Emby, Grimmory |
+| `fix_metadata` ✎ | Lidarr, Jellyfin, Emby, Plex, Grimmory |
 | `remove_blocklist_item` ✎ | Radarr, Sonarr, Whisparr, Lidarr |
 | `manage_indexer` ✎ | Prowlarr |
 | `update_book` ✎ | Grimmory |
@@ -250,13 +250,13 @@ does have**, so an answer is never mistaken for one where it had been honoured.
 
 Every tool's name, description and schemas sit in the client's context from the
 moment it connects, before anyone has asked anything. One server in front of
-nineteen services could spend that budget carelessly, so the bill is measured
+twenty services could spend that budget carelessly, so the bill is measured
 (`node scripts/measure-tool-surface.ts` prints it per stack) and capped by the
 tests:
 
 | Stack | Tools listed | `tools/list` | Roughly |
 | --- | --- | --- | --- |
-| Nothing configured yet | 44 | 113,613 bytes | 28,000 tokens |
+| Nothing configured yet | 44 | 113,953 bytes | 28,500 tokens |
 | Radarr, Sonarr, SABnzbd, Jellyfin | 36 | 82,962 bytes | 20,700 tokens |
 | Those four, plus Lidarr, Prowlarr, Bazarr and Seerr | 42 | 103,048 bytes | 25,800 tokens |
 
@@ -339,9 +339,9 @@ every service. With it, a service that holds a different kind is not asked at
 all.
 
 - **The search tools** still ask the services that hold more than one kind
-  (Seerr, Plex, Jellyfin, Prowlarr), then keep that kind from what they return.
-  A hit whose kind the service could not tell, such as an indexer's release or a
-  media server's generic item, is kept.
+  (Seerr, Plex, Jellyfin, Emby, Prowlarr), then keep that kind from what they
+  return. A hit whose kind the service could not tell, such as an indexer's
+  release or a media server's generic item, is kept.
 - **`get_queue`** leaves the download clients out. Their rows are the same
   downloads the *arr already lists, and a client cannot say what a download is.
 - **`get_calendar`** asks only the *arr holding that kind. `series` covers
@@ -421,9 +421,9 @@ never as a blocking stage. A secondary that is down does not lower `certain`.
 or Lidarr that holds its kind could not be read, `managed` is `unknown` rather
 than "nothing is managing it": the verdict is `managed`, uncertain, and asks you
 to check that service and run diagnose_media again, unless a blocked request
-comes first. A Jellyfin id gives no kind, nor does a Plex item that is not a
-film or a show, so there any *arr that could not be read counts, Lidarr aside
-when the item carries a tmdb, tvdb or imdb id, as a film or a show does.
+comes first. A Jellyfin or Emby id gives no kind, nor does a Plex item that is
+not a film or a show, so there any *arr that could not be read counts, Lidarr
+aside when the item carries a tmdb, tvdb or imdb id, as a film or a show does.
 
 A title the media server shows and nothing manages is `playable`: the summary
 says nothing will upgrade or replace it, and there is no step to add it, which
@@ -705,7 +705,7 @@ folder with `move_files: false`.
 ## `get_stack_health`
 
 With more than one instance of a service, each is reported separately. With
-Plex and Jellyfin both configured, `primaryMediaServer` names the one the tools
+two media servers configured, `primaryMediaServer` names the one the tools
 default to.
 
 The `service` of each `services` row is the instance id other tools take as
@@ -738,9 +738,9 @@ last 24 hours, since its list keeps every row until a restart or a clear. Rows
 from the same source are collapsed into one, with the newest text and a count of
 the rest. The text is in SABnzbd's own UI language.
 
-qBittorrent, Transmission, Plex, Jellyfin, Seerr and Profilarr have no health
-report this server reads. They appear in `services` with their version and
-connection state, and a fault in one of them shows up as a failed connection
+qBittorrent, Transmission, Plex, Jellyfin, Emby, Seerr and Profilarr have no
+health report this server reads. They appear in `services` with their version
+and connection state, and a fault in one of them shows up as a failed connection
 in `degraded` rather than in `failures`.
 
 `failures` lists errors first, then warnings, then notices, then any other
@@ -1099,9 +1099,9 @@ that zone is unknown. It answers with its whole current log, so its `total`
 counts the warnings and worse in that. A value that looks like an API key, token
 or password, an `Authorization` header's value and any credentials inside a URL
 are replaced with `(removed)` in every service's lines. SABnzbd's warnings are
-in `failures` rather than here. Jellyfin's real log is plain-text files, and
-Dispatcharr and Profilarr have no log to read, so none of the three appears
-here.
+in `failures` rather than here. Jellyfin's and Emby's real logs are plain-text
+files, and Dispatcharr and Profilarr have no log to read, so none of the four
+appears here.
 
 ## `get_library`
 
@@ -1159,12 +1159,13 @@ an empty list. Asking for one that needs the dataset says so in
 ### Music, from Lidarr
 
 Lidarr adds a third `kind`, `artist`, and it joins to a media server on the
-MusicBrainz artist id: the one id both Jellyfin and Plex publish for an artist.
+MusicBrainz artist id: the one id Jellyfin, Emby and Plex all publish for an
+artist.
 
 | Field | Meaning for an artist |
 | --- | --- |
 | `title` | The artist name, fenced like every other service string |
-| `ids.mbid` | The artist's MusicBrainz id: Lidarr's `foreignArtistId`, Jellyfin's `ProviderIds.MusicBrainzArtist`, Plex's `mbid://` guid. Matched case-insensitively |
+| `ids.mbid` | The artist's MusicBrainz id: Lidarr's `foreignArtistId`, Jellyfin's and Emby's `ProviderIds.MusicBrainzArtist`, Plex's `mbid://` guid. Matched case-insensitively |
 | `albumCount` | How many albums Lidarr holds for the artist. The albums themselves are in `get_media_details` |
 | `acquisition.id` | Lidarr's artist id, which `update_media` and `delete_media` take as `id` |
 | `acquisition.status` | Lidarr's own artist status (`continuing` or `ended`), passed through |
@@ -1293,14 +1294,14 @@ no `lastPlayed` is the ordinary shape of a season nobody has started.
 ### When the media server's episode read fails
 
 `degraded` gains `{service}:seasons`: `jellyfin:seasons` on a Jellyfin
-stack, `plex:seasons` on a Plex one. Sonarr's half of `seasons` survives intact
-(`onDisk`, `aired`, `total` and `monitored`); only the watch half (`watched`,
-`lastPlayed`) and `complete`, which needs both halves, go missing. Film watch
-state and `presence` are unaffected.
+stack, `emby:seasons` on an Emby one, `plex:seasons` on a Plex one. Sonarr's
+half of `seasons` survives intact (`onDisk`, `aired`, `total` and `monitored`);
+only the watch half (`watched`, `lastPlayed`) and `complete`, which needs both
+halves, go missing. Film watch state and `presence` are unaffected.
 
 ### Which media server has it
 
-With [Plex and Jellyfin both configured](configuration.md#plex-and-jellyfin-together),
+With [two media servers configured](configuration.md#two-media-servers),
 `presence`, `playback` and `seasons` still describe the primary alone. Each
 record also carries `media_servers`, saying per server whether it has the item:
 
@@ -1313,13 +1314,13 @@ record also carries `media_servers`, saying per server whether it has the item:
 
 `itemId` is that server's own id for the item, present when `present` is true.
 A server arr-mcp did not read is **omitted**, never reported `present: false`:
-the key is missing when the server was down, or when it is a Jellyfin secondary
-with no `default_user`, or a secondary whose `default_user` matches nobody (the
-`note` then names the setting). A Plex secondary with no `default_user` is read
-as the token's owner. The secondary is read as
-its own `default_user`, not as the `user` you pass, since names rarely match
-across servers. A failed read of it lands in `degraded` by name and leaves
-`presence` alone.
+the key is missing when the server was down, or when it is a Jellyfin or Emby
+secondary with no `default_user`, or a secondary whose `default_user` matches
+nobody (the `note` then names the setting). A Plex secondary with no
+`default_user` is read as the token's owner. The secondary is read as its own
+`default_user`, not as the `user` you pass, since names rarely match across
+servers. A failed read of it lands in `degraded` by name and leaves `presence`
+alone.
 
 The secondary is matched to the primary's items on shared tmdb, tvdb or imdb
 ids only, so an item it holds without any of them reads `present: false`.
@@ -1412,7 +1413,9 @@ that differs, or a name that shares nothing with the title.
 
 `scope: "active"` (the default): what can be continued, from Jellyfin's
 `/UserItems/Resume`. Each entry carries `percentComplete`, `positionSeconds` and
-`runtimeSeconds`.
+`runtimeSeconds`. Emby's equivalent also lists the next episode of a series in
+progress, at position zero; those rows are left to `next_up`, so `active` holds
+only what was started.
 
 To find films you are partway through: keep only `kind: "resume"`, keep entries
 with no `seriesTitle`, `season` or `episode` (those three appear only on an
@@ -1441,34 +1444,48 @@ movies or episodes (live TV) are dropped. An item deleted since keeps its row,
 titled with the log entry's own sentence, which Jellyfin localises, and
 `removedFromLibrary: true`.
 
-The log reaches back only `ActivityLogRetentionDays` (30 by default), and a
-play that left nothing in the log is invisible to it. If the log read fails,
-history answers from the played list alone and logs a warning.
+Emby's history works the same way from its own activity log, where a stop is a
+`playback.stop` entry, a song's as well as a film's or an episode's. Emby's log
+cannot be asked for stops alone, so the read pages through entries of every kind
+until it holds the newest 500 stops, music among them, or has read 5,000
+entries. A stop does not say whether it was a film or a song, so on Emby the
+stop of an item deleted since is left out rather than kept as a row; `plays.db`
+(below) still holds a play it stored while the item existed. The log names a
+user by an internal number, which `/Users/{number}` turns into the user; the
+plays of a user deleted since are left out. A server upgraded from Emby 4.8
+keeps the stops 4.8 logged, typed `VideoPlaybackStopped` or
+`AudioPlaybackStopped` with no item id (seen on 4.8.11.0), and those are left
+out too.
+
+Jellyfin's log reaches back only `ActivityLogRetentionDays` (30 by default);
+Emby's server configuration (4.9.1.80 to 4.10.2.0) has no such setting. A play
+that left nothing in the log is invisible to it. If the log read fails, history
+answers from the played list alone and logs a warning.
 
 arr-mcp keeps what it has seen in `plays.db` in the config directory, one row
 per item per user, so history also returns plays the server has stopped
 returning: a title deleted since, a play older than the log, a film past the
 newest 500 played. Every hour it reads the history and library of each media
 server's default user. The first of those reads takes the whole history, not
-only the newest rows; on Plex, which keeps every play, it also replaces what
-the store held for that user. Any other user's plays are kept when their
-history is read. Films the library marks played are stored with their ids and
-year, and an episode with its series' ids, so they can still be matched once
-the item is gone. A Plex film deleted before it was stored keeps the release
-year its history row carries. A play stored while its item existed and seen
-again after its deletion stays one row: a film matched on title and a year
-either side, an episode on series, title, season and episode. Plex music plays
-are left out. When the server and the store both have an item, the server's row
-is the one returned. A store that fails costs only the stored rows. The Plays tab on
-the Logs page of the config UI shows how many plays are kept per media server
-and user, when each server last synced and the newest plays, and can clear the
-store.
+only the newest rows (on Emby, the activity log's newest 200,000 entries); on
+Plex, which keeps every play, it also replaces what the store held for that
+user. Any other user's plays are kept when their history is read. Films the
+library marks played are stored with their ids and year, and an episode with its
+series' ids, so they can still be matched once the item is gone. A Plex film
+deleted before it was stored keeps the release year its history row carries. A
+play stored while its item existed and seen again after its deletion stays one
+row: a film matched on title and a year either side, an episode on series,
+title, season and episode. Plex music plays are left out. When the server and
+the store both have an item, the server's row is the one returned. A store that
+fails costs only the stored rows. The Plays tab on the Logs page of the config
+UI shows how many plays are kept per media server and user, when each server
+last synced and the newest plays, and can clear the store.
 
 Truncation is decided by `limit` (default 50) and reported through `truncated`.
 
 Plex answers the same three scopes from `/status/sessions`, `/library/onDeck`
 and `/status/sessions/history/all`. With both configured, the call answers from the
-primary; pass `service` (`jellyfin` or `plex`) to ask the other. The answers are
+primary; pass the other's id as `service` to ask it. The answers are
 never merged. `service` exists only when two media servers are configured, and
 `user` is resolved on the server you chose.
 
@@ -1487,9 +1504,10 @@ true` is refused at config load.
 server owner (`/accounts` id `1`). A managed user's token would be mislabelled
 as the owner; this has not been tested.
 
-`set_watched`, below, remains Jellyfin-only, whichever server is primary. The
-Plex adapter writes with `trigger_scan` and `fix_metadata`, and `fix_metadata`
-has its own switch there, see [Repairing on Plex](#repairing-on-plex).
+`set_watched`, below, writes to Jellyfin or Emby and never to Plex, whichever
+server is primary. The Plex adapter writes with `trigger_scan` and
+`fix_metadata`, and `fix_metadata` has its own switch there, see
+[Repairing on Plex](#repairing-on-plex).
 
 ### When no media server is configured
 
@@ -2177,22 +2195,27 @@ hand. It works on Prowlarr older than 1.8 too.
 ## `set_watched`
 
 The write half of `get_playback`. Marks a film, series, season or episode
-watched or unwatched in Jellyfin, or a Grimmory book read or unread.
+watched or unwatched in Jellyfin or Emby, or a Grimmory book read or unread.
+With both Jellyfin and Emby configured it writes to the primary.
 
 **Unverified live** (Grimmory): marking a book read or unread.
 
-`item_id` is a **Jellyfin** item id, from the `itemId` `get_playback` or
-`get_library` reports or from a jellyfin hit in `search_media`. With Plex as
-primary, `playback.itemId` is a Plex id;
-take the Jellyfin one from `media_servers.jellyfin.itemId` on `get_library` or
-`get_media_details`. A Radarr or Sonarr id is refused before any network call.
+`item_id` is a **Jellyfin** or **Emby** item id, from the `itemId`
+`get_playback` or `get_library` reports or from a jellyfin or emby hit in
+`search_media`. With Plex as primary, `playback.itemId` is a Plex id; take the
+Jellyfin or Emby one from `media_servers.jellyfin.itemId` or
+`media_servers.emby.itemId` on `get_library` or `get_media_details`. On
+Jellyfin a Radarr or Sonarr id is refused before any network call. An Emby id
+is a whole number, as a Radarr or Sonarr id is, so there such an id can name a
+different item: the preview names the item it would mark.
 
 `title` takes the place of `item_id`: a film or series title, resolved as
-`get_media_details` resolves one, to the Jellyfin id on the merged record
-(`media_servers.jellyfin.itemId` with two media servers). A tie is refused
-with every match's id, since this writes. The confirmation token is bound to
-the resolved id, so a title that resolves to something else between the
-preview and the confirm is refused rather than written.
+`get_media_details` resolves one, to the server's id on the merged record
+(`media_servers.jellyfin.itemId` or `media_servers.emby.itemId` with two media
+servers). A tie is refused with every match's id, since this writes. The
+confirmation token is bound to the resolved id, so a title that resolves to
+something else between the preview and the confirm is refused rather than
+written.
 
 A series id with `season` marks that season. The preview reports the **number
 of episodes**. It counts only the episodes that would actually
@@ -2200,8 +2223,8 @@ change, so re-running it on a mostly-watched season says so. A season the
 series does not have is refused with the seasons it does have.
 
 A folder item (a Season's own id, a collection or a library) is refused:
-Jellyfin marks every item inside a folder, more than one preview line can
-show. For a Season id the refusal names the series id and `season` to pass
+Jellyfin and Emby mark every item inside a folder, more than one preview line
+can show. For a Season id the refusal names the series id and `season` to pass
 instead.
 
 Safe tier, with one caveat stated in every preview: unmarking and re-marking
@@ -2209,8 +2232,9 @@ restores the watched flag but **not** the original play date or resume
 position. That history is not recoverable.
 
 `user` names whose watch state changes; anyone but `default_user` needs
-`services.jellyfin.allow_other_users`. The confirmation token is also bound to
-that user, so a token previewed for one user cannot be confirmed for another.
+`allow_other_users` on that server (`services.jellyfin` or `services.emby`). The
+confirmation token is also bound to that user, so a token previewed for one user
+cannot be confirmed for another.
 
 ### Grimmory
 
@@ -2218,7 +2242,7 @@ that user, so a token previewed for one user cannot be confirmed for another.
 on a `get_library` book row. `watched: true` sets the status READ and `false`
 sets UNREAD, for the one Grimmory account arr-mcp signs in as. `user` and
 `season` are refused, because a book has one reader and no seasons. A bare number
-is a Radarr or Sonarr id and is refused as before.
+is not a book: refused on Jellyfin, and on Emby read as one of its own ids.
 
 The preview says what changes. Marking a book read sets its finish date to now.
 Marking it unread clears the finish date, and an earlier one is not restored. A
@@ -2227,7 +2251,8 @@ needs no permission beyond access to the book.
 
 **Plex is read-only here, by design.** `get_playback` reads Plex watch state,
 but `set_watched` never writes it. With only Plex configured the tool refuses
-and says to add Jellyfin alongside Plex; it does not suggest replacing Plex.
+and says to add Jellyfin or Emby alongside Plex; it does not suggest replacing
+Plex.
 
 ## `get_metadata_issues`
 
@@ -2239,7 +2264,7 @@ which is why this is not folded into `get_library`. The series reads stop after
 45 seconds: those not reached are counted in `notSwept`, and the summary says
 nothing is claimed about them.
 
-It works on Jellyfin and Plex. A film's year may drift by two without a
+It works on Jellyfin, Emby and Plex. A film's year may drift by two without a
 finding, and a matched film whose year agrees is not flagged on its title alone.
 An episode title is compared against every field in the filename, including
 parentheses and both halves of a two-segment name, with accents folded. A
@@ -2261,8 +2286,8 @@ Placeholder titles in the server are the other finding a repair cannot fix.
 
 A Plex film matched to a provider id whose year alone disagrees with its file
 gets `inspect`, not `refresh_metadata`, because the Plex Movie agent keeps
-Plex's own year on a rematch. On Jellyfin the same film still gets
-`refresh_metadata`, because Jellyfin refreshes a film's year from TMDB.
+Plex's own year on a rematch. On Jellyfin and Emby the same film still gets
+`refresh_metadata`, because both refresh a film's year from its providers.
 Plex episodes are never treated as pinned, so a title-only finding on Plex
 comes back as `refresh_metadata`.
 
@@ -2313,10 +2338,10 @@ server ever matched the episode:
 
 | `remedy` | Means | What to run |
 | --- | --- | --- |
-| `refresh_metadata` | No provider ids, so the server never matched it and holds nothing for the file to contradict. Also every film whose year disagrees, since re-identifying re-derives a film's year. | `fix_metadata` |
+| `refresh_metadata` | No provider ids, so the server never matched it and holds nothing for the file to contradict. Also every film whose year disagrees, since re-identifying re-derives a film's year. | `fix_metadata`; on Emby, after unlocking an item that has a lock of its own or an episode locked as a whole |
 | `rename_files` | Every `numbering` finding: an episode's season and number are stored at scan time, so only the file can change. | `trigger_scan` rename on the managing Radarr or Sonarr, then a media server rescan |
 | `inspect` | The server matched it and only the wording disagrees, which a correct title in another language does too. Also a series whose mismatches are all shifted titles, specials or titles in another language. | Look first, against the managing Radarr or Sonarr |
-| `unlock_fields` | The disagreeing field is locked on the item, or on Jellyfin the whole item is, so no rematch or refresh will change it. | Unlock it on the item in the media server if it is wrong, then `fix_metadata` |
+| `unlock_fields` | The disagreeing field is locked on the item, or on Jellyfin or Emby the whole item is, so a refresh will not change it and `fix_metadata` will not remove the lock. | Unlock it on the item in the media server if it is wrong, then `fix_metadata` |
 
 Treat `remedy` as the likely fix rather than a verdict.
 
@@ -2341,8 +2366,9 @@ same way `get_media_details` resolves one, or the `id` that
 both are given.
 
 With two media servers it repairs on the primary. `service` picks the other, and
-an `id` prefixed `plex:` or `jellyfin:` picks its own server. Plex repair still
-needs `allow_metadata_repair` on the Plex block, whichever server is primary.
+an `id` prefixed with a server's id (`plex:`, `jellyfin:` or `emby:`) picks that
+server. Plex repair still needs `allow_metadata_repair` on the Plex block,
+whichever server is primary.
 
 ### The two findings are not equally trustworthy
 
@@ -2379,6 +2405,32 @@ provider, and a field unchecked under Enabled Fields is kept. Jellyfin has no
 lock for the year, so a locked `Name` is the only per-field lock a mismatch can
 be about. When what disagrees is locked, the preview says so and issues no
 token, and `get_metadata_issues` gives it the remedy `unlock_fields`.
+
+### What it does on Emby
+
+The same identify, and the same plain `/Refresh` when there is no provider id,
+which Emby answers differently. Its identify answers at once, setting the
+provider ids, and rebuilds the item afterwards: on the test server it answered
+204 about half a second before the refresh it started finished. So both are
+waited on as a queued refresh is (see
+[Waiting on a queued refresh](#waiting-on-a-queued-refresh)). There is no undo
+on Emby either.
+
+**Emby's identify does not respect locks.** Tested on Emby 4.10.2.0, 4.9.5.0 and
+4.9.1.80, each beside an unlocked control: it cleared a film's item lock and its
+title's field lock and overwrote the title, and did the same to a series' own
+locks. An episode's field lock held through a series identify, and an episode
+locked as a whole kept its title but lost its provider ids. A season's own lock
+held, and locking a season locks its episodes as a whole too. Emby's plain
+refresh kept every lock. So on Emby a film or series with a lock of its own, or
+with an episode locked as a whole, is not repaired: the preview names the locks
+the identify would take, or the episodes, says how to unlock them (Edit
+Metadata, then clear "Lock this item to prevent future changes", or the lock
+beside the field), and issues no token. Nor is an item whose locks Emby did not
+report, since none can be ruled out. A series' locks are read as the server
+holds them, not as the repair's user sees them, since the identify also reaches
+episodes that user cannot see; that costs two reads. An episode's field lock is
+treated as on Jellyfin. Emby has no lock for the year either.
 
 ### When it will not help, said before you confirm
 
@@ -2458,12 +2510,13 @@ fresh preview and the token is refused.
 
 ### Waiting on a queued refresh
 
-Plex always refreshes in the background, and so does Jellyfin's plain refresh,
-and neither says when it is done. So apply reads again every 5 seconds for up to 30. It only reports `Repaired`
-when the count dropped, at least as many items were compared as before, and the
-same count came back on the next read. Otherwise the result is `NOT VERIFIED`,
-and says whether the item was still rebuilding or the count simply did not move.
-Run `get_metadata_issues` again a few minutes later for the settled answer.
+Plex always refreshes in the background, and so do Jellyfin's plain refresh and
+both of Emby's calls, and none says when it is done. So apply reads again every
+5 seconds for up to 30. It only reports `Repaired` when the count dropped, at
+least as many items were compared as before, and the same count came back on the
+next read. Otherwise the result is `NOT VERIFIED`, and says whether the item was
+still rebuilding or the count simply did not move. Run `get_metadata_issues`
+again a few minutes later for the settled answer.
 
 A read that fails during the wait counts as "not settled yet", because the write
 has already landed and Plex answers 503 while it refreshes an item. If every
@@ -2914,8 +2967,8 @@ The flow is `trigger_scan` with the series `id`, then `get_stack_health` until
 `commands` shows the refresh finished, then `import_download` again. A refresh only helps
 once the provider has the title.
 
-On Jellyfin and Plex a scan looks for files that changed. It does not re-match
-what is already there, which is what `fix_metadata` is for.
+On Jellyfin, Emby and Plex a scan looks for files that changed. It does not
+re-match what is already there, which is what `fix_metadata` is for.
 
 ### On Lidarr
 

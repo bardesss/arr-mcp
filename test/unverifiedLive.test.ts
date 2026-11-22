@@ -20,6 +20,7 @@ const DISPLAY: Record<ServiceId, string> = {
     prowlarr: 'Prowlarr',
     bazarr: 'Bazarr',
     jellyfin: 'Jellyfin',
+    emby: 'Emby',
     seerr: 'Seerr',
     sabnzbd: 'SABnzbd',
     nzbget: 'NZBGet',

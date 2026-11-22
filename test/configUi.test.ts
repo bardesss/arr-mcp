@@ -956,6 +956,32 @@ describe('the add dialog', () => {
             expect(page).toContain('name="primary_media_server"');
         });
 
+        it('offers only the two configured servers as the primary', async () => {
+            await seed(JF + '  emby:\n    url: http://192.0.2.11:8096\n    api_key: k\n' + 'primary_media_server: emby\n');
+            await signIn();
+            const page = await everyConfigTab();
+            const select = /<select id="primary_media_server"[^>]*>([\s\S]*?)<\/select>/.exec(page)?.[1] ?? '';
+            expect([...select.matchAll(/<option value="([^"]+)"/g)].map(m => m[1])).toEqual(['jellyfin', 'emby']);
+            expect(select).toContain('<option value="emby" selected>');
+        });
+
+        it('does not offer a third media server, and refuses one, naming the limit', async () => {
+            await seed(JF + PX + 'primary_media_server: jellyfin\n');
+            await signIn();
+            const page = await everyConfigTab();
+            const offered = /<select id="add.type" name="type">([\s\S]*?)<\/select>/.exec(page)?.[1] ?? '';
+            expect(offered).not.toContain('<option value="emby"');
+            expect(offered).toContain('<option value="radarr"');
+            const note = /<p class="note">([\s\S]*?)<\/p>/.exec(page.slice(page.indexOf('id="add.type"')))?.[1]?.replace(/\s+/g, ' ') ?? '';
+            expect(note).toContain('At most two of <span class="mono">jellyfin, emby, plex</span> can be configured together, so <span class="mono">emby</span> is not offered.');
+            expect(note).not.toMatch(/limited to one instance: <span class="mono">[^<]*emby/);
+            const keys = keysFrom(page);
+            const res = await call('/ui/config/add', form({ ...keys, type: 'emby', url: 'http://192.0.2.11:8096', api_key: 'k' }));
+            expect(await res.text()).toContain('at most two of jellyfin, emby, plex can be configured together: remove one');
+            const { config } = await loadConfig(dir);
+            expect(config.services.emby).toBeUndefined();
+        });
+
         it('has no primary selector with one', async () => {
             await seed(JF);
             await signIn();

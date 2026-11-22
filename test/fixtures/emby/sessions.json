@@ -1,0 +1,135 @@
+[
+  {
+    "PlayState": {
+      "CanSeek": false,
+      "IsPaused": false,
+      "IsMuted": false,
+      "RepeatMode": "RepeatNone",
+      "SleepTimerMode": "None",
+      "SubtitleOffset": 0,
+      "Shuffle": false,
+      "PlaybackRate": 1
+    },
+    "AdditionalUsers": [],
+    "RemoteEndPoint": "192.0.2.10",
+    "Protocol": "HTTP/1.1",
+    "PlayableMediaTypes": [],
+    "PlaylistIndex": 0,
+    "PlaylistLength": 0,
+    "Id": "00000000000000000000000000000026",
+    "ServerId": "00000000000000000000000000000001",
+    "Client": "arr-mcp",
+    "LastActivityDate": "2024-01-02T14:05:35.868Z",
+    "DeviceName": "setup-script",
+    "InternalDeviceId": 2,
+    "DeviceId": "00000000000000000000000000000001",
+    "ApplicationVersion": "1.0",
+    "SupportedCommands": [],
+    "SupportsRemoteControl": false
+  },
+  {
+    "PlayState": {
+      "PositionTicks": 18890649270,
+      "CanSeek": true,
+      "IsPaused": false,
+      "IsMuted": false,
+      "MediaSourceId": "mediasource_10",
+      "PlayMethod": "DirectPlay",
+      "RepeatMode": "RepeatNone",
+      "SleepTimerMode": "None",
+      "SubtitleOffset": 0,
+      "Shuffle": false,
+      "PlaybackRate": 1
+    },
+    "AdditionalUsers": [],
+    "RemoteEndPoint": "192.0.2.10",
+    "Protocol": "HTTP/1.1",
+    "PlayableMediaTypes": [],
+    "PlaylistIndex": 0,
+    "PlaylistLength": 0,
+    "Id": "00000000000000000000000000000027",
+    "ServerId": "00000000000000000000000000000001",
+    "UserId": "00000000000000000000000000000003",
+    "UserName": "user2",
+    "Client": "arr-mcp-test-player",
+    "LastActivityDate": "2024-01-02T14:05:35.758Z",
+    "DeviceName": "test-player",
+    "NowPlayingItem": {
+      "Name": "Plan 9 from Outer Space",
+      "OriginalTitle": "Plan 9 from Outer Space",
+      "ServerId": "00000000000000000000000000000001",
+      "Id": "10",
+      "DateCreated": "2024-01-02T12:47:45.348Z",
+      "DateModified": "2024-01-02T12:47:45.348Z",
+      "PresentationUniqueKey": "p-tmdb-Movie-10513-00000000000000000000000000000028",
+      "Container": "mp4",
+      "PremiereDate": "1957-03-15T00:00:00.0000000Z",
+      "Path": "/media/movies/Plan 9 from Outer Space (1957)/plan-9-from-outer-space.mp4",
+      "OfficialRating": "NR",
+      "Genres": [
+        "Science Fiction",
+        "Horror"
+      ],
+      "CommunityRating": 4.2,
+      "RunTimeTicks": 47001600000,
+      "Size": 454359304,
+      "FileName": "plan-9-from-outer-space.mp4",
+      "Bitrate": 773351,
+      "ProductionYear": 1957,
+      "ProviderIds": {
+        "Tmdb": "10513",
+        "Imdb": "tt0052077"
+      },
+      "IsFolder": false,
+      "ParentId": "7",
+      "Type": "Movie",
+      "GenreItems": [
+        {
+          "Name": "Science Fiction",
+          "Id": 48
+        },
+        {
+          "Name": "Horror",
+          "Id": 49
+        }
+      ],
+      "MediaType": "Video",
+      "MimeType": "video/mp4",
+      "Width": 320,
+      "Height": 240
+    },
+    "InternalDeviceId": 3,
+    "DeviceId": "arr-mcp-test-player-1",
+    "ApplicationVersion": "1.0",
+    "SupportedCommands": [],
+    "SupportsRemoteControl": false
+  },
+  {
+    "PlayState": {
+      "CanSeek": false,
+      "IsPaused": false,
+      "IsMuted": false,
+      "RepeatMode": "RepeatNone",
+      "SleepTimerMode": "None",
+      "SubtitleOffset": 0,
+      "Shuffle": false,
+      "PlaybackRate": 1
+    },
+    "AdditionalUsers": [],
+    "RemoteEndPoint": "192.0.2.10",
+    "Protocol": "HTTP/1.1",
+    "PlayableMediaTypes": [],
+    "PlaylistIndex": 0,
+    "PlaylistLength": 0,
+    "Id": "00000000000000000000000000000029",
+    "ServerId": "00000000000000000000000000000001",
+    "Client": "arr-mcp-setup",
+    "LastActivityDate": "2024-01-02T13:54:42.970Z",
+    "DeviceName": "setup-script",
+    "InternalDeviceId": 1,
+    "DeviceId": "arr-mcp-setup-script",
+    "ApplicationVersion": "1.0",
+    "SupportedCommands": [],
+    "SupportsRemoteControl": false
+  }
+]

@@ -1,0 +1,18 @@
+{
+  "Items": [
+    {
+      "Name": "One Step Beyond",
+      "ServerId": "00000000000000000000000000000001",
+      "Id": "13",
+      "ForcedSortName": "One Step Beyond",
+      "RunTimeTicks": 15000000000,
+      "IsFolder": true,
+      "Type": "Series",
+      "AirDays": [],
+      "EndDate": "1961-07-04T00:00:00.0000000Z",
+      "LockedFields": [],
+      "LockData": false
+    }
+  ],
+  "TotalRecordCount": 1
+}

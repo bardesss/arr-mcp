@@ -44,7 +44,7 @@ const findAdapter = (
         // has no library to scan, and reporting success for an action that
         // could never happen is how a model concludes the scan is done.
         throw new ServiceError('NotFound', service, `${service} has no library to scan`, {
-            remedy: 'Only radarr, sonarr, whisparr, lidarr, jellyfin, plex and grimmory manage a library, and prowlarr syncs its indexers to them. For "it downloaded but will not play", the media server, jellyfin or plex, is almost always the one you want.'
+            remedy: 'Only radarr, sonarr, whisparr, lidarr, jellyfin, emby, plex and grimmory manage a library, and prowlarr syncs its indexers to them. For "it downloaded but will not play", the media server, jellyfin, emby or plex, is almost always the one you want.'
         });
     }
 
@@ -173,7 +173,7 @@ async function applyBookScan(adapter: ServiceAdapter & BookLibraryScanCapable, p
 }
 
 const TriggerScanInput = z.object({
-    service: serviceOf(['radarr', 'sonarr', 'whisparr', 'lidarr', 'jellyfin', 'plex', 'grimmory', 'prowlarr']).describe(
+    service: serviceOf(['radarr', 'sonarr', 'whisparr', 'lidarr', 'jellyfin', 'emby', 'plex', 'grimmory', 'prowlarr']).describe(
         '[[prowlarr: prowlarr syncs its indexers to the apps.]]'
     ),
     instance: z.string().optional().describe(INSTANCE_PARAM_DESCRIPTION),
@@ -209,7 +209,7 @@ export function registerTriggerScan(
         name: 'trigger_scan',
         title: 'Refresh and scan a library',
         description:
-            "Asks a service to reconcile itself with what is on disk: the \"it downloaded but will not play\" fix, and the usual fix for a stale scan diagnose_media reports. No `id` rescans the whole library[[prowlarr: ; on Prowlarr it pushes the indexer list to the apps]]. An `id` refreshes and rescans one item. [[jellyfin|plex: On {{and: jellyfin=Jellyfin; plex=Plex}} a scan only finds changed files; wrong metadata is fix_metadata.]] `action`: `rename` (files to the service's naming, needs `id`)[[grimmory: , `bookdrop` (rescan Grimmory's Bookdrop)]]. Importing a download: import_download. Most actions queue and return; follow them in get_stack_health `commands`. Previews first; confirm to run. Field reference: arr://docs/trigger_scan.",
+            "Asks a service to reconcile itself with what is on disk: the \"it downloaded but will not play\" fix, and the usual fix for a stale scan diagnose_media reports. No `id` rescans the whole library[[prowlarr: ; on Prowlarr it pushes the indexer list to the apps]]. An `id` refreshes and rescans one item. [[jellyfin|emby|plex: On {{and: jellyfin=Jellyfin; emby=Emby; plex=Plex}} a scan only finds changed files; wrong metadata is fix_metadata.]] `action`: `rename` (files to the service's naming, needs `id`)[[grimmory: , `bookdrop` (rescan Grimmory's Bookdrop)]]. Importing a download: import_download. Most actions queue and return; follow them in get_stack_health `commands`. Previews first; confirm to run. Field reference: arr://docs/trigger_scan.",
         inputSchema: TriggerScanInput,
         // Resolved from the arguments, so the permission checked, the audit row
         // written and the token issued all name the same instance. Only the

@@ -10,6 +10,7 @@ export const ServiceIdSchema = z.enum([
     'prowlarr',
     'bazarr',
     'jellyfin',
+    'emby',
     'seerr',
     'sabnzbd',
     'nzbget',
@@ -195,7 +196,7 @@ export type Instanced<T> = T & { readonly name?: string | undefined };
 export type BaseServiceConfig = Pick<KeyedServiceConfig, 'url' | 'timeout_ms' | 'permissions'>;
 
 /**
- * Jellyfin and Seerr only; the two services with their own
+ * Jellyfin, Emby and Seerr only; the services with their own
  * user concepts.
  *
  * `default_user` is optional on purpose: configuring a service purely so it
@@ -211,7 +212,7 @@ const MultiUserServiceSchema = z.strictObject({
 });
 export type MultiUserServiceConfig = z.infer<typeof MultiUserServiceSchema>;
 
-/** Plex alone gets the repair switch; Jellyfin repairs without one. */
+/** Plex alone gets the repair switch; Jellyfin and Emby repair without one. */
 const PlexServiceSchema = z.strictObject({
     ...MultiUserServiceSchema.shape,
     allow_metadata_repair: z.boolean().default(true)
@@ -274,6 +275,7 @@ export type ConfigByService = {
     sabnzbd: For<'sabnzbd', Instanced<KeyedServiceConfig>>;
     nzbget: For<'nzbget', Instanced<CredentialServiceConfig>>;
     jellyfin: For<'jellyfin', MultiUserServiceConfig>;
+    emby: For<'emby', MultiUserServiceConfig>;
     seerr: For<'seerr', MultiUserServiceConfig>;
     plex: For<'plex', PlexServiceConfig>;
     transmission: For<'transmission', Instanced<CredentialServiceConfig>>;
@@ -428,6 +430,7 @@ const SERVICES = {
     sabnzbd: multi(KeyedServiceSchema),
     nzbget: multi(CredentialServiceSchema),
     jellyfin: single(MultiUserServiceSchema),
+    emby: single(MultiUserServiceSchema),
     seerr: single(MultiUserServiceSchema),
     transmission: multi(CredentialServiceSchema),
     qbittorrent: multi(CredentialServiceSchema),
@@ -468,7 +471,7 @@ const ServicesSchema = z
     )
     .superRefine((services, ctx) => {
         /**
-         * Jellyfin and Seerr issue one admin-scoped key that can answer for
+         * Jellyfin, Emby and Seerr issue one admin-scoped key that can answer for
          * anybody, which is what `allow_other_users` governs. A Plex
          * `X-Plex-Token` is scoped to a single account (`PlexAdapter` never
          * reads this flag and always reports account 1 as the only user) so
@@ -695,8 +698,11 @@ export const AuthSchema = z.strictObject({
     management_keys: z.array(ManagementKeySchema).optional()
 });
 
-export const MediaServerIdSchema = z.enum(['jellyfin', 'plex']);
+export const MediaServerIdSchema = z.enum(['jellyfin', 'emby', 'plex']);
 export type MediaServerId = z.infer<typeof MediaServerIdSchema>;
+
+/** What messages call each media server. */
+export const MEDIA_SERVER_NAMES: Readonly<Record<MediaServerId, string>> = { jellyfin: 'Jellyfin', emby: 'Emby', plex: 'Plex' };
 
 export const mediaServersIn = (services: Readonly<Record<string, unknown>>): MediaServerId[] =>
     MediaServerIdSchema.options.filter(id => services[id] !== undefined);
@@ -831,17 +837,25 @@ function unknownTopLevelKeys(keys: readonly string[]): string {
 export const ConfigSchema = z.strictObject(ConfigShape, {
     error: issue => (issue.code === 'unrecognized_keys' ? unknownTopLevelKeys(issue.keys) : undefined)
 }).superRefine((config, ctx) => {
-    // `jellyfin` and `plex` are distinct, individually valid keys, so the two
-    // together are admitted, and this rule says which one the tools default to.
-    // Refused rather than guessed: a silent default would send a Plex question
-    // to Jellyfin, or the reverse.
+    // `jellyfin`, `emby` and `plex` are distinct, individually valid keys, so
+    // two of them together are admitted, and this rule says which one the tools
+    // default to. Refused rather than guessed: a silent default would send a
+    // Plex question to Jellyfin, or the reverse. A third is refused outright:
+    // the tools hold one primary and one secondary media server.
     const configured = mediaServersIn(config.services);
     const primary = config.primary_media_server;
+    if (configured.length > 2) {
+        ctx.addIssue({
+            code: 'custom',
+            path: ['services'],
+            message: `at most two of ${configured.join(', ')} can be configured together: remove one`
+        });
+    }
     if (configured.length === 2 && primary === undefined) {
         ctx.addIssue({
             code: 'custom',
             path: ['primary_media_server'],
-            message: 'set to jellyfin or plex: both are configured, so arr-mcp needs to know which one the tools default to'
+            message: `set to ${configured.join(' or ')}: both are configured, so arr-mcp needs to know which one the tools default to`
         });
     }
     if (primary !== undefined && !configured.includes(primary)) {

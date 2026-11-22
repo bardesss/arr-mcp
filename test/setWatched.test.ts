@@ -1,17 +1,20 @@
 import { instancesOf } from './helpers/instances.ts';
 import { describe, expect, it, vi } from 'vitest';
 import type * as z from 'zod/v4';
-import type { AnyServiceConfig, MultiUserServiceConfig } from '../src/config/schema.ts';
+import { MediaServerIdSchema, type AnyServiceConfig, type MediaServerId, type MultiUserServiceConfig } from '../src/config/schema.ts';
 import { WriteAudit } from '../src/core/audit.ts';
 import { ConfirmTokens } from '../src/core/confirm.ts';
 import { IdentityResolver } from '../src/core/identity.ts';
 import { permissionSourceFrom } from '../src/core/permissions.ts';
 import { ServiceError } from '../src/core/errors.ts';
+import { scopeText } from '../src/mcp/toolSurface.ts';
+import { EmbyAdapter } from '../src/services/emby.ts';
 import { JellyfinAdapter } from '../src/services/jellyfin.ts';
-import type { ServiceAdapter } from '../src/services/types.ts';
+import { PlexAdapter } from '../src/services/plex.ts';
+import { hasWatchState, type ServiceAdapter } from '../src/services/types.ts';
 import { fenceText } from '../src/core/fence.ts';
 import { LibraryLoader } from '../src/tools/library.ts';
-import { registerSetWatched } from '../src/tools/setWatched.ts';
+import { registerSetWatched, WATCH_STATE_SERVERS } from '../src/tools/setWatched.ts';
 import type { WriteToolResult } from '../src/tools/write.ts';
 import { jsonResponse } from './helpers/serve.ts';
 
@@ -427,5 +430,103 @@ describe('set_watched by title', () => {
         await expect(h.call({ title: 'Alien', item_id: MOVIE, watched: true })).rejects.toThrow(/either `item_id` or `title`/);
         await expect(h.call({ watched: true })).rejects.toThrow(/either `item_id` or `title`/);
         expect(h.marked).toHaveLength(0);
+    });
+});
+
+describe('set_watched on Emby', () => {
+    const config = jellyfinConfig();
+    function embyHarness() {
+        const marked: string[] = [];
+        const impl = (async (input: string | URL | Request, init?: RequestInit) => {
+            const url = new URL(input instanceof Request ? input.url : String(input));
+            if (url.pathname === '/Users') return jsonResponse(USERS);
+            if (url.pathname === '/Users/user-sam/PlayedItems/12') {
+                marked.push(`${init?.method ?? 'GET'} ${url.pathname}`);
+                return jsonResponse({ Played: init?.method === 'POST' });
+            }
+            if (url.pathname === '/Users/user-sam/Items/12') return jsonResponse({ Id: '12', Name: 'Detour', Type: 'Movie', UserData: { Played: false } });
+            return jsonResponse({ message: 'not found' }, 404);
+        }) as unknown as typeof fetch;
+        const adapter = new EmbyAdapter(config, impl);
+        let call: Call = () => Promise.reject(new Error('not registered'));
+        let description = '';
+        const server = {
+            registerTool(_n: string, cfg: { inputSchema: z.ZodObject; description: string }, handler: Call) {
+                description = cfg.description;
+                call = args => handler(cfg.inputSchema.parse(args) as Record<string, unknown>);
+            }
+        };
+        registerSetWatched(
+            server as never,
+            {
+                permissions: permissionSourceFrom(instancesOf({ emby: config as unknown as AnyServiceConfig })),
+                confirm: new ConfirmTokens(),
+                audit: WriteAudit.ephemeral(),
+                library: { invalidate: vi.fn() } as unknown as LibraryLoader
+            },
+            [adapter],
+            new IdentityResolver(adapter, config)
+        );
+        return { call: (a: Record<string, unknown>) => call(a), marked, description: () => description };
+    }
+
+    it('marks an Emby film through its per-user route, once confirmed', async () => {
+        const h = embyHarness();
+        const preview = await h.call({ item_id: '12', watched: true });
+        expect(preview.structuredContent.target).toBe('emby:12');
+        expect(preview.structuredContent.effects[0]).toBe('Marks 1 film watched for Sam in Emby.');
+        await h.call({ item_id: '12', watched: true, confirm: preview.structuredContent.confirm_token });
+        expect(h.marked).toEqual(['POST /Users/user-sam/PlayedItems/12']);
+    });
+
+    it('says an Emby id cannot be told from a Radarr one, where a Jellyfin id is refused', () => {
+        const emby = embyHarness().description();
+        expect(emby).toContain("[[radarr|sonarr: Emby ids are digits only, as {{or: radarr=Radarr's; sonarr=Sonarr's}} are, so check that the preview names the right item.]]");
+        expect(emby).not.toContain('id is refused');
+
+        let jellyfin = '';
+        const adapter = new JellyfinAdapter(config, (async () => jsonResponse({})) as unknown as typeof fetch);
+        registerSetWatched(
+            { registerTool: (_n: string, cfg: { description: string }) => void (jellyfin = cfg.description) } as never,
+            { permissions: permissionSourceFrom([]), confirm: new ConfirmTokens(), audit: WriteAudit.ephemeral(), library: { invalidate: vi.fn() } as unknown as LibraryLoader },
+            [adapter],
+            new IdentityResolver(adapter, config)
+        );
+        expect(jellyfin).toContain('[[radarr|sonarr: A {{or: radarr=Radarr; sonarr=Sonarr}} id is refused.]]');
+    });
+
+    it.each([
+        [['plex', 'emby']],
+        [['emby', 'plex']]
+    ] as const)('beside Plex (%j), names Emby alone and says where its id is when Plex is the primary', ids => {
+        let text = '';
+        const adapter = new EmbyAdapter(config, (async () => jsonResponse({})) as unknown as typeof fetch);
+        registerSetWatched(
+            { registerTool: (_n: string, cfg: { description: string }) => void (text = cfg.description) } as never,
+            { permissions: permissionSourceFrom([]), confirm: new ConfirmTokens(), audit: WriteAudit.ephemeral(), library: { invalidate: vi.fn() } as unknown as LibraryLoader },
+            [adapter],
+            new IdentityResolver(adapter, config),
+            [...ids]
+        );
+        const shown = scopeText(text, { configured: new Set(['emby', 'plex', 'radarr']), hideUnusable: false });
+        expect(shown).toMatch(/^Marks a film, series, season or episode watched or unwatched in Emby\. /);
+        expect(shown).toContain("Emby ids are digits only, as Radarr's are, so check that the preview names the right item.");
+        expect(shown).toMatch(
+            /When Plex is the primary media server, take it from `media_servers\.emby\.itemId` instead: `playback\.itemId` is then a Plex id\.$/
+        );
+        expect(shown).not.toMatch(/jellyfin/i);
+    });
+});
+
+describe('WATCH_STATE_SERVERS', () => {
+    it('is exactly the media servers whose adapters write watch state', () => {
+        const plexConfig = { url: 'http://192.0.2.10:32400', api_key: 'k', timeout_ms: 10_000, default_user: 'Sam', allow_other_users: false, permissions: { safe_write: false, destructive: false } };
+        const adapters: Record<MediaServerId, ServiceAdapter> = {
+            jellyfin: new JellyfinAdapter(jellyfinConfig()),
+            emby: new EmbyAdapter(jellyfinConfig()),
+            plex: new PlexAdapter(plexConfig as never)
+        };
+        const writers = MediaServerIdSchema.options.filter(id => hasWatchState(adapters[id]));
+        expect(Object.keys(WATCH_STATE_SERVERS)).toEqual(writers);
     });
 });

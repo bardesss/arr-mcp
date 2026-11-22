@@ -2,6 +2,9 @@
 export const titled = (title: string, year: number | string | undefined): string =>
     year === undefined || year === 0 || year === '' ? title : `${title} (${year})`;
 
+/** `a` or `an` before a word, by its first letter: `an Emby id`, `a Jellyfin id`. */
+export const article = (word: string): string => (/^[aeiou]/i.test(word) ? 'an' : 'a');
+
 /** `S01E02`. */
 export const episodeCode = (season: number, episode: number): string =>
     `S${String(season).padStart(2, '0')}E${String(episode).padStart(2, '0')}`;

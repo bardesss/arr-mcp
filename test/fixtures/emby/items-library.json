@@ -1,0 +1,172 @@
+{
+  "Items": [
+    {
+      "Name": "Detour",
+      "OriginalTitle": "Detour",
+      "ServerId": "00000000000000000000000000000001",
+      "Id": "12",
+      "Genres": [
+        "Drama",
+        "Thriller"
+      ],
+      "RunTimeTicks": 40584240000,
+      "ProductionYear": 1945,
+      "ProviderIds": {
+        "Tmdb": "20367",
+        "Imdb": "tt0037638"
+      },
+      "IsFolder": false,
+      "Type": "Movie",
+      "GenreItems": [
+        {
+          "Name": "Drama",
+          "Id": 106
+        },
+        {
+          "Name": "Thriller",
+          "Id": 107
+        }
+      ],
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 1,
+        "IsFavorite": false,
+        "Played": true
+      },
+      "MediaType": "Video"
+    },
+    {
+      "Name": "Night of the Living Dead",
+      "OriginalTitle": "Night of the Living Dead",
+      "ServerId": "00000000000000000000000000000001",
+      "Id": "11",
+      "Genres": [
+        "Horror",
+        "Science Fiction"
+      ],
+      "RunTimeTicks": 57318320000,
+      "ProductionYear": 1968,
+      "ProviderIds": {
+        "Tmdb": "10331",
+        "Imdb": "tt0063350",
+        "Tvdb": "1831"
+      },
+      "IsFolder": false,
+      "Type": "Movie",
+      "GenreItems": [
+        {
+          "Name": "Horror",
+          "Id": 49
+        },
+        {
+          "Name": "Science Fiction",
+          "Id": 48
+        }
+      ],
+      "UserData": {
+        "PlayedPercentage": 0,
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 0,
+        "IsFavorite": false,
+        "Played": false
+      },
+      "MediaType": "Video"
+    },
+    {
+      "Name": "One Step Beyond",
+      "OriginalTitle": "One Step Beyond",
+      "ServerId": "00000000000000000000000000000001",
+      "Id": "13",
+      "Genres": [
+        "Science Fiction",
+        "Fantasy",
+        "Drama",
+        "Suspense",
+        "Thriller",
+        "Mystery"
+      ],
+      "RunTimeTicks": 15000000000,
+      "ProductionYear": 1959,
+      "ProviderIds": {
+        "Tvdb": "76479",
+        "IMDB": "tt0052442",
+        "Zap2It": "SH003230",
+        "Tmdb": "10377"
+      },
+      "IsFolder": true,
+      "Type": "Series",
+      "GenreItems": [
+        {
+          "Name": "Science Fiction",
+          "Id": 48
+        },
+        {
+          "Name": "Fantasy",
+          "Id": 110
+        },
+        {
+          "Name": "Drama",
+          "Id": 106
+        },
+        {
+          "Name": "Suspense",
+          "Id": 111
+        },
+        {
+          "Name": "Thriller",
+          "Id": 107
+        },
+        {
+          "Name": "Mystery",
+          "Id": 112
+        }
+      ],
+      "UserData": {
+        "UnplayedItemCount": 0,
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 1,
+        "IsFavorite": false,
+        "Played": true
+      },
+      "RecursiveItemCount": 2,
+      "AirDays": []
+    },
+    {
+      "Name": "Plan 9 from Outer Space",
+      "OriginalTitle": "Plan 9 from Outer Space",
+      "ServerId": "00000000000000000000000000000001",
+      "Id": "10",
+      "Genres": [
+        "Science Fiction",
+        "Horror"
+      ],
+      "RunTimeTicks": 47001600000,
+      "ProductionYear": 1957,
+      "ProviderIds": {
+        "Tmdb": "10513",
+        "Imdb": "tt0052077"
+      },
+      "IsFolder": false,
+      "Type": "Movie",
+      "GenreItems": [
+        {
+          "Name": "Science Fiction",
+          "Id": 48
+        },
+        {
+          "Name": "Horror",
+          "Id": 49
+        }
+      ],
+      "UserData": {
+        "PlayedPercentage": 0,
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 0,
+        "IsFavorite": false,
+        "Played": false
+      },
+      "MediaType": "Video"
+    }
+  ],
+  "TotalRecordCount": 4
+}

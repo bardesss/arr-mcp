@@ -2993,7 +2993,7 @@ describe('buildChain — the managed remedy names the *arrs this stack runs', ()
     });
 
     // A media server's id gives no kind, so any *arr could manage it, Lidarr aside for an item
-    // with a film or series id, which a music item does not carry (`jellyfin.ts`, `plex.ts`).
+    // with a film or series id, which a music item does not carry (`mediaBrowser.ts`, `plex.ts`).
     it.each<[string[], MergedItem['ids'], string]>([
         [['radarr', 'sonarr'], { tmdb: 550 }, 'Add it to Radarr or Sonarr.'],
         [['radarr', 'lidarr'], { tmdb: 550 }, 'Add it to Radarr.'],

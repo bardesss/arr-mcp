@@ -27,7 +27,7 @@ describe('apiKeyHeader', () => {
 describe('embyToken', () => {
     it('emits the MediaBrowser authorization header Jellyfin expects', () => {
         const c = ctx('http://h:8096/System/Info');
-        embyToken('secret').apply(c);
+        embyToken('secret', 'Dashboard → API Keys in Jellyfin').apply(c);
         expect(c.headers.get('Authorization')).toBe('MediaBrowser Token="secret"');
     });
 });
@@ -331,7 +331,7 @@ describe('the remedy a 401 or 403 carries', () => {
 
     it.each([
         ['queryParamKey', () => queryParamKey('apikey', 'k'), 401, 'The API key is wrong. Copy it from SABnzbd’s Config → General page.'],
-        ['embyToken', () => embyToken('k'), 401, 'The API key is wrong. Create one under Dashboard → API Keys in Jellyfin.'],
+        ['embyToken', () => embyToken('k', 'Dashboard → API Keys in Jellyfin'), 401, 'The API key is wrong. Create one under Dashboard → API Keys in Jellyfin.'],
         ['plexToken', () => plexToken('k'), 401, 'The Plex token is wrong or expired. Set a current X-Plex-Token as api_key.'],
         ['basicAuth', () => basicAuth({ username: 'u', password: 'p' }), 401, 'The username or password is wrong.'],
         [

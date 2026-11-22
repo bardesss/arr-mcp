@@ -9,6 +9,7 @@ import { IdentityResolver } from '../src/core/identity.ts';
 import { permissionSourceFrom, type WriteTier } from '../src/core/permissions.ts';
 import { cappedTo } from '../src/mcp/scopes.ts';
 import type { MergedItem } from '../src/core/resolver.ts';
+import { EmbyAdapter } from '../src/services/emby.ts';
 import { JellyfinAdapter } from '../src/services/jellyfin.ts';
 import { PlexAdapter } from '../src/services/plex.ts';
 import type { MediaServerAdapter } from '../src/services/types.ts';
@@ -346,9 +347,9 @@ describe('fix_metadata', () => {
         });
     });
 
-    it('names both media servers when neither is configured', async () => {
+    it('names every media server when none is configured', async () => {
         const h = harness({ adapters: 'none' });
-        await expect(h.call({ query: 'Dragon Ball Kai' })).rejects.toThrow(/services\.jellyfin or services\.plex/);
+        await expect(h.call({ query: 'Dragon Ball Kai' })).rejects.toThrow(/services\.jellyfin, services\.emby or services\.plex block/);
     });
 
     it('says so when no TVDB id is known, because the refresh may re-match the same way', async () => {
@@ -1064,7 +1065,7 @@ describe('locks on Jellyfin', () => {
 
 describe('fix_metadata with two media servers', () => {
     const mismatching = [{ id: 'e1', name: 'Real Title', season: 1, episode: 1, path: '/tv/Show/Season 01/Show - S01E05 - Other words.mkv' }];
-    const fake = (id: 'plex' | 'jellyfin') =>
+    const fake = (id: 'plex' | 'jellyfin' | 'emby') =>
         ({
             id,
             type: id,
@@ -1075,8 +1076,8 @@ describe('fix_metadata with two media servers', () => {
             readEpisodeMetadata: ReturnType<typeof vi.fn>;
             repairMetadata: ReturnType<typeof vi.fn>;
         };
-    const viewers = { plex: { id: 'u-plex', name: 'PlexOwner' }, jellyfin: { id: 'u-jf', name: 'Sam' } };
-    const identityOf = (id: 'plex' | 'jellyfin') => {
+    const viewers = { plex: { id: 'u-plex', name: 'PlexOwner' }, jellyfin: { id: 'u-jf', name: 'Sam' }, emby: { id: 'u-emby', name: 'Sam' } };
+    const identityOf = (id: 'plex' | 'jellyfin' | 'emby') => {
         const resolve = vi.fn(async () => viewers[id]);
         return { identity: { resolve } as unknown as IdentityResolver, resolve };
     };
@@ -1214,6 +1215,48 @@ describe('fix_metadata with two media servers', () => {
         expect(h.jellyfin.readEpisodeMetadata).toHaveBeenCalledWith(expect.anything(), 'j9');
     });
 
+    it('picks Emby from an `emby:` id beside Plex, and names that prefix', async () => {
+        const plex = fake('plex');
+        const emby = fake('emby');
+        const item = seriesItem({
+            playback: { user: 'Sam', itemId: 'p9' },
+            media_servers: { plex: { present: true, itemId: 'p9' }, emby: { present: true, itemId: '42' } }
+        });
+        const loader = {
+            load: async () => ({ index: { search: () => [item], searchRanked: () => [{ item, rank: 0 }], all: () => [item] }, degraded: [] }),
+            invalidate: vi.fn()
+        } as unknown as LibraryLoader;
+        let call: Call = () => Promise.reject(new Error('not registered'));
+        let description = '';
+        const server = {
+            registerTool(_n: string, cfg: { description: string; inputSchema: z.ZodObject }, handler: Call) {
+                description = cfg.description;
+                call = args => handler(cfg.inputSchema.parse(args) as Record<string, unknown>);
+            }
+        };
+        registerFixMetadata(
+            server as never,
+            {
+                permissions: permissionSourceFrom(
+                    instancesOf({ emby: jellyfinConfig() as unknown as AnyServiceConfig, plex: plexConfig() as unknown as AnyServiceConfig })
+                ),
+                confirm: new ConfirmTokens(),
+                audit: WriteAudit.ephemeral(),
+                library: loader
+            },
+            { primary: { adapter: plex, identity: identityOf('plex').identity }, secondary: { adapter: emby, identity: identityOf('emby').identity } },
+            loader,
+            instant()
+        );
+        expect(description).toContain('an `id` prefixed `plex:` or `emby:` picks that server.');
+
+        const { structuredContent } = await call({ id: 'emby:42' });
+        expect(structuredContent.service).toBe('emby');
+        expect(structuredContent.target).toBe('emby:42');
+        expect(emby.readEpisodeMetadata).toHaveBeenCalledWith(viewers.emby, '42');
+        expect(plex.readEpisodeMetadata).not.toHaveBeenCalled();
+    });
+
     it('refuses a service that contradicts the id prefix, and accepts one that matches', async () => {
         const h = dual();
 
@@ -1297,5 +1340,198 @@ describe('fix_metadata input on one media server', () => {
             {} as LibraryLoader
         );
         expect(Object.keys(shape)).not.toContain('service');
+    });
+});
+
+/**
+ * Emby's identify answers before it rebuilds the item, and clears the locks
+ * of the item it re-identifies (both seen live on 4.10.2.0), so a locked Emby
+ * item is refused and an unlocked one is waited on like a queued refresh.
+ */
+describe('fix_metadata on Emby', () => {
+    const embyEpisode = (id: string, n: number, extra: Record<string, unknown> = {}) => ({
+        Id: id,
+        Name: `Real Episode Title ${n}`,
+        IndexNumber: n,
+        ParentIndexNumber: 1,
+        Path: `/storage/tv/Some Show/Season 01/Some Show - S01E0${n} - Real Episode Title ${n}.mkv`,
+        LockData: false,
+        LockedFields: [],
+        ...extra
+    });
+    // Shown as episode 5; its file says episode 3. No provider id, so a refresh can move it.
+    const misnumbered = (extra: Record<string, unknown> = {}) => ({ ...embyEpisode('19', 3, extra), IndexNumber: 5 });
+
+    // The test server's film, shown with a year its file does not name.
+    const detour = (extra: Record<string, unknown> = {}) => ({
+        Id: '12',
+        Name: 'Detour',
+        ProductionYear: 1990,
+        Path: '/media/movies/Detour (1945)/Detour (1945).mp4',
+        LockData: false,
+        LockedFields: [],
+        ...extra
+    });
+
+    function embyHarness(opts: { series?: Record<string, unknown>; episodes?: Record<string, unknown>[]; film?: Record<string, unknown> } = {}) {
+        const config = jellyfinConfig();
+        const wrote: string[] = [];
+        const read: string[] = [];
+        let repaired = false;
+        const impl = (async (input: string | URL | Request, init?: RequestInit) => {
+            const url = new URL(input instanceof Request ? input.url : String(input));
+            const method = init?.method ?? 'GET';
+            if (url.pathname === '/Users') return jsonResponse([{ Id: 'user-sam', Name: 'Sam' }]);
+            if (method === 'POST') {
+                wrote.push(`${url.pathname}${url.search}`);
+                repaired = true;
+                return new Response(null, { status: 204 });
+            }
+            read.push(`${url.pathname}?${url.searchParams.get('ids') ?? ''}`);
+            if (url.pathname === '/Items' && url.searchParams.get('ids') === '12' && opts.film !== undefined) {
+                return jsonResponse({ Items: [detour(opts.film)] });
+            }
+            if (url.pathname === '/Items' && url.searchParams.get('ids') === '13') {
+                return jsonResponse({ Items: [{ Id: '13', Type: 'Series', LockData: false, LockedFields: [], ...opts.series }] });
+            }
+            if (url.pathname === '/Shows/13/Episodes') {
+                const rows = opts.episodes ?? [embyEpisode('17', 1), embyEpisode('18', 2), misnumbered()];
+                return jsonResponse({ Items: repaired ? rows.map(r => ({ ...r, IndexNumber: r.Id === '19' ? 3 : r.IndexNumber })) : rows });
+            }
+            return jsonResponse({ message: 'not found' }, 404);
+        }) as unknown as typeof fetch;
+        const adapter = new EmbyAdapter(config, impl);
+        const item =
+            opts.film === undefined
+                ? seriesItem({ playback: { user: 'Sam', itemId: '13' } } as Partial<MergedItem>)
+                : seriesItem({ kind: 'movie', title: 'Detour', ids: { tmdb: 20367 }, playback: { user: 'Sam', itemId: '12' } } as Partial<MergedItem>);
+        const loader = {
+            load: async () => ({ index: { search: () => [item], searchRanked: () => [{ item, rank: 0 }], all: () => [item] }, degraded: [] }),
+            invalidate: vi.fn()
+        } as unknown as LibraryLoader;
+        let call: Call = () => Promise.reject(new Error('not registered'));
+        const server = {
+            registerTool(_n: string, cfg: { inputSchema: z.ZodObject }, handler: Call) {
+                call = args => handler(cfg.inputSchema.parse(args) as Record<string, unknown>);
+            }
+        };
+        const timing = instant();
+        registerFixMetadata(
+            server as never,
+            {
+                permissions: permissionSourceFrom(instancesOf({ emby: config as unknown as AnyServiceConfig })),
+                confirm: new ConfirmTokens(),
+                audit: WriteAudit.ephemeral(),
+                library: loader
+            },
+            { primary: { adapter, identity: new IdentityResolver(adapter, config) } },
+            loader,
+            timing
+        );
+        return { call: (a: Record<string, unknown>) => call(a), wrote, read, timing };
+    }
+
+    it("refuses a series with a lock of its own, which Emby's re-identify would clear", async () => {
+        const h = embyHarness({ series: { LockData: true, LockedFields: ['Name'] } });
+        const { structuredContent } = await h.call({ query: 'Dragon Ball Kai' });
+        expect(structuredContent.noop).toBe(true);
+        expect(structuredContent.confirm_token).toBeUndefined();
+        expect(structuredContent.summary).toContain(
+            "Dragon Ball Kai is locked in Emby, so it is not re-identified: Emby's re-identify clears the series' own locks (the item lock, the lock on Name) and overwrites what they protect. Unlock it first (Edit Metadata, then clear \"Lock this item to prevent future changes\", or the lock beside the field), repair, then lock it again if you still want it locked."
+        );
+        // The findings stay on the refusal, as on a merged item's.
+        expect(structuredContent.effects.join('\n')).toContain('S1E5');
+        expect(h.wrote).toEqual([]);
+    });
+
+    it("refuses a film with a lock of its own, read from the film read alone", async () => {
+        const h = embyHarness({ film: { LockData: true } });
+        const { structuredContent } = await h.call({ query: 'Detour' });
+        expect(structuredContent.noop).toBe(true);
+        expect(structuredContent.confirm_token).toBeUndefined();
+        expect(structuredContent.summary).toContain(
+            "Detour is locked in Emby, so it is not re-identified: Emby's re-identify clears the film's own lock (the item lock) and overwrites what it protects."
+        );
+        expect(structuredContent.effects.join('\n')).toContain('year');
+        // The film read the repair already makes, and no read of its locks besides.
+        expect(h.read).toEqual(['/Items?12']);
+        expect(h.wrote).toEqual([]);
+    });
+
+    it('refuses when Emby does not report the locks, since none can be ruled out', async () => {
+        const h = embyHarness({ series: { LockData: undefined, LockedFields: undefined } });
+        const { structuredContent } = await h.call({ query: 'Dragon Ball Kai' });
+        expect(structuredContent.noop).toBe(true);
+        expect(structuredContent.summary).toContain(
+            "Dragon Ball Kai is not re-identified: Emby did not report its locks, and a lock Emby's re-identify would clear cannot be ruled out."
+        );
+        expect(h.wrote).toEqual([]);
+    });
+
+    it('refuses a series with an episode locked as a whole, naming the episode to unlock rather than the series', async () => {
+        const h = embyHarness({ episodes: [embyEpisode('17', 1, { LockData: true }), embyEpisode('18', 2), misnumbered()] });
+        const { structuredContent } = await h.call({ query: 'Dragon Ball Kai' });
+        expect(structuredContent.noop).toBe(true);
+        expect(structuredContent.summary).toBe(
+            "Dragon Ball Kai has an episode locked as a whole in Emby, so it is not re-identified: Emby's re-identify drops the provider ids of the episode under it locked as a whole (S01E01). Unlock that episode first (Edit Metadata, then clear \"Lock this item to prevent future changes\", or the lock beside the field), repair, then lock it again if you still want it locked."
+        );
+    });
+
+    it('names both when the series and an episode under it are locked', async () => {
+        const h = embyHarness({ series: { LockData: true }, episodes: [embyEpisode('17', 1, { LockData: true }), embyEpisode('18', 2, { LockData: true }), misnumbered()] });
+        const { structuredContent } = await h.call({ query: 'Dragon Ball Kai' });
+        expect(structuredContent.summary).toMatch(
+            /^Dragon Ball Kai is locked in Emby, so it is not re-identified: Emby's re-identify clears the series' own lock \(the item lock\) and overwrites what it protects, and drops the provider ids of the 2 episodes under it locked as a whole \(S01E01, S01E02\)\. Unlock it and those episodes first \(.*\), repair, then lock them again if you still want them locked\.$/
+        );
+    });
+
+    it('names the one episode beside the series when both are locked', async () => {
+        const h = embyHarness({ series: { LockData: true }, episodes: [embyEpisode('17', 1, { LockData: true }), embyEpisode('18', 2), misnumbered()] });
+        const { structuredContent } = await h.call({ query: 'Dragon Ball Kai' });
+        expect(structuredContent.summary).toMatch(
+            /, and drops the provider ids of the episode under it locked as a whole \(S01E01\)\. Unlock it and that episode first \(.*\), repair, then lock them again if you still want them locked\.$/
+        );
+    });
+
+    it('names a locked episode with no number by its name, and one with no name either by its id', async () => {
+        const unnumbered = (id: string, n: number, extra: Record<string, unknown> = {}) => {
+            const { IndexNumber: _n, ...row } = embyEpisode(id, n, { LockData: true, ...extra });
+            return row;
+        };
+        const h = embyHarness({ episodes: [unnumbered('17', 1), unnumbered('18', 2, { Name: '' }), misnumbered()] });
+        const { structuredContent } = await h.call({ query: 'Dragon Ball Kai' });
+        expect(structuredContent.summary).toContain('the 2 episodes under it locked as a whole (<<untrusted:emby.Name>>Real Episode Title 1<</>>, item 18).');
+    });
+
+    it("previews a series whose episodes have only field locks, which Emby's identify keeps", async () => {
+        const h = embyHarness({ episodes: [embyEpisode('17', 1, { LockedFields: ['Name'] }), embyEpisode('18', 2), misnumbered()] });
+        const { structuredContent } = await h.call({ query: 'Dragon Ball Kai' });
+        expect(structuredContent.noop).toBe(false);
+        expect(structuredContent.confirm_token).toBeDefined();
+    });
+
+    it('refuses at confirm a lock set after the preview, without spending the token', async () => {
+        const opts: { series?: Record<string, unknown> } = {};
+        const h = embyHarness(opts);
+        const preview = await h.call({ query: 'Dragon Ball Kai' });
+        expect(preview.structuredContent.confirm_token).toBeDefined();
+        opts.series = { LockData: true };
+        const refused = await h.call({ query: 'Dragon Ball Kai', confirm: preview.structuredContent.confirm_token });
+        expect(refused.structuredContent.noop).toBe(true);
+        expect(refused.structuredContent.summary).toContain('Dragon Ball Kai is locked in Emby, so it is not re-identified');
+        expect(h.wrote).toEqual([]);
+        // Unlocked again, the same token still applies.
+        opts.series = {};
+        await h.call({ query: 'Dragon Ball Kai', confirm: preview.structuredContent.confirm_token });
+        expect(h.wrote).toEqual(['/Items/RemoteSearch/Apply/13?replaceAllImages=false']);
+    });
+
+    it('waits for the repair to hold, because Emby answers before it rebuilds the item', async () => {
+        const h = embyHarness();
+        const preview = await h.call({ query: 'Dragon Ball Kai' });
+        const { structuredContent } = await h.call({ query: 'Dragon Ball Kai', confirm: preview.structuredContent.confirm_token });
+        expect(h.wrote).toEqual([`/Items/RemoteSearch/Apply/13?replaceAllImages=false`]);
+        expect(structuredContent.result).toMatchObject({ verified: true, note: 'Repaired: 1 of 1 mismatches are gone. That held across two reads 5 seconds apart.' });
+        expect(h.timing.slept).toEqual([5_000]);
     });
 });
