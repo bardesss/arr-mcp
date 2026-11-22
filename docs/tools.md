@@ -1476,8 +1476,10 @@ deleted before it was stored keeps the release year its history row carries. A
 play stored while its item existed and seen again after its deletion stays one
 row: a film matched on title and a year either side, an episode on series,
 title, season and episode. Plex music plays are left out. When the server and
-the store both have an item, the server's row is the one returned. A store that
-fails costs only the stored rows. The Plays tab on the Logs page of the config
+the store both have an item, the server's row is the one returned. With the
+Jellyfin Webhook plugin pointed at arr-mcp, a finished play is stored the
+moment it ends as well ([Configuration](configuration.md#plays-from-jellyfin)).
+A store that fails costs only the stored rows. The Plays tab on the Logs page of the config
 UI shows how many plays are kept per media server and user, when each server
 last synced and the newest plays, and can clear the store.
 

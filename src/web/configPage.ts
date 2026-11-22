@@ -797,6 +797,55 @@ const REGENERATE = raw(
  * Paths rather than full addresses: what an *arr has to use is however it reaches
  * this server, which in Docker is usually not the host name in this browser.
  */
+/**
+ * How to point Jellyfin's Webhook plugin at the play store, shown once there is
+ * a Jellyfin to point. The header value is given whole, already encoded, since
+ * the plugin takes a raw header and nobody should have to base64 a password.
+ */
+function jellyfinPlays(config: Config, secret: string): SafeHtml {
+    const servers = listInstances(config).filter(i => i.type === 'jellyfin');
+    if (servers.length === 0) return raw('');
+    const header = `Basic ${Buffer.from(`${WEBHOOK_USERNAME}:${secret}`).toString('base64')}`;
+    return html`<h3>Jellyfin plays</h3>
+        <p class="note">
+            Jellyfin's Webhook plugin can report each finished play the moment it ends, so a title watched and
+            deleted before the next hourly sync is still kept. In the plugin, add a Generic Destination with the
+            address arr-mcp has on Jellyfin's network followed by the path below.
+        </p>
+        <ul class="note">
+            ${servers.map(i => html`<li>${i.id}: <span class="mono">/webhooks/${i.id}</span></li>`)}
+        </ul>
+        <p class="note">
+            Notification Type: Playback Stop. Item Type: Movies and Episodes, and Music too if you want your
+            listening kept. Tick Send All Properties and leave the template empty. Then add a request header named
+            <span class="mono">Authorization</span> with this value:
+        </p>
+        <div class="field">
+            <label for="webhooks.jellyfin-header">Authorization header</label>
+            <div class="token">
+                <input id="webhooks.jellyfin-header" class="secret" type="text" readonly value="${header}" ${IGNORE}>
+                <button
+                    class="ghost"
+                    type="button"
+                    data-icon
+                    data-reveal="webhooks.jellyfin-header"
+                    data-what="header"
+                    aria-pressed="false"
+                    aria-label="Show header"
+                    title="Show header"
+                >${EYE}</button>
+                <button
+                    class="ghost"
+                    type="button"
+                    data-icon
+                    data-copy="webhooks.jellyfin-header"
+                    aria-label="Copy header"
+                    title="Copy header"
+                >${COPY}</button>
+            </div>
+        </div>`;
+}
+
 function webhooksCard(config: Config, keys: SafeHtml, confirmingNewSecret: boolean): SafeHtml {
     const webhooks = config.webhooks;
     const targets = listInstances(config).filter(i => Object.hasOwn(WEBHOOK_SERVICES, i.type));
@@ -876,7 +925,8 @@ function webhooksCard(config: Config, keys: SafeHtml, confirmingNewSecret: boole
                                     Save or reload to cancel.
                                 </p>`
                           : raw('')}
-                  </div>`
+                  </div>
+                  ${jellyfinPlays(config, webhooks.secret)}`
             : raw('')}
         <div class="row" style="margin-top:1rem">
             <button type="submit">Save event log settings</button>

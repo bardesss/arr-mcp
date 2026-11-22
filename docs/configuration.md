@@ -1028,8 +1028,35 @@ If you've set [`allowed_hosts`](#access), the host name in that URL has to be in
 the list. A container name like `arr-mcp` usually isn't, and the service gets a
 403 until it is.
 
-Only Radarr, Sonarr and Lidarr are accepted. Rename, manual interaction and health
-events are kept as `unknown` under their own name.
+Only Radarr, Sonarr and Lidarr are accepted into the event log. Rename, manual
+interaction and health events are kept as `unknown` under their own name.
+
+### Plays from Jellyfin
+
+With the same secret, Jellyfin's Webhook plugin can report each finished play
+to the [play store](tools.md#get_playback) the moment it ends, so a title
+watched and deleted before the next hourly sync is still kept. In the plugin,
+add a **Generic Destination**:
+
+| Field | Value |
+|-------|-------|
+| Webhook Url | `http://<arr-mcp as Jellyfin reaches it>:6060/webhooks/jellyfin`, or `/webhooks/jellyfin/<name>` for a named instance |
+| Notification Type | Playback Stop |
+| Item Type | Movies and Episodes, and Music if you want your listening kept too |
+| Send All Properties | ticked, with the template left empty |
+| Header | `Authorization`, with the value `Basic ` followed by `arr-mcp:<password>` in base64 |
+
+Only a play that ran to the end is stored; a stop partway through is left to
+the hourly sync. A song is stored with its first artist (the plugin sends no
+album artist or track number) and shows in `get_playback` history, but is never
+matched against a film or an episode. Music is only kept this way: the hourly
+sync reads films and episodes alone. Anything else the plugin sends is answered 200 and dropped. A
+template instead of Send All Properties works too, as long as it is JSON with
+the plugin's own variable names as keys (`NotificationType`, `ItemId`,
+`ItemType`, `Name`, `SeriesName`, `SeasonNumber`, `EpisodeNumber`, `Year`,
+`Provider_tmdb`, `Provider_imdb`, `Provider_tvdb`, `UserId`,
+`NotificationUsername`, `PlayedToCompletion`, and `Artist` for music). Plex and
+Emby plays are not taken this way yet.
 
 Turning the log off keeps the secret and the stored events, and stops accepting
 new ones. Events past `retention_days` go when the next event arrives, with a

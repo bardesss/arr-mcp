@@ -476,7 +476,7 @@ export function buildApp(opts: {
     }
 
     // After the Host allowlist, like everything else but /healthz.
-    registerWebhookRoutes(app, { runtime, events });
+    registerWebhookRoutes(app, { runtime, events, ...(opts.plays === undefined ? {} : { plays: opts.plays }) });
     registerWebRoutes(app, { runtime, audit, logs, events, ...(opts.plays === undefined ? {} : { plays: opts.plays }), version: VERSION, discovery: opts.discovery ?? new Discovery() });
     registerApiRoutes(app, { runtime, logs, version: VERSION });
 
