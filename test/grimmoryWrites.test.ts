@@ -541,7 +541,7 @@ describe('set_watched on grimmory', () => {
     it('a Jellyfin id still goes to Jellyfin', async () => {
         const { call, server } = watchedTool(undefined);
         const error = (await call({ item_id: '65cbd491b1ecb02fdb3d7cbaefab5353', watched: true, dry_run: true }).catch((e: unknown) => e)) as { kind?: string; service?: string };
-        expect(error).toMatchObject({ kind: 'NotFound', service: 'jellyfin' });
+        expect(error).toMatchObject({ kind: 'NotFound', service: 'media server' });
         expect(server.sent.some(s => s.path.startsWith('/api/v1/books'))).toBe(false);
     });
 });

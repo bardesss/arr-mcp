@@ -272,6 +272,8 @@ export class MediaBrowserAdapter
     readonly identifyClearsLocks: boolean;
     readonly #http: ServiceHttp;
     readonly #dialect: MediaBrowserDialect;
+    /** Emby's activity-log user number to `/Users` id: see `#logUsers`. */
+    readonly #logUserIds = new Map<string, string>();
 
     protected constructor(dialect: MediaBrowserDialect, config: MultiUserServiceConfig, fetchImpl: typeof fetch) {
         this.#dialect = dialect;
@@ -524,22 +526,28 @@ export class MediaBrowserAdapter
      * `/Users/{n}` answers with that user, so this costs one read per distinct
      * user in the log. A number it has no user for answers 404 ("may have been
      * recently removed", seen live), and only that user's entries are left out.
+     *
+     * A number keeps its user, so a found one is kept for the adapter's life
+     * and each history read asks only about numbers it has not seen. One that
+     * answered 404 is asked again next time, since that is cheap and rare.
      */
     async #logUsers(entries: RawActivityEntry[]): Promise<(logId: string | undefined) => string | undefined> {
         if (this.#dialect.logUserIds === 'users') return logId => logId;
-        const logIds = [...new Set(entries.map(e => e.UserId).filter((u): u is string => typeof u === 'string' && u !== ''))];
-        const resolved = await Promise.all(
-            logIds.map(async logId => {
+        const known = this.#logUserIds;
+        const unknown = [
+            ...new Set(entries.map(e => e.UserId).filter((u): u is string => typeof u === 'string' && u !== '' && !known.has(u)))
+        ];
+        await Promise.all(
+            unknown.map(async logId => {
                 try {
-                    return [logId, (await this.#http.get<RawUser>(`/Users/${encodeURIComponent(logId)}`)).Id] as const;
+                    const id = (await this.#http.get<RawUser>(`/Users/${encodeURIComponent(logId)}`)).Id;
+                    if (id !== undefined) known.set(logId, id);
                 } catch (err) {
-                    if (err instanceof ServiceError && err.kind === 'NotFound') return [logId, undefined] as const;
-                    throw err;
+                    if (!(err instanceof ServiceError && err.kind === 'NotFound')) throw err;
                 }
             })
         );
-        const byLogId = new Map(resolved);
-        return logId => (logId === undefined ? undefined : byLogId.get(logId));
+        return logId => (logId === undefined ? undefined : known.get(logId));
     }
 
     /**

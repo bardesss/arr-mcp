@@ -149,6 +149,19 @@ describe('Emby watch history', () => {
         expect(asked.filter(a => a.startsWith('GET /Users/'))).toEqual(['GET /Users/2']);
     });
 
+    it('looks each log user up once per adapter, not on every history read', async () => {
+        const someoneElse = { id: '00000000000000000000000000000002', name: 'User 1' };
+        const { asked, fetchImpl } = recording({
+            [playedFor(someoneElse.id)]: { Items: [] },
+            [LOG]: fixture('activity-log.json'),
+            '/Users/2': fixture('log-user.json')
+        });
+        const adapter = new EmbyAdapter(config, fetchImpl);
+        await adapter.getWatchHistory(someoneElse);
+        await adapter.getWatchHistory(someoneElse);
+        expect(asked.filter(a => a.startsWith('GET /Users/'))).toEqual(['GET /Users/2']);
+    });
+
     it("leaves out a deleted user's stops rather than every stop", async () => {
         const log = fixture('activity-log.json') as { Items: Record<string, unknown>[] };
         const withGone = { Items: [...log.Items, { Type: 'playback.stop', ItemId: '13', UserId: '9', Date: '2024-01-02T13:20:00.000Z', Name: 'gone' }] };
