@@ -40,7 +40,8 @@ const watchServer = (
 ): { adapter: ServiceAdapter & WatchStateCapable; identity: IdentityResolver } => {
     const adapter = identity === undefined ? undefined : adapters.find(a => a.id === identity.serviceId);
     if (identity === undefined || adapter === undefined || !hasWatchState(adapter)) {
-        throw new ServiceError('NotFound', 'jellyfin', 'neither jellyfin nor emby is configured', {
+        // Named for neither: it is the absence of both that is being reported.
+        throw new ServiceError('NotFound', 'media server', 'neither jellyfin nor emby is configured', {
             remedy: watchedRemedy(adapters)
         });
     }
