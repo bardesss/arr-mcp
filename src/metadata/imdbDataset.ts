@@ -129,6 +129,20 @@ export type DatasetStatus = { ingestedAt?: string; titles: number; ratings: numb
  *
  * `meta` holds two rows and is left alone; the pragma would be noise.
  */
+/**
+ * The order `discover` returns titles in: IMDb's Top 250 weighting, a Bayesian
+ * average that pulls a title's rating towards 7.0 until it has enough votes to
+ * stand on its own. Ranked by rating alone, the top of every list was titles
+ * with a dozen perfect votes that nobody has heard of.
+ *
+ * Fixed numbers rather than ones worked out from the data, so the index below
+ * can hold the expression: SQLite uses an index on an expression only when the
+ * query repeats it exactly, which is why both read this one string. 25,000
+ * votes is IMDb's own figure, and 7.0 is close to the vote-weighted mean of
+ * the film bucket. Columns unqualified, since the index cannot name an alias.
+ */
+const WEIGHTED = '((votes * rating + 25000 * 7.0) / (votes + 25000))';
+
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS title (
     tconst  TEXT PRIMARY KEY,
@@ -145,7 +159,7 @@ CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS title_bucket_rating ON title(bucket, rating DESC, year DESC);
+CREATE INDEX IF NOT EXISTS title_bucket_weighted ON title(bucket, ${WEIGHTED} DESC, year DESC);
 `;
 
 /** The filters `discover` and `countDiscover` both answer to. */
@@ -227,7 +241,7 @@ export class ImdbDataset {
 
         // The `rating` table is superseded outright: its columns live on
         // `title` now, and leaving it would be a stale duplicate nothing reads.
-        this.#db.exec('DROP TABLE IF EXISTS rating; DROP INDEX IF EXISTS title_kind;');
+        this.#db.exec('DROP TABLE IF EXISTS rating; DROP INDEX IF EXISTS title_kind; DROP INDEX IF EXISTS title_bucket_rating;');
 
         if (stale.length === 0) return;
 
@@ -283,7 +297,7 @@ export class ImdbDataset {
      *
      * `bucket = ?` rather than `kind IN (?,?)`: an IN over the index's leading
      * column stops SQLite walking it in sorted order, which is the whole
-     * reason `title_bucket_rating` exists.
+     * reason `title_bucket_weighted` exists.
      */
     #discoverFilter(q: DiscoverQuery): { where: string[]; args: (string | number)[] } {
         const where: string[] = ['t.bucket = ?'];
@@ -317,7 +331,7 @@ export class ImdbDataset {
         return `SELECT t.tconst, t.title, t.year, t.runtime, t.genres, t.rating, t.votes
                    FROM title t
                   WHERE ${where.join(' AND ')}
-               ORDER BY t.rating DESC, t.year DESC
+               ORDER BY ${WEIGHTED} DESC, t.year DESC
                   LIMIT ? OFFSET ?`;
     }
 
