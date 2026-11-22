@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.4.0](https://github.com/bardesss/arr-mcp/compare/v2.3.2...v2.4.0) (2026-11-22)
+
+
+### Features
+
+* **discover:** exclude owned and watched titles, and rank the dataset by weighted rating ([#706](https://github.com/bardesss/arr-mcp/issues/706)) ([67f6491](https://github.com/bardesss/arr-mcp/commit/67f64910a5c02d5e5a520537ed5fe059a4cfd57d)), closes [#693](https://github.com/bardesss/arr-mcp/issues/693)
+* **emby:** add Emby as a media server, sharing the Jellyfin adapter ([#707](https://github.com/bardesss/arr-mcp/issues/707)) ([87bd0cd](https://github.com/bardesss/arr-mcp/commit/87bd0cd2e306418a6e3ba4280ab29d71fe333231))
+* **playback:** record finished Jellyfin plays from the Webhook plugin, music opt-in ([#711](https://github.com/bardesss/arr-mcp/issues/711)) ([a5d840f](https://github.com/bardesss/arr-mcp/commit/a5d840fe87a724bed44694d614436f56c159a6bd))
+
+
+### Bug Fixes
+
+* **emby:** look each activity-log user up once, and name no single server in set_watched's missing-server error ([#710](https://github.com/bardesss/arr-mcp/issues/710)) ([1c16afe](https://github.com/bardesss/arr-mcp/commit/1c16afe147d1464761e2124eed5ff7b1ba290dc3))
+* **playback:** retry a failed catch-up, index plays by title, and keep stored rows when a full read is cut short ([#709](https://github.com/bardesss/arr-mcp/issues/709)) ([00233d1](https://github.com/bardesss/arr-mcp/commit/00233d109c7cbfa7bef350adf8fab2abe2cde022))
+
 ## [2.3.2](https://github.com/bardesss/arr-mcp/compare/v2.3.1...v2.3.2) (2026-11-21)
 
 
