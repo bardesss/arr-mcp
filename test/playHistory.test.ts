@@ -182,6 +182,14 @@ describe('PlayHistory across a deletion', () => {
         expect(keys(store)).toEqual(['42']);
     });
 
+    it('joins a film added back under a new id to the row it had before its deletion', () => {
+        const store = PlayHistory.ephemeral();
+        store.record('plex', user, [record(plexFilm('42', 'Dune', '2026-01-01T00:00:00.000Z'), { year: 2021 })]);
+        store.record('plex', user, [record(plexFilm('', 'Dune', '2026-02-01T00:00:00.000Z'), { year: 2021 })]);
+        store.record('plex', user, [record(plexFilm('99', 'Dune', '2026-03-01T00:00:00.000Z'), { year: 2021 })]);
+        expect(keys(store)).toEqual(['99']);
+    });
+
     it('keeps a remake with the same title apart', () => {
         const store = PlayHistory.ephemeral();
         store.record('plex', user, [record(plexFilm('42', 'Dune', '2026-01-01T00:00:00.000Z'), { year: 1984 })]);
@@ -244,6 +252,11 @@ describe('playsFrom', () => {
         const [play] = playsFrom('plex', user, [{ ...film('', 'Gone'), releaseYear: 2021 }], []);
         expect(play).toMatchObject({ kind: 'movie', year: 2021 });
         expect(play?.entry).not.toHaveProperty('releaseYear');
+    });
+
+    it('calls a deleted row with no series and no release year unknown, not a film', () => {
+        const [play] = playsFrom('plex', user, [film('', 'Pilot')], []);
+        expect(play?.kind).toBe('unknown');
     });
 
     it("prefers the library's year over the history row's", () => {

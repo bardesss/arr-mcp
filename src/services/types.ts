@@ -2422,9 +2422,10 @@ export interface PlaybackCapable {
     /**
      * `full` reads the whole history instead of the newest rows, for the
      * play-history store's one catch-up. A server whose history read is
-     * already bounded some other way ignores it.
+     * already bounded some other way ignores it. `onTruncated` is called when
+     * a full read stopped at a backstop, so what came back is not everything.
      */
-    getWatchHistory(user: ServiceUser, opts?: { full?: boolean }): Promise<PlaybackEntry[]>;
+    getWatchHistory(user: ServiceUser, opts?: { full?: boolean; onTruncated?: () => void }): Promise<PlaybackEntry[]>;
 }
 
 /**

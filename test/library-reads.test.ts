@@ -650,6 +650,18 @@ describe('Jellyfin.getWatchHistory with the activity log', () => {
         expect(asked.filter(p => p === '/System/ActivityLog/Entries')).toHaveLength(2);
     });
 
+    it('fails a full read when the log fails, so the catch-up is tried again, and degrades a normal one', async () => {
+        const fetchImpl = (async (input: string | URL | Request) => {
+            const url = new URL(input instanceof Request ? input.url : String(input));
+            if (url.pathname === '/System/ActivityLog/Entries') return jsonResponse({ message: 'down' }, 500);
+            return jsonResponse({ Items: [] });
+        }) as unknown as typeof fetch;
+        const adapter = new JellyfinAdapter(multi, fetchImpl);
+
+        await expect(adapter.getWatchHistory(someone, { full: true })).rejects.toThrow();
+        await expect(adapter.getWatchHistory(someone)).resolves.toEqual([]);
+    });
+
     it('adds a logged play that never got IsPlayed, as watched, newest first', async () => {
         const routes = {
             [HISTORY_ROUTE]: HISTORY,
