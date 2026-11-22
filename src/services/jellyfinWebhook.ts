@@ -63,7 +63,10 @@ const whole = (v: unknown): number | undefined => {
  * plugin may be dashed or upper case. One form, or the same item and user
  * would be stored twice.
  */
-const jellyfinId = (v: unknown): string | undefined => text(v)?.replaceAll('-', '').toLowerCase();
+const jellyfinId = (v: unknown): string | undefined => {
+    const id = text(v)?.replaceAll('-', '').toLowerCase();
+    return id !== undefined && /^[0-9a-f]{32}$/.test(id) ? id : undefined;
+};
 
 type JellyfinPlay = { userId: string; record: PlayRecord };
 
@@ -73,6 +76,9 @@ type JellyfinPlay = { userId: string; record: PlayRecord };
  * sync reads those from the activity log), or a stop of anything but a film,
  * an episode or a song. A song comes only when the destination's Item Type
  * includes Music, which is how a user opts into keeping their listening.
+ *
+ * The body is only as trusted as whoever holds the webhook secret: ids must
+ * be 32 hex, an imdb id `tt` and digits, and the user name is fenced.
  *
  * Titles are fenced under the fields the adapter fences them under, so a
  * webhook row and a synced row of the same item agree. An episode keeps the
@@ -96,7 +102,7 @@ export function parseJellyfinPlay(service: string, body: unknown): JellyfinPlay 
         kind: 'watched' as const,
         itemId,
         title: fenceText(name, { service, field: 'Name' }),
-        user: text(p.NotificationUsername) ?? '',
+        user: fenceText(text(p.NotificationUsername) ?? '', { service, field: 'UserName' }),
         lastPlayed: new Date().toISOString()
     };
 
@@ -135,7 +141,8 @@ export function parseJellyfinPlay(service: string, body: unknown): JellyfinPlay 
     const tmdb = whole(p.Provider_tmdb);
     const tvdb = whole(p.Provider_tvdb);
     const imdb = text(p.Provider_imdb);
-    const ids = { ...(tmdb === undefined ? {} : { tmdb }), ...(tvdb === undefined ? {} : { tvdb }), ...(imdb === undefined ? {} : { imdb }) };
+    const imdbOk = imdb !== undefined && /^tt\d+$/.test(imdb);
+    const ids = { ...(tmdb === undefined ? {} : { tmdb }), ...(tvdb === undefined ? {} : { tvdb }), ...(imdbOk ? { imdb } : {}) };
     return {
         userId,
         record: {

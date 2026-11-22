@@ -699,7 +699,7 @@ export function playsPage(opts: {
                                   r => html`<tr>
                                       <td class="mono">${r.entry.lastPlayed === undefined ? '' : shortTime(r.entry.lastPlayed)}</td>
                                       <td>${r.entry.service}</td>
-                                      <td>${r.entry.user}</td>
+                                      <td>${plain(r.entry.user)}</td>
                                       <td class="prose">${name(r.entry)}</td>
                                       <td>${r.entry.removedFromLibrary === true ? 'removed from library' : ''}</td>
                                   </tr>`
