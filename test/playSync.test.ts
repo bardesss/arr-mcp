@@ -40,6 +40,20 @@ describe('syncPlays', () => {
         expect(store.read('plex', 'u1')).toHaveLength(1);
     });
 
+    it('adds to the stored Plex rows instead of replacing them when the full read stopped at its backstop', async () => {
+        const store = PlayHistory.ephemeral();
+        store.record('plex', user, [{ entry: { service: 'plex', kind: 'watched', itemId: 'old', title: 'Older', user: 'Sam' }, kind: 'movie' }]);
+        const plex = choice('plex');
+        plex.getWatchHistory.mockImplementationOnce((async (_user: unknown, opts?: { onTruncated?: () => void }) => {
+            opts?.onTruncated?.();
+            return [{ service: 'plex', kind: 'watched', itemId: 'plex-1', title: 'Alpha', user: 'Sam' }];
+        }) as never);
+
+        await syncPlays({ primary: pick(plex) }, store);
+        expect(store.read('plex', 'u1').map(r => r.entry.itemId).sort()).toEqual(['old', 'plex-1']);
+        expect(store.needsBackfill('plex', 'u1')).toBe(false);
+    });
+
     it('reads the whole history on the first run only, and again after a failed first run', async () => {
         const store = PlayHistory.ephemeral();
         const flaky = choice('jellyfin', { fail: true });
@@ -49,7 +63,7 @@ describe('syncPlays', () => {
         const server = choice('jellyfin');
         await syncPlays({ primary: pick(server) }, store);
         await syncPlays({ primary: pick(server) }, store);
-        expect(server.getWatchHistory.mock.calls.map(c => (c as unknown[])[1])).toEqual([{ full: true }, {}]);
+        expect(server.getWatchHistory.mock.calls.map(c => (c as unknown[])[1])).toEqual([{ full: true, onTruncated: expect.any(Function) }, {}]);
     });
 
     it("rebuilds a Plex server's rows from its full read, and keeps Jellyfin's", async () => {

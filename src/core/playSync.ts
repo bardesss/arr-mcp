@@ -28,8 +28,9 @@ export async function syncPlays(servers: MediaServers, store: PlayHistory): Prom
         try {
             const user = await identity.resolve();
             const full = store.needsBackfill(adapter.id, user.id);
+            let truncated = false;
             const [history, library] = await Promise.all([
-                adapter.getWatchHistory(user, full ? { full: true } : {}),
+                adapter.getWatchHistory(user, full ? { full: true, onTruncated: () => (truncated = true) } : {}),
                 adapter.listUserLibrary(user)
             ]);
             const plays = playsFrom(adapter.id, user, history, library);
@@ -37,7 +38,9 @@ export async function syncPlays(servers: MediaServers, store: PlayHistory): Prom
             // what is stored, and rebuilding from it is what drops rows 2.3
             // stored wrongly: music tracks, and a film stored twice around its
             // deletion. Jellyfin's log forgets after 30 days, so its rows stay.
-            store.record(adapter.id, user, plays, { replace: full && adapter.type === 'plex' });
+            // A read cut short at its backstop is not the whole history, so it
+            // adds to what is stored instead of replacing it.
+            store.record(adapter.id, user, plays, { replace: full && !truncated && adapter.type === 'plex' });
             const at = new Date().toISOString();
             if (full) store.markBackfilled(adapter.id, user.id, at);
             store.markSynced(adapter.id, at);

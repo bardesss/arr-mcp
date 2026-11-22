@@ -36,6 +36,11 @@ describe('get_playback history with a play store', () => {
         expect(result.total).toBe(3);
     });
 
+    it('keeps the store-only releaseYear out of the answer, even at full detail', async () => {
+        const result = await history(serverReturning([play('', 'Gone', '2026-01-01T00:00:00.000Z', { releaseYear: 2021 })]));
+        expect(result.items[0]).not.toHaveProperty('releaseYear');
+    });
+
     it("returns the server's row, not the stored one, when both have the item", async () => {
         const plays = PlayHistory.ephemeral();
         plays.record('jellyfin', user, [{ entry: play('a', 'Old title', '2025-01-01T00:00:00.000Z'), kind: 'movie' }]);

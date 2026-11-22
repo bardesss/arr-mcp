@@ -489,6 +489,7 @@ export class MediaBrowserAdapter
      * This user's newest stop per item. A failed read degrades to none rather
      * than failing the history: the `IsPlayed` half is still a correct answer
      * to most questions, and losing it over a supplementary read would not be.
+     * A full read fails instead, so the store tries its catch-up again.
      */
     async #loggedStops(user: ServiceUser, full: boolean): Promise<RawActivityEntry[]> {
         const { isStop } = this.#dialect.stops;
@@ -500,6 +501,9 @@ export class MediaBrowserAdapter
                 .slice(0, full ? undefined : LOGGED_STOPS);
             usersId = await this.#logUsers(entries);
         } catch (err) {
+            // The full read is the play store's one catch-up: answering it
+            // without the log would mark it done with the log never read.
+            if (full) throw err;
             logger.warn({ service: this.id, err }, 'activity log read failed; history covers marked-played items only');
             return [];
         }

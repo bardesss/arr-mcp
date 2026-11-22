@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS plays (
     record       TEXT NOT NULL,
     PRIMARY KEY (server, user_id, item_key)
 );
+CREATE INDEX IF NOT EXISTS plays_title ON plays (server, user_id, title);
 CREATE TABLE IF NOT EXISTS syncs (
     server TEXT PRIMARY KEY,
     at     TEXT NOT NULL
@@ -90,7 +91,12 @@ export const playKey = (e: PlaybackEntry): string =>
 const TWIN_SQL = `
 SELECT item_key, record FROM plays
 WHERE server = @server AND user_id = @user AND item_key <> @key
-  AND (item_key LIKE 'title:%') = @wantTitleKey
+  AND CASE WHEN @wantTitleKey = 1
+        -- A row folded from a deletion keeps its old item id as key, but its
+        -- entry has none: a film added back under a new id is still that play.
+        THEN item_key LIKE 'title:%' OR json_extract(record, '$.entry.itemId') = ''
+        ELSE item_key NOT LIKE 'title:%'
+      END
   AND title = @title
   AND (
         (@kind = 'movie' AND kind = 'movie' AND series_title IS NULL AND ABS(year - @year) <= 1)
@@ -332,9 +338,12 @@ export function playsFrom(
         if (entry.removedFromLibrary === true) return { entry, kind: 'unknown' };
         if (entry.seriesTitle !== undefined) return { entry, kind: 'episode', ...matchOf(series.get(titleKey(entry.seriesTitle))) };
         // A deleted film has no library row; the history row's own release
-        // year is then all it can be matched on.
+        // year is then all it can be matched on. A deleted row with neither a
+        // series nor a release year does not say it was a film: Plex sets the
+        // year on films only, so this is likely an episode that lost its series.
         const match = matchOf(films.get(entry.itemId));
         const year = match.year ?? releaseYear;
+        if (entry.itemId === '' && year === undefined) return { entry, kind: 'unknown' };
         return { entry, kind: 'movie', ...match, ...(year === undefined ? {} : { year }) };
     });
 

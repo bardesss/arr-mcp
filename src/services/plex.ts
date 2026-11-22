@@ -431,7 +431,7 @@ export class PlexAdapter
      */
     static readonly #MAX_FULL_HISTORY_PAGES = 400;
 
-    async getWatchHistory(user: ServiceUser, opts: { full?: boolean } = {}): Promise<PlaybackEntry[]> {
+    async getWatchHistory(user: ServiceUser, opts: { full?: boolean; onTruncated?: () => void } = {}): Promise<PlaybackEntry[]> {
         // No accountID, no attribution: excluding is safer than guessing
         // whose watch this was.
         const isMine = (item: RawPlexItem): boolean => item.accountID !== undefined && String(item.accountID) === user.id;
@@ -456,6 +456,9 @@ export class PlexAdapter
                 ? { maxPages: PlexAdapter.#MAX_FULL_HISTORY_PAGES, stopEarly: () => false }
                 : { maxPages: PlexAdapter.#MAX_HISTORY_PAGES, stopEarly: collected => collected.filter(isMine).length >= PAGE_SIZE }
         );
+
+        // Every page full means the read stopped at the backstop, not at the end.
+        if (opts.full === true && rows.length >= PlexAdapter.#MAX_FULL_HISTORY_PAGES * PAGE_SIZE) opts.onTruncated?.();
 
         // Music and other non-video plays share this history. A track carries
         // its artist in `grandparentTitle`, so it would read as an episode.
