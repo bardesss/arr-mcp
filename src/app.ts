@@ -96,6 +96,7 @@ const ROLES: readonly (readonly [ServiceId, string])[] = [
     ['profilarr', 'Profilarr quality profiles'],
     ['bazarr', 'Bazarr subtitles'],
     ['jellyfin', 'Jellyfin playback'],
+    ['emby', 'Emby playback'],
     ['plex', 'Plex playback'],
     ['seerr', 'Seerr requests'],
     ['grimmory', 'Grimmory books'],

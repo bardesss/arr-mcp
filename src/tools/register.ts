@@ -14,6 +14,7 @@ import {
     hasBookMetadataIssues,
     hasIndexers,
     hasSubtitles,
+    hasWatchState,
     type ServiceAdapter
 } from '../services/types.ts';
 import { bothIds, selectMediaServers, type MediaServers } from './mediaServers.ts';
@@ -231,7 +232,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
         server,
         write,
         adapters,
-        [context.mediaServers.primary, context.mediaServers.secondary].find(c => c?.adapter.type === 'jellyfin')?.identity,
+        [context.mediaServers.primary, context.mediaServers.secondary].find(c => c !== undefined && hasWatchState(c.adapter))?.identity,
         bothIds(context.mediaServers),
         library
     );

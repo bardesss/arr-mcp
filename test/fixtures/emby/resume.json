@@ -1,0 +1,61 @@
+{
+  "Items": [
+    {
+      "Name": "Plan 9 from Outer Space",
+      "ServerId": "00000000000000000000000000000001",
+      "Id": "10",
+      "RunTimeTicks": 47001600000,
+      "IsFolder": false,
+      "Type": "Movie",
+      "UserData": {
+        "PlayedPercentage": 25,
+        "PlaybackPositionTicks": 18000000000,
+        "PlayCount": 1,
+        "IsFavorite": false,
+        "Played": false,
+        "LastPlayedDate": "2026-01-01T20:00:00.0000000Z"
+      },
+      "MediaType": "Video"
+    },
+    {
+      "Name": "The Last Round",
+      "ServerId": "00000000000000000000000000000001",
+      "Id": "16",
+      "RunTimeTicks": 14971310000,
+      "IndexNumber": 16,
+      "ParentIndexNumber": 3,
+      "IsFolder": false,
+      "Type": "Episode",
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 1,
+        "IsFavorite": false,
+        "Played": false,
+        "LastPlayedDate": "2026-01-02T20:00:00.0000000Z"
+      },
+      "SeriesName": "One Step Beyond",
+      "SeriesId": "13",
+      "SeasonId": "14",
+      "SeasonName": "Season 3",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "Night of the Living Dead",
+      "ServerId": "00000000000000000000000000000001",
+      "Id": "11",
+      "RunTimeTicks": 57318320000,
+      "IsFolder": false,
+      "Type": "Movie",
+      "UserData": {
+        "PlayedPercentage": 75,
+        "PlaybackPositionTicks": 54000000000,
+        "PlayCount": 1,
+        "IsFavorite": false,
+        "Played": false,
+        "LastPlayedDate": "2026-01-03T20:00:00.0000000Z"
+      },
+      "MediaType": "Video"
+    }
+  ],
+  "TotalRecordCount": 3
+}

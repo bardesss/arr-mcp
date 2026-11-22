@@ -40,6 +40,14 @@ export const MINIMUM_VERSIONS: Record<ServiceId, string> = {
     // `/UserItems/Resume`. 10.8 answers none of the three, so it never fully
     // worked: this floor only stops it failing halfway through.
     jellyfin: '10.9.0',
+    // 4.9.1.80 is the oldest Emby this adapter was exercised against: the
+    // fixtures come from 4.10.2.0, and every read and write was run on
+    // 4.9.1.80, 4.9.5.0 and 4.10.2.0, with captures from the two older ones
+    // differing only in fields nothing reads. It is also the first stable
+    // release whose activity log names the item a play was of: 4.8.11.0 logs
+    // a stop as `VideoPlaybackStopped` or `AudioPlaybackStopped` with no
+    // `ItemId`, which the history's log half cannot match to anything.
+    emby: '4.9.1.80',
     // Seerr forked from Overseerr in February 2026; 1.0 is its first release.
     seerr: '1.0.0',
     // output=json on the query-parameter API.

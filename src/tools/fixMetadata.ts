@@ -1,5 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
+import { MEDIA_SERVER_NAMES, type MediaServerId } from '../config/schema.ts';
 import {
     findMismatches,
     findMovieMismatches,
@@ -25,6 +26,7 @@ import {
     type BookFields,
     type BookMetadataCapable,
     type BookSearch,
+    type LockLoss,
     type MediaDetailCapable,
     type MetadataInspectCapable,
     type MetadataRepairCapable,
@@ -37,7 +39,7 @@ import { buildResolvedMediaDetails } from './getMediaDetails.ts';
 import type { LibraryLoader } from './library.ts';
 import { bothIds, byMediaServers, itemIdOn, pickMediaServer, serviceInput, withBoth, type MediaServers } from './mediaServers.ts';
 import { registerWriteTool, type WriteContext, type WritePlan } from './write.ts';
-import { titled } from '../core/labels.ts';
+import { article, episodeCode, titled } from '../core/labels.ts';
 
 /**
  * "The episode titles on these files are wrong"; the repair `trigger_scan`
@@ -52,7 +54,7 @@ import { titled } from '../core/labels.ts';
 type MediaServer = ServiceAdapter & MetadataInspectCapable & MetadataRepairCapable;
 
 const NO_MEDIA_SERVER =
-    'Metadata repair lives in the media server. Add a services.jellyfin or services.plex block to config.yaml and restart.';
+    'Metadata repair lives in the media server. Add a services.jellyfin, services.emby or services.plex block to config.yaml and restart.';
 
 const PLEX_REPAIR_OFF = {
     reason: 'Plex repair is off',
@@ -63,7 +65,7 @@ const PLEX_REPAIR_OFF = {
 const chooseServer = (servers: MediaServers, service: string | undefined, id: string | undefined): { adapter: MediaServer; identity: IdentityResolver } => {
     const named = prefixed(servers, id);
     if (service !== undefined && named !== undefined && service !== named) {
-        throw new Error(`\`id\` is a ${named} id; drop \`service\` or pass \`service: ${named}\`.`);
+        throw new Error(`\`id\` is ${article(named)} ${named} id; drop \`service\` or pass \`service: ${named}\`.`);
     }
     const chosen = pickMediaServer(servers, service ?? named);
     if (chosen === undefined || !hasMetadataInspect(chosen.adapter) || !hasMetadataRepair(chosen.adapter) || chosen.identity === undefined) {
@@ -300,13 +302,7 @@ async function applyRetag(adapter: Lidarr, bound: { artistId: string; files: num
     };
 }
 
-const serverName = (adapter: ServiceAdapter): string => (adapter.type === 'plex' ? 'Plex' : 'Jellyfin');
-
-/** Where the lock lives in each server's own UI. */
-export const unlockHow = (adapter: ServiceAdapter): string =>
-    adapter.type === 'plex'
-        ? 'Edit, then the lock icon beside the field'
-        : 'Edit metadata, then clear "Lock this item to prevent future metadata changes", or tick the field under Enabled Fields';
+const serverName = (adapter: ServiceAdapter): string => MEDIA_SERVER_NAMES[adapter.type as MediaServerId];
 
 /** Sonarr's series folders, from the library index. Empty when no Sonarr is
  *  configured or the index cannot be read. */
@@ -325,11 +321,46 @@ export async function managedFolders(loader: LibraryLoader): Promise<ManagedFold
     }
 }
 
+/** An episode as a refusal names it: by its code, else its name, else its id. */
+const episodeLabel = (e: { id: string; name: string; season?: number; episode?: number }): string => {
+    if (e.season !== undefined && e.episode !== undefined) return episodeCode(e.season, e.episode);
+    return e.name === '' ? `item ${e.id}` : e.name;
+};
+
+/**
+ * Why a locked item is not re-identified where the identify would take its
+ * locks. `item` is the whole-item lock; anything else is a field's name.
+ */
+const lockRefusal = (adapter: ServiceAdapter & MetadataInspectCapable, series: { title: string; kind: 'movie' | 'series' }, lost: LockLoss): string => {
+    const name = serverName(adapter);
+    if ('unread' in lost) {
+        return `${series.title} is not re-identified: ${name} did not report its locks, and a lock ${name}'s re-identify would clear cannot be ruled out.`;
+    }
+    const whose = series.kind === 'movie' ? "film's" : "series'";
+    const own = lost.own.map(l => (l === 'item' ? 'the item lock' : `the lock on ${l}`));
+    const n = lost.wholeLockedEpisodes.length;
+    const labels = lost.wholeLockedEpisodes
+        .slice(0, EXAMPLE_LIMIT)
+        .map(episodeLabel);
+    const episodes = `${n === 1 ? 'the episode' : `the ${n} episodes`} under it locked as a whole (${labels.join(', ')}${n > EXAMPLE_LIMIT ? `, and ${n - EXAMPLE_LIMIT} more` : ''})`;
+    const takes = [
+        ...(own.length === 0
+            ? []
+            : [`clears the ${whose} own ${own.length === 1 ? 'lock' : 'locks'} (${own.join(', ')}) and overwrites what ${own.length === 1 ? 'it protects' : 'they protect'}`]),
+        ...(n === 0 ? [] : [`drops the provider ids of ${episodes}`])
+    ];
+    const subject = own.length > 0 ? `${series.title} is locked in ${name}` : `${series.title} has ${n === 1 ? 'an episode' : `${n} episodes`} locked as a whole in ${name}`;
+    const theEpisodes = n === 1 ? 'that episode' : 'those episodes';
+    const target = own.length === 0 ? theEpisodes : n === 0 ? 'it' : `it and ${theEpisodes}`;
+    const again = (own.length > 0 ? 1 : 0) + n === 1 ? 'it' : 'them';
+    return `${subject}, so it is not re-identified: ${name}'s re-identify ${takes.join(', and ')}. Unlock ${target} first (${adapter.unlockHow}), repair, then lock ${again} again if you still want ${again} locked.`;
+};
+
 /** What to do about one media-server item that holds several Sonarr series. */
 export const mergedHow = (adapter: ServiceAdapter, titles: readonly string[]): string =>
     `This one ${serverName(adapter)} item holds the files of ${titles.length} Sonarr series (${titles.join(', ')}), so separate shows were merged into it. ` +
     'fix_metadata would re-identify it against the id it already holds and change nothing. ' +
-    (adapter.type === 'plex' ? 'Use Split on the item in Plex so each show gets its own item.' : 'Separate them in Jellyfin so each folder is its own series.');
+    (adapter.type === 'plex' ? 'Use Split on the item in Plex so each show gets its own item.' : `Separate them in ${serverName(adapter)} so each folder is its own series.`);
 
 /** How many examples ride along in the preview. Enough to recognise the
  *  pattern, few enough to read before confirming. */
@@ -634,7 +665,7 @@ const fixMetadataInput = byMediaServers(ids => z.object({
         .string()
         .optional()
         .describe(
-            "Whose view of the library to read the episodes through. Defaults to the media server's default_user[[jellyfin: ; on Jellyfin, naming anyone else needs services.jellyfin.allow_other_users]]."
+            "Whose view of the library to read the episodes through. Defaults to the media server's default_user[[jellyfin|emby: ; on {{or: jellyfin=Jellyfin; emby=Emby}}, naming anyone else needs {{or: jellyfin=services.jellyfin.allow_other_users; emby=services.emby.allow_other_users}}]]."
         ),
     isbn: z
         .string()
@@ -659,11 +690,16 @@ export function registerFixMetadata(
         name: 'fix_metadata',
         title: 'Repair wrong metadata',
         description:
-            '[[jellyfin|plex: Repairs films and series whose media-server metadata does not describe the file on disk (a file `Episode 101` shown as S1E1 with another title). Not trigger_scan, which never replaces a wrong title. Give a title as `query`, or the `id` get_metadata_issues printed. The preview lists `numbering` findings (confident) and `title` findings (advisory); a film is judged on year and title. **Destructive**: re-identifies the item against TVDB or TMDB and replaces all its metadata, hand edits included.]] [[jellyfin: Jellyfin has no undo.]] [[jellyfin|plex: Locked fields are never overwritten.]] [[sonarr: When the preview says a refresh cannot move the episodes, use trigger_scan `action: "rename"` on the Sonarr series, then a media-server rescan.]] [[jellyfin: On Jellyfin the repair holds the request open a long time: do not retry.]] [[grimmory: A Grimmory book is `grimmory:<book id>`, matched by ISBN or title and author.]] [[lidarr: For music, `id: "lidarr:<artistId>"` retags its files.]] Previews first; confirm to apply. Field reference: arr://docs/fix_metadata.' +
-            withBoth(
-                bothIds(servers),
-                'With two media servers configured, `service` picks one; it defaults to the primary, and an `id` prefixed `plex:` or `jellyfin:` picks that server.'
-            ),
+            '[[jellyfin|emby|plex: Repairs films and series whose media-server metadata does not describe the file on disk (a file `Episode 101` shown as S1E1 with another title). Not trigger_scan, which never replaces a wrong title. Give a title as `query`, or the `id` get_metadata_issues printed. The preview lists `numbering` findings (confident) and `title` findings (advisory); a film is judged on year and title. **Destructive**: re-identifies the item against TVDB or TMDB and replaces all its metadata, hand edits included.]] [[jellyfin: Jellyfin has no undo.]] [[emby: Emby has no undo.]] [[jellyfin|emby|plex: Locked fields are never overwritten.]] [[sonarr: When the preview says a refresh cannot move the episodes, use trigger_scan `action: "rename"` on the Sonarr series, then a media-server rescan.]] [[jellyfin: On Jellyfin the repair holds the request open a long time: do not retry.]] [[grimmory: A Grimmory book is `grimmory:<book id>`, matched by ISBN or title and author.]] [[lidarr: For music, `id: "lidarr:<artistId>"` retags its files.]] Previews first; confirm to apply. Field reference: arr://docs/fix_metadata.' +
+            ((ids =>
+                withBoth(
+                    ids,
+                    // Plex first, as the sentence had it with Jellyfin.
+                    `With two media servers configured, \`service\` picks one; it defaults to the primary, and an \`id\` prefixed ${(['plex', 'jellyfin', 'emby'] as const)
+                        .filter(id => ids?.includes(id) === true)
+                        .map(id => `\`${id}:\``)
+                        .join(' or ')} picks that server.`
+                ))(bothIds(servers))),
         inputSchema: fixMetadataInput(bothIds(servers)),
         // A `lidarr:` id first: that write goes to Lidarr. One that no configured
         // Lidarr matches is refused here, before the permission check reads a
@@ -798,6 +834,18 @@ export function registerFixMetadata(
             const sameMatch =
                 plexFilm && film.reasons.length === 1 && film.reasons[0] === 'year' && provider.id?.tmdbId !== undefined && serverTmdb === String(provider.id.tmdbId);
 
+            // A server whose identify takes the locks it meets (Emby) is not
+            // asked to: a lock is the user's, and only they remove it.
+            const lost = provider.id === undefined ? undefined : await adapter.identifyLockLoss?.({ itemId: series.itemId, kind: series.kind }, parts);
+            if (lost !== undefined && ('unread' in lost || lost.own.length > 0 || lost.wholeLockedEpisodes.length > 0)) {
+                return {
+                    target,
+                    summary: lockRefusal(adapter, series, lost),
+                    effects: mismatches.slice(0, EXAMPLE_LIMIT).map(m => describe(m, adapter.id)),
+                    noop: true
+                };
+            }
+
             return {
                 target,
                 summary:
@@ -829,7 +877,7 @@ export function registerFixMetadata(
                     ...(locked === 0
                         ? []
                         : [
-                              `${locked === mismatches.length ? 'Every' : `${locked} of the ${mismatches.length}`} disagreeing ${film === undefined ? 'episodes have their' : 'film has its'} field locked in ${serverName(adapter)}. ${adapter.type === 'plex' ? 'Fix Match and a refresh never overwrite' : 'A refresh never overwrites'} a locked field, so unlock it on the item first (${unlockHow(adapter)}).`
+                              `${locked === mismatches.length ? 'Every' : `${locked} of the ${mismatches.length}`} disagreeing ${film === undefined ? 'episodes have their' : 'film has its'} field locked in ${serverName(adapter)}. ${adapter.type === 'plex' ? 'Fix Match and a refresh never overwrite' : 'A refresh never overwrites'} a locked field, so unlock it on the item first (${adapter.unlockHow}).`
                           ]),
                     ...(pinned === 0
                         ? []
@@ -1022,9 +1070,9 @@ ${note}`;
              * Whether an unchanged count is a failure depends on which call ran.
              * On Jellyfin the identify path finishes the refresh before it
              * answers, so its result is final and an unchanged count means it
-             * genuinely did nothing. A queued refresh (Jellyfin's plain one, and
-             * Plex's always) has no done signal, so it gets the wait above and an
-             * honest "not verified" when that runs out.
+             * genuinely did nothing. A queued refresh (Jellyfin's plain one,
+             * and Emby's and Plex's always) has no done signal, so it gets the
+             * wait above and an honest "not verified" when that runs out.
              */
             return {
                 mismatchesBefore: b,

@@ -28,9 +28,10 @@ services:
     password: "…"
 ```
 
-All nineteen service ids: `radarr`, `sonarr`, `whisparr`, `lidarr`, `prowlarr`, `bazarr`,
-`jellyfin`, `seerr`, `sabnzbd`, `nzbget`, `transmission`, `qbittorrent`, `plex`,
-`profilarr`, `cleanuparr`, `reclaimerr`, `dispatcharr`, `shelfmark`, `grimmory`. Configure only what you run. Running both torrent
+All twenty service ids: `radarr`, `sonarr`, `whisparr`, `lidarr`, `prowlarr`,
+`bazarr`, `jellyfin`, `emby`, `seerr`, `sabnzbd`, `nzbget`, `transmission`,
+`qbittorrent`, `plex`, `profilarr`, `cleanuparr`, `reclaimerr`, `dispatcharr`,
+`shelfmark`, `grimmory`. Configure only what you run. Running both torrent
 clients at once is supported; their queues merge, each item labelled with the
 client it came from.
 
@@ -117,11 +118,11 @@ in a browser; a trailing slash makes no difference.
 If the proxy asks for a username and password, put them in the URL:
 `http://user:pass@192.168.1.20:6767/bazarr`. They go out as a Basic
 `Authorization` header, not in the address. Services that send their own
-`Authorization` header (Jellyfin, Grimmory, and Transmission with a username
-set) keep theirs, so this can't stack with those. Percent-encode `@`, `:` or
-`%` itself (as `%25`) in either part. The config page shows the URL without them, and
-saving that URL unchanged keeps them; to change them, type a URL that has
-its own `user:pass@`.
+`Authorization` header (Jellyfin, Emby, Grimmory, and Transmission with a
+username set) keep theirs, so this can't stack with those. Percent-encode `@`,
+`:` or `%` itself (as `%25`) in either part. The config page shows the URL
+without them, and saving that URL unchanged keeps them; to change them, type a
+URL that has its own `user:pass@`.
 
 A redirect from `http` to `https` on the same host (port 443 or the same port)
 is followed, as a proxy upgrading to TLS does. Any other redirect to a different
@@ -140,6 +141,32 @@ Omitting `default_user` is supported: the service still appears in
 `get_stack_health`, and `get_library` returns the Radarr and Sonarr halves with
 Jellyfin marked degraded and a note naming the key. Leaving `jellyfin` out
 entirely is also fine; those tools then work from Radarr and Sonarr alone.
+
+## Emby
+
+```yaml
+services:
+  emby:
+    url: http://192.168.1.20:8096
+    api_key: "…"           # Manage Emby Server → Advanced → Api Keys
+    default_user: "you"    # optional, as on Jellyfin
+```
+
+Emby goes through the same adapter as Jellyfin, so `default_user` and
+`allow_other_users` work as above, and every tool that reads or writes Jellyfin
+does the same on Emby. Emby 4.9.1.80 is the minimum: it was tested on 4.9.1.80,
+4.9.5.0 and 4.10.2.0, and 4.8.11.0, the last 4.8 release, logs a play with no
+item id, which the watch history needs. Where the two differ, the tools say so:
+
+- An Emby item id is a whole number (`12`), not 32 hex characters, so
+  `set_watched` cannot tell one from a Radarr or Sonarr id and refuse it, as it
+  does on Jellyfin. Its preview names the item: check it.
+- Emby's `fix_metadata` repair answers at once and rebuilds the item
+  afterwards, so applying waits up to 30 seconds for the result to settle.
+  Emby's re-identify clears the locks of the film or series it re-identifies,
+  so a film or series with a lock of its own, or with an episode locked as a
+  whole, is not repaired until you unlock it. See
+  [`fix_metadata`](tools.md#fix_metadata).
 
 ## Plex
 
@@ -172,12 +199,12 @@ services:
       destructive: true
 ```
 
-Jellyfin needs no such setting, and `allow_metadata_repair` on any other service
-is refused at startup. The Plex card
+Jellyfin and Emby need no such setting, and `allow_metadata_repair` on any other
+service is refused at startup. The Plex card
 on the config page has a checkbox for it. See
 [Repairing on Plex](tools.md#repairing-on-plex).
 
-`default_user` behaves differently here than on Jellyfin. A local
+`default_user` behaves differently here than on Jellyfin and Emby. A local
 `X-Plex-Token` is scoped to one account, so arr-mcp asks the server for the owner's name and **matches your `default_user`
 against it** rather than taking your value as the user to query. Set it to
 anything else and the per-user tools fail, naming the one user they do know:
@@ -195,13 +222,14 @@ So on Plex `default_user` is optional. Leave it out and the per-user tools use
 the owner `/accounts` names. You only need it when the server won't name the
 owner.
 
-## Plex and Jellyfin together
+## Two media servers
 
-Both can be configured. One is the primary and answers as it always has; the
-other is the secondary. Say which in a top-level setting:
+Two of Jellyfin, Emby and Plex can be configured; all three is refused at
+startup. One is the primary and answers as it always has; the other is the
+secondary. Say which in a top-level setting:
 
 ```yaml
-primary_media_server: jellyfin   # or plex
+primary_media_server: jellyfin   # or plex, or emby when that is one of the two
 services:
   jellyfin:
     url: http://192.168.1.20:8096
@@ -223,10 +251,13 @@ sets it for you: adding the second server keeps the existing one primary.
 [`get_library`](tools.md#which-media-server-has-it).
 
 Each server keeps its own `default_user`, and the secondary is read as that
-user. A Plex secondary with none is read as the token's owner. A Jellyfin
-secondary with none, or either one with a `default_user` that matches nobody, is
-not read, and `get_library` says so in its `note`. Jellyfin's
+user. A Plex secondary with none is read as the token's owner. A Jellyfin or
+Emby secondary with none, or either one with a `default_user` that matches
+nobody, is not read, and `get_library` says so in its `note`.
 `allow_other_users` and Plex's `allow_metadata_repair` stay on their own blocks.
+
+`set_watched` writes to one of the two: the primary when it is Jellyfin or
+Emby, else the secondary. Plex watch state is never written.
 
 ## Lidarr
 
@@ -558,8 +589,8 @@ which instance you meant. See [writes](writes.md#with-more-than-one-instance-wri
 **Permissions are per instance**: each entry carries its own `permissions`
 block.
 
-**Ten services stay single.** Jellyfin and Plex because each is one server
-([running both](#plex-and-jellyfin-together) is a different thing). Seerr
+**Eleven services stay single.** Jellyfin, Emby and Plex because each is one
+server ([running two](#two-media-servers) is a different thing). Seerr
 because a request carries the identity of the person who made it. Whisparr
 because the one deployment that wants two is V2 beside V3 (Eros), and Eros is a
 different API with no adapter. Profilarr because it owns profile config.
@@ -852,7 +883,7 @@ still gets a `401` during an outage, because no retry would help it.
 
 ### `allow_other_users`
 
-On Jellyfin and Seerr, one admin-scoped API key can answer for anybody, so
+On Jellyfin, Emby and Seerr, one admin-scoped API key can answer for anybody, so
 `allow_other_users` decides whether this server will deal in anyone's data but
 `default_user`'s. It governs reading (whose watch state, whose requests) and
 also whether `respond_to_request` and `delete_request` may act on a request

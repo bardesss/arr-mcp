@@ -1,0 +1,24 @@
+{
+  "Items": [
+    {
+      "Name": "Frédéric Chopin",
+      "ServerId": "00000000000000000000000000000001",
+      "Id": "135",
+      "RunTimeTicks": 4839600000,
+      "ProviderIds": {
+        "DiscogsArtist": "192325",
+        "MusicBrainzArtist": "09ff1fe8-d61c-4b98-bb82-18487c74d7b7",
+        "AudioDbArtist": "114280"
+      },
+      "IsFolder": true,
+      "Type": "MusicArtist",
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 0,
+        "IsFavorite": false,
+        "Played": false
+      }
+    }
+  ],
+  "TotalRecordCount": 1
+}

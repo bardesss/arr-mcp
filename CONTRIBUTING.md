@@ -266,11 +266,11 @@ service in no slot at all is a different product.
 
   **The design constraint.** Music sits in the merged index as its own `kind`,
   `artist`, and joins because its identity is a MusicBrainz MBID: a GUID, where
-  films and series key on integer TMDB, TVDB and IMDb ids. Jellyfin publishes the
-  same GUID on an album artist and Plex on an artist in a music section, so the
-  join works, and it is namespaced by kind, so an MBID can never collide with
-  the integer spaces. `get_media_details` answers for an artist by Lidarr id,
-  and refuses one asked for by title, naming `get_media_details` with
+  films and series key on integer TMDB, TVDB and IMDb ids. Jellyfin and Emby
+  publish the same GUID on an album artist and Plex on an artist in a music
+  section, so the join works, and it is namespaced by kind, so an MBID can never
+  collide with the integer spaces. `get_media_details` answers for an artist by
+  Lidarr id, and refuses one asked for by title, naming `get_media_details` with
   `detail: "full"` for the albums and `get_library`'s `kind: "artist"` for the
   artist list, rather than reporting it as absent. `diagnose_media` walks an artist,
   by name or by Lidarr id. `fix_metadata` repairs an artist's music by
@@ -302,9 +302,6 @@ service in no slot at all is a different product.
 
 **Imported and played: the library a person opens**
 
-- **Emby** ([#500](../../issues/500)). Jellyfin's ancestor, near-identical API, and therefore the cheapest
-  adapter on this list, plausibly a variant of the Jellyfin one rather than a
-  new file.
 - **Plex: more testers.** The adapter has shipped. Its nine read endpoints
   were captured from a volunteer's live 1.43.3.10896 and are contracted in
   `test/contract.test.ts`; `trigger_scan` and `fix_metadata` have run on live
@@ -430,11 +427,12 @@ around them.
    `src/services/sonarr.ts` is the simplest example; `src/services/transmission.ts`
    and `src/services/qbittorrent.ts` are the most unusual.
    A media server implements `PlaybackCapable`, `UserLibraryCapable` and
-   `UserDirectoryCapable` (together `MediaServerAdapter`) and exactly one may
-   be configured, because `get_library`'s `presence` join needs a single
+   `UserDirectoryCapable` (together `MediaServerAdapter`). At most two may be
+   configured, and with two `primary_media_server` names the one
+   `get_library`'s `presence` join reads, because that join needs a single
    counterparty.
 6. **Decide whether it can be configured twice**, and say so in the adapter.
-   Nine of the nineteen services can be. Copying `jellyfin.ts` gets you
+   Nine of the twenty services can be. Copying `plex.ts` gets you
    `readonly id: string = '<type>'`, the *single*-instance shape, which fails
    closed if wrong. Making it multi-instance is four moves:
 
@@ -492,10 +490,10 @@ tasks whose names contain "Refresh", only one of which is the library scan, and
 Jellyfin's task names are localised (a Dutch server returns "Mediabibliotheek
 scannen").
 
-Eight of the nineteen services publish no usable OpenAPI spec, and two more
-have hand-written adapters anyway, so the adapter
-interface is defined by us and must stay hand-writable. Code generation is an
-implementation detail inside an adapter, never the shape of the contract.
+Eight of the twenty services publish no usable OpenAPI spec, and three more have
+hand-written adapters anyway, so the adapter interface is defined by us and must
+stay hand-writable. Code generation is an implementation detail inside an
+adapter, never the shape of the contract.
 
 A spec-less service has nothing for the nightly drift job to fetch: its
 contract is the fields declared in `test/contract.test.ts`, checked against
@@ -594,7 +592,9 @@ OpenAPI only at runtime (`/api/swagger.json`), with nothing committed for the
 nightly check to fetch, so its adapter is hand-written against fixtures
 captured from 0.33.0 and pins the minor it was written for instead. Shelfmark
 publishes no spec, only a written API page, and is hand-written against fixtures
-captured from v1.6.1.
+captured from v1.6.1. Emby serves its swagger only from the running server, so
+its dialect of the Jellyfin adapter is contracted against fixtures captured
+from 4.10.2.0.
 
 ### The nightly compatibility check
 
@@ -607,8 +607,8 @@ mapper. A red run means either; the PR body names the failing entries.
 
 The PR is opened with the default `GITHUB_TOKEN`, which GitHub refuses to let
 trigger other workflows, so it arrives with no status checks. Close and reopen
-it to run CI. The eight hand-written services are invisible to this check: only a
-live call catches their drift.
+it to run CI. The eleven hand-written services are invisible to this check: only
+a live call catches their drift.
 
 Two things worth knowing before you touch this:
 

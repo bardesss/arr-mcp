@@ -65,7 +65,7 @@ describe('external ids — the join with Radarr and Sonarr', () => {
         expect(externalIds({ guid: 'plex://movie/5d7768ba' })).toEqual({});
     });
 
-    // The trap jellyfin.ts numericId and seerr.ts yearOf both document:
+    // The trap mediaBrowser.ts numericId and seerr.ts yearOf both document:
     // Number('') is 0 and passes Number.isFinite, so an empty id joined against
     // every other item missing one.
     it('never produces a zero id from an empty value', () => {

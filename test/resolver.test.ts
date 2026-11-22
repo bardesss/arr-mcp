@@ -10,7 +10,7 @@ import {
 import { unfenced } from '../src/core/titleMatch.ts';
 
 // Production adapters fence every title before it reaches the resolver
-// (radarr.ts and sonarr.ts write it as `<service>.title`, jellyfin.ts as
+// (radarr.ts and sonarr.ts write it as `<service>.title`, mediaBrowser.ts as
 // `jellyfin.Name`) — bare-string fixtures are what let the search tiebreak
 // bug (fixed alongside these factories) hide from every existing test.
 // These factories fence too, so the merge and search tests below exercise

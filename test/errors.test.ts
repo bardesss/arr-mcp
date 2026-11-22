@@ -87,7 +87,7 @@ describe('classifyHttpStatus', () => {
     });
 
     it('gives the missing-item remedy when the id is in the middle of the path, not just the end', () => {
-        // Real Jellyfin path used by get_playback (jellyfin.ts):
+        // Real media-server path used by get_playback (Emby's, in emby.ts):
         // `/Users/${userId}/Items/Resume` — the id sits between two words, and
         // the trailing segment ("Resume") looks exactly like a collection.
         // Classifying on the last segment alone would blame the base URL for

@@ -100,6 +100,22 @@ export const CATALOG: readonly CatalogEntry[] = [
         }
     },
     {
+        type: 'emby',
+        port: 8096,
+        containerNames: ['embyserver', 'emby'],
+        path: '/System/Info/Public',
+        // Jellyfin's port and path. Emby (4.8.11.0 to 4.10.2.0) sends no
+        // `ProductName` and lists its addresses in `LocalAddresses` and
+        // `RemoteAddresses`, where Jellyfin's answer has `ProductName` and a
+        // single `LocalAddress`.
+        identify: r => {
+            const o = jsonObject(r);
+            return o !== undefined && o.ProductName === undefined && Array.isArray(o.LocalAddresses) && Array.isArray(o.RemoteAddresses) && nonEmptyString(o.Version)
+                ? matched(o.Version)
+                : undefined;
+        }
+    },
+    {
         type: 'plex',
         port: 32400,
         containerNames: ['plex'],

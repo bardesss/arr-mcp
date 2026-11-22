@@ -69,7 +69,7 @@ on every load. The sign-in page is a normal login form.
 <img src="../screenshots/config-dark.png" alt="The configuration page: one card per configured instance, with its URL, credentials and per-instance write permissions" width="880">
 
 **The page starts empty.** It shows a card per instance you have actually
-configured, in alphabetical order, and an **Add a service** button, not nineteen
+configured, in alphabetical order, and an **Add a service** button, not twenty
 blank fieldsets for services you do not run. Each card saves on its own, so
 editing your 4K Radarr cannot disturb the HD one. A card saves its whole form,
 so if the config changed after the page loaded (through the management API,
@@ -84,12 +84,13 @@ checkboxes, only a note that arr-mcp never writes to them. Services that can onl
 once you have that one. With scripting off the dialog is a plain form with
 every field showing, and the server still refuses what does not make sense.
 
-**Plex and Jellyfin can both be added.** The dialog offers the second media
-server once you have the first, and adding it keeps the existing one as the
-primary. With both configured a **Media servers** card appears with a **Primary**
-selector, the one every tool reads by default. The other still answers when a
-tool is given its name. Removing one of the two drops the setting. See
-[Plex and Jellyfin together](configuration.md#plex-and-jellyfin-together).
+**Two media servers can be added**, of Jellyfin, Emby and Plex. The dialog
+offers a second media server once you have the first, and adding it keeps the
+existing one as the primary. With two configured it offers no third. A
+**Media servers** card appears with a **Primary** selector, the one every tool
+reads by default. The other still answers when a tool is given its name.
+Removing one of the two drops the setting. See
+[Two media servers](configuration.md#two-media-servers).
 
 **Test** tries the URL and key *as they are on screen*, saved or not, and tells
 you what came back: reachable and how fast, or what is wrong and what to do
@@ -99,10 +100,10 @@ before it is added at all, and on every card, where a blank key still means
 unchanged, so testing a card you have not touched tests what is already
 configured.
 
-**Jellyfin and Seerr suggest their own users.** The default-user field offers
-the service's real user list, fetched just after the page loads. Without scripting,
-or if the service does not answer, the field stays a plain text box and says
-so, so you can still configure a service that is down.
+**Jellyfin, Emby and Seerr suggest their own users.** The default-user field
+offers the service's real user list, fetched just after the page loads. Without
+scripting, or if the service does not answer, the field stays a plain text box
+and says so, so you can still configure a service that is down.
 
 Adding a second instance of a service that takes several asks you to name the
 one you already have, and says why: the name becomes part of the id, and that id

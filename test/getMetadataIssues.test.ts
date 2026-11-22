@@ -106,6 +106,23 @@ describe('get_metadata_issues', () => {
         expect(result.items[0]).toMatchObject({ remedy: 'refresh_metadata', mismatches: 1, pinned: 0 });
         expect(result.items[0]?.fix).toContain('fix_metadata');
         expect(result.items[0]?.fix).not.toContain('allow_metadata_repair');
+        expect(result.items[0]?.fix).not.toContain('On Emby');
+    });
+
+    /** fix_metadata refuses a locked item where the re-identify clears locks, which this read cannot always see. */
+    it('says on Emby that the repair is refused while the item is locked', async () => {
+        const emby = {
+            ...adapterWith({ DTF: [healthy(1), unmatched(4)] }),
+            id: 'emby',
+            type: 'emby',
+            repairMetadata: async () => ({ settled: false }),
+            identifyClearsLocks: true
+        } as ServiceAdapter;
+        const result = await sweep(emby);
+        expect(result.items[0]?.remedy).toBe('refresh_metadata');
+        expect(result.items[0]?.fix).toBe(
+            'fix_metadata: the server holds nothing of its own here, or matched the wrong thing, and re-identifying re-derives it. On Emby, fix_metadata refuses an item with a lock of its own, or with an episode under it locked as a whole: unlock it first.'
+        );
     });
 
     /**

@@ -1,4 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/server';
+import { MEDIA_SERVER_NAMES, type MediaServerId } from '../config/schema.ts';
 import {
     findMismatches,
     findMovieMismatches,
@@ -19,9 +20,17 @@ import type { IdentityResolver } from '../core/identity.ts';
 import type { PermissionSource } from '../core/permissions.ts';
 import { unfenced } from '../core/titleMatch.ts';
 import { DetailSchema, LimitSchema, OffsetSchema, PagedOutputSchema, READ_ONLY, applyLimit, listText, toolInput, type DetailLevel } from '../core/shape.ts';
-import { hasMetadataInspect, hasUserLibrary, type BookMetadataIssueCapable, type ServiceAdapter, type ServiceUser } from '../services/types.ts';
+import {
+    hasMetadataInspect,
+    hasMetadataRepair,
+    hasUserLibrary,
+    type BookMetadataIssueCapable,
+    type MetadataInspectCapable,
+    type ServiceAdapter,
+    type ServiceUser
+} from '../services/types.ts';
 import { bothIds, byMediaServers, pickMediaServer, serviceInput, withBoth, type MediaServers } from './mediaServers.ts';
-import { managedFolders, mergedHow, plexRepairAllowed, unlockHow, withLocks } from './fixMetadata.ts';
+import { managedFolders, mergedHow, plexRepairAllowed, withLocks } from './fixMetadata.ts';
 import type { LibraryLoader } from './library.ts';
 import { BOOK_MATCH_THRESHOLD } from '../services/grimmory.ts';
 
@@ -119,12 +128,22 @@ const FIX: Record<Remedy, string> = {
 const FILM_YEAR_INSPECT =
     "Look before acting: Plex already matched this film, and a repair re-matches it to the same id while the Plex Movie agent keeps Plex's own year, so fix_metadata is not expected to change it. Check the year in Radarr and the file name; if Plex matched a different film of the same name, use Fix Match in Plex.";
 
-const fixFor = (remedy: Remedy, adapter: ServiceAdapter, repairAllowed: boolean): string =>
+/**
+ * Where the re-identify clears the locks it meets (Emby), fix_metadata checks
+ * the locks this read does not all see (a series' own, a lock on a field other
+ * than the title) and refuses rather than take them.
+ */
+const locksRefused = (server: string): string =>
+    ` On ${server}, fix_metadata refuses an item with a lock of its own, or with an episode under it locked as a whole: unlock it first.`;
+
+const fixFor = (remedy: Remedy, adapter: ServiceAdapter & MetadataInspectCapable, repairAllowed: boolean): string =>
     remedy === 'refresh_metadata' && adapter.type === 'plex' && !repairAllowed
         ? `${FIX[remedy]} The repair is off on this Plex until services.plex.allow_metadata_repair is set.`
         : remedy === 'unlock_fields'
-          ? `${FIX[remedy]} To unlock: ${unlockHow(adapter)}.`
-          : FIX[remedy];
+          ? `${FIX[remedy]} To unlock: ${adapter.unlockHow}.`
+          : remedy === 'refresh_metadata' && hasMetadataRepair(adapter) && adapter.identifyClearsLocks === true
+            ? `${FIX[remedy]}${locksRefused(MEDIA_SERVER_NAMES[adapter.type as MediaServerId])}`
+            : FIX[remedy];
 
 /** Said on the row, because these are the findings a rematch was measured not to fix. */
 const advisoryNote = (v: { shifted: number; specials: number; languages: number }): string =>

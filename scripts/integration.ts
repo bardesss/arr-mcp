@@ -739,7 +739,7 @@ if ('lidarr' in (config.services ?? {})) {
  * trigger_scan and trigger_subtitle_search, dry run only — a real scan costs a
  * maintainer disk I/O on every run, and a real subtitle search hits providers.
  */
-const scannable = ['jellyfin', 'radarr', 'sonarr', 'whisparr'].find(id => id in (config.services ?? {}));
+const scannable = ['jellyfin', 'emby', 'radarr', 'sonarr', 'whisparr'].find(id => id in (config.services ?? {}));
 
 if (scannable === undefined) {
     console.log('SKIP trigger_scan — no service with a library to scan is configured.');
@@ -919,22 +919,26 @@ if (floorFinding === undefined) {
 }
 
 /**
- * set_watched needs a **Jellyfin** item id, which is exactly the constraint
- * the tool exists to enforce — so it is driven off get_playback's `itemId`,
- * the place its own description sends a caller.
+ * set_watched needs the media server's own item id (Jellyfin's or Emby's),
+ * which is exactly the constraint the tool exists to enforce, so it is driven
+ * off get_playback's `itemId`, the place its own description sends a caller.
  */
 const playing = (playbackResult?.structuredContent as { items?: unknown[] } | undefined)?.items?.[0] as
     | { itemId?: unknown }
     | undefined;
 
-// Falls back to a Jellyfin search hit, whose `id` is the same item id — a
-// stack with nothing currently playing is the normal case, and skipping the
-// tool every time on a healthy stack is coverage that never runs.
-const jellyfinHit = ((searchResult?.structuredContent as { items?: unknown[] } | undefined)?.items ?? []).find(
-    (h): h is { service: string; id: string } =>
-        (h as SearchHitLike).service === 'jellyfin' && typeof (h as SearchHitLike).id === 'string'
+// Falls back to a search hit from the same server, whose `id` is the same
+// item id: a stack with nothing currently playing is the normal case, and
+// skipping the tool every time on a healthy stack is coverage that never runs.
+// The server set_watched writes to: the primary when it keeps watch state.
+const watchServer = [config.primary_media_server, 'jellyfin', 'emby'].find(
+    id => (id === 'jellyfin' || id === 'emby') && id in (config.services ?? {})
 );
-const watchableId = typeof playing?.itemId === 'string' ? playing.itemId : jellyfinHit?.id;
+const serverHit = ((searchResult?.structuredContent as { items?: unknown[] } | undefined)?.items ?? []).find(
+    (h): h is { service: string; id: string } =>
+        (h as SearchHitLike).service === watchServer && typeof (h as SearchHitLike).id === 'string'
+);
+const watchableId = typeof playing?.itemId === 'string' ? playing.itemId : serverHit?.id;
 
 if (watchableId !== undefined) {
     await run(
@@ -943,15 +947,25 @@ if (watchableId !== undefined) {
         'DRY RUN ONLY — never applied from this script'
     );
     // The refusal that is the whole reason this tool validates ids: a Radarr
-    // id here has to name where a real one comes from, not 404.
-    await expectError(
-        'set_watched',
-        { item_id: '12', watched: true, dry_run: true },
-        /get_playback/,
-        'a Radarr-shaped id is refused, naming where a Jellyfin one comes from'
-    );
+    // id here has to name where a real one comes from, not 404. Emby's ids
+    // are whole numbers too, so there `12` may be a real item.
+    if (watchServer === 'jellyfin') {
+        await expectError(
+            'set_watched',
+            { item_id: '12', watched: true, dry_run: true },
+            /get_playback/,
+            'a Radarr-shaped id is refused, naming where a Jellyfin one comes from'
+        );
+    } else {
+        await expectError(
+            'set_watched',
+            { item_id: 'not-an-id', watched: true, dry_run: true },
+            /get_playback/,
+            'a malformed id is refused, naming where an Emby one comes from'
+        );
+    }
 } else {
-    console.log('SKIP set_watched — neither get_playback nor search_media returned a Jellyfin item id.');
+    console.log('SKIP set_watched — neither get_playback nor search_media returned a media server item id.');
 }
 
 /**

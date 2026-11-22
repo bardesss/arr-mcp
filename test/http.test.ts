@@ -263,7 +263,7 @@ describe('ServiceHttp with credentials in the url', () => {
 
     it("lets the service's own Authorization header win", async () => {
         let seenAuth: string | null = null;
-        await withUserinfo(embyToken('k'))(async (_input: string, init?: RequestInit) => {
+        await withUserinfo(embyToken('k', 'Dashboard → API Keys in Jellyfin'))(async (_input: string, init?: RequestInit) => {
             seenAuth = new Headers(init?.headers).get('Authorization');
             return json({});
         }).get('/System/Info');

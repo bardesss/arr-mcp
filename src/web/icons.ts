@@ -46,6 +46,10 @@ export const ICONS: Record<ServiceId, string> = {
             '<path d="M6.5 11.5h4M13.5 11.5h4"/>'
     ),
     jellyfin: draw('<rect x="3" y="3" width="18" height="18" rx="3"/><path d="m10 8.5 6 3.5-6 3.5z"/>'),
+    // A play button on a stand: a media server again, and Jellyfin's square and
+    // Plex's tall shelf are taken, so the outline is the round one, with a line
+    // under it for the box it runs on. Not Emby's own mark, which is a brand.
+    emby: draw('<circle cx="12" cy="11" r="8"/><path d="m10 7.5 5 3.5-5 3.5z"/><path d="M8 21.5h8"/>'),
     // Jellyfin is a screen mid-playback; this one is the server behind it, a
     // library you browse (the two lines) over a title you play (the triangle),
     // split by one shelf. Not Plex's arc-and-triangle mark, which this avoids.

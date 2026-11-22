@@ -1,0 +1,164 @@
+{
+  "Items": [
+    {
+      "Id": 27,
+      "Name": "User 2 is playing Plan 9 from Outer Space on test-player",
+      "Type": "playback.start",
+      "ItemId": "10",
+      "Date": "2024-01-02T13:11:58.309Z",
+      "UserId": "2",
+      "Severity": "Info"
+    },
+    {
+      "Id": 26,
+      "Name": "Fixture message 2",
+      "Type": "user.authenticated",
+      "Date": "2024-01-02T13:11:58.257Z",
+      "UserId": "2",
+      "Severity": "Info"
+    },
+    {
+      "Id": 25,
+      "Name": "User 2 has finished playing Plan 9 from Outer Space on test-player",
+      "Type": "playback.stop",
+      "ItemId": "10",
+      "Date": "2024-01-02T13:11:13.524Z",
+      "UserId": "2",
+      "Severity": "Info"
+    },
+    {
+      "Id": 24,
+      "Name": "Fixture message 4",
+      "Type": "user.authenticated",
+      "Date": "2024-01-02T13:11:13.474Z",
+      "UserId": "2",
+      "Severity": "Info"
+    },
+    {
+      "Id": 23,
+      "Name": "User 2 is playing Plan 9 from Outer Space on test-player",
+      "Type": "playback.start",
+      "ItemId": "10",
+      "Date": "2024-01-02T13:11:12.896Z",
+      "UserId": "2",
+      "Severity": "Info"
+    },
+    {
+      "Id": 22,
+      "Name": "Fixture message 6",
+      "Type": "user.authenticated",
+      "Date": "2024-01-02T13:11:12.845Z",
+      "UserId": "2",
+      "Severity": "Info"
+    },
+    {
+      "Id": 21,
+      "Name": "User 2 has finished playing One Step Beyond - S1, Ep1 - The Bride Possessed on test-player",
+      "Type": "playback.stop",
+      "ItemId": "17",
+      "Date": "2024-01-02T13:01:13.558Z",
+      "UserId": "2",
+      "Severity": "Info"
+    },
+    {
+      "Id": 20,
+      "Name": "User 2 is playing One Step Beyond - S1, Ep1 - The Bride Possessed on test-player",
+      "Type": "playback.start",
+      "ItemId": "17",
+      "Date": "2024-01-02T13:01:13.507Z",
+      "UserId": "2",
+      "Severity": "Info"
+    },
+    {
+      "Id": 19,
+      "Name": "User 2 has finished playing Night of the Living Dead on test-player",
+      "Type": "playback.stop",
+      "ItemId": "11",
+      "Date": "2024-01-02T13:01:13.456Z",
+      "UserId": "2",
+      "Severity": "Info"
+    },
+    {
+      "Id": 18,
+      "Name": "User 2 is playing Night of the Living Dead on test-player",
+      "Type": "playback.start",
+      "ItemId": "11",
+      "Date": "2024-01-02T13:01:13.380Z",
+      "UserId": "2",
+      "Severity": "Info"
+    },
+    {
+      "Id": 17,
+      "Name": "Fixture message 11",
+      "Type": "user.authenticated",
+      "Date": "2024-01-02T13:01:13.130Z",
+      "UserId": "2",
+      "Severity": "Info"
+    },
+    {
+      "Id": 16,
+      "Name": "Fixture message 12",
+      "Type": "user.policyupdated",
+      "Date": "2024-01-02T12:33:30.269Z",
+      "UserId": "2",
+      "Severity": "Info"
+    },
+    {
+      "Id": 15,
+      "Name": "Fixture message 13",
+      "Type": "user.authenticated",
+      "Date": "2024-01-02T12:33:30.218Z",
+      "UserId": "2",
+      "Severity": "Info"
+    },
+    {
+      "Id": 14,
+      "Name": "Fixture message 14",
+      "Type": "user.passwordchanged",
+      "Date": "2024-01-02T12:33:30.167Z",
+      "UserId": "2",
+      "Severity": "Info"
+    },
+    {
+      "Id": 13,
+      "Name": "Fixture message 15",
+      "Type": "user.created",
+      "Date": "2024-01-02T12:33:30.114Z",
+      "UserId": "2",
+      "Severity": "Info"
+    },
+    {
+      "Id": 12,
+      "Name": "Fixture message 16",
+      "Type": "user.authenticated",
+      "Date": "2024-01-02T12:33:29.904Z",
+      "UserId": "1",
+      "Severity": "Info"
+    },
+    {
+      "Id": 11,
+      "Name": "Fixture message 17",
+      "Type": "user.authenticated",
+      "Date": "2024-01-02T12:33:18.826Z",
+      "UserId": "1",
+      "Severity": "Info"
+    },
+    {
+      "Id": 10,
+      "Name": "Fixture message 18",
+      "Type": "user.policyupdated",
+      "Date": "2024-01-02T12:33:18.770Z",
+      "UserId": "1",
+      "Severity": "Info"
+    },
+    {
+      "Id": 9,
+      "Name": "Fixture message 19",
+      "Type": "user.passwordchanged",
+      "Date": "2024-01-02T12:29:15.799Z",
+      "UserId": "1",
+      "Severity": "Info"
+    }
+  ],
+  "TotalRecordCount": 19
+}

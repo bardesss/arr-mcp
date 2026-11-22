@@ -1,6 +1,7 @@
 import { DOWNLOAD_CLIENTS, type ServiceId } from '../../config/schema.ts';
 import { servicesOnly } from '../../core/gather.ts';
 import { instantOf } from '../../core/instant.ts';
+import { article } from '../../core/labels.ts';
 import type { NextStep } from '../../core/nextStep.ts';
 import { unfenced } from '../../core/titleMatch.ts';
 import { ARR_KIND, ARR_NAMES, SEERR_ARR, seerrMediaType, type MergedItem } from '../../core/resolver.ts';
@@ -1242,7 +1243,7 @@ const REMEDIES: Partial<Record<Stage, string>> = {
 export const indexerKey = (service: string, id: number | string): string => `${service}\n${id}`;
 const rejectionKey = (r: IndexerRejection): string => indexerKey(r.service, r.indexerId ?? `name:${r.indexer}`);
 
-/** The ids that make an item a film or a series: no music item carries them (`jellyfin.ts`, `plex.ts`). */
+/** The ids that make an item a film or a series: no music item carries them (`mediaBrowser.ts`, `plex.ts`). */
 const FILM_OR_SERIES_IDS = ['tmdb', 'tvdb', 'imdb'] as const;
 
 /**
@@ -1285,7 +1286,7 @@ function managedRemedy(ev: Evidence, item: MergedItem, step: Step, unreadArrs: r
  *  blocking `library`/`scan` step has proven `ev.mediaServer` is set. */
 function libraryRemedy(stage: 'library' | 'scan', server: string): string {
     return stage === 'library'
-        ? `Trigger a ${server} library scan. If it still does not appear, check the path is inside a ${server} library and readable by it.`
+        ? `Trigger ${article(server)} ${server} library scan. If it still does not appear, check the path is inside ${article(server)} ${server} library and readable by it.`
         : `Wait for the running scan, or start one from ${server}’s dashboard.`;
 }
 

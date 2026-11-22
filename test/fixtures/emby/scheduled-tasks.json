@@ -1,0 +1,370 @@
+[
+  {
+    "Name": "Cache file cleanup",
+    "State": "Idle",
+    "Id": "00000000000000000000000000000004",
+    "Triggers": [
+      {
+        "Type": "IntervalTrigger",
+        "IntervalTicks": 864000000000
+      }
+    ],
+    "Description": "Deletes cache files no longer needed by the system",
+    "Category": "Maintenance",
+    "IsHidden": true,
+    "Key": "DeleteCacheFiles"
+  },
+  {
+    "Name": "Check for application updates",
+    "State": "Idle",
+    "Id": "00000000000000000000000000000005",
+    "LastExecutionResult": {
+      "StartTimeUtc": "2024-01-02T12:15:19.691Z",
+      "EndTimeUtc": "2024-01-02T12:15:20.691Z",
+      "Status": "Completed",
+      "Name": "Check for application updates",
+      "Key": "SystemUpdateTask",
+      "Id": "00000000000000000000000000000005"
+    },
+    "Triggers": [
+      {
+        "Type": "StartupTrigger"
+      },
+      {
+        "Type": "IntervalTrigger",
+        "IntervalTicks": 864000000000
+      }
+    ],
+    "Description": "Downloads and installs application updates.",
+    "Category": "Application",
+    "IsHidden": true,
+    "Key": "SystemUpdateTask"
+  },
+  {
+    "Name": "Check for plugin updates",
+    "State": "Idle",
+    "Id": "00000000000000000000000000000006",
+    "LastExecutionResult": {
+      "StartTimeUtc": "2024-01-02T12:15:19.685Z",
+      "EndTimeUtc": "2024-01-02T12:15:26.107Z",
+      "Status": "Completed",
+      "Name": "Check for plugin updates",
+      "Key": "PluginUpdates",
+      "Id": "00000000000000000000000000000006"
+    },
+    "Triggers": [
+      {
+        "Type": "StartupTrigger"
+      },
+      {
+        "Type": "IntervalTrigger",
+        "IntervalTicks": 864000000000
+      }
+    ],
+    "Description": "Downloads and installs updates for plugins that are configured to update automatically.",
+    "Category": "Application",
+    "IsHidden": true,
+    "Key": "PluginUpdates"
+  },
+  {
+    "Name": "Convert media",
+    "State": "Idle",
+    "Id": "00000000000000000000000000000007",
+    "Triggers": [
+      {
+        "Type": "IntervalTrigger",
+        "IntervalTicks": 108000000000
+      }
+    ],
+    "Description": "Runs conversion jobs that were created using the convert media feature as well as downloads that require conversion to compatible formats.",
+    "Category": "Downloads & Conversions",
+    "IsHidden": false,
+    "Key": "SyncPrepare"
+  },
+  {
+    "Name": "Detect Episode Intros",
+    "State": "Idle",
+    "Id": "00000000000000000000000000000008",
+    "Triggers": [
+      {
+        "Type": "IntervalTrigger",
+        "IntervalTicks": 864000000000
+      }
+    ],
+    "Description": "Detect intro start and end times for episodes that it is enabled for.",
+    "Category": "Library",
+    "IsHidden": true,
+    "Key": "markers"
+  },
+  {
+    "Name": "Download OCR Data",
+    "State": "Idle",
+    "Id": "00000000000000000000000000000009",
+    "LastExecutionResult": {
+      "StartTimeUtc": "2024-01-02T12:15:19.700Z",
+      "EndTimeUtc": "2024-01-02T12:15:19.772Z",
+      "Status": "Completed",
+      "Name": "Download OCR Data",
+      "Key": "DownloadOcr",
+      "Id": "00000000000000000000000000000009"
+    },
+    "Triggers": [
+      {
+        "Type": "StartupTrigger"
+      }
+    ],
+    "Description": "Downloads OCR model data for subtitle conversion.",
+    "Category": "Subtitles",
+    "IsHidden": true,
+    "Key": "DownloadOcr"
+  },
+  {
+    "Name": "Download subtitles",
+    "State": "Idle",
+    "Id": "00000000000000000000000000000010",
+    "Triggers": [
+      {
+        "Type": "IntervalTrigger",
+        "IntervalTicks": 864000000000
+      }
+    ],
+    "Description": "Searches the internet for missing subtitles, if automatic subtitle downloading is enabled in Emby library setup.",
+    "Category": "Library",
+    "IsHidden": false,
+    "Key": "DownloadSubtitles"
+  },
+  {
+    "Name": "Emby Server Backup",
+    "State": "Idle",
+    "Id": "00000000000000000000000000000011",
+    "Triggers": [
+      {
+        "Type": "DailyTrigger",
+        "TimeOfDayTicks": 6000000000
+      }
+    ],
+    "Description": "Scheduled backup from Emby Backup",
+    "Category": "Application",
+    "IsHidden": true,
+    "Key": "EmbyServerBackup"
+  },
+  {
+    "Name": "Hardware Detection",
+    "State": "Idle",
+    "Id": "00000000000000000000000000000012",
+    "LastExecutionResult": {
+      "StartTimeUtc": "2024-01-02T12:15:16.724Z",
+      "EndTimeUtc": "2024-01-02T12:15:19.151Z",
+      "Status": "Completed",
+      "Name": "Hardware Detection",
+      "Key": "HardwareDetection",
+      "Id": "00000000000000000000000000000012"
+    },
+    "Triggers": [
+      {
+        "Type": "SystemEventTrigger",
+        "SystemEvent": "DisplayConfigurationChange"
+      },
+      {
+        "Type": "StartupTrigger"
+      }
+    ],
+    "Description": "Detect available hardware acceleration devices.",
+    "Category": "Application",
+    "IsHidden": true,
+    "Key": "HardwareDetection"
+  },
+  {
+    "Name": "Log file cleanup",
+    "State": "Idle",
+    "Id": "00000000000000000000000000000013",
+    "Triggers": [
+      {
+        "Type": "IntervalTrigger",
+        "IntervalTicks": 864000000000
+      }
+    ],
+    "Description": "Deletes log files that are more than 3 days old.",
+    "Category": "Maintenance",
+    "IsHidden": true,
+    "Key": "CleanLogFiles"
+  },
+  {
+    "Name": "Refresh Custom Intros",
+    "State": "Idle",
+    "Id": "00000000000000000000000000000014",
+    "Triggers": [],
+    "Description": "Refreshes custom intro files.",
+    "Category": "Library",
+    "IsHidden": true,
+    "Key": "RefreshIntros"
+  },
+  {
+    "Name": "Refresh Emby Connect Data",
+    "State": "Idle",
+    "Id": "00000000000000000000000000000015",
+    "Triggers": [
+      {
+        "Type": "IntervalTrigger",
+        "IntervalTicks": 216000000000
+      }
+    ],
+    "Description": "Refresh Emby Connect Data",
+    "Category": "Application",
+    "IsHidden": true,
+    "Key": "RefreshAuthorizationsScheduledTask"
+  },
+  {
+    "Name": "Refresh Guide",
+    "State": "Idle",
+    "Id": "00000000000000000000000000000016",
+    "Triggers": [
+      {
+        "Type": "IntervalTrigger",
+        "IntervalTicks": 864000000000
+      }
+    ],
+    "Description": "Downloads channel information from live tv services.",
+    "Category": "Live TV",
+    "IsHidden": true,
+    "Key": "RefreshGuide"
+  },
+  {
+    "Name": "Refresh Internet Channels",
+    "State": "Idle",
+    "Id": "00000000000000000000000000000017",
+    "Triggers": [
+      {
+        "Type": "IntervalTrigger",
+        "IntervalTicks": 864000000000
+      }
+    ],
+    "Description": "Refreshes internet channel information.",
+    "Category": "Internet Channels",
+    "IsHidden": true,
+    "Key": "RefreshInternetChannels"
+  },
+  {
+    "Name": "Refresh Users",
+    "State": "Idle",
+    "Id": "00000000000000000000000000000018",
+    "Triggers": [
+      {
+        "Type": "IntervalTrigger",
+        "IntervalTicks": 864000000000
+      }
+    ],
+    "Description": "Refresh user infos",
+    "Category": "Library",
+    "IsHidden": true,
+    "Key": "RefreshUsers"
+  },
+  {
+    "Name": "Rotate log file",
+    "State": "Idle",
+    "Id": "00000000000000000000000000000019",
+    "Triggers": [
+      {
+        "Type": "DailyTrigger",
+        "TimeOfDayTicks": 0
+      }
+    ],
+    "Description": "Moves logging to a new file to help reduce log file sizes.",
+    "Category": "Application",
+    "IsHidden": false
+  },
+  {
+    "Name": "Scan media library",
+    "State": "Idle",
+    "Id": "00000000000000000000000000000020",
+    "LastExecutionResult": {
+      "StartTimeUtc": "2024-01-02T12:49:28.836Z",
+      "EndTimeUtc": "2024-01-02T12:49:31.499Z",
+      "Status": "Completed",
+      "Name": "Scan media library",
+      "Key": "RefreshLibrary",
+      "Id": "00000000000000000000000000000020"
+    },
+    "Triggers": [
+      {
+        "Type": "IntervalTrigger",
+        "IntervalTicks": 432000000000
+      }
+    ],
+    "Description": "Scans your media library to check for new and updated files.",
+    "Category": "Library",
+    "IsHidden": false,
+    "Key": "RefreshLibrary"
+  },
+  {
+    "Name": "Scan Metadata Folder",
+    "State": "Idle",
+    "Id": "00000000000000000000000000000021",
+    "Triggers": [],
+    "Description": "Run this task if you've modified the contents of Emby Server's internal metadata folder directly, so that Emby Server can discover the changes.",
+    "Category": "Library",
+    "IsHidden": false,
+    "Key": "ScanInternalMetadataFolderTask"
+  },
+  {
+    "Name": "Send Download Notifications",
+    "State": "Idle",
+    "Id": "00000000000000000000000000000022",
+    "Triggers": [
+      {
+        "Type": "IntervalTrigger",
+        "IntervalTicks": 108000000000
+      }
+    ],
+    "Description": "Send download notifications",
+    "Category": "Sync",
+    "IsHidden": true,
+    "Key": "SyncDownloadNotification"
+  },
+  {
+    "Name": "Transfer media",
+    "State": "Idle",
+    "Id": "00000000000000000000000000000023",
+    "Triggers": [
+      {
+        "Type": "IntervalTrigger",
+        "IntervalTicks": 108000000000
+      }
+    ],
+    "Description": "Transfers completed conversions to their final destination. Used by the Download and Conversion features.",
+    "Category": "Downloads & Conversions",
+    "IsHidden": false,
+    "Key": "ServerSync"
+  },
+  {
+    "Name": "Vacuum Database",
+    "State": "Idle",
+    "Id": "00000000000000000000000000000024",
+    "Triggers": [
+      {
+        "Type": "IntervalTrigger",
+        "IntervalTicks": 6048000000000
+      }
+    ],
+    "Description": "Schedules a database vacuum on the next server startup",
+    "Category": "Database",
+    "IsHidden": false,
+    "Key": "VacuumDatabase"
+  },
+  {
+    "Name": "Video preview thumbnail extraction",
+    "State": "Idle",
+    "Id": "00000000000000000000000000000025",
+    "Triggers": [
+      {
+        "Type": "DailyTrigger",
+        "TimeOfDayTicks": 72000000000,
+        "MaxRuntimeTicks": 144000000000
+      }
+    ],
+    "Description": "Creates thumbnails for videos.",
+    "Category": "Library",
+    "IsHidden": false,
+    "Key": "RefreshChapterImages"
+  }
+]

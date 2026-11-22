@@ -1,0 +1,12 @@
+{
+  "service": "emby",
+  "path": "/System/Info/Public",
+  "version": "4.10.2.0",
+  "note": "ServerName and Id removed, and the address lists emptied",
+  "source": "live",
+  "status": 200,
+  "headers": {
+    "content-type": "application/json; charset=utf-8"
+  },
+  "body": "{\"LocalAddresses\":[],\"RemoteAddresses\":[],\"Version\":\"4.10.2.0\"}"
+}

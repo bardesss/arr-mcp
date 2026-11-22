@@ -8,6 +8,8 @@ import { LogStore } from '../src/core/logs.ts';
 import { LogLimiter } from '../src/core/logLimiter.ts';
 import { Runtime } from '../src/core/runtime.ts';
 import { hashPassword } from '../src/core/session.ts';
+import { EmbyAdapter } from '../src/services/emby.ts';
+import { JellyfinAdapter } from '../src/services/jellyfin.ts';
 import { LidarrAdapter } from '../src/services/lidarr.ts';
 import { PlexAdapter } from '../src/services/plex.ts';
 import { RadarrAdapter } from '../src/services/radarr.ts';
@@ -631,7 +633,7 @@ describe('what the server says about itself at initialize', () => {
     // Record<ServiceId, …> so a new service fails typecheck here until it is named.
     const DISPLAY: Record<ServiceId, string> = {
         radarr: 'Radarr', sonarr: 'Sonarr', whisparr: 'Whisparr', lidarr: 'Lidarr', prowlarr: 'Prowlarr',
-        bazarr: 'Bazarr', jellyfin: 'Jellyfin', seerr: 'Seerr', sabnzbd: 'SABnzbd', nzbget: 'NZBGet',
+        bazarr: 'Bazarr', jellyfin: 'Jellyfin', emby: 'Emby', seerr: 'Seerr', sabnzbd: 'SABnzbd', nzbget: 'NZBGet',
         transmission: 'Transmission', qbittorrent: 'qBittorrent', plex: 'Plex', profilarr: 'Profilarr',
         cleanuparr: 'Cleanuparr', reclaimerr: 'Reclaimerr', dispatcharr: 'Dispatcharr', shelfmark: 'Shelfmark', grimmory: 'Grimmory'
     };
@@ -2343,5 +2345,49 @@ describe('server instructions', () => {
         const text = instructionsFor({ configured: new Set(), hideUnusable: false });
         for (const name of ALL) expect(text).toContain(name);
         expect(text).not.toContain('[[');
+    });
+});
+
+/**
+ * Jellyfin and Emby both write watch state, and set_watched writes to one:
+ * the primary. Its description names that one alone.
+ */
+describe('set_watched with Jellyfin and Emby both configured', () => {
+    const USER = 'aaaabbbbccccddddeeeeffff00001111';
+    const JF_ITEM = 'f1e2d3c4b5a69788f1e2d3c4b5a69788';
+    const answering = (routes: Record<string, unknown>) =>
+        (async (input: string | URL | Request) => {
+            const url = new URL(input instanceof Request ? input.url : String(input));
+            if (url.pathname === '/Users') return jsonResponse([{ Id: USER, Name: 'Sam' }]);
+            const body = routes[`${url.pathname}${url.search}`];
+            return body === undefined ? jsonResponse({ message: 'not found' }, 404) : jsonResponse(body);
+        }) as unknown as typeof fetch;
+    const block = (port: number) => ({ url: `http://192.0.2.10:${port}`, api_key: 'k', default_user: 'Sam' });
+    const stack = (primary: 'jellyfin' | 'emby') => {
+        const cfg = ConfigSchema.parse({
+            auth: { bearer_token: TOKEN, password_hash: PASSWORD_HASH },
+            services: { jellyfin: block(8096), emby: { ...block(8096), url: 'http://192.0.2.11:8096' } },
+            primary_media_server: primary
+        });
+        return appWith(cfg, [
+            new JellyfinAdapter(cfg.services.jellyfin!, answering({ [`/Items/${JF_ITEM}?userId=${USER}`]: { Id: JF_ITEM, Name: 'Alien', Type: 'Movie', UserData: { Played: false } } })),
+            new EmbyAdapter(cfg.services.emby!, answering({ [`/Users/${USER}/Items/12`]: { Id: '12', Name: 'Detour', Type: 'Movie', UserData: { Played: false } } }))
+        ]);
+    };
+    const post = async (app: ReturnType<typeof appWith>, body: unknown) =>
+        rpcPayload(await app.request('http://localhost:6060/mcp', rpc(body, { Authorization: `Bearer ${TOKEN}` })));
+
+    it.each([
+        ['jellyfin', 'Jellyfin', 'Emby', JF_ITEM],
+        ['emby', 'Emby', 'Jellyfin', '12']
+    ] as const)('writes to %s as the primary, and names only it', async (primary, name, other, itemId) => {
+        const app = stack(primary);
+        const list = await post(app, toolsList);
+        const tool = (list.result?.['tools'] as { name: string; description: string }[]).find(t => t.name === 'set_watched');
+        expect(tool?.description).toContain(`watched or unwatched in ${name}.`);
+        expect(tool?.description).not.toContain(other);
+
+        const call = await post(app, { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'set_watched', arguments: { item_id: itemId, watched: true, dry_run: true } } });
+        expect((call.result?.['structuredContent'] as { target?: string }).target).toBe(`${primary}:${itemId}`);
     });
 });
