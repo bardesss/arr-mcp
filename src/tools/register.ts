@@ -207,7 +207,7 @@ export function registerAllTools(server: McpServer, context: ToolContext): void 
     registerGetLibrary(server, library, bothIds(context.mediaServers), adapters, context.mediaCards);
     registerGetProfileIssues(server, adapters, instances);
     registerSearchMedia(server, adapters, dataset, context.mediaCards);
-    registerDiscoverMedia(server, seerr, dataset);
+    registerDiscoverMedia(server, seerr, dataset, { library, mediaServers: context.mediaServers, plays: context.plays });
 
     // A stack with no write permission still *has* trigger_search: it refuses,
     // naming the key to set. Only a write with no service configured at all
