@@ -5,8 +5,10 @@ import { logger } from '../core/logger.ts';
 import { LoginThrottle } from '../core/loginThrottle.ts';
 import type { Runtime } from '../core/runtime.ts';
 import { constantTimeEquals } from '../core/secrets.ts';
+import type { PlayHistory } from '../core/playHistory.ts';
 import type { WebhookEvents } from '../core/webhookEvents.ts';
 import { parseArrWebhook, WEBHOOK_SERVICES } from '../services/arrWebhook.ts';
+import { parseJellyfinPlay } from '../services/jellyfinWebhook.ts';
 import { originOf } from './routes.ts';
 
 const CHALLENGE = { 'www-authenticate': 'Basic realm="arr-mcp webhooks"' };
@@ -18,8 +20,8 @@ function basicPassword(header: string | undefined): string | undefined {
     return colon === -1 ? undefined : decoded.slice(colon + 1);
 }
 
-export function registerWebhookRoutes(app: Hono, deps: { runtime: Runtime; events: WebhookEvents }): void {
-    const { runtime, events } = deps;
+export function registerWebhookRoutes(app: Hono, deps: { runtime: Runtime; events: WebhookEvents; plays?: PlayHistory | undefined }): void {
+    const { runtime, events, plays } = deps;
     const throttle = new LoginThrottle();
 
     const receive = async (c: Context): Promise<Response> => {
@@ -43,6 +45,7 @@ export function registerWebhookRoutes(app: Hono, deps: { runtime: Runtime; event
         throttle.recordSuccess();
 
         const type = c.req.param('type') as ServiceId;
+        if (type === 'jellyfin') return receivePlay(c, instanceId(type, c.req.param('name')));
         const kind = Object.hasOwn(WEBHOOK_SERVICES, type) ? WEBHOOK_SERVICES[type] : undefined;
         const id = instanceId(type, c.req.param('name'));
         if (kind === undefined || !listInstances(runtime.config).some(i => i.id === id)) return c.notFound();
@@ -69,6 +72,40 @@ export function registerWebhookRoutes(app: Hono, deps: { runtime: Runtime; event
             // Still 200: an *arr turns off a connection that keeps failing, and our
             // disk trouble should not cost every event after it is fixed.
             logger.error({ err, service: id }, 'could not store a webhook event');
+        }
+        return c.text('ok');
+    };
+
+    /**
+     * A Jellyfin Webhook plugin playback stop, recorded in the play store the
+     * moment it happens, so a title watched and deleted before the next hourly
+     * sync is still kept. Everything else the plugin sends is answered 200 and
+     * dropped, so a destination with more notification types ticked keeps working.
+     */
+    const receivePlay = async (c: Context, id: string): Promise<Response> => {
+        const { primary, secondary } = runtime.current.tools.mediaServers;
+        const server = [primary, secondary].find(s => s?.adapter.id === id);
+        if (plays === undefined || server === undefined) return c.notFound();
+
+        // "Send All Properties" posts a form (seen live on 12.4.0); a JSON
+        // template posts JSON. Told apart by the body, since a destination's
+        // own headers can claim either.
+        const raw = await c.req.text();
+        let body: unknown;
+        try {
+            body = raw.trimStart().startsWith('{') ? JSON.parse(raw) : Object.fromEntries(new URLSearchParams(raw));
+        } catch {
+            return c.text('the body is neither JSON nor a form', 400);
+        }
+        if (typeof (body as { NotificationType?: unknown } | null)?.NotificationType !== 'string') return c.text('no NotificationType', 400);
+
+        const play = parseJellyfinPlay(id, body);
+        if (play === undefined) return c.text('ok');
+        try {
+            plays.record(id, { id: play.userId }, [play.record]);
+        } catch (err) {
+            // Still 200, as for the *arrs: the next hourly sync reads the play anyway.
+            logger.error({ err, service: id }, 'could not store a webhook play');
         }
         return c.text('ok');
     };

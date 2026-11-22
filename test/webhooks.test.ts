@@ -479,6 +479,8 @@ describe('the webhook route', () => {
             expect(page).toContain('/webhooks/radarr');
             expect(page).toContain('/webhooks/sonarr');
             expect(page).not.toContain('/webhooks/prowlarr');
+            // No Jellyfin configured here, so no steps for one.
+            expect(page).not.toContain('Jellyfin plays');
             expect(page).toContain('arr-mcp');
             for (const trigger of ['On Grab', 'On File Import', 'On Movie Delete', 'On Series Delete', 'On Episode File Delete', 'On Import Complete']) {
                 expect(page).toContain(trigger);

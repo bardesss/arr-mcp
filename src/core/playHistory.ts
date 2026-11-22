@@ -27,11 +27,13 @@ const PLAYS_FILENAME = 'plays.db';
  * returns it. `year` and `ids` are what a title can still be matched on once
  * the server has no item left to ask about; on an episode they are the
  * series', since the series is what gets matched. `unknown` is a play first
- * seen after its item was deleted, when nothing says which it was.
+ * seen after its item was deleted, when nothing says which it was. `track` is
+ * a song, only from a webhook a user opted into, with its artist as
+ * `seriesTitle`; it is never matched against a film or an episode.
  */
 export type PlayRecord = {
     entry: PlaybackEntry;
-    kind: 'movie' | 'episode' | 'unknown';
+    kind: 'movie' | 'episode' | 'track' | 'unknown';
     year?: number;
     ids?: Pick<ExternalIds, 'tmdb' | 'tvdb' | 'imdb'>;
 };
@@ -216,7 +218,7 @@ export class PlayHistory {
     }
 
     #findTwin(server: string, userId: string, key: string, seen: PlayRecord): { item_key: string; record: string } | undefined {
-        if (seen.kind === 'unknown') return undefined;
+        if (seen.kind === 'unknown' || seen.kind === 'track') return undefined;
         if (seen.kind === 'movie' && seen.year === undefined) return undefined;
         return this.#twin.get({
             server,
