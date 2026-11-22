@@ -2834,6 +2834,22 @@ window past that comes back short, with a `note` naming the `offset` that
 continues it. `total` is the size of the whole list, up to 10,000: TMDB serves
 no page past 500.
 
+The dataset ranks by IMDb's Top 250 weighting: a Bayesian average that pulls a
+title's rating towards 7.0 until it has about 25,000 votes behind it, so a
+film with a dozen perfect votes no longer heads the list. Seerr keeps TMDB's
+popularity order.
+
+`exclude: ["owned", "watched"]` leaves out what the default user already has
+or has seen. `owned` is anything in the library, managed or on the media
+server. `watched` is the media server's played flags plus the play store, so
+a title watched and since deleted still counts: by its ids where the store
+has them, otherwise a film by title and a year either side and a series by
+its title. The source is read in chunks until `limit` survive, at most ten
+reads from the dataset or three from Seerr. `offset` stays a position in the
+unfiltered list, and `note` says how many were left out and which `offset`
+continues. A play store that cannot be read puts the media server in
+`degraded` and the played flags still filter.
+
 ## `trigger_subtitle_search`
 
 The write half of `get_subtitles`, and it takes its arguments straight from

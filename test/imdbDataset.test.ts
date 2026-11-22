@@ -331,7 +331,7 @@ describe('discover schema', () => {
         // purpose: a future CASE or IN in the ORDER BY gives the index back.
         const plan = ds.explainDiscover({ kind: 'movie' });
         expect(plan.join('\n')).not.toContain('TEMP B-TREE');
-        expect(plan.join('\n')).toContain('title_bucket_rating');
+        expect(plan.join('\n')).toContain('title_bucket_weighted');
         ds.close();
     });
 });
@@ -362,7 +362,7 @@ describe('discover ordering', () => {
         return ds;
     };
 
-    it('orders by rating, then by year descending', () => {
+    it('orders by weighted rating, then by year descending', () => {
         const ds = seeded();
         expect(ds.discover({ kind: 'movie', limit: 10 }).map(t => t.tconst)).toEqual([
             'tt1',
@@ -380,6 +380,25 @@ describe('discover ordering', () => {
         const ds = seeded();
         const tied = ds.discover({ kind: 'movie', minRating: 7.5, limit: 10 }).map(t => t.tconst);
         expect(tied.indexOf('tt6')).toBe(tied.length - 1);
+        ds.close();
+    });
+
+    it('ranks a well-known film above one with a few perfect votes', () => {
+        const ds = ImdbDataset.ephemeral();
+        ds.replaceAll({
+            titles: [
+                { tconst: 'tt1', kind: 'movie', title: 'Twelve perfect votes', year: 2020 },
+                { tconst: 'tt2', kind: 'movie', title: 'Known classic', year: 1985 },
+                { tconst: 'tt3', kind: 'movie', title: 'Known and middling', year: 2001 }
+            ],
+            ratings: [
+                { tconst: 'tt1', average: 10, votes: 12 },
+                { tconst: 'tt2', average: 8.5, votes: 1_000_000 },
+                { tconst: 'tt3', average: 6.5, votes: 500_000 }
+            ]
+        });
+        // tt1 sits near the 7.0 mean until it has votes; tt3 is held below it by them.
+        expect(ds.discover({ kind: 'movie', limit: 10 }).map(t => t.tconst)).toEqual(['tt2', 'tt1', 'tt3']);
         ds.close();
     });
 
