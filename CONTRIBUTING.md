@@ -161,14 +161,22 @@ tool's own description text and an entry in `DEPRECATIONS`
 A new write tool needs a `TOOL_SERVICES` entry and a `WRITE_TOOLS` entry, or it
 is listed on every stack.
 
-Tool count has a ceiling because model accuracy degrades measurably past roughly
-40 tools. There are 44 now, so the ceiling is passed and `test/app.test.ts`
-fails on a forty-fifth. New capability extends an existing
-tool wherever it can.
-Where it can't, a new tool is possible, but raising the ceiling needs a good
-reason: the pull request says why no existing tool can carry the capability and
-why it is worth the cost to every other tool, and it raises the limit in that
-test as a visible part of the change.
+Fewer tools is better, and the bar for adding one is high. Every tool's name,
+description and schema is sent on every request a client makes, so each tool is
+a standing cost on the context of everyone using the server, and model accuracy
+degrades measurably past roughly 40 tools. There are 44 now, so the ceiling is
+passed and `test/app.test.ts` fails on a forty-fifth. Descriptions are capped
+there too, 1,000 characters each and 29,000 together, so new text needs a
+matching trim somewhere else.
+
+New capability extends an existing tool wherever it can: another parameter or
+mode on a tool a client already knows costs far less than another entry point.
+Two tools that overlap enough to merge, and a tool nothing needs, are worth a
+pull request of their own. Where a capability genuinely cannot live on an
+existing tool, a new tool is possible, but it has to make its case: the pull
+request says why no existing tool can carry it and why it is worth the cost to
+every other tool, and it raises the limit in that test as a visible part of the
+change. Room under a raised ceiling is not itself a reason.
 
 **Prompt names are public surface too.** A client that has surfaced
 `whats_wrong` as a slash command breaks when it is renamed, exactly as a saved
