@@ -1235,6 +1235,32 @@ const CONTRACTS: Record<string, ServiceContract> = {
             }
         ]
     },
+    // No vendored spec: Maintainerr serves its OpenAPI at runtime only (/api/swagger-json). These fixtures are its live 3.33.0 answers.
+    maintainerr: {
+        dependencies: [
+            { path: '/api/app/status', fixture: 'test/fixtures/maintainerr/status.json', fields: ['version'] },
+            { path: '/api/health', fixture: 'test/fixtures/maintainerr/health.json', fields: ['status', 'database'] },
+            {
+                path: '/api/collections',
+                fixture: 'test/fixtures/maintainerr/collections.json',
+                fields: ['id', 'title', 'isActive', 'arrAction', 'deleteAfterDays', 'type', 'totalSizeBytes', 'handledMediaAmount', 'handledMediaSizeBytes']
+            },
+            // Only its length is read: the capture had no exclusions, so no row shape is contracted.
+            { path: '/api/rules/exclusion', fixture: 'test/fixtures/maintainerr/exclusions.json', fields: [] },
+            { path: '/api/collections/media', fixture: 'test/fixtures/maintainerr/collection-media.json', fields: ['id', 'tmdbId', 'addDate', 'isManual', 'ruleEvaluationFailed'] },
+            { path: '/api/collections/media', fixture: 'test/fixtures/maintainerr/collection-media-show.json', fields: ['id', 'tmdbId', 'addDate', 'isManual', 'ruleEvaluationFailed'] },
+            {
+                path: '/api/collections/media/{id}/content/{page}',
+                fixture: 'test/fixtures/maintainerr/collection-content.json',
+                fields: ['totalSize', 'items.id', 'items.mediaData.title', 'items.mediaData.year']
+            },
+            {
+                path: '/api/collections/logs/{id}/content/{page}',
+                fixture: 'test/fixtures/maintainerr/collection-logs.json',
+                fields: ['totalSize', 'items.id', 'items.timestamp', 'items.message', 'items.type']
+            }
+        ]
+    },
     // No vendored spec: Dispatcharr serves its OpenAPI at runtime only. These fixtures are its live 0.33.0 answers.
     dispatcharr: {
         dependencies: [

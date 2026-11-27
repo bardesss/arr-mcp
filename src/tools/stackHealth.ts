@@ -559,7 +559,7 @@ const stackHealthOutput = memoBy((withPrimary: boolean) => z.looseObject({
     cleanup: z
         .looseObject({ service: z.string() })
         .optional()
-        .describe('What Reclaimerr is set to delete, soonest first, its rules and whether auto-delete runs. Only at `detail: "full"`.'),
+        .describe('What Reclaimerr or Maintainerr is set to delete, soonest first, its rules and whether auto-delete runs. Only at `detail: "full"`.'),
     automation: z
         .looseObject({ service: z.string() })
         .optional()
@@ -588,7 +588,7 @@ const StackHealthInput = toolInput({
 
 /** The full description of get_stack_health. */
 const STACK_HEALTH_DESCRIPTION =
-    'Health of every configured service: version, disk space, failing health checks, last library scan (`services` ids are the valid `instance` values). Answers partially, with a `degraded` list, when a service is down. `commands` follows up trigger_search and trigger_scan: queued, running, and finished in the last 15 minutes, so a command not listed has finished. Profiles, root folders and tags: get_instance_options. `service` or `instance` checks one, without `seedingRules`. `detail: "full"` adds `permissions`, `seedingRules` ({{and: *=client; *=indexer; cleanuparr=Cleanuparr}} seed limits[[cleanuparr:  and removal rules]])[[reclaimerr: , Reclaimerr `cleanup` (what will be deleted or moved, and when),]][[suggestarr: , SuggestArr `automation` (jobs, request limits, last runs),]] and each service\'s recent warnings and errors in `logs`; check `lastSeen`, since an old line may no longer apply. API keys are never returned. Field reference: arr://docs/get_stack_health.';
+    'Health of every configured service: version, disk space, failing health checks, last library scan (`services` ids are the valid `instance` values). Answers partially, with a `degraded` list, when a service is down. `commands` follows up trigger_search and trigger_scan: queued, running, and finished in the last 15 minutes, so a command not listed has finished. Profiles, root folders and tags: get_instance_options. `service` or `instance` checks one, without `seedingRules`. `detail: "full"` adds `permissions`, `seedingRules` ({{and: *=client; *=indexer; cleanuparr=Cleanuparr}} seed limits[[cleanuparr:  and removal rules]])[[reclaimerr|maintainerr: , {{or: reclaimerr=Reclaimerr; maintainerr=Maintainerr}} `cleanup` (what will be deleted or moved, and when),]][[suggestarr: , SuggestArr `automation` (jobs, request limits, last runs),]] and each service\'s recent warnings and errors in `logs`; check `lastSeen`, since an old line may no longer apply. API keys are never returned. Field reference: arr://docs/get_stack_health.';
 
 
 export function registerStackHealth(

@@ -687,6 +687,23 @@ describe('reclaimerr', () => {
     });
 });
 
+describe('maintainerr', () => {
+    it('takes a url alone, since Maintainerr has no authentication, and reads write permissions as off', () => {
+        const parsed = ConfigSchema.parse({
+            auth: AUTH,
+            services: { maintainerr: { url: 'http://maintainerr:6246', permissions: { safe_write: true, destructive: true } } }
+        });
+        expect(parsed.services.maintainerr?.api_key).toBeUndefined();
+        expect(parsed.services.maintainerr?.permissions).toEqual({ safe_write: false, destructive: false });
+    });
+
+    it('takes an optional api_key for a proxy in front of it, and refuses a list', () => {
+        const parsed = ConfigSchema.parse({ auth: AUTH, services: { maintainerr: { url: 'http://maintainerr:6246', api_key: 'k' } } });
+        expect(parsed.services.maintainerr?.api_key).toBe('k');
+        expect(() => ConfigSchema.parse({ auth: AUTH, services: { maintainerr: [{ url: 'http://a:6246' }] } })).toThrow(/single block/);
+    });
+});
+
 describe('per-service config shapes', () => {
     it('accepts transmission with username and password and no api_key', () => {
         const parsed = ConfigSchema.parse({

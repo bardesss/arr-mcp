@@ -88,6 +88,8 @@ export const ICONS: Record<ServiceId, string> = {
     cleanuparr: draw('<path d="M19 3 11 11"/><path d="M8 10.5 13.5 16l-2 5.5c-3-.5-6.5-2.5-8.5-6.5Z"/><path d="m8.5 16 2-2"/>'),
     // A bin: rules decide what goes in it.
     reclaimerr: draw('<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="m6 6 1 14h10l1-14"/><path d="M10 11v6M14 11v6"/>'),
+    // An hourglass: cleanup that waits out a collection's days before it acts.
+    maintainerr: draw('<path d="M6 3h12M6 21h12"/><path d="M7 3c0 5 5 6 5 9s-5 4-5 9M17 3c0 5-5 6-5 9s5 4 5 9"/>'),
     // A TV: the category is live TV.
     dispatcharr: draw('<rect x="3" y="6" width="18" height="12" rx="2"/><path d="m8 2 4 4 4-4"/>'),
     // An open book: the category is books.

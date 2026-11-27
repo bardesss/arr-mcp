@@ -21,6 +21,7 @@ export const ServiceIdSchema = z.enum([
     'profilarr',
     'cleanuparr',
     'reclaimerr',
+    'maintainerr',
     'dispatcharr',
     'shelfmark',
     'grimmory',
@@ -86,7 +87,8 @@ export type KeyedServiceConfig = z.infer<typeof KeyedServiceSchema>;
 
 /**
  * Shelfmark, whose default is no authentication at all: every route is open and
- * there is no key to give.
+ * there is no key to give. Maintainerr has no authentication of its own, so its
+ * key is only for a proxy in front of it.
  */
 const OptionalKeyServiceSchema = z.strictObject({ ...BaseServiceShape, api_key: ApiKeyShape.api_key.optional() });
 type OptionalKeyServiceConfig = z.infer<typeof OptionalKeyServiceSchema>;
@@ -293,6 +295,7 @@ export type ConfigByService = {
     profilarr: For<'profilarr', KeyedServiceConfig>;
     cleanuparr: For<'cleanuparr', KeyedServiceConfig>;
     reclaimerr: For<'reclaimerr', KeyedServiceConfig>;
+    maintainerr: For<'maintainerr', OptionalKeyServiceConfig>;
     dispatcharr: For<'dispatcharr', KeyedServiceConfig>;
     shelfmark: For<'shelfmark', OptionalKeyServiceConfig>;
     grimmory: For<'grimmory', GrimmoryServiceConfig>;
@@ -454,6 +457,8 @@ const SERVICES = {
     cleanuparr: readOnly(KeyedServiceSchema),
     // Single only: one Reclaimerr owns one library's cleanup rules.
     reclaimerr: readOnly(KeyedServiceSchema),
+    // Single only: one Maintainerr owns one media server's cleanup rules.
+    maintainerr: readOnly(OptionalKeyServiceSchema),
     // Single only: one Dispatcharr serves one set of playlists.
     dispatcharr: readOnly(KeyedServiceSchema),
     // Single only: one Shelfmark holds one download queue and one set of requests.

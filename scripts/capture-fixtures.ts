@@ -1531,6 +1531,25 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
             anonymise: anonymiseReclaimerr
         }
     ],
+    // No authentication of its own. Never captured: /api/settings, which answers with the Plex token and every *arr's API key.
+    maintainerr: [
+        { name: 'status', path: '/api/app/status' },
+        { name: 'health', path: '/api/health' },
+        { name: 'collections', path: '/api/collections' },
+        { name: 'exclusions', path: '/api/rules/exclusion' },
+        { name: 'collection-media', path: captured => maintainerrCollection(captured, 'movie', id => `/api/collections/media?collectionId=${id}`) },
+        {
+            name: 'collection-content',
+            path: captured => maintainerrCollection(captured, 'movie', id => `/api/collections/media/${id}/content/1?size=100&sort=deleteSoonest&sortOrder=asc`)
+        },
+        // A show collection too: its content can hold fewer rows than its members (see the adapter).
+        { name: 'collection-media-show', path: captured => maintainerrCollection(captured, 'show', id => `/api/collections/media?collectionId=${id}`) },
+        {
+            name: 'collection-content-show',
+            path: captured => maintainerrCollection(captured, 'show', id => `/api/collections/media/${id}/content/1?size=100&sort=deleteSoonest&sortOrder=asc`)
+        },
+        { name: 'collection-logs', path: captured => maintainerrCollection(captured, 'movie', id => `/api/collections/logs/${id}/content/1?size=100&filter=1`) }
+    ],
     dispatcharr: [
         { name: 'version', path: '/api/core/version/' },
         // Scrubbed in lib/dispatcharrCapture.ts: these bodies hold IPTV provider credentials.
@@ -1707,6 +1726,13 @@ function anonymiseReclaimerr(body: unknown): unknown {
     return { ...body, items: (body.items as unknown[]).map(item => (isRow(item) ? anonymiseReclaimerrRow(item) : item)) };
 }
 
+/** The first Maintainerr collection of `type` in the captured list, put into `path`. */
+function maintainerrCollection(captured: Map<string, unknown>, type: string, path: (id: number) => string): string | undefined {
+    const list = captured.get('collections');
+    const row = (Array.isArray(list) ? list : []).find((c: unknown) => isRow(c) && c.type === type) as { id?: unknown } | undefined;
+    return typeof row?.id === 'number' ? path(row.id) : undefined;
+}
+
 /** A blocklist can live on the operator's own host or under their home directory; keep only URL-or-file. */
 function anonymiseBlocklistPaths(body: unknown): unknown {
     if (!isRow(body)) return body;
@@ -1825,7 +1851,7 @@ function strategyFor(id: ServiceId, service: NonNullable<Config['services'][Serv
         const g = service as { url: string; timeout_ms: number; username: string; password: string };
         return grimmorySession({ id, url: g.url, timeoutMs: g.timeout_ms, username: g.username, password: g.password });
     }
-    if (id === 'shelfmark' && (service as { api_key?: string }).api_key === undefined) return noAuth;
+    if ((id === 'shelfmark' || id === 'maintainerr') && (service as { api_key?: string }).api_key === undefined) return noAuth;
     const key = (service as { api_key: string }).api_key;
     if (id === 'jellyfin' || id === 'emby') return embyToken(key, (id === 'emby' ? EMBY : JELLYFIN).apiKeys);
     if (id === 'plex') return plexToken(key);

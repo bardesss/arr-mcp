@@ -6,7 +6,7 @@
 
 ### Talk to your entire media stack. One server, one endpoint, one conversation.
 
-**Radarr · Sonarr · Whisparr · Lidarr · Prowlarr · Bazarr · Jellyfin · Emby · Plex · Seerr · SABnzbd · NZBGet · Transmission · qBittorrent · Deluge · Profilarr · Cleanuparr · Reclaimerr · Dispatcharr · Shelfmark · Grimmory · SuggestArr**
+**Radarr · Sonarr · Whisparr · Lidarr · Prowlarr · Bazarr · Jellyfin · Emby · Plex · Seerr · SABnzbd · NZBGet · Transmission · qBittorrent · Deluge · Profilarr · Cleanuparr · Reclaimerr · Maintainerr · Dispatcharr · Shelfmark · Grimmory · SuggestArr**
 
 [![Release](https://img.shields.io/github/v/release/bardesss/arr-mcp?style=flat-square&color=6f42c1)](https://github.com/bardesss/arr-mcp/releases)
 [![CI](https://img.shields.io/github/actions/workflow/status/bardesss/arr-mcp/release.yml?branch=main&label=build&style=flat-square)](https://github.com/bardesss/arr-mcp/actions)
@@ -50,7 +50,7 @@ check rather than guessing across the hole.
 | ✋ **Writes are opt-in, previewed, recorded** | Off until you turn them on, per service. Every write shows you exactly what it would do and waits for confirmation, and lands in an audit trail either way. |
 | 🖥️ **A config page that diagnoses** | Add services from a browser, see what is broken *and what to do about it*, read the logs and the write audit. No YAML required. |
 | 📚 **Forty-four tools, one vocabulary** | Every list pages the same way and answers readably whether or not your client reads `structuredContent`, every error names the config key that would fix it, every write takes ids rather than titles. |
-| 🪶 **It is careful with your context** | Twenty-one services behind one server, and a four-service stack still lists 36 tools for about 20,800 tokens. Tools your stack cannot use, kinds it does not hold and sentences about services you do not run are never sent. |
+| 🪶 **It is careful with your context** | Twenty-three services behind one server, and a four-service stack still lists 36 tools for about 20,800 tokens. Tools your stack cannot use, kinds it does not hold and sentences about services you do not run are never sent. |
 
 ## Quick start: about two minutes
 
@@ -199,7 +199,7 @@ them off. The cards are read-only for now.
 
 ## What it costs your context
 
-One server in front of twenty-one services is the whole idea, and it would be a
+One server in front of twenty-three services is the whole idea, and it would be a
 poor trade if it arrived as a wall of text. Every tool's name, description and
 schemas sit in your client's context from the moment it connects, so that bill
 is measured and capped rather than left to grow:
@@ -239,7 +239,7 @@ stack and everything that is trimmed.
 
 - At least one supported service, LAN-reachable: Radarr 4.0+, Sonarr 4.0+,
   Whisparr 2.x (V2 only, not Eros), Prowlarr 1.0+, Bazarr 1.4+, Jellyfin 10.9+, Emby 4.9.1.80+, Plex Media Server (no minimum enforced; verified on 1.43),
-  Seerr 1.0+, SABnzbd 3.0+, NZBGet 21.0+, Transmission 3.0+, qBittorrent 4.1+, Deluge 2.0.3+, Profilarr 2.2.0+, Cleanuparr 2.10.0+, Reclaimerr 0.6.0+, Dispatcharr 0.33.0+, Shelfmark 1.5.0+, Grimmory 3.5.0+, SuggestArr 2.11.0+
+  Seerr 1.0+, SABnzbd 3.0+, NZBGet 21.0+, Transmission 3.0+, qBittorrent 4.1+, Deluge 2.0.3+, Profilarr 2.2.0+, Cleanuparr 2.10.0+, Reclaimerr 0.6.0+, Maintainerr 3.33.0+, Dispatcharr 0.33.0+, Shelfmark 1.5.0+, Grimmory 3.5.0+, SuggestArr 2.11.0+
 - Lidarr 2.1.3+ for reading, monitoring, adding, changing and deleting artists,
   its queue, its wanted list and calendar, release search, `diagnose_media`,
   `trigger_scan`, `fix_metadata` and `get_stack_health`. Artists join to
@@ -324,7 +324,7 @@ speaks to is free software maintained largely by volunteers: [Radarr](https://ra
 [Seerr](https://github.com/seerr-team/seerr), [SABnzbd](https://sabnzbd.org),
 [NZBGet](https://nzbget.com), [Transmission](https://transmissionbt.com), [qBittorrent](https://www.qbittorrent.org),
 [Deluge](https://deluge-torrent.org),
-[Profilarr](https://github.com/Dictionarry-Hub/profilarr), [Cleanuparr](https://github.com/Cleanuparr/Cleanuparr), [Reclaimerr](https://github.com/jessielw/Reclaimerr), [Dispatcharr](https://github.com/Dispatcharr/Dispatcharr), [Shelfmark](https://github.com/calibrain/shelfmark), [Grimmory](https://github.com/grimmory-tools/grimmory), [SuggestArr](https://github.com/giuseppe99barchetta/SuggestArr), as are the libraries it is built
+[Profilarr](https://github.com/Dictionarry-Hub/profilarr), [Cleanuparr](https://github.com/Cleanuparr/Cleanuparr), [Reclaimerr](https://github.com/jessielw/Reclaimerr), [Maintainerr](https://github.com/Maintainerr/Maintainerr), [Dispatcharr](https://github.com/Dispatcharr/Dispatcharr), [Shelfmark](https://github.com/calibrain/shelfmark), [Grimmory](https://github.com/grimmory-tools/grimmory), [SuggestArr](https://github.com/giuseppe99barchetta/SuggestArr), as are the libraries it is built
 on: [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk),
 [Hono](https://hono.dev), [Zod](https://zod.dev), [Pino](https://getpino.io),
 [Vitest](https://vitest.dev), [yaml](https://eemeli.org/yaml/) and

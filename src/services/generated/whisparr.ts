@@ -11,24 +11,23 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
+        get: operations["getApi"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/login/sso": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
+        get: operations["getLoginSso"];
         put?: never;
         post?: never;
         delete?: never;
@@ -44,53 +43,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        get?: never;
         put?: never;
-        post: {
-            parameters: {
-                query?: {
-                    returnUrl?: string;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "multipart/form-data": {
-                        username?: string;
-                        password?: string;
-                        rememberMe?: string;
-                    };
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        post: operations["postLogin"];
         delete?: never;
         options?: never;
         head?: never;
@@ -104,24 +59,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        get: operations["getLogout"];
         put?: never;
         post?: never;
         delete?: never;
@@ -137,53 +75,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["AutoTaggingResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getAutotagging"];
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["AutoTaggingResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["AutoTaggingResource"];
-                        "application/json": components["schemas"]["AutoTaggingResource"];
-                        "text/json": components["schemas"]["AutoTaggingResource"];
-                    };
-                };
-            };
-        };
+        post: operations["postAutotagging"];
         delete?: never;
         options?: never;
         head?: never;
@@ -197,77 +91,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["AutoTaggingResource"];
-                    };
-                };
-            };
-        };
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["AutoTaggingResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["AutoTaggingResource"];
-                        "application/json": components["schemas"]["AutoTaggingResource"];
-                        "text/json": components["schemas"]["AutoTaggingResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getAutotaggingById"];
+        put: operations["putAutotaggingById"];
         post?: never;
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        delete: operations["deleteAutotaggingById"];
         options?: never;
         head?: never;
         patch?: never;
@@ -280,24 +107,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        get: operations["getAutotaggingSchema"];
         put?: never;
         post?: never;
         delete?: never;
@@ -313,28 +123,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["BackupResource"][];
-                        "application/json": components["schemas"]["BackupResource"][];
-                        "text/json": components["schemas"]["BackupResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getSystemBackup"];
         put?: never;
         post?: never;
         delete?: never;
@@ -353,26 +142,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        delete: operations["deleteSystemBackupById"];
         options?: never;
         head?: never;
         patch?: never;
@@ -387,26 +157,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        post: operations["postSystemBackupRestoreById"];
         delete?: never;
         options?: never;
         head?: never;
@@ -422,24 +173,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        post: operations["postSystemBackupRestoreUpload"];
         delete?: never;
         options?: never;
         head?: never;
@@ -453,31 +187,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: {
-                    page?: number;
-                    pageSize?: number;
-                    sortKey?: string;
-                    sortDirection?: components["schemas"]["SortDirection"];
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["BlocklistResourcePagingResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getBlocklist"];
         put?: never;
         post?: never;
         delete?: never;
@@ -496,26 +206,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        delete: operations["deleteBlocklistById"];
         options?: never;
         head?: never;
         patch?: never;
@@ -531,30 +222,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["BlocklistBulkResource"];
-                    "text/json": components["schemas"]["BlocklistBulkResource"];
-                    "application/*+json": components["schemas"]["BlocklistBulkResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        delete: operations["deleteBlocklistBulk"];
         options?: never;
         head?: never;
         patch?: never;
@@ -567,34 +235,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: {
-                    start?: string;
-                    end?: string;
-                    unmonitored?: boolean;
-                    includeSeries?: boolean;
-                    includeEpisodeFile?: boolean;
-                    includeEpisodeImages?: boolean;
-                    tags?: string;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["EpisodeResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getCalendar"];
         put?: never;
         post?: never;
         delete?: never;
@@ -610,28 +251,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["EpisodeResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getCalendarById"];
         put?: never;
         post?: never;
         delete?: never;
@@ -647,31 +267,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: {
-                    pastDays?: number;
-                    futureDays?: number;
-                    tags?: string;
-                    unmonitored?: boolean;
-                    premieresOnly?: boolean;
-                    asAllDay?: boolean;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        get: operations["getFeedV3CalendarWhisparrIcs"];
         put?: never;
         post?: never;
         delete?: never;
@@ -687,51 +283,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["CommandResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getCommand"];
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["CommandResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["CommandResource"];
-                    };
-                };
-            };
-        };
+        post: operations["postCommand"];
         delete?: never;
         options?: never;
         head?: never;
@@ -745,50 +299,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["CommandResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getCommandById"];
         put?: never;
         post?: never;
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        delete: operations["deleteCommandById"];
         options?: never;
         head?: never;
         patch?: never;
@@ -801,53 +315,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["CustomFilterResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getCustomfilter"];
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["CustomFilterResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["CustomFilterResource"];
-                        "application/json": components["schemas"]["CustomFilterResource"];
-                        "text/json": components["schemas"]["CustomFilterResource"];
-                    };
-                };
-            };
-        };
+        post: operations["postCustomfilter"];
         delete?: never;
         options?: never;
         head?: never;
@@ -861,77 +331,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["CustomFilterResource"];
-                    };
-                };
-            };
-        };
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["CustomFilterResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["CustomFilterResource"];
-                        "application/json": components["schemas"]["CustomFilterResource"];
-                        "text/json": components["schemas"]["CustomFilterResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getCustomfilterById"];
+        put: operations["putCustomfilterById"];
         post?: never;
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        delete: operations["deleteCustomfilterById"];
         options?: never;
         head?: never;
         patch?: never;
@@ -944,53 +347,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["CustomFormatResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getCustomformat"];
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["CustomFormatResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["CustomFormatResource"];
-                        "application/json": components["schemas"]["CustomFormatResource"];
-                        "text/json": components["schemas"]["CustomFormatResource"];
-                    };
-                };
-            };
-        };
+        post: operations["postCustomformat"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1004,77 +363,26 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["CustomFormatResource"];
-                    };
-                };
-            };
-        };
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["CustomFormatResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["CustomFormatResource"];
-                        "application/json": components["schemas"]["CustomFormatResource"];
-                        "text/json": components["schemas"]["CustomFormatResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getCustomformatById"];
+        put: operations["putCustomformatById"];
         post?: never;
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
+        delete: operations["deleteCustomformatById"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v3/customformat/bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
+        get?: never;
+        put: operations["putCustomformatBulk"];
+        post?: never;
+        delete: operations["deleteCustomformatBulk"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1087,24 +395,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        get: operations["getCustomformatSchema"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1120,35 +411,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: {
-                    page?: number;
-                    pageSize?: number;
-                    sortKey?: string;
-                    sortDirection?: components["schemas"]["SortDirection"];
-                    includeSeries?: boolean;
-                    includeEpisodeFile?: boolean;
-                    includeImages?: boolean;
-                    monitored?: boolean;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["EpisodeResourcePagingResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getWantedCutoff"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1164,28 +427,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["EpisodeResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getWantedCutoffById"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1201,53 +443,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["DelayProfileResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getDelayprofile"];
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["DelayProfileResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["DelayProfileResource"];
-                        "application/json": components["schemas"]["DelayProfileResource"];
-                        "text/json": components["schemas"]["DelayProfileResource"];
-                    };
-                };
-            };
-        };
+        post: operations["postDelayprofile"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1261,77 +459,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["DelayProfileResource"];
-                    };
-                };
-            };
-        };
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["DelayProfileResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["DelayProfileResource"];
-                        "application/json": components["schemas"]["DelayProfileResource"];
-                        "text/json": components["schemas"]["DelayProfileResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getDelayprofileById"];
+        put: operations["putDelayprofileById"];
         post?: never;
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        delete: operations["deleteDelayprofileById"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1345,32 +476,7 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put: {
-            parameters: {
-                query?: {
-                    after?: number;
-                };
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["DelayProfileResource"][];
-                        "application/json": components["schemas"]["DelayProfileResource"][];
-                        "text/json": components["schemas"]["DelayProfileResource"][];
-                    };
-                };
-            };
-        };
+        put: operations["putDelayprofileReorderById"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1385,26 +491,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["DiskSpaceResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getDiskspace"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1420,53 +507,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["DownloadClientResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getDownloadclient"];
         put?: never;
-        post: {
-            parameters: {
-                query?: {
-                    forceSave?: boolean;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["DownloadClientResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["DownloadClientResource"];
-                    };
-                };
-            };
-        };
+        post: operations["postDownloadclient"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1480,77 +523,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["DownloadClientResource"];
-                    };
-                };
-            };
-        };
-        put: {
-            parameters: {
-                query?: {
-                    forceSave?: boolean;
-                };
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["DownloadClientResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["DownloadClientResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getDownloadclientById"];
+        put: operations["putDownloadclientById"];
         post?: never;
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        delete: operations["deleteDownloadclientById"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1564,53 +540,9 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["DownloadClientBulkResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["DownloadClientResource"];
-                    };
-                };
-            };
-        };
+        put: operations["putDownloadclientBulk"];
         post?: never;
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["DownloadClientBulkResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        delete: operations["deleteDownloadclientBulk"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1623,26 +555,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["DownloadClientResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getDownloadclientSchema"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1660,28 +573,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["DownloadClientResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        post: operations["postDownloadclientTest"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1697,24 +589,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        post: operations["postDownloadclientTestall"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1730,30 +605,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    name: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["DownloadClientResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        post: operations["postDownloadclientActionByName"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1767,26 +619,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["DownloadClientConfigResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getConfigDownloadclient"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1802,56 +635,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["DownloadClientConfigResource"];
-                    };
-                };
-            };
-        };
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["DownloadClientConfigResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["DownloadClientConfigResource"];
-                        "application/json": components["schemas"]["DownloadClientConfigResource"];
-                        "text/json": components["schemas"]["DownloadClientConfigResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getConfigDownloadclientById"];
+        put: operations["putConfigDownloadclientById"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1866,34 +651,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: {
-                    seriesId?: number;
-                    seasonNumber?: number;
-                    episodeIds?: number[];
-                    episodeFileId?: number;
-                    includeSeries?: boolean;
-                    includeEpisodeFile?: boolean;
-                    includeImages?: boolean;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["EpisodeResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getEpisode"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1909,56 +667,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["EpisodeResource"];
-                    };
-                };
-            };
-        };
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["EpisodeResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["EpisodeResource"];
-                        "application/json": components["schemas"]["EpisodeResource"];
-                        "text/json": components["schemas"]["EpisodeResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getEpisodeById"];
+        put: operations["putEpisodeById"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1974,30 +684,7 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put: {
-            parameters: {
-                query?: {
-                    includeImages?: boolean;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["EpisodesMonitoredResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        put: operations["putEpisodeMonitor"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2012,29 +699,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: {
-                    seriesId?: number;
-                    episodeFileIds?: number[];
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["EpisodeFileResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getEpisodefile"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2050,77 +715,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["EpisodeFileResource"];
-                    };
-                };
-            };
-        };
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["EpisodeFileResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["EpisodeFileResource"];
-                        "application/json": components["schemas"]["EpisodeFileResource"];
-                        "text/json": components["schemas"]["EpisodeFileResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getEpisodefileById"];
+        put: operations["putEpisodefileById"];
         post?: never;
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        delete: operations["deleteEpisodefileById"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2134,28 +732,8 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["EpisodeFileListResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        /** @deprecated */
+        put: operations["putEpisodefileEditor"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2171,51 +749,9 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["EpisodeFileResource"][];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        put: operations["putEpisodefileBulk"];
         post?: never;
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["EpisodeFileListResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        delete: operations["deleteEpisodefileBulk"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2228,28 +764,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: {
-                    path?: string;
-                    includeFiles?: boolean;
-                    allowFoldersWithoutTrailingSlashes?: boolean;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        get: operations["getFilesystem"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2265,26 +780,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: {
-                    path?: string;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        get: operations["getFilesystemType"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2300,26 +796,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: {
-                    path?: string;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        get: operations["getFilesystemMediafiles"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2335,26 +812,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["HealthResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getHealth"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2370,36 +828,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: {
-                    page?: number;
-                    pageSize?: number;
-                    sortKey?: string;
-                    sortDirection?: components["schemas"]["SortDirection"];
-                    includeSeries?: boolean;
-                    includeEpisode?: boolean;
-                    eventType?: number;
-                    episodeId?: number;
-                    downloadId?: string;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["HistoryResourcePagingResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getHistory"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2415,31 +844,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: {
-                    date?: string;
-                    eventType?: components["schemas"]["EpisodeHistoryEventType"];
-                    includeSeries?: boolean;
-                    includeEpisode?: boolean;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["HistoryResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getHistorySince"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2455,32 +860,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: {
-                    seriesId?: number;
-                    seasonNumber?: number;
-                    eventType?: components["schemas"]["EpisodeHistoryEventType"];
-                    includeSeries?: boolean;
-                    includeEpisode?: boolean;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["HistoryResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getHistorySeries"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2498,26 +878,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        post: operations["postHistoryFailedById"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2531,28 +892,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["HostConfigResource"];
-                        "application/json": components["schemas"]["HostConfigResource"];
-                        "text/json": components["schemas"]["HostConfigResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getConfigHost"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2568,58 +908,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["HostConfigResource"];
-                    };
-                };
-            };
-        };
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["HostConfigResource"];
-                    "text/json": components["schemas"]["HostConfigResource"];
-                    "application/*+json": components["schemas"]["HostConfigResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["HostConfigResource"];
-                        "application/json": components["schemas"]["HostConfigResource"];
-                        "text/json": components["schemas"]["HostConfigResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getConfigHostById"];
+        put: operations["putConfigHostById"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2634,53 +924,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ImportListResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getImportlist"];
         put?: never;
-        post: {
-            parameters: {
-                query?: {
-                    forceSave?: boolean;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["ImportListResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ImportListResource"];
-                    };
-                };
-            };
-        };
+        post: operations["postImportlist"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2694,77 +940,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ImportListResource"];
-                    };
-                };
-            };
-        };
-        put: {
-            parameters: {
-                query?: {
-                    forceSave?: boolean;
-                };
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["ImportListResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ImportListResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getImportlistById"];
+        put: operations["putImportlistById"];
         post?: never;
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        delete: operations["deleteImportlistById"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2778,53 +957,9 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["ImportListBulkResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ImportListResource"];
-                    };
-                };
-            };
-        };
+        put: operations["putImportlistBulk"];
         post?: never;
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["ImportListBulkResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        delete: operations["deleteImportlistBulk"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2837,26 +972,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ImportListResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getImportlistSchema"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2874,28 +990,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["ImportListResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        post: operations["postImportlistTest"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2911,24 +1006,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        post: operations["postImportlistTestall"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2944,129 +1022,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    name: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["ImportListResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v3/config/importlist": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ImportListConfigResource"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v3/config/importlist/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ImportListConfigResource"];
-                    };
-                };
-            };
-        };
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["ImportListConfigResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["ImportListConfigResource"];
-                        "application/json": components["schemas"]["ImportListConfigResource"];
-                        "text/json": components["schemas"]["ImportListConfigResource"];
-                    };
-                };
-            };
-        };
-        post?: never;
+        post: operations["postImportlistActionByName"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3080,53 +1036,26 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ImportListExclusionResource"][];
-                    };
-                };
-            };
-        };
+        /** @deprecated */
+        get: operations["getImportlistexclusion"];
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["ImportListExclusionResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["ImportListExclusionResource"];
-                        "application/json": components["schemas"]["ImportListExclusionResource"];
-                        "text/json": components["schemas"]["ImportListExclusionResource"];
-                    };
-                };
-            };
+        post: operations["postImportlistexclusion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v3/importlistexclusion/paged": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
+        get: operations["getImportlistexclusionPaged"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3140,77 +1069,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ImportListExclusionResource"];
-                    };
-                };
-            };
-        };
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["ImportListExclusionResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["ImportListExclusionResource"];
-                        "application/json": components["schemas"]["ImportListExclusionResource"];
-                        "text/json": components["schemas"]["ImportListExclusionResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getImportlistexclusionById"];
+        put: operations["putImportlistexclusionById"];
         post?: never;
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        delete: operations["deleteImportlistexclusionById"];
         options?: never;
         head?: never;
         patch?: never;
@@ -3223,53 +1085,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["IndexerResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getIndexer"];
         put?: never;
-        post: {
-            parameters: {
-                query?: {
-                    forceSave?: boolean;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["IndexerResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["IndexerResource"];
-                    };
-                };
-            };
-        };
+        post: operations["postIndexer"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3283,77 +1101,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["IndexerResource"];
-                    };
-                };
-            };
-        };
-        put: {
-            parameters: {
-                query?: {
-                    forceSave?: boolean;
-                };
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["IndexerResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["IndexerResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getIndexerById"];
+        put: operations["putIndexerById"];
         post?: never;
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        delete: operations["deleteIndexerById"];
         options?: never;
         head?: never;
         patch?: never;
@@ -3367,53 +1118,9 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["IndexerBulkResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["IndexerResource"];
-                    };
-                };
-            };
-        };
+        put: operations["putIndexerBulk"];
         post?: never;
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["IndexerBulkResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        delete: operations["deleteIndexerBulk"];
         options?: never;
         head?: never;
         patch?: never;
@@ -3426,26 +1133,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["IndexerResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getIndexerSchema"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3463,28 +1151,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["IndexerResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        post: operations["postIndexerTest"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3500,24 +1167,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        post: operations["postIndexerTestall"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3533,30 +1183,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    name: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["IndexerResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        post: operations["postIndexerActionByName"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3570,26 +1197,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["IndexerConfigResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getConfigIndexer"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3605,56 +1213,24 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["IndexerConfigResource"];
-                    };
-                };
-            };
+        get: operations["getConfigIndexerById"];
+        put: operations["putConfigIndexerById"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v3/indexerflag": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["IndexerConfigResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["IndexerConfigResource"];
-                        "application/json": components["schemas"]["IndexerConfigResource"];
-                        "text/json": components["schemas"]["IndexerConfigResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getIndexerflag"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -3669,28 +1245,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["LanguageResource"][];
-                        "application/json": components["schemas"]["LanguageResource"][];
-                        "text/json": components["schemas"]["LanguageResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getLanguage"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3706,28 +1261,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["LanguageResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getLanguageById"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3744,52 +1278,10 @@ export interface paths {
             cookie?: never;
         };
         /** @deprecated */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["LanguageProfileResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getLanguageprofile"];
         put?: never;
         /** @deprecated */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["LanguageProfileResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["LanguageProfileResource"];
-                    };
-                };
-            };
-        };
+        post: operations["postLanguageprofile"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3803,77 +1295,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["LanguageProfileResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getLanguageprofileById"];
         /** @deprecated */
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["LanguageProfileResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["LanguageProfileResource"];
-                    };
-                };
-            };
-        };
+        put: operations["putLanguageprofileById"];
         post?: never;
         /** @deprecated */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        delete: operations["deleteLanguageprofileById"];
         options?: never;
         head?: never;
         patch?: never;
@@ -3887,26 +1314,7 @@ export interface paths {
             cookie?: never;
         };
         /** @deprecated */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["LanguageProfileResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getLanguageprofileSchema"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3922,26 +1330,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["LocalizationResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getLocalization"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3957,26 +1346,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["LocalizationLanguageResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getLocalizationLanguage"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3992,28 +1362,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["LocalizationResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getLocalizationById"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4029,32 +1378,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: {
-                    page?: number;
-                    pageSize?: number;
-                    sortKey?: string;
-                    sortDirection?: components["schemas"]["SortDirection"];
-                    level?: string;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["LogResourcePagingResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getLog"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4070,26 +1394,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["LogFileResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getLogFile"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4105,26 +1410,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    filename: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        get: operations["getLogFileByFilename"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4140,55 +1426,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: {
-                    folder?: string;
-                    downloadId?: string;
-                    seriesId?: number;
-                    seasonNumber?: number;
-                    filterExistingFiles?: boolean;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ManualImportResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getManualimport"];
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["ManualImportReprocessResource"][];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        post: operations["postManualimport"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4202,27 +1442,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    seriesId: number;
-                    filename: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        get: operations["getMediacoverBySeriesIdByFilename"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4238,26 +1458,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["MediaManagementConfigResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getConfigMediamanagement"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4273,56 +1474,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["MediaManagementConfigResource"];
-                    };
-                };
-            };
-        };
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["MediaManagementConfigResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["MediaManagementConfigResource"];
-                        "application/json": components["schemas"]["MediaManagementConfigResource"];
-                        "text/json": components["schemas"]["MediaManagementConfigResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getConfigMediamanagementById"];
+        put: operations["putConfigMediamanagementById"];
         post?: never;
         delete?: never;
         options?: never;
@@ -4337,53 +1490,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["MetadataResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getMetadata"];
         put?: never;
-        post: {
-            parameters: {
-                query?: {
-                    forceSave?: boolean;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["MetadataResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["MetadataResource"];
-                    };
-                };
-            };
-        };
+        post: operations["postMetadata"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4397,77 +1506,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["MetadataResource"];
-                    };
-                };
-            };
-        };
-        put: {
-            parameters: {
-                query?: {
-                    forceSave?: boolean;
-                };
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["MetadataResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["MetadataResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getMetadataById"];
+        put: operations["putMetadataById"];
         post?: never;
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        delete: operations["deleteMetadataById"];
         options?: never;
         head?: never;
         patch?: never;
@@ -4480,26 +1522,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["MetadataResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getMetadataSchema"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4517,28 +1540,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["MetadataResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        post: operations["postMetadataTest"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4554,24 +1556,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        post: operations["postMetadataTestall"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4587,30 +1572,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    name: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["MetadataResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        post: operations["postMetadataActionByName"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4624,34 +1586,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: {
-                    page?: number;
-                    pageSize?: number;
-                    sortKey?: string;
-                    sortDirection?: components["schemas"]["SortDirection"];
-                    includeSeries?: boolean;
-                    includeImages?: boolean;
-                    monitored?: boolean;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["EpisodeResourcePagingResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getWantedMissing"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4667,28 +1602,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["EpisodeResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getWantedMissingById"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4704,28 +1618,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["NamingConfigResource"];
-                        "application/json": components["schemas"]["NamingConfigResource"];
-                        "text/json": components["schemas"]["NamingConfigResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getConfigNaming"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4741,58 +1634,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["NamingConfigResource"];
-                    };
-                };
-            };
-        };
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["NamingConfigResource"];
-                    "text/json": components["schemas"]["NamingConfigResource"];
-                    "application/*+json": components["schemas"]["NamingConfigResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["NamingConfigResource"];
-                        "application/json": components["schemas"]["NamingConfigResource"];
-                        "text/json": components["schemas"]["NamingConfigResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getConfigNamingById"];
+        put: operations["putConfigNamingById"];
         post?: never;
         delete?: never;
         options?: never;
@@ -4807,39 +1650,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: {
-                    renameEpisodes?: boolean;
-                    replaceIllegalCharacters?: boolean;
-                    colonReplacementFormat?: number;
-                    multiEpisodeStyle?: number;
-                    standardEpisodeFormat?: string;
-                    seriesFolderFormat?: string;
-                    includeSeriesTitle?: boolean;
-                    includeEpisodeTitle?: boolean;
-                    includeQuality?: boolean;
-                    replaceSpaces?: boolean;
-                    separator?: string;
-                    numberStyle?: string;
-                    id?: number;
-                    resourceName?: string;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        get: operations["getConfigNamingExamples"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4855,53 +1666,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["NotificationResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getNotification"];
         put?: never;
-        post: {
-            parameters: {
-                query?: {
-                    forceSave?: boolean;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["NotificationResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["NotificationResource"];
-                    };
-                };
-            };
-        };
+        post: operations["postNotification"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4915,77 +1682,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["NotificationResource"];
-                    };
-                };
-            };
-        };
-        put: {
-            parameters: {
-                query?: {
-                    forceSave?: boolean;
-                };
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["NotificationResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["NotificationResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getNotificationById"];
+        put: operations["putNotificationById"];
         post?: never;
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        delete: operations["deleteNotificationById"];
         options?: never;
         head?: never;
         patch?: never;
@@ -4998,26 +1698,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["NotificationResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getNotificationSchema"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5035,28 +1716,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["NotificationResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        post: operations["postNotificationTest"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5072,24 +1732,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        post: operations["postNotificationTestall"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5105,30 +1748,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    name: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["NotificationResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        post: operations["postNotificationActionByName"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5142,29 +1762,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: {
-                    title?: string;
-                    path?: string;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ParseResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getParse"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5180,31 +1778,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["PingResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getPing"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
-        head?: never;
+        head: operations["headPing"];
         patch?: never;
         trace?: never;
     };
@@ -5215,58 +1794,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["QualityDefinitionResource"];
-                    };
-                };
-            };
-        };
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["QualityDefinitionResource"];
-                    "text/json": components["schemas"]["QualityDefinitionResource"];
-                    "application/*+json": components["schemas"]["QualityDefinitionResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["QualityDefinitionResource"];
-                        "application/json": components["schemas"]["QualityDefinitionResource"];
-                        "text/json": components["schemas"]["QualityDefinitionResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getQualitydefinitionById"];
+        put: operations["putQualitydefinitionById"];
         post?: never;
         delete?: never;
         options?: never;
@@ -5281,28 +1810,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["QualityDefinitionResource"][];
-                        "application/json": components["schemas"]["QualityDefinitionResource"][];
-                        "text/json": components["schemas"]["QualityDefinitionResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getQualitydefinition"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5319,30 +1827,7 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["QualityDefinitionResource"][];
-                    "text/json": components["schemas"]["QualityDefinitionResource"][];
-                    "application/*+json": components["schemas"]["QualityDefinitionResource"][];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        put: operations["putQualitydefinitionUpdate"];
         post?: never;
         delete?: never;
         options?: never;
@@ -5357,28 +1842,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["QualityDefinitionLimitsResource"];
-                        "application/json": components["schemas"]["QualityDefinitionLimitsResource"];
-                        "text/json": components["schemas"]["QualityDefinitionLimitsResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getQualitydefinitionLimits"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5394,53 +1858,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["QualityProfileResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getQualityprofile"];
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["QualityProfileResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["QualityProfileResource"];
-                        "application/json": components["schemas"]["QualityProfileResource"];
-                        "text/json": components["schemas"]["QualityProfileResource"];
-                    };
-                };
-            };
-        };
+        post: operations["postQualityprofile"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5454,77 +1874,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["QualityProfileResource"];
-                    };
-                };
-            };
-        };
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["QualityProfileResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["QualityProfileResource"];
-                        "application/json": components["schemas"]["QualityProfileResource"];
-                        "text/json": components["schemas"]["QualityProfileResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getQualityprofileById"];
+        put: operations["putQualityprofileById"];
         post?: never;
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        delete: operations["deleteQualityprofileById"];
         options?: never;
         head?: never;
         patch?: never;
@@ -5537,28 +1890,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["QualityProfileResource"];
-                        "application/json": components["schemas"]["QualityProfileResource"];
-                        "text/json": components["schemas"]["QualityProfileResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getQualityprofileSchema"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5577,31 +1909,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete: {
-            parameters: {
-                query?: {
-                    removeFromClient?: boolean;
-                    blocklist?: boolean;
-                    skipRedownload?: boolean;
-                    changeCategory?: boolean;
-                };
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        delete: operations["deleteQueueById"];
         options?: never;
         head?: never;
         patch?: never;
@@ -5617,35 +1925,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete: {
-            parameters: {
-                query?: {
-                    removeFromClient?: boolean;
-                    blocklist?: boolean;
-                    skipRedownload?: boolean;
-                    changeCategory?: boolean;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["QueueBulkResource"];
-                    "text/json": components["schemas"]["QueueBulkResource"];
-                    "application/*+json": components["schemas"]["QueueBulkResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        delete: operations["deleteQueueBulk"];
         options?: never;
         head?: never;
         patch?: never;
@@ -5658,34 +1938,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: {
-                    page?: number;
-                    pageSize?: number;
-                    sortKey?: string;
-                    sortDirection?: components["schemas"]["SortDirection"];
-                    includeUnknownSeriesItems?: boolean;
-                    includeSeries?: boolean;
-                    includeEpisode?: boolean;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["QueueResourcePagingResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getQueue"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5703,26 +1956,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        post: operations["postQueueGrabById"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5738,28 +1972,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["QueueBulkResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        post: operations["postQueueGrabBulk"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5773,31 +1986,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: {
-                    seriesId?: number;
-                    episodeIds?: number[];
-                    includeSeries?: boolean;
-                    includeEpisode?: boolean;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["QueueResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getQueueDetails"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5813,26 +2002,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["QueueStatusResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getQueueStatus"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5848,53 +2018,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: {
-                    seriesId?: number;
-                    episodeId?: number;
-                    seasonNumber?: number;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ReleaseResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getRelease"];
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["ReleaseResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        post: operations["postRelease"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5908,57 +2034,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["ReleaseProfileResource"][];
-                        "application/json": components["schemas"]["ReleaseProfileResource"][];
-                        "text/json": components["schemas"]["ReleaseProfileResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getReleaseprofile"];
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["ReleaseProfileResource"];
-                    "text/json": components["schemas"]["ReleaseProfileResource"];
-                    "application/*+json": components["schemas"]["ReleaseProfileResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["ReleaseProfileResource"];
-                        "application/json": components["schemas"]["ReleaseProfileResource"];
-                        "text/json": components["schemas"]["ReleaseProfileResource"];
-                    };
-                };
-            };
-        };
+        post: operations["postReleaseprofile"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5972,79 +2050,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ReleaseProfileResource"];
-                    };
-                };
-            };
-        };
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["ReleaseProfileResource"];
-                    "text/json": components["schemas"]["ReleaseProfileResource"];
-                    "application/*+json": components["schemas"]["ReleaseProfileResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["ReleaseProfileResource"];
-                        "application/json": components["schemas"]["ReleaseProfileResource"];
-                        "text/json": components["schemas"]["ReleaseProfileResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getReleaseprofileById"];
+        put: operations["putReleaseprofileById"];
         post?: never;
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        delete: operations["deleteReleaseprofileById"];
         options?: never;
         head?: never;
         patch?: never;
@@ -6059,32 +2068,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["ReleaseResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["ReleaseResource"][];
-                        "application/json": components["schemas"]["ReleaseResource"][];
-                        "text/json": components["schemas"]["ReleaseResource"][];
-                    };
-                };
-            };
-        };
+        post: operations["postReleasePush"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6098,53 +2082,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RemotePathMappingResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getRemotepathmapping"];
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["RemotePathMappingResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["RemotePathMappingResource"];
-                        "application/json": components["schemas"]["RemotePathMappingResource"];
-                        "text/json": components["schemas"]["RemotePathMappingResource"];
-                    };
-                };
-            };
-        };
+        post: operations["postRemotepathmapping"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6158,79 +2098,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RemotePathMappingResource"];
-                    };
-                };
-            };
-        };
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["RemotePathMappingResource"];
-                    "text/json": components["schemas"]["RemotePathMappingResource"];
-                    "application/*+json": components["schemas"]["RemotePathMappingResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["RemotePathMappingResource"];
-                        "application/json": components["schemas"]["RemotePathMappingResource"];
-                        "text/json": components["schemas"]["RemotePathMappingResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getRemotepathmappingById"];
+        put: operations["putRemotepathmappingById"];
         post?: never;
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        delete: operations["deleteRemotepathmappingById"];
         options?: never;
         head?: never;
         patch?: never;
@@ -6243,29 +2114,23 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: {
-                    seriesId?: number;
-                    seasonNumber?: number;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RenameEpisodeResource"][];
-                    };
-                };
-            };
+        get: operations["getRename"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v3/rename/bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
+        get: operations["getRenameBulk"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6281,53 +2146,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RootFolderResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getRootfolder"];
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["RootFolderResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["RootFolderResource"];
-                        "application/json": components["schemas"]["RootFolderResource"];
-                        "text/json": components["schemas"]["RootFolderResource"];
-                    };
-                };
-            };
-        };
+        post: operations["postRootfolder"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6341,50 +2162,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RootFolderResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getRootfolderById"];
         put?: never;
         post?: never;
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        delete: operations["deleteRootfolderById"];
         options?: never;
         head?: never;
         patch?: never;
@@ -6399,28 +2180,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["SeasonPassResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        post: operations["postSeasonpass"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6434,56 +2194,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: {
-                    tvdbId?: number;
-                    includeSeasonImages?: boolean;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SeriesResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getSeries"];
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["SeriesResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["SeriesResource"];
-                        "application/json": components["schemas"]["SeriesResource"];
-                        "text/json": components["schemas"]["SeriesResource"];
-                    };
-                };
-            };
-        };
+        post: operations["postSeries"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6497,84 +2210,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: {
-                    includeSeasonImages?: boolean;
-                };
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SeriesResource"];
-                    };
-                };
-            };
-        };
-        put: {
-            parameters: {
-                query?: {
-                    moveFiles?: boolean;
-                };
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["SeriesResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["SeriesResource"];
-                        "application/json": components["schemas"]["SeriesResource"];
-                        "text/json": components["schemas"]["SeriesResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getSeriesById"];
+        put: operations["putSeriesById"];
         post?: never;
-        delete: {
-            parameters: {
-                query?: {
-                    deleteFiles?: boolean;
-                    addImportListExclusion?: boolean;
-                };
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        delete: operations["deleteSeriesById"];
         options?: never;
         head?: never;
         patch?: never;
@@ -6588,55 +2227,9 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["SeriesEditorResource"];
-                    "text/json": components["schemas"]["SeriesEditorResource"];
-                    "application/*+json": components["schemas"]["SeriesEditorResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        put: operations["putSeriesEditor"];
         post?: never;
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["SeriesEditorResource"];
-                    "text/json": components["schemas"]["SeriesEditorResource"];
-                    "application/*+json": components["schemas"]["SeriesEditorResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        delete: operations["deleteSeriesEditor"];
         options?: never;
         head?: never;
         patch?: never;
@@ -6651,30 +2244,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["SeriesResource"][];
-                    "text/json": components["schemas"]["SeriesResource"][];
-                    "application/*+json": components["schemas"]["SeriesResource"][];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        post: operations["postSeriesImport"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6688,131 +2258,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: {
-                    term?: string;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/content/{path}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    path: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    path: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/{path}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    path: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        get: operations["getSeriesLookup"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6828,26 +2274,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SystemResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getSystemStatus"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6863,24 +2290,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        get: operations["getSystemRoutes"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6896,24 +2306,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        get: operations["getSystemRoutesDuplicate"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6931,24 +2324,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        post: operations["postSystemShutdown"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6964,24 +2340,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        post: operations["postSystemRestart"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6995,53 +2354,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["TagResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getTag"];
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["TagResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["TagResource"];
-                        "application/json": components["schemas"]["TagResource"];
-                        "text/json": components["schemas"]["TagResource"];
-                    };
-                };
-            };
-        };
+        post: operations["postTag"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7055,77 +2370,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["TagResource"];
-                    };
-                };
-            };
-        };
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["TagResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["TagResource"];
-                        "application/json": components["schemas"]["TagResource"];
-                        "text/json": components["schemas"]["TagResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getTagById"];
+        put: operations["putTagById"];
         post?: never;
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        delete: operations["deleteTagById"];
         options?: never;
         head?: never;
         patch?: never;
@@ -7138,26 +2386,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["TagDetailsResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getTagDetail"];
         put?: never;
         post?: never;
         delete?: never;
@@ -7173,28 +2402,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["TagDetailsResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getTagDetailById"];
         put?: never;
         post?: never;
         delete?: never;
@@ -7210,28 +2418,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["TaskResource"][];
-                        "application/json": components["schemas"]["TaskResource"][];
-                        "text/json": components["schemas"]["TaskResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getSystemTask"];
         put?: never;
         post?: never;
         delete?: never;
@@ -7247,28 +2434,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["TaskResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getSystemTaskById"];
         put?: never;
         post?: never;
         delete?: never;
@@ -7284,56 +2450,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["UiConfigResource"];
-                    };
-                };
-            };
-        };
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["UiConfigResource"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["UiConfigResource"];
-                        "application/json": components["schemas"]["UiConfigResource"];
-                        "text/json": components["schemas"]["UiConfigResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getConfigUiById"];
+        put: operations["putConfigUiById"];
         post?: never;
         delete?: never;
         options?: never;
@@ -7348,26 +2466,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["UiConfigResource"];
-                    };
-                };
-            };
-        };
+        get: operations["getConfigUi"];
         put?: never;
         post?: never;
         delete?: never;
@@ -7383,26 +2482,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["UpdateResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getUpdate"];
         put?: never;
         post?: never;
         delete?: never;
@@ -7418,26 +2498,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["LogFileResource"][];
-                    };
-                };
-            };
-        };
+        get: operations["getLogFileUpdate"];
         put?: never;
         post?: never;
         delete?: never;
@@ -7453,26 +2514,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    filename: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        get: operations["getLogFileUpdateByFilename"];
         put?: never;
         post?: never;
         delete?: never;
@@ -7501,12 +2543,16 @@ export interface components {
             searchForMissingEpisodes?: boolean;
             searchForCutoffUnmetEpisodes?: boolean;
         };
+        ApiInfoResource: {
+            current?: string | null;
+            deprecated?: string[] | null;
+        };
         /** @enum {string} */
         ApplyTags: "add" | "remove" | "replace";
         /** @enum {string} */
-        AuthenticationRequiredType: "enabled" | "disabledForLocalAddresses";
+        AuthenticationRequiredType: "enabled" | "disabledForLocalAddresses" | "disabledForLocalhost";
         /** @enum {string} */
-        AuthenticationType: "none" | "basic" | "forms" | "external";
+        AuthenticationType: "none" | "basic" | "forms" | "external" | "oidc";
         AutoTaggingResource: {
             /** Format: int32 */
             id?: number;
@@ -7535,6 +2581,9 @@ export interface components {
             size?: number;
             /** Format: date-time */
             time?: string;
+        };
+        BackupRestoreResource: {
+            restartRequired?: boolean;
         };
         /** @enum {string} */
         BackupType: "scheduled" | "manual" | "update";
@@ -7605,7 +2654,8 @@ export interface components {
             started?: string | null;
             /** Format: date-time */
             ended?: string | null;
-            duration?: components["schemas"]["TimeSpan"];
+            /** Format: date-span */
+            duration?: string | null;
             exception?: string | null;
             trigger?: components["schemas"]["CommandTrigger"];
             clientUserAgent?: string | null;
@@ -7617,7 +2667,7 @@ export interface components {
             lastExecutionTime?: string | null;
         };
         /** @enum {string} */
-        CommandResult: "unknown" | "successful" | "unsuccessful";
+        CommandResult: "unknown" | "successful" | "unsuccessful" | "indeterminate";
         /** @enum {string} */
         CommandStatus: "queued" | "started" | "completed" | "failed" | "aborted" | "cancelled" | "orphaned";
         /** @enum {string} */
@@ -7630,6 +2680,10 @@ export interface components {
             filters?: {
                 [key: string]: unknown;
             }[] | null;
+        };
+        CustomFormatBulkResource: {
+            ids?: number[] | null;
+            includeCustomFormatWhenRenaming?: boolean | null;
         };
         CustomFormatResource: {
             /** Format: int32 */
@@ -7652,21 +2706,6 @@ export interface components {
         };
         /** @enum {string} */
         DatabaseType: "sqLite" | "postgreSQL";
-        DateOnly: {
-            /** Format: int32 */
-            year?: number;
-            /** Format: int32 */
-            month?: number;
-            /** Format: int32 */
-            day?: number;
-            dayOfWeek?: components["schemas"]["DayOfWeek"];
-            /** Format: int32 */
-            readonly dayOfYear?: number;
-            /** Format: int32 */
-            readonly dayNumber?: number;
-        };
-        /** @enum {string} */
-        DayOfWeek: "sunday" | "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday";
         DelayProfileResource: {
             /** Format: int32 */
             id?: number;
@@ -7711,6 +2750,7 @@ export interface components {
             downloadClientWorkingFolders?: string | null;
             enableCompletedDownloadHandling?: boolean;
             autoRedownloadFailed?: boolean;
+            autoRedownloadFailedFromInteractiveSearch?: boolean;
         };
         DownloadClientResource: {
             /** Format: int32 */
@@ -7760,6 +2800,8 @@ export interface components {
             customFormats?: components["schemas"]["CustomFormatResource"][] | null;
             /** Format: int32 */
             customFormatScore?: number;
+            /** Format: int32 */
+            indexerFlags?: number | null;
             mediaInfo?: components["schemas"]["MediaInfoResource"];
             qualityCutoffNotMet?: boolean;
         };
@@ -7777,7 +2819,8 @@ export interface components {
             /** Format: int32 */
             seasonNumber?: number;
             title?: string | null;
-            releaseDate?: components["schemas"]["DateOnly"];
+            /** Format: date */
+            releaseDate?: string | null;
             /** Format: date-time */
             lastSearchTime?: string | null;
             /** Format: int32 */
@@ -7788,10 +2831,6 @@ export interface components {
             monitored?: boolean;
             /** Format: int32 */
             absoluteEpisodeNumber?: number | null;
-            /** Format: date-time */
-            endTime?: string | null;
-            /** Format: date-time */
-            grabDate?: string | null;
             seriesTitle?: string | null;
             series?: components["schemas"]["SeriesResource"];
             actors?: components["schemas"]["Actor"][] | null;
@@ -7838,6 +2877,31 @@ export interface components {
         /** @enum {string} */
         FileDateType: "none" | "localAirDate" | "utcAirDate";
         /** @enum {string} */
+        FileSystemEntityType: "parent" | "drive" | "folder" | "file";
+        FileSystemMediaFileResource: {
+            path?: string | null;
+            relativePath?: string | null;
+            name?: string | null;
+        };
+        FileSystemModel: {
+            type?: components["schemas"]["FileSystemEntityType"];
+            name?: string | null;
+            path?: string | null;
+            extension?: string | null;
+            /** Format: int64 */
+            size?: number;
+            /** Format: date-time */
+            lastModified?: string | null;
+        };
+        FileSystemResult: {
+            parent?: string | null;
+            directories?: components["schemas"]["FileSystemModel"][] | null;
+            files?: components["schemas"]["FileSystemModel"][] | null;
+        };
+        FileSystemTypeResource: {
+            type?: string | null;
+        };
+        /** @enum {string} */
         Gender: "female" | "male" | "other";
         /** @enum {string} */
         HealthCheckResult: "ok" | "notice" | "warning" | "error";
@@ -7847,7 +2911,8 @@ export interface components {
             source?: string | null;
             type?: components["schemas"]["HealthCheckResult"];
             message?: string | null;
-            wikiUrl?: components["schemas"]["HttpUri"];
+            /** Format: uri */
+            wikiUrl?: string | null;
         };
         HistoryResource: {
             /** Format: int32 */
@@ -7896,17 +2961,27 @@ export interface components {
             launchBrowser?: boolean;
             authenticationMethod?: components["schemas"]["AuthenticationType"];
             authenticationRequired?: components["schemas"]["AuthenticationRequiredType"];
+            allowedHosts?: string | null;
             analyticsEnabled?: boolean;
             username?: string | null;
             password?: string | null;
+            passwordConfirmation?: string | null;
+            oidcAuthority?: string | null;
+            oidcClientId?: string | null;
+            oidcClientSecret?: string | null;
+            oidcUserIdentifier?: string | null;
+            oidcScopes?: string | null;
             logLevel?: string | null;
-            logSizeLimit?: number | null;
+            /** Format: int32 */
+            logSizeLimit?: number;
             consoleLogLevel?: string | null;
             branch?: string | null;
             apiKey?: string | null;
             sslCertPath?: string | null;
+            sslKeyPath?: string | null;
             sslCertPassword?: string | null;
             urlBase?: string | null;
+            trustedNetworks?: string | null;
             instanceName?: string | null;
             applicationUrl?: string | null;
             updateAutomatically?: boolean;
@@ -7927,16 +3002,7 @@ export interface components {
             backupInterval?: number;
             /** Format: int32 */
             backupRetention?: number;
-        };
-        HttpUri: {
-            readonly fullUri?: string | null;
-            readonly scheme?: string | null;
-            readonly host?: string | null;
-            /** Format: int32 */
-            readonly port?: number | null;
-            readonly path?: string | null;
-            readonly query?: string | null;
-            readonly fragment?: string | null;
+            trustCgnatIpAddresses?: boolean;
         };
         ImportListBulkResource: {
             ids?: number[] | null;
@@ -7946,13 +3012,10 @@ export interface components {
             rootFolderPath?: string | null;
             /** Format: int32 */
             qualityProfileId?: number | null;
-        };
-        ImportListConfigResource: {
-            /** Format: int32 */
-            id?: number;
-            listSyncLevel?: components["schemas"]["ListSyncLevelType"];
-            /** Format: int32 */
-            listSyncTag?: number;
+            searchForMissingEpisodes?: boolean | null;
+            shouldMonitor?: components["schemas"]["ImportListMonitorTypes"];
+            monitorNewItems?: components["schemas"]["NewItemMonitorTypes"];
+            siteMonitorType?: components["schemas"]["MonitorTypes"];
         };
         ImportListExclusionResource: {
             /** Format: int32 */
@@ -7960,6 +3023,17 @@ export interface components {
             /** Format: int32 */
             tvdbId?: number;
             title?: string | null;
+        };
+        ImportListExclusionResourcePagingResource: {
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            pageSize?: number;
+            sortKey?: string | null;
+            sortDirection?: components["schemas"]["SortDirection"];
+            /** Format: int32 */
+            totalRecords?: number;
+            records?: components["schemas"]["ImportListExclusionResource"][] | null;
         };
         /** @enum {string} */
         ImportListMonitorTypes: "none" | "specificEpisode" | "entireSite";
@@ -7976,18 +3050,25 @@ export interface components {
             tags?: number[] | null;
             presets?: components["schemas"]["ImportListResource"][] | null;
             enableAutomaticAdd?: boolean;
+            searchForMissingEpisodes?: boolean;
             shouldMonitor?: components["schemas"]["ImportListMonitorTypes"];
             siteMonitorType?: components["schemas"]["MonitorTypes"];
+            monitorNewItems?: components["schemas"]["NewItemMonitorTypes"];
             rootFolderPath?: string | null;
             /** Format: int32 */
             qualityProfileId?: number;
             listType?: components["schemas"]["ImportListType"];
             /** Format: int32 */
             listOrder?: number;
-            minRefreshInterval?: components["schemas"]["TimeSpan"];
+            /** Format: date-span */
+            minRefreshInterval?: string;
         };
         /** @enum {string} */
         ImportListType: "program" | "plex" | "trakt" | "simkl" | "other" | "advanced";
+        ImportRejectionResource: {
+            reason?: string | null;
+            type?: components["schemas"]["RejectionType"];
+        };
         IndexerBulkResource: {
             ids?: number[] | null;
             tags?: number[] | null;
@@ -7997,6 +3078,8 @@ export interface components {
             enableInteractiveSearch?: boolean | null;
             /** Format: int32 */
             priority?: number | null;
+            /** Format: int32 */
+            seasonSearchMaximumSingleEpisodeAge?: number | null;
         };
         IndexerConfigResource: {
             /** Format: int32 */
@@ -8009,6 +3092,12 @@ export interface components {
             maximumSize?: number;
             /** Format: int32 */
             rssSyncInterval?: number;
+        };
+        IndexerFlagResource: {
+            /** Format: int32 */
+            id?: number;
+            name?: string | null;
+            readonly nameLower?: string | null;
         };
         IndexerResource: {
             /** Format: int32 */
@@ -8060,8 +3149,6 @@ export interface components {
             name?: string | null;
             readonly nameLower?: string | null;
         };
-        /** @enum {string} */
-        ListSyncLevelType: "disabled" | "logOnly" | "keepAndUnmonitor" | "keepAndTag";
         LocalizationLanguageResource: {
             identifier?: string | null;
         };
@@ -8121,7 +3208,9 @@ export interface components {
             customFormats?: components["schemas"]["CustomFormatResource"][] | null;
             /** Format: int32 */
             customFormatScore?: number;
-            rejections?: components["schemas"]["Rejection"][] | null;
+            /** Format: int32 */
+            indexerFlags?: number;
+            rejections?: components["schemas"]["ImportRejectionResource"][] | null;
         };
         ManualImportResource: {
             /** Format: int32 */
@@ -8147,7 +3236,9 @@ export interface components {
             customFormats?: components["schemas"]["CustomFormatResource"][] | null;
             /** Format: int32 */
             customFormatScore?: number;
-            rejections?: components["schemas"]["Rejection"][] | null;
+            /** Format: int32 */
+            indexerFlags?: number;
+            rejections?: components["schemas"]["ImportRejectionResource"][] | null;
         };
         MediaCover: {
             coverType?: components["schemas"]["MediaCoverTypes"];
@@ -8197,6 +3288,7 @@ export interface components {
             chmodFolder?: string | null;
             chownGroup?: string | null;
             episodeTitleRequired?: components["schemas"]["EpisodeTitleRequiredType"];
+            skipFreeSpaceCheckWhenGrabbing?: boolean;
             skipFreeSpaceCheckWhenImporting?: boolean;
             /** Format: int32 */
             minimumFreeSpaceWhenImporting?: number;
@@ -8206,6 +3298,7 @@ export interface components {
             importExtraFiles?: boolean;
             extraFileExtensions?: string | null;
             enableMediaInfo?: boolean;
+            userRejectedExtensions?: string | null;
         };
         MetadataResource: {
             /** Format: int32 */
@@ -8236,9 +3329,11 @@ export interface components {
             replaceIllegalCharacters?: boolean;
             /** Format: int32 */
             colonReplacementFormat?: number;
+            customColonReplacementFormat?: string | null;
             /** Format: int32 */
             multiEpisodeStyle?: number;
             standardEpisodeFormat?: string | null;
+            javEpisodeFormat?: string | null;
             seriesFolderFormat?: string | null;
             includeSeriesTitle?: boolean;
             includeEpisodeTitle?: boolean;
@@ -8247,6 +3342,13 @@ export interface components {
             separator?: string | null;
             numberStyle?: string | null;
         };
+        NamingExampleResource: {
+            singleEpisodeExample?: string | null;
+            javEpisodeExample?: string | null;
+            seriesFolderExample?: string | null;
+        };
+        /** @enum {string} */
+        NewItemMonitorTypes: "all" | "none";
         NotificationResource: {
             /** Format: int32 */
             id?: number;
@@ -8263,18 +3365,21 @@ export interface components {
             onGrab?: boolean;
             onDownload?: boolean;
             onUpgrade?: boolean;
+            onImportComplete?: boolean;
             onRename?: boolean;
             onSeriesAdd?: boolean;
             onSeriesDelete?: boolean;
             onEpisodeFileDelete?: boolean;
             onEpisodeFileDeleteForUpgrade?: boolean;
             onHealthIssue?: boolean;
+            includeHealthWarnings?: boolean;
             onHealthRestored?: boolean;
             onApplicationUpdate?: boolean;
             onManualInteractionRequired?: boolean;
             supportsOnGrab?: boolean;
             supportsOnDownload?: boolean;
             supportsOnUpgrade?: boolean;
+            supportsOnImportComplete?: boolean;
             supportsOnRename?: boolean;
             supportsOnSeriesAdd?: boolean;
             supportsOnSeriesDelete?: boolean;
@@ -8284,7 +3389,6 @@ export interface components {
             supportsOnHealthRestored?: boolean;
             supportsOnApplicationUpdate?: boolean;
             supportsOnManualInteractionRequired?: boolean;
-            includeHealthWarnings?: boolean;
             testCommand?: string | null;
         };
         ParseResource: {
@@ -8311,6 +3415,7 @@ export interface components {
             /** Format: int32 */
             seasonPart?: number;
             releaseTokens?: string | null;
+            externalId?: string | null;
             readonly isDaily?: boolean;
         };
         PingResource: {
@@ -8318,6 +3423,16 @@ export interface components {
         };
         /** @enum {string} */
         PrivacyLevel: "normal" | "password" | "apiKey" | "userName";
+        ProblemDetails: {
+            type?: string | null;
+            title?: string | null;
+            /** Format: int32 */
+            status?: number | null;
+            detail?: string | null;
+            instance?: string | null;
+        } & {
+            [key: string]: unknown;
+        };
         ProfileFormatItemResource: {
             /** Format: int32 */
             id?: number;
@@ -8335,6 +3450,12 @@ export interface components {
         };
         /** @enum {string} */
         ProviderMessageType: "info" | "warning" | "error";
+        ProviderTestAllResult: {
+            /** Format: int32 */
+            id?: number;
+            readonly isValid?: boolean;
+            validationFailures?: components["schemas"]["ValidationFailure"][] | null;
+        };
         /** @enum {string} */
         ProxyType: "http" | "socks4" | "socks5";
         Quality: {
@@ -8356,8 +3477,6 @@ export interface components {
             id?: number;
             quality?: components["schemas"]["Quality"];
             title?: string | null;
-            /** Format: int32 */
-            weight?: number;
             /** Format: double */
             minSize?: number | null;
             /** Format: double */
@@ -8376,6 +3495,12 @@ export interface components {
             quality?: components["schemas"]["Quality"];
             items?: components["schemas"]["QualityProfileQualityItemResource"][] | null;
             allowed?: boolean;
+            /** Format: double */
+            minSize?: number | null;
+            /** Format: double */
+            maxSize?: number | null;
+            /** Format: double */
+            preferredSize?: number | null;
         };
         QualityProfileResource: {
             /** Format: int32 */
@@ -8417,12 +3542,11 @@ export interface components {
             /** Format: double */
             size?: number;
             title?: string | null;
-            /** Format: double */
-            sizeleft?: number;
-            timeleft?: components["schemas"]["TimeSpan"];
             /** Format: date-time */
             estimatedCompletionTime?: string | null;
-            status?: string | null;
+            /** Format: date-time */
+            added?: string | null;
+            status?: components["schemas"]["QueueStatus"];
             trackedDownloadStatus?: components["schemas"]["TrackedDownloadStatus"];
             trackedDownloadState?: components["schemas"]["TrackedDownloadState"];
             statusMessages?: components["schemas"]["TrackedDownloadStatusMessage"][] | null;
@@ -8434,6 +3558,16 @@ export interface components {
             indexer?: string | null;
             outputPath?: string | null;
             episodeHasFile?: boolean;
+            /**
+             * Format: double
+             * @deprecated
+             */
+            sizeleft?: number;
+            /**
+             * Format: date-span
+             * @deprecated
+             */
+            timeleft?: string | null;
         };
         QueueResourcePagingResource: {
             /** Format: int32 */
@@ -8446,6 +3580,8 @@ export interface components {
             totalRecords?: number;
             records?: components["schemas"]["QueueResource"][] | null;
         };
+        /** @enum {string} */
+        QueueStatus: "unknown" | "queued" | "paused" | "downloading" | "completed" | "failed" | "warning" | "delay" | "downloadClientUnavailable" | "fallback";
         QueueStatusResource: {
             /** Format: int32 */
             id?: number;
@@ -8465,10 +3601,6 @@ export interface components {
             votes?: number;
             /** Format: double */
             value?: number;
-        };
-        Rejection: {
-            reason?: string | null;
-            type?: components["schemas"]["RejectionType"];
         };
         /** @enum {string} */
         RejectionType: "permanent" | "temporary";
@@ -8490,9 +3622,13 @@ export interface components {
             enabled?: boolean;
             required?: unknown;
             ignored?: unknown;
+            airDateRestriction?: boolean;
+            /** Format: int32 */
+            airDateGracePeriod?: number;
             /** Format: int32 */
             indexerId?: number;
             tags?: number[] | null;
+            excludedTags?: number[] | null;
         };
         ReleaseResource: {
             /** Format: int32 */
@@ -8550,6 +3686,8 @@ export interface components {
             /** Format: int32 */
             leechers?: number | null;
             protocol?: components["schemas"]["DownloadProtocol"];
+            /** Format: int32 */
+            indexerFlags?: number;
             isDaily?: boolean;
             /** Format: int32 */
             seriesId?: number | null;
@@ -8558,6 +3696,7 @@ export interface components {
             episodeIds?: number[] | null;
             /** Format: int32 */
             downloadClientId?: number | null;
+            downloadClient?: string | null;
             shouldOverride?: boolean | null;
         };
         RemotePathMappingResource: {
@@ -8582,6 +3721,9 @@ export interface components {
         };
         /** @enum {string} */
         RescanAfterRefreshType: "always" | "afterManual" | "never";
+        RestartResource: {
+            restarting?: boolean;
+        };
         Revision: {
             /** Format: int32 */
             version?: number;
@@ -8596,6 +3738,8 @@ export interface components {
             accessible?: boolean;
             /** Format: int64 */
             freeSpace?: number | null;
+            /** Format: int64 */
+            totalSpace?: number | null;
             unmappedFolders?: components["schemas"]["UnmappedFolder"][] | null;
         };
         /** @enum {string} */
@@ -8645,8 +3789,11 @@ export interface components {
         SeriesEditorResource: {
             seriesIds?: number[] | null;
             monitored?: boolean | null;
+            monitorNewItems?: components["schemas"]["NewItemMonitorTypes"];
+            monitoringOptions?: components["schemas"]["MonitoringOptions"];
             /** Format: int32 */
             qualityProfileId?: number | null;
+            seriesType?: components["schemas"]["SeriesTypes"];
             rootFolderPath?: string | null;
             tags?: number[] | null;
             applyTags?: components["schemas"]["ApplyTags"];
@@ -8678,6 +3825,8 @@ export interface components {
             /** Format: int32 */
             qualityProfileId?: number;
             monitored?: boolean;
+            seriesType?: components["schemas"]["SeriesTypes"];
+            monitorNewItems?: components["schemas"]["NewItemMonitorTypes"];
             useSceneNumbering?: boolean;
             /** Format: int32 */
             runtime?: number;
@@ -8724,6 +3873,13 @@ export interface components {
             allTitles?: string[] | null;
         };
         /** @enum {string} */
+        SeriesTypes: "standard" | "jav";
+        /** @enum {string} */
+        Severity: "error" | "warning" | "info";
+        ShutdownResource: {
+            shuttingDown?: boolean;
+        };
+        /** @enum {string} */
         SortDirection: "default" | "ascending" | "descending";
         SystemResource: {
             appName?: string | null;
@@ -8747,11 +3903,11 @@ export interface components {
             mode?: components["schemas"]["RuntimeMode"];
             branch?: string | null;
             authentication?: components["schemas"]["AuthenticationType"];
-            sqliteVersion?: components["schemas"]["Version"];
+            sqliteVersion?: string | null;
             /** Format: int32 */
             migrationVersion?: number;
             urlBase?: string | null;
-            runtimeVersion?: components["schemas"]["Version"];
+            runtimeVersion?: string | null;
             runtimeName?: string | null;
             /** Format: date-time */
             startTime?: string;
@@ -8759,7 +3915,7 @@ export interface components {
             packageAuthor?: string | null;
             packageUpdateMechanism?: components["schemas"]["UpdateMechanism"];
             packageUpdateMechanismMessage?: string | null;
-            databaseVersion?: components["schemas"]["Version"];
+            databaseVersion?: string | null;
             databaseType?: components["schemas"]["DatabaseType"];
         };
         TagDetailsResource: {
@@ -8770,6 +3926,7 @@ export interface components {
             importListIds?: number[] | null;
             notificationIds?: number[] | null;
             restrictionIds?: number[] | null;
+            excludedReleaseProfileIds?: number[] | null;
             indexerIds?: number[] | null;
             downloadClientIds?: number[] | null;
             autoTagIds?: number[] | null;
@@ -8793,31 +3950,8 @@ export interface components {
             lastStartTime?: string;
             /** Format: date-time */
             nextExecution?: string;
-            lastDuration?: components["schemas"]["TimeSpan"];
-        };
-        TimeSpan: {
-            /** Format: int64 */
-            ticks?: number;
-            /** Format: int32 */
-            readonly days?: number;
-            /** Format: int32 */
-            readonly hours?: number;
-            /** Format: int32 */
-            readonly milliseconds?: number;
-            /** Format: int32 */
-            readonly minutes?: number;
-            /** Format: int32 */
-            readonly seconds?: number;
-            /** Format: double */
-            readonly totalDays?: number;
-            /** Format: double */
-            readonly totalHours?: number;
-            /** Format: double */
-            readonly totalMilliseconds?: number;
-            /** Format: double */
-            readonly totalMinutes?: number;
-            /** Format: double */
-            readonly totalSeconds?: number;
+            /** Format: date-span */
+            readonly lastDuration?: string;
         };
         /** @enum {string} */
         TrackedDownloadState: "downloading" | "importPending" | "importing" | "imported" | "failedPending" | "failed" | "ignored";
@@ -8856,7 +3990,7 @@ export interface components {
         UpdateResource: {
             /** Format: int32 */
             id?: number;
-            version?: components["schemas"]["Version"];
+            version?: string | null;
             branch?: string | null;
             /** Format: date-time */
             releaseDate?: string;
@@ -8870,19 +4004,18 @@ export interface components {
             changes?: components["schemas"]["UpdateChanges"];
             hash?: string | null;
         };
-        Version: {
-            /** Format: int32 */
-            readonly major?: number;
-            /** Format: int32 */
-            readonly minor?: number;
-            /** Format: int32 */
-            readonly build?: number;
-            /** Format: int32 */
-            readonly revision?: number;
-            /** Format: int32 */
-            readonly majorRevision?: number;
-            /** Format: int32 */
-            readonly minorRevision?: number;
+        ValidationFailure: {
+            propertyName?: string | null;
+            errorMessage?: string | null;
+            attemptedValue?: unknown;
+            customState?: unknown;
+            severity?: components["schemas"]["Severity"];
+            errorCode?: string | null;
+            /** @deprecated */
+            formattedMessageArguments?: unknown[] | null;
+            formattedMessagePlaceholderValues?: {
+                [key: string]: unknown;
+            } | null;
         };
     };
     responses: never;
@@ -8892,4 +4025,5417 @@ export interface components {
     pathItems: never;
 }
 export type $defs = Record<string, never>;
-export type operations = Record<string, never>;
+export interface operations {
+    getApi: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiInfoResource"];
+                };
+            };
+        };
+    };
+    getLoginSso: {
+        parameters: {
+            query?: {
+                returnUrl?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Found */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postLogin: {
+        parameters: {
+            query?: {
+                returnUrl?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": {
+                    username?: string;
+                    password?: string;
+                    rememberMe?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Found */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    getLogout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Found */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getAutotagging: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutoTaggingResource"][];
+                };
+            };
+        };
+    };
+    postAutotagging: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutoTaggingResource"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["AutoTaggingResource"];
+                    "application/json": components["schemas"]["AutoTaggingResource"];
+                    "text/json": components["schemas"]["AutoTaggingResource"];
+                };
+            };
+        };
+    };
+    getAutotaggingById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutoTaggingResource"];
+                };
+            };
+        };
+    };
+    putAutotaggingById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutoTaggingResource"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["AutoTaggingResource"];
+                    "application/json": components["schemas"]["AutoTaggingResource"];
+                    "text/json": components["schemas"]["AutoTaggingResource"];
+                };
+            };
+        };
+    };
+    deleteAutotaggingById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getAutotaggingSchema: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["AutoTaggingSpecificationSchema"][];
+                    "application/json": components["schemas"]["AutoTaggingSpecificationSchema"][];
+                    "text/json": components["schemas"]["AutoTaggingSpecificationSchema"][];
+                };
+            };
+        };
+    };
+    getSystemBackup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["BackupResource"][];
+                    "application/json": components["schemas"]["BackupResource"][];
+                    "text/json": components["schemas"]["BackupResource"][];
+                };
+            };
+        };
+    };
+    deleteSystemBackupById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postSystemBackupRestoreById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["BackupRestoreResource"];
+                    "application/json": components["schemas"]["BackupRestoreResource"];
+                    "text/json": components["schemas"]["BackupRestoreResource"];
+                };
+            };
+        };
+    };
+    postSystemBackupRestoreUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    restore: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["BackupRestoreResource"];
+                    "application/json": components["schemas"]["BackupRestoreResource"];
+                    "text/json": components["schemas"]["BackupRestoreResource"];
+                };
+            };
+        };
+    };
+    getBlocklist: {
+        parameters: {
+            query?: {
+                page?: number;
+                pageSize?: number;
+                sortKey?: string;
+                sortDirection?: components["schemas"]["SortDirection"];
+                seriesIds?: number[];
+                protocols?: components["schemas"]["DownloadProtocol"][];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlocklistResourcePagingResource"];
+                };
+            };
+        };
+    };
+    deleteBlocklistById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteBlocklistBulk: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BlocklistBulkResource"];
+                "text/json": components["schemas"]["BlocklistBulkResource"];
+                "application/*+json": components["schemas"]["BlocklistBulkResource"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getCalendar: {
+        parameters: {
+            query?: {
+                start?: string;
+                end?: string;
+                unmonitored?: boolean;
+                includeSeries?: boolean;
+                includeEpisodeFile?: boolean;
+                includeEpisodeImages?: boolean;
+                tags?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EpisodeResource"][];
+                };
+            };
+        };
+    };
+    getCalendarById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EpisodeResource"];
+                };
+            };
+        };
+    };
+    getFeedV3CalendarWhisparrIcs: {
+        parameters: {
+            query?: {
+                pastDays?: number;
+                futureDays?: number;
+                tags?: string;
+                unmonitored?: boolean;
+                premieresOnly?: boolean;
+                asAllDay?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/calendar": string;
+                };
+            };
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getCommand: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommandResource"][];
+                };
+            };
+        };
+    };
+    postCommand: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CommandResource"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommandResource"];
+                };
+            };
+        };
+    };
+    getCommandById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommandResource"];
+                };
+            };
+        };
+    };
+    deleteCommandById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getCustomfilter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomFilterResource"][];
+                };
+            };
+        };
+    };
+    postCustomfilter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomFilterResource"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["CustomFilterResource"];
+                    "application/json": components["schemas"]["CustomFilterResource"];
+                    "text/json": components["schemas"]["CustomFilterResource"];
+                };
+            };
+        };
+    };
+    getCustomfilterById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomFilterResource"];
+                };
+            };
+        };
+    };
+    putCustomfilterById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomFilterResource"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["CustomFilterResource"];
+                    "application/json": components["schemas"]["CustomFilterResource"];
+                    "text/json": components["schemas"]["CustomFilterResource"];
+                };
+            };
+        };
+    };
+    deleteCustomfilterById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getCustomformat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomFormatResource"][];
+                };
+            };
+        };
+    };
+    postCustomformat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomFormatResource"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["CustomFormatResource"];
+                    "application/json": components["schemas"]["CustomFormatResource"];
+                    "text/json": components["schemas"]["CustomFormatResource"];
+                };
+            };
+        };
+    };
+    getCustomformatById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomFormatResource"];
+                };
+            };
+        };
+    };
+    putCustomformatById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomFormatResource"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["CustomFormatResource"];
+                    "application/json": components["schemas"]["CustomFormatResource"];
+                    "text/json": components["schemas"]["CustomFormatResource"];
+                };
+            };
+        };
+    };
+    deleteCustomformatById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    putCustomformatBulk: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomFormatBulkResource"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomFormatResource"][];
+                };
+            };
+        };
+    };
+    deleteCustomformatBulk: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomFormatBulkResource"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getCustomformatSchema: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["CustomFormatSpecificationSchema"][];
+                    "application/json": components["schemas"]["CustomFormatSpecificationSchema"][];
+                    "text/json": components["schemas"]["CustomFormatSpecificationSchema"][];
+                };
+            };
+        };
+    };
+    getWantedCutoff: {
+        parameters: {
+            query?: {
+                page?: number;
+                pageSize?: number;
+                sortKey?: string;
+                sortDirection?: components["schemas"]["SortDirection"];
+                includeSeries?: boolean;
+                includeEpisodeFile?: boolean;
+                includeImages?: boolean;
+                monitored?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EpisodeResourcePagingResource"];
+                };
+            };
+        };
+    };
+    getWantedCutoffById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EpisodeResource"];
+                };
+            };
+        };
+    };
+    getDelayprofile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DelayProfileResource"][];
+                };
+            };
+        };
+    };
+    postDelayprofile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DelayProfileResource"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["DelayProfileResource"];
+                    "application/json": components["schemas"]["DelayProfileResource"];
+                    "text/json": components["schemas"]["DelayProfileResource"];
+                };
+            };
+        };
+    };
+    getDelayprofileById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DelayProfileResource"];
+                };
+            };
+        };
+    };
+    putDelayprofileById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DelayProfileResource"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["DelayProfileResource"];
+                    "application/json": components["schemas"]["DelayProfileResource"];
+                    "text/json": components["schemas"]["DelayProfileResource"];
+                };
+            };
+        };
+    };
+    deleteDelayprofileById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    putDelayprofileReorderById: {
+        parameters: {
+            query?: {
+                after?: number;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["DelayProfileResource"][];
+                    "application/json": components["schemas"]["DelayProfileResource"][];
+                    "text/json": components["schemas"]["DelayProfileResource"][];
+                };
+            };
+        };
+    };
+    getDiskspace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiskSpaceResource"][];
+                };
+            };
+        };
+    };
+    getDownloadclient: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DownloadClientResource"][];
+                };
+            };
+        };
+    };
+    postDownloadclient: {
+        parameters: {
+            query?: {
+                forceSave?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DownloadClientResource"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DownloadClientResource"];
+                };
+            };
+        };
+    };
+    getDownloadclientById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DownloadClientResource"];
+                };
+            };
+        };
+    };
+    putDownloadclientById: {
+        parameters: {
+            query?: {
+                forceSave?: boolean;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DownloadClientResource"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DownloadClientResource"];
+                };
+            };
+        };
+    };
+    deleteDownloadclientById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    putDownloadclientBulk: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DownloadClientBulkResource"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteDownloadclientBulk: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DownloadClientBulkResource"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getDownloadclientSchema: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DownloadClientResource"][];
+                };
+            };
+        };
+    };
+    postDownloadclientTest: {
+        parameters: {
+            query?: {
+                forceTest?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DownloadClientResource"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                    "application/json": string;
+                };
+            };
+        };
+    };
+    postDownloadclientTestall: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderTestAllResult"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderTestAllResult"][];
+                };
+            };
+        };
+    };
+    postDownloadclientActionByName: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DownloadClientResource"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    getConfigDownloadclient: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DownloadClientConfigResource"];
+                };
+            };
+        };
+    };
+    getConfigDownloadclientById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DownloadClientConfigResource"];
+                };
+            };
+        };
+    };
+    putConfigDownloadclientById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DownloadClientConfigResource"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["DownloadClientConfigResource"];
+                    "application/json": components["schemas"]["DownloadClientConfigResource"];
+                    "text/json": components["schemas"]["DownloadClientConfigResource"];
+                };
+            };
+        };
+    };
+    getEpisode: {
+        parameters: {
+            query?: {
+                seriesId?: number;
+                seasonNumber?: number;
+                episodeIds?: number[];
+                episodeFileId?: number;
+                includeSeries?: boolean;
+                includeEpisodeFile?: boolean;
+                includeImages?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EpisodeResource"][];
+                };
+            };
+        };
+    };
+    getEpisodeById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EpisodeResource"];
+                };
+            };
+        };
+    };
+    putEpisodeById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EpisodeResource"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["EpisodeResource"];
+                    "application/json": components["schemas"]["EpisodeResource"];
+                    "text/json": components["schemas"]["EpisodeResource"];
+                };
+            };
+        };
+    };
+    putEpisodeMonitor: {
+        parameters: {
+            query?: {
+                includeImages?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EpisodesMonitoredResource"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["EpisodeResource"][];
+                    "application/json": components["schemas"]["EpisodeResource"][];
+                    "text/json": components["schemas"]["EpisodeResource"][];
+                };
+            };
+        };
+    };
+    getEpisodefile: {
+        parameters: {
+            query?: {
+                seriesId?: number;
+                episodeFileIds?: number[];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EpisodeFileResource"][];
+                };
+            };
+        };
+    };
+    getEpisodefileById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EpisodeFileResource"];
+                };
+            };
+        };
+    };
+    putEpisodefileById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EpisodeFileResource"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["EpisodeFileResource"];
+                    "application/json": components["schemas"]["EpisodeFileResource"];
+                    "text/json": components["schemas"]["EpisodeFileResource"];
+                };
+            };
+        };
+    };
+    deleteEpisodefileById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    putEpisodefileEditor: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EpisodeFileListResource"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["EpisodeFileResource"][];
+                    "application/json": components["schemas"]["EpisodeFileResource"][];
+                    "text/json": components["schemas"]["EpisodeFileResource"][];
+                };
+            };
+        };
+    };
+    putEpisodefileBulk: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EpisodeFileResource"][];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["EpisodeFileResource"][];
+                    "application/json": components["schemas"]["EpisodeFileResource"][];
+                    "text/json": components["schemas"]["EpisodeFileResource"][];
+                };
+            };
+        };
+    };
+    deleteEpisodefileBulk: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EpisodeFileListResource"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getFilesystem: {
+        parameters: {
+            query?: {
+                path?: string;
+                includeFiles?: boolean;
+                allowFoldersWithoutTrailingSlashes?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileSystemResult"];
+                };
+            };
+        };
+    };
+    getFilesystemType: {
+        parameters: {
+            query?: {
+                path?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileSystemTypeResource"];
+                };
+            };
+        };
+    };
+    getFilesystemMediafiles: {
+        parameters: {
+            query?: {
+                path?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileSystemMediaFileResource"][];
+                };
+            };
+        };
+    };
+    getHealth: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HealthResource"][];
+                };
+            };
+        };
+    };
+    getHistory: {
+        parameters: {
+            query?: {
+                page?: number;
+                pageSize?: number;
+                sortKey?: string;
+                sortDirection?: components["schemas"]["SortDirection"];
+                includeSeries?: boolean;
+                includeEpisode?: boolean;
+                eventType?: number[];
+                episodeId?: number;
+                downloadId?: string;
+                seriesIds?: number[];
+                languages?: number[];
+                quality?: number[];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryResourcePagingResource"];
+                };
+            };
+        };
+    };
+    getHistorySince: {
+        parameters: {
+            query?: {
+                date?: string;
+                eventType?: components["schemas"]["EpisodeHistoryEventType"];
+                includeSeries?: boolean;
+                includeEpisode?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryResource"][];
+                };
+            };
+        };
+    };
+    getHistorySeries: {
+        parameters: {
+            query?: {
+                seriesId?: number;
+                seasonNumber?: number;
+                eventType?: components["schemas"]["EpisodeHistoryEventType"];
+                includeSeries?: boolean;
+                includeEpisode?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryResource"][];
+                };
+            };
+        };
+    };
+    postHistoryFailedById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getConfigHost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["HostConfigResource"];
+                    "application/json": components["schemas"]["HostConfigResource"];
+                    "text/json": components["schemas"]["HostConfigResource"];
+                };
+            };
+        };
+    };
+    getConfigHostById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HostConfigResource"];
+                };
+            };
+        };
+    };
+    putConfigHostById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HostConfigResource"];
+                "text/json": components["schemas"]["HostConfigResource"];
+                "application/*+json": components["schemas"]["HostConfigResource"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["HostConfigResource"];
+                    "application/json": components["schemas"]["HostConfigResource"];
+                    "text/json": components["schemas"]["HostConfigResource"];
+                };
+            };
+        };
+    };
+    getImportlist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportListResource"][];
+                };
+            };
+        };
+    };
+    postImportlist: {
+        parameters: {
+            query?: {
+                forceSave?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportListResource"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportListResource"];
+                };
+            };
+        };
+    };
+    getImportlistById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportListResource"];
+                };
+            };
+        };
+    };
+    putImportlistById: {
+        parameters: {
+            query?: {
+                forceSave?: boolean;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportListResource"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportListResource"];
+                };
+            };
+        };
+    };
+    deleteImportlistById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    putImportlistBulk: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportListBulkResource"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteImportlistBulk: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportListBulkResource"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getImportlistSchema: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportListResource"][];
+                };
+            };
+        };
+    };
+    postImportlistTest: {
+        parameters: {
+            query?: {
+                forceTest?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportListResource"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                    "application/json": string;
+                };
+            };
+        };
+    };
+    postImportlistTestall: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderTestAllResult"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderTestAllResult"][];
+                };
+            };
+        };
+    };
+    postImportlistActionByName: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportListResource"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    getImportlistexclusion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportListExclusionResource"][];
+                };
+            };
+        };
+    };
+    postImportlistexclusion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportListExclusionResource"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["ImportListExclusionResource"];
+                    "application/json": components["schemas"]["ImportListExclusionResource"];
+                    "text/json": components["schemas"]["ImportListExclusionResource"];
+                };
+            };
+        };
+    };
+    getImportlistexclusionPaged: {
+        parameters: {
+            query?: {
+                page?: number;
+                pageSize?: number;
+                sortKey?: string;
+                sortDirection?: components["schemas"]["SortDirection"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportListExclusionResourcePagingResource"];
+                };
+            };
+        };
+    };
+    getImportlistexclusionById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportListExclusionResource"];
+                };
+            };
+        };
+    };
+    putImportlistexclusionById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportListExclusionResource"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["ImportListExclusionResource"];
+                    "application/json": components["schemas"]["ImportListExclusionResource"];
+                    "text/json": components["schemas"]["ImportListExclusionResource"];
+                };
+            };
+        };
+    };
+    deleteImportlistexclusionById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getIndexer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IndexerResource"][];
+                };
+            };
+        };
+    };
+    postIndexer: {
+        parameters: {
+            query?: {
+                forceSave?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IndexerResource"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IndexerResource"];
+                };
+            };
+        };
+    };
+    getIndexerById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IndexerResource"];
+                };
+            };
+        };
+    };
+    putIndexerById: {
+        parameters: {
+            query?: {
+                forceSave?: boolean;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IndexerResource"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IndexerResource"];
+                };
+            };
+        };
+    };
+    deleteIndexerById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    putIndexerBulk: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IndexerBulkResource"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteIndexerBulk: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IndexerBulkResource"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getIndexerSchema: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IndexerResource"][];
+                };
+            };
+        };
+    };
+    postIndexerTest: {
+        parameters: {
+            query?: {
+                forceTest?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IndexerResource"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                    "application/json": string;
+                };
+            };
+        };
+    };
+    postIndexerTestall: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderTestAllResult"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderTestAllResult"][];
+                };
+            };
+        };
+    };
+    postIndexerActionByName: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IndexerResource"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    getConfigIndexer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IndexerConfigResource"];
+                };
+            };
+        };
+    };
+    getConfigIndexerById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IndexerConfigResource"];
+                };
+            };
+        };
+    };
+    putConfigIndexerById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IndexerConfigResource"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["IndexerConfigResource"];
+                    "application/json": components["schemas"]["IndexerConfigResource"];
+                    "text/json": components["schemas"]["IndexerConfigResource"];
+                };
+            };
+        };
+    };
+    getIndexerflag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["IndexerFlagResource"][];
+                    "application/json": components["schemas"]["IndexerFlagResource"][];
+                    "text/json": components["schemas"]["IndexerFlagResource"][];
+                };
+            };
+        };
+    };
+    getLanguage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["LanguageResource"][];
+                    "application/json": components["schemas"]["LanguageResource"][];
+                    "text/json": components["schemas"]["LanguageResource"][];
+                };
+            };
+        };
+    };
+    getLanguageById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LanguageResource"];
+                };
+            };
+        };
+    };
+    getLanguageprofile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LanguageProfileResource"][];
+                };
+            };
+        };
+    };
+    postLanguageprofile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LanguageProfileResource"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LanguageProfileResource"];
+                };
+            };
+        };
+    };
+    getLanguageprofileById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LanguageProfileResource"];
+                };
+            };
+        };
+    };
+    putLanguageprofileById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LanguageProfileResource"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LanguageProfileResource"];
+                };
+            };
+        };
+    };
+    deleteLanguageprofileById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getLanguageprofileSchema: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LanguageProfileResource"];
+                };
+            };
+        };
+    };
+    getLocalization: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LocalizationResource"];
+                };
+            };
+        };
+    };
+    getLocalizationLanguage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LocalizationLanguageResource"];
+                };
+            };
+        };
+    };
+    getLocalizationById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LocalizationResource"];
+                };
+            };
+        };
+    };
+    getLog: {
+        parameters: {
+            query?: {
+                page?: number;
+                pageSize?: number;
+                sortKey?: string;
+                sortDirection?: components["schemas"]["SortDirection"];
+                level?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogResourcePagingResource"];
+                };
+            };
+        };
+    };
+    getLogFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogFileResource"][];
+                };
+            };
+        };
+    };
+    getLogFileByFilename: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                filename: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    getManualimport: {
+        parameters: {
+            query?: {
+                folder?: string;
+                downloadId?: string;
+                seriesId?: number;
+                seasonNumber?: number;
+                filterExistingFiles?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManualImportResource"][];
+                };
+            };
+        };
+    };
+    postManualimport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ManualImportReprocessResource"][];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["ManualImportReprocessResource"][];
+                    "application/json": components["schemas"]["ManualImportReprocessResource"][];
+                    "text/json": components["schemas"]["ManualImportReprocessResource"][];
+                };
+            };
+        };
+    };
+    getMediacoverBySeriesIdByFilename: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                seriesId: number;
+                filename: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": string;
+                    "image/png": string;
+                    "image/gif": string;
+                };
+            };
+        };
+    };
+    getConfigMediamanagement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaManagementConfigResource"];
+                };
+            };
+        };
+    };
+    getConfigMediamanagementById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaManagementConfigResource"];
+                };
+            };
+        };
+    };
+    putConfigMediamanagementById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MediaManagementConfigResource"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["MediaManagementConfigResource"];
+                    "application/json": components["schemas"]["MediaManagementConfigResource"];
+                    "text/json": components["schemas"]["MediaManagementConfigResource"];
+                };
+            };
+        };
+    };
+    getMetadata: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MetadataResource"][];
+                };
+            };
+        };
+    };
+    postMetadata: {
+        parameters: {
+            query?: {
+                forceSave?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MetadataResource"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MetadataResource"];
+                };
+            };
+        };
+    };
+    getMetadataById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MetadataResource"];
+                };
+            };
+        };
+    };
+    putMetadataById: {
+        parameters: {
+            query?: {
+                forceSave?: boolean;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MetadataResource"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MetadataResource"];
+                };
+            };
+        };
+    };
+    deleteMetadataById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getMetadataSchema: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MetadataResource"][];
+                };
+            };
+        };
+    };
+    postMetadataTest: {
+        parameters: {
+            query?: {
+                forceTest?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MetadataResource"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                    "application/json": string;
+                };
+            };
+        };
+    };
+    postMetadataTestall: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderTestAllResult"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderTestAllResult"][];
+                };
+            };
+        };
+    };
+    postMetadataActionByName: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MetadataResource"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    getWantedMissing: {
+        parameters: {
+            query?: {
+                page?: number;
+                pageSize?: number;
+                sortKey?: string;
+                sortDirection?: components["schemas"]["SortDirection"];
+                includeSeries?: boolean;
+                includeImages?: boolean;
+                monitored?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EpisodeResourcePagingResource"];
+                };
+            };
+        };
+    };
+    getWantedMissingById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EpisodeResource"];
+                };
+            };
+        };
+    };
+    getConfigNaming: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["NamingConfigResource"];
+                    "application/json": components["schemas"]["NamingConfigResource"];
+                    "text/json": components["schemas"]["NamingConfigResource"];
+                };
+            };
+        };
+    };
+    getConfigNamingById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NamingConfigResource"];
+                };
+            };
+        };
+    };
+    putConfigNamingById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NamingConfigResource"];
+                "text/json": components["schemas"]["NamingConfigResource"];
+                "application/*+json": components["schemas"]["NamingConfigResource"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["NamingConfigResource"];
+                    "application/json": components["schemas"]["NamingConfigResource"];
+                    "text/json": components["schemas"]["NamingConfigResource"];
+                };
+            };
+        };
+    };
+    getConfigNamingExamples: {
+        parameters: {
+            query?: {
+                renameEpisodes?: boolean;
+                replaceIllegalCharacters?: boolean;
+                colonReplacementFormat?: number;
+                customColonReplacementFormat?: string;
+                multiEpisodeStyle?: number;
+                standardEpisodeFormat?: string;
+                javEpisodeFormat?: string;
+                seriesFolderFormat?: string;
+                includeSeriesTitle?: boolean;
+                includeEpisodeTitle?: boolean;
+                includeQuality?: boolean;
+                replaceSpaces?: boolean;
+                separator?: string;
+                numberStyle?: string;
+                id?: number;
+                resourceName?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["NamingExampleResource"];
+                    "application/json": components["schemas"]["NamingExampleResource"];
+                    "text/json": components["schemas"]["NamingExampleResource"];
+                };
+            };
+        };
+    };
+    getNotification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationResource"][];
+                };
+            };
+        };
+    };
+    postNotification: {
+        parameters: {
+            query?: {
+                forceSave?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationResource"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationResource"];
+                };
+            };
+        };
+    };
+    getNotificationById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationResource"];
+                };
+            };
+        };
+    };
+    putNotificationById: {
+        parameters: {
+            query?: {
+                forceSave?: boolean;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationResource"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationResource"];
+                };
+            };
+        };
+    };
+    deleteNotificationById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getNotificationSchema: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationResource"][];
+                };
+            };
+        };
+    };
+    postNotificationTest: {
+        parameters: {
+            query?: {
+                forceTest?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationResource"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                    "application/json": string;
+                };
+            };
+        };
+    };
+    postNotificationTestall: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderTestAllResult"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderTestAllResult"][];
+                };
+            };
+        };
+    };
+    postNotificationActionByName: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationResource"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    getParse: {
+        parameters: {
+            query?: {
+                title?: string;
+                path?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ParseResource"];
+                };
+            };
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getPing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PingResource"];
+                };
+            };
+        };
+    };
+    headPing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PingResource"];
+                };
+            };
+        };
+    };
+    getQualitydefinitionById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QualityDefinitionResource"];
+                };
+            };
+        };
+    };
+    putQualitydefinitionById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QualityDefinitionResource"];
+                "text/json": components["schemas"]["QualityDefinitionResource"];
+                "application/*+json": components["schemas"]["QualityDefinitionResource"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["QualityDefinitionResource"];
+                    "application/json": components["schemas"]["QualityDefinitionResource"];
+                    "text/json": components["schemas"]["QualityDefinitionResource"];
+                };
+            };
+        };
+    };
+    getQualitydefinition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["QualityDefinitionResource"][];
+                    "application/json": components["schemas"]["QualityDefinitionResource"][];
+                    "text/json": components["schemas"]["QualityDefinitionResource"][];
+                };
+            };
+        };
+    };
+    putQualitydefinitionUpdate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QualityDefinitionResource"][];
+                "text/json": components["schemas"]["QualityDefinitionResource"][];
+                "application/*+json": components["schemas"]["QualityDefinitionResource"][];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["QualityDefinitionResource"][];
+                    "application/json": components["schemas"]["QualityDefinitionResource"][];
+                    "text/json": components["schemas"]["QualityDefinitionResource"][];
+                };
+            };
+        };
+    };
+    getQualitydefinitionLimits: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["QualityDefinitionLimitsResource"];
+                    "application/json": components["schemas"]["QualityDefinitionLimitsResource"];
+                    "text/json": components["schemas"]["QualityDefinitionLimitsResource"];
+                };
+            };
+        };
+    };
+    getQualityprofile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QualityProfileResource"][];
+                };
+            };
+        };
+    };
+    postQualityprofile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QualityProfileResource"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["QualityProfileResource"];
+                    "application/json": components["schemas"]["QualityProfileResource"];
+                    "text/json": components["schemas"]["QualityProfileResource"];
+                };
+            };
+        };
+    };
+    getQualityprofileById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QualityProfileResource"];
+                };
+            };
+        };
+    };
+    putQualityprofileById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QualityProfileResource"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["QualityProfileResource"];
+                    "application/json": components["schemas"]["QualityProfileResource"];
+                    "text/json": components["schemas"]["QualityProfileResource"];
+                };
+            };
+        };
+    };
+    deleteQualityprofileById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getQualityprofileSchema: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["QualityProfileResource"];
+                    "application/json": components["schemas"]["QualityProfileResource"];
+                    "text/json": components["schemas"]["QualityProfileResource"];
+                };
+            };
+        };
+    };
+    deleteQueueById: {
+        parameters: {
+            query?: {
+                removeFromClient?: boolean;
+                blocklist?: boolean;
+                skipRedownload?: boolean;
+                changeCategory?: boolean;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteQueueBulk: {
+        parameters: {
+            query?: {
+                removeFromClient?: boolean;
+                blocklist?: boolean;
+                skipRedownload?: boolean;
+                changeCategory?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QueueBulkResource"];
+                "text/json": components["schemas"]["QueueBulkResource"];
+                "application/*+json": components["schemas"]["QueueBulkResource"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getQueue: {
+        parameters: {
+            query?: {
+                page?: number;
+                pageSize?: number;
+                sortKey?: string;
+                sortDirection?: components["schemas"]["SortDirection"];
+                includeUnknownSeriesItems?: boolean;
+                includeSeries?: boolean;
+                includeEpisode?: boolean;
+                seriesIds?: number[];
+                protocol?: components["schemas"]["DownloadProtocol"];
+                languages?: number[];
+                quality?: number[];
+                status?: components["schemas"]["QueueStatus"][];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QueueResourcePagingResource"];
+                };
+            };
+        };
+    };
+    postQueueGrabById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postQueueGrabBulk: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QueueBulkResource"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getQueueDetails: {
+        parameters: {
+            query?: {
+                seriesId?: number;
+                episodeIds?: number[];
+                includeSeries?: boolean;
+                includeEpisode?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QueueResource"][];
+                };
+            };
+        };
+    };
+    getQueueStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QueueStatusResource"];
+                };
+            };
+        };
+    };
+    getRelease: {
+        parameters: {
+            query?: {
+                seriesId?: number;
+                episodeId?: number;
+                seasonNumber?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReleaseResource"][];
+                };
+            };
+        };
+    };
+    postRelease: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReleaseResource"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["ReleaseResource"];
+                    "application/json": components["schemas"]["ReleaseResource"];
+                    "text/json": components["schemas"]["ReleaseResource"];
+                };
+            };
+        };
+    };
+    getReleaseprofile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["ReleaseProfileResource"][];
+                    "application/json": components["schemas"]["ReleaseProfileResource"][];
+                    "text/json": components["schemas"]["ReleaseProfileResource"][];
+                };
+            };
+        };
+    };
+    postReleaseprofile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReleaseProfileResource"];
+                "text/json": components["schemas"]["ReleaseProfileResource"];
+                "application/*+json": components["schemas"]["ReleaseProfileResource"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["ReleaseProfileResource"];
+                    "application/json": components["schemas"]["ReleaseProfileResource"];
+                    "text/json": components["schemas"]["ReleaseProfileResource"];
+                };
+            };
+        };
+    };
+    getReleaseprofileById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReleaseProfileResource"];
+                };
+            };
+        };
+    };
+    putReleaseprofileById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReleaseProfileResource"];
+                "text/json": components["schemas"]["ReleaseProfileResource"];
+                "application/*+json": components["schemas"]["ReleaseProfileResource"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["ReleaseProfileResource"];
+                    "application/json": components["schemas"]["ReleaseProfileResource"];
+                    "text/json": components["schemas"]["ReleaseProfileResource"];
+                };
+            };
+        };
+    };
+    deleteReleaseprofileById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postReleasePush: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReleaseResource"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["ReleaseResource"][];
+                    "application/json": components["schemas"]["ReleaseResource"][];
+                    "text/json": components["schemas"]["ReleaseResource"][];
+                };
+            };
+        };
+    };
+    getRemotepathmapping: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemotePathMappingResource"][];
+                };
+            };
+        };
+    };
+    postRemotepathmapping: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RemotePathMappingResource"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["RemotePathMappingResource"];
+                    "application/json": components["schemas"]["RemotePathMappingResource"];
+                    "text/json": components["schemas"]["RemotePathMappingResource"];
+                };
+            };
+        };
+    };
+    getRemotepathmappingById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemotePathMappingResource"];
+                };
+            };
+        };
+    };
+    putRemotepathmappingById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RemotePathMappingResource"];
+                "text/json": components["schemas"]["RemotePathMappingResource"];
+                "application/*+json": components["schemas"]["RemotePathMappingResource"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["RemotePathMappingResource"];
+                    "application/json": components["schemas"]["RemotePathMappingResource"];
+                    "text/json": components["schemas"]["RemotePathMappingResource"];
+                };
+            };
+        };
+    };
+    deleteRemotepathmappingById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getRename: {
+        parameters: {
+            query?: {
+                seriesId?: number;
+                seasonNumber?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RenameEpisodeResource"][];
+                };
+            };
+        };
+    };
+    getRenameBulk: {
+        parameters: {
+            query?: {
+                seriesIds?: number[];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RenameEpisodeResource"][];
+                };
+            };
+        };
+    };
+    getRootfolder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RootFolderResource"][];
+                };
+            };
+        };
+    };
+    postRootfolder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RootFolderResource"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["RootFolderResource"];
+                    "application/json": components["schemas"]["RootFolderResource"];
+                    "text/json": components["schemas"]["RootFolderResource"];
+                };
+            };
+        };
+    };
+    getRootfolderById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RootFolderResource"];
+                };
+            };
+        };
+    };
+    deleteRootfolderById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postSeasonpass: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SeasonPassResource"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getSeries: {
+        parameters: {
+            query?: {
+                tvdbId?: number;
+                includeSeasonImages?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesResource"][];
+                };
+            };
+        };
+    };
+    postSeries: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SeriesResource"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesResource"];
+                };
+            };
+        };
+    };
+    getSeriesById: {
+        parameters: {
+            query?: {
+                includeSeasonImages?: boolean;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesResource"];
+                };
+            };
+        };
+    };
+    putSeriesById: {
+        parameters: {
+            query?: {
+                moveFiles?: boolean;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SeriesResource"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesResource"];
+                };
+            };
+        };
+    };
+    deleteSeriesById: {
+        parameters: {
+            query?: {
+                deleteFiles?: boolean;
+                addImportListExclusion?: boolean;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    putSeriesEditor: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SeriesEditorResource"];
+                "text/json": components["schemas"]["SeriesEditorResource"];
+                "application/*+json": components["schemas"]["SeriesEditorResource"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["SeriesResource"][];
+                    "application/json": components["schemas"]["SeriesResource"][];
+                    "text/json": components["schemas"]["SeriesResource"][];
+                };
+            };
+        };
+    };
+    deleteSeriesEditor: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SeriesEditorResource"];
+                "text/json": components["schemas"]["SeriesEditorResource"];
+                "application/*+json": components["schemas"]["SeriesEditorResource"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postSeriesImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SeriesResource"][];
+                "text/json": components["schemas"]["SeriesResource"][];
+                "application/*+json": components["schemas"]["SeriesResource"][];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["SeriesResource"][];
+                    "application/json": components["schemas"]["SeriesResource"][];
+                    "text/json": components["schemas"]["SeriesResource"][];
+                };
+            };
+        };
+    };
+    getSeriesLookup: {
+        parameters: {
+            query?: {
+                term?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["SeriesResource"][];
+                    "application/json": components["schemas"]["SeriesResource"][];
+                    "text/json": components["schemas"]["SeriesResource"][];
+                };
+            };
+        };
+    };
+    getSystemStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemResource"];
+                };
+            };
+        };
+    };
+    getSystemRoutes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    getSystemRoutesDuplicate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string[];
+                    };
+                };
+            };
+        };
+    };
+    postSystemShutdown: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["ShutdownResource"];
+                    "application/json": components["schemas"]["ShutdownResource"];
+                    "text/json": components["schemas"]["ShutdownResource"];
+                };
+            };
+        };
+    };
+    postSystemRestart: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["RestartResource"];
+                    "application/json": components["schemas"]["RestartResource"];
+                    "text/json": components["schemas"]["RestartResource"];
+                };
+            };
+        };
+    };
+    getTag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TagResource"][];
+                };
+            };
+        };
+    };
+    postTag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TagResource"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["TagResource"];
+                    "application/json": components["schemas"]["TagResource"];
+                    "text/json": components["schemas"]["TagResource"];
+                };
+            };
+        };
+    };
+    getTagById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TagResource"];
+                };
+            };
+        };
+    };
+    putTagById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TagResource"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["TagResource"];
+                    "application/json": components["schemas"]["TagResource"];
+                    "text/json": components["schemas"]["TagResource"];
+                };
+            };
+        };
+    };
+    deleteTagById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getTagDetail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TagDetailsResource"][];
+                };
+            };
+        };
+    };
+    getTagDetailById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TagDetailsResource"];
+                };
+            };
+        };
+    };
+    getSystemTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["TaskResource"][];
+                    "application/json": components["schemas"]["TaskResource"][];
+                    "text/json": components["schemas"]["TaskResource"][];
+                };
+            };
+        };
+    };
+    getSystemTaskById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskResource"];
+                };
+            };
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getConfigUiById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UiConfigResource"];
+                };
+            };
+        };
+    };
+    putConfigUiById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UiConfigResource"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["UiConfigResource"];
+                    "application/json": components["schemas"]["UiConfigResource"];
+                    "text/json": components["schemas"]["UiConfigResource"];
+                };
+            };
+        };
+    };
+    getConfigUi: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UiConfigResource"];
+                };
+            };
+        };
+    };
+    getUpdate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpdateResource"][];
+                };
+            };
+        };
+    };
+    getLogFileUpdate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogFileResource"][];
+                };
+            };
+        };
+    };
+    getLogFileUpdateByFilename: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                filename: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+}

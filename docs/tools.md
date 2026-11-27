@@ -14,7 +14,7 @@ off until you turn them on; see [writes](writes.md).
 | `get_library` | What's in my library: joined across Radarr, Sonarr, Lidarr and your media server, and where they disagree; Lidarr artists are their own kind, joined by MusicBrainz id; Grimmory books are their own kind too |
 | `get_profile_issues` | Which quality profiles and custom formats are misconfigured, and where Profilarr has drifted from Radarr/Sonarr |
 | `get_queue` | What is downloading, across the *arr queues and every download client, and what waits in Grimmory's Bookdrop |
-| `get_history` | Why did last night's download fail: grabbed, imported, failed, deleted, and what SABnzbd, NZBGet, Bazarr, Cleanuparr, Reclaimerr and Shelfmark did, and what SuggestArr requested; on Grimmory, deleted books, metadata changes and scans |
+| `get_history` | Why did last night's download fail: grabbed, imported, failed, deleted, and what SABnzbd, NZBGet, Bazarr, Cleanuparr, Reclaimerr, Maintainerr and Shelfmark did, and what SuggestArr requested; on Grimmory, deleted books, metadata changes and scans |
 | `get_wanted` | Which episodes of a show are missing, and what has a file below cutoff |
 | `get_releases` | What an interactive search actually found, rejects included; on Shelfmark, the files on offer for a book |
 | `get_blocklist` | Why does it keep finding the same release and never downloading it |
@@ -175,7 +175,7 @@ whatever the services returned, and an item can move between pages.
 its two lists, spent on failures before disks. A disk row is one filesystem:
 the mounts every service sees it through are folded into its `mounts` and
 `services`, named by path only at `detail: "full"`. The
-Reclaimerr candidates under `cleanup`, at `detail: "full"`, take their own
+Reclaimerr or Maintainerr candidates under `cleanup`, at `detail: "full"`, take their own
 `limit` rather than sharing that budget.
 
 Tools spanning several services also report which ones they could not reach
@@ -250,7 +250,7 @@ does have**, so an answer is never mistaken for one where it had been honoured.
 
 Every tool's name, description and schemas sit in the client's context from the
 moment it connects, before anyone has asked anything. One server in front of
-twenty-one services could spend that budget carelessly, so the bill is measured
+twenty-three services could spend that budget carelessly, so the bill is measured
 (`node scripts/measure-tool-surface.ts` prints it per stack) and capped by the
 tests:
 
@@ -611,6 +611,11 @@ title scheduled for deletion, or eligible at the next deletion run, the summary
 says so with the date and the rule. Neither blocks a playable verdict, and a
 Reclaimerr that cannot be read only adds it to `degraded`.
 
+With Maintainerr configured instead, the summary says when one of its
+collections has the title set for deletion, with the date and the collection.
+Maintainerr logs a removal by title only, with no id, so `diagnose_media` cannot
+tell that Maintainerr deleted a title; `get_history` lists what it removed.
+
 With SuggestArr configured, the request step says when SuggestArr requested the
 title and why, for example "suggestarr requested it on 2026-11-26, similar to a
 watched title (TMDB 1727734)", matched on the title's kind and TMDB id. It
@@ -738,8 +743,9 @@ credentials runs beside `config.yaml` and imports `loadConfig`.
 `failures` carries what each service says is wrong with itself. Radarr,
 Sonarr, Whisparr, Lidarr, Prowlarr and Bazarr report their own health checks,
 NZBGet its `systemhealth` alerts (v26 and later), and Cleanuparr, Reclaimerr,
-Dispatcharr, Shelfmark and SuggestArr their own status (see [Dispatcharr](#dispatcharr),
-[Shelfmark](#shelfmark) and [SuggestArr](#suggestarr) below). Grimmory reports unreachable libraries, old
+Maintainerr, Dispatcharr, Shelfmark and SuggestArr their own status (see
+[Dispatcharr](#dispatcharr), [Shelfmark](#shelfmark) and
+[SuggestArr](#suggestarr) below). Grimmory reports unreachable libraries, old
 Bookdrop files and a newer release (see [Grimmory](#grimmory) below).
 
 Sonarr adds one of its own: a warning, from one read of its naming config, when
@@ -984,6 +990,31 @@ candidates than one read takes (5,000), they are read again filtered to those
 two states, since Reclaimerr lists newest-created first and has no sort; if even
 that runs past the cap, `going.capped` is set, `count` is a floor, and the
 summary says the first goes on or before `firstAt`.
+
+### Maintainerr
+
+With Maintainerr configured, its health findings join the failing checks: a
+status or database other than `ok` on its `/api/health`, and members of a
+collection whose rule evaluation failed (Maintainerr's collection handler skips
+them, so they are never acted on).
+
+At `full`, `cleanup` reads its collections, each a `rule` with its action as
+`outcome` (`delete`, `unmonitor`, `do nothing` and so on) and `enabled` for an
+active collection. `candidates` are the collection members, soonest first, each
+due on the day it was added plus the collection's "take action after" days:
+`eligible` once that has passed, since the handler acts at its next run, and
+`scheduled` before. A member of a collection that is inactive, has no days set,
+or whose action deletes no files is `disabled`, with the reason in `blockers`,
+and so is a member whose rule evaluation failed. Titles come from Maintainerr's
+own lookup on the media server; a member it can no longer find there is still
+listed, by its TMDB id, with the blocker `not found on the media server`.
+`protections` counts the exclusions. `totals` gives what the deleting
+collections hold now and what every collection has handled so far.
+`autoDelete.enabled` is true when at least one active collection deletes; the
+handler runs on Maintainerr's own schedule, which is kept with its credentials
+and so is not read, so there is no `nextAt`.
+
+**Unverified live** (Maintainerr): members of a season or episode collection, and the exclusion count on a non-empty list.
 
 ### SuggestArr
 
@@ -1441,6 +1472,11 @@ protections and events all carry. `cleanup` is **absent** when Reclaimerr has
 nothing on the title, when the title has no TMDB id, and when Reclaimerr could
 not be read.
 
+With Maintainerr configured instead, `candidates` are the collections that hold
+the title, matched by TMDB id; `protections` and `removals` are always empty,
+because Maintainerr keys an exclusion by its media-server id and logs a removal
+by title only.
+
 `diagnose_media` reads the same thing. A removal of the film (or its version, since
 Radarr keeps one file per movie) or of the whole series explains a missing file
 only when the managing *arr imported nothing after it. A season or episode
@@ -1778,8 +1814,8 @@ qBittorrent `private` needs 5.0 or later.
 ## `get_history`
 
 `get_queue` only sees what is still in flight. `get_history` merges Radarr's, Sonarr's, Whisparr's and Lidarr's own history logs with SABnzbd's,
-NZBGet's, Bazarr's, Cleanuparr's, Reclaimerr's and Shelfmark's, plus Grimmory's
-audit log and the requests SuggestArr filed, and is the only tool that can answer "why did last night's download
+NZBGet's, Bazarr's, Cleanuparr's, Reclaimerr's, Maintainerr's and Shelfmark's,
+plus Grimmory's audit log and the requests SuggestArr filed, and is the only tool that can answer "why did last night's download
 fail".
 
 Radarr's and Sonarr's events are normalised to one vocabulary: `grabbed`,
@@ -1839,6 +1875,18 @@ would keep its oldest and drop its newest, so arr-mcp halves it towards now
 until it fits; what falls before the narrowed start is left out. Passing
 `id` with `service: reclaimerr` is refused: its events are per candidate, not
 per movie or series, and `get_media_details` shows one title's cleanup state.
+
+### Maintainerr
+
+Maintainerr contributes its collection logs, newest first: `scheduled` for a
+title added to a collection that deletes, `deleted` when that collection's
+handler acted on it, `protected` for an exclusion added, and `unknown` for the
+rest (removed from a collection, postponed, timer reset), with Maintainerr's
+verb in `rawEvent`. `reason` names the collection. A row on a collection whose
+action deletes nothing is `unknown` too. Passing `id` with `service: maintainerr`
+is refused: its logs name a title but carry no id.
+
+**Unverified live** (Maintainerr): the `protected` row, tested on a constructed log line.
 
 ### SuggestArr
 

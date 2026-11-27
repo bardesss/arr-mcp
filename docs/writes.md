@@ -387,6 +387,8 @@ exercise. Where the tool has its own section, the same path carries an
 | `grab_release` | `qbittorrent` | A magnet link sent to the client | No qBittorrent on the maintainer's stack |
 | `get_queue` | `qbittorrent` | The torrent list, the seed limits and `by_tracker`; only login and health have met a real server | No qBittorrent on the maintainer's stack; the fixtures were written from the WebUI API description |
 | `get_queue` | `deluge` | The `error` and `moving` states, a torrent Deluge's queue holds back under a session pause, and a ratio limit in `seeding`, such as the one the *arrs set with a "Stop seed at ratio" of 1 | None came up on the test Deluges: their default ratio limit is off, and the one *arr that uses them, a test Radarr, has grabbed nothing; read from Deluge's and the *arrs' source |
+| `get_history` | `maintainerr` | The `protected` row, from an exclusion added to a collection | The captured log held no exclusion; tested on a constructed log line |
+| `get_stack_health` | `maintainerr` | Members of a season or episode collection, and the exclusion count on a non-empty list | The live instance has one movie and one show collection and no exclusions |
 | `get_queue` | `grimmory` | A file waiting in the Bookdrop | The live Bookdrop was empty at capture; the row is tested on a constructed file |
 | `get_stack_health` | `grimmory` | The warning for books left in the Bookdrop over a day | Rests on the same constructed file |
 | `get_queue` | `cleanuparr` | Seeding rules for a Transmission or Deluge client | Only hand-written fixtures; the one tester runs qBittorrent |
