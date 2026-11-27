@@ -61,6 +61,7 @@ body:
         - label: Dispatcharr
         - label: Shelfmark
         - label: Grimmory
+        - label: SuggestArr
 
   - type: input
     id: service-versions

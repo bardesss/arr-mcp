@@ -1,0 +1,11 @@
+{
+  "arr": {
+    "radarr": "ok",
+    "sonarr": "ok"
+  },
+  "db": "ok",
+  "llm": "not_configured",
+  "seer": "ok",
+  "status": "ok",
+  "tmdb": "ok"
+}

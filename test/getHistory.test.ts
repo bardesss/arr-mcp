@@ -161,7 +161,7 @@ describe('get_history', () => {
             testConnection: async () => ({ ok: true, service: 'jellyfin', latency_ms: 1 })
         };
         await expect(buildGetHistory([radarr(), jellyfin], { ...opts, service: 'jellyfin' })).rejects.toThrow(/history/);
-        await expect(buildGetHistory([radarr(), jellyfin], { ...opts, service: 'jellyfin' })).rejects.toThrow(/bazarr, cleanuparr, reclaimerr, shelfmark and grimmory only/);
+        await expect(buildGetHistory([radarr(), jellyfin], { ...opts, service: 'jellyfin' })).rejects.toThrow(/bazarr, cleanuparr, reclaimerr, shelfmark, grimmory and suggestarr only/);
     });
 
     it('exposes episodeId separately from mediaId for Sonarr', async () => {

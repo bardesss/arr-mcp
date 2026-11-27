@@ -107,6 +107,7 @@ const ROLES: readonly (readonly [ServiceId, string])[] = [
     ['qbittorrent', 'qBittorrent downloads'],
     ['cleanuparr', 'Cleanuparr cleanup'],
     ['reclaimerr', 'Reclaimerr cleanup'],
+    ['suggestarr', 'SuggestArr automated requests'],
     ['dispatcharr', 'Dispatcharr live TV']
 ];
 

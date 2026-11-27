@@ -8,12 +8,14 @@ import { logger } from '../core/logger.ts';
 import { DetailSchema, LimitSchema, READ_ONLY, TruncationSchema, applyLimit, listText, memoBy, toolInput, windowEnd, type DetailLevel } from '../core/shape.ts';
 import {
     hasCleanup,
+    hasRequestAutomation,
     hasCleanuparrRemovals,
     hasCommandStatus,
     hasDiskSpace,
     hasHealthChecks,
     hasLogs,
     hasScanState,
+    type AutomationOverview,
     type CleanupOverview,
     type CleanuparrRemovals,
     type CommandStatus,
@@ -85,6 +87,8 @@ type StackHealthResult = {
      * its rules and whether its deletion task runs. Only at `detail: "full"`.
      */
     cleanup?: CleanupOverview;
+    /** What an automation service (SuggestArr) requests on its own: its jobs, their limits and last runs. Only at `detail: "full"`. */
+    automation?: AutomationOverview;
     /**
      * When Cleanuparr's Queue Cleaner and Malware Blocker remove a download, and
      * what each removal does. Only at `detail: "full"`, and only with Cleanuparr
@@ -327,8 +331,9 @@ export async function buildStackHealth(
 
     const cleanupAdapter = opts.detail === 'full' ? adapters.find(hasCleanup) : undefined;
     const removalSource = opts.detail === 'full' ? adapters.find(hasCleanuparrRemovals) : undefined;
+    const automationSource = opts.detail === 'full' ? adapters.find(hasRequestAutomation) : undefined;
     // Independent reads: none waits on another.
-    const [seedingRules, cleanup, cleanuparrRemovals] = await Promise.all([
+    const [seedingRules, cleanup, cleanuparrRemovals, automation] = await Promise.all([
         opts.detail === 'full' && !filtered ? buildSeedingRules(adapters, markDegraded) : undefined,
         cleanupAdapter === undefined || degraded.includes(cleanupAdapter.id)
             ? undefined
@@ -346,7 +351,14 @@ export async function buildStackHealth(
                       markDegraded(removalSource.id);
                       return undefined;
                   }
-              )
+              ),
+        automationSource === undefined || degraded.includes(automationSource.id)
+            ? undefined
+            : automationSource.readAutomationOverview().catch((err: unknown) => {
+                  logger.warn({ service: automationSource.id, err }, 'automation overview read failed; omitting');
+                  markDegraded(automationSource.id);
+                  return undefined;
+              })
     ]);
     const hasSeedingRules =
         seedingRules !== undefined &&
@@ -434,6 +446,7 @@ export async function buildStackHealth(
             ...(hasSeedingRules ? { seedingRules } : {}),
             ...(cleanup === undefined ? {} : { cleanup }),
             ...(cleanuparrRemovals === undefined ? {} : { cleanuparrRemovals }),
+            ...(automation === undefined ? {} : { automation }),
             // Its own `limit` budget, so a log line does not compete with a
             // failing health check for the same rows, shared between the
             // instances that have rows by `shareLogLimit`.
@@ -484,6 +497,24 @@ function shownLine(result: Pick<StackHealthResult, 'failures' | 'disks'>): strin
     return parts.length === 0 ? '' : ` ${parts.join(', ')}.`;
 }
 
+/** One sentence on what the automation will request, because its limits are the question it raises. */
+export function automationLine(automation: AutomationOverview | undefined): string {
+    if (automation === undefined) return '';
+    const on = automation.jobs.filter(j => j.enabled);
+    if (on.length === 0) return ` ${automation.service} has no job enabled, so it requests nothing on its own.`;
+    const jobs = on.map(j => {
+        const caps = [
+            j.maxSimilarMovie === undefined ? undefined : `${j.maxSimilarMovie} film(s)`,
+            j.maxSimilarTv === undefined ? undefined : `${j.maxSimilarTv} series`
+        ].filter(c => c !== undefined);
+        const per = caps.length === 0 ? '' : `, up to ${caps.join(' and ')} per watched title`;
+        const user = j.maxRequestsPerUser === undefined ? '' : `, at most ${j.maxRequestsPerUser} per user in ${j.requestLimitWindowHours ?? 24} h`;
+        const last = j.lastRun === undefined ? '' : `, last run ${j.lastRun.status} with ${j.lastRun.requested} request(s)`;
+        return `${j.name} (${j.schedule}${per}${user}${last})`;
+    });
+    return ` ${automation.service} runs ${jobs.join('; ')}.`;
+}
+
 /** One sentence on what is about to go, because that is the question a cleanup service raises. */
 export function cleanupLine(cleanup: CleanupOverview | undefined): string {
     const candidates = cleanup?.candidates;
@@ -529,6 +560,10 @@ const stackHealthOutput = memoBy((withPrimary: boolean) => z.looseObject({
         .looseObject({ service: z.string() })
         .optional()
         .describe('What Reclaimerr is set to delete, soonest first, its rules and whether auto-delete runs. Only at `detail: "full"`.'),
+    automation: z
+        .looseObject({ service: z.string() })
+        .optional()
+        .describe('SuggestArr jobs, their request limits and last runs, and its request counts. Only at `detail: "full"`.'),
     cleanuparrRemovals: z
         .object({ service: z.string(), queueCleaner: z.unknown().optional(), malwareBlocker: z.unknown().optional(), notes: z.array(z.string()) })
         .optional()
@@ -553,7 +588,7 @@ const StackHealthInput = toolInput({
 
 /** The full description of get_stack_health. */
 const STACK_HEALTH_DESCRIPTION =
-    'Health of every configured service: version, disk space, failing health checks, last library scan (`services` ids are the valid `instance` values). Answers partially, with a `degraded` list, when a service is down. `commands` follows up trigger_search and trigger_scan: queued, running, and finished in the last 15 minutes, so a command not listed has finished. Profiles, root folders and tags: get_instance_options. `service` or `instance` checks one, without `seedingRules`. `detail: "full"` adds `permissions`, `seedingRules` ({{and: *=client; *=indexer; cleanuparr=Cleanuparr}} seed limits[[cleanuparr:  and removal rules]])[[reclaimerr: , Reclaimerr `cleanup` (what will be deleted or moved, and when),]] and each service\'s recent warnings and errors in `logs`; check `lastSeen`, since an old line may no longer apply. API keys are never returned. Field reference: arr://docs/get_stack_health.';
+    'Health of every configured service: version, disk space, failing health checks, last library scan (`services` ids are the valid `instance` values). Answers partially, with a `degraded` list, when a service is down. `commands` follows up trigger_search and trigger_scan: queued, running, and finished in the last 15 minutes, so a command not listed has finished. Profiles, root folders and tags: get_instance_options. `service` or `instance` checks one, without `seedingRules`. `detail: "full"` adds `permissions`, `seedingRules` ({{and: *=client; *=indexer; cleanuparr=Cleanuparr}} seed limits[[cleanuparr:  and removal rules]])[[reclaimerr: , Reclaimerr `cleanup` (what will be deleted or moved, and when),]][[suggestarr: , SuggestArr `automation` (jobs, request limits, last runs),]] and each service\'s recent warnings and errors in `logs`; check `lastSeen`, since an old line may no longer apply. API keys are never returned. Field reference: arr://docs/get_stack_health.';
 
 
 export function registerStackHealth(
@@ -583,6 +618,7 @@ export function registerStackHealth(
                     : `${result.degraded.length} of ${result.services.length} service(s) degraded: ${result.degraded.join(', ')}.`) +
                 (primaryMediaServer === undefined ? '' : ` ${primaryMediaServer} is the primary media server.`) +
                 cleanupLine(result.cleanup) +
+                automationLine(result.automation) +
                 shownLine(result);
 
             return {

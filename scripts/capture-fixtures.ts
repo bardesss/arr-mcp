@@ -1623,8 +1623,54 @@ const ENDPOINTS: Record<ServiceId, Endpoint[]> = {
             },
             anonymise: anonymiseShelfmarkReleases
         }
+    ],
+    // The public /api/v1 with an X-Api-Key from Profile, plus /api/health, which needs none. Never captured:
+    // /api/config/*, whose bodies hold the TMDB, Seerr and media server keys.
+    suggestarr: [
+        { name: 'status', path: '/api/v1/status' },
+        { name: 'health', path: '/api/health' },
+        { name: 'me', path: '/api/v1/me', anonymise: anonymiseSuggestarr },
+        { name: 'jobs', path: '/api/v1/jobs?per_page=100', anonymise: anonymiseSuggestarr },
+        { name: 'runs', path: '/api/v1/runs?per_page=20', anonymise: anonymiseSuggestarr },
+        {
+            name: 'run',
+            // The newest run, for the per-run deliveries only one run's read carries.
+            path: captured => {
+                const id = (captured.get('runs') as { data?: { id?: unknown }[] } | undefined)?.data?.[0]?.id;
+                return typeof id === 'number' ? `/api/v1/runs/${id}` : undefined;
+            },
+            anonymise: anonymiseSuggestarr
+        },
+        { name: 'requests', path: '/api/v1/requests?per_page=50', anonymise: anonymiseSuggestarr },
+        { name: 'requests-stats', path: '/api/v1/requests/stats' },
+        { name: 'suggestions', path: '/api/v1/suggestions?status=all&per_page=50', anonymise: anonymiseSuggestarr },
+        { name: 'installation-stats', path: '/api/v1/installation/stats' }
     ]
 };
+
+/** SuggestArr names the media server's users; the ids and names become stand-ins, kept apart by first sight. */
+const suggestarrUsers = new Map<string, string>();
+function anonymiseSuggestarr(body: unknown): unknown {
+    const user = (v: unknown): unknown => {
+        if (typeof v !== 'string' && typeof v !== 'number') return v;
+        const key = String(v);
+        if (!suggestarrUsers.has(key)) suggestarrUsers.set(key, `user${suggestarrUsers.size + 1}`);
+        return suggestarrUsers.get(key);
+    };
+    const walk = (v: unknown): unknown => {
+        if (Array.isArray(v)) return v.map(walk);
+        if (typeof v !== 'object' || v === null) return v;
+        const out: Row = {};
+        for (const [k, x] of Object.entries(v as Row)) {
+            if (k === 'username' || k === 'user_name' || k === 'media_user_id' || k === 'user_id') out[k] = user(x);
+            else if (k === 'user_ids' && Array.isArray(x)) out[k] = x.map(user);
+            else if (k === 'media_user' && typeof x === 'object' && x !== null) out[k] = { ...(x as Row), id: user((x as Row).id) };
+            else out[k] = walk(x);
+        }
+        return out;
+    };
+    return walk(body);
+}
 
 /**
  * Reclaimerr names what is in the library, and its reasons name the people who

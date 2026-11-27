@@ -15,12 +15,14 @@ import type {
     HistoryEntry,
     IndexerRejection,
     QueueItem,
+    RequestOrigin,
     RequestStatus,
     ScanState,
     DownloadStrikes,
     SubtitleGap
 } from '../../services/types.ts';
 import { removalSentence, upcomingSentence } from '../cleanupStatus.ts';
+import { originSentence } from '../../services/suggestarr.ts';
 import { importFailing, importStepFor, needsMapping, orphanImportStepFor, retriedImportStepFor } from '../importStep.ts';
 import { instanceArgs } from '../resolveInstance.ts';
 
@@ -100,6 +102,8 @@ export type Evidence = {
     cleanup?: CleanupStatus | null | undefined;
     /** The cleanup service that was configured but could not be read, so a missing file's cause is unknown. */
     cleanupUnread?: string;
+    /** Why SuggestArr requested this title, when it did. Absent when it did not, or could not be read. */
+    requestOrigin?: RequestOrigin;
     /** The managing *arr's latest import of this item, read only when there is a removal to weigh it against. */
     lastImportAt?: string;
     /**
@@ -330,7 +334,15 @@ function releasesOf(rows: readonly HistoryEntry[]): HistoryEntry[][] {
     return [...groups.values()];
 }
 
+/** Seerr's answer, with who filed the request when an automation service did. */
 function requestStep(ev: Evidence, item: MergedItem): Step {
+    const step = seerrRequestStep(ev, item);
+    if (ev.requestOrigin === undefined) return step;
+    const said = originSentence(ev.requestOrigin);
+    return { ...step, detail: ev.request === null ? `No Seerr request matched. ${said}` : `${step.detail} ${said}` };
+}
+
+function seerrRequestStep(ev: Evidence, item: MergedItem): Step {
     // Not read for an artist at all, so `null` would otherwise say "no request
     // recorded" about a service that was never asked.
     if (item.kind === 'artist') return SKIPPED('request', 'Seerr does not handle music, so there is no request to check.');

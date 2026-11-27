@@ -13,6 +13,7 @@ import {
     hasIndexers,
     hasMediaDetails,
     hasQueue,
+    hasRequestAutomation,
     hasRequestLookup,
     hasRequests,
     hasScanState,
@@ -625,6 +626,20 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
             }
         }
 
+        // Why an automation service requested it. Only an aside on the request step, so a
+        // failed or slow read is left out rather than costing the verdict its certainty.
+        let requestOrigin: Evidence['requestOrigin'];
+        const automation = deps.adapters.find(hasRequestAutomation);
+        if (automation !== undefined && cleanupKind !== undefined && tmdb !== undefined && !budget.expired()) {
+            const read = await budget.race(
+                automation.readRequestOrigin(cleanupKind, tmdb).catch((err: unknown) => {
+                    logger.warn({ service: automation.id, err }, 'request origin read failed; omitting');
+                    return undefined;
+                })
+            );
+            if (read !== TIMED_OUT && read !== undefined) requestOrigin = read;
+        }
+
         degraded.sort();
         libraryDegraded.sort();
         return {
@@ -647,6 +662,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
             cleanup,
             ...(cleanupAdapter !== undefined && cleanup === undefined ? { cleanupUnread: cleanupAdapter.id } : {}),
             ...(lastImportAt === undefined ? {} : { lastImportAt }),
+            ...(requestOrigin === undefined ? {} : { requestOrigin }),
             ...(albums === undefined ? {} : { albums }),
             libraryDegraded,
             degraded,

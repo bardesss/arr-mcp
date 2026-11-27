@@ -32,6 +32,7 @@ const NAMES: ReadonlyArray<readonly [ServiceId, string]> = [
     ['bazarr', 'Bazarr'],
     ['cleanuparr', 'Cleanuparr'],
     ['reclaimerr', 'Reclaimerr'],
+    ['suggestarr', 'SuggestArr'],
     ['dispatcharr', 'Dispatcharr']
 ];
 

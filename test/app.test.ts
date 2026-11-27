@@ -635,7 +635,8 @@ describe('what the server says about itself at initialize', () => {
         radarr: 'Radarr', sonarr: 'Sonarr', whisparr: 'Whisparr', lidarr: 'Lidarr', prowlarr: 'Prowlarr',
         bazarr: 'Bazarr', jellyfin: 'Jellyfin', emby: 'Emby', seerr: 'Seerr', sabnzbd: 'SABnzbd', nzbget: 'NZBGet',
         transmission: 'Transmission', qbittorrent: 'qBittorrent', plex: 'Plex', profilarr: 'Profilarr',
-        cleanuparr: 'Cleanuparr', reclaimerr: 'Reclaimerr', dispatcharr: 'Dispatcharr', shelfmark: 'Shelfmark', grimmory: 'Grimmory'
+        cleanuparr: 'Cleanuparr', reclaimerr: 'Reclaimerr', dispatcharr: 'Dispatcharr', shelfmark: 'Shelfmark', grimmory: 'Grimmory',
+        suggestarr: 'SuggestArr'
     };
 
     it('names every service arr-mcp has an adapter for', async () => {

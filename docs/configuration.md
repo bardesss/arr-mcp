@@ -445,6 +445,32 @@ cleanup state in `get_media_details`, its lifecycle events in `get_history`,
 and `diagnose_media` uses them to say a file was deleted by a cleanup rule, or is
 about to be. Titles are matched on their TMDB id.
 
+## SuggestArr
+
+```yaml
+services:
+  suggestarr:
+    url: http://192.168.1.20:5000
+    api_key: "sarr_…"
+```
+
+`api_key` is a named key from Profile → API keys in SuggestArr. Create it signed
+in as an administrator: a key acts as the user who made it, and only an
+administrator's sees every job and the delivery queue. SuggestArr keys have no
+scopes, so the key could also approve suggestions or start runs; arr-mcp only
+sends GET requests to SuggestArr's public `/api/v1`, plus `/api/health`, and
+`permissions` are read as off whatever the file says. Single instance only,
+because one SuggestArr files one stack's automated requests. Its API reports no
+version, so the 2.11.0 floor (the first release with `/api/v1` and API keys) is
+not checked; it was written against v3.5.0.
+
+`get_stack_health` reports what SuggestArr's own health check says about Seerr,
+TMDB and the *arrs, a job whose last run failed, every job being off, and
+suggestions it could not file in Seerr. At `detail: "full"` it adds `automation`:
+each job, its schedule and request limits, and its last run. `get_history` lists
+the requests it filed, and `diagnose_media` says on the request step that
+SuggestArr requested the title and why, matched on the title's TMDB id.
+
 ## Dispatcharr
 
 ```yaml
@@ -589,13 +615,13 @@ which instance you meant. See [writes](writes.md#with-more-than-one-instance-wri
 **Permissions are per instance**: each entry carries its own `permissions`
 block.
 
-**Eleven services stay single.** Jellyfin, Emby and Plex because each is one
+**Twelve services stay single.** Jellyfin, Emby and Plex because each is one
 server ([running two](#two-media-servers) is a different thing). Seerr
 because a request carries the identity of the person who made it. Whisparr
 because the one deployment that wants two is V2 beside V3 (Eros), and Eros is a
 different API with no adapter. Profilarr because it owns profile config.
-Cleanuparr, Reclaimerr, Dispatcharr, Shelfmark and Grimmory for the reasons in
-their own sections.
+Cleanuparr, Reclaimerr, Dispatcharr, Shelfmark, Grimmory and SuggestArr for the
+reasons in their own sections.
 
 Everything else takes a list: Radarr, Sonarr, Lidarr, Bazarr, Prowlarr, SABnzbd,
 NZBGet, Transmission and qBittorrent.

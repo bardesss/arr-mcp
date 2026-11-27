@@ -1,0 +1,15 @@
+{
+  "data": {
+    "deliveries": [],
+    "error_message": null,
+    "finished_at": "2026-11-27T00:00:01.930536",
+    "id": 4,
+    "job_id": 1,
+    "job_name": "Default Automation",
+    "requested_count": 0,
+    "results_count": 0,
+    "started_at": "2026-11-27T00:00:00.247708",
+    "status": "completed",
+    "trigger_source": null
+  }
+}

@@ -11,6 +11,7 @@ import { NzbgetAdapter } from './nzbget.ts';
 import { PlexAdapter } from './plex.ts';
 import { ProfilarrAdapter } from './profilarr.ts';
 import { ReclaimerrAdapter } from './reclaimerr.ts';
+import { SuggestarrAdapter } from './suggestarr.ts';
 import { ProwlarrAdapter } from './prowlarr.ts';
 import { QbittorrentAdapter } from './qbittorrent.ts';
 import { RadarrAdapter } from './radarr.ts';
@@ -98,5 +99,7 @@ function buildAdapter(instance: ServiceInstance): ServiceAdapter {
             return new PlexAdapter(instance.config);
         case 'whisparr':
             return new WhisparrAdapter(instance.config);
+        case 'suggestarr':
+            return new SuggestarrAdapter(instance.config);
     }
 }
