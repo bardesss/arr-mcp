@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.5.0](https://github.com/bardesss/arr-mcp/compare/v2.4.0...v2.5.0) (2026-11-28)
+
+
+### Features
+
+* add a read-only Maintainerr adapter ([#714](https://github.com/bardesss/arr-mcp/issues/714)) ([0264f50](https://github.com/bardesss/arr-mcp/commit/0264f50411e65571a29ee9a3726c663af5ce38b6))
+* add SuggestArr adapter (read-only) ([#715](https://github.com/bardesss/arr-mcp/issues/715)) ([78808cf](https://github.com/bardesss/arr-mcp/commit/78808cf03227d700af66d07dd8f906df1464b81d))
+* **deluge:** add Deluge as a torrent client ([#713](https://github.com/bardesss/arr-mcp/issues/713)) ([8375573](https://github.com/bardesss/arr-mcp/commit/8375573cb2b969cdd9fd7a04ec7378f09ebd9d1b))
+
+
+### Bug Fixes
+
+* **transmission:** refuse a limit matching the turtle cap, rather than calling it set ([#718](https://github.com/bardesss/arr-mcp/issues/718)) ([c9504ee](https://github.com/bardesss/arr-mcp/commit/c9504ee64b19d05fa2a5fb77175664b321601578))
+
 ## [2.4.0](https://github.com/bardesss/arr-mcp/compare/v2.3.2...v2.4.0) (2026-11-22)
 
 
