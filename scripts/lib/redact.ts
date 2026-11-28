@@ -217,6 +217,21 @@ export function replaceIfString(value: unknown, replacement: string): unknown {
     return typeof value === 'string' ? replacement : value;
 }
 
+/** One stand-in tracker host per real one, so a per-tracker grouping still groups (#531). */
+export function fakeTrackerHosts(): (url: unknown) => string {
+    const hosts = new Map<string, string>();
+    return url => {
+        let host = '';
+        try {
+            host = new URL(String(url)).hostname;
+        } catch {
+            /* an unparseable tracker still gets a host of its own */
+        }
+        if (!hosts.has(host)) hosts.set(host, `tracker-${hosts.size + 1}.example.test`);
+        return hosts.get(host)!;
+    };
+}
+
 /**
  * The placeholder a scrubbed URL becomes. A fixture must still show that the
  * field *is* a URL, so a bare empty string would lose the shape the contract
@@ -504,7 +519,7 @@ const NZBGET_RATE_KEYS = ['DownloadRate', 'AverageDownloadRate'];
 const FIXTURE_EPOCH = 1_700_000_000;
 
 /** Rank of each distinct non-zero value, smallest first, from 1. */
-function ranks(values: number[]): Map<number, number> {
+export function ranks(values: number[]): Map<number, number> {
     const distinct = [...new Set(values.filter(v => v !== 0))].sort((a, b) => a - b);
     return new Map(distinct.map((v, i) => [v, i + 1]));
 }

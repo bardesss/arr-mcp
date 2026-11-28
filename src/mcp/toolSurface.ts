@@ -74,13 +74,13 @@ export const TOOL_SERVICES: Readonly<Record<string, readonly ServiceId[]>> = {
     trigger_search: ['radarr', 'sonarr', 'whisparr', 'lidarr'],
     add_media: ['radarr', 'sonarr', 'whisparr', 'lidarr', 'shelfmark'],
     trigger_scan: ['radarr', 'sonarr', 'whisparr', 'lidarr', 'jellyfin', 'emby', 'plex', 'grimmory', 'prowlarr'],
-    remove_queue_item: ['radarr', 'sonarr', 'whisparr', 'lidarr', 'sabnzbd', 'nzbget', 'transmission', 'qbittorrent', 'shelfmark', 'grimmory'],
+    remove_queue_item: ['radarr', 'sonarr', 'whisparr', 'lidarr', 'sabnzbd', 'nzbget', 'transmission', 'qbittorrent', 'deluge', 'shelfmark', 'grimmory'],
     set_monitoring: ['sonarr', 'whisparr', 'lidarr'],
     delete_episode_files: ['sonarr', 'whisparr'],
     update_media: ['radarr', 'sonarr', 'lidarr'],
     delete_media: ['radarr', 'sonarr', 'whisparr', 'lidarr', 'grimmory'],
     get_releases: ['radarr', 'sonarr', 'whisparr', 'lidarr', 'shelfmark'],
-    grab_release: ['radarr', 'sonarr', 'whisparr', 'lidarr', 'shelfmark', 'transmission', 'qbittorrent']
+    grab_release: ['radarr', 'sonarr', 'whisparr', 'lidarr', 'shelfmark', 'transmission', 'qbittorrent', 'deluge']
 };
 
 /** The services that hold each kind. A `kind` field lists only the kinds a configured service holds. */

@@ -44,7 +44,7 @@ export type DiskSpace = {
     path?: string;
     label: string;
     freeSpace: number;
-    /** Optional: Transmission reports free space without a total. */
+    /** Optional: Transmission and Deluge report free space without a total. */
     totalSpace?: number;
 };
 
@@ -368,8 +368,16 @@ export const hasSubtitleSearch = (a: ServiceAdapter): a is ServiceAdapter & Subt
  */
 export type QueueHold = 'queue' | 'postProcessing' | 'postPaused' | 'queueAndPostPaused';
 
+/**
+ * What a queue row or a pause state can name as holding it: a `QueueHold`, or
+ * on Deluge `scheduler`, an hour its Scheduler plugin's Schedule marks Paused.
+ * The plugin pauses the session then, and would pause a resume again the next
+ * time it runs in a Paused hour, so this server refuses one.
+ */
+export type ClientHold = QueueHold | 'scheduler';
+
 /** `heldBy` to spread into a row or a pause state, when something holds it. */
-export const withHold = <H extends QueueHold>(hold: H | undefined): { heldBy?: H } => (hold === undefined ? {} : { heldBy: hold });
+export const withHold = <H extends ClientHold>(hold: H | undefined): { heldBy?: H } => (hold === undefined ? {} : { heldBy: hold });
 
 export type QueueItem = {
     service: string;
@@ -388,8 +396,8 @@ export type QueueItem = {
     orphaned?: boolean;
     /** Internal, Lidarr only: the row names an artist but no album, so Lidarr cannot ignore the download. Never returned by a tool. */
     noAlbum?: true;
-    /** Internal, SABnzbd and NZBGet rows only: what holds it in the client, as `QueueHold` says. Never returned by a tool. */
-    heldBy?: QueueHold;
+    /** Internal, SABnzbd, NZBGet and Deluge rows only: what holds it in the client, as `ClientHold` says. Never returned by a tool. */
+    heldBy?: ClientHold;
     /** `trackedDownloadState`; `importBlocked` is the stuck one. */
     importState?: string;
     /** The download client's own id for this grab: what `import_download`'s
@@ -1727,6 +1735,10 @@ export const SAB_WAIT_SWITCH = '"Pause Downloading During Post-Processing"';
 /** SABnzbd's wait for post-processing, in the words every tool that names it uses (`sabWaiting`). */
 export const sabWaits = (client: string): string => `${client} pauses its queue while it post-processes (${SAB_WAIT_SWITCH})`;
 
+/** An hour Deluge's Scheduler marks Paused, in the words pause_downloads and diagnose_media use (`ClientHold`). */
+export const schedulerHolds = (client: string): string =>
+    `${client}'s Scheduler plugin pauses its whole session this hour, as its Schedule says, until the plugin next runs in an hour the Schedule marks Normal or Throttled, or this hour is changed there, or the plugin is turned off`;
+
 /**
  * What holds an NZBGet download in post-processing, as pause_downloads and
  * retry_download word it: a paused queue holding the repair files it asked
@@ -1968,7 +1980,7 @@ export const hasEpisodeFiles = (a: ServiceAdapter): a is ServiceAdapter & Episod
     typeof (a as Partial<EpisodeFileCapable>).listEpisodeFiles === 'function';
 
 export type RemoveQueueOptions = {
-    /** Also tell the download client to drop it, and delete partial data. */
+    /** Also tell the download client to drop it, and delete its files. */
     removeFromClient: boolean;
     /**
      * Blocklist the release so the *arr will not grab it again. Meaningless on
@@ -1999,28 +2011,54 @@ export const hasQueueRemove = (a: ServiceAdapter): a is ServiceAdapter & QueueRe
 /**
  * What a client reports about its own paused state, and what that state is
  * *of*, "the SABnzbd queue", "2 torrents", so a preview can say it. `heldBy`,
- * on a one-item read from SABnzbd or NZBGet, is what else holds that item, so
- * resuming the item alone does not start it; on SABnzbd's whole queue, the
- * wait for post-processing it shows, with `paused` true only where a pause by
- * hand shows beside it.
+ * on a one-item read from SABnzbd, NZBGet or Deluge, is what else holds that
+ * item, so resuming the item alone does not start it, and is left out for a
+ * Deluge torrent in error at its stop ratio, which resuming that would not
+ * start either; on SABnzbd's whole queue, the wait for post-processing it
+ * shows, with `paused` true only where a pause by hand shows beside it.
  * `postProcessing`, on a one-item read from NZBGet, is a download in
  * post-processing, whose repair files NZBGet pauses and unpauses itself: where
  * it is, in words, and whether NZBGet's post-processing is paused; `heldBy` is
  * then a paused queue holding repair files a repair asked for.
+ *
+ * A field a client adds for its own quirks follows one rule: a flag, or one of
+ * a few fixed values, where the tool can word the sentence for every client
+ * (`endsOnRestart`, `scheduler` and `heldBy` here, `scheduled` and
+ * `sessionChange` on `SpeedLimit`), and a string where the client knows
+ * something the tool should not (`resumeNoop` and `resumeNote`, written by the
+ * adapter: a torrent's stop ratio, its error, a move under way).
  */
 export type PauseState = {
     paused: boolean;
     scope: string;
-    heldBy?: 'queue' | 'postProcessing';
+    heldBy?: Extract<ClientHold, 'queue' | 'postProcessing' | 'scheduler'>;
     postProcessing?: { stage: string; paused: boolean };
     /**
-     * A torrent client's whole-client read. Neither has a client-wide pause, so
-     * a pause stops the running torrents and marks them with `PAUSE_MARK`, and
-     * resume starts the marked ones only; `paused` is "some are marked".
-     * `mark` names the marker in the client's own word. The ids are what a
-     * pause or resume acts on, so a confirm token can bind to them.
+     * qBittorrent's and Transmission's whole-client read. Neither has a
+     * client-wide pause, so a pause stops the running torrents and marks them
+     * with `PAUSE_MARK`, and resume starts the marked ones only; `paused` is
+     * "some are marked". Deluge has one, its session pause, and leaves this
+     * unset. `mark` names the marker in the client's own word. The ids are
+     * what a pause or resume acts on, so a confirm token can bind to them.
      */
     torrents?: { running: number; stopped: number; marked: number; mark: string; runningIds: string[]; markedIds: string[] };
+    /** Whole-client: the client's daemon does not save its pause, so a restart of the daemon ends the pause. Deluge's session pause. */
+    endsOnRestart?: true;
+    /** One item: why resuming it does nothing, worded to follow "<scope> on <client>". Deluge's. */
+    resumeNoop?: string;
+    /**
+     * A sentence on what a resume restarts or leaves as it was, in place of the
+     * bandwidth line; the line then opens "Resumes", naming the call. Deluge's:
+     * for the session, the torrents paused on their own; for one torrent, an
+     * error a resume may not clear, or a move that hides what holds it.
+     */
+    resumeNote?: string;
+    /**
+     * Whole client: the client's own timetable is on, and for this hour it
+     * stops the client or runs it, which it puts back whenever it runs in an
+     * hour marked the same. Deluge's, from its Scheduler plugin.
+     */
+    scheduler?: 'stop' | 'run';
 };
 
 /** The qBittorrent tag or Transmission label a whole-client pause leaves on what
@@ -2030,8 +2068,8 @@ export const PAUSE_MARK = 'arr-mcp-paused';
 /**
  * Stopping and restarting a download client.
  *
- * Only the three download clients have it; the *arrs do not. Pausing SABnzbd
- * does not stop Radarr grabbing; it stops the grabs being *downloaded*, and
+ * Only the download clients have it; the *arrs do not. Pausing SABnzbd does
+ * not stop Radarr grabbing; it stops the grabs being *downloaded*, and
  * `pause_downloads` says so rather than letting "paused" read as "nothing is
  * happening".
  */
@@ -2060,9 +2098,14 @@ export const hasPause = (a: ServiceAdapter): a is ServiceAdapter & PauseCapable 
  * clients means "unlimited" anyway and would read as "stopped".
  *
  * `alternative` says the cap is Transmission's alternative ("turtle") speed,
- * which overrides the normal limit for as long as it is on.
+ * which overrides the normal limit for as long as it is on, and `scheduled`
+ * that it is the limit of an hour Deluge's Scheduler marks Throttled, in force
+ * through every such hour. `sessionChange` says a new limit also resumes the
+ * client's paused session, or pauses its running one: Deluge's Scheduler
+ * applies a Normal or Paused hour again whenever the limit changes. All three
+ * follow the rule in `PauseState`'s doc.
  */
-export type SpeedLimit = { service: string; kbps?: number; alternative?: true };
+export type SpeedLimit = { service: string; kbps?: number; alternative?: true; scheduled?: true; sessionChange?: 'resume' | 'pause' };
 
 export interface SpeedLimitCapable {
     readSpeedLimit(): Promise<SpeedLimit>;

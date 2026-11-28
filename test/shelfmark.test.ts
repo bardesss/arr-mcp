@@ -488,7 +488,7 @@ describe('cancelling and retrying', () => {
             const { preview, applied } = await h.confirmed('remove_queue_item', { service: 'shelfmark', id: idOf(URL_TASK) });
             expect(preview.structuredContent.applied).toBe(false);
             expect(JSON.stringify(preview.structuredContent)).toContain('Cancels it in shelfmark');
-            expect(JSON.stringify(preview.structuredContent)).not.toContain('deletes any partial data');
+            expect(JSON.stringify(preview.structuredContent)).not.toContain('deletes the files it downloaded');
             expect(applied.structuredContent.applied).toBe(true);
             expect(h.calledPaths('DELETE')).toEqual([`/api/download/${encodeURIComponent(URL_TASK)}/cancel`]);
         });

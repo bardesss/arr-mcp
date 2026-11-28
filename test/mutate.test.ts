@@ -100,6 +100,14 @@ describe('adding an instance', () => {
         expect((vpn?.config as { api_key?: string }).api_key).toBeUndefined();
     });
 
+    // A form that switched from qBittorrent keeps the username in its hidden field.
+    it('drops a username for a type that has none, as Deluge does not', () => {
+        const added = addInstance(base(), { type: 'deluge', fields: { url: 'http://192.0.2.10:8112', password: 'p', username: 'leftover' } });
+        const deluge = listInstances(added).find(i => i.id === 'deluge');
+        expect(deluge?.config).toMatchObject({ url: 'http://192.0.2.10:8112', password: 'p' });
+        expect(deluge?.config).not.toHaveProperty('username');
+    });
+
     it('refuses an edit that would produce an invalid config, before it reaches disk', () => {
         expect(() => addInstance(base(), { type: 'radarr', fields: { url: 'not-a-url', api_key: 'k' } })).toThrow(
             ConfigEditError

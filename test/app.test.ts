@@ -634,7 +634,7 @@ describe('what the server says about itself at initialize', () => {
     const DISPLAY: Record<ServiceId, string> = {
         radarr: 'Radarr', sonarr: 'Sonarr', whisparr: 'Whisparr', lidarr: 'Lidarr', prowlarr: 'Prowlarr',
         bazarr: 'Bazarr', jellyfin: 'Jellyfin', emby: 'Emby', seerr: 'Seerr', sabnzbd: 'SABnzbd', nzbget: 'NZBGet',
-        transmission: 'Transmission', qbittorrent: 'qBittorrent', plex: 'Plex', profilarr: 'Profilarr',
+        transmission: 'Transmission', qbittorrent: 'qBittorrent', deluge: 'Deluge', plex: 'Plex', profilarr: 'Profilarr',
         cleanuparr: 'Cleanuparr', reclaimerr: 'Reclaimerr', dispatcharr: 'Dispatcharr', shelfmark: 'Shelfmark', grimmory: 'Grimmory',
         suggestarr: 'SuggestArr'
     };

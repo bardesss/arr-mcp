@@ -16,6 +16,7 @@ export const ServiceIdSchema = z.enum([
     'nzbget',
     'transmission',
     'qbittorrent',
+    'deluge',
     'plex',
     'profilarr',
     'cleanuparr',
@@ -31,7 +32,7 @@ export type ServiceId = z.infer<typeof ServiceIdSchema>;
  * The download clients, as against the *arrs that send them releases: the
  * services pause_downloads takes, and the ones diagnose_media reads as a client.
  */
-export const DOWNLOAD_CLIENTS: readonly ServiceId[] = ['sabnzbd', 'nzbget', 'transmission', 'qbittorrent'];
+export const DOWNLOAD_CLIENTS: readonly ServiceId[] = ['sabnzbd', 'nzbget', 'transmission', 'qbittorrent', 'deluge'];
 
 /** Marks which services a `service` field takes; read and removed by `mcp/leanSchema.ts`. */
 export const SERVICES_KEY = 'x-arr-services';
@@ -233,6 +234,13 @@ const CredentialServiceSchema = z.strictObject({
 });
 export type CredentialServiceConfig = z.infer<typeof CredentialServiceSchema>;
 
+/** Deluge's Web UI: one password and no user name, which `auth.login` takes. */
+const PasswordServiceSchema = z.strictObject({
+    ...BaseServiceShape,
+    password: z.string().min(1)
+});
+type PasswordServiceConfig = z.infer<typeof PasswordServiceSchema>;
+
 export type AnyServiceConfig = KeyedServiceConfig | MultiUserServiceConfig | PlexServiceConfig | CredentialServiceConfig;
 
 /**
@@ -281,6 +289,7 @@ export type ConfigByService = {
     plex: For<'plex', PlexServiceConfig>;
     transmission: For<'transmission', Instanced<CredentialServiceConfig>>;
     qbittorrent: For<'qbittorrent', Instanced<CredentialServiceConfig>>;
+    deluge: For<'deluge', Instanced<PasswordServiceConfig>>;
     profilarr: For<'profilarr', KeyedServiceConfig>;
     cleanuparr: For<'cleanuparr', KeyedServiceConfig>;
     reclaimerr: For<'reclaimerr', KeyedServiceConfig>;
@@ -436,6 +445,7 @@ const SERVICES = {
     seerr: single(MultiUserServiceSchema),
     transmission: multi(CredentialServiceSchema),
     qbittorrent: multi(CredentialServiceSchema),
+    deluge: multi(PasswordServiceSchema),
     plex: single(PlexServiceSchema),
     // Single only: Profilarr is the one place that owns profile config,
     // so two of them would mean two sources of truth.

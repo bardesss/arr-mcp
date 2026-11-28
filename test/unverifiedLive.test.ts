@@ -26,6 +26,7 @@ const DISPLAY: Record<ServiceId, string> = {
     nzbget: 'NZBGet',
     transmission: 'Transmission',
     qbittorrent: 'qBittorrent',
+    deluge: 'Deluge',
     plex: 'Plex',
     profilarr: 'Profilarr',
     cleanuparr: 'Cleanuparr',

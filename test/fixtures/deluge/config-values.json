@@ -1,0 +1,14 @@
+{
+  "result": {
+    "download_location": "/data/torrents",
+    "max_download_speed": -1,
+    "stop_seed_at_ratio": false,
+    "stop_seed_ratio": 2,
+    "remove_seed_at_ratio": false,
+    "enabled_plugins": [
+      "Label"
+    ]
+  },
+  "error": null,
+  "id": 1
+}

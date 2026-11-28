@@ -6,7 +6,7 @@
 
 ### Talk to your entire media stack. One server, one endpoint, one conversation.
 
-**Radarr · Sonarr · Whisparr · Lidarr · Prowlarr · Bazarr · Jellyfin · Emby · Plex · Seerr · SABnzbd · NZBGet · Transmission · qBittorrent · Profilarr · Cleanuparr · Reclaimerr · Dispatcharr · Shelfmark · Grimmory · SuggestArr**
+**Radarr · Sonarr · Whisparr · Lidarr · Prowlarr · Bazarr · Jellyfin · Emby · Plex · Seerr · SABnzbd · NZBGet · Transmission · qBittorrent · Deluge · Profilarr · Cleanuparr · Reclaimerr · Dispatcharr · Shelfmark · Grimmory · SuggestArr**
 
 [![Release](https://img.shields.io/github/v/release/bardesss/arr-mcp?style=flat-square&color=6f42c1)](https://github.com/bardesss/arr-mcp/releases)
 [![CI](https://img.shields.io/github/actions/workflow/status/bardesss/arr-mcp/release.yml?branch=main&label=build&style=flat-square)](https://github.com/bardesss/arr-mcp/actions)
@@ -50,7 +50,7 @@ check rather than guessing across the hole.
 | ✋ **Writes are opt-in, previewed, recorded** | Off until you turn them on, per service. Every write shows you exactly what it would do and waits for confirmation, and lands in an audit trail either way. |
 | 🖥️ **A config page that diagnoses** | Add services from a browser, see what is broken *and what to do about it*, read the logs and the write audit. No YAML required. |
 | 📚 **Forty-four tools, one vocabulary** | Every list pages the same way and answers readably whether or not your client reads `structuredContent`, every error names the config key that would fix it, every write takes ids rather than titles. |
-| 🪶 **It is careful with your context** | Twenty services behind one server, and a four-service stack still lists 36 tools for about 20,700 tokens. Tools your stack cannot use, kinds it does not hold and sentences about services you do not run are never sent. |
+| 🪶 **It is careful with your context** | Twenty-one services behind one server, and a four-service stack still lists 36 tools for about 20,800 tokens. Tools your stack cannot use, kinds it does not hold and sentences about services you do not run are never sent. |
 
 ## Quick start: about two minutes
 
@@ -108,7 +108,7 @@ username and a password of at least 12 characters.
 > page first owns the instance, and it holds every service's API key.
 
 **3. Add your services**: **Add a service**, paste its URL and API key (for Plex,
-its `X-Plex-Token`; for NZBGet, Transmission, qBittorrent and Grimmory, its username and password; a Shelfmark with no authentication needs no key), save. It applies immediately; there is
+its `X-Plex-Token`; for NZBGet, Transmission, qBittorrent and Grimmory, its username and password; for Deluge, its Web UI password; a Shelfmark with no authentication needs no key), save. It applies immediately; there is
 no restart. Configure only what you run. **Find services**, next to it, looks
 for them first: this host on each service's default port, the usual container
 names, and, if you ask for it, a sweep of the address range around you. It
@@ -199,7 +199,7 @@ them off. The cards are read-only for now.
 
 ## What it costs your context
 
-One server in front of twenty services is the whole idea, and it would be a
+One server in front of twenty-one services is the whole idea, and it would be a
 poor trade if it arrived as a wall of text. Every tool's name, description and
 schemas sit in your client's context from the moment it connects, so that bill
 is measured and capped rather than left to grow:
@@ -213,7 +213,7 @@ is measured and capped rather than left to grow:
 - **Your stack decides what is sent.** A write tool for a service you do not
   run is never listed, nor a kind nothing in your library holds, nor a sentence
   about Lidarr on a stack with no Lidarr. Radarr, Sonarr, SABnzbd and Jellyfin
-  come to 36 tools and roughly 20,700 tokens, against 28,500 with everything
+  come to 36 tools and roughly 20,800 tokens, against 28,500 with everything
   listed.
 - **The answers are shaped the same way.** The default `detail` is the cheap
   one, every list is paged and says when it was cut, and the poster cards ride
@@ -228,7 +228,7 @@ stack and everything that is trimmed.
 | --- | --- |
 | **[Tools](docs/tools.md)** | All forty-four, what each answers, and the fields whose meaning is not obvious |
 | **[Writes](docs/writes.md)** | Turning them on, the two tiers, and the preview-and-confirm handshake |
-| **[Configuration](docs/configuration.md)** | `config.yaml`, the nine services that take a list, the media server's `default_user`, running two media servers side by side |
+| **[Configuration](docs/configuration.md)** | `config.yaml`, the ten services that take a list, the media server's `default_user`, running two media servers side by side |
 | **[Config UI](docs/config-ui.md)** | The six pages, and what each does that is not obvious |
 | **[Management API](docs/api.md)** | JSON API for companion apps to see and manage services, settings and tokens, with named read or admin keys you create on the config page |
 | **[IMDb ratings](docs/imdb.md)** | The only way to get an IMDb score for a series, and what it costs |
@@ -239,7 +239,7 @@ stack and everything that is trimmed.
 
 - At least one supported service, LAN-reachable: Radarr 4.0+, Sonarr 4.0+,
   Whisparr 2.x (V2 only, not Eros), Prowlarr 1.0+, Bazarr 1.4+, Jellyfin 10.9+, Emby 4.9.1.80+, Plex Media Server (no minimum enforced; verified on 1.43),
-  Seerr 1.0+, SABnzbd 3.0+, NZBGet 21.0+, Transmission 3.0+, qBittorrent 4.1+, Profilarr 2.2.0+, Cleanuparr 2.10.0+, Reclaimerr 0.6.0+, Dispatcharr 0.33.0+, Shelfmark 1.5.0+, Grimmory 3.5.0+, SuggestArr 2.11.0+
+  Seerr 1.0+, SABnzbd 3.0+, NZBGet 21.0+, Transmission 3.0+, qBittorrent 4.1+, Deluge 2.0.3+, Profilarr 2.2.0+, Cleanuparr 2.10.0+, Reclaimerr 0.6.0+, Dispatcharr 0.33.0+, Shelfmark 1.5.0+, Grimmory 3.5.0+, SuggestArr 2.11.0+
 - Lidarr 2.1.3+ for reading, monitoring, adding, changing and deleting artists,
   its queue, its wanted list and calendar, release search, `diagnose_media`,
   `trigger_scan`, `fix_metadata` and `get_stack_health`. Artists join to
@@ -257,11 +257,10 @@ replacement.
 
 ## Contributing
 
-**Contributions are welcome, and new service adapters most of all**: Deluge
-would be accepted today, and
-[the list says so in advance](CONTRIBUTING.md#what-would-be-accepted-today),
-along with the ones that would not be. An adapter is deliberately the most
-self-contained thing in the codebase. Two things to know first: not every
+**Contributions are welcome, and new service adapters most of all**:
+[the list says in advance](CONTRIBUTING.md#what-would-be-accepted-today) which
+would be accepted today, and which would not. An adapter is deliberately the
+most self-contained thing in the codebase. Two things to know first: not every
 service qualifies ([which services qualify](CONTRIBUTING.md#which-services-qualify)),
 and **I cannot test a service I do not run**, so the second bar is that you tested
 it against your own live instance and the PR says what you tested and against
@@ -324,6 +323,7 @@ speaks to is free software maintained largely by volunteers: [Radarr](https://ra
 [Bazarr](https://www.bazarr.media), [Jellyfin](https://jellyfin.org),
 [Seerr](https://github.com/seerr-team/seerr), [SABnzbd](https://sabnzbd.org),
 [NZBGet](https://nzbget.com), [Transmission](https://transmissionbt.com), [qBittorrent](https://www.qbittorrent.org),
+[Deluge](https://deluge-torrent.org),
 [Profilarr](https://github.com/Dictionarry-Hub/profilarr), [Cleanuparr](https://github.com/Cleanuparr/Cleanuparr), [Reclaimerr](https://github.com/jessielw/Reclaimerr), [Dispatcharr](https://github.com/Dispatcharr/Dispatcharr), [Shelfmark](https://github.com/calibrain/shelfmark), [Grimmory](https://github.com/grimmory-tools/grimmory), [SuggestArr](https://github.com/giuseppe99barchetta/SuggestArr), as are the libraries it is built
 on: [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk),
 [Hono](https://hono.dev), [Zod](https://zod.dev), [Pino](https://getpino.io),

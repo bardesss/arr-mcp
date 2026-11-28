@@ -23,6 +23,7 @@ const DISPLAY: Record<ServiceId, readonly string[]> = {
     nzbget: ['NZBGet'],
     transmission: ['Transmission'],
     qbittorrent: ['qBittorrent'],
+    deluge: ['Deluge'],
     plex: ['Plex'],
     profilarr: ['Profilarr'],
     cleanuparr: ['Cleanuparr'],
@@ -187,6 +188,14 @@ describe('the tool list on a stack', () => {
         expect(text).toContain('A Whisparr re-search needs `season` or `episode`.');
         const radarrOnly = (await listTools({ radarr: svc(7878) })).find(t => t.name === 'grab_release')?.description ?? '';
         expect(radarrOnly).not.toContain('re-search needs');
+    });
+
+    it('names the clients pause_downloads tags, so a Deluge beside them is not read as one', async () => {
+        const both = { transmission: { url: 'http://192.0.2.10:9091' }, deluge: { url: 'http://192.0.2.10:8112', password: 'p' } };
+        const text = (await listTools(both)).find(t => t.name === 'pause_downloads')?.description ?? '';
+        expect(text).toContain('On Transmission, pause tags the running torrents and resume starts only those.');
+        const delugeOnly = (await listTools({ deluge: both.deluge })).find(t => t.name === 'pause_downloads')?.description ?? '';
+        expect(delugeOnly).not.toContain('pause tags');
     });
 });
 

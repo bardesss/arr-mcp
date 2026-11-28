@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { fenceText } from '../src/core/fence.ts';
 import type { FilmOrSeries, MergedItem } from '../src/core/resolver.ts';
+import { DelugeAdapter } from '../src/services/deluge.ts';
 import { NzbgetAdapter } from '../src/services/nzbget.ts';
 import { SabnzbdAdapter } from '../src/services/sabnzbd.ts';
 import type { HistoryEntry, QueueItem, SubtitleGap } from '../src/services/types.ts';
@@ -1834,6 +1835,82 @@ describe('buildChain — each queue state is worded for what it is', () => {
         const d = run(pausedFor(DRONE), await nzbgetClient({ DownloadPaused: true }, { Status: 'QUEUED', RemainingSizeMB: 10, PausedSizeMB: 0 }));
         expect(d.verdict.remedy).toBe("nzbget's whole queue is paused and holds it: resume the queue with pause_downloads (`action: \"resume\"` without an `id`) on nzbget, or in nzbget itself.");
         expect(d.verdict.next_steps).toEqual([{ tool: 'pause_downloads', arguments: { service: 'nzbget', action: 'resume' }, why: "Resumes nzbget's whole queue." }]);
+    });
+
+    // Deluge's own row as its adapter reads it, keyed by the info hash Radarr records in upper case.
+    const DELUGE_HASH = 'cccc'.repeat(10);
+    const delugeClient = async (row: Record<string, unknown>, sessionPaused: boolean, hour?: string): Promise<QueueItem> => {
+        const fetchImpl = (async (_input: unknown, init?: RequestInit) => {
+            const { method } = JSON.parse(String(init?.body)) as { method: string };
+            const result =
+                method === 'web.connected'
+                    ? true
+                    : method === 'core.is_session_paused'
+                      ? sessionPaused
+                      : method === 'core.get_config_values'
+                        ? hour === undefined
+                            ? {}
+                            : { enabled_plugins: ['Scheduler'] }
+                        : method === 'scheduler.get_state'
+                          ? hour
+                          : { [DELUGE_HASH]: { name: 'Some.Film.2026', total_size: 1000, total_remaining: 500, is_finished: false, trackers: [], ...row } };
+            return new Response(JSON.stringify({ result, error: null, id: 1 }), { headers: { 'content-type': 'application/json' } });
+        }) as unknown as typeof fetch;
+        const adapter = new DelugeAdapter(
+            { url: 'http://192.0.2.10:8112', password: 'p', timeout_ms: 10_000, permissions: { safe_write: false, destructive: false } },
+            fetchImpl
+        );
+        const [client] = await adapter.getQueue();
+        if (client === undefined) throw new Error('no queue row');
+        return client;
+    };
+    // Radarr reads a Deluge torrent in `Paused` as paused, a session pause included (`Deluge`).
+    const pausedTorrent = () => radarrRow({ status: 'paused', downloadId: DELUGE_HASH.toUpperCase() });
+    const SESSION_RESUME = { tool: 'pause_downloads', arguments: { service: 'deluge', action: 'resume' } };
+
+    it('resumes the Deluge session for a torrent only the session holds', async () => {
+        const d = run(pausedTorrent(), await delugeClient({ state: 'Paused', paused: false }, true));
+        expect(d.verdict.remedy).toBe(
+            "deluge's whole queue is paused and holds it: resume the queue with pause_downloads (`action: \"resume\"` without an `id`) on deluge, or in deluge itself."
+        );
+        expect(d.verdict.next_steps).toEqual([{ ...SESSION_RESUME, why: "Resumes deluge's whole queue." }]);
+    });
+
+    it('resumes the session and then the torrent, for one paused by hand under a session pause', async () => {
+        const d = run(pausedTorrent(), await delugeClient({ state: 'Paused', paused: true }, true));
+        expect(d.verdict.remedy).toBe(
+            `It is paused in deluge, and so is deluge's whole queue: resume the queue with pause_downloads (\`action: "resume"\` without an \`id\`) on deluge, then this download with \`id\` "${DELUGE_HASH}", or both in deluge itself.`
+        );
+        expect(d.verdict.next_steps).toEqual([{ ...SESSION_RESUME, why: "Resumes deluge's whole queue; this download stays paused until it is resumed with its `id`." }]);
+    });
+
+    it('offers no session resume in an hour the Scheduler marks Paused, which pause_downloads refuses there', async () => {
+        const HOUR =
+            "deluge's Scheduler plugin pauses its whole session this hour, as its Schedule says, until the plugin next runs in an hour the Schedule marks Normal or Throttled, or this hour is changed there, or the plugin is turned off";
+        const held = run(pausedTorrent(), await delugeClient({ state: 'Paused', paused: false }, true, 'Red'));
+        expect(held.verdict.remedy).toBe(`${HOUR}.`);
+        expect(held.verdict.next_steps).toBeUndefined();
+        const own = run(pausedTorrent(), await delugeClient({ state: 'Paused', paused: true }, true, 'Red'));
+        expect(own.verdict.remedy).toBe(
+            `It is paused in deluge, and ${HOUR}: resume it with pause_downloads (\`action: "resume"\` and its \`id\`) on deluge, and it starts with the session.`
+        );
+        expect(own.verdict.next_steps).toEqual([
+            {
+                tool: 'pause_downloads',
+                arguments: { service: 'deluge', action: 'resume', id: DELUGE_HASH },
+                why: "Resumes this one download in deluge; it starts once deluge's Scheduler resumes the session."
+            }
+        ]);
+        // A session paused by hand in a Normal hour is still the queue's, and resumed.
+        const byHand = run(pausedTorrent(), await delugeClient({ state: 'Paused', paused: false }, true, 'Green'));
+        expect(byHand.verdict.next_steps).toEqual([{ ...SESSION_RESUME, why: "Resumes deluge's whole queue." }]);
+    });
+
+    it('resumes only the torrent for one paused by hand while the session runs', async () => {
+        const d = run(pausedTorrent(), await delugeClient({ state: 'Paused', paused: true }, false));
+        expect(d.verdict.next_steps).toEqual([
+            { tool: 'pause_downloads', arguments: { service: 'deluge', action: 'resume', id: DELUGE_HASH }, why: 'Resumes this one download in deluge.' }
+        ]);
     });
 
     it('sends a paused *arr row with no client row to the download client, with no step to offer', () => {

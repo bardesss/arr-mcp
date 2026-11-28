@@ -7,7 +7,7 @@ import { unfenced } from '../../core/titleMatch.ts';
 import { ARR_KIND, ARR_NAMES, SEERR_ARR, seerrMediaType, type MergedItem } from '../../core/resolver.ts';
 import { fenceText } from '../../core/fence.ts';
 import { isLidarrRow, PENDING_STATUSES, usenetRerun } from '../../services/arrRecord.ts';
-import { SAB_WAIT_SWITCH, sabWaits } from '../../services/types.ts';
+import { SAB_WAIT_SWITCH, sabWaits, schedulerHolds } from '../../services/types.ts';
 import type {
     AlbumSummary,
     CleanupRemoval,
@@ -607,11 +607,12 @@ const NZBGET_POST_PROCESSING = new Set(['verifying', 'repairing', 'extracting', 
  * of the grab (the one paused itself, then one held, when there are two): the
  * download itself, the client's whole queue, both (the queue first, as the
  * step), or nothing, while the client post-processes it or another download,
- * waits on its own paused post-processing, or holds nothing back. A repair
- * NZBGet's paused queue and paused post-processing both hold gets the queue
- * step, and the remedy names post-processing too. A whole-queue resume is
- * offered only where the client says its queue holds the download, since
- * qBittorrent's resume without an id restarts every torrent.
+ * waits on its own paused post-processing, is paused for the hour by its
+ * Scheduler (Deluge's), or holds nothing back. A repair NZBGet's paused queue
+ * and paused post-processing both hold gets the queue step, and the remedy
+ * names post-processing too. A whole-queue resume is offered only where the
+ * client says its queue holds the download, since qBittorrent's resume without
+ * an id restarts every torrent.
  */
 function pausedResume(grab: readonly QueueItem[]): { remedy: string; next?: NextStep } {
     const clients = grab.filter(isClientRow);
@@ -636,6 +637,17 @@ function pausedResume(grab: readonly QueueItem[]): { remedy: string; next?: Next
     // A paused queue can hold the repair files a post-processing group still fetches (`queueHeld`).
     if (client.heldBy === undefined && instanceArgs(service).service === 'nzbget' && NZBGET_POST_PROCESSING.has(client.status)) {
         return { remedy: `${service} reports it as ${client.status}, a post-processing stage, and the *arr reads it as paused meanwhile: wait for it.` };
+    }
+    // An hour Deluge's Scheduler marks Paused: pause_downloads refuses the
+    // whole-session resume there (`schedulerResumeRefusal`), so only the
+    // download's own pause is offered.
+    if (client.heldBy === 'scheduler') {
+        return pausedInClient(client)
+            ? {
+                  remedy: `It is paused in ${service}, and ${schedulerHolds(service)}: resume it with pause_downloads (\`action: "resume"\` and its \`id\`) on ${service}, and it starts with the session.`,
+                  next: resume(client.id, `Resumes this one download in ${service}; it starts once ${service}'s Scheduler resumes the session.`)
+              }
+            : { remedy: `${schedulerHolds(service)}.` };
     }
     // SABnzbd's queue flag is also set while its "Pause Downloading During Post-Processing" switch waits on
     // post-processing, which a resume does not end (`Downloader.resume`) and which can lie behind the pause by

@@ -44,11 +44,16 @@ describe('the single form is untouched', () => {
     });
 });
 
-// Transmission and qBittorrent take credentials rather than an api_key, so a
-// loop over every multi-instance type needs to build the right shape for each.
+// NZBGet, Transmission and qBittorrent take optional credentials rather than
+// an api_key, and Deluge a password alone, so a loop over every multi-instance
+// type needs to build the right shape for each.
 const CREDENTIAL_TYPES = new Set(['nzbget', 'transmission', 'qbittorrent']);
 const instanceOf = (type: string, name: string, port: number) =>
-    CREDENTIAL_TYPES.has(type) ? { name, url: `http://192.0.2.10:${port}`, permissions: {} } : entry(name, port);
+    type === 'deluge'
+        ? { name, url: `http://192.0.2.10:${port}`, password: 'p', permissions: {} }
+        : CREDENTIAL_TYPES.has(type)
+          ? { name, url: `http://192.0.2.10:${port}`, permissions: {} }
+          : entry(name, port);
 
 describe('the list form', () => {
     it('parses under each service that may repeat', () => {
@@ -112,7 +117,7 @@ describe('what the list form refuses', () => {
         for (const type of ['jellyfin', 'seerr', 'plex']) {
             expect(isMultiInstance(type as never)).toBe(false);
             expect(() => parse({ [type]: [entry('a', 9999)] })).toThrow(
-                /only bazarr, lidarr, nzbget, prowlarr, qbittorrent, radarr, sabnzbd, sonarr, transmission/i
+                /only bazarr, deluge, lidarr, nzbget, prowlarr, qbittorrent, radarr, sabnzbd, sonarr, transmission/i
             );
         }
     });
@@ -273,6 +278,12 @@ describe('the download clients and Prowlarr take a list', () => {
         expect(listInstances(config).map(i => i.id)).toEqual(['transmission/direct', 'transmission/vpn']);
     });
 
+    it('accepts two Deluges, which carry a password and no username', () => {
+        const deluge = (name: string, port: number) => ({ name, url: `http://192.0.2.10:${port}`, password: 'p', permissions: {} });
+        const config = parse({ deluge: [deluge('vpn', 8112), deluge('direct', 8113)] });
+        expect(listInstances(config).map(i => i.id)).toEqual(['deluge/direct', 'deluge/vpn']);
+    });
+
     it('refuses two instances sharing a name, whatever the case', () => {
         expect(() => parse({ sabnzbd: [entry('Main', 8080), entry('main', 8081)] })).toThrow(/duplicate instance name/);
         expect(() => parse({ qbittorrent: [credential('VPN', 8081), credential('vpn', 8082)] })).toThrow(
@@ -298,9 +309,9 @@ describe('the download clients and Prowlarr take a list', () => {
     });
 
     it('reports the new types as multi-instance', () => {
-        for (const type of ['lidarr', 'nzbget', 'sabnzbd', 'prowlarr', 'transmission', 'qbittorrent'] as const) {
+        for (const type of ['lidarr', 'nzbget', 'sabnzbd', 'prowlarr', 'transmission', 'qbittorrent', 'deluge'] as const) {
             expect(isMultiInstance(type)).toBe(true);
         }
-        expect(MULTI_INSTANCE).toHaveLength(9);
+        expect(MULTI_INSTANCE).toHaveLength(10);
     });
 });

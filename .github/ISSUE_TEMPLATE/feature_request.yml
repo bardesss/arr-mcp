@@ -67,6 +67,7 @@ body:
         - label: NZBGet
         - label: Transmission
         - label: qBittorrent
+        - label: Deluge
         - label: Cleanuparr
         - label: Reclaimerr
         - label: Dispatcharr
