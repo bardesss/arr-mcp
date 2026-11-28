@@ -1,5 +1,5 @@
 import { logger } from '../core/logger.ts';
-import { hasCleanup, type CleanupCandidate, type CleanupRemoval, type CleanupStatus, type ServiceAdapter } from '../services/types.ts';
+import { cleanupSource, type CleanupCandidate, type CleanupRemoval, type CleanupStatus, type ServiceAdapter } from '../services/types.ts';
 import { episodeCode } from '../core/labels.ts';
 
 /**
@@ -13,7 +13,7 @@ export async function readCleanupStatus(
     kind: string,
     tmdb: number | undefined
 ): Promise<CleanupStatus | null | undefined> {
-    const adapter = adapters.find(hasCleanup);
+    const adapter = cleanupSource(adapters);
     if (adapter === undefined || tmdb === undefined || (kind !== 'movie' && kind !== 'series')) return null;
     try {
         return await adapter.readCleanupStatus(kind, tmdb);

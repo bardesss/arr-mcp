@@ -7,7 +7,7 @@ import { instantOf } from '../core/instant.ts';
 import { logger } from '../core/logger.ts';
 import { DetailSchema, LimitSchema, READ_ONLY, TruncationSchema, applyLimit, listText, memoBy, toolInput, windowEnd, type DetailLevel } from '../core/shape.ts';
 import {
-    hasCleanup,
+    cleanupSource,
     hasRequestAutomation,
     hasCleanuparrRemovals,
     hasCommandStatus,
@@ -329,7 +329,7 @@ export async function buildStackHealth(
         })
     );
 
-    const cleanupAdapter = opts.detail === 'full' ? adapters.find(hasCleanup) : undefined;
+    const cleanupAdapter = opts.detail === 'full' ? cleanupSource(adapters) : undefined;
     const removalSource = opts.detail === 'full' ? adapters.find(hasCleanuparrRemovals) : undefined;
     const automationSource = opts.detail === 'full' ? adapters.find(hasRequestAutomation) : undefined;
     // Independent reads: none waits on another.

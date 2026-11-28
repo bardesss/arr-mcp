@@ -51,6 +51,13 @@ export type RawMember = {
 type RawContent = { totalSize?: number; items?: (RawMember & { mediaData?: { title?: string; year?: number | null } })[] };
 type RawLog = { id?: number; timestamp?: string; message?: string; type?: number; meta?: { type?: string } | null };
 type RawLogPage = { totalSize?: number; items?: RawLog[] };
+/**
+ * What one collection's content read found: a title per member row id, and
+ * whether it stopped at the page cap with members still unread. `capped` is
+ * the difference between a member the media server does not hold and one this
+ * read never asked about, which look identical in `byMember`.
+ */
+type Titles = { byMember: Map<number, { title: string; year?: number }>; capped: boolean };
 
 /**
  * Maintainerr's ServarrAction, by ordinal: what a collection does to a member
@@ -135,7 +142,7 @@ export class MaintainerrAdapter implements ServiceAdapter, HealthCheckCapable, H
     async readCleanupOverview(want: number): Promise<CleanupOverview> {
         const [collections, members, exclusions] = await Promise.all([this.#collections(), this.#members(), this.#http.get<unknown[]>('/api/rules/exclusion')]);
         const titles = await Promise.all(collections.map(c => this.#titles(c)));
-        const candidates = collections.flatMap((c, i) => (members.get(c.id ?? -1) ?? []).map(m => this.#candidateOf(c, m, titles[i] ?? new Map<number, { title: string; year?: number }>()))).sort(soonestFirst);
+        const candidates = collections.flatMap((c, i) => (members.get(c.id ?? -1) ?? []).map(m => this.#candidateOf(c, m, titles[i] ?? UNREAD_TITLES))).sort(soonestFirst);
         const going = candidates.filter(c => c.state === 'eligible' || c.state === 'scheduled');
         const firstAt = going.map(c => c.eligibleAt).filter((d): d is string => d !== undefined).sort()[0];
         const sum = (f: (c: RawCollection) => number | null | undefined) => collections.reduce((n, c) => n + (f(c) ?? 0), 0);
@@ -152,7 +159,10 @@ export class MaintainerrAdapter implements ServiceAdapter, HealthCheckCapable, H
             rules: collections.map(c => this.#ruleOf(c)),
             candidates: { items: candidates.slice(0, Math.max(0, want)), total: candidates.length },
             going: { count: going.length, ...(firstAt === undefined ? {} : { firstAt }) },
-            protections: Array.isArray(exclusions) ? exclusions.length : 0
+            protections: Array.isArray(exclusions) ? exclusions.length : 0,
+            // Every member is listed, since the member list is not paged; what a
+            // capped read costs is the titles of the ones past the cap.
+            ...(titles.some(t => t.capped) ? { capped: true as const } : {})
         };
     }
 
@@ -222,19 +232,22 @@ export class MaintainerrAdapter implements ServiceAdapter, HealthCheckCapable, H
         };
     }
 
-    #candidateOf(c: RawCollection, m: RawMember, titles: Map<number, { title: string; year?: number }>): CleanupCandidate {
+    #candidateOf(c: RawCollection, m: RawMember, titles: Titles): CleanupCandidate {
         const fence = fencer(this.id);
         const added = isoInstant(m.addDate);
         const eligibleAt = added === undefined || typeof c.deleteAfterDays !== 'number' ? undefined : new Date(Date.parse(added) + c.deleteAfterDays * DAY_MS).toISOString();
         const failed = m.ruleEvaluationFailed === true && m.isManual !== true;
-        const known = titles.get(m.id ?? -1);
+        const known = titles.byMember.get(m.id ?? -1);
         const state: CleanupState = !deletes(c) || failed || eligibleAt === undefined ? 'disabled' : Date.parse(eligibleAt) <= Date.now() ? 'eligible' : 'scheduled';
         const blockers = [
             ...(c.isActive === true ? [] : ['the collection is inactive']),
             ...(DELETES.has(c.arrAction ?? -1) ? [] : [`the collection's action is ${ACTIONS[c.arrAction ?? -1] ?? 'unknown'}`]),
             ...(typeof c.deleteAfterDays === 'number' ? [] : ['the collection has no days set before it acts']),
             ...(failed ? ['rule evaluation failed'] : []),
-            ...(known === undefined ? ['not found on the media server'] : [])
+            // Only where the read reached the whole collection: past the cap a
+            // member has no title because nothing looked it up, not because
+            // Maintainerr could not find it.
+            ...(known === undefined && !titles.capped ? ['not found on the media server'] : [])
         ];
         return {
             id: `${c.id ?? ''}:${m.id ?? ''}`,
@@ -273,22 +286,24 @@ export class MaintainerrAdapter implements ServiceAdapter, HealthCheckCapable, H
     /**
      * Titles by member row id. The content route looks each member up on the
      * media server and silently drops one it cannot find, while `totalSize`
-     * still counts it, so it can hold fewer rows than the collection has.
+     * still counts it, so it can hold fewer rows than the collection has. A
+     * collection longer than `MAX_PAGES` pages reports `capped`, because the
+     * rows it never read are not absent from the media server.
      */
-    async #titles(c: RawCollection): Promise<Map<number, { title: string; year?: number }>> {
-        const out = new Map<number, { title: string; year?: number }>();
+    async #titles(c: RawCollection): Promise<Titles> {
+        const byMember = new Map<number, { title: string; year?: number }>();
         for (let page = 1; page <= MAX_PAGES; page += 1) {
             const body = await this.#http.get<RawContent>(`/api/collections/media/${c.id ?? -1}/content/${page}?size=${PAGE_SIZE}&sort=deleteSoonest&sortOrder=asc`);
             for (const item of body.items ?? []) {
                 const title = item.mediaData?.title;
                 if (typeof item.id === 'number' && typeof title === 'string') {
-                    out.set(item.id, { title, ...(typeof item.mediaData?.year === 'number' ? { year: item.mediaData.year } : {}) });
+                    byMember.set(item.id, { title, ...(typeof item.mediaData?.year === 'number' ? { year: item.mediaData.year } : {}) });
                 }
             }
-            if (page * PAGE_SIZE >= (body.totalSize ?? 0)) return out;
+            if (page * PAGE_SIZE >= (body.totalSize ?? 0)) return { byMember, capped: false };
         }
         logger.warn({ service: this.id, collection: c.id }, 'collection over the page cap; later titles are not read');
-        return out;
+        return { byMember, capped: true };
     }
 
     /** Newest first, as Maintainerr serves them, until `since` or `want` is reached. */
@@ -309,6 +324,9 @@ export class MaintainerrAdapter implements ServiceAdapter, HealthCheckCapable, H
         return out;
     }
 }
+
+/** No read at all, so no member of it can be called missing from the media server. */
+const UNREAD_TITLES: Titles = { byMember: new Map(), capped: true };
 
 function soonestFirst(a: CleanupCandidate, b: CleanupCandidate): number {
     return STATE_ORDER[a.state] - STATE_ORDER[b.state] || (a.eligibleAt ?? '9999').localeCompare(b.eligibleAt ?? '9999') || a.title.localeCompare(b.title);

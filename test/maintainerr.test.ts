@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { MaintainerrAdapter, type RawCollection, type RawMember } from '../src/services/maintainerr.ts';
+import { ReclaimerrAdapter } from '../src/services/reclaimerr.ts';
+import { cleanupSource } from '../src/services/types.ts';
 import { cleanupLine } from '../src/tools/stackHealth.ts';
 
 const config = { url: 'http://maintainerr:6246', timeout_ms: 5000, permissions: { safe_write: false, destructive: false } };
@@ -167,6 +169,31 @@ describe('MaintainerrAdapter cleanup overview', () => {
         expect(both.candidates?.items.flatMap(c => c.blockers ?? []).join(' ')).toMatch(/inactive.*no days set/);
     });
 
+    it('does not call a member missing from the media server when the title read ran out of pages', async () => {
+        const seen: string[] = [];
+        // Ten pages the read takes, and a total that says there is an eleventh.
+        const pages = Object.fromEntries(
+            Array.from({ length: 10 }, (_, i) => [
+                `/api/collections/media/${movies.id}/content/${i + 1}`,
+                { ...fixture<{ items: unknown[] }>('collection-content'), totalSize: 1100, items: [] }
+            ])
+        );
+        const overview = await new MaintainerrAdapter(config, stub(pages, seen)).readCleanupOverview(10);
+        expect(seen.filter(s => s.startsWith(`GET /api/collections/media/${movies.id}/content/`))).toHaveLength(10);
+        expect(overview.capped).toBe(true);
+        const movie = overview.candidates?.items.find(c => c.kind === 'movie');
+        expect(movie?.title).toContain('TMDB 1386315');
+        expect(movie?.blockers).toBeUndefined();
+        expect(movie?.state).toBe('eligible');
+        // The show collection's own read finished, so its member keeps the blocker.
+        const show = overview.candidates?.items.find(c => c.kind === 'series');
+        expect(show?.blockers?.join(' ')).toContain('not found on the media server');
+    });
+
+    it('leaves `capped` off a read that reached the end of every collection', async () => {
+        expect((await new MaintainerrAdapter(config, stub()).readCleanupOverview(10)).capped).toBeUndefined();
+    });
+
     it('cuts the list to `want` but counts every member', async () => {
         const overview = await new MaintainerrAdapter(config, stub()).readCleanupOverview(1);
         expect(overview.candidates?.items).toHaveLength(1);
@@ -260,5 +287,27 @@ describe('MaintainerrAdapter history', () => {
         await expect(adapter.readHistory({ id: '1' })).rejects.toThrow(/not scoped by a movie or series id/);
         expect(await adapter.readHistory({ eventType: 'grabbed' })).toEqual({ items: [], total: 0 });
         expect(seen).toEqual([]);
+    });
+});
+
+describe('which cleanup service answers', () => {
+    const reclaimerr = (): ReclaimerrAdapter =>
+        new ReclaimerrAdapter(
+            { url: 'http://reclaimerr:8000', api_key: 'rcl_x_y', timeout_ms: 5000, permissions: { safe_write: false, destructive: false } },
+            stub()
+        );
+    const maintainerr = (): MaintainerrAdapter => new MaintainerrAdapter(config, stub());
+
+    it('is Reclaimerr when both are configured, whichever order they are in', () => {
+        // Reclaimerr answers with protections and removals, which Maintainerr
+        // cannot, so it must not lose the slot to the alphabetical order the
+        // adapter list arrives in.
+        expect(cleanupSource([maintainerr(), reclaimerr()])?.type).toBe('reclaimerr');
+        expect(cleanupSource([reclaimerr(), maintainerr()])?.type).toBe('reclaimerr');
+    });
+
+    it('is Maintainerr when it is the only one, and nothing when neither is', () => {
+        expect(cleanupSource([maintainerr()])?.type).toBe('maintainerr');
+        expect(cleanupSource([])).toBeUndefined();
     });
 });

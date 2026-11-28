@@ -1007,7 +1007,12 @@ due on the day it was added plus the collection's "take action after" days:
 or whose action deletes no files is `disabled`, with the reason in `blockers`,
 and so is a member whose rule evaluation failed. Titles come from Maintainerr's
 own lookup on the media server; a member it can no longer find there is still
-listed, by its TMDB id, with the blocker `not found on the media server`.
+listed, by its TMDB id, with the blocker `not found on the media server`. A
+collection with more members than that lookup pages through sets `capped` and
+leaves the blocker off the members it did not reach, which have no title
+because nothing looked them up rather than because the media server lacks them;
+the candidate list and the counts stay complete, since the member list is not
+paged.
 `protections` counts the exclusions. `totals` gives what the deleting
 collections hold now and what every collection has handled so far.
 `autoDelete.enabled` is true when at least one active collection deletes; the
