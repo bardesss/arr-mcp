@@ -6564,7 +6564,7 @@ export interface components {
                 [key: string]: string | null;
             };
             /**
-             * @description An enum representing the axis that should be scrolled.
+             * @description Gets or sets the scroll direction.
              * @enum {unknown}
              */
             ScrollDirection?: "Horizontal" | "Vertical";
@@ -6573,7 +6573,7 @@ export interface components {
             /** @description Gets or sets a value indicating whether [remember sorting]. */
             RememberSorting?: boolean;
             /**
-             * @description An enum representing the sorting order.
+             * @description Gets or sets the sort order.
              * @enum {unknown}
              */
             SortOrder?: "Ascending" | "Descending";
@@ -7702,7 +7702,7 @@ export interface components {
              */
             ItemId?: string;
             /**
-             * @description Defines the types of content an individual Jellyfin.Database.Implementations.Entities.MediaSegment represents.
+             * @description Gets or sets the type of content this segment defines.
              * @default Unknown
              * @enum {unknown}
              */
@@ -8353,7 +8353,15 @@ export interface components {
             EnableDirectStream?: boolean | null;
             /** @description Gets or sets a value indicating whether always burn in subtitles when transcoding. */
             AlwaysBurnInSubtitleWhenTranscoding?: boolean | null;
-            /** @description Gets or sets the device profile. */
+            /**
+             * @description A MediaBrowser.Model.Dlna.DeviceProfile represents a set of metadata which determines which content a certain device is able to play.
+             *
+             *
+             *     Specifically, it defines the supported <see cref="P:MediaBrowser.Model.Dlna.DeviceProfile.ContainerProfiles">containers</see> and
+             *     <see cref="P:MediaBrowser.Model.Dlna.DeviceProfile.CodecProfiles">codecs</see> (video and/or audio, including codec profiles and levels)
+             *     the device is able to direct play (without transcoding or remuxing),
+             *     as well as which <see cref="P:MediaBrowser.Model.Dlna.DeviceProfile.TranscodingProfiles">containers/codecs to transcode to</see> in case it isn't.
+             */
             DeviceProfile?: components["schemas"]["DeviceProfile"] | null;
             /** @description Gets or sets the device play protocols. */
             DirectPlayProtocols?: components["schemas"]["MediaProtocol"][];
@@ -8641,7 +8649,15 @@ export interface components {
             MediaSourceId?: string | null;
             /** @description Gets or sets the live stream id. */
             LiveStreamId?: string | null;
-            /** @description Gets or sets the device profile. */
+            /**
+             * @description A MediaBrowser.Model.Dlna.DeviceProfile represents a set of metadata which determines which content a certain device is able to play.
+             *
+             *
+             *     Specifically, it defines the supported <see cref="P:MediaBrowser.Model.Dlna.DeviceProfile.ContainerProfiles">containers</see> and
+             *     <see cref="P:MediaBrowser.Model.Dlna.DeviceProfile.CodecProfiles">codecs</see> (video and/or audio, including codec profiles and levels)
+             *     the device is able to direct play (without transcoding or remuxing),
+             *     as well as which <see cref="P:MediaBrowser.Model.Dlna.DeviceProfile.TranscodingProfiles">containers/codecs to transcode to</see> in case it isn't.
+             */
             DeviceProfile?: components["schemas"]["DeviceProfile"] | null;
             /** @description Gets or sets a value indicating whether to enable direct play. */
             EnableDirectPlay?: boolean | null;
@@ -9129,7 +9145,7 @@ export interface components {
             /** @description Gets or sets the items to enqueue. */
             ItemIds?: string[];
             /**
-             * @description Gets or sets the mode in which to add the new items.
+             * @description Enum GroupQueueMode.
              * @enum {unknown}
              */
             Mode?: "Queue" | "QueueNext";
@@ -10104,7 +10120,7 @@ export interface components {
         /** @description Class SetRepeatModeRequestDto. */
         SetRepeatModeRequestDto: {
             /**
-             * @description Gets or sets the repeat mode.
+             * @description Enum GroupRepeatMode.
              * @enum {unknown}
              */
             Mode?: "RepeatOne" | "RepeatAll" | "RepeatNone";
@@ -10112,7 +10128,7 @@ export interface components {
         /** @description Class SetShuffleModeRequestDto. */
         SetShuffleModeRequestDto: {
             /**
-             * @description Gets or sets the shuffle mode.
+             * @description Enum GroupShuffleMode.
              * @enum {unknown}
              */
             Mode?: "Sorted" | "Shuffle";
@@ -11432,7 +11448,7 @@ export interface components {
             AuthenticationProviderId: string;
             PasswordResetProviderId: string;
             /**
-             * @description Enum SyncPlayUserAccessType.
+             * @description Gets or sets a value indicating what SyncPlay features the user can access.
              * @enum {unknown}
              */
             SyncPlayAccess?: "CreateAndJoinGroups" | "JoinGroups" | "None";

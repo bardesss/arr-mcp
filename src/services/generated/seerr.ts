@@ -5024,12 +5024,12 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["Watchlist"];
+                    "application/json": components["schemas"]["WatchlistRequest"];
                 };
             };
             responses: {
                 /** @description Watchlist data returned */
-                200: {
+                201: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -9317,6 +9317,84 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/overrideRule/advancedRequest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Advanced override rule request
+         * @description Processes an advanced override rule request.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        mediaType: string;
+                        /** @example 1 */
+                        tmdbId: number;
+                        /** @example false */
+                        is4k?: boolean;
+                        requestId?: number | null;
+                        requestUser?: number | null;
+                        tags?: number[] | null;
+                        serviceId?: number | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description Advanced override rule request processed */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            rootFolder?: string | null;
+                            profileId?: number | null;
+                            tags?: number[] | null;
+                        };
+                    };
+                };
+                /** @description User does not have permission to modify the request user */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description User, media or request not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Unable to evaluate override rules */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -9328,6 +9406,14 @@ export interface components {
             media?: components["schemas"]["MediaInfo"];
             /** @example 1 */
             userId?: number;
+        };
+        WatchlistRequest: {
+            /** @example 1 */
+            tmdbId: number;
+            /** @enum {string} */
+            mediaType: "movie" | "tv";
+            ratingKey?: string;
+            title?: string;
         };
         Watchlist: {
             /** @example 1 */

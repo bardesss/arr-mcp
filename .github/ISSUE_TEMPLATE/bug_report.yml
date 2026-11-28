@@ -59,6 +59,7 @@ body:
         - label: Deluge
         - label: Cleanuparr
         - label: Reclaimerr
+        - label: Maintainerr
         - label: Dispatcharr
         - label: Shelfmark
         - label: Grimmory

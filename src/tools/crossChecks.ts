@@ -1,7 +1,7 @@
 import { logger } from '../core/logger.ts';
 import { ARR_KIND, type ExternalIds, type MergedItem } from '../core/resolver.ts';
 import {
-    hasCleanup,
+    cleanupSource,
     hasQueue,
     hasRequests,
     type CleanupStatus,
@@ -105,9 +105,9 @@ function watchSentence(label: string, kind: CrossCheckSubject['kind'], found: Me
 }
 
 export function buildCrossChecker(adapters: readonly ServiceAdapter[], library: LibraryLoader): CrossChecker {
-    // `find`, as `diagnose_media` does, so a second instance cannot make the two disagree.
+    // One of each, as `diagnose_media` does, so a second instance cannot make the two disagree.
     const seerr = adapters.find(hasRequests);
-    const reclaimerr = adapters.find(hasCleanup);
+    const cleanupService = cleanupSource(adapters);
     // Without Lidarr's artist queue, as in `diagnose_media`: an unreachable Lidarr
     // would otherwise leave every film "only partially checked".
     const queueAdapters = adapters
@@ -143,7 +143,7 @@ export function buildCrossChecker(adapters: readonly ServiceAdapter[], library: 
             // Sonarr record has a TVDB id and no TMDB one).
             const hasSeerrIds = subject.ids.tmdb !== undefined || subject.ids.tvdb !== undefined;
             const wantsIds =
-                subject.ids.tmdb === undefined && (reclaimerr !== undefined || (seerr !== undefined && !hasSeerrIds));
+                subject.ids.tmdb === undefined && (cleanupService !== undefined || (seerr !== undefined && !hasSeerrIds));
             const needsLibrary = profile === 'delete' || wantsIds;
             // A load that resolves is not a load that saw everything: a media
             // server or *arr that was down leaves watch state and ids absent,
@@ -177,7 +177,7 @@ export function buildCrossChecker(adapters: readonly ServiceAdapter[], library: 
                 }
                 return read(seerrAdapter.id, () => readTitleRequests(seerrAdapter, ids, subject.kind));
             };
-            const askCleanup = (cleanupAdapter: NonNullable<typeof reclaimerr>, ids: ExternalIds): Promise<CleanupStatus | undefined> => {
+            const askCleanup = (cleanupAdapter: NonNullable<typeof cleanupService>, ids: ExternalIds): Promise<CleanupStatus | undefined> => {
                 const tmdb = ids.tmdb;
                 if (tmdb === undefined) {
                     unchecked.add(NO_TMDB(cleanupAdapter.id));
@@ -192,11 +192,11 @@ export function buildCrossChecker(adapters: readonly ServiceAdapter[], library: 
                       ? askSeerr(seerr, subject.ids)
                       : idsP.then(ids => askSeerr(seerr, ids));
             const cleanupP =
-                reclaimerr === undefined
+                cleanupService === undefined
                     ? Promise.resolve(undefined)
                     : subject.ids.tmdb !== undefined
-                      ? askCleanup(reclaimerr, subject.ids)
-                      : idsP.then(ids => askCleanup(reclaimerr, ids));
+                      ? askCleanup(cleanupService, subject.ids)
+                      : idsP.then(ids => askCleanup(cleanupService, ids));
             const queueP: Promise<QueueItem[]> = Promise.all(
                 queueAdapters.map(a => read(a.id, () => a.getQueue()))
             ).then(lists => lists.flatMap(rows => rows ?? []));

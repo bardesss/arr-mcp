@@ -1,0 +1,320 @@
+{
+  "totalSize": 1,
+  "items": [
+    {
+      "id": 19,
+      "collectionId": 1,
+      "mediaServerId": "358",
+      "tmdbId": 1386315,
+      "tvdbId": 368344,
+      "addDate": "2026-11-17T13:00:00.000Z",
+      "image_path": "https://image.tmdb.org/t/p/w500/uxCaBoYXsDC4A0SqTm3SISj0OwK.jpg",
+      "isManual": false,
+      "includedByRule": true,
+      "manualMembershipSource": null,
+      "sizeBytes": 9397929456,
+      "ruleEvaluationFailed": false,
+      "mediaData": {
+        "id": "358",
+        "title": "The Runner",
+        "guid": "plex://movie/6738e193d70f01a8cec05ff0",
+        "type": "movie",
+        "addedAt": "2026-10-13T17:41:59.000Z",
+        "updatedAt": "2026-11-23T17:54:10.000Z",
+        "providerIds": {
+          "imdb": [
+            "tt34564059"
+          ],
+          "tmdb": [
+            "1386315"
+          ],
+          "tvdb": [
+            "368344"
+          ],
+          "sportarr": []
+        },
+        "mediaSources": [
+          {
+            "id": "566",
+            "duration": 5875916,
+            "bitrate": 12793,
+            "width": 3832,
+            "height": 1598,
+            "aspectRatio": 2.35,
+            "audioChannels": 6,
+            "audioCodec": "eac3",
+            "videoCodec": "hevc",
+            "videoResolution": "4k",
+            "container": "mkv",
+            "sizeBytes": 9397929456
+          }
+        ],
+        "path": "/data/media/movies/Runner (2026) {tmdb-1377237}/Runner (2026) {tmdb-1377237} - [WEBDL-2160p][EAC3 Atmos 5.1][h265]-FHD.mkv",
+        "library": {
+          "id": "1",
+          "title": "Movies"
+        },
+        "summary": "A successful London-based attorney (GAL GADOT) is thrust into a tense and dangerous race across the city after her son, Noah (RORY WILMOT) is abducted. Forced to obey a series of cryptic commands from a mysterious Caller (DAMIAN LEWIS), she races against time through a web of secrets and threats in a desperate bid to save her son.",
+        "year": 2026,
+        "originallyAvailableAt": "2026-09-02T00:00:00.000Z",
+        "contentRating": "PG-13",
+        "ratings": [
+          {
+            "source": "critic",
+            "value": 1.1,
+            "type": "critic"
+          },
+          {
+            "source": "audience",
+            "value": 3.2,
+            "type": "audience"
+          }
+        ],
+        "genres": [
+          {
+            "id": 306,
+            "name": "Action"
+          },
+          {
+            "id": 8,
+            "name": "Thriller"
+          }
+        ],
+        "actors": [
+          {
+            "id": 3989,
+            "name": "Gal Gadot",
+            "role": "Maia",
+            "thumb": "https://metadata-static.plex.tv/4/people/46bdf6d8156df33e65120343e8ff6846.jpg"
+          },
+          {
+            "id": 3990,
+            "name": "Damian Lewis",
+            "role": "The Caller",
+            "thumb": "https://metadata-static.plex.tv/5/people/5e5f5b426f360b935769de17041d1b8c.jpg"
+          },
+          {
+            "id": 3991,
+            "name": "Rory Wilmot",
+            "role": "Noah",
+            "thumb": "https://metadata-static.plex.tv/d/people/dfcb47dc21cd40b8dfeecd6ed6489f58.jpg"
+          },
+          {
+            "id": 3992,
+            "name": "Alfred Enoch",
+            "role": "Ted",
+            "thumb": "https://metadata-static.plex.tv/9/people/9cce2afd8b4ce3206bf7708eb9e5c161.jpg"
+          },
+          {
+            "id": 3993,
+            "name": "Phoenix Di Sebastiani",
+            "role": "Tafa",
+            "thumb": "https://metadata-static.plex.tv/6/people/6140152b2192534e4d4663aae67a63b4.jpg"
+          },
+          {
+            "id": 3994,
+            "name": "Nathan Kirby",
+            "role": "Wiry Dude",
+            "thumb": "https://metadata-static.plex.tv/d/people/d2c2b975b52b6652e7c447df92224aee.jpg"
+          },
+          {
+            "id": 3995,
+            "name": "Hélder Fernandes",
+            "role": "Buddy",
+            "thumb": "https://metadata-static.plex.tv/d/people/df985d80b3b90adae64606ff171cdc22.jpg"
+          },
+          {
+            "id": 3996,
+            "name": "Will Austin",
+            "role": "NCA Officer 1",
+            "thumb": "https://metadata-static.plex.tv/d/people/de6ee4c8cd7287f4962d9e1cb58da56b.jpg"
+          },
+          {
+            "id": 3997,
+            "name": "Mark Hampton",
+            "role": "NCA Officer 2",
+            "thumb": "https://metadata-static.plex.tv/7/people/70120a276d6d393f5c0f45e73f986e86.jpg"
+          },
+          {
+            "id": 3998,
+            "name": "Stevie Binns",
+            "role": "NCA Officer 3",
+            "thumb": "https://metadata-static.plex.tv/f/people/fc6cbc53eb127168c07b641ce0227977.jpg"
+          },
+          {
+            "id": 3999,
+            "name": "John Leader",
+            "role": "Forensics Officer",
+            "thumb": "https://metadata-static.plex.tv/7/people/7473725fec5bf6c2838b5f0c2401c33f.jpg"
+          },
+          {
+            "id": 4000,
+            "name": "Kenton Lloyd Morgan",
+            "role": "Boat Captain"
+          },
+          {
+            "id": 4001,
+            "name": "Simon Nader",
+            "role": "Hotel Security",
+            "thumb": "https://metadata-static.plex.tv/c/people/c1a9330e8f52d07cc279ba195c9ddfd0.jpg"
+          },
+          {
+            "id": 4002,
+            "name": "Jessie Cave",
+            "role": "Alice (School Mum)",
+            "thumb": "https://metadata-static.plex.tv/c/people/c5ee688e3bbd19e055153402ebec4810.jpg"
+          },
+          {
+            "id": 4003,
+            "name": "Michael Raymond Fox",
+            "role": "Waterloo Bridge Police Officer"
+          },
+          {
+            "id": 4004,
+            "name": "Simon Shorten",
+            "role": "Ulysses Suite Police Officer 1",
+            "thumb": "https://image.tmdb.org/t/p/original/r1fAL4L4SpFeKxHQByVf7s3uVtv.jpg"
+          },
+          {
+            "id": 4005,
+            "name": "Miles Mitchell",
+            "role": "Ulysses Suite Police Officer 2"
+          },
+          {
+            "id": 4006,
+            "name": "Raquel Appiah",
+            "role": "Canal Mum"
+          },
+          {
+            "id": 4007,
+            "name": "Lorenzo Martelli",
+            "role": "Business Man"
+          },
+          {
+            "id": 4008,
+            "name": "Clive Kneller",
+            "role": "Old Man at Canal",
+            "thumb": "https://metadata-static.plex.tv/2/people/22136e23b39b8298ca364ff27216c383.jpg"
+          },
+          {
+            "id": 4009,
+            "name": "Tanvi Joshi",
+            "role": "Woman on Stoop"
+          },
+          {
+            "id": 4010,
+            "name": "Aaron Gill",
+            "role": "Mr Orwell (Serious Young Man)",
+            "thumb": "https://metadata-static.plex.tv/4/people/4803fae1ba9675906d04f2081cf10603.jpg"
+          },
+          {
+            "id": 4011,
+            "name": "Ava Galindez",
+            "role": "Brandy (Student 1)"
+          },
+          {
+            "id": 4012,
+            "name": "Natassia Bustamante",
+            "role": "Lou (Student 2)"
+          },
+          {
+            "id": 4013,
+            "name": "Jahaziel Agyemang",
+            "role": "Chasing Boyfriend",
+            "thumb": "https://metadata-static.plex.tv/b/people/bc8873a74a136bf480b1ce4ba10017d2.jpg"
+          },
+          {
+            "id": 4014,
+            "name": "Millicent Wong",
+            "role": "Fashionista",
+            "thumb": "https://metadata-static.plex.tv/people/5e165b3919f29500377bc6d8.jpg"
+          },
+          {
+            "id": 4015,
+            "name": "Alexandre Dewen",
+            "role": "Paramedic Tending to Noah"
+          },
+          {
+            "id": 4016,
+            "name": "Umit Ulgen",
+            "role": "Tourist Shop Owner",
+            "thumb": "https://metadata-static.plex.tv/9/people/9e76192c8eca2c8eab5da95c77a1d49e.jpg"
+          },
+          {
+            "id": 4017,
+            "name": "Alexander Scrivens",
+            "role": "Canal Boat Owner"
+          },
+          {
+            "id": 4018,
+            "name": "Toni Peach",
+            "role": "Harassed Mother on Tube",
+            "thumb": "https://metadata-static.plex.tv/5/people/5b8764de55737fcc00a35981e2c46d0e.jpg"
+          },
+          {
+            "id": 4019,
+            "name": "Jack Irving",
+            "role": "Mr Neon Shoes"
+          },
+          {
+            "id": 4020,
+            "name": "Daniel Copeland",
+            "role": "Builder"
+          },
+          {
+            "id": 4021,
+            "name": "Rich Keeble",
+            "role": "DCI Philips",
+            "thumb": "https://metadata-static.plex.tv/0/people/0c3effb7c751a44ab293a61a8620e8ac.jpg"
+          },
+          {
+            "id": 4022,
+            "name": "Samson Cox-Vinell",
+            "role": "Police Detective",
+            "thumb": "https://metadata-static.plex.tv/8/people/8088777b7d21b6c8fa25dc0c264b65fb.jpg"
+          },
+          {
+            "id": 4023,
+            "name": "Colm Gormley",
+            "role": "Vicar",
+            "thumb": "https://metadata-static.plex.tv/7/people/74430c694a6e8b8f8bb2f5fb5de2d97d.jpg"
+          },
+          {
+            "id": 4024,
+            "name": "Rosie Akerman",
+            "role": "Paramedic"
+          },
+          {
+            "id": 4025,
+            "name": "Callum Coates",
+            "role": "Reporter",
+            "thumb": "https://metadata-static.plex.tv/e/people/e3d339cfe09ad2c4aabce72624c67d9c.jpg"
+          },
+          {
+            "id": 4026,
+            "name": "Ross Forder",
+            "role": "Maia's Father"
+          },
+          {
+            "id": 4027,
+            "name": "Raquel Silveira",
+            "role": "Maia's Mother"
+          },
+          {
+            "id": 4028,
+            "name": "Ed Horrocks",
+            "role": "Choir Master"
+          },
+          {
+            "id": 4029,
+            "name": "Ruby Di Sebastiani",
+            "role": "Woman with Cue Cards"
+          }
+        ],
+        "studios": [
+          "Amazon MGM Studios"
+        ]
+      }
+    }
+  ]
+}

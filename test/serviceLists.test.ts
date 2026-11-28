@@ -23,6 +23,7 @@ const DISPLAY: Record<ServiceId, string> = {
   profilarr: 'Profilarr',
   cleanuparr: 'Cleanuparr',
   reclaimerr: 'Reclaimerr',
+  maintainerr: 'Maintainerr',
   dispatcharr: 'Dispatcharr',
   shelfmark: 'Shelfmark',
   grimmory: 'Grimmory',
