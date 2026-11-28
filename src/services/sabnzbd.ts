@@ -21,6 +21,7 @@ import {
     type PauseCapable,
     type PauseState,
     type QueueCapable,
+    type QueueHold,
     type QueueItem,
     type QueueRemoveCapable,
     type RemoveQueueOptions,
@@ -127,13 +128,16 @@ const waitUnknown = (queue: RawQueue['queue'], slots: readonly RawSlot[]): boole
 /** Whether the history shows SABnzbd's post-processor working on a download (`loaded`), as `#waitOn` reads it. */
 const inPostProcessing = (history: RawHistory): boolean => (history.history?.slots ?? []).some(s => s.loaded === true);
 
+/** What else holds a SABnzbd job: its paused queue, or its wait for post-processing. */
+type SabHold = Extract<QueueHold, 'queue' | 'postProcessing'>;
+
 /**
  * What holds each slot while the queue's `paused` flag is set (`sabWaiting`).
  * `waitOn` is the wait as `#waitOn` read it where the slots cannot tell: then
  * it holds a Force slot, and every slot when none reads Queued; with one that
  * does, a pause by hand holds the rest too.
  */
-const sabHolds = (queue: RawQueue['queue'], waitOn = false): ((slot: RawSlot) => PauseState['heldBy']) => {
+const sabHolds = (queue: RawQueue['queue'], waitOn = false): ((slot: RawSlot) => SabHold | undefined) => {
     if (queue?.paused !== true) return () => undefined;
     if (sabWaiting(queue)) return () => 'postProcessing';
     const byHand = anyQueued(queue);
@@ -144,7 +148,7 @@ const sabHolds = (queue: RawQueue['queue'], waitOn = false): ((slot: RawSlot) =>
 };
 
 /** For an encrypted job that is not paused itself: there is nothing to unlock, and this is what, if anything, holds it. */
-function notPausedRemedy(heldBy: PauseState['heldBy']): string {
+function notPausedRemedy(heldBy: SabHold | undefined): string {
     const nothing = 'It is not paused itself, so there is nothing to unlock';
     if (heldBy === 'postProcessing') return `${nothing}; ${sabWaits('SABnzbd')}, so the job starts once that ends; ${RESUME_HELD_QUEUE}`;
     if (heldBy === 'queue') return `${nothing}, but SABnzbd's whole queue is paused, so it waits there: ${RESUME_HELD_QUEUE}`;
@@ -557,7 +561,7 @@ export class SabnzbdAdapter
      * one, and the remedy for any other also covers the wait, "if it stays
      * paused"), so a retry that has already landed is not reported as failed.
      */
-    async #holding(slot: RawSlot, queue: RawQueue['queue']): Promise<PauseState['heldBy']> {
+    async #holding(slot: RawSlot, queue: RawQueue['queue']): Promise<SabHold | undefined> {
         if (queue?.paused !== true) return undefined;
         const decided = (queue.slots ?? []).length > 1 || (slot.status ?? '').toLowerCase() === 'queued';
         const whole = decided
@@ -571,7 +575,7 @@ export class SabnzbdAdapter
     }
 
     /** What holds each of `slots` (`sabHolds`), with the wait read from the switch and history where the slots cannot tell. */
-    async #holdsOf(queue: RawQueue['queue'], slots: readonly RawSlot[]): Promise<(slot: RawSlot) => PauseState['heldBy']> {
+    async #holdsOf(queue: RawQueue['queue'], slots: readonly RawSlot[]): Promise<(slot: RawSlot) => SabHold | undefined> {
         return sabHolds(queue, waitUnknown(queue, slots) && (await this.#waitOn()));
     }
 

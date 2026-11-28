@@ -72,15 +72,15 @@ deleting its record of the title, with every request and issue for it, so
 `remove` needs `destructive`. An *arr's import exclusion takes nothing with it,
 so both directions there need only `safe_write`.
 
-`remove_queue_item` is destructive because it deletes partial data, and because
-`blocklist: true` durably teaches Radarr, Sonarr, Whisparr or Lidarr to refuse a
-release, which is hard to notice and hard to undo months later. SABnzbd, NZBGet,
-the torrent clients and Shelfmark have no blocklist of their own; ask for one
-there and the preview says it is ignored. On Shelfmark it only cancels a queued
-or running book. On Grimmory it discards a file waiting in the Bookdrop, which
-deletes the file from disk with no undo, and `blocklist` is ignored. Both refuse
-`remove_from_client: false`. The other cases it refuses, and when `blocklist: true`
-would blocklist nothing, are in
+`remove_queue_item` is destructive because it deletes downloaded files, and
+because `blocklist: true` durably teaches Radarr, Sonarr, Whisparr or Lidarr to
+refuse a release, which is hard to notice and hard to undo months later.
+SABnzbd, NZBGet, the torrent clients and Shelfmark have no blocklist of their
+own; ask for one there and the preview says it is ignored. On Shelfmark it only
+cancels a queued or running book. On Grimmory it discards a file waiting in the
+Bookdrop, which deletes the file from disk with no undo, and `blocklist` is
+ignored. Both refuse `remove_from_client: false`. The other cases it refuses,
+and when `blocklist: true` would blocklist nothing, are in
 [`remove_queue_item`](tools.md#remove_queue_item).
 
 `fix_profile` is destructive because the profile decides what an instance
@@ -383,11 +383,13 @@ exercise. Where the tool has its own section, the same path carries an
 | `get_playback` | `plex` | Reading a non-zero `viewOffset` as resume and the rest as next-up, in `/library/onDeck` | Plex marks neither kind, and nobody has checked the split against a live server with an in-progress item; the read itself is captured |
 | `pause_downloads` | `qbittorrent` | Pause, resume and the speed limit, on both the v4 and v5 verbs, and the `arr-mcp-paused` tag | No qBittorrent on the maintainer's stack; written from the WebUI API description |
 | `pause_downloads` | `transmission` | The whole-client pause and resume by the `arr-mcp-paused` label, and the alternative speed mode read | Written from the RPC spec; no label has been written on the live Transmission |
+| `pause_downloads` | `deluge` | Resuming one torrent in error, one being moved, one Deluge's queue holds back, or one at its stop ratio | None came up on the test Deluges; read from Deluge's source |
 | `grab_release` | `qbittorrent` | A magnet link sent to the client | No qBittorrent on the maintainer's stack |
 | `get_queue` | `qbittorrent` | The torrent list, the seed limits and `by_tracker`; only login and health have met a real server | No qBittorrent on the maintainer's stack; the fixtures were written from the WebUI API description |
+| `get_queue` | `deluge` | The `error` and `moving` states, a torrent Deluge's queue holds back under a session pause, and a ratio limit in `seeding`, such as the one the *arrs set with a "Stop seed at ratio" of 1 | None came up on the test Deluges: their default ratio limit is off, and the one *arr that uses them, a test Radarr, has grabbed nothing; read from Deluge's and the *arrs' source |
 | `get_queue` | `grimmory` | A file waiting in the Bookdrop | The live Bookdrop was empty at capture; the row is tested on a constructed file |
 | `get_stack_health` | `grimmory` | The warning for books left in the Bookdrop over a day | Rests on the same constructed file |
-| `get_queue` | `cleanuparr` | Seeding rules for a Transmission client | Only hand-written fixtures; the one tester runs qBittorrent |
+| `get_queue` | `cleanuparr` | Seeding rules for a Transmission or Deluge client | Only hand-written fixtures; the one tester runs qBittorrent |
 | `grab_release` | `shelfmark` | The default grab, with no release named | Mock-only; the live Shelfmark has not been asked for one |
 | `retry_download` | `shelfmark` | Retrying a failed book, or a Prowlarr row | Every failed row on the live Shelfmark is marked not retryable |
 | `trigger_search` | `sonarr` | `SeasonSearch` and `EpisodeSearch` payloads | Posting one runs a real search on the stack, and Sonarr reports success for a command that matches nothing |

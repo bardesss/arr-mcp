@@ -79,7 +79,7 @@ A write is listed only when one of these is configured, and a read too with `too
 | `trigger_search` ✎ | Radarr, Sonarr, Whisparr, Lidarr |
 | `trigger_scan` ✎ | Radarr, Sonarr, Whisparr, Lidarr, Jellyfin, Emby, Plex, Grimmory, Prowlarr |
 | `trigger_subtitle_search` ✎ | Bazarr |
-| `remove_queue_item` ✎ | Radarr, Sonarr, Whisparr, Lidarr, SABnzbd, NZBGet, Transmission, qBittorrent, Shelfmark, Grimmory |
+| `remove_queue_item` ✎ | Radarr, Sonarr, Whisparr, Lidarr, SABnzbd, NZBGet, Transmission, qBittorrent, Deluge, Shelfmark, Grimmory |
 | `delete_media` ✎ | Radarr, Sonarr, Whisparr, Lidarr, Grimmory |
 | `delete_episode_files` ✎ | Sonarr, Whisparr |
 | `set_monitoring` ✎ | Sonarr, Whisparr, Lidarr |
@@ -87,9 +87,9 @@ A write is listed only when one of these is configured, and a read too with `too
 | `delete_request` ✎ | Seerr |
 | `add_media` ✎ | Radarr, Sonarr, Whisparr, Lidarr, Shelfmark |
 | `update_media` ✎ | Radarr, Sonarr, Lidarr |
-| `grab_release` ✎ | Radarr, Sonarr, Whisparr, Lidarr, Transmission, qBittorrent, Shelfmark |
+| `grab_release` ✎ | Radarr, Sonarr, Whisparr, Lidarr, Transmission, qBittorrent, Deluge, Shelfmark |
 | `request_media` ✎ | Seerr |
-| `pause_downloads` ✎ | SABnzbd, NZBGet, Transmission, qBittorrent |
+| `pause_downloads` ✎ | SABnzbd, NZBGet, Transmission, qBittorrent, Deluge |
 | `retry_download` ✎ | SABnzbd, NZBGet, Shelfmark |
 | `sync_database` ✎ | Profilarr |
 | `set_watched` ✎ | Jellyfin, Emby, Grimmory |
@@ -250,15 +250,15 @@ does have**, so an answer is never mistaken for one where it had been honoured.
 
 Every tool's name, description and schemas sit in the client's context from the
 moment it connects, before anyone has asked anything. One server in front of
-twenty services could spend that budget carelessly, so the bill is measured
+twenty-one services could spend that budget carelessly, so the bill is measured
 (`node scripts/measure-tool-surface.ts` prints it per stack) and capped by the
 tests:
 
 | Stack | Tools listed | `tools/list` | Roughly |
 | --- | --- | --- | --- |
-| Nothing configured yet | 44 | 113,953 bytes | 28,500 tokens |
-| Radarr, Sonarr, SABnzbd, Jellyfin | 36 | 82,962 bytes | 20,700 tokens |
-| Those four, plus Lidarr, Prowlarr, Bazarr and Seerr | 42 | 103,048 bytes | 25,800 tokens |
+| Nothing configured yet | 44 | 114,198 bytes | 28,500 tokens |
+| Radarr, Sonarr, SABnzbd, Jellyfin | 36 | 83,154 bytes | 20,800 tokens |
+| Those four, plus Lidarr, Prowlarr, Bazarr and Seerr | 42 | 103,240 bytes | 25,800 tokens |
 
 Four limits hold it there, each one asserted in `test/app.test.ts`:
 
@@ -446,31 +446,36 @@ two that Seerr hands its requests to.
 The queue stage words each state for what it is. Three block with a remedy and
 the removal step: a `failed` download; one with a warning (the *arrs' `warning`
 status, qBittorrent's `stalled`, `error` and `missing files`, or a download
-client's row with its own error message, which Transmission sends); and a state
-`diagnose_media` does not know. A warning that may be a stall (qBittorrent's
-`stalled`, or the *arrs' `warning` when the client's own row is not in the grab
-to say otherwise) is told that a stalled torrent often finishes later. On the
-*arr's own row, the removal step says to add `blocklist: true` if the release
-itself is bad; on a client's row whose grab the *arr's queue lists too, the
-remedy says a bad release is blocklisted from there and names the *arr's row and
-its instance, since a download client keeps no blocklist and the step removes
-the client's row. Where an *arr's row and a client's are in the same state, the
-*arr's is the one named and removed. Short of a failure, a finished download is
-never offered for removal: a torrent seeding or stopped with nothing left, or a
-row with nothing left to download, such as one whose disk filled while
-unpacking, may hold the only copy of the files, and its remedy says to fix what
-the client reports, after which the *arr imports it (a usenet one's remedy names
-the call, below); one whose import is pending on another row of the same grab
-gets the import's remedy. A torrent qBittorrent says is missing its files is no
-such copy. A download paused or stopped before it finished is read from the
-client's own row in the grab. Paused there, it asks you to resume it and offers
-`pause_downloads` with its id. The *arrs read every SABnzbd download but a Force
-priority one, and every NZBGet download, as paused while that client's whole
-queue is. When the paused queue holds the download, the remedy and the step
-resume the whole queue, and with the download paused too the remedy names its id
-for after. A Force priority download goes on downloading through the pause, so
-an NZBGet one is told that nothing there holds it back. SABnzbd's queue also
-reads as paused while SABnzbd post-processes, with its "Pause Downloading During
+client's row with its own error message, which Transmission and Deluge send);
+and a state `diagnose_media` does not know. A warning that may be a stall
+(qBittorrent's `stalled`, or the *arrs' `warning` when the client's own row is
+not in the grab to say otherwise) is told that a stalled torrent often finishes
+later. On the *arr's own row, the removal step says to add `blocklist: true` if
+the release itself is bad; on a client's row whose grab the *arr's queue lists
+too, the remedy says a bad release is blocklisted from there and names the
+*arr's row and its instance, since a download client keeps no blocklist and the
+step removes the client's row. Where an *arr's row and a client's are in the
+same state, the *arr's is the one named and removed. Short of a failure, a
+finished download is never offered for removal: a torrent seeding or stopped
+with nothing left, or a row with nothing left to download, such as one whose
+disk filled while unpacking, may hold the only copy of the files, and its remedy
+says to fix what the client reports, after which the *arr imports it (a usenet
+one's remedy names the call, below); one whose import is pending on another row
+of the same grab gets the import's remedy. A torrent qBittorrent says is missing
+its files is no such copy. A download paused or stopped before it finished is
+read from the client's own row in the grab. Paused there, it asks you to resume
+it and offers `pause_downloads` with its id. The *arrs read every SABnzbd
+download but a Force priority one, and every NZBGet download, as paused while
+that client's whole queue is, and a Deluge torrent while Deluge's session is,
+unless Deluge still shows it in error, moving or queued. When the paused queue
+holds the download, the remedy and the step resume the whole queue, and with the
+download paused too the remedy names its id for after. In an hour Deluge's
+Scheduler plugin marks Paused, the session pause is the Scheduler's, whose
+resume `pause_downloads` refuses: the remedy says when the Schedule resumes it,
+with no step for the whole queue, and a torrent paused itself is resumed by its
+id. A Force priority download goes on downloading through the pause, so an
+NZBGet one is told that nothing there holds it back. SABnzbd's queue also reads
+as paused while SABnzbd post-processes, with its "Pause Downloading During
 Post-Processing" switch on, and a resume does not end that wait. SABnzbd shows
 the wait when no row reads `queued` and one not paused itself, and not at Force
 priority, reads `downloading` or `propagating`; where its rows cannot tell, the
@@ -738,10 +743,27 @@ last 24 hours, since its list keeps every row until a restart or a clear. Rows
 from the same source are collapsed into one, with the newest text and a count of
 the rest. The text is in SABnzbd's own UI language.
 
-qBittorrent, Transmission, Plex, Jellyfin, Emby, Seerr and Profilarr have no
-health report this server reads. They appear in `services` with their version
-and connection state, and a fault in one of them shows up as a failed connection
-in `degraded` rather than in `failures`.
+qBittorrent, Transmission, Deluge, Plex, Jellyfin, Emby, Seerr and Profilarr
+have no health report this server reads. They appear in `services` with their
+version and connection state, and a fault in one of them shows up as a failed
+connection in `degraded` rather than in `failures`.
+
+Deluge is a Web UI with a daemon behind it. A Web UI that answers with no daemon
+connected fails the connection as `Unreachable`, and the detail says why, from
+the Web UI's Connection Manager (`web.get_hosts` and `web.get_host_status`): it
+lists no daemon, no daemon answers at the address it lists, or one does and the
+Web UI is not connected to it. Where Deluge gives no status, as 2.0.3 gives none
+for a host name that does not resolve, the detail says only that no daemon is
+connected. The remedy names the Connection Manager; arr-mcp never connects the
+Web UI itself. Only the connection test asks for the daemon's status, because a
+Web UI not connected to it opens a connection of its own to answer, which can
+take up to 30 seconds. Every other call to the daemon first asks
+`web.connected`, and the answer is kept for ten seconds. With no daemon behind
+the Web UI, such a call fails at once as `Unreachable`; without the question,
+one made after the daemon went away would wait out `timeout_ms`, since the Web
+UI passes it on to a connection that is gone and it never answers. A daemon lost
+inside those ten seconds still costs that wait, and one connected inside them
+still reads as missing until they end.
 
 `failures` lists errors first, then warnings, then notices, then any other
 type, and each of those by instance id, keeping each instance's own order, so
@@ -779,6 +801,14 @@ discographies and Prowlarr's packs, plus Prowlarr's `privacy`. An *arr hands its
 client with every grab, and they override the client default, so the indexer
 row is usually the one that decides.
 
+On Deluge the `action` is also only a default, for a torrent added without
+settings of its own. Radarr and Sonarr add theirs with "Remove at ratio" off, so
+Deluge pauses those at the ratio even when its default removes. A label with
+"Apply queue settings" on puts its own ratio and action in their place when they
+set it, the indexer's ratio included, and moving a torrent off such a label, as
+an imported category does, puts the client's defaults back, or the next label's
+own.
+
 `notes` names two gaps. One is an app's copy of an indexer that disagrees with
 Prowlarr's, matched on the `"<name> (Prowlarr)"` name sync gives it. The copy is
 what the app applies. The other is a torrent indexer with no criteria while no
@@ -814,7 +844,7 @@ no category, a category no rule names (the five biggest, with counts), a
 tracker, tag or public/private filter. A torrent the client reports no working
 tracker or no private flag for is counted, and the note says a rule may still
 cover it. On Transmission the category is the last folder of the download dir,
-as Cleanuparr reads it.
+and on Deluge the Label plugin's label, as Cleanuparr reads them.
 
 `notes` also names:
 
@@ -1537,9 +1567,13 @@ client row only it matches (`status: "seeding"`, say) is still returned.
 
 **Unverified live** (qBittorrent): the torrent list, the seed limits and `by_tracker`; only login and health have met a real server.
 
-**Unverified live** (Cleanuparr): the seeding rules of a Transmission client.
+**Unverified live** (Cleanuparr): the seeding rules of Transmission or Deluge.
 
 **Unverified live** (Grimmory): a file waiting in the Bookdrop, tested on a constructed file.
+
+**Unverified live** (Deluge): the `error` and `moving` states, a torrent its
+queue holds back under a session pause, and a ratio limit in `seeding`, such as
+the one the *arrs set with a "Stop seed at ratio" of 1.
 
 Radarr, Sonarr and Lidarr rows also carry `mediaId`, the *arr's own id for the
 movie, series or artist the grab is for, and an orphaned row has none. `diagnose_media`
@@ -1575,6 +1609,21 @@ unpack included, read `verifying`, `repairing`, `extracting` or `moving`, and
 `PP_FINISHED`, a finished download waiting on its import, reads `completed`. A
 download it has just paused reads `paused` while its in-flight articles drain,
 since every byte it has left is paused already.
+
+Deluge's states read `allocating`, `checking`, `downloading`, `seeding`,
+`moving` and `error`, and a torrent its queue holds back reads `queued`, or
+`queued to seed` once it has finished. A torrent paused on its own reads
+`paused`. A session pause holds every torrent in Deluge and shows each one that
+was running as paused, but one moving or in error keeps that state. Here one
+that was running reads `queued` or `queued to seed` then, since resuming the
+session starts it, and one paused on its own still reads `paused`. A torrent
+Deluge's queue was holding back still reads `queued` with libtorrent 1.2 or
+later, and `paused` with libtorrent 1.1, which reports it paused again, after
+which Deluge shows it as one paused on its own. Only a torrent in error carries
+Deluge's message as `errorMessage`. Deluge reports an ETA of 0 when it has none
+and -1 past a year, and on a finished torrent one that counts down to its stop
+ratio, so none of these becomes `etaSeconds`. `remainingBytes` is what is left
+of the files wanted, as on the other torrent clients.
 
 A blocked row also carries `statusMessages`, the service's own reasons, one per
 line and fenced. A file the service rejected leads with its filename. They
@@ -1613,7 +1662,11 @@ The limits are the client's effective ones. qBittorrent resolves torrent,
 category and global itself; Transmission's per-torrent mode is resolved against
 its session default here. qBittorrent skips share limits for force-started
 torrents, so those carry `forced` and the line says why the limit did nothing.
-Transmission has no seeding-time limit, only a ratio.
+Transmission and Deluge have no seeding-time limit, only a ratio. Deluge keeps
+that ratio on each torrent, copied from the client's defaults when the torrent
+is added and changed after by Radarr and Sonarr (the indexer's ratio), a label
+or by hand, so on Deluge `ownLimit` means the torrent's ratio settings differ
+from the client's defaults.
 
 ### Cleanuparr rules, at `detail: "full"`
 
@@ -1684,9 +1737,10 @@ Cleanuparr only logs. It covers the whole queue, not just the returned page, and
 the summary line says it in one sentence, such as "Cleanuparr is due to delete
 3 (12.4 GB) and stop 1 (700 MB) in the next 7 days."
 
-Neither client can express a rule like "public trackers stop now, private ones
-seed to 1.0". `private` is there so that question can still be asked of the
-queue. On qBittorrent `private` needs 5.0 or later.
+Transmission and qBittorrent cannot express a rule like "public trackers stop
+now, private ones seed to 1.0", and Deluge only by tracker, through its Label
+plugin. `private` is there so that question can still be asked of the queue. On
+qBittorrent `private` needs 5.0 or later.
 
 ## `get_history`
 
@@ -1960,8 +2014,8 @@ preview says which rejections are being overridden.
 ### A magnet, straight to the client
 
 Instead of `guid` and `indexer_id`, this tool takes a `magnet` link addressed
-to `transmission` or `qbittorrent`. Sending both is refused rather than
-resolved: they are different ways to start a download.
+to `transmission`, `qbittorrent` or `deluge`. Sending both is refused rather
+than resolved: they are different ways to start a download.
 
 A magnet must start `magnet:?` and carry `xt=urn:btih:<hash>`, and the preview
 names the hash.
@@ -2718,8 +2772,8 @@ reply says nothing was pulled.
 ## `pause_downloads`
 
 The bandwidth answer: "stop downloading for an hour". Pauses or resumes one
-download client (SABnzbd, NZBGet, Transmission or qBittorrent) or one item in its
-queue when `id` is given.
+download client (SABnzbd, NZBGet, Transmission, qBittorrent or Deluge) or one
+item in its queue when `id` is given.
 
 `action: "limit"` throttles instead of stopping: `speed_limit_kbps` is the cap
 in KiB/s (1024 bytes), and `0` removes it. Always client-wide, never per item, so `id` with
@@ -2735,10 +2789,10 @@ ends.
 Safe tier, because the undo is this same tool with the other `action`.
 
 **It does not stop the \*arrs grabbing.** They carry on searching and sending
-releases. SABnzbd and NZBGet hold them in the paused queue until it is resumed;
-a torrent client starts them at once. The preview of a whole-client pause says
-so. Pausing or resuming one item leaves the rest of the client as it was, and
-its undo names the same `id`.
+releases. SABnzbd and NZBGet hold them in the paused queue until it is resumed,
+and Deluge in its paused session; Transmission and qBittorrent start them at
+once. The preview of a whole-client pause says so. Pausing or resuming one item
+leaves the rest of the client as it was, and its undo names the same `id`.
 
 Transmission and qBittorrent have no client-wide pause. A whole-client pause
 stops only the torrents that are running and marks them with the Transmission
@@ -2757,6 +2811,76 @@ whole-client pause or resume; one torrent at a time with `id` still works.
 Transmission torrent ids are info hashes, as `get_queue` reports them; the
 integer `transmission-remote` shows is accepted too, but Transmission
 renumbers those when it restarts.
+
+Deluge has one, its session pause, and a whole-client pause and resume use it,
+with no mark. Deluge does not save it: a restart of its daemon ends it, and
+every torrent not paused on its own runs again, so the whole-client preview says
+so. A torrent paused with `id` is paused on its own, which Deluge saves, so it
+stays paused through a restart and through the session's resume, as the resume
+preview says. A session pause holds every torrent in Deluge, and a torrent's own
+pause is still read under it: one that was running is held only by the session,
+so resuming it alone is a no-op that points at the whole-client resume, and one
+paused on its own needs both. A one-torrent read takes the torrent's own pause
+from libtorrent's flag, which Deluge refreshes for that read, rather than from
+Deluge's state, which shows `Moving` ahead of it and lags a pause or resume just
+made, longest on 2.0.3. Deluge's queue sets that flag too, which `Moving` hides,
+so a resume of a torrent being moved says it restarts it only if its own pause
+holds it. A torrent Deluge's queue is holding back reads as paused on its own
+under a session pause with libtorrent 1.1, and as held only by the session with
+later libtorrent (see `get_queue`). A one-torrent resume Deluge would not act on
+is a no-op that says why: a torrent its queue holds back, which it starts by
+itself as its Queue settings allow, and one paused at its stop ratio, which
+Deluge does not restart until that ratio is raised or turned off. A resume of a
+torrent in error is sent, and its preview says that it clears an error
+libtorrent raised but not one Deluge raised itself, such as missing data or a
+failed move, which a Force Recheck in Deluge clears and which can keep the
+torrent from restarting; at its stop ratio it adds that Deluge leaves the
+torrent paused even once the error is cleared, and names no session pause beside
+it, since resuming the session would not start it either. The resume previews of
+the session, of a torrent in error and of one being moved open "Resumes" instead
+of "Restarts". Deluge torrent ids are info hashes, as `get_queue` reports them.
+The limit is Deluge's `max_download_speed`, and clearing it sets -1, Deluge's
+own value for none.
+
+Just after a pause or resume, `get_queue` can still show the torrent as it was
+until Deluge has handled libtorrent's alert: for a moment on 2.2.0, which waits
+on its alerts, and for up to two seconds on 2.0.3, which polls them every 0.3
+seconds and updates its cached torrent status only on a status request, at most
+every 1.5 seconds. Under a session pause, libtorrent 1.2 and later raise no
+alert for one torrent's pause or resume, since the torrent stays paused either
+way, so it can take longer: on 2.2.0 with libtorrent 2.0, a pause still read as
+before a few seconds later, and both a pause and a resume read as made within a
+minute. `pause_downloads` reads the session's pause and a torrent's own pause
+flag fresh, so its previews see a pause or resume at once.
+
+While Deluge's Scheduler plugin is on, a whole-client pause, resume or limit
+reads the hour's state in its Schedule first, and what that state would undo is
+refused. About a minute past each hour, when it is turned on or its settings are
+saved, and at once whenever one of the limits it controls changes, the Scheduler
+pauses the session in an hour the Schedule marks Paused, resumes it in any
+other, and puts the limits in its Throttled Settings in place in a Throttled
+hour. So a whole-client pause is refused in a Normal or Throttled hour, where
+the Scheduler resumes the session the next time it runs in an hour it does not
+mark Paused, or sooner when a limit changes, but not in a Paused one. There it
+is a no-op unless the session is running, as it is in the first minute of a
+Paused hour after a Normal or Throttled one, or after a resume elsewhere, and
+its preview then says the Scheduler keeps the session paused until the Schedule
+runs it again. A resume is refused in a Paused hour, and the refusal says that
+marking the hour otherwise, or turning the plugin off, resumes a paused session
+at once. Both are refused even when the session already is as asked, rather than
+being the no-op below, since the Scheduler would undo that in the same way. In a
+Throttled hour the limit reported is the one in its Throttled Settings, and any
+limit is refused, that one included, since the Scheduler owns the setting then.
+A limit set in a Normal or Paused hour is Deluge's own, which the Scheduler puts
+back after each Throttled hour, and since setting it makes the Scheduler apply
+the hour again at once, it resumes a session paused in a Normal hour and pauses
+one running in a Paused hour, which the preview says. One torrent paused or
+resumed with `id` is not refused in any hour. In a Paused hour the Scheduler's
+session pause holds every torrent, so the one-torrent resume and
+`diagnose_media` say it starts once the Scheduler next runs in a Normal or
+Throttled hour, rather than pointing at the whole-client resume. A Scheduler
+that Deluge's settings list but its daemon could not load counts as off, since
+no Schedule runs.
 
 `service` is required, and names one client, because permissions are checked
 per service. Pausing everything is one call per client.
@@ -2798,6 +2922,9 @@ resumes by itself. An `id` the client does not have is refused as not found.
 
 **Unverified live** (Transmission): the whole-client pause and resume by label,
 and the turtle mode read.
+
+**Unverified live** (Deluge): resuming one torrent in error, one being moved,
+one its queue holds back, or one at its stop ratio.
 
 ## `retry_download`
 

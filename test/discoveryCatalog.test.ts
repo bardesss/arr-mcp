@@ -72,6 +72,15 @@ describe('discovery catalog', () => {
         }
     });
 
+    it("reads Deluge's version from its page title, a PPA build string included", () => {
+        const page = (title: string): ProbeResponse => ({ status: 200, headers: { 'content-type': 'text/html' }, body: `<html><head><title>${title}</title></head></html>` });
+        const deluge = entry('deluge');
+        expect(deluge.identify(page('Deluge WebUI 2.0.3-2-201906121747-ubuntu18.04.1'))).toEqual({ version: '2.0.3-2-201906121747-ubuntu18.04.1' });
+        expect(deluge.identify(page('Deluge WebUI'))).toEqual({});
+        expect(deluge.identify(page('Deluge'))).toBeUndefined();
+        expect(deluge.identify({ ...page('Deluge WebUI 2.2.0'), status: 404 })).toBeUndefined();
+    });
+
     it('an *arr behind forms login is still named', () => {
         const radarr = fixtures.find(f => f.name === 'radarr-login-forms.json');
         expect(radarr).toBeDefined();

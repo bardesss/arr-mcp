@@ -16,24 +16,27 @@ services:
     default_user: "you"      # optional, but the per-user tools want it; see below
   transmission:
     url: http://192.168.1.20:9091
-    username: "…"            # neither torrent client has an API key
+    username: "…"            # the torrent clients have no API key
     password: "…"
   qbittorrent:
     url: http://192.168.1.20:8081
     username: "…"
     password: "…"
+  deluge:
+    url: http://192.168.1.20:8112
+    password: "…"            # the Web UI password; Deluge takes no username
   nzbget:
     url: http://192.168.1.20:6789
     username: "…"            # NZBGet's ControlUsername / ControlPassword
     password: "…"
 ```
 
-All twenty service ids: `radarr`, `sonarr`, `whisparr`, `lidarr`, `prowlarr`,
-`bazarr`, `jellyfin`, `emby`, `seerr`, `sabnzbd`, `nzbget`, `transmission`,
-`qbittorrent`, `plex`, `profilarr`, `cleanuparr`, `reclaimerr`, `dispatcharr`,
-`shelfmark`, `grimmory`. Configure only what you run. Running both torrent
-clients at once is supported; their queues merge, each item labelled with the
-client it came from.
+All twenty-one service ids: `radarr`, `sonarr`, `whisparr`, `lidarr`,
+`prowlarr`, `bazarr`, `jellyfin`, `emby`, `seerr`, `sabnzbd`, `nzbget`,
+`transmission`, `qbittorrent`, `deluge`, `plex`, `profilarr`, `cleanuparr`,
+`reclaimerr`, `dispatcharr`, `shelfmark`, `grimmory`. Configure only what you
+run. Running more than one torrent client at once is supported; their queues
+merge, each item labelled with the client it came from.
 
 A misspelled key, an unknown service, or an `api_key` on a torrent client or
 NZBGet **fails at startup with the offending field named**, rather than being silently
@@ -41,10 +44,12 @@ ignored. That holds at the top level too since 2.0: `service:` for `services:`
 starts the repair page with `Unrecognized top-level key "service" (did you mean
 services?)`. Rename or remove the key.
 
-Both credential fields are optional on either torrent client and on NZBGet:
+Both credential fields are optional on Transmission, qBittorrent and NZBGet:
 Transmission's RPC is often unauthenticated on a LAN, qBittorrent can bypass
 authentication for localhost, and NZBGet runs without a login when its control
-password is empty. Leave them out and nothing logs in.
+password is empty. Leave them out and nothing logs in. Deluge's Web UI always
+asks for its password, so `password` is required there, and it takes no
+`username`.
 
 Each service also takes an optional `permissions` block. Both flags default to
 false, so the config above is read-only; see [writes](writes.md).
@@ -598,7 +603,7 @@ Cleanuparr, Reclaimerr, Dispatcharr, Shelfmark and Grimmory for the reasons in
 their own sections.
 
 Everything else takes a list: Radarr, Sonarr, Lidarr, Bazarr, Prowlarr, SABnzbd,
-NZBGet, Transmission and qBittorrent.
+NZBGet, Transmission, qBittorrent and Deluge.
 
 Two download clients, one behind a VPN and one not:
 

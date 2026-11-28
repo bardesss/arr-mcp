@@ -3,6 +3,7 @@ import type { Config } from '../config/schema.ts';
 import { resolveSecrets } from '../config/secretSources.ts';
 import { BazarrAdapter } from './bazarr.ts';
 import { CleanuparrAdapter } from './cleanuparr.ts';
+import { DelugeAdapter } from './deluge.ts';
 import { DispatcharrAdapter } from './dispatcharr.ts';
 import { EmbyAdapter } from './emby.ts';
 import { JellyfinAdapter } from './jellyfin.ts';
@@ -62,6 +63,8 @@ function buildAdapter(instance: ServiceInstance): ServiceAdapter {
             return new BazarrAdapter(instance.config);
         case 'cleanuparr':
             return new CleanuparrAdapter(instance.config);
+        case 'deluge':
+            return new DelugeAdapter(instance.config);
         case 'dispatcharr':
             return new DispatcharrAdapter(instance.config);
         case 'emby':

@@ -880,18 +880,19 @@ describe('the add dialog', () => {
         await signIn();
         const page = await everyConfigTab();
 
-        // The two torrent clients and NZBGet are the services with no API key,
-        // and the only ones with a username and password.
+        // NZBGet, Grimmory and the torrent clients are the services with no
+        // API key. All but Deluge, whose Web UI has a password alone, also
+        // take a username.
         const apiKey = /data-only="([^"]*)"[^>]*>\s*<label for="add\.api_key"/.exec(page)?.[1] ?? '';
         expect(apiKey.split(' ')).not.toContain('nzbget');
         expect(apiKey.split(' ')).not.toContain('transmission');
         expect(apiKey.split(' ')).not.toContain('qbittorrent');
+        expect(apiKey.split(' ')).not.toContain('deluge');
         expect(apiKey.split(' ')).toContain('radarr');
 
-        for (const field of ['username', 'password']) {
-            const only = new RegExp(`data-only="([^"]*)"[^>]*>\\s*<label for="add\\.${field}"`).exec(page)?.[1];
-            expect(only?.split(' ').sort()).toEqual(['grimmory', 'nzbget', 'qbittorrent', 'transmission']);
-        }
+        const only = (field: string) => new RegExp(`data-only="([^"]*)"[^>]*>\\s*<label for="add\\.${field}"`).exec(page)?.[1]?.split(' ').sort();
+        expect(only('username')).toEqual(['grimmory', 'nzbget', 'qbittorrent', 'transmission']);
+        expect(only('password')).toEqual(['deluge', 'grimmory', 'nzbget', 'qbittorrent', 'transmission']);
     });
 
     it('the add dialog does not call the username optional', async () => {
@@ -908,6 +909,17 @@ describe('the add dialog', () => {
         const card = page.split('<details class="svc"').find(c => c.includes('192.0.2.10:6060'))?.split('</details>')[0] ?? '';
         expect(card).toMatch(/name="username"/);
         expect(card).toMatch(/name="password"/);
+        expect(card).not.toMatch(/name="api_key"/);
+        expect(card).not.toContain('s3cr3tpw');
+    });
+
+    it('deluge card asks for the password alone', async () => {
+        await seed('  deluge:\n    url: http://192.0.2.10:8112\n    password: s3cr3tpw\n');
+        await signIn();
+        const page = await (await call('/ui/config?tab=services')).text();
+        const card = page.split('<details class="svc"').find(c => c.includes('192.0.2.10:8112'))?.split('</details>')[0] ?? '';
+        expect(card).toMatch(/name="password"/);
+        expect(card).not.toMatch(/name="username"/);
         expect(card).not.toMatch(/name="api_key"/);
         expect(card).not.toContain('s3cr3tpw');
     });

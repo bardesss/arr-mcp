@@ -20,8 +20,8 @@ export interface AuthStrategy {
     apply(ctx: AuthContext): void;
     /**
      * Given a failed response, mutate internal state and return true when the
-     * request is worth re-attempting immediately. Transmission and qBittorrent
-     * use this.
+     * request is worth re-attempting immediately. Transmission, qBittorrent and
+     * Deluge use this.
      *
      * A recovery attempt is transport-level: it must not consume the timeout
      * retry budget and must not count toward the circuit breaker.
@@ -210,33 +210,51 @@ export function qbittorrentSession(creds: {
     fetchImpl?: typeof fetch;
 }): AuthStrategy {
     const doFetch = creds.fetchImpl ?? fetch;
+    return cookieSession({
+        id: 'qbittorrent-session',
+        remedy: 'Check username and password against Options → Web UI in qBittorrent, and that its Host header validation accepts this url.',
+        // With no username there is nothing to retry with; the 403 stands as AuthFailed.
+        expired: response => response.status === 403 && creds.username !== undefined,
+        login: () => qbittorrentLogin(creds, doFetch)
+    });
+}
+
+/**
+ * A session held in a cookie: sent on every call once there is one, and a
+ * login run when an answer says the session is missing or gone, after which
+ * the call is made once more. qBittorrent's and Deluge's.
+ *
+ * The login in flight is shared. N concurrent requests that all hit a dead
+ * session each started their own login. Beyond the wasted round trips,
+ * qBittorrent's WebUI bans a client after repeated auth attempts (the very
+ * remedy text its strategy's failure points at), so a burst against
+ * briefly-wrong credentials accelerated the ban it warns about. Same
+ * single-flight shape as IdentityResolver's list.
+ */
+function cookieSession(opts: {
+    id: string;
+    remedy: string;
+    /** Whether this failed answer means the session is missing or gone. */
+    expired: (response: Response) => boolean | Promise<boolean>;
+    login: () => Promise<SessionCookie>;
+}): AuthStrategy {
     let cookie: SessionCookie | undefined;
-    /**
-     * The in-flight login, shared.
-     *
-     * N concurrent requests that all hit 403 each started their own login.
-     * Beyond the wasted round trips, qBittorrent's WebUI bans a client after
-     * repeated auth attempts (the very remedy text this strategy's failure
-     * points at) so a burst against briefly-wrong credentials accelerated the
-     * ban it warns about. Same single-flight shape as IdentityResolver's list.
-     */
     let inFlight: Promise<SessionCookie> | undefined;
 
     return {
-        id: 'qbittorrent-session',
-        remedy: 'Check username and password against Options → Web UI in qBittorrent, and that its Host header validation accepts this url.',
+        id: opts.id,
+        remedy: opts.remedy,
         apply(ctx) {
             if (cookie !== undefined) ctx.headers.set('Cookie', `${cookie.name}=${cookie.value}`);
         },
         async recover(response, signal) {
-            if (response.status !== 403) return false;
-            // Nothing to retry with; let the 403 stand as AuthFailed.
-            if (creds.username === undefined) return false;
+            if (!(await opts.expired(response))) return false;
 
             // The cookie is stored inside the shared chain, not by the waiting
             // caller: a login that outlives every caller's deadline still
             // leaves a session for the next call.
-            inFlight ??= qbittorrentLogin(creds, doFetch)
+            inFlight ??= opts
+                .login()
                 .then((c) => (cookie = c))
                 .finally(() => {
                     inFlight = undefined;
@@ -341,7 +359,125 @@ async function qbittorrentLogin(
         });
     }
 
-    const offered = readSessionCookie(response);
+    const offered = readSessionCookie(response, QB_SESSION_COOKIE);
+    if (offered === undefined) {
+        throw new ServiceError('AuthFailed', creds.id, 'login succeeded but set no session cookie');
+    }
+    return offered;
+}
+
+export const DELUGE_RPC_PATH = '/json';
+
+/** What to say when Deluge refuses the password: the Web UI's, not a daemon login. */
+export const DELUGE_LOGIN_REMEDY =
+    "Use the Deluge Web UI's password (Preferences > Interface > WebUI Password), not a login from the daemon's auth file.";
+
+/**
+ * Deluge's Web UI: `auth.login` with its password over the JSON-RPC endpoint,
+ * then the `_session_id` cookie on every call.
+ *
+ * Deluge answers every call with HTTP 200, a missing or expired session
+ * included: that one is `error.code` 1, "Not authenticated", in the body. So
+ * this lets the call fail and recovers from the body, the same shape as
+ * qBittorrent's 403, and nothing logs in ahead of time. That relies on
+ * `ServiceHttp` asking `recover` about every answer, a 200 included: its
+ * recovery comes after the redirects and before `classifyHttpStatus`, which
+ * passes anything below 400 (`#attempt` in `http.ts`).
+ */
+export function delugeSession(creds: {
+    id: string;
+    url: string;
+    password: string;
+    timeoutMs: number;
+    fetchImpl?: typeof fetch;
+}): AuthStrategy {
+    const doFetch = creds.fetchImpl ?? fetch;
+    return cookieSession({
+        id: 'deluge-session',
+        // Deluge itself answers every call with HTTP 200, so a 401 or 403 is
+        // from something in front of it.
+        remedy: 'Deluge answers every call with HTTP 200, so this refusal came from something in front of it, such as a reverse proxy. Check its authentication.',
+        expired: delugeNotAuthenticated,
+        login: () => delugeLogin(creds, doFetch)
+    });
+}
+
+/** "Not authenticated" is about 80 bytes: `result` is null in every error answer. */
+const DELUGE_ERROR_MAX_BYTES = 512;
+
+/**
+ * Whether a Deluge answer is `error.code` 1, read from a clone so the body
+ * stays whole for ServiceHttp. Reading stops past a few hundred bytes: an
+ * error carries a null result, so a longer answer is a result, not read twice.
+ */
+async function delugeNotAuthenticated(response: Response): Promise<boolean> {
+    if (response.status !== 200 || response.body === null) return false;
+    const reader: ReadableStreamDefaultReader<Uint8Array> | undefined = response.clone().body?.getReader();
+    if (reader === undefined) return false;
+    const decoder = new TextDecoder();
+    let text = '';
+    try {
+        for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            text += decoder.decode(value, { stream: true });
+            if (text.length > DELUGE_ERROR_MAX_BYTES) return false;
+        }
+    } catch {
+        // An answer that breaks off part-way is ServiceHttp's to report, as it
+        // reads its own branch of the clone.
+        return false;
+    } finally {
+        // Not awaited: cancelling one branch of a clone settles only once the
+        // other branch is read or cancelled too, and ServiceHttp reads that
+        // one after this returns. Awaited, a long answer hung here for good.
+        reader.cancel().catch(() => undefined);
+    }
+    try {
+        return (JSON.parse(text) as { error?: { code?: unknown } | null } | null)?.error?.code === 1;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * A wrong password is `result: false` with no `error`, so the result itself
+ * is what says the login worked.
+ */
+async function delugeLogin(
+    creds: { id: string; url: string; password: string; timeoutMs: number },
+    doFetch: typeof fetch
+): Promise<SessionCookie> {
+    const { response, text } = await postLogin(
+        creds,
+        {
+            path: DELUGE_RPC_PATH,
+            product: 'Deluge',
+            sameOriginRemedy:
+                'Check the Deluge url: its Web UI redirected instead of answering. A reverse proxy or a Web UI base path is the usual cause.',
+            keepUserinfo: true,
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ method: 'auth.login', params: [creds.password], id: 1 })
+        },
+        doFetch
+    );
+
+    let body: { result?: unknown; error?: { message?: unknown } | null } | null;
+    try {
+        body = JSON.parse(text) as typeof body;
+    } catch {
+        throw new ServiceError('AuthFailed', creds.id, `login returned HTTP ${response.status} that was not JSON-RPC`, {
+            remedy: 'Check the url points at the Deluge Web UI, whose JSON-RPC endpoint is /json.'
+        });
+    }
+    if (body?.error != null) {
+        const message = typeof body.error.message === 'string' ? body.error.message : 'no message';
+        throw new ServiceError('AuthFailed', creds.id, `login failed: ${fenceText(message, { service: creds.id, field: 'error' })}`);
+    }
+    if (body?.result !== true) {
+        throw new ServiceError('AuthFailed', creds.id, 'the Web UI refused the password', { remedy: DELUGE_LOGIN_REMEDY });
+    }
+    const offered = readSessionCookie(response, DELUGE_SESSION_COOKIE);
     if (offered === undefined) {
         throw new ServiceError('AuthFailed', creds.id, 'login succeeded but set no session cookie');
     }
@@ -497,13 +633,16 @@ async function grimmoryLogin(
 /** `SID` up to 5.1, `QBT_SID_<webui-port>` from 5.2. */
 const QB_SESSION_COOKIE = /(?:^|,\s*)(QBT_SID(?:_\d+)?|SID)=([^;,\s]+)/;
 
-function readSessionCookie(response: Response): SessionCookie | undefined {
+/** Deluge's Web UI session. */
+const DELUGE_SESSION_COOKIE = /(?:^|,\s*)(_session_id)=([^;,\s]+)/;
+
+function readSessionCookie(response: Response, pattern: RegExp): SessionCookie | undefined {
     const multi = response.headers.getSetCookie?.() ?? [];
     const single = response.headers.get('set-cookie');
     const all = multi.length > 0 ? multi : single === null ? [] : [single];
 
     for (const cookie of all) {
-        const match = QB_SESSION_COOKIE.exec(cookie);
+        const match = pattern.exec(cookie);
         if (match?.[1] !== undefined && match[2] !== undefined) return { name: match[1], value: match[2] };
     }
     return undefined;

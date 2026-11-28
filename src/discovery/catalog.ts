@@ -185,6 +185,19 @@ export const CATALOG: readonly CatalogEntry[] = [
         identify: r => (r.status === 200 && /^qBittorrent\b/i.test(htmlTitle(r.body) ?? '') ? matched() : undefined)
     },
     {
+        type: 'deluge',
+        port: 8112,
+        containerNames: ['deluge'],
+        path: '/',
+        // The page title carries the Web UI's version, which is the daemon's
+        // on the usual install of both together but need not be.
+        identify: r => {
+            const title = r.status === 200 ? /^Deluge WebUI\b\s*(\S*)/i.exec(htmlTitle(r.body) ?? '') : null;
+            if (title === null) return undefined;
+            return matched(title[1] === '' ? undefined : title[1]);
+        }
+    },
+    {
         type: 'profilarr',
         port: 6868,
         containerNames: ['profilarr'],

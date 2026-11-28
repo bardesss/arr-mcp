@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { apiKeyHeader, basicAuth, embyToken, grimmorySession, noAuth, plexToken, qbittorrentSession, queryParamKey, takeUserinfo, transmissionRpc } from '../src/core/auth.ts';
+import { apiKeyHeader, basicAuth, DELUGE_LOGIN_REMEDY, delugeSession, embyToken, grimmorySession, noAuth, plexToken, qbittorrentSession, queryParamKey, takeUserinfo, transmissionRpc } from '../src/core/auth.ts';
 import { ServiceHttp } from '../src/core/http.ts';
 import { API_KEY_REMEDY } from '../src/core/errors.ts';
 
@@ -303,6 +303,79 @@ describe('qbittorrentSession', () => {
     });
 });
 
+describe('delugeSession', () => {
+    const BASE = 'http://h:8112';
+    const rpc = (body: unknown, init: ResponseInit = {}) =>
+        new Response(JSON.stringify(body), { status: 200, ...init, headers: { 'content-type': 'application/json', ...(init.headers ?? {}) } });
+    const notAuthenticated = () => rpc({ result: null, error: { message: 'Not authenticated', code: 1 }, id: 1 });
+    const loggedIn = () => rpc({ result: true, error: null, id: 1 }, { headers: { 'set-cookie': '_session_id=abc123; Path=/' } });
+
+    const session = (impl: typeof fetch, password = 'p') => delugeSession({ id: 'deluge', url: BASE, timeoutMs: 1000, password, fetchImpl: impl });
+    const recording = (answer: () => Response) => {
+        const calls: { url: string; body: unknown }[] = [];
+        const impl = (async (input: string | URL | Request, init?: RequestInit) => {
+            calls.push({ url: String(input), body: JSON.parse(String(init?.body)) as unknown });
+            return answer();
+        }) as unknown as typeof fetch;
+        return { impl, calls };
+    };
+
+    it('sends no cookie until it has logged in', () => {
+        const c = ctx(`${BASE}/json`);
+        session(recording(loggedIn).impl).apply(c);
+        expect(c.headers.get('Cookie')).toBeNull();
+    });
+
+    it('logs in on "Not authenticated" and replays the session cookie', async () => {
+        const { impl, calls } = recording(loggedIn);
+        const auth = session(impl);
+        expect(await auth.recover?.(notAuthenticated())).toBe(true);
+
+        const c = ctx(`${BASE}/json`);
+        auth.apply(c);
+        expect(c.headers.get('Cookie')).toBe('_session_id=abc123');
+        expect(calls).toEqual([{ url: `${BASE}/json`, body: { method: 'auth.login', params: ['p'], id: 1 } }]);
+    });
+
+    it('recovers from nothing else, and leaves the answer whole for the caller', async () => {
+        const { impl, calls } = recording(loggedIn);
+        const auth = session(impl);
+        const long = { result: { names: 'x'.repeat(4096) }, error: null, id: 1 };
+        for (const response of [
+            rpc({ result: null, error: { message: 'Unknown method', code: 2 }, id: 1 }),
+            rpc({ result: false, error: null, id: 1 }),
+            rpc(long),
+            new Response('not json', { status: 200 }),
+            new Response(JSON.stringify({ error: { code: 1 } }), { status: 502 })
+        ]) {
+            expect(await auth.recover?.(response)).toBe(false);
+        }
+        const answer = rpc(long);
+        expect(await auth.recover?.(answer)).toBe(false);
+        expect(await answer.json()).toEqual(long);
+        expect(calls).toEqual([]);
+    });
+
+    it('reports a refused password as AuthFailed, naming the Web UI password', async () => {
+        await expect(session(recording(() => rpc({ result: false, error: null, id: 1 })).impl).recover?.(notAuthenticated())).rejects.toMatchObject({
+            kind: 'AuthFailed',
+            detail: 'the Web UI refused the password',
+            remedy: DELUGE_LOGIN_REMEDY
+        });
+    });
+
+    it('fails a login answer that is not JSON-RPC, or that carries an error', async () => {
+        await expect(session(recording(() => new Response('<html></html>', { status: 200 })).impl).recover?.(notAuthenticated())).rejects.toMatchObject({
+            kind: 'AuthFailed',
+            detail: 'login returned HTTP 200 that was not JSON-RPC',
+            remedy: 'Check the url points at the Deluge Web UI, whose JSON-RPC endpoint is /json.'
+        });
+        await expect(
+            session(recording(() => rpc({ result: null, error: { message: 'Bad request', code: 3 }, id: 1 })).impl).recover?.(notAuthenticated())
+        ).rejects.toMatchObject({ kind: 'AuthFailed', detail: 'login failed: <<untrusted:deluge.error>>Bad request<</>>' });
+    });
+});
+
 describe('takeUserinfo', () => {
     const decoded = (header: string | undefined) => Buffer.from((header ?? '').replace(/^Basic /, ''), 'base64').toString();
 
@@ -345,6 +418,12 @@ describe('the remedy a 401 or 403 carries', () => {
             () => qbittorrentSession({ id: 'svc', url: 'http://h:1234', timeoutMs: 5000 }),
             403,
             'Check username and password against Options → Web UI in qBittorrent, and that its Host header validation accepts this url.'
+        ],
+        [
+            'delugeSession',
+            () => delugeSession({ id: 'svc', url: 'http://h:1234', password: 'p', timeoutMs: 5000 }),
+            401,
+            'Deluge answers every call with HTTP 200, so this refusal came from something in front of it, such as a reverse proxy. Check its authentication.'
         ],
         [
             'grimmorySession',

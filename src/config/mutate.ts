@@ -176,7 +176,9 @@ function applyFields(type: ServiceId, base: Entry, fields: InstanceFields): Entr
     if (secret === 'password') {
         if (fields.password !== undefined && fields.password !== '') next.password = fields.password;
         // Not a credential, so blank means "cleared" rather than "unchanged".
-        if (fields.username !== undefined) {
+        // Only for a type that has one: Deluge takes a password alone, and a
+        // username the form kept from another type would fail its schema.
+        if (has('username') && fields.username !== undefined) {
             if (fields.username === '') delete next.username;
             else next.username = fields.username;
         }
