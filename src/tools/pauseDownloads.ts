@@ -230,10 +230,15 @@ export function registerPauseDownloads(
                 const target = `${client.id}:limit`;
 
                 // In an hour Deluge's Scheduler marks Throttled, the limit in
-                // force is the hour's (`low_down`), not the client's own, so
-                // the Scheduler owns the setting: even a request that matches
-                // it is refused, here and in the adapter, not reported as set.
+                // force is the hour's (`low_down`), and in Transmission's
+                // turtle mode it is the alternative cap: neither is the
+                // setting this write changes, so the cap reported is not the
+                // state the caller asked for even when it matches, and both
+                // are refused above the no-op rather than reported as set.
+                // The adapters refuse these writes too; refusing here means
+                // no token is issued for them.
                 if (current.scheduled) throw schedulerLimitRefusal(client.id, current.kbps);
+                if (current.alternative) throw turtleModeRefusal(client.id, current.kbps);
                 if (current.kbps === wanted) {
                     return {
                         target,
@@ -245,9 +250,6 @@ export function registerPauseDownloads(
                         noop: true
                     };
                 }
-                // The adapter refuses this write too; refusing here means no token is issued for it.
-                if (current.alternative) throw turtleModeRefusal(client.id, current.kbps);
-
                 return {
                     target,
                     summary:
