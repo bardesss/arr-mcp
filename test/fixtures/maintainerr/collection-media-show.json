@@ -1,0 +1,16 @@
+[
+  {
+    "id": 46,
+    "collectionId": 2,
+    "mediaServerId": "587",
+    "tmdbId": 290856,
+    "tvdbId": 463433,
+    "addDate": "2026-11-26T13:00:00.000Z",
+    "image_path": "https://image.tmdb.org/t/p/w500/zV1MRb6eqx6Uj3NSXquZFfz75pa.jpg",
+    "isManual": false,
+    "includedByRule": true,
+    "manualMembershipSource": null,
+    "sizeBytes": 8781240319,
+    "ruleEvaluationFailed": false
+  }
+]

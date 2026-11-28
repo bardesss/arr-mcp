@@ -85,6 +85,10 @@ export const MINIMUM_VERSIONS: Record<ServiceId, string> = {
     // 0.6.0 added `rules:read` and GET /api/v1/rules; candidates, events and
     // protections are older. Checked live on 0.6.5.
     reclaimerr: '0.6.0',
+    // Written against tag v3.33.0 and captured live on 3.33.0. Its collection and
+    // log routes serve its own UI and are not a compatibility contract by its
+    // README, and a minor ships about every two weeks, so no older one is claimed.
+    maintainerr: '3.33.0',
     // Written against tag v0.33.0 and checked live on 0.33.0. Pre-1.0, a
     // minor about every three weeks: minors may break the API.
     dispatcharr: '0.33.0',

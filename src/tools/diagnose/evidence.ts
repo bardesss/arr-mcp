@@ -7,7 +7,7 @@ import { deadline, TIMED_OUT, type Deadline } from '../../core/timeout.ts';
 import { rankTitle, RANK_NONE } from '../../core/titleMatch.ts';
 import { ARR_KIND, isArrItem, isFilmOrSeries, seerrMediaType, type ArrItem, type ExternalIds, type LibraryKind } from '../../core/resolver.ts';
 import {
-    hasCleanup,
+    cleanupSource,
     hasCleanuparr,
     hasHistory,
     hasIndexers,
@@ -571,7 +571,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
         let cleanuparr: Evidence['cleanuparr'] = null;
         let strikes: Evidence['strikes'] = null;
         const cleanuparrAdapter = deps.adapters.find(hasCleanuparr);
-        const cleanupAdapter = deps.adapters.find(hasCleanup);
+        const cleanupAdapter = cleanupSource(deps.adapters);
         // The managing *arr's own history for this item, read once for whichever of the two below needs it.
         let arrHistory: Promise<HistoryEntry[]> | undefined;
         const readArrHistory = (): Promise<HistoryEntry[]> => {

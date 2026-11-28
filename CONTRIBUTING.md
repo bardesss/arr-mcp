@@ -39,9 +39,9 @@ test a branch, ask for a preview image (see
 [Adding a service adapter](#adding-a-service-adapter)).
 
 Adapters I would accept but will not build myself, because I don't run them:
-Maintainerr ([#441](../../issues/441)), Sportarr ([#431](../../issues/431)) and
-Listenarr ([#432](../../issues/432)). Listenarr also needs an argument for a
-stability waiver, since every release so far is beta or canary.
+Sportarr ([#431](../../issues/431)) and Listenarr ([#432](../../issues/432)).
+Listenarr also needs an argument for a stability waiver, since every release so
+far is beta or canary.
 
 ## The three gates
 
@@ -430,7 +430,7 @@ around them.
    `get_library`'s `presence` join reads, because that join needs a single
    counterparty.
 6. **Decide whether it can be configured twice**, and say so in the adapter.
-   Ten of the twenty-one services can be. Copying `plex.ts` gets you
+   Ten of the twenty-three services can be. Copying `plex.ts` gets you
    `readonly id: string = '<type>'`, the *single*-instance shape, which fails
    closed if wrong. Making it multi-instance is four moves:
 
@@ -488,7 +488,7 @@ tasks whose names contain "Refresh", only one of which is the library scan, and
 Jellyfin's task names are localised (a Dutch server returns "Mediabibliotheek
 scannen").
 
-Nine of the twenty-one services publish no usable OpenAPI spec, and three more
+Nine of the twenty-three services publish no usable OpenAPI spec, and five more
 have hand-written adapters anyway, so the adapter interface is defined by us and
 must stay hand-writable. Code generation is an implementation detail inside an
 adapter, never the shape of the contract.
@@ -590,9 +590,14 @@ Dispatcharr serves OpenAPI only at runtime (`/api/swagger.json`), with nothing
 committed for the nightly check to fetch, so its adapter is hand-written against
 fixtures captured from 0.33.0 and pins the minor it was written for instead.
 Shelfmark publishes no spec, only a written API page, and is hand-written
-against fixtures captured from v1.6.1. Emby serves its swagger only from the
-running server, so its dialect of the Jellyfin adapter is contracted against
-fixtures captured from 4.10.2.0.
+against fixtures captured from v1.6.1. SuggestArr serves OpenAPI at runtime on
+its public `/api/v1`, and its adapter reads few enough fields that it is not
+vendored either, against fixtures captured from v3.5.0. Maintainerr serves
+OpenAPI only at
+runtime (`/api/swagger-json`), so its adapter is hand-written against fixtures
+captured from 3.33.0. Emby serves its swagger only from the running server, so
+its dialect of the Jellyfin adapter is contracted against fixtures captured
+from 4.10.2.0.
 
 ### The nightly compatibility check
 

@@ -1,0 +1,1725 @@
+{
+  "totalSize": 102,
+  "items": [
+    {
+      "id": 132,
+      "timestamp": "2026-11-27T01:00:01.008Z",
+      "message": "Successfully handled \"Matchbox: The Movie\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 131,
+      "timestamp": "2026-11-27T01:00:00.994Z",
+      "message": "Removed \"Matchbox: The Movie\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 129,
+      "timestamp": "2026-11-26T13:00:01.309Z",
+      "message": "Added \"Matchbox: The Movie\"",
+      "type": 1,
+      "meta": {
+        "type": "media_added_by_rule",
+        "data": {
+          "mediaServerId": "626",
+          "result": true,
+          "sectionResults": [
+            {
+              "id": 0,
+              "result": true,
+              "ruleResults": [
+                {
+                  "action": "before",
+                  "firstValueName": "Plex - Date added",
+                  "firstValue": "2026-10-27T05:20:27.000Z",
+                  "secondValueName": "custom_days",
+                  "secondValue": "2026-10-27T13:00:00.465Z",
+                  "result": true
+                },
+                {
+                  "operator": "AND",
+                  "action": "not_exists",
+                  "firstValueName": "Plex - Last view date",
+                  "firstValue": null,
+                  "firstValueReason": "Plex Last view date is not recorded for this item",
+                  "result": true
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 126,
+      "timestamp": "2026-11-26T01:00:02.217Z",
+      "message": "Successfully handled \"Forrest Gump\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 125,
+      "timestamp": "2026-11-26T01:00:02.204Z",
+      "message": "Removed \"Forrest Gump\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 124,
+      "timestamp": "2026-11-26T01:00:01.757Z",
+      "message": "Successfully handled \"Shrek\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 123,
+      "timestamp": "2026-11-26T01:00:01.750Z",
+      "message": "Removed \"Shrek\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 122,
+      "timestamp": "2026-11-26T01:00:01.158Z",
+      "message": "Successfully handled \"Fury\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 121,
+      "timestamp": "2026-11-26T01:00:01.118Z",
+      "message": "Removed \"Fury\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 120,
+      "timestamp": "2026-11-25T21:00:01.523Z",
+      "message": "Added \"Forrest Gump\"",
+      "type": 1,
+      "meta": {
+        "type": "media_added_by_rule",
+        "data": {
+          "mediaServerId": "620",
+          "result": true,
+          "sectionResults": [
+            {
+              "id": 0,
+              "result": true,
+              "ruleResults": [
+                {
+                  "action": "before",
+                  "firstValueName": "Plex - Date added",
+                  "firstValue": "2026-10-26T18:03:23.000Z",
+                  "secondValueName": "custom_days",
+                  "secondValue": "2026-10-26T21:00:00.374Z",
+                  "result": true
+                },
+                {
+                  "operator": "AND",
+                  "action": "not_exists",
+                  "firstValueName": "Plex - Last view date",
+                  "firstValue": null,
+                  "firstValueReason": "Plex Last view date is not recorded for this item",
+                  "result": true
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 119,
+      "timestamp": "2026-11-25T21:00:01.246Z",
+      "message": "Added \"Shrek\"",
+      "type": 1,
+      "meta": {
+        "type": "media_added_by_rule",
+        "data": {
+          "mediaServerId": "613",
+          "result": true,
+          "sectionResults": [
+            {
+              "id": 0,
+              "result": true,
+              "ruleResults": [
+                {
+                  "action": "before",
+                  "firstValueName": "Plex - Date added",
+                  "firstValue": "2026-10-26T16:57:22.000Z",
+                  "secondValueName": "custom_days",
+                  "secondValue": "2026-10-26T21:00:00.590Z",
+                  "result": true
+                },
+                {
+                  "operator": "AND",
+                  "action": "not_exists",
+                  "firstValueName": "Plex - Last view date",
+                  "firstValue": null,
+                  "firstValueReason": "Plex Last view date is not recorded for this item",
+                  "result": true
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 117,
+      "timestamp": "2026-11-25T13:00:02.060Z",
+      "message": "Added \"Fury\"",
+      "type": 1,
+      "meta": {
+        "type": "media_added_by_rule",
+        "data": {
+          "mediaServerId": "595",
+          "result": true,
+          "sectionResults": [
+            {
+              "id": 0,
+              "result": true,
+              "ruleResults": [
+                {
+                  "action": "before",
+                  "firstValueName": "Plex - Date added",
+                  "firstValue": "2026-10-26T10:08:20.000Z",
+                  "secondValueName": "custom_days",
+                  "secondValue": "2026-10-26T13:00:01.799Z",
+                  "result": true
+                },
+                {
+                  "operator": "AND",
+                  "action": "not_exists",
+                  "firstValueName": "Plex - Last view date",
+                  "firstValue": null,
+                  "firstValueReason": "Plex Last view date is not recorded for this item",
+                  "result": true
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 116,
+      "timestamp": "2026-11-25T13:00:00.922Z",
+      "message": "Successfully handled \"Seven\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 115,
+      "timestamp": "2026-11-25T13:00:00.887Z",
+      "message": "Removed \"Seven\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 114,
+      "timestamp": "2026-11-25T13:00:00.504Z",
+      "message": "Successfully handled \"Tuner\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 113,
+      "timestamp": "2026-11-25T13:00:00.484Z",
+      "message": "Removed \"Tuner\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 112,
+      "timestamp": "2026-11-25T05:00:00.863Z",
+      "message": "Added \"Seven\"",
+      "type": 1,
+      "meta": {
+        "type": "media_added_by_rule",
+        "data": {
+          "mediaServerId": "580",
+          "result": true,
+          "sectionResults": [
+            {
+              "id": 0,
+              "result": true,
+              "ruleResults": [
+                {
+                  "action": "before",
+                  "firstValueName": "Plex - Date added",
+                  "firstValue": "2026-10-26T00:21:46.000Z",
+                  "secondValueName": "custom_days",
+                  "secondValue": "2026-10-26T05:00:00.540Z",
+                  "result": true
+                },
+                {
+                  "operator": "AND",
+                  "action": "not_exists",
+                  "firstValueName": "Plex - Last view date",
+                  "firstValue": null,
+                  "firstValueReason": "Plex Last view date is not recorded for this item",
+                  "result": true
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 111,
+      "timestamp": "2026-11-25T05:00:00.797Z",
+      "message": "Added \"Tuner\"",
+      "type": 1,
+      "meta": {
+        "type": "media_added_by_rule",
+        "data": {
+          "mediaServerId": "585",
+          "result": true,
+          "sectionResults": [
+            {
+              "id": 0,
+              "result": true,
+              "ruleResults": [
+                {
+                  "action": "before",
+                  "firstValueName": "Plex - Date added",
+                  "firstValue": "2026-10-26T04:55:18.000Z",
+                  "secondValueName": "custom_days",
+                  "secondValue": "2026-10-26T05:00:00.592Z",
+                  "result": true
+                },
+                {
+                  "operator": "AND",
+                  "action": "not_exists",
+                  "firstValueName": "Plex - Last view date",
+                  "firstValue": null,
+                  "firstValueReason": "Plex Last view date is not recorded for this item",
+                  "result": true
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 110,
+      "timestamp": "2026-11-25T01:00:01.015Z",
+      "message": "Successfully handled \"Fight Club\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 109,
+      "timestamp": "2026-11-25T01:00:00.998Z",
+      "message": "Removed \"Fight Club\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 108,
+      "timestamp": "2026-11-24T13:00:01.773Z",
+      "message": "Added \"Fight Club\"",
+      "type": 1,
+      "meta": {
+        "type": "media_added_by_rule",
+        "data": {
+          "mediaServerId": "577",
+          "result": true,
+          "sectionResults": [
+            {
+              "id": 0,
+              "result": true,
+              "ruleResults": [
+                {
+                  "action": "before",
+                  "firstValueName": "Plex - Date added",
+                  "firstValue": "2026-10-25T06:30:40.000Z",
+                  "secondValueName": "custom_days",
+                  "secondValue": "2026-10-25T13:00:01.095Z",
+                  "result": true
+                },
+                {
+                  "operator": "AND",
+                  "action": "not_exists",
+                  "firstValueName": "Plex - Last view date",
+                  "firstValue": null,
+                  "firstValueReason": "Plex Last view date is not recorded for this item",
+                  "result": true
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 107,
+      "timestamp": "2026-11-23T13:00:09.656Z",
+      "message": "Successfully handled \"Spider-Man: Brand New Day\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 106,
+      "timestamp": "2026-11-23T13:00:09.637Z",
+      "message": "Removed \"Spider-Man: Brand New Day\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 105,
+      "timestamp": "2026-11-23T05:00:01.876Z",
+      "message": "Added \"Spider-Man: Brand New Day\"",
+      "type": 1,
+      "meta": {
+        "type": "media_added_by_rule",
+        "data": {
+          "mediaServerId": "564",
+          "result": true,
+          "sectionResults": [
+            {
+              "id": 0,
+              "result": true,
+              "ruleResults": [
+                {
+                  "action": "before",
+                  "firstValueName": "Plex - Date added",
+                  "firstValue": "2026-10-24T04:13:57.000Z",
+                  "secondValueName": "custom_days",
+                  "secondValue": "2026-10-24T05:00:01.123Z",
+                  "result": true
+                },
+                {
+                  "operator": "AND",
+                  "action": "not_exists",
+                  "firstValueName": "Plex - Last view date",
+                  "firstValue": null,
+                  "firstValueReason": "Plex Last view date is not recorded for this item",
+                  "result": true
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 104,
+      "timestamp": "2026-11-23T01:00:00.624Z",
+      "message": "Successfully handled \"The Prestige\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 103,
+      "timestamp": "2026-11-23T01:00:00.599Z",
+      "message": "Removed \"The Prestige\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 102,
+      "timestamp": "2026-11-22T13:00:02.182Z",
+      "message": "Added \"The Prestige\"",
+      "type": 1,
+      "meta": {
+        "type": "media_added_by_rule",
+        "data": {
+          "mediaServerId": "553",
+          "result": true,
+          "sectionResults": [
+            {
+              "id": 0,
+              "result": true,
+              "ruleResults": [
+                {
+                  "action": "before",
+                  "firstValueName": "Plex - Date added",
+                  "firstValue": "2026-10-23T05:01:43.000Z",
+                  "secondValueName": "custom_days",
+                  "secondValue": "2026-10-23T13:00:01.838Z",
+                  "result": true
+                },
+                {
+                  "operator": "AND",
+                  "action": "not_exists",
+                  "firstValueName": "Plex - Last view date",
+                  "firstValue": null,
+                  "firstValueReason": "Plex Last view date is not recorded for this item",
+                  "result": true
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 98,
+      "timestamp": "2026-11-22T01:00:01.750Z",
+      "message": "Successfully handled \"Blade Runner\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 97,
+      "timestamp": "2026-11-22T01:00:01.741Z",
+      "message": "Removed \"Blade Runner\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 96,
+      "timestamp": "2026-11-22T01:00:01.329Z",
+      "message": "Successfully handled \"Harry Potter and the Deathly Hallows: Part 2\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 95,
+      "timestamp": "2026-11-22T01:00:01.318Z",
+      "message": "Removed \"Harry Potter and the Deathly Hallows: Part 2\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 94,
+      "timestamp": "2026-11-22T01:00:01.064Z",
+      "message": "Successfully handled \"Léon: The Professional\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 93,
+      "timestamp": "2026-11-22T01:00:01.053Z",
+      "message": "Removed \"Léon: The Professional\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 92,
+      "timestamp": "2026-11-22T01:00:00.802Z",
+      "message": "Successfully handled \"The Wolf of Wall Street\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 91,
+      "timestamp": "2026-11-22T01:00:00.781Z",
+      "message": "Removed \"The Wolf of Wall Street\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 90,
+      "timestamp": "2026-11-21T21:00:02.263Z",
+      "message": "Added \"Blade Runner\"",
+      "type": 1,
+      "meta": {
+        "type": "media_added_by_rule",
+        "data": {
+          "mediaServerId": "540",
+          "result": true,
+          "sectionResults": [
+            {
+              "id": 0,
+              "result": true,
+              "ruleResults": [
+                {
+                  "action": "before",
+                  "firstValueName": "Plex - Date added",
+                  "firstValue": "2026-10-22T18:31:45.000Z",
+                  "secondValueName": "custom_days",
+                  "secondValue": "2026-10-22T21:00:00.272Z",
+                  "result": true
+                },
+                {
+                  "operator": "AND",
+                  "action": "not_exists",
+                  "firstValueName": "Plex - Last view date",
+                  "firstValue": null,
+                  "firstValueReason": "Plex Last view date is not recorded for this item",
+                  "result": true
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 89,
+      "timestamp": "2026-11-21T21:00:02.011Z",
+      "message": "Added \"Harry Potter and the Deathly Hallows: Part 2\"",
+      "type": 1,
+      "meta": {
+        "type": "media_added_by_rule",
+        "data": {
+          "mediaServerId": "501",
+          "result": true,
+          "sectionResults": [
+            {
+              "id": 0,
+              "result": true,
+              "ruleResults": [
+                {
+                  "action": "before",
+                  "firstValueName": "Plex - Date added",
+                  "firstValue": "2026-10-22T16:36:14.000Z",
+                  "secondValueName": "custom_days",
+                  "secondValue": "2026-10-22T21:00:00.365Z",
+                  "result": true
+                },
+                {
+                  "operator": "AND",
+                  "action": "not_exists",
+                  "firstValueName": "Plex - Last view date",
+                  "firstValue": null,
+                  "firstValueReason": "Plex Last view date is not recorded for this item",
+                  "result": true
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 88,
+      "timestamp": "2026-11-21T21:00:01.759Z",
+      "message": "Added \"Léon: The Professional\"",
+      "type": 1,
+      "meta": {
+        "type": "media_added_by_rule",
+        "data": {
+          "mediaServerId": "546",
+          "result": true,
+          "sectionResults": [
+            {
+              "id": 0,
+              "result": true,
+              "ruleResults": [
+                {
+                  "action": "before",
+                  "firstValueName": "Plex - Date added",
+                  "firstValue": "2026-10-22T20:25:46.000Z",
+                  "secondValueName": "custom_days",
+                  "secondValue": "2026-10-22T21:00:00.498Z",
+                  "result": true
+                },
+                {
+                  "operator": "AND",
+                  "action": "not_exists",
+                  "firstValueName": "Plex - Last view date",
+                  "firstValue": null,
+                  "firstValueReason": "Plex Last view date is not recorded for this item",
+                  "result": true
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 87,
+      "timestamp": "2026-11-21T21:00:01.549Z",
+      "message": "Added \"The Wolf of Wall Street\"",
+      "type": 1,
+      "meta": {
+        "type": "media_added_by_rule",
+        "data": {
+          "mediaServerId": "520",
+          "result": true,
+          "sectionResults": [
+            {
+              "id": 0,
+              "result": true,
+              "ruleResults": [
+                {
+                  "action": "before",
+                  "firstValueName": "Plex - Date added",
+                  "firstValue": "2026-10-22T17:16:45.000Z",
+                  "secondValueName": "custom_days",
+                  "secondValue": "2026-10-22T21:00:00.697Z",
+                  "result": true
+                },
+                {
+                  "operator": "AND",
+                  "action": "not_exists",
+                  "firstValueName": "Plex - Last view date",
+                  "firstValue": null,
+                  "firstValueReason": "Plex Last view date is not recorded for this item",
+                  "result": true
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 86,
+      "timestamp": "2026-11-21T01:00:00.714Z",
+      "message": "Successfully handled \"Training Day\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 85,
+      "timestamp": "2026-11-21T01:00:00.709Z",
+      "message": "Removed \"Training Day\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 84,
+      "timestamp": "2026-11-21T01:00:00.414Z",
+      "message": "Successfully handled \"Blade Runner 2049\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 83,
+      "timestamp": "2026-11-21T01:00:00.408Z",
+      "message": "Removed \"Blade Runner 2049\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 82,
+      "timestamp": "2026-11-20T21:00:01.136Z",
+      "message": "Added \"Training Day\"",
+      "type": 1,
+      "meta": {
+        "type": "media_added_by_rule",
+        "data": {
+          "mediaServerId": "497",
+          "result": true,
+          "sectionResults": [
+            {
+              "id": 0,
+              "result": true,
+              "ruleResults": [
+                {
+                  "action": "before",
+                  "firstValueName": "Plex - Date added",
+                  "firstValue": "2026-10-21T18:11:36.000Z",
+                  "secondValueName": "custom_days",
+                  "secondValue": "2026-10-21T21:00:00.481Z",
+                  "result": true
+                },
+                {
+                  "operator": "AND",
+                  "action": "not_exists",
+                  "firstValueName": "Plex - Last view date",
+                  "firstValue": null,
+                  "firstValueReason": "Plex Last view date is not recorded for this item",
+                  "result": true
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 81,
+      "timestamp": "2026-11-20T13:00:02.233Z",
+      "message": "Added \"Blade Runner 2049\"",
+      "type": 1,
+      "meta": {
+        "type": "media_added_by_rule",
+        "data": {
+          "mediaServerId": "485",
+          "result": true,
+          "sectionResults": [
+            {
+              "id": 0,
+              "result": true,
+              "ruleResults": [
+                {
+                  "action": "before",
+                  "firstValueName": "Plex - Date added",
+                  "firstValue": "2026-10-21T10:12:02.000Z",
+                  "secondValueName": "custom_days",
+                  "secondValue": "2026-10-21T13:00:01.556Z",
+                  "result": true
+                },
+                {
+                  "operator": "AND",
+                  "action": "not_exists",
+                  "firstValueName": "Plex - Last view date",
+                  "firstValue": null,
+                  "firstValueReason": "Plex Last view date is not recorded for this item",
+                  "result": true
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 80,
+      "timestamp": "2026-11-20T13:00:01.292Z",
+      "message": "Successfully handled \"Swapped\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 79,
+      "timestamp": "2026-11-20T13:00:01.283Z",
+      "message": "Removed \"Swapped\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 78,
+      "timestamp": "2026-11-20T05:00:01.268Z",
+      "message": "Added \"Swapped\"",
+      "type": 1,
+      "meta": {
+        "type": "media_added_by_rule",
+        "data": {
+          "mediaServerId": "481",
+          "result": true,
+          "sectionResults": [
+            {
+              "id": 0,
+              "result": true,
+              "ruleResults": [
+                {
+                  "action": "before",
+                  "firstValueName": "Plex - Date added",
+                  "firstValue": "2026-10-21T04:29:29.000Z",
+                  "secondValueName": "custom_days",
+                  "secondValue": "2026-10-21T05:00:00.584Z",
+                  "result": true
+                },
+                {
+                  "operator": "AND",
+                  "action": "not_exists",
+                  "firstValueName": "Plex - Last view date",
+                  "firstValue": null,
+                  "firstValueReason": "Plex Last view date is not recorded for this item",
+                  "result": true
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 77,
+      "timestamp": "2026-11-20T01:00:01.307Z",
+      "message": "Successfully handled \"War Machine\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 76,
+      "timestamp": "2026-11-20T01:00:01.301Z",
+      "message": "Removed \"War Machine\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 75,
+      "timestamp": "2026-11-20T01:00:01.088Z",
+      "message": "Successfully handled \"Evil Dead Burn\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 74,
+      "timestamp": "2026-11-20T01:00:01.080Z",
+      "message": "Removed \"Evil Dead Burn\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 73,
+      "timestamp": "2026-11-20T01:00:00.884Z",
+      "message": "Successfully handled \"Harry Potter and the Prisoner of Azkaban\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 72,
+      "timestamp": "2026-11-20T01:00:00.861Z",
+      "message": "Removed \"Harry Potter and the Prisoner of Azkaban\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 71,
+      "timestamp": "2026-11-20T01:00:00.704Z",
+      "message": "Successfully handled \"Pulp Fiction\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 70,
+      "timestamp": "2026-11-20T01:00:00.687Z",
+      "message": "Removed \"Pulp Fiction\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 69,
+      "timestamp": "2026-11-19T21:00:01.237Z",
+      "message": "Added \"War Machine\"",
+      "type": 1,
+      "meta": {
+        "type": "media_added_by_rule",
+        "data": {
+          "mediaServerId": "478",
+          "result": true,
+          "sectionResults": [
+            {
+              "id": 0,
+              "result": true,
+              "ruleResults": [
+                {
+                  "action": "before",
+                  "firstValueName": "Plex - Date added",
+                  "firstValue": "2026-10-20T16:27:23.000Z",
+                  "secondValueName": "custom_days",
+                  "secondValue": "2026-10-20T21:00:00.504Z",
+                  "result": true
+                },
+                {
+                  "operator": "AND",
+                  "action": "not_exists",
+                  "firstValueName": "Plex - Last view date",
+                  "firstValue": null,
+                  "firstValueReason": "Plex Last view date is not recorded for this item",
+                  "result": true
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 67,
+      "timestamp": "2026-11-19T13:00:02.745Z",
+      "message": "Added \"Evil Dead Burn\"",
+      "type": 1,
+      "meta": {
+        "type": "media_added_by_rule",
+        "data": {
+          "mediaServerId": "468",
+          "result": true,
+          "sectionResults": [
+            {
+              "id": 0,
+              "result": true,
+              "ruleResults": [
+                {
+                  "action": "before",
+                  "firstValueName": "Plex - Date added",
+                  "firstValue": "2026-10-20T11:46:22.000Z",
+                  "secondValueName": "custom_days",
+                  "secondValue": "2026-10-20T13:00:01.514Z",
+                  "result": true
+                },
+                {
+                  "operator": "AND",
+                  "action": "not_exists",
+                  "firstValueName": "Plex - Last view date",
+                  "firstValue": null,
+                  "firstValueReason": "Plex Last view date is not recorded for this item",
+                  "result": true
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 66,
+      "timestamp": "2026-11-19T13:00:02.531Z",
+      "message": "Added \"Harry Potter and the Prisoner of Azkaban\"",
+      "type": 1,
+      "meta": {
+        "type": "media_added_by_rule",
+        "data": {
+          "mediaServerId": "435",
+          "result": true,
+          "sectionResults": [
+            {
+              "id": 0,
+              "result": true,
+              "ruleResults": [
+                {
+                  "action": "before",
+                  "firstValueName": "Plex - Date added",
+                  "firstValue": "2026-10-20T05:07:20.000Z",
+                  "secondValueName": "custom_days",
+                  "secondValue": "2026-10-20T13:00:01.717Z",
+                  "result": true
+                },
+                {
+                  "operator": "AND",
+                  "action": "not_exists",
+                  "firstValueName": "Plex - Last view date",
+                  "firstValue": null,
+                  "firstValueReason": "Plex Last view date is not recorded for this item",
+                  "result": true
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 65,
+      "timestamp": "2026-11-19T13:00:02.220Z",
+      "message": "Added \"Pulp Fiction\"",
+      "type": 1,
+      "meta": {
+        "type": "media_added_by_rule",
+        "data": {
+          "mediaServerId": "450",
+          "result": true,
+          "sectionResults": [
+            {
+              "id": 0,
+              "result": true,
+              "ruleResults": [
+                {
+                  "action": "before",
+                  "firstValueName": "Plex - Date added",
+                  "firstValue": "2026-10-20T05:22:20.000Z",
+                  "secondValueName": "custom_days",
+                  "secondValue": "2026-10-20T13:00:01.844Z",
+                  "result": true
+                },
+                {
+                  "operator": "AND",
+                  "action": "not_exists",
+                  "firstValueName": "Plex - Last view date",
+                  "firstValue": null,
+                  "firstValueReason": "Plex Last view date is not recorded for this item",
+                  "result": true
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 62,
+      "timestamp": "2026-11-19T01:00:00.631Z",
+      "message": "Successfully handled \"Avatar\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 61,
+      "timestamp": "2026-11-19T01:00:00.571Z",
+      "message": "Removed \"Avatar\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 59,
+      "timestamp": "2026-11-18T13:00:02.181Z",
+      "message": "Added \"Avatar\"",
+      "type": 1,
+      "meta": {
+        "type": "media_added_by_rule",
+        "data": {
+          "mediaServerId": "415",
+          "result": true,
+          "sectionResults": [
+            {
+              "id": 0,
+              "result": true,
+              "ruleResults": [
+                {
+                  "action": "before",
+                  "firstValueName": "Plex - Date added",
+                  "firstValue": "2026-10-19T05:52:13.000Z",
+                  "secondValueName": "custom_days",
+                  "secondValue": "2026-10-19T13:00:01.503Z",
+                  "result": true
+                },
+                {
+                  "operator": "AND",
+                  "action": "not_exists",
+                  "firstValueName": "Plex - Last view date",
+                  "firstValue": null,
+                  "firstValueReason": "Plex Last view date is not recorded for this item",
+                  "result": true
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 57,
+      "timestamp": "2026-11-17T21:00:00.628Z",
+      "message": "Added \"The Runner\"",
+      "type": 1,
+      "meta": {
+        "type": "media_added_by_rule",
+        "data": {
+          "mediaServerId": "358",
+          "result": true,
+          "sectionResults": [
+            {
+              "id": 0,
+              "result": true,
+              "ruleResults": [
+                {
+                  "action": "before",
+                  "firstValueName": "Plex - Date added",
+                  "firstValue": "2026-10-13T17:41:59.000Z",
+                  "secondValueName": "custom_days",
+                  "secondValue": "2026-10-18T21:00:00.463Z",
+                  "result": true
+                },
+                {
+                  "operator": "AND",
+                  "action": "not_exists",
+                  "firstValueName": "Plex - Last view date",
+                  "firstValue": null,
+                  "firstValueReason": "Plex Last view date is not recorded for this item",
+                  "result": true
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 52,
+      "timestamp": "2026-11-17T13:00:02.201Z",
+      "message": "Successfully handled \"The Batman\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 51,
+      "timestamp": "2026-11-17T13:00:02.191Z",
+      "message": "Removed \"The Batman\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 50,
+      "timestamp": "2026-11-17T13:00:01.729Z",
+      "message": "Successfully handled \"The Odyssey\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 49,
+      "timestamp": "2026-11-17T13:00:01.722Z",
+      "message": "Removed \"The Odyssey\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 48,
+      "timestamp": "2026-11-17T13:00:01.101Z",
+      "message": "Successfully handled \"The Runner\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 47,
+      "timestamp": "2026-11-17T13:00:01.079Z",
+      "message": "Removed \"The Runner\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 45,
+      "timestamp": "2026-11-16T13:00:05.082Z",
+      "message": "Added \"The Batman\"",
+      "type": 1,
+      "meta": {
+        "type": "media_added_by_rule",
+        "data": {
+          "mediaServerId": "391",
+          "result": true,
+          "sectionResults": [
+            {
+              "id": 0,
+              "result": true,
+              "ruleResults": [
+                {
+                  "action": "before",
+                  "firstValueName": "Plex - Date added",
+                  "firstValue": "2026-10-17T11:17:54.000Z",
+                  "secondValueName": "custom_days",
+                  "secondValue": "2026-10-17T13:00:04.243Z",
+                  "result": true
+                },
+                {
+                  "operator": "AND",
+                  "action": "not_exists",
+                  "firstValueName": "Plex - Last view date",
+                  "firstValue": null,
+                  "firstValueReason": "Plex Last view date is not recorded for this item",
+                  "result": true
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 44,
+      "timestamp": "2026-11-16T13:00:04.827Z",
+      "message": "Added \"The Odyssey\"",
+      "type": 1,
+      "meta": {
+        "type": "media_added_by_rule",
+        "data": {
+          "mediaServerId": "369",
+          "result": true,
+          "sectionResults": [
+            {
+              "id": 0,
+              "result": true,
+              "ruleResults": [
+                {
+                  "action": "before",
+                  "firstValueName": "Plex - Date added",
+                  "firstValue": "2026-10-17T09:34:23.000Z",
+                  "secondValueName": "custom_days",
+                  "secondValue": "2026-10-17T13:00:04.435Z",
+                  "result": true
+                },
+                {
+                  "operator": "AND",
+                  "action": "not_exists",
+                  "firstValueName": "Plex - Last view date",
+                  "firstValue": null,
+                  "firstValueReason": "Plex Last view date is not recorded for this item",
+                  "result": true
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 42,
+      "timestamp": "2026-11-12T21:00:01.293Z",
+      "message": "Added \"The Runner\"",
+      "type": 1,
+      "meta": {
+        "type": "media_added_by_rule",
+        "data": {
+          "mediaServerId": "358",
+          "result": true,
+          "sectionResults": [
+            {
+              "id": 0,
+              "result": true,
+              "ruleResults": [
+                {
+                  "action": "before",
+                  "firstValueName": "Plex - Date added",
+                  "firstValue": "2026-10-13T17:41:59.000Z",
+                  "secondValueName": "custom_days",
+                  "secondValue": "2026-10-13T21:00:00.542Z",
+                  "result": true
+                },
+                {
+                  "operator": "AND",
+                  "action": "not_exists",
+                  "firstValueName": "Plex - Last view date",
+                  "firstValue": null,
+                  "firstValueReason": "Plex Last view date is not recorded for this item",
+                  "result": true
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 41,
+      "timestamp": "2026-11-04T13:00:00.409Z",
+      "message": "Successfully handled \"Oppenheimer\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 40,
+      "timestamp": "2026-11-04T13:00:00.388Z",
+      "message": "Removed \"Oppenheimer\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 39,
+      "timestamp": "2026-11-04T05:00:01.243Z",
+      "message": "Added \"Oppenheimer\"",
+      "type": 1,
+      "meta": {
+        "type": "media_added_by_rule",
+        "data": {
+          "mediaServerId": "327",
+          "result": true,
+          "sectionResults": [
+            {
+              "id": 0,
+              "result": true,
+              "ruleResults": [
+                {
+                  "action": "before",
+                  "firstValueName": "Plex - Date added",
+                  "firstValue": "2026-10-05T02:35:09.000Z",
+                  "secondValueName": "custom_days",
+                  "secondValue": "2026-10-05T05:00:00.465Z",
+                  "result": true
+                },
+                {
+                  "operator": "AND",
+                  "action": "not_exists",
+                  "firstValueName": "Plex - Last view date",
+                  "firstValue": null,
+                  "firstValueReason": "Plex Last view date is not recorded for this item",
+                  "result": true
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 34,
+      "timestamp": "2026-11-03T13:00:00.661Z",
+      "message": "Successfully handled \"Colony\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 33,
+      "timestamp": "2026-11-03T13:00:00.625Z",
+      "message": "Removed \"Colony\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 32,
+      "timestamp": "2026-11-03T13:00:00.456Z",
+      "message": "Successfully handled \"The End of Oak Street\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 31,
+      "timestamp": "2026-11-03T13:00:00.451Z",
+      "message": "Removed \"The End of Oak Street\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 30,
+      "timestamp": "2026-11-03T13:00:00.307Z",
+      "message": "Successfully handled \"Mutiny\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 29,
+      "timestamp": "2026-11-03T13:00:00.291Z",
+      "message": "Removed \"Mutiny\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 26,
+      "timestamp": "2026-11-03T05:00:02.023Z",
+      "message": "Added \"Colony\"",
+      "type": 1,
+      "meta": {
+        "type": "media_added_by_rule",
+        "data": {
+          "mediaServerId": "192",
+          "result": true,
+          "sectionResults": [
+            {
+              "id": 0,
+              "result": true,
+              "ruleResults": [
+                {
+                  "action": "before",
+                  "firstValueName": "Plex - Date added",
+                  "firstValue": "2026-10-04T01:47:08.000Z",
+                  "secondValueName": "custom_days",
+                  "secondValue": "2026-10-04T05:00:00.211Z",
+                  "result": true
+                },
+                {
+                  "operator": "AND",
+                  "action": "not_exists",
+                  "firstValueName": "Plex - Last view date",
+                  "firstValue": null,
+                  "firstValueReason": "Plex Last view date is not recorded for this item",
+                  "result": true
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 25,
+      "timestamp": "2026-11-03T05:00:01.766Z",
+      "message": "Added \"The End of Oak Street\"",
+      "type": 1,
+      "meta": {
+        "type": "media_added_by_rule",
+        "data": {
+          "mediaServerId": "191",
+          "result": true,
+          "sectionResults": [
+            {
+              "id": 0,
+              "result": true,
+              "ruleResults": [
+                {
+                  "action": "before",
+                  "firstValueName": "Plex - Date added",
+                  "firstValue": "2026-10-04T01:47:08.000Z",
+                  "secondValueName": "custom_days",
+                  "secondValue": "2026-10-04T05:00:00.258Z",
+                  "result": true
+                },
+                {
+                  "operator": "AND",
+                  "action": "not_exists",
+                  "firstValueName": "Plex - Last view date",
+                  "firstValue": null,
+                  "firstValueReason": "Plex Last view date is not recorded for this item",
+                  "result": true
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 24,
+      "timestamp": "2026-11-03T05:00:01.368Z",
+      "message": "Added \"Mutiny\"",
+      "type": 1,
+      "meta": {
+        "type": "media_added_by_rule",
+        "data": {
+          "mediaServerId": "186",
+          "result": true,
+          "sectionResults": [
+            {
+              "id": 0,
+              "result": true,
+              "ruleResults": [
+                {
+                  "action": "before",
+                  "firstValueName": "Plex - Date added",
+                  "firstValue": "2026-10-04T01:47:07.000Z",
+                  "secondValueName": "custom_days",
+                  "secondValue": "2026-10-04T05:00:00.350Z",
+                  "result": true
+                },
+                {
+                  "operator": "AND",
+                  "action": "not_exists",
+                  "firstValueName": "Plex - Last view date",
+                  "firstValue": null,
+                  "firstValueReason": "Plex Last view date is not recorded for this item",
+                  "result": true
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 23,
+      "timestamp": "2026-11-03T01:00:00.487Z",
+      "message": "Successfully handled \"Minions & Monsters\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 22,
+      "timestamp": "2026-11-03T01:00:00.480Z",
+      "message": "Removed \"Minions & Monsters\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 21,
+      "timestamp": "2026-11-03T01:00:00.296Z",
+      "message": "Successfully handled \"Supergirl\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 20,
+      "timestamp": "2026-11-03T01:00:00.282Z",
+      "message": "Removed \"Supergirl\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 19,
+      "timestamp": "2026-11-02T13:00:05.955Z",
+      "message": "Added \"Minions & Monsters\"",
+      "type": 1,
+      "meta": {
+        "type": "media_added_by_rule",
+        "data": {
+          "mediaServerId": "17",
+          "result": true,
+          "sectionResults": [
+            {
+              "id": 0,
+              "result": true,
+              "ruleResults": [
+                {
+                  "action": "before",
+                  "firstValueName": "Plex - Date added",
+                  "firstValue": "2026-10-02T06:44:06.000Z",
+                  "secondValueName": "custom_days",
+                  "secondValue": "2026-10-03T13:00:03.172Z",
+                  "result": true
+                },
+                {
+                  "operator": "AND",
+                  "action": "not_exists",
+                  "firstValueName": "Plex - Last view date",
+                  "firstValue": null,
+                  "firstValueReason": "Plex Last view date is not recorded for this item",
+                  "result": true
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 18,
+      "timestamp": "2026-11-02T13:00:05.741Z",
+      "message": "Added \"Supergirl\"",
+      "type": 1,
+      "meta": {
+        "type": "media_added_by_rule",
+        "data": {
+          "mediaServerId": "34",
+          "result": true,
+          "sectionResults": [
+            {
+              "id": 0,
+              "result": true,
+              "ruleResults": [
+                {
+                  "action": "before",
+                  "firstValueName": "Plex - Date added",
+                  "firstValue": "2026-10-02T06:53:49.000Z",
+                  "secondValueName": "custom_days",
+                  "secondValue": "2026-10-03T13:00:04.574Z",
+                  "result": true
+                },
+                {
+                  "operator": "AND",
+                  "action": "not_exists",
+                  "firstValueName": "Plex - Last view date",
+                  "firstValue": null,
+                  "firstValueReason": "Plex Last view date is not recorded for this item",
+                  "result": true
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 17,
+      "timestamp": "2026-11-02T01:00:00.791Z",
+      "message": "Successfully handled \"Minions & Monsters\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 16,
+      "timestamp": "2026-11-02T01:00:00.787Z",
+      "message": "Removed \"Minions & Monsters\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 15,
+      "timestamp": "2026-11-02T01:00:00.642Z",
+      "message": "Successfully handled \"Supergirl\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 14,
+      "timestamp": "2026-11-02T01:00:00.634Z",
+      "message": "Removed \"Supergirl\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 13,
+      "timestamp": "2026-11-02T01:00:00.474Z",
+      "message": "Successfully handled \"Toy Story 5\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 12,
+      "timestamp": "2026-11-02T01:00:00.468Z",
+      "message": "Removed \"Toy Story 5\"",
+      "type": 1,
+      "meta": null
+    },
+    {
+      "id": 11,
+      "timestamp": "2026-11-01T13:00:07.616Z",
+      "message": "Added \"Backrooms\"",
+      "type": 1,
+      "meta": {
+        "type": "media_added_by_rule",
+        "data": {
+          "mediaServerId": "7",
+          "result": true,
+          "sectionResults": [
+            {
+              "id": 0,
+              "result": true,
+              "ruleResults": [
+                {
+                  "action": "before",
+                  "firstValueName": "Plex - Date added",
+                  "firstValue": "2026-10-02T06:44:00.000Z",
+                  "secondValueName": "custom_days",
+                  "secondValue": "2026-10-02T13:00:04.877Z",
+                  "result": true
+                },
+                {
+                  "operator": "AND",
+                  "action": "not_exists",
+                  "firstValueName": "Plex - Last view date",
+                  "firstValue": null,
+                  "firstValueReason": "Plex Last view date is not recorded for this item",
+                  "result": true
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 10,
+      "timestamp": "2026-11-01T13:00:07.371Z",
+      "message": "Added \"Batman: Knightfall - Part 1: Knightfall\"",
+      "type": 1,
+      "meta": {
+        "type": "media_added_by_rule",
+        "data": {
+          "mediaServerId": "25",
+          "result": true,
+          "sectionResults": [
+            {
+              "id": 0,
+              "result": true,
+              "ruleResults": [
+                {
+                  "action": "before",
+                  "firstValueName": "Plex - Date added",
+                  "firstValue": "2026-10-02T06:44:16.000Z",
+                  "secondValueName": "custom_days",
+                  "secondValue": "2026-10-02T13:00:04.862Z",
+                  "result": true
+                },
+                {
+                  "operator": "AND",
+                  "action": "not_exists",
+                  "firstValueName": "Plex - Last view date",
+                  "firstValue": null,
+                  "firstValueReason": "Plex Last view date is not recorded for this item",
+                  "result": true
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 9,
+      "timestamp": "2026-11-01T13:00:07.140Z",
+      "message": "Added \"Minions & Monsters\"",
+      "type": 1,
+      "meta": {
+        "type": "media_added_by_rule",
+        "data": {
+          "mediaServerId": "17",
+          "result": true,
+          "sectionResults": [
+            {
+              "id": 0,
+              "result": true,
+              "ruleResults": [
+                {
+                  "action": "before",
+                  "firstValueName": "Plex - Date added",
+                  "firstValue": "2026-10-02T06:44:06.000Z",
+                  "secondValueName": "custom_days",
+                  "secondValue": "2026-10-02T13:00:05.026Z",
+                  "result": true
+                },
+                {
+                  "operator": "AND",
+                  "action": "not_exists",
+                  "firstValueName": "Plex - Last view date",
+                  "firstValue": null,
+                  "firstValueReason": "Plex Last view date is not recorded for this item",
+                  "result": true
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -253,10 +253,10 @@ Fields depend on the type. Transmission, qBittorrent, NZBGet and Grimmory have
 `username` and `passwordSet`, and Deluge `passwordSet` alone. Everything else
 has `apiKeySet`. Jellyfin, Emby, Plex and Seerr add `defaultUser` and
 `allowOtherUsers`, and Plex alone adds `allowMetadataRepair`. Cleanuparr,
-Reclaimerr and Dispatcharr are read-only, so their `safeWrite` and `destructive`
-are always `false`, whatever was sent. Of the types with `apiKeySet`, Shelfmark
-alone can be added with no `apiKey`, for an install with no authentication. Any
-credentials in the URL are stripped.
+Reclaimerr, Maintainerr and Dispatcharr are read-only, so their `safeWrite` and
+`destructive` are always `false`, whatever was sent. Of the types with
+`apiKeySet`, Shelfmark and Maintainerr can be added with no `apiKey`, for an
+install with no authentication. Any credentials in the URL are stripped.
 
 ### `GET /app/{type}` and `GET /app/{type}/{name}`
 

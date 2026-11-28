@@ -41,6 +41,7 @@ import { TOOL_NAMES } from '../src/tools/register.ts';
 import { ProfilarrAdapter } from '../src/services/profilarr.ts';
 import { CleanuparrAdapter } from '../src/services/cleanuparr.ts';
 import { ReclaimerrAdapter } from '../src/services/reclaimerr.ts';
+import { MaintainerrAdapter } from '../src/services/maintainerr.ts';
 import { SuggestarrAdapter } from '../src/services/suggestarr.ts';
 import { DispatcharrAdapter } from '../src/services/dispatcharr.ts';
 import { ShelfmarkAdapter } from '../src/services/shelfmark.ts';
@@ -1080,6 +1081,34 @@ if (config.services?.reclaimerr !== undefined) {
     }
 } else {
     console.log('SKIP reclaimerr — not configured.');
+}
+
+/**
+ * Maintainerr, read only: its version, health findings, what its collections
+ * will delete, one member's status by TMDB id, and its recent log rows.
+ */
+if (config.services?.maintainerr !== undefined) {
+    const started = performance.now();
+    try {
+        const maintainerr = new MaintainerrAdapter(config.services.maintainerr);
+        const connection = await maintainerr.testConnection();
+        if (!connection.ok) throw new Error(connection.error?.detail ?? 'connection test failed');
+        const findings = await maintainerr.getFailedHealthChecks();
+        const overview = await maintainerr.readCleanupOverview(20);
+        const first = overview.candidates?.items.find(c => c.tmdbId !== undefined);
+        const status = first?.tmdbId === undefined ? undefined : await maintainerr.readCleanupStatus(first.kind, first.tmdbId);
+        const history = await maintainerr.readHistory({ want: 20 });
+        const ms = Math.round(performance.now() - started);
+        console.log(
+            `PASS maintainerr ${connection.version ?? ''}: ${findings.length} finding(s), ${overview.candidates?.total ?? 0} candidate(s), ${overview.going?.count ?? 0} set to go, ${overview.rules?.length ?? 0} collection(s), ${status?.candidates.length ?? 0} found again by TMDB id, ${history.items.length} recent log row(s) (${ms}ms)`
+        );
+        passes += 1;
+    } catch (err) {
+        console.error(`FAIL maintainerr: ${redactHosts((err as Error).message, hosts)}`);
+        failures += 1;
+    }
+} else {
+    console.log('SKIP maintainerr: not configured.');
 }
 
 /**

@@ -70,7 +70,7 @@ on every load. The sign-in page is a normal login form.
 
 **The page starts empty.** It shows a card per instance you have actually
 configured, in alphabetical order, and an **Add a service** button, not
-twenty-one blank fieldsets for services you do not run. Each card saves on its
+twenty-three blank fieldsets for services you do not run. Each card saves on its
 own, so editing your 4K Radarr cannot disturb the HD one. A card saves its whole
 form, so if the config changed after the page loaded (through the management
 API, another tab or a hand edit), the save is refused and the page asks you to
@@ -80,12 +80,12 @@ make your edit again on the fresh copy.
 Transmission, qBittorrent or Grimmory and it wants a username and password, pick
 Deluge and it wants its Web UI password, pick NZBGet and it wants the control
 username and password (left blank when NZBGet has none), pick anything else and
-it wants an API key (left blank for a Shelfmark with no authentication).
-Cleanuparr's, Reclaimerr's and Dispatcharr's cards have no write checkboxes,
-only a note that arr-mcp never writes to them. Services that can only have one
-instance drop out of the list once you have that one. With scripting off the
-dialog is a plain form with every field showing, and the server still refuses
-what does not make sense.
+it wants an API key (left blank for a Shelfmark with no authentication, and for
+Maintainerr, which has none). Cleanuparr's, Reclaimerr's, Maintainerr's and
+Dispatcharr's cards have no write checkboxes, only a note that arr-mcp never
+writes to them. Services that can only have one instance drop out of the list
+once you have that one. With scripting off the dialog is a plain form with
+every field showing, and the server still refuses what does not make sense.
 
 **Two media servers can be added**, of Jellyfin, Emby and Plex. The dialog
 offers a second media server once you have the first, and adding it keeps the

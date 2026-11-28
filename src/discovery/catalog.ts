@@ -219,6 +219,17 @@ export const CATALOG: readonly CatalogEntry[] = [
         identify: titled('Reclaimerr')
     },
     {
+        type: 'maintainerr',
+        port: 6246,
+        containerNames: ['maintainerr'],
+        // JSON, though 3.33.0 labels it text/html.
+        path: '/api/app/status',
+        identify: r => {
+            const o = jsonObject(r);
+            return o !== undefined && sameKeys(o, ['status', 'version', 'commitTag', 'updateAvailable']) && nonEmptyString(o.version) ? matched(o.version) : undefined;
+        }
+    },
+    {
         type: 'suggestarr',
         port: 5000,
         containerNames: ['suggestarr'],

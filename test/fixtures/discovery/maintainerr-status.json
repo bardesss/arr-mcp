@@ -1,0 +1,11 @@
+{
+  "service": "maintainerr",
+  "path": "/api/app/status",
+  "version": "3.33.0",
+  "source": "live",
+  "status": 200,
+  "headers": {
+    "content-type": "text/html; charset=utf-8"
+  },
+  "body": "{\"status\":1,\"version\":\"3.33.0\",\"commitTag\":\"stable\",\"updateAvailable\":false}"
+}

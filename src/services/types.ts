@@ -706,7 +706,12 @@ export type CleanupOverview = {
      */
     going?: { count: number; firstAt?: string; capped?: true };
     protections?: number;
-    /** More candidates than one read takes: `items` past the ones set to go cover only the ones read. */
+    /**
+     * The read hit its page cap, so this is a partial answer. On Reclaimerr the
+     * candidate list itself is cut: `items` past the ones set to go cover only
+     * the ones read. On Maintainerr every member is listed and what is missing
+     * is the titles of the ones past the cap.
+     */
     capped?: true;
 };
 
@@ -724,8 +729,29 @@ export interface CleanupCapable {
     readCleanupStatus(kind: 'movie' | 'series', tmdbId: number): Promise<CleanupStatus>;
 }
 
-export const hasCleanup = (a: ServiceAdapter): a is ServiceAdapter & CleanupCapable =>
+/** Module-local: every reader wants `cleanupSource`, which decides between two of these. */
+const hasCleanup = (a: ServiceAdapter): a is ServiceAdapter & CleanupCapable =>
     typeof (a as Partial<CleanupCapable>).readCleanupStatus === 'function';
+
+/**
+ * Which cleanup service answers, when a stack runs more than one. Reclaimerr
+ * first: its `readCleanupStatus` carries protections and removals, and
+ * Maintainerr's cannot (it keys an exclusion by media-server id and logs a
+ * removal by title alone), so preferring Reclaimerr never drops a field that
+ * was there before. `get_history` is unaffected and reads every one of them.
+ *
+ * Stated here rather than left to `find`, which took whichever adapter came
+ * first and so decided it by `listInstances`' alphabetical order: once
+ * Maintainerr joined Reclaimerr as `CleanupCapable`, that silently handed the
+ * slot to Maintainerr on a stack running both.
+ */
+const CLEANUP_PREFERENCE: readonly ServiceId[] = ['reclaimerr', 'maintainerr'];
+
+export const cleanupSource = (adapters: readonly ServiceAdapter[]): (ServiceAdapter & CleanupCapable) | undefined => {
+    const sources = adapters.filter(hasCleanup);
+    const preferred = CLEANUP_PREFERENCE.map(type => sources.find(a => a.type === type)).find(a => a !== undefined);
+    return preferred ?? sources[0];
+};
 
 /**
  * Why an automation service (SuggestArr) filed a request. `similar`: TMDB

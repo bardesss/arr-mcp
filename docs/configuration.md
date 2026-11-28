@@ -31,12 +31,12 @@ services:
     password: "…"
 ```
 
-All twenty-one service ids: `radarr`, `sonarr`, `whisparr`, `lidarr`,
+All twenty-three service ids: `radarr`, `sonarr`, `whisparr`, `lidarr`,
 `prowlarr`, `bazarr`, `jellyfin`, `emby`, `seerr`, `sabnzbd`, `nzbget`,
 `transmission`, `qbittorrent`, `deluge`, `plex`, `profilarr`, `cleanuparr`,
-`reclaimerr`, `dispatcharr`, `shelfmark`, `grimmory`. Configure only what you
-run. Running more than one torrent client at once is supported; their queues
-merge, each item labelled with the client it came from.
+`reclaimerr`, `maintainerr`, `dispatcharr`, `shelfmark`, `grimmory`,
+`suggestarr`. Configure only what you run. Running more than one torrent client at once is supported;
+their queues merge, each item labelled with the client it came from.
 
 A misspelled key, an unknown service, or an `api_key` on a torrent client or
 NZBGet **fails at startup with the offending field named**, rather than being silently
@@ -450,6 +450,34 @@ cleanup state in `get_media_details`, its lifecycle events in `get_history`,
 and `diagnose_media` uses them to say a file was deleted by a cleanup rule, or is
 about to be. Titles are matched on their TMDB id.
 
+## Maintainerr
+
+```yaml
+services:
+  maintainerr:
+    url: http://192.168.1.20:6246
+```
+
+Maintainerr has no authentication of its own: every route of its API answers
+without a key, so there is none to give. `api_key` is optional and only for a
+reverse proxy in front of Maintainerr that checks one; when set, it is sent as
+`X-Api-Key`. Since anyone who can reach that port can read Maintainerr's
+settings, which include its Plex token and the API key of every *arr it uses,
+keep it off any network you do not trust. arr-mcp never reads that route: it
+sends GET requests only, to `/api/app/status`, `/api/health`, the collections,
+their members and logs, and the exclusions. `permissions` are read as off
+whatever the file says. Single instance only, because one Maintainerr owns one
+media server's collections. Written against Maintainerr 3.33.0, which is also
+the floor: the routes it reads serve Maintainerr's own UI and, by its README,
+are not a compatibility contract.
+
+Its findings and what its collections will delete appear in `get_stack_health`,
+a title's collections in `get_media_details`, its collection logs in
+`get_history`, and `diagnose_media` says when a collection is about to delete a
+title. Titles are matched on their TMDB id. With both Reclaimerr and
+Maintainerr configured, `get_stack_health`, `get_media_details` and
+`diagnose_media` read Reclaimerr's cleanup only; `get_history` reads both.
+
 ## SuggestArr
 
 ```yaml
@@ -620,13 +648,13 @@ which instance you meant. See [writes](writes.md#with-more-than-one-instance-wri
 **Permissions are per instance**: each entry carries its own `permissions`
 block.
 
-**Twelve services stay single.** Jellyfin, Emby and Plex because each is one
+**Thirteen services stay single.** Jellyfin, Emby and Plex because each is one
 server ([running two](#two-media-servers) is a different thing). Seerr
 because a request carries the identity of the person who made it. Whisparr
 because the one deployment that wants two is V2 beside V3 (Eros), and Eros is a
 different API with no adapter. Profilarr because it owns profile config.
-Cleanuparr, Reclaimerr, Dispatcharr, Shelfmark, Grimmory and SuggestArr for the
-reasons in their own sections.
+Cleanuparr, Reclaimerr, Maintainerr, Dispatcharr, Shelfmark, Grimmory and
+SuggestArr for the reasons in their own sections.
 
 Everything else takes a list: Radarr, Sonarr, Lidarr, Bazarr, Prowlarr, SABnzbd,
 NZBGet, Transmission, qBittorrent and Deluge.

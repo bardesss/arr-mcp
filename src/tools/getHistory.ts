@@ -87,7 +87,7 @@ export function historyLine(entry: HistoryEntry): string {
 
     if (entry.strikeCount !== undefined) facts.push(`${entry.strikeCount} strike${entry.strikeCount === 1 ? '' : 's'}`);
     // `externalIds` only a stored event has, and its reason is why a file or title went.
-    if (entry.reason !== undefined && (entry.service === 'cleanuparr' || entry.service === 'reclaimerr' || entry.service === 'suggestarr' || entry.externalIds !== undefined)) facts.push(entry.reason);
+    if (entry.reason !== undefined && (entry.service === 'cleanuparr' || entry.service === 'reclaimerr' || entry.service === 'maintainerr' || entry.service === 'suggestarr' || entry.externalIds !== undefined)) facts.push(entry.reason);
     if (entry.oldCategory !== undefined || entry.newCategory !== undefined) facts.push(`${entry.oldCategory ?? '(none)'} → ${entry.newCategory ?? '(none)'}`);
     if (entry.downloadClient !== undefined) facts.push(`on ${entry.downloadClient}`);
     if (entry.clientRemoved === true) facts.push('on a client since deleted from Cleanuparr');
@@ -97,7 +97,7 @@ export function historyLine(entry: HistoryEntry): string {
 }
 
 const TARGET = serviceTarget({
-    services: ['radarr', 'sonarr', 'lidarr', 'sabnzbd', 'nzbget', 'bazarr', 'cleanuparr', 'reclaimerr', 'shelfmark', 'grimmory', 'suggestarr'],
+    services: ['radarr', 'sonarr', 'lidarr', 'sabnzbd', 'nzbget', 'bazarr', 'cleanuparr', 'reclaimerr', 'maintainerr', 'shelfmark', 'grimmory', 'suggestarr'],
     can: hasHistory,
     cannot: 'has no history to return',
     hint: 'A media server has no download history.'
@@ -289,7 +289,7 @@ export function registerGetHistory(server: McpServer, adapters: readonly Service
             title: 'Download history',
             annotations: READ_ONLY,
             description:
-                'What happened to a download after it left the queue (grabbed, imported, failed, deleted), merged across {{and: else=every service; radarr|sonarr|whisparr|lidarr=the *arrs; sabnzbd=SABnzbd; nzbget=NZBGet; bazarr=Bazarr (`subtitle` rows); cleanuparr=Cleanuparr (strikes and removals); reclaimerr=Reclaimerr (cleanup); suggestarr=SuggestArr (`requested` rows); shelfmark=Shelfmark; grimmory=Grimmory}}, in one vocabulary with the upstream word kept as `rawEvent`. This answers "why did last night\'s download fail": get_queue cannot see finished or failed items, and a failure carries the download client\'s own message. [[radarr|sonarr|whisparr|lidarr: Pass `service` and `id` to scope it to one {{or: radarr=movie; sonarr|whisparr=series; lidarr=Lidarr artist}}.]] `downloadId` links a row to its *arr grab[[nzbget: ; on an NZBGet row it is what import_download `action: "postprocess"` takes]]. [[radarr|sonarr|lidarr: Deleting a title also deletes its {{and: radarr=Radarr; sonarr=Sonarr; lidarr=Lidarr}} history, so `source: "webhooks"` reads what they reported to arr-mcp instead, when the library event log is on.]] Field reference: arr://docs/get_history.',
+                'What happened to a download after it left the queue (grabbed, imported, failed, deleted), merged across {{and: else=every service; radarr|sonarr|whisparr|lidarr=the *arrs; sabnzbd=SABnzbd; nzbget=NZBGet; bazarr=Bazarr (`subtitle` rows); cleanuparr=Cleanuparr (strikes and removals); reclaimerr=Reclaimerr (cleanup); maintainerr=Maintainerr (cleanup); suggestarr=SuggestArr (`requested` rows); shelfmark=Shelfmark; grimmory=Grimmory}}, in one vocabulary with the upstream word kept as `rawEvent`. This answers "why did last night\'s download fail": get_queue cannot see finished or failed items, and a failure carries the download client\'s own message. [[radarr|sonarr|whisparr|lidarr: Pass `service` and `id` to scope it to one {{or: radarr=movie; sonarr|whisparr=series; lidarr=Lidarr artist}}.]] `downloadId` links a row to its *arr grab[[nzbget: ; on an NZBGet row it is what import_download `action: "postprocess"` takes]]. [[radarr|sonarr|lidarr: Deleting a title also deletes its {{and: radarr=Radarr; sonarr=Sonarr; lidarr=Lidarr}} history, so `source: "webhooks"` reads what they reported to arr-mcp instead, when the library event log is on.]] Field reference: arr://docs/get_history.',
             outputSchema: GetHistoryOutput,
             inputSchema: GetHistoryInput
         },
