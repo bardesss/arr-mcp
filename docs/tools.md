@@ -2827,8 +2827,10 @@ item.
 Each client uses a different unit; the tool always takes KiB/s and converts.
 Clearing on Transmission zeroes the number as well as the enable flag. While
 Transmission's alternative speed (turtle) mode is on, its cap is the one
-reported, and a new limit is refused: it would not take effect until that mode
-ends.
+reported, and any limit is refused, that cap's own value included, since turtle
+mode owns the speed then: the normal limit a write changes would not take
+effect until that mode ends, which Transmission's own schedule can do by the
+clock.
 
 Safe tier, because the undo is this same tool with the other `action`.
 
