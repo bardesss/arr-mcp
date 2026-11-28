@@ -1009,6 +1009,8 @@ this month and in total. The summary line names each enabled job and its limits.
 
 SuggestArr's API reports no version, so its row in `services` has none.
 
+**Unverified live** (SuggestArr): the delivery-queue read being skipped for a key that is not an administrator.
+
 ### Dispatcharr
 
 With Dispatcharr configured, its findings cover the live TV that Plex and

@@ -389,6 +389,7 @@ exercise. Where the tool has its own section, the same path carries an
 | `get_queue` | `deluge` | The `error` and `moving` states, a torrent Deluge's queue holds back under a session pause, and a ratio limit in `seeding`, such as the one the *arrs set with a "Stop seed at ratio" of 1 | None came up on the test Deluges: their default ratio limit is off, and the one *arr that uses them, a test Radarr, has grabbed nothing; read from Deluge's and the *arrs' source |
 | `get_queue` | `grimmory` | A file waiting in the Bookdrop | The live Bookdrop was empty at capture; the row is tested on a constructed file |
 | `get_stack_health` | `grimmory` | The warning for books left in the Bookdrop over a day | Rests on the same constructed file |
+| `get_stack_health` | `suggestarr` | Skipping the delivery-queue read for a key that is not an administrator | Only an administrator key has met a live SuggestArr, so the 403 the gate assumes was never seen |
 | `get_queue` | `cleanuparr` | Seeding rules for a Transmission or Deluge client | Only hand-written fixtures; the one tester runs qBittorrent |
 | `grab_release` | `shelfmark` | The default grab, with no release named | Mock-only; the live Shelfmark has not been asked for one |
 | `retry_download` | `shelfmark` | Retrying a failed book, or a Prowlarr row | Every failed row on the live Shelfmark is marked not retryable |
