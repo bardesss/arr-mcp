@@ -1581,13 +1581,15 @@ series' ids, so they can still be matched once the item is gone. A Plex film
 deleted before it was stored keeps the release year its history row carries. A
 play stored while its item existed and seen again after its deletion stays one
 row: a film matched on title and a year either side, an episode on series,
-title, season and episode. Plex music plays are left out. When the server and
-the store both have an item, the server's row is the one returned. With the
-Jellyfin Webhook plugin pointed at arr-mcp, a finished play is stored the
-moment it ends as well ([Configuration](configuration.md#plays-from-jellyfin)).
-A store that fails costs only the stored rows. The Plays tab on the Logs page of the config
-UI shows how many plays are kept per media server and user, when each server
-last synced and the newest plays, and can clear the store.
+title, season and episode. The hourly sync leaves Plex music plays out. When the
+server and the store both have an item, the server's row is the one returned.
+With the Jellyfin Webhook plugin or a Plex webhook pointed at arr-mcp, a play is
+also stored the moment the server counts it watched, and a song too if you opt
+in ([Jellyfin](configuration.md#plays-from-jellyfin),
+[Plex](configuration.md#plays-from-plex)). A store that fails costs only the
+stored rows. The Plays tab on the Logs page of the config UI shows how many
+plays are kept per media server and user, when each server last synced and the
+newest plays, and can clear the store.
 
 Truncation is decided by `limit` (default 50) and reported through `truncated`.
 
@@ -1602,6 +1604,8 @@ which is which, so `active` and `next_up` split it by `viewOffset`: non-zero
 reads as resume, zero or absent as next-up.
 
 **Unverified live** (Plex): that a non-zero `viewOffset` means resume, the basis of the resume and next-up split. The `/library/onDeck` read itself is captured.
+
+**Unverified live** (Plex): the play webhook dropping someone else's play, and a play on another server the account owns. Only the owner's own plays on one server were posted; the drop rests on Plex's `user`, `owner` and `Server.uuid`.
 
 **Plex answers for one user only.** A local `X-Plex-Token` is scoped to a
 single Plex account, so every Plex row here is that account's; other users would

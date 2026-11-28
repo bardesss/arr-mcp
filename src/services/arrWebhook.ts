@@ -3,6 +3,7 @@ import { fenceText } from '../core/fence.ts';
 import type { ArrKind } from '../core/resolver.ts';
 import type { WebhookEntry } from '../core/webhookEvents.ts';
 import type { HistoryEventType } from './types.ts';
+import { IMDB_ID } from './webhookFields.ts';
 import { episodeCode } from '../core/labels.ts';
 
 /**
@@ -52,7 +53,6 @@ const LIDARR_EVENT: Record<string, HistoryEventType> = { DownloadFailure: 'faile
 type Row = Record<string, unknown>;
 
 const EVENT_NAME = /^[A-Za-z][A-Za-z0-9]{0,63}$/;
-const IMDB_ID = /^tt\d+$/;
 const MBID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 const rowOf = (value: unknown): Row =>

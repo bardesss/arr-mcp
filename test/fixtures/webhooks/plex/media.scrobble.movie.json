@@ -1,0 +1,165 @@
+{
+  "event": "media.scrobble",
+  "user": true,
+  "owner": true,
+  "Account": {
+    "id": 11111111,
+    "thumb": "https://plex.tv/users/aaaaaaaaaaaaaaaa/avatar?c=1111111111",
+    "title": "user"
+  },
+  "Server": {
+    "title": "server",
+    "uuid": "1111111111111111111111111111111111111111"
+  },
+  "Player": {
+    "local": false,
+    "publicAddress": "192.0.2.10",
+    "title": "Player",
+    "uuid": "bbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "Metadata": {
+    "librarySectionType": "movie",
+    "ratingKey": "2222222",
+    "key": "/library/metadata/2222222",
+    "guid": "plex://movie/aaaaaaaaaaaaaaaaaaaaaaaa",
+    "slug": "film-title",
+    "studio": "Studio",
+    "type": "movie",
+    "title": "Film Title",
+    "librarySectionTitle": "Films",
+    "librarySectionID": 1,
+    "librarySectionKey": "/library/sections/1",
+    "contentRating": "PG-13",
+    "contentRatingAge": 13,
+    "summary": "A summary.",
+    "audienceRating": 7.5,
+    "viewCount": 2,
+    "lastViewedAt": 1700000000,
+    "year": 2000,
+    "tagline": "A tagline.",
+    "thumb": "/library/metadata/2222222/thumb/1600000000",
+    "art": "/library/metadata/2222222/art/1600000000",
+    "duration": 7200000,
+    "originallyAvailableAt": "2000-01-02",
+    "addedAt": 1600000000,
+    "updatedAt": 1600000000,
+    "audienceRatingImage": "themoviedb://image.rating",
+    "primaryExtraKey": "/library/metadata/5555555",
+    "Image": [
+      {
+        "alt": "Film Title",
+        "type": "coverPoster",
+        "url": "/library/metadata/2222222/thumb/1600000000"
+      }
+    ],
+    "UltraBlurColors": {
+      "topLeft": "111111",
+      "topRight": "222222",
+      "bottomRight": "333333",
+      "bottomLeft": "444444"
+    },
+    "Genre": [
+      {
+        "id": 11111,
+        "filter": "genre=11111",
+        "tag": "Genre",
+        "count": 1
+      }
+    ],
+    "Country": [
+      {
+        "id": 11111,
+        "filter": "country=11111",
+        "tag": "Country",
+        "count": 1
+      }
+    ],
+    "Guid": [
+      {
+        "id": "imdb://tt0000001"
+      },
+      {
+        "id": "tmdb://1"
+      },
+      {
+        "id": "tvdb://2"
+      }
+    ],
+    "Rating": [
+      {
+        "image": "imdb://image.rating",
+        "value": 7.0,
+        "type": "audience",
+        "count": 1000
+      }
+    ],
+    "Director": [
+      {
+        "id": 11111,
+        "filter": "director=11111",
+        "tag": "Director Name",
+        "tagKey": "cccccccccccccccccccccccc",
+        "count": 1,
+        "thumb": "https://metadata-static.plex.tv/people/dddddddddddddddddddddddddddddddd.jpg"
+      }
+    ],
+    "Writer": [
+      {
+        "id": 11111,
+        "filter": "writer=11111",
+        "tag": "Writer Name",
+        "tagKey": "cccccccccccccccccccccccc",
+        "count": 1,
+        "thumb": "https://metadata-static.plex.tv/people/dddddddddddddddddddddddddddddddd.jpg"
+      }
+    ],
+    "Role": [
+      {
+        "id": 11111,
+        "filter": "actor=11111",
+        "tag": "Actor Name",
+        "tagKey": "cccccccccccccccccccccccc",
+        "count": 1,
+        "role": "Character Name",
+        "thumb": "https://metadata-static.plex.tv/people/dddddddddddddddddddddddddddddddd.jpg"
+      }
+    ],
+    "Producer": [
+      {
+        "id": 11111,
+        "filter": "producer=11111",
+        "tag": "Producer Name",
+        "tagKey": "cccccccccccccccccccccccc",
+        "count": 1,
+        "thumb": "https://metadata-static.plex.tv/people/dddddddddddddddddddddddddddddddd.jpg"
+      }
+    ],
+    "Label": [
+      {
+        "id": 11111,
+        "filter": "label=11111",
+        "tag": "Label",
+        "count": 1
+      }
+    ],
+    "CommonSenseMedia": [
+      {
+        "id": 1111111,
+        "oneLiner": "A one-line review.",
+        "AgeRating": [
+          {
+            "type": "official",
+            "rating": 4,
+            "age": 12
+          }
+        ]
+      }
+    ],
+    "Field": [
+      {
+        "locked": true,
+        "name": "thumb"
+      }
+    ]
+  }
+}

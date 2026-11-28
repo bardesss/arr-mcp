@@ -37,7 +37,9 @@ export async function syncPlays(servers: MediaServers, store: PlayHistory): Prom
             // Plex's history keeps every play, so its full read stands in for
             // what is stored, and rebuilding from it is what drops rows 2.3
             // stored wrongly: music tracks, and a film stored twice around its
-            // deletion. Jellyfin's log forgets after 30 days, so its rows stay.
+            // deletion. What a webhook stored before it that the history lacks,
+            // a song or a deleted film's ids, goes with them. Jellyfin's log
+            // forgets after 30 days, so its rows stay.
             // A read cut short at its backstop is not the whole history, so it
             // adds to what is stored instead of replacing it.
             store.record(adapter.id, user, plays, { replace: full && !truncated && adapter.type === 'plex' });

@@ -1,0 +1,66 @@
+{
+  "event": "media.scrobble",
+  "user": true,
+  "owner": true,
+  "Account": {
+    "id": 11111111,
+    "thumb": "https://plex.tv/users/aaaaaaaaaaaaaaaa/avatar?c=1111111111",
+    "title": "user"
+  },
+  "Server": {
+    "title": "server",
+    "uuid": "1111111111111111111111111111111111111111"
+  },
+  "Player": {
+    "local": false,
+    "publicAddress": "192.0.2.10",
+    "title": "Player",
+    "uuid": "bbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "Metadata": {
+    "librarySectionType": "artist",
+    "ratingKey": "2222222",
+    "key": "/library/metadata/2222222",
+    "parentRatingKey": "3333333",
+    "grandparentRatingKey": "4444444",
+    "guid": "plex://track/aaaaaaaaaaaaaaaaaaaaaaaa",
+    "parentGuid": "plex://album/bbbbbbbbbbbbbbbbbbbbbbbb",
+    "grandparentGuid": "plex://artist/cccccccccccccccccccccccc",
+    "parentStudio": "Record Label",
+    "type": "track",
+    "title": "Track Title",
+    "grandparentKey": "/library/metadata/4444444",
+    "parentKey": "/library/metadata/3333333",
+    "librarySectionTitle": "Songs",
+    "librarySectionID": 3,
+    "librarySectionKey": "/library/sections/3",
+    "grandparentTitle": "Artist Name",
+    "parentTitle": "Album Title",
+    "summary": "",
+    "index": 4,
+    "parentIndex": 1,
+    "ratingCount": 1000,
+    "viewCount": 2,
+    "lastViewedAt": 1700000000,
+    "parentYear": 2000,
+    "thumb": "/library/metadata/2222222/thumb/1600000000",
+    "art": "/library/metadata/2222222/art/1600000000",
+    "parentThumb": "/library/metadata/3333333/thumb/1600000000",
+    "grandparentThumb": "/library/metadata/4444444/thumb/1600000000",
+    "grandparentArt": "/library/metadata/4444444/art/1600000000",
+    "addedAt": 1600000000,
+    "updatedAt": 1600000000,
+    "Image": [
+      {
+        "alt": "Track Title",
+        "type": "coverPoster",
+        "url": "/library/metadata/2222222/thumb/1600000000"
+      }
+    ],
+    "Guid": [
+      {
+        "id": "mbid://aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+      }
+    ]
+  }
+}

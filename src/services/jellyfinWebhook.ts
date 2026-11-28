@@ -1,5 +1,6 @@
 import { fenceText } from '../core/fence.ts';
-import type { PlayRecord } from '../core/playHistory.ts';
+import { recordIds, type WebhookPlay } from '../core/playHistory.ts';
+import { IMDB_ID, text, whole } from './webhookFields.ts';
 
 /**
  * A Jellyfin Webhook plugin payload from its Generic destination. With "Send
@@ -46,18 +47,6 @@ export const JELLYFIN_PLAY_TEMPLATE = JSON.stringify({
     Artist: '{{Artist}}'
 });
 
-const text = (v: unknown): string | undefined => {
-    if (typeof v === 'number') return String(v);
-    if (typeof v !== 'string') return undefined;
-    const t = v.trim();
-    return t === '' ? undefined : t;
-};
-
-const whole = (v: unknown): number | undefined => {
-    const t = text(v);
-    return t !== undefined && /^\d+$/.test(t) ? Number(t) : undefined;
-};
-
 /**
  * Jellyfin's API gives ids as 32 lowercase hex; a .NET Guid printed by the
  * plugin may be dashed or upper case. One form, or the same item and user
@@ -67,8 +56,6 @@ const jellyfinId = (v: unknown): string | undefined => {
     const id = text(v)?.replaceAll('-', '').toLowerCase();
     return id !== undefined && /^[0-9a-f]{32}$/.test(id) ? id : undefined;
 };
-
-type JellyfinPlay = { userId: string; record: PlayRecord };
 
 /**
  * A finished play as a store record, or `undefined` for anything else the
@@ -85,7 +72,7 @@ type JellyfinPlay = { userId: string; record: PlayRecord };
  * series' year (which is what the plugin sends) and no ids, since the ids it
  * sends are the episode's and the store keeps the series' on an episode.
  */
-export function parseJellyfinPlay(service: string, body: unknown): JellyfinPlay | undefined {
+export function parseJellyfinPlay(service: string, body: unknown): WebhookPlay | undefined {
     const p = (body ?? {}) as JellyfinPlayPayload;
     if (text(p.NotificationType) !== 'PlaybackStop') return undefined;
     if (!/^true$/i.test(text(p.PlayedToCompletion) ?? '')) return undefined;
@@ -138,18 +125,15 @@ export function parseJellyfinPlay(service: string, body: unknown): JellyfinPlay 
         };
     }
 
-    const tmdb = whole(p.Provider_tmdb);
-    const tvdb = whole(p.Provider_tvdb);
     const imdb = text(p.Provider_imdb);
-    const imdbOk = imdb !== undefined && /^tt\d+$/.test(imdb);
-    const ids = { ...(tmdb === undefined ? {} : { tmdb }), ...(tvdb === undefined ? {} : { tvdb }), ...(imdbOk ? { imdb } : {}) };
+    const ids = recordIds({ tmdb: whole(p.Provider_tmdb), tvdb: whole(p.Provider_tvdb), imdb: imdb !== undefined && IMDB_ID.test(imdb) ? imdb : undefined });
     return {
         userId,
         record: {
             entry,
             kind: 'movie',
             ...(year === undefined ? {} : { year }),
-            ...(Object.keys(ids).length === 0 ? {} : { ids })
+            ...(ids === undefined ? {} : { ids })
         }
     };
 }

@@ -99,32 +99,38 @@ startup log keeps the key, so it can hold a secret written that way.
 
 ## The library event log
 
-Off by default. While it's off, `/webhooks/*` answers 404 to everyone. While it's
-on, Radarr, Sonarr and Lidarr post to it, so it takes requests with neither a session nor
-an MCP token.
+Off by default. While it's off, `/webhooks/*` answers 404 to everyone. While
+it's on, Radarr, Sonarr and Lidarr post events to it and Jellyfin and Plex can
+post plays, so it takes requests with neither a session nor an MCP token.
 
 **How a request is authenticated.** HTTP Basic, because that's what an *arr can
-send on a webhook. Any username works and the password is compared in constant
-time against `webhooks.secret`. An unauthenticated caller gets a 401 before the
-instance is looked up, so it can't find out which instances exist. The Host
-allowlist applies, and a body has a 256 KiB limit.
+send on a webhook. Plex can send only a URL, so for Plex the username and
+password go in it, and Plex sends them as that header; Plex keeps that URL,
+password included, with the account's webhooks. Any username works and the
+password is compared in constant time against `webhooks.secret`. An
+unauthenticated caller gets a 401 before the instance is looked up, so it can't
+find out which instances exist. The Host allowlist applies, and a body has a
+256 KiB limit.
 
 **Only failures are throttled.** After repeated wrong secrets those attempts get a
 429, but the right secret always passes, so wrong ones cannot cost you real
 events.
 
 **The secret is the exception to two rules.** It's stored in plain text like a
-service `api_key` rather than hashed like an MCP token, and the config page renders
-it back, masked with CSS and with a button to show it, to a signed-in user, because
-it has to be pasted into each service. The management API doesn't return it. All it can do is add rows to the
-event log.
+service `api_key` rather than hashed like an MCP token, and the config page
+renders it back, masked with CSS and with a button to show it, to a signed-in
+user, because it has to be pasted into each service. The management API doesn't
+return it. All it can do is add rows to the event log, add or update rows in the
+play store, and make arr-mcp read Plex's server id.
 
-**What's stored.** Only named fields: the event, title, internal and external ids,
-download id, quality, indexer and delete reason. Paths, URLs, release names and the
-instance name are never read, so a credential in one of them doesn't reach
-`events.db`. Titles, indexer names and reasons are fenced as upstream text. The
-payload doesn't say who deleted something, and so neither does the log. Events are
-pruned by age and by row count.
+**What's stored.** Only named fields: the event, title, internal and external
+ids, download id, quality, indexer and delete reason. Paths, URLs, release names
+and the instance name are never read, so a credential in one of them doesn't
+reach `events.db`. Titles, indexer names and reasons are fenced as upstream
+text. The payload doesn't say who deleted something, and so neither does the
+log. Events are pruned by age and by row count. A play from Jellyfin or Plex
+keeps the item, its titles and numbering, its year and ids, when it was played
+and the user's name; nothing about the device or where it played from is read.
 
 ## MCP02 Privilege Escalation via Scope Creep
 

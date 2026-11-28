@@ -166,7 +166,7 @@ export function externalIds(item: RawPlexItem): { tmdb?: number; tvdb?: number; 
     return out;
 }
 
-type RawIdentity = { MediaContainer?: { version?: string } };
+type RawIdentity = { MediaContainer?: { version?: string; machineIdentifier?: string } };
 type RawAccount = { id?: number; name?: string };
 type RawSection = {
     key?: string;
@@ -228,8 +228,12 @@ const PLEX_TYPE_ARTIST = 8;
 const PAGE_SIZE = 500;
 const LOCK_READ_BATCH = 8;
 
-/** The server owner's fixed id in Plex's `/accounts` response. */
-const OWNER_ACCOUNT_ID = 1;
+/**
+ * The server owner's fixed id in Plex's `/accounts` response, and the
+ * `accountID` its history gives the owner's plays. A play from a webhook is
+ * kept under it too, so it lands on the row the hourly sync keeps.
+ */
+export const OWNER_ACCOUNT_ID = 1;
 
 export class PlexAdapter
     implements
@@ -252,6 +256,7 @@ export class PlexAdapter
     readonly #http: ServiceHttp;
     readonly #defaultUser: string | undefined;
     #warnedUnverifiedOwner = false;
+    #machineIdentifier: string | undefined;
 
     constructor(config: Omit<ConfigByService['plex'], 'allow_metadata_repair'>, fetchImpl: typeof fetch = fetch) {
         this.#http = new ServiceHttp('plex', config, plexToken(config.api_key), fetchImpl);
@@ -260,11 +265,32 @@ export class PlexAdapter
 
     async getVersion(): Promise<string> {
         const body = await this.#http.get<RawIdentity>('/identity');
+        this.#keepMachineIdentifier(body);
         const version = body.MediaContainer?.version;
         if (version === undefined) {
             throw new ServiceError('UpstreamError', this.id, '/identity returned no version field');
         }
         return version;
+    }
+
+    /**
+     * The server's own id, which a webhook names as `Server.uuid`. Kept once
+     * read, here or by `getVersion` from the same endpoint, so a webhook costs
+     * no request after the first. A failed or empty read is not kept, so the
+     * next call asks again.
+     */
+    async machineIdentifier(): Promise<string> {
+        if (this.#machineIdentifier !== undefined) return this.#machineIdentifier;
+        this.#keepMachineIdentifier(await this.#http.get<RawIdentity>('/identity'));
+        if (this.#machineIdentifier === undefined) {
+            throw new ServiceError('UpstreamError', this.id, '/identity returned no machineIdentifier');
+        }
+        return this.#machineIdentifier;
+    }
+
+    #keepMachineIdentifier(body: RawIdentity): void {
+        const id = body.MediaContainer?.machineIdentifier;
+        if (typeof id === 'string' && id !== '') this.#machineIdentifier = id;
     }
 
     /**
