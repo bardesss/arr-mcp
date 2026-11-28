@@ -728,6 +728,55 @@ export const hasCleanup = (a: ServiceAdapter): a is ServiceAdapter & CleanupCapa
     typeof (a as Partial<CleanupCapable>).readCleanupStatus === 'function';
 
 /**
+ * Why an automation service (SuggestArr) filed a request. `similar`: TMDB
+ * recommended it from a title someone watched, `sourceTmdbId`, of the same
+ * kind. The other reasons are SuggestArr's job types with no watched title.
+ */
+export type RequestOrigin = {
+    service: string;
+    requestedAt: string;
+    reason: 'similar' | 'discover' | 'list_import' | 'trakt' | 'ai' | 'unknown';
+    sourceTmdbId?: number;
+};
+
+/** One automation job and the limits that cap what one run of it requests. */
+export type AutomationJob = {
+    id: string;
+    name: string; // fenced
+    /** SuggestArr's job type: recommendation, discover, trakt_recommendations or list_import. */
+    type: string;
+    enabled: boolean;
+    /** `daily`, or a cron expression. */
+    schedule: string;
+    mediaType: string;
+    /** Titles one run may consider. */
+    maxResults?: number;
+    /** Requests per watched title: films and series. Absent when the job takes SuggestArr's global setting, which its API does not expose. */
+    maxSimilarMovie?: number;
+    maxSimilarTv?: number;
+    /** Per media user in `requestLimitWindowHours`; absent when the guardrail is off. */
+    maxRequestsPerUser?: number;
+    requestLimitWindowHours?: number;
+    /** The newest run. `at` is the service's local time, which it writes with no offset. */
+    lastRun?: { status: string; at: string; requested: number; error?: string };
+};
+
+export type AutomationOverview = {
+    service: string;
+    jobs: AutomationJob[];
+    requests?: { today: number; thisWeek: number; thisMonth: number; total: number };
+};
+
+export interface RequestAutomationCapable {
+    readAutomationOverview(): Promise<AutomationOverview>;
+    /** The newest request this service filed for the title, or `undefined` when it filed none. */
+    readRequestOrigin(kind: 'movie' | 'series', tmdbId: number): Promise<RequestOrigin | undefined>;
+}
+
+export const hasRequestAutomation = (a: ServiceAdapter): a is ServiceAdapter & RequestAutomationCapable =>
+    typeof (a as Partial<RequestAutomationCapable>).readRequestOrigin === 'function';
+
+/**
  * A torrent indexer's seed criteria. An *arr hands these to the client with
  * each grab, overriding the client default; absent means the default applies.
  * Prowlarr's are pushed into each app's copy when it syncs.
@@ -788,7 +837,8 @@ export const HISTORY_EVENT_TYPES = [
     'scheduled',
     'protected',
     'metadata',
-    'scanned'
+    'scanned',
+    'requested'
 ] as const;
 export type HistoryEventType = (typeof HISTORY_EVENT_TYPES)[number];
 

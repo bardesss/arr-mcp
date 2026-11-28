@@ -171,7 +171,9 @@ describe('assertVersionSupported against captured evidence', () => {
         reclaimerr: (read('test/fixtures/reclaimerr/system.json') as { version: string }).version,
         dispatcharr: (read('test/fixtures/dispatcharr/version.json') as { version: string }).version,
         shelfmark: (read('test/fixtures/shelfmark/config.json') as { release_version: string }).release_version,
-        grimmory: (read('test/fixtures/grimmory/healthcheck.json') as { data: { version: string } }).data.version.replace(/^v/, '')
+        grimmory: (read('test/fixtures/grimmory/healthcheck.json') as { data: { version: string } }).data.version.replace(/^v/, ''),
+        // SuggestArr's API reports no version, so there is nothing captured to check the floor against.
+        suggestarr: '2.11.0'
     };
 
     for (const [service, version] of Object.entries(captured)) {

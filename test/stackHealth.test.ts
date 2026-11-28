@@ -166,6 +166,7 @@ describe('get_stack_health primary media server', () => {
             'endpoints',
             'seedingRules',
             'cleanup',
+            'automation',
             'cleanuparrRemovals',
             'logs',
             'degraded'

@@ -94,7 +94,10 @@ export const MINIMUM_VERSIONS: Record<ServiceId, string> = {
     // /api/stats is refused on the 404 instead.
     shelfmark: '1.5.0',
     // Written against tag v3.5.0 and captured live on v3.5.0 (2026-11-07).
-    grimmory: '3.5.0'
+    grimmory: '3.5.0',
+    // 2.11.0 (2026-08-03) added the public /api/v1 and named API keys, the only routes this adapter
+    // reads besides /api/health. Neither reports a version, so this floor goes unchecked on a live server.
+    suggestarr: '2.11.0'
 };
 
 /** Digits only; a build suffix such as Transmission's "(838877323f)" is dropped. */

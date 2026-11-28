@@ -30,7 +30,8 @@ const DISPLAY: Record<ServiceId, readonly string[]> = {
     reclaimerr: ['Reclaimerr'],
     dispatcharr: ['Dispatcharr'],
     shelfmark: ['Shelfmark'],
-    grimmory: ['Grimmory', 'Bookdrop']
+    grimmory: ['Grimmory', 'Bookdrop'],
+    suggestarr: ['SuggestArr']
 };
 
 /**

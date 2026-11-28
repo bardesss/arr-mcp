@@ -1270,6 +1270,41 @@ const CONTRACTS: Record<string, ServiceContract> = {
             { path: '/api/releases/download', fixture: 'test/fixtures/shelfmark/download.json', fields: ['status'] }
         ]
     },
+    // Hand-written against fixtures captured live from v3.5.0 (2026-11-27). The public /api/v1 serves OpenAPI
+    // at runtime; the adapter reads few enough fields that it is not vendored.
+    suggestarr: {
+        dependencies: [
+            { path: '/api/health', fixture: 'test/fixtures/suggestarr/health.json', fields: ['arr', 'db', 'seer', 'tmdb', 'status'] },
+            { path: '/api/v1/me', fixture: 'test/fixtures/suggestarr/me.json', fields: ['data.role'] },
+            {
+                path: '/api/v1/jobs',
+                fixture: 'test/fixtures/suggestarr/jobs.json',
+                fields: [
+                    'data.id',
+                    'data.name',
+                    'data.job_type',
+                    'data.enabled',
+                    'data.media_type',
+                    'data.schedule_value',
+                    'data.max_results',
+                    'data.max_requests_per_user',
+                    'data.request_limit_window_hours',
+                    // `filters.max_similar_movie` and `_tv` are read too, but only the Default Automation job
+                    // carries them: a job made in the UI has `filters: {}` and falls back to the global setting.
+                    'data.filters',
+                    'meta.pages'
+                ]
+            },
+            { path: '/api/v1/runs', fixture: 'test/fixtures/suggestarr/runs.json', fields: ['data.job_id', 'data.status', 'data.started_at', 'data.requested_count', 'data.error_message'] },
+            {
+                path: '/api/v1/requests',
+                fixture: 'test/fixtures/suggestarr/requests.json',
+                fields: ['data.tmdb_id', 'data.media_type', 'data.title', 'data.source_media_id', 'data.requested_at', 'meta.pages']
+            },
+            { path: '/api/v1/requests/stats', fixture: 'test/fixtures/suggestarr/requests-stats.json', fields: ['data.today', 'data.this_week', 'data.this_month', 'data.total'] },
+            { path: '/api/v1/installation/stats', fixture: 'test/fixtures/suggestarr/installation-stats.json', fields: ['data.queue.failed'] }
+        ]
+    },
     // The v3.5.0 spec, vendored from the release. Fixtures are the maintainer's live v3.5.0.
     grimmory: {
         spec: 'specs/grimmory.json',

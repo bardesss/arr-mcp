@@ -219,6 +219,14 @@ export const CATALOG: readonly CatalogEntry[] = [
         identify: titled('Reclaimerr')
     },
     {
+        type: 'suggestarr',
+        port: 5000,
+        containerNames: ['suggestarr'],
+        // Needs no key and names the service; it reports no version.
+        path: '/api/v1/status',
+        identify: r => (asObject(jsonObject(r)?.data)?.service === 'SuggestArr' ? matched() : undefined)
+    },
+    {
         type: 'dispatcharr',
         port: 9191,
         containerNames: ['dispatcharr'],

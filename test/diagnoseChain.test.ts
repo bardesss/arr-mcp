@@ -63,6 +63,7 @@ const healthy = (over: EvidenceOverride = {}): Evidence => {
     const merged: Record<string, unknown> = {
         item: item(),
         request: null,
+        seerrConfigured: true,
         queue: { items: [], partial: [] },
         queueConfigured: true,
         rejections: [],
@@ -411,6 +412,7 @@ describe('buildChain — certainty', () => {
         const d = buildChain('some film', {
             item: item({ acquisition: { service: 'radarr', monitored: true, hasFile: false } }),
             request: undefined,
+            seerrConfigured: true,
             queue: { items: [], partial: [] },
             queueConfigured: true,
             rejections: [],
@@ -508,6 +510,7 @@ describe('buildChain — certainty', () => {
         const d = buildChain('some film', {
             item: undefined,
             request: null,
+            seerrConfigured: true,
             queue: { items: [], partial: [] },
             queueConfigured: true,
             rejections: [],
@@ -3412,5 +3415,31 @@ describe('wholeRemoval', () => {
     it('compares times as instants, so an import half a second earlier does not hide the removal', () => {
         expect(wholeRemoval(status, '2026-11-02T02:00:05Z')).toBe(removal);
         expect(wholeRemoval(status, '2026-11-02T02:00:06Z')).toBeUndefined();
+    });
+});
+
+describe('buildChain: who filed the request', () => {
+    const origin = { service: 'suggestarr', requestedAt: '2026-11-26T13:01:12.000Z', reason: 'similar' as const, sourceTmdbId: 1727734 };
+
+    it('adds SuggestArr to a Seerr request it filed', () => {
+        const d = buildChain('some film', healthy({ request: { status: 'approved', id: 7, mayRespond: false }, requestOrigin: origin }));
+        expect(stepFor(d, 'request')?.detail).toBe('The request is approved. suggestarr requested it on 2026-11-26, similar to a watched title (TMDB 1727734).');
+    });
+
+    it('says so when Seerr holds no request SuggestArr says it filed', () => {
+        const d = buildChain('some film', healthy({ request: null, requestOrigin: origin }));
+        expect(stepFor(d, 'request')).toMatchObject({ status: 'skipped', detail: expect.stringMatching(/^No Seerr request matched\. suggestarr requested it/) as unknown });
+    });
+
+    it('does not speak for Seerr when none is configured', () => {
+        const d = buildChain('some film', healthy({ request: null, seerrConfigured: false, requestOrigin: origin }));
+        expect(stepFor(d, 'request')?.detail).toBe(
+            'No request recorded. Not everything arrives through Seerr. suggestarr requested it on 2026-11-26, similar to a watched title (TMDB 1727734).'
+        );
+    });
+
+    it('leaves the step alone without one', () => {
+        const d = buildChain('some film', healthy({ request: null }));
+        expect(stepFor(d, 'request')?.detail).toBe('No request recorded. Not everything arrives through Seerr.');
     });
 });

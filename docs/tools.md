@@ -14,7 +14,7 @@ off until you turn them on; see [writes](writes.md).
 | `get_library` | What's in my library: joined across Radarr, Sonarr, Lidarr and your media server, and where they disagree; Lidarr artists are their own kind, joined by MusicBrainz id; Grimmory books are their own kind too |
 | `get_profile_issues` | Which quality profiles and custom formats are misconfigured, and where Profilarr has drifted from Radarr/Sonarr |
 | `get_queue` | What is downloading, across the *arr queues and every download client, and what waits in Grimmory's Bookdrop |
-| `get_history` | Why did last night's download fail: grabbed, imported, failed, deleted, and what SABnzbd, NZBGet, Bazarr, Cleanuparr, Reclaimerr and Shelfmark did; on Grimmory, deleted books, metadata changes and scans |
+| `get_history` | Why did last night's download fail: grabbed, imported, failed, deleted, and what SABnzbd, NZBGet, Bazarr, Cleanuparr, Reclaimerr and Shelfmark did, and what SuggestArr requested; on Grimmory, deleted books, metadata changes and scans |
 | `get_wanted` | Which episodes of a show are missing, and what has a file below cutoff |
 | `get_releases` | What an interactive search actually found, rejects included; on Shelfmark, the files on offer for a book |
 | `get_blocklist` | Why does it keep finding the same release and never downloading it |
@@ -611,6 +611,15 @@ title scheduled for deletion, or eligible at the next deletion run, the summary
 says so with the date and the rule. Neither blocks a playable verdict, and a
 Reclaimerr that cannot be read only adds it to `degraded`.
 
+With SuggestArr configured, the request step says when SuggestArr requested the
+title and why, for example "suggestarr requested it on 2026-11-26, similar to a
+watched title (TMDB 1727734)", matched on the title's kind and TMDB id. It
+follows Seerr's own sentence, and with a Seerr configured it replaces "No
+request recorded" with "No Seerr request matched" when SuggestArr filed one
+Seerr no longer holds; with no Seerr to ask, the step keeps its own sentence and
+the SuggestArr one is added to it. It never changes the verdict, and a
+SuggestArr that cannot be read is left out rather than added to `degraded`.
+
 With Bazarr configured, `diagnose_media` ends with a `subtitles` step for a title that
 has a file. It lists the languages Bazarr is missing for it and is `warning`, not
 `blocked`: the verdict stays where the other stages put it, a playable title is
@@ -729,8 +738,8 @@ credentials runs beside `config.yaml` and imports `loadConfig`.
 `failures` carries what each service says is wrong with itself. Radarr,
 Sonarr, Whisparr, Lidarr, Prowlarr and Bazarr report their own health checks,
 NZBGet its `systemhealth` alerts (v26 and later), and Cleanuparr, Reclaimerr,
-Dispatcharr and Shelfmark their own status (see [Dispatcharr](#dispatcharr) and
-[Shelfmark](#shelfmark) below). Grimmory reports unreachable libraries, old
+Dispatcharr, Shelfmark and SuggestArr their own status (see [Dispatcharr](#dispatcharr),
+[Shelfmark](#shelfmark) and [SuggestArr](#suggestarr) below). Grimmory reports unreachable libraries, old
 Bookdrop files and a newer release (see [Grimmory](#grimmory) below).
 
 Sonarr adds one of its own: a warning, from one read of its naming config, when
@@ -975,6 +984,30 @@ candidates than one read takes (5,000), they are read again filtered to those
 two states, since Reclaimerr lists newest-created first and has no sort; if even
 that runs past the cap, `going.capped` is set, `count` is a floor, and the
 summary says the first goes on or before `firstAt`.
+
+### SuggestArr
+
+With SuggestArr configured, its findings join the failing checks:
+
+| Finding | Level |
+|---|---|
+| Its own health check reports Seerr, TMDB, its database, Radarr or Sonarr as anything but `ok` (an unconfigured LLM is fine) | error |
+| A job's last run failed, with SuggestArr's error | error |
+| Every job is disabled, so nothing is requested automatically | warning |
+| Suggestions it could not file in Seerr (administrator key only) | warning |
+
+At `full`, `automation` says what it requests on its own: each job with its
+`type`, `enabled`, `schedule` (`daily` or a cron expression), `maxResults`,
+`maxSimilarMovie` and `maxSimilarTv` (requests per watched title), and
+`maxRequestsPerUser` with `requestLimitWindowHours` when that guardrail is on.
+A job without `maxSimilarMovie` or `maxSimilarTv` takes SuggestArr's global
+setting, which arr-mcp does not read: it sits in the same settings body as the
+TMDB, Seerr and media server keys. `lastRun` is the newest run with its status
+and request count; its `at` is the SuggestArr server's local time, which it
+writes with no offset. `requests` counts what it requested today, this week,
+this month and in total. The summary line names each enabled job and its limits.
+
+SuggestArr's API reports no version, so its row in `services` has none.
 
 ### Dispatcharr
 
@@ -1746,7 +1779,7 @@ qBittorrent `private` needs 5.0 or later.
 
 `get_queue` only sees what is still in flight. `get_history` merges Radarr's, Sonarr's, Whisparr's and Lidarr's own history logs with SABnzbd's,
 NZBGet's, Bazarr's, Cleanuparr's, Reclaimerr's and Shelfmark's, plus Grimmory's
-audit log, and is the only tool that can answer "why did last night's download
+audit log and the requests SuggestArr filed, and is the only tool that can answer "why did last night's download
 fail".
 
 Radarr's and Sonarr's events are normalised to one vocabulary: `grabbed`,
@@ -1806,6 +1839,17 @@ would keep its oldest and drop its newest, so arr-mcp halves it towards now
 until it fits; what falls before the narrowed start is left out. Passing
 `id` with `service: reclaimerr` is refused: its events are per candidate, not
 per movie or series, and `get_media_details` shows one title's cleanup state.
+
+### SuggestArr
+
+SuggestArr contributes the requests it filed in Seerr, as `requested` rows with
+the title's TMDB id in `externalIds`. `reason` says why: `similar to a watched
+title (TMDB <id>)` when TMDB recommended it from something a household member
+watched, or the job that found it (a Discover job, an imported list, Trakt
+recommendations, its AI recommender). The id is the watched title's, of the same
+kind. Who watched it is not returned. Its API has no
+date filter, so the whole list is read (up to 2,000 requests, newest first) and
+`since` is applied here. Passing `id` with `service: suggestarr` is refused.
 
 ### Shelfmark
 

@@ -1,0 +1,52 @@
+{
+  "data": {
+    "jobs": {
+      "by_type": {
+        "discover": 0,
+        "list_import": 0,
+        "recommendation": 2,
+        "trakt_recommendations": 0
+      },
+      "disabled": 0,
+      "enabled": 2,
+      "system": 0,
+      "total": 2
+    },
+    "queue": {
+      "failed": 0,
+      "queued": 0,
+      "submitted": 8,
+      "submitting": 0,
+      "total": 8,
+      "total_pending": 0
+    },
+    "requests": {
+      "this_month": 8,
+      "this_week": 8,
+      "today": 0,
+      "total": 8
+    },
+    "runs": {
+      "by_status": {
+        "completed": 4,
+        "failed": 0,
+        "queued": 0,
+        "running": 0,
+        "skipped": 0
+      },
+      "total": 4
+    },
+    "suggestions": {
+      "by_status": {
+        "awaiting_approval": 0,
+        "blacklisted": 0,
+        "failed": 0,
+        "queued": 0,
+        "rejected": 0,
+        "submitted": 8,
+        "submitting": 0
+      },
+      "total": 8
+    }
+  }
+}

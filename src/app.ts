@@ -108,6 +108,7 @@ const ROLES: readonly (readonly [ServiceId, string])[] = [
     ['deluge', 'Deluge downloads'],
     ['cleanuparr', 'Cleanuparr cleanup'],
     ['reclaimerr', 'Reclaimerr cleanup'],
+    ['suggestarr', 'SuggestArr automated requests'],
     ['dispatcharr', 'Dispatcharr live TV']
 ];
 

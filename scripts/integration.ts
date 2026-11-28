@@ -41,6 +41,7 @@ import { TOOL_NAMES } from '../src/tools/register.ts';
 import { ProfilarrAdapter } from '../src/services/profilarr.ts';
 import { CleanuparrAdapter } from '../src/services/cleanuparr.ts';
 import { ReclaimerrAdapter } from '../src/services/reclaimerr.ts';
+import { SuggestarrAdapter } from '../src/services/suggestarr.ts';
 import { DispatcharrAdapter } from '../src/services/dispatcharr.ts';
 import { ShelfmarkAdapter } from '../src/services/shelfmark.ts';
 import { BOOK_MATCH_THRESHOLD, GrimmoryAdapter } from '../src/services/grimmory.ts';
@@ -1079,6 +1080,35 @@ if (config.services?.reclaimerr !== undefined) {
     }
 } else {
     console.log('SKIP reclaimerr — not configured.');
+}
+
+/**
+ * SuggestArr, read only: the key check, health findings, its jobs and their
+ * limits, and the requests it filed. GETs only; no run is started.
+ */
+if (config.services?.suggestarr !== undefined) {
+    const started = performance.now();
+    try {
+        const suggestarr = new SuggestarrAdapter(config.services.suggestarr);
+        const diagnosis = await suggestarr.testConnection();
+        if (!diagnosis.ok) throw new Error(diagnosis.error?.detail ?? 'connection test failed');
+        const findings = await suggestarr.getFailedHealthChecks();
+        const overview = await suggestarr.readAutomationOverview();
+        const history = await suggestarr.readHistory({ want: 20 });
+        const first = history.items[0]?.externalIds?.tmdb;
+        const kind = history.items[0]?.id.startsWith('tv:') ? 'series' : 'movie';
+        const origin = first === undefined ? undefined : await suggestarr.readRequestOrigin(kind, first);
+        const ms = Math.round(performance.now() - started);
+        console.log(
+            `PASS suggestarr: ${findings.length} finding(s), ${overview.jobs.length} job(s), ${history.items.length} request(s), newest ${origin?.reason ?? 'none'} (${ms}ms)`
+        );
+        passes += 1;
+    } catch (err) {
+        console.error(`FAIL suggestarr: ${redactHosts((err as Error).message, hosts)}`);
+        failures += 1;
+    }
+} else {
+    console.log('SKIP suggestarr: not configured.');
 }
 
 /**

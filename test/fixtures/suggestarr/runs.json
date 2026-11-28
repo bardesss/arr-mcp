@@ -1,0 +1,58 @@
+{
+  "data": [
+    {
+      "error_message": null,
+      "finished_at": "2026-11-27T00:00:01.930536",
+      "id": 4,
+      "job_id": 1,
+      "job_name": "Default Automation",
+      "requested_count": 0,
+      "results_count": 0,
+      "started_at": "2026-11-27T00:00:00.247708",
+      "status": "completed",
+      "trigger_source": null
+    },
+    {
+      "error_message": null,
+      "finished_at": "2026-11-27T00:00:01.868466",
+      "id": 3,
+      "job_id": 2,
+      "job_name": "Automatic Recommendations",
+      "requested_count": 1,
+      "results_count": 1,
+      "started_at": "2026-11-27T00:00:00.246810",
+      "status": "completed",
+      "trigger_source": null
+    },
+    {
+      "error_message": null,
+      "finished_at": "2026-11-26T00:00:02.251771",
+      "id": 2,
+      "job_id": 2,
+      "job_name": "Automatic Recommendations",
+      "requested_count": 0,
+      "results_count": 0,
+      "started_at": "2026-11-26T00:00:00.259011",
+      "status": "completed",
+      "trigger_source": null
+    },
+    {
+      "error_message": null,
+      "finished_at": "2026-11-26T00:00:02.178733",
+      "id": 1,
+      "job_id": 1,
+      "job_name": "Default Automation",
+      "requested_count": 7,
+      "results_count": 7,
+      "started_at": "2026-11-26T00:00:00.257176",
+      "status": "completed",
+      "trigger_source": null
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "pages": 1,
+    "per_page": 20,
+    "total": 4
+  }
+}

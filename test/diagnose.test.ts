@@ -476,6 +476,36 @@ describe('diagnose', () => {
         expect(d.verdict.stage).toBe('request');
     });
 
+    it('says why SuggestArr requested the title, and an outage there costs no certainty', async () => {
+        const origin = { service: 'suggestarr', requestedAt: '2026-11-26T13:01:12.000Z', reason: 'similar', sourceTmdbId: 1727734 };
+        const asked: string[] = [];
+        const withOrigin = [
+            ...deps().adapters,
+            stub('suggestarr', {
+                readAutomationOverview: async () => ({ service: 'suggestarr', jobs: [] }),
+                readRequestOrigin: async (kind: string, id: number) => {
+                    asked.push(`${kind}:${id}`);
+                    return origin;
+                }
+            })
+        ];
+        const d = await buildDiagnose({ adapters: withOrigin, library: new LibraryLoader(withOrigin, undefined) }, { query: 'some film' });
+        expect(asked).toEqual(['movie:550']);
+        expect(d.steps.find(s => s.stage === 'request')?.detail).toContain('suggestarr requested it on 2026-11-26, similar to a watched title (TMDB 1727734).');
+
+        const down = [
+            ...deps().adapters,
+            stub('suggestarr', {
+                readRequestOrigin: async () => {
+                    throw new ServiceError('Unreachable', 'suggestarr', 'down');
+                }
+            })
+        ];
+        const quiet = await buildDiagnose({ adapters: down, library: new LibraryLoader(down, undefined) }, { query: 'some film' });
+        expect(quiet.degraded).toEqual([]);
+        expect(quiet.steps.find(s => s.stage === 'request')?.detail).not.toContain('suggestarr');
+    });
+
     it('does not count an unreachable Lidarr against a film', async () => {
         const adapters = [
             stub('radarr', { listLibrary: async () => [FILM], getQueue: async () => [], queueKind: 'movie' }),

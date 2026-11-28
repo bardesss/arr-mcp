@@ -1,0 +1,146 @@
+{
+  "data": [
+    {
+      "id": "999582",
+      "media_type": "movie",
+      "media_user": {
+        "id": "user2"
+      },
+      "metadata": {
+        "poster_path": "https://image.tmdb.org/t/p/w500/1Cg4G1iQpisGXmWqns5uo4I6fPk.jpg",
+        "rating": 6.039
+      },
+      "requested_at": "Thu, 26 Nov 2026 13:01:12 GMT",
+      "requested_by": "SuggestArr",
+      "source_media_id": "1727734",
+      "source_origin": null,
+      "title": "Babes",
+      "tmdb_id": "999582"
+    },
+    {
+      "id": "10370",
+      "media_type": "tv",
+      "media_user": {
+        "id": "user2"
+      },
+      "metadata": {
+        "poster_path": "https://image.tmdb.org/t/p/w500/AmOBNQXTMPsi3NvcadHxfM4xEVZ.jpg",
+        "rating": 6.206
+      },
+      "requested_at": "Wed, 25 Nov 2026 13:01:26 GMT",
+      "requested_by": "SuggestArr",
+      "source_media_id": "239618",
+      "source_origin": null,
+      "title": "The Hitchhiker",
+      "tmdb_id": "10370"
+    },
+    {
+      "id": "132016",
+      "media_type": "tv",
+      "media_user": {
+        "id": "user2"
+      },
+      "metadata": {
+        "poster_path": "https://image.tmdb.org/t/p/w500/mXjyayWXwALW9hRiJj4TLzlilaZ.jpg",
+        "rating": 6.364
+      },
+      "requested_at": "Wed, 25 Nov 2026 13:01:24 GMT",
+      "requested_by": "SuggestArr",
+      "source_media_id": "239618",
+      "source_origin": null,
+      "title": "Full Circle",
+      "tmdb_id": "132016"
+    },
+    {
+      "id": "879444",
+      "media_type": "movie",
+      "media_user": {
+        "id": "user2"
+      },
+      "metadata": {
+        "poster_path": "https://image.tmdb.org/t/p/w500/8XF5EIDUOZv1p9orukdyERvv2Qn.jpg",
+        "rating": 6.8
+      },
+      "requested_at": "Wed, 25 Nov 2026 13:01:21 GMT",
+      "requested_by": "SuggestArr",
+      "source_media_id": "1727734",
+      "source_origin": null,
+      "title": "Accident Man: Hitman's Holiday",
+      "tmdb_id": "879444"
+    },
+    {
+      "id": "133790",
+      "media_type": "movie",
+      "media_user": {
+        "id": "user2"
+      },
+      "metadata": {
+        "poster_path": "https://image.tmdb.org/t/p/w500/AtzfH2YCWVjyk3XjQqzLtUuZXEG.jpg",
+        "rating": 6.093
+      },
+      "requested_at": "Wed, 25 Nov 2026 13:01:19 GMT",
+      "requested_by": "SuggestArr",
+      "source_media_id": "1727734",
+      "source_origin": null,
+      "title": "Clear History",
+      "tmdb_id": "133790"
+    },
+    {
+      "id": "424510",
+      "media_type": "movie",
+      "media_user": {
+        "id": "user2"
+      },
+      "metadata": {
+        "poster_path": "https://image.tmdb.org/t/p/w500/cm5glzIq5F3OiYw6SZbD0P8cllz.jpg",
+        "rating": 6.12
+      },
+      "requested_at": "Wed, 25 Nov 2026 13:01:17 GMT",
+      "requested_by": "SuggestArr",
+      "source_media_id": "1727734",
+      "source_origin": null,
+      "title": "Mr. Roosevelt",
+      "tmdb_id": "424510"
+    },
+    {
+      "id": "582570",
+      "media_type": "movie",
+      "media_user": {
+        "id": "user2"
+      },
+      "metadata": {
+        "poster_path": "https://image.tmdb.org/t/p/w500/ztGSEcowBoHyRwcK0s5kIKVVXwy.jpg",
+        "rating": 6.187
+      },
+      "requested_at": "Wed, 25 Nov 2026 13:01:14 GMT",
+      "requested_by": "SuggestArr",
+      "source_media_id": "1727734",
+      "source_origin": null,
+      "title": "Sextuplets",
+      "tmdb_id": "582570"
+    },
+    {
+      "id": "15313",
+      "media_type": "movie",
+      "media_user": {
+        "id": "user2"
+      },
+      "metadata": {
+        "poster_path": "https://image.tmdb.org/t/p/w500/9X22sqQI5UAwajmSNH293avRtFr.jpg",
+        "rating": 6.794
+      },
+      "requested_at": "Wed, 25 Nov 2026 13:01:12 GMT",
+      "requested_by": "SuggestArr",
+      "source_media_id": "1727734",
+      "source_origin": null,
+      "title": "The Wrong Guy",
+      "tmdb_id": "15313"
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "pages": 1,
+    "per_page": 50,
+    "total": 8
+  }
+}

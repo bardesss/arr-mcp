@@ -26,6 +26,7 @@ const DISPLAY: Record<ServiceId, string> = {
   dispatcharr: 'Dispatcharr',
   shelfmark: 'Shelfmark',
   grimmory: 'Grimmory',
+  suggestarr: 'SuggestArr',
 };
 const NAMES = Object.values(DISPLAY);
 

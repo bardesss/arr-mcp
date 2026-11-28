@@ -1,0 +1,15 @@
+{
+  "data": {
+    "authentication": {
+      "api_key_id": 1,
+      "api_key_name": "arr-mcp",
+      "method": "api_key"
+    },
+    "id": 1,
+    "permissions": {
+      "can_manage_ai": false
+    },
+    "role": "admin",
+    "username": "user1"
+  }
+}

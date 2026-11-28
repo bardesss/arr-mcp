@@ -13,6 +13,7 @@ import {
     hasIndexers,
     hasMediaDetails,
     hasQueue,
+    hasRequestAutomation,
     hasRequestLookup,
     hasRequests,
     hasScanState,
@@ -358,6 +359,9 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
         // must not make a Lidarr diagnosis uncertain.
         const isArtist = item?.kind === 'artist';
         const seerr = isArtist ? undefined : deps.adapters.find(hasRequests);
+        // Whether a Seerr is configured at all, whatever this item is: the request
+        // step has to tell a Seerr that holds nothing from no Seerr to ask.
+        const seerrConfigured = deps.adapters.some(hasRequests);
         // A film or series reads the Radarr, Sonarr and Whisparr queues and the
         // download clients' (no `queueKind`): `queueRowsFor` drops the other kind's
         // rows, but needs them to drop a client row tied to one by download id,
@@ -625,12 +629,27 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
             }
         }
 
+        // Why an automation service requested it. Only an aside on the request step, so a
+        // failed or slow read is left out rather than costing the verdict its certainty.
+        let requestOrigin: Evidence['requestOrigin'];
+        const automation = deps.adapters.find(hasRequestAutomation);
+        if (automation !== undefined && cleanupKind !== undefined && tmdb !== undefined && !budget.expired()) {
+            const read = await budget.race(
+                automation.readRequestOrigin(cleanupKind, tmdb).catch((err: unknown) => {
+                    logger.warn({ service: automation.id, err }, 'request origin read failed; omitting');
+                    return undefined;
+                })
+            );
+            if (read !== TIMED_OUT && read !== undefined) requestOrigin = read;
+        }
+
         degraded.sort();
         libraryDegraded.sort();
         return {
             item,
             ...(guessed.kind ? { itemKindGuessed: true as const } : {}),
             request,
+            seerrConfigured,
             queue,
             queueConfigured,
             rejections,
@@ -647,6 +666,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
             cleanup,
             ...(cleanupAdapter !== undefined && cleanup === undefined ? { cleanupUnread: cleanupAdapter.id } : {}),
             ...(lastImportAt === undefined ? {} : { lastImportAt }),
+            ...(requestOrigin === undefined ? {} : { requestOrigin }),
             ...(albums === undefined ? {} : { albums }),
             libraryDegraded,
             degraded,

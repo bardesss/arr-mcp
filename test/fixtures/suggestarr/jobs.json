@@ -1,0 +1,70 @@
+{
+  "data": [
+    {
+      "approval_pause_mode": "inherit",
+      "created_at": "Wed, 25 Nov 2026 05:45:12 GMT",
+      "delivery_mode": "inherit",
+      "enabled": true,
+      "filters": {},
+      "id": 2,
+      "is_system": false,
+      "job_type": "recommendation",
+      "max_requests_per_user": 0,
+      "max_results": 20,
+      "media_type": "both",
+      "name": "Automatic Recommendations",
+      "owner_id": 1,
+      "pause_if_pending_requests": false,
+      "prevent_suggestions_if_unwatched": false,
+      "request_limit_window_hours": 24,
+      "request_profiles": {},
+      "schedule_type": "preset",
+      "schedule_value": "daily",
+      "seer_identity_mode": "technical_user",
+      "unwatched_suggestion_days": 7,
+      "updated_at": "Wed, 25 Nov 2026 05:45:12 GMT",
+      "user_ids": []
+    },
+    {
+      "approval_pause_mode": "inherit",
+      "created_at": "Wed, 25 Nov 2026 04:59:11 GMT",
+      "delivery_mode": "inherit",
+      "enabled": true,
+      "filters": {
+        "exclude_downloaded": true,
+        "exclude_requested": true,
+        "honor_seer_discovery": false,
+        "include_no_rating": true,
+        "max_content": 10,
+        "max_similar_movie": 5,
+        "max_similar_tv": 2,
+        "request_first_season_only": false,
+        "search_size": 20
+      },
+      "id": 1,
+      "is_system": false,
+      "job_type": "recommendation",
+      "max_requests_per_user": 0,
+      "max_results": 20,
+      "media_type": "both",
+      "name": "Default Automation",
+      "owner_id": null,
+      "pause_if_pending_requests": false,
+      "prevent_suggestions_if_unwatched": false,
+      "request_limit_window_hours": 24,
+      "request_profiles": {},
+      "schedule_type": "cron",
+      "schedule_value": "0 0 * * *",
+      "seer_identity_mode": "technical_user",
+      "unwatched_suggestion_days": 7,
+      "updated_at": "Wed, 25 Nov 2026 04:59:11 GMT",
+      "user_ids": []
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "pages": 1,
+    "per_page": 100,
+    "total": 2
+  }
+}
