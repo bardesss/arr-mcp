@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.6.0](https://github.com/bardesss/arr-mcp/compare/v2.5.0...v2.6.0) (2026-11-28)
+
+
+### Features
+
+* **playback:** record Plex plays from Plex webhooks, music opt-in ([#721](https://github.com/bardesss/arr-mcp/issues/721)) ([be0c44f](https://github.com/bardesss/arr-mcp/commit/be0c44f39447c854fec31701b672fa0bf21a91bb))
+
 ## [2.5.0](https://github.com/bardesss/arr-mcp/compare/v2.4.0...v2.5.0) (2026-11-28)
 
 
