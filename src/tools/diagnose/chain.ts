@@ -55,6 +55,12 @@ export type Evidence = {
      */
     request: { status: RequestStatus | 'unknown'; id?: number; mayRespond?: boolean } | null | undefined;
     /**
+     * Analogue of `queueConfigured`: whether there is a Seerr to ask at all, as
+     * against one that was asked and holds nothing. Both read as `request: null`,
+     * and only the second is a request Seerr does not have.
+     */
+    seerrConfigured: boolean;
+    /**
      * `items` is what the collector actually read, `partial` names the clients
      * that did not answer. One unreachable client used to erase the whole stage,
      * discarding rows another client did return, including the stalled row that
@@ -339,7 +345,10 @@ function requestStep(ev: Evidence, item: MergedItem): Step {
     const step = seerrRequestStep(ev, item);
     if (ev.requestOrigin === undefined) return step;
     const said = originSentence(ev.requestOrigin);
-    return { ...step, detail: ev.request === null ? `No Seerr request matched. ${said}` : `${step.detail} ${said}` };
+    // Only where there was a Seerr to ask: a stack without one also reads as
+    // `request: null`, and then no request was ever looked for.
+    const asked = ev.request === null && ev.seerrConfigured;
+    return { ...step, detail: asked ? `No Seerr request matched. ${said}` : `${step.detail} ${said}` };
 }
 
 function seerrRequestStep(ev: Evidence, item: MergedItem): Step {

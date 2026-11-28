@@ -614,10 +614,11 @@ Reclaimerr that cannot be read only adds it to `degraded`.
 With SuggestArr configured, the request step says when SuggestArr requested the
 title and why, for example "suggestarr requested it on 2026-11-26, similar to a
 watched title (TMDB 1727734)", matched on the title's kind and TMDB id. It
-follows Seerr's own sentence, or replaces "No request recorded" with "No Seerr
-request matched" when SuggestArr filed one Seerr no longer holds. It never
-changes the verdict, and a SuggestArr that cannot be read is left out rather than
-added to `degraded`.
+follows Seerr's own sentence, and with a Seerr configured it replaces "No
+request recorded" with "No Seerr request matched" when SuggestArr filed one
+Seerr no longer holds; with no Seerr to ask, the step keeps its own sentence and
+the SuggestArr one is added to it. It never changes the verdict, and a
+SuggestArr that cannot be read is left out rather than added to `degraded`.
 
 With Bazarr configured, `diagnose_media` ends with a `subtitles` step for a title that
 has a file. It lists the languages Bazarr is missing for it and is `warning`, not

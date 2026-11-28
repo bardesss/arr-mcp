@@ -359,6 +359,9 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
         // must not make a Lidarr diagnosis uncertain.
         const isArtist = item?.kind === 'artist';
         const seerr = isArtist ? undefined : deps.adapters.find(hasRequests);
+        // Whether a Seerr is configured at all, whatever this item is: the request
+        // step has to tell a Seerr that holds nothing from no Seerr to ask.
+        const seerrConfigured = deps.adapters.some(hasRequests);
         // A film or series reads the Radarr, Sonarr and Whisparr queues and the
         // download clients' (no `queueKind`): `queueRowsFor` drops the other kind's
         // rows, but needs them to drop a client row tied to one by download id,
@@ -646,6 +649,7 @@ export async function collectEvidence(deps: DiagnoseDeps, target: DiagnoseTarget
             item,
             ...(guessed.kind ? { itemKindGuessed: true as const } : {}),
             request,
+            seerrConfigured,
             queue,
             queueConfigured,
             rejections,
