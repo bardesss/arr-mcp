@@ -993,7 +993,13 @@ describe('pause_downloads', () => {
             permissions: { transmission: credential(9091) as unknown as AnyServiceConfig }
         });
 
-        await expect(h.call({ service: 'transmission', action: 'limit', speed_limit_kbps: 500 })).rejects.toThrow(/turtle mode/);
+        // The turtle cap's own value is refused too, as is none: the 98 in
+        // force is `alt-speed-down`, not the `speed-limit-down` a limit
+        // writes, so matching it is a coincidence rather than the state asked
+        // for, and the adapter refuses all three the same way.
+        for (const speed_limit_kbps of [500, 98, 0]) {
+            await expect(h.call({ service: 'transmission', action: 'limit', speed_limit_kbps })).rejects.toThrow(/turtle\) mode, capped at 98 KiB\/s/);
+        }
         expect(writes).toEqual([]);
     });
 

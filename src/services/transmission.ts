@@ -178,7 +178,7 @@ const isMarked = (t: PauseRow): boolean => (t.labels ?? []).includes(PAUSE_MARK)
 /** Shared with pause_downloads, which refuses at the preview so no token is issued for it. */
 export const turtleModeRefusal = (service: string, kbps: number | undefined): Error =>
     new Error(
-        `${service} is in alternative speed (turtle) mode, capped at ${kbps} KiB/s, which overrides any normal limit. Turn turtle mode off in Transmission first.`
+        `${service} is in alternative speed (turtle) mode, capped at ${kbps} KiB/s, which overrides any normal limit. Change that cap in Transmission's speed settings, or turn turtle mode off there, where its own schedule can turn it on again by the clock.`
     );
 
 export class TransmissionAdapter
