@@ -327,7 +327,9 @@ speaks to is free software maintained largely by volunteers: [Radarr](https://ra
 [Profilarr](https://github.com/Dictionarry-Hub/profilarr), [Cleanuparr](https://github.com/Cleanuparr/Cleanuparr), [Reclaimerr](https://github.com/jessielw/Reclaimerr), [Maintainerr](https://github.com/Maintainerr/Maintainerr), [Dispatcharr](https://github.com/Dispatcharr/Dispatcharr), [Shelfmark](https://github.com/calibrain/shelfmark), [Grimmory](https://github.com/grimmory-tools/grimmory), [SuggestArr](https://github.com/giuseppe99barchetta/SuggestArr), as are the libraries it is built
 on: [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk),
 [Hono](https://hono.dev), [Zod](https://zod.dev), [Pino](https://getpino.io),
-[Vitest](https://vitest.dev), [yaml](https://eemeli.org/yaml/) and
+[better-sqlite3](https://github.com/WiseLibs/better-sqlite3),
+[jose](https://github.com/panva/jose), [Vitest](https://vitest.dev),
+[yaml](https://eemeli.org/yaml/) and
 [TypeScript](https://www.typescriptlang.org). If you find arr-mcp useful,
 consider supporting them first. [Plex](https://www.plex.tv) and
 [Emby](https://emby.media) are the exceptions: commercial products, but their

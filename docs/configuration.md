@@ -35,8 +35,9 @@ All twenty-three service ids: `radarr`, `sonarr`, `whisparr`, `lidarr`,
 `prowlarr`, `bazarr`, `jellyfin`, `emby`, `seerr`, `sabnzbd`, `nzbget`,
 `transmission`, `qbittorrent`, `deluge`, `plex`, `profilarr`, `cleanuparr`,
 `reclaimerr`, `maintainerr`, `dispatcharr`, `shelfmark`, `grimmory`,
-`suggestarr`. Configure only what you run. Running more than one torrent client at once is supported;
-their queues merge, each item labelled with the client it came from.
+`suggestarr`. Configure only what you run. Running more than one torrent
+client at once is supported; their queues merge, each item labelled with the
+client it came from.
 
 A misspelled key, an unknown service, or an `api_key` on a torrent client or
 NZBGet **fails at startup with the offending field named**, rather than being silently
